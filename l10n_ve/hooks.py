@@ -185,6 +185,32 @@ app_license = "mit"
 # 	"Task": "l10n_ve.task.get_dashboard_data"
 # }
 
+
+fixtures = [
+    {
+        "doctype": "Custom Field",
+        "filters": [
+            ["dt", "=", "Branch"],
+            ["module", "=", "L10N Ve"],
+        ]
+    },
+    {
+        "doctype": "Property Setter",
+        "filters": [
+            ["doc_type", "=", "Branch"],
+            ["module", "=", "L10N Ve"],
+
+        ]
+    },
+    {
+        "doctype": "Print Format",
+        "filters": [
+            ["module", "=", "L10N Ve"]
+        ]
+    },
+]
+
+
 # exempt linked doctypes from being automatically cancelled
 #
 # auto_cancel_exempted_doctypes = ["Auto Repeat"]
