@@ -129,9 +129,10 @@ app_license = "mit"
 # ---------------
 # Override standard doctype classes
 
-# override_doctype_class = {
-# 	"ToDo": "custom_app.overrides.CustomToDo"
-# }
+override_doctype_class = {
+    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
+}
+
 
 # Document Events
 # ---------------
@@ -267,4 +268,3 @@ fixtures = [
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
-

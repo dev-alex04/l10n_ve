@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "allow_import": 1,
+ "autoname": "autoincrement",
+ "creation": "2025-08-08 20:21:42.982711",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "codigo",
+  "descripcion",
+  "aliquot"
+ ],
+ "fields": [
+  {
+   "fieldname": "codigo",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Codigo",
+   "reqd": 1
+  },
+  {
+   "fieldname": "descripcion",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Descripci\u00f3n",
+   "reqd": 1
+  },
+  {
+   "fieldname": "aliquot",
+   "fieldtype": "Table",
+   "options": "Tabulator ISLR Aliquots"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-08-18 23:03:22.170557",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "Tabulator ISLR",
+ "naming_rule": "Autoincrement",
+ "owner": "giovannygonzalez252003@gmail.com",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "descripcion,codigo",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "descripcion",
+ "track_changes": 1
+}

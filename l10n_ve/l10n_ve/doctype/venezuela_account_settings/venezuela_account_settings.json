@@ -1,0 +1,47 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "allow_rename": 1,
+ "creation": "2025-08-14 14:44:24.350917",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "subtracting_calculation_factor"
+ ],
+ "fields": [
+  {
+   "fieldname": "subtracting_calculation_factor",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Subtracting Calculation Factor",
+   "precision": "4",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2025-08-14 21:12:46.209315",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "Venezuela Account Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
