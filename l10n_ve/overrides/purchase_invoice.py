@@ -39,7 +39,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                 "El número de factura o número de control, ya se encuentra asignado a otra factura del mismo proveedor. Intente nuevamente")  # noqa
             frappe.throw(message)
 
-    def set_tax_withholding(self):
+    def set_tax_withholding(self) -> None:
         super(CustomPurchaseInvoice, self).set_tax_withholding()
 
         if not self.tax_withholding_category:
@@ -72,7 +72,6 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
             if tax.account_head == retention_account_head:
                 retention_row = tax
-                # tax.rate = retention_rate
 
         if retention_row and iva_amount > 0:
             retention_amount = (retention_rate / 100) * iva_amount
