@@ -5,6 +5,10 @@ app_description = "Localizacion Venezolana"
 app_email = "dominaerp@domina.com.ve"
 app_license = "mit"
 
+override_doctype_class = {
+    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
+}
+
 # Apps
 # ------------------
 
