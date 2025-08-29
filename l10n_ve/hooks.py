@@ -134,9 +134,10 @@ override_doctype_class = {
 # Override standard doctype classes
 
 override_doctype_class = {
+    "Company": "l10n_ve.overrides.company.CustomCompany",
+ 	"Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
 }
-
 
 # Document Events
 # ---------------
@@ -192,17 +193,19 @@ override_doctype_class = {
 
 
 fixtures = [
-    {
+{
         "doctype": "Custom Field",
         "filters": [
-            ["dt", "=", "Branch"],
+            
+             ["dt", "in", ["Sales Invoice", "Company" , "Customer", "Sales Taxes and Charges Template"]],
+            
             ["module", "=", "L10N Ve"],
         ]
     },
     {
         "doctype": "Property Setter",
         "filters": [
-            ["doc_type", "=", "Branch"],
+            ["doc_type", "in", ["Sales Invoice", "Company"]],
             ["module", "=", "L10N Ve"],
 
         ]
