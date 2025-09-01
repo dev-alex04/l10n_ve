@@ -112,47 +112,44 @@ class CustomSalesInvoice(SalesInvoice):
         self.template_change()
 
     def template_change(self):
-        # 1. Verificar si el cliente es un contribuyente especial
+       
         is_special_taxpayer = frappe.db.get_value("Customer", self.customer, "is_special_taxpayer")
         
-        # Si no es un contribuyente especial, salir de la función
+        
         if not is_special_taxpayer:
             return
 
-        # 2. Buscar si la factura ya tiene la retención de IVA
         if any(row.description == "Retención de IVA" for row in self.taxes):
-            return # La retención ya fue agregada, no hacer nada
+            return 
 
-        # 3. Obtener el nombre de la plantilla de impuestos de la factura
+       
         taxes_and_charges_template = self.taxes_and_charges
         
         if not taxes_and_charges_template:
-            return # No hay plantilla de impuestos, no hacer nada
+            return 
 
-        # 4. Obtener la categoría de retención directamente de la plantilla de impuestos
+        
         withholding_category_name = frappe.db.get_value("Sales Taxes and Charges Template", taxes_and_charges_template, "withholding")
 
         if withholding_category_name:
-            # 5. Obtener los detalles de la retención desde la categoría
+           
             withholding_rate = frappe.db.get_value("Tax Withholding Rate", {"parent": withholding_category_name}, "tax_withholding_rate")
             withholding_account = frappe.db.get_value("Tax Withholding Account", {"parent": withholding_category_name}, "account")
 
-            # 6. Encontrar el impuesto de IVA en las filas de la factura
             vat_tax = None
             for tax_row in self.taxes:
                 if "IVA" in tax_row.account_head:
                     vat_tax = tax_row
                     break
-            
-            # 7. Si se encontró el IVA, agregar la nueva fila de retención
+           
             if vat_tax:
                 self.append("taxes", {
-                    # Cambiar el tipo de cálculo a 'On Previous Row Amount'
+                   
                     "charge_type": "On Previous Row Amount", 
                     "add_deduct_tax": "Deduct",
                     "account_head": withholding_account,
                     "description": "Retención de IVA",
                     "rate": withholding_rate,
-                    "amount": 0, # Se recalculará automáticamente
-                    "total": 0,  # Se recalculará automáticamente
+                    "amount": 0, 
+                    "total": 0,  
                 })
