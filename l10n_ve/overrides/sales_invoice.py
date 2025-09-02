@@ -8,6 +8,8 @@ from l10n_ve.overrides.company import CustomCompany
 
 class CustomSalesInvoice(SalesInvoice):
 
+    
+
     def before_submit(self) -> None:
         
         """
@@ -106,6 +108,7 @@ class CustomSalesInvoice(SalesInvoice):
             return False
         
         return True
+    
      
    
     def validate(self):
