@@ -23,6 +23,8 @@ class CustomSalesInvoice(SalesInvoice):
     def validate(self):
         self._validate_bill_control(raise_throw=True)
         self._validate_bill_no(raise_throw=True)
+        self.validate_vat_tax()
+        self.template_change()
         super().validate()
     
     def set_control_and_invoice_number(self):
@@ -111,10 +113,7 @@ class CustomSalesInvoice(SalesInvoice):
     
      
    
-    def validate(self):
-        super().validate()
-        self.validate_vat_tax()
-        self.template_change()
+        
 
     def get_iva_tax_row(self):
         """Función auxiliar para encontrar y devolver la fila del impuesto de IVA de la factura."""
