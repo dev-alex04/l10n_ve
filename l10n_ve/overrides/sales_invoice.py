@@ -8,8 +8,6 @@ from l10n_ve.overrides.company import CustomCompany
 
 class CustomSalesInvoice(SalesInvoice):
 
-    
-
     def before_submit(self) -> None:
         
         """
@@ -21,12 +19,14 @@ class CustomSalesInvoice(SalesInvoice):
         self.set_control_and_invoice_number()
 
     def validate(self):
+        super().validate()
+        # validación de numero de control y de factura
         self._validate_bill_control(raise_throw=True)
         self._validate_bill_no(raise_throw=True)
+        # 
         self.validate_vat_tax()
         self.template_change()
-        super().validate()
-    
+       
     def set_control_and_invoice_number(self):
         """
         Asigna el número de control y de factura si no existen.
@@ -35,11 +35,9 @@ class CustomSalesInvoice(SalesInvoice):
         if self.bill_control and self.bill_no:
             return
 
-      
         while True:
             # Carga el documento Company (con su clase de override)
             company: CustomCompany = frappe.get_doc('Company', self.company)
-            
             
             numbers = company.get_control_and_invoice_number()
             bill_control = numbers.get('bill_control')
@@ -82,8 +80,7 @@ class CustomSalesInvoice(SalesInvoice):
             return False
 
         return True
-
-
+    
     def _validate_bill_no(self, bill_no: str = None, raise_throw: bool = True) -> bool:
         """
         Valida que el número de factura no esté ya asignado.
@@ -111,10 +108,6 @@ class CustomSalesInvoice(SalesInvoice):
         
         return True
     
-     
-   
-        
-
     def get_iva_tax_row(self):
         """Función auxiliar para encontrar y devolver la fila del impuesto de IVA de la factura."""
         # Obtener el nombre de la cuenta de IVA de la plantilla
@@ -139,14 +132,13 @@ class CustomSalesInvoice(SalesInvoice):
         vat_tax = self.get_iva_tax_row()
         
         # Si se encontró una fila de IVA, verifica si su monto es positivo.
-        if vat_tax and vat_tax.tax_amount <= 1:
+        if vat_tax and vat_tax.tax_amount <= 0:
             frappe.throw("El balance para la cuenta de IVA debe ser de crédito. Por favor, asegure que el monto del impuesto es un valor positivo.")
 
     def template_change(self):
         # 1. Verificar si el cliente es un contribuyente especial
         is_special_taxpayer = frappe.db.get_value("Customer", self.customer, "is_special_taxpayer")
-        
-        
+    
         if not is_special_taxpayer:
             return
 
@@ -158,7 +150,6 @@ class CustomSalesInvoice(SalesInvoice):
         
         withholding_category_name = frappe.db.get_value("Sales Taxes and Charges Template", taxes_and_charges_template, "withholding")
 
-       
         if withholding_category_name:
         
             withholding_description = frappe.db.get_value("Tax Withholding Category", withholding_category_name, "name")
@@ -177,7 +168,7 @@ class CustomSalesInvoice(SalesInvoice):
 
             #  Encontrar el impuesto de IVA en las filas de la factura usando la nueva función auxiliar
             vat_tax = self.get_iva_tax_row()
-            
+                
             #  Si se encontró el IVA y existe la tasa de retención, agregar la nueva fila de retención
             if vat_tax and withholding_rate:
                 iva_amount = vat_tax.tax_amount
@@ -194,7 +185,6 @@ class CustomSalesInvoice(SalesInvoice):
             
             self.calculate_taxes_and_totals()
             
-          
             for row in self.taxes:
-                if row.description == withholding_description:
+                if  row.description == withholding_description:
                     row.rate = withholding_rate
