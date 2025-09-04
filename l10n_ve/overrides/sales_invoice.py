@@ -32,8 +32,7 @@ class CustomSalesInvoice(SalesInvoice):
 
         while True:
             # Carga el documento Company (con su clase de override)
-            company: CustomCompany = frappe.get_doc('Company', self.company)
-            
+            company: CustomCompany = frappe.get_doc('Company', self.company)   
             numbers = company.get_control_and_invoice_number()
             bill_control = numbers.get('bill_control')
             bill_no = numbers.get('bill_no')
@@ -67,13 +66,11 @@ class CustomSalesInvoice(SalesInvoice):
                 'bill_control': bill_control_to_validate
             }
         )
-        
         if is_duplicated:
             message = ("El número de control ya está asignado a otra factura.")
             if raise_throw:
                 frappe.throw(message, title="Advertencia de Duplicado")
             return False
-
         return True
     
     def _validate_bill_no(self, bill_no: str = None, raise_throw: bool = True) -> bool:
@@ -131,7 +128,7 @@ class CustomSalesInvoice(SalesInvoice):
             frappe.throw("El balance para la cuenta de IVA debe ser de crédito. Por favor, asegure que el monto del impuesto es un valor positivo.")
 
     def template_change(self):
-        # 1. Verificar si el cliente es un contribuyente especial
+        # Verificar si el cliente es un contribuyente especial
         is_special_taxpayer = frappe.db.get_value("Customer", self.customer, "is_special_taxpayer")
     
         if not is_special_taxpayer:
@@ -139,14 +136,12 @@ class CustomSalesInvoice(SalesInvoice):
 
         # Obtener la categoría de retención directamente de la plantilla de impuestos
         taxes_and_charges_template = self.taxes_and_charges
-        
         if not taxes_and_charges_template:
             return 
         
         withholding_category_name = frappe.db.get_value("Sales Taxes and Charges Template", taxes_and_charges_template, "withholding")
 
         if withholding_category_name:
-        
             withholding_description = frappe.db.get_value("Tax Withholding Category", withholding_category_name, "name")
             
             #  Verificar si la factura ya tiene la retención de IVA y eliminarla para volver a calcularla
@@ -177,7 +172,7 @@ class CustomSalesInvoice(SalesInvoice):
                     "rate": withholding_rate,
                     "tax_amount": -withholding_amount,
                 })
-            
+
             self.calculate_taxes_and_totals()
             
             for row in self.taxes:
