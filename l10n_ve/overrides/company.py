@@ -7,20 +7,12 @@ class CustomCompany(Company):
         """
         Lee los correlativos actuales y los devuelve formateados.
         """
-<<<<<<< HEAD
-        # Formatear el número de factura
-=======
        
->>>>>>> SCRUM-17
         invoice_format = self.sales_invoce_number_format or "#####"
         next_invoice_num = self.sales_invoice_number_correlative or 1
         bill_no = self.format_number(invoice_format, next_invoice_num)
         
-<<<<<<< HEAD
-        # Formatear el número de control
-=======
        
->>>>>>> SCRUM-17
         control_format = self.sales_invoce_control_number_format or "#####"
         next_control_num = self.sales_invoice_control_number_correlative or 1
         bill_control = self.format_number(control_format, next_control_num)

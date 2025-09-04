@@ -30,11 +30,7 @@ override_doctype_class = {
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/l10n_ve/css/l10n_ve.css"
-<<<<<<< HEAD
-# app_include_js = "/assets/l10n_ve/js/l10n_ve.js"
-=======
 app_include_js = "/assets/l10n_ve/js/sales_invoice.js"
->>>>>>> SCRUM-17
 
 # include js, css files in header of web template
 # web_include_css = "/assets/l10n_ve/css/l10n_ve.css"
