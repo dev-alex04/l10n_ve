@@ -1,9 +1,6 @@
 import frappe     
-# import frappe
 from frappe.model.document import Document
-# Importa la clase original de Sales Invoice
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
-# Importa tu clase personalizada de Company
 from l10n_ve.overrides.company import CustomCompany
 
 class CustomSalesInvoice(SalesInvoice):
