@@ -11,6 +11,7 @@ class CustomSalesInvoice(SalesInvoice):
         y de factura si no existen.
         """
         super().before_submit()
+        self.recalculate_tax_bases()
         self.set_control_and_invoice_number()
 
     def validate(self):
@@ -178,3 +179,12 @@ class CustomSalesInvoice(SalesInvoice):
             for row in self.taxes:
                 if  row.description == withholding_description:
                     row.rate = withholding_rate
+
+    def recalculate_tax_bases(self):
+        """
+        Recalcula la base imponible para cada impuesto en la tabla `taxes`
+        basado en el total neto de la factura.
+        """
+        for tax_row in self.taxes:
+            if tax_row.rate > 0:
+                tax_row.base_tax_amount = self.net_total        
