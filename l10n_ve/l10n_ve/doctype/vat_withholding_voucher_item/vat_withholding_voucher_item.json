@@ -10,7 +10,7 @@
   "bill_no",
   "bill_control",
   "column_break_plby",
-  "bill_date",
+  "posting_date",
   "section_break_tjmu",
   "debit_note",
   "credit_note",
@@ -19,12 +19,12 @@
   "totales_section",
   "column_break_yoyv",
   "column_break_pnui",
-  "total_purchases_vat",
+  "grand_total",
   "purchases_without_tax_credit",
-  "tax_base",
-  "aliquot",
-  "vat",
-  "vat_withheld"
+  "total",
+  "rate",
+  "taxes_and_charges_added",
+  "taxes_and_charges_deducted"
  ],
  "fields": [
   {
@@ -48,14 +48,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "bill_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Fecha Factura",
-   "reqd": 1
-  },
-  {
    "fieldname": "section_break_tjmu",
    "fieldtype": "Section Break"
   },
@@ -75,11 +67,6 @@
   {
    "fieldname": "column_break_pnui",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "total_purchases_vat",
-   "fieldtype": "Currency",
-   "label": "Total Compras + IVA"
   },
   {
    "fieldname": "debit_note",
@@ -102,26 +89,6 @@
    "label": "Compras sin cr\u00e9dito fiscal"
   },
   {
-   "fieldname": "tax_base",
-   "fieldtype": "Currency",
-   "label": "Base Imponible"
-  },
-  {
-   "fieldname": "aliquot",
-   "fieldtype": "Float",
-   "label": "% Alicuota"
-  },
-  {
-   "fieldname": "vat",
-   "fieldtype": "Currency",
-   "label": "IVA"
-  },
-  {
-   "fieldname": "vat_withheld",
-   "fieldtype": "Currency",
-   "label": "IVA Retenido"
-  },
-  {
    "fieldname": "purchase_invoice",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -129,13 +96,54 @@
    "label": "Factura de Compra",
    "options": "Purchase Invoice",
    "reqd": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Fecha Factura",
+   "reqd": 1
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Total Compras + IVA"
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Base Imponible"
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Float",
+   "label": "% Alicuota"
+  },
+  {
+   "fieldname": "taxes_and_charges_added",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "IVA"
+  },
+  {
+   "fieldname": "taxes_and_charges_deducted",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "IVA Retenido"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-01 00:56:43.302019",
+ "modified": "2025-09-05 11:57:08.680987",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher Item",

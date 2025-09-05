@@ -1,35 +1,40 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:voucher_number",
  "creation": "2025-08-26 16:06:42.540261",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "voucher_number",
-  "posting_date",
+  "start_date",
+  "end_date",
   "column_break_flvf",
-  "supplier",
-  "fiscal_period",
-  "column_break_fjrk",
   "empresa",
+  "supplier",
+  "column_break_fjrk",
+  "fiscal_period",
+  "issue_date",
+  "delivery_date",
   "section_break_sanm",
-  "vat_withholding_voucher_item"
+  "vat_withholding_voucher_item",
+  "section_break_oyzq",
+  "column_break_tobf",
+  "column_break_vieg",
+  "totals_grand_total",
+  "totals_purchases_without_tax_credit",
+  "totals_total",
+  "totals_taxes_and_charges_added",
+  "totals_taxes_and_charges_deducted"
  ],
  "fields": [
   {
    "fieldname": "voucher_number",
    "fieldtype": "Data",
    "label": "No. de Comprobante",
+   "read_only": 1,
    "reqd": 1,
-   "search_index": 1
-  },
-  {
-   "default": "Today",
-   "fieldname": "posting_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "Fecha",
-   "reqd": 1
+   "unique": 1
   },
   {
    "fieldname": "column_break_flvf",
@@ -72,16 +77,85 @@
    "fieldtype": "Table",
    "label": "Facturas",
    "options": "VAT Withholding Voucher Item",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Fecha Inicio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "Fecha Fin"
+  },
+  {
+   "fieldname": "section_break_oyzq",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_tobf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_vieg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "totals_grand_total",
+   "fieldtype": "Currency",
+   "label": "Total Compras + IVA",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_purchases_without_tax_credit",
+   "fieldtype": "Currency",
+   "label": "Total Compras sin cr\u00e9dito fiscal",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_total",
+   "fieldtype": "Currency",
+   "label": "Total Base Imponible",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_taxes_and_charges_added",
+   "fieldtype": "Currency",
+   "label": "Total IVA",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_taxes_and_charges_deducted",
+   "fieldtype": "Currency",
+   "label": "Total IVA Retenido",
+   "read_only": 1
+  },
+  {
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Fecha Emisi\u00f3n",
+   "reqd": 1
+  },
+  {
+   "fieldname": "delivery_date",
+   "fieldtype": "Date",
+   "label": "Fecha Entrega",
    "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-08-31 22:33:21.981549",
+ "modified": "2025-09-05 16:00:40.452574",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

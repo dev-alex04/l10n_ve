@@ -6,7 +6,8 @@ app_email = "dominaerp@domina.com.ve"
 app_license = "mit"
 
 override_doctype_class = {
-    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
+    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
+    "Company": "l10n_ve.overrides.company.CustomCompany",
 }
 
 # Apps
