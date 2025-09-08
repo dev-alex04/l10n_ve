@@ -8,6 +8,11 @@ app_license = "mit"
 override_doctype_class = {
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
 }
+app_include_path = "/assets/l10n_ve/js/sales_book.js"
+
+whitelist_methods = [
+    "l10n_ve.l10n_ve.report.sales_book.sales_book.excel_builder"
+]
 
 # Apps
 # ------------------
@@ -31,6 +36,7 @@ override_doctype_class = {
 # include js, css files in header of desk.html
 # app_include_css = "/assets/l10n_ve/css/l10n_ve.css"
 app_include_js = "/assets/l10n_ve/js/sales_invoice.js"
+
 
 # include js, css files in header of web template
 # web_include_css = "/assets/l10n_ve/css/l10n_ve.css"
@@ -138,6 +144,7 @@ override_doctype_class = {
  	"Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
 }
+
 
 # Document Events
 # ---------------

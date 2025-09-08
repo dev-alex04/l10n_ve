@@ -6,6 +6,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "section_break_cliz",
   "general_rate",
   "reduce_rate",
   "additional_rate",
@@ -35,13 +36,17 @@
    "fieldtype": "Float",
    "label": "Exempt Rate",
    "precision": "2"
+  },
+  {
+   "fieldname": "section_break_cliz",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-09-05 09:02:54.561819",
+ "modified": "2025-09-08 13:58:22.107922",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "Taxes Rates",
