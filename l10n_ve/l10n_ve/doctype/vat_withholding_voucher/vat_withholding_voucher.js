@@ -9,28 +9,6 @@
 
 frappe.ui.form.on('VAT Withholding Voucher', {
 
-    refresh: function(frm) {
-        if (!frm.doc.__islocal) {
-            frm.add_custom_button(__('Descargar PDF'), function() {
-                frappe.call({
-                    method: "frappe.utils.print_format.download_pdf",
-                    args: {
-                        doctype: frm.doc.doctype,
-                        name: frm.doc.name,
-                        print_format: "COMPROBANTE DE RETENCIÓN DE IVA EN COMPRA",
-                        orientation: "Landscape"
-                    },
-                    callback: function(r) {
-                        if (r.message) {
-                            // Si la generación es exitosa, se abre la URL del PDF para descargar
-                            window.open(r.message);
-                        }
-                    }
-                });
-            }, __('Acciones'));
-        }
-    },
-
     onload: function(frm) {
         if (frm.doc.__islocal) {
             const company_name = frm.doc.empresa;
@@ -82,10 +60,50 @@ frappe.ui.form.on('VAT Withholding Voucher', {
         frm.clear_table('vat_withholding_voucher_item');
         frm.add_child('vat_withholding_voucher_item');
         frm.refresh_field('vat_withholding_voucher_item');
+
+        frm.set_value('supplier_address', '');
+        frm.refresh_field('supplier_address');
         
         // Si ya hay fechas seleccionadas, carga las facturas
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
+        }
+
+        // --- NUEVO CÓDIGO PARA OBTENER LA DIRECCIÓN ---
+        if (frm.doc.supplier) {
+            frappe.call({
+                method: "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.get_supplier_address",
+                args: {
+                    supplier_name: frm.doc.supplier
+                },
+                callback: function(r) {
+                    if (r.message && r.message.address_line1) {
+                        const full_address = r.message.address_line1;
+                        frm.set_value('supplier_address', full_address);
+                    } else {
+                        // Limpia el campo si no hay dirección
+                        frm.set_value('supplier_address', '');
+                    }
+                }
+            });
+        }
+
+        if (frm.doc.empresa) {
+            frappe.call({
+                method: "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.get_company_address",
+                args: {
+                    company_name: frm.doc.empresa
+                },
+                callback: function(r) {
+                    if (r.message && r.message.address_line1) {
+                        const full_address = r.message.address_line1;
+                        frm.set_value('company_address', full_address);
+                    } else {
+                        // Limpia el campo si no hay dirección
+                        frm.set_value('company_address', '');
+                    }
+                }
+            });
         }
     },
 });

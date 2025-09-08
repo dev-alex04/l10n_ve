@@ -16,6 +16,10 @@
   "fiscal_period",
   "issue_date",
   "delivery_date",
+  "section_break_pncx",
+  "company_address",
+  "column_break_kbuz",
+  "supplier_address",
   "section_break_sanm",
   "vat_withholding_voucher_item",
   "section_break_oyzq",
@@ -146,12 +150,30 @@
    "fieldtype": "Date",
    "label": "Fecha Entrega",
    "reqd": 1
+  },
+  {
+   "fieldname": "section_break_pncx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "company_address",
+   "fieldtype": "Data",
+   "label": "Direcci\u00f3n Empresa"
+  },
+  {
+   "fieldname": "column_break_kbuz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier_address",
+   "fieldtype": "Data",
+   "label": "Direcci\u00f3n Proveedor"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-05 16:00:40.452574",
+ "modified": "2025-09-08 16:56:34.957662",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
