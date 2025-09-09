@@ -5,14 +5,8 @@ app_description = "Localizacion Venezolana"
 app_email = "dominaerp@domina.com.ve"
 app_license = "mit"
 
-override_doctype_class = {
-    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
-}
-app_include_path = "/assets/l10n_ve/js/sales_book.js"
 
-whitelist_methods = [
-    "l10n_ve.l10n_ve.report.sales_book.sales_book.excel_builder"
-]
+
 
 # Apps
 # ------------------
