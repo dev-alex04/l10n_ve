@@ -134,9 +134,9 @@ override_doctype_class = {
 # ---------------
 # Override standard doctype classes
 
-override_doctype_class = {
-    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
-}
+# override_doctype_class = {
+#     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
+# }
 
 
 # Document Events
@@ -196,7 +196,9 @@ fixtures = [
     {
         "doctype": "Custom Field",
         "filters": [
-            ["dt", "=", "Branch"],
+            
+             ["dt", "in", ["Sales Invoice", "Company" , "Customer", "Sales Taxes and Charges Template", "VAT Withholding Voucher", "VAT Withholding Voucher Item", "Purchase Invoice"]],
+            
             ["module", "=", "L10N Ve"],
         ]
     },

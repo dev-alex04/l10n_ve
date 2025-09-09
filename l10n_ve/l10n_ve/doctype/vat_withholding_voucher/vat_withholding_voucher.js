@@ -87,6 +87,21 @@ frappe.ui.form.on('VAT Withholding Voucher', {
                 }
             });
         }
+    },
+
+    empresa: function(frm) {
+        // Limpiamos la tabla para que no se muestren facturas anteriores
+        frm.clear_table('vat_withholding_voucher_item');
+        frm.add_child('vat_withholding_voucher_item');
+        frm.refresh_field('vat_withholding_voucher_item');
+
+        frm.set_value('company_address', '');
+        frm.refresh_field('company_address');
+        
+        // Si ya hay fechas seleccionadas, carga las facturas
+        if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
+            load_invoices(frm);
+        }
 
         if (frm.doc.empresa) {
             frappe.call({
@@ -130,7 +145,7 @@ function validar_fechas(frm, campo) {
 }
 
 function load_invoices(frm) {
-    if (!frm.doc.supplier || !frm.doc.start_date || !frm.doc.end_date) {
+    if (!frm.doc.supplier || !frm.doc.start_date || !frm.doc.end_date || !frm.doc.empresa) {
         return;
     }
 
@@ -141,7 +156,8 @@ function load_invoices(frm) {
         args: {
             supplier: frm.doc.supplier,
             start_date: frm.doc.start_date,
-            end_date: frm.doc.end_date
+            end_date: frm.doc.end_date,
+            company: frm.doc.empresa
         },
         callback: function(r) {
             // Reiniciar los totales antes de calcular

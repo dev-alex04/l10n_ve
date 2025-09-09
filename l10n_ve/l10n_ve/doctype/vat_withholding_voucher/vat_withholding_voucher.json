@@ -153,12 +153,14 @@
   },
   {
    "fieldname": "section_break_pncx",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "hidden": 1
   },
   {
    "fieldname": "company_address",
    "fieldtype": "Data",
-   "label": "Direcci\u00f3n Empresa"
+   "label": "Direcci\u00f3n Empresa",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_kbuz",
@@ -167,13 +169,14 @@
   {
    "fieldname": "supplier_address",
    "fieldtype": "Data",
-   "label": "Direcci\u00f3n Proveedor"
+   "label": "Direcci\u00f3n Proveedor",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-08 16:56:34.957662",
+ "modified": "2025-09-09 11:33:39.527516",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",

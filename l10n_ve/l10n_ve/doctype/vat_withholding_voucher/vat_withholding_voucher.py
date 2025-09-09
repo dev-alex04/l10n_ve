@@ -56,41 +56,8 @@ class VATWithholdingVoucher(Document):
         company_doc.vat_withholding_correlative = final_next_correlative_number
         company_doc.save(ignore_permissions=True)
 
-def get_context(context, doc):
-    print("Holaaaaaaaaaaaa")
-    # Obtiene los datos de la empresa y proveedor
-    company_info = frappe.db.get_value(
-        "Company",
-        doc.empresa,
-        ["name", "tax_id", "address", "phone"]
-    )
-    
-    supplier_info = frappe.db.get_value(
-        "Supplier",
-        doc.supplier,
-        ["name", "tax_id", "address", "phone"]
-    )
-
-    # Asigna la información al contexto
-    context.company_data = company_info
-    context.supplier_data = supplier_info
-
-    # Formatea las fechas y las agrega al contexto
-    if doc.issue_date:
-        context.formatted_issue_date = getdate(doc.issue_date).strftime('%d/%m/%Y')
-    else:
-        context.formatted_issue_date = ""
-
-    if doc.delivery_date:
-        context.formatted_delivery_date = getdate(doc.delivery_date).strftime('%d/%m/%Y')
-    else:
-        context.formatted_delivery_date = ""
-
 @frappe.whitelist()
 def get_supplier_address(supplier_name):
-    """
-    Obtiene la dirección completa de un proveedor.
-    """
     if not supplier_name:
         return None
 
@@ -111,40 +78,17 @@ import frappe
 
 @frappe.whitelist()
 def get_company_address(company_name):
-    """
-    Obtiene la dirección completa de una empresa usando la lógica más robusta.
-    """
     if not company_name:
         return None
 
     try:
-        # Intenta obtener el enlace de la dirección de los campos más comunes
-        address_link = frappe.db.get_value(
-            "Company",
-            company_name,
-            ["address", "default_billing_address"]
-        )
+        # Intenta obtener la dirección por el campo 'address' o 'default_billing_address'
+        company_doc = frappe.get_doc("Company", company_name)
+        address_link = company_doc.get("custom_company_primary_address")
 
-        # Si no se encuentra un enlace directo, busca en la tabla de direcciones
-        if not address_link:
-            addresses = frappe.get_all(
-                "Address",
-                filters={
-                    "links": [
-                        {"link_doctype": "Company", "link_name": company_name}
-                    ]
-                },
-                fields=["name"]
-            )
-            if addresses:
-                address_link = addresses[0].name
-        
-        # Si finalmente se encuentra un enlace, obtiene y devuelve el documento
         if address_link:
-            address_doc = frappe.get_cached_doc("Address", address_link)
+            address_doc = frappe.get_doc("Address", address_link)
             return address_doc.as_dict()
-        else:
-            return None
             
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error getting company address")
@@ -152,10 +96,6 @@ def get_company_address(company_name):
 
 @frappe.whitelist()
 def get_vat_correlative(company_name):
-    """
-    Construye y devuelve el próximo número de comprobante de retención,
-    incrementando el correlativo de forma continua.
-    """
     if not company_name:
         return None
     
@@ -194,9 +134,6 @@ def get_vat_correlative(company_name):
 
 @frappe.whitelist()
 def get_invoiced_purchase_invoices():
-    """
-    Devuelve una lista de facturas de compra que ya están enlazadas a un comprobante de retención.
-    """
     invoices = frappe.get_list(
         "VAT Withholding Voucher Item",
         filters={"parenttype": "VAT Withholding Voucher"},
@@ -205,11 +142,7 @@ def get_invoiced_purchase_invoices():
     return [d.purchase_invoice for d in invoices]
 
 @frappe.whitelist()
-def get_valid_invoices(supplier, start_date, end_date):
-    """
-    Devuelve una lista de facturas de compra para un proveedor y rango de fechas,
-    excluyendo las que ya están en otros comprobantes de retención.
-    """
+def get_valid_invoices(supplier, start_date, end_date, company):
     # Obtiene los nombres de todas las facturas que ya están en un Comprobante de Retención
     excluded_from_withholding = frappe.get_all(
         "VAT Withholding Voucher Item",
@@ -227,7 +160,8 @@ def get_valid_invoices(supplier, start_date, end_date):
         filters={
             "supplier": supplier,
             "posting_date": ["between", [start_date, end_date]],
-            # "docstatus": 1,
+            "company": company,
+            "docstatus": 1,
             # "is_return": 0,
             # "status": ["!=", "Cancelled"],
             "name": ["not in", all_excluded_invoices]
