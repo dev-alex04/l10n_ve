@@ -197,6 +197,12 @@ override_doctype_class = {
 
 fixtures = [
     {
+        "doctype": "Print Format",
+        "filters": [
+            ["name", "in", ["COMPROBANTE DE RETENCIÓN DE IVA EN COMPRA"]]
+        ]
+    },
+    {
         "doctype": "Custom Field",
         "filters": [
             
