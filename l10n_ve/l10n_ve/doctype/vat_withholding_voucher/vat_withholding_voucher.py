@@ -6,6 +6,17 @@ from frappe.model.document import Document
 from frappe.utils import nowdate, getdate
 
 class VATWithholdingVoucher(Document):
+    # def onload(self):
+    #     # super(VATWithholdingVoucher, self).onload()
+    #     if self.supplier:
+    #         self.set_invoice_filters()
+
+    # def set_invoice_filters(self):
+    #     filters = {}
+    #     filters['supplier'] = self.supplier
+
+    #     frappe.ui.form.add_filter(self, 'VAT Withholding Voucher Item', 'purchase_invoice', filters)
+
     def before_insert(self):
         # 1. Obtener el documento de la compañía.
         company_doc = frappe.get_doc("Company", self.empresa)
@@ -19,34 +30,22 @@ class VATWithholdingVoucher(Document):
         current_month = f"{today.month:02d}"
 
         if current_correlative_value:
-            # Extrae la parte numérica del correlativo (del 7mo carácter en adelante)
             last_correlative_part = current_correlative_value[6:]
-            
-            # El número del comprobante es el valor actual (no incrementado)
             voucher_correlative_num = int(last_correlative_part)
-            
-            # El próximo correlativo para la compañía es el valor actual + 1
+    
             next_correlative_num = int(last_correlative_part) + 1
             num_digits = len(last_correlative_part)
         else:
-            # Si es el primer comprobante, el valor es 1
             voucher_correlative_num = 1
             next_correlative_num = 2
             
-            # Asume el formato AAAA-MM-######### para la longitud
             template = company_doc.vat_withholding_format
             num_digits = len(template) - 6
 
-        # Formatea el correlativo para el comprobante
         formatted_voucher_correlative = str(voucher_correlative_num).zfill(num_digits)
-        
-        # Formatea el próximo correlativo para la compañía
         formatted_next_correlative = str(next_correlative_num).zfill(num_digits)
         
-        # Construye el número final para el comprobante con la fecha y el correlativo actual
         final_voucher_number = f"{current_year}{current_month}{formatted_voucher_correlative}"
-
-        # Construye el próximo número para la compañía con la fecha y el correlativo incrementado
         final_next_correlative_number = f"{current_year}{current_month}{formatted_next_correlative}"
 
         # 4. Asigna el número al campo del comprobante.
@@ -101,19 +100,15 @@ def get_vat_correlative(company_name):
     
     company_doc = frappe.get_doc("Company", company_name)
     
-    # Extrae el valor completo del correlativo guardado
     correlative_value = company_doc.vat_withholding_correlative
     
-    # Obtiene la fecha actual
     today = getdate(nowdate())
     current_year = str(today.year)
     current_month = f"{today.month:02d}"
 
     if correlative_value:
-        # Extrae la parte numérica del correlativo (del 7mo carácter en adelante)
         last_correlative_part = correlative_value[6:]
         
-        # Incrementa el correlativo y mantiene la longitud
         new_correlative = int(last_correlative_part)
         num_digits = len(last_correlative_part)
             
@@ -124,10 +119,8 @@ def get_vat_correlative(company_name):
         template = company_doc.vat_withholding_format
         num_digits = len(template) - 6  # Resta los 6 dígitos del AAAA-MM
     
-    # Formatea el correlativo con ceros a la izquierda
     formatted_correlative = str(new_correlative).zfill(num_digits)
     
-    # Construye el número final con el año y mes actuales
     final_withholding_number = f"{current_year}{current_month}{formatted_correlative}"
     
     return final_withholding_number
