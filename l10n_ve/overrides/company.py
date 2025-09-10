@@ -45,3 +45,12 @@ class CustomCompany(Company):
         formatted_number = str(number).zfill(num_placeholders)
         
         return number_format.replace('#' * num_placeholders, formatted_number)
+            
+    def before_save(self):
+        # Inicializa los campos si están vacíos al crear la compañía
+        if not self.vat_withholding_format:
+            # Puedes usar un formato por defecto si el cliente no lo ha especificado
+            self.vat_withholding_format = "##############" 
+        
+        if not self.vat_withholding_correlative:
+            self.vat_withholding_correlative = 1
