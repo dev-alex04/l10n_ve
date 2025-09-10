@@ -42,7 +42,7 @@ def get_columns():
         {"label": _("Nro. Nota de Debito"), "fieldname": "debit_note_no", "fieldtype": "Data", "width": 150},
         {"label": _("Tipo de Transaccion"), "fieldname": "transaction_type", "fieldtype": "Data", "width": 150},
         {"label": _("Ventas Exoneradas"), "fieldname": "exempt_amount", "fieldtype": "Currency", "width": 120},
-        {"label": _("Ventas internas no Gravadas"), "fieldname": "exempt_amount", "fieldtype": "Currency", "width": 120},
+        {"label": _("Ventas internas no Gravadas"), "fieldname": "non_taxable_internal_sales", "fieldtype": "Currency", "width": 120},
         
         # Columnas para Ventas a No Contribuyentes
         {"label": _("Base Imponible No C. G"), "fieldname": "base_general_non_taxpayer", "fieldtype": "Currency", "width": 150},
@@ -109,7 +109,12 @@ def get_sales_data(filters):
 				ELSE 'REG'
 			END AS transaction_type,
 			siv.grand_total,
-			COALESCE(tstac_ex.base_tax_amount, 0) AS exempt_amount,
+			CASE
+                WHEN siv.grand_total = siv.net_total THEN siv.net_total
+                ELSE COALESCE(tstac_ex.base_tax_amount, 0)
+            END AS non_taxable_internal_sales,
+					  
+		   
 			
 			-- Ventas a NO Contribuyentes
 			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.base_tax_amount, 0) ELSE 0 END AS base_general_non_taxpayer,
@@ -180,6 +185,7 @@ def get_total_row(data):
 			"grand_total": sum(d.get("grand_total", 0) for d in data),
 			"exempt_amount": sum(d.get("exempt_amount", 0) for d in data),
 			
+			"non_taxable_internal_sales": sum(d.get("non_taxable_internal_sales", 0) for d in data),
 			"base_general_non_taxpayer": sum(d.get("base_general_non_taxpayer", 0) for d in data),
 			"iva_general_non_taxpayer": sum(d.get("iva_general_non_taxpayer", 0) for d in data),
 			"base_reduced_non_taxpayer": sum(d.get("base_reduced_non_taxpayer", 0) for d in data),
