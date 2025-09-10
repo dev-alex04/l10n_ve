@@ -201,7 +201,7 @@ fixtures = [
         "doctype": "Custom Field",
         "filters": [
             
-             ["dt", "in", ["Sales Invoice", "Company" , "Customer", "Sales Taxes and Charges Template", "VAT Withholding Voucher", "VAT Withholding Voucher Item", "Purchase Invoice"]],
+             ["dt", "in", ["Sales Invoice", "Company" , "Customer", "Sales Taxes and Charges Template", "Purchase Invoice"]],
             
             ["module", "=", "L10N Ve"],
         ]
