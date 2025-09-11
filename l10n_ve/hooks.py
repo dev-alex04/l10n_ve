@@ -220,6 +220,12 @@ fixtures = [
             ["module", "=", "L10N Ve"]
         ]
     },
+    {
+        "doctype": "Report",
+        "filters": [
+            ["name", "=", "purchase_book"]
+        ]
+    }
 ]
 
 
