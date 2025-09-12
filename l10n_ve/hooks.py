@@ -155,7 +155,20 @@ override_doctype_class = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
+scheduler_events = {
+    "cron": {
+    "3 13 * * *": [
+        "l10n_ve.tasks.create_currency_exchange"
+    ],
+    "3 8 * * *": [
+        "l10n_ve.tasks.create_currency_exchange"
+    ],
+    "37 15 * * *": [
+        "l10n_ve.tasks.create_currency_exchange"
+    ]
+}
+
+
 # 	"all": [
 # 		"l10n_ve.tasks.all"
 # 	],
@@ -171,7 +184,7 @@ override_doctype_class = {
 # 	"monthly": [
 # 		"l10n_ve.tasks.monthly"
 # 	],
-# }
+ }
 
 # Testing
 # -------

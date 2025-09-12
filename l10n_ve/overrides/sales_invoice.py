@@ -115,6 +115,7 @@ class CustomSalesInvoice(SalesInvoice):
 
         # Encuentra la fila del impuesto de IVA usando la cuenta de la plantilla
         for tax_row in self.taxes:
+            
             if tax_row.account_head == vat_tax_account:
                 return tax_row
         
@@ -129,6 +130,7 @@ class CustomSalesInvoice(SalesInvoice):
             frappe.throw("El balance para la cuenta de IVA debe ser de crédito. Por favor, asegure que el monto del impuesto es un valor positivo.")
 
     def template_change(self):
+
         # Verificar si el cliente es un contribuyente especial
         is_special_taxpayer = frappe.db.get_value("Customer", self.customer, "is_special_taxpayer")
     
