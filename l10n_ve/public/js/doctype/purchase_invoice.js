@@ -1,0 +1,106 @@
+frappe.ui.form.on("Purchase Invoice", {
+  refresh: function (frm) {
+    set_purchase_invoice_buttons(frm);
+  },
+});
+
+erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
+  item,
+  tax,
+  item_tax_map
+) {
+    var tax_rate = this._get_tax_rate(tax, item_tax_map);
+    var current_tax_amount = 0.0;
+
+    // To set row_id by default as previous row.
+    if(["On Previous Row Amount", "On Previous Row Total"].includes(tax.charge_type)) {
+        if (tax.idx === 1) {
+            frappe.throw(
+                __("Cannot select charge type as 'On Previous Row Amount' or 'On Previous Row Total' for first row"));
+        }
+        if (!tax.row_id) {
+            tax.row_id = tax.idx - 1;
+        }
+    }
+    if(tax.charge_type == "Actual") {
+        // distribute the tax amount proportionally to each item row
+        var actual = flt(tax.tax_amount, precision("tax_amount", tax));
+        current_tax_amount = this.frm.doc.net_total ?
+            ((item.net_amount / this.frm.doc.net_total) * actual) : 0.0;
+
+    } else if(tax.charge_type == "On Net Total") {
+        current_tax_amount = (tax_rate / 100.0) * item.net_amount;
+    } else if(tax.charge_type == "On Previous Row Amount") {
+        current_tax_amount = (tax_rate / 100.0) *
+            this.frm.doc["taxes"][cint(tax.row_id) - 1].tax_amount_for_current_item;
+
+    } else if(tax.charge_type == "On Previous Row Total") {
+        current_tax_amount = (tax_rate / 100.0) *
+            this.frm.doc["taxes"][cint(tax.row_id) - 1].grand_total_for_current_item;
+    } else if (tax.charge_type == "On Item Quantity") {
+        current_tax_amount = tax_rate * item.qty;
+    } else if (tax.charge_type == "ISLR") {
+        tax_base = (this.frm.doc.total * tax.percentage_base) / 100;
+        tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting;
+
+        current_tax_amount = tax_amount > 0 ? tax_amount : 0;
+    }
+
+    if (!tax.dont_recompute_tax) {
+        this.set_item_wise_tax(item, tax, tax_rate, current_tax_amount);
+    }
+
+    return current_tax_amount;
+}
+
+function set_purchase_invoice_buttons(frm) {
+  frm.add_custom_button(__("Agregar concepto de ISLR"), function () {
+    set_islr_concept(frm);
+  });
+}
+
+function set_islr_concept(frm) {
+  let dialog = new frappe.ui.Dialog({
+    title: "Agregar concepto de ISLR",
+    fields: [
+      {
+        in_list_view: 1,
+        fieldtype: "Link",
+        fieldname: "tabulator_islr",
+        label: "Concepto",
+        options: "Tabulator ISLR",
+        reqd: 1,
+      },
+    ],
+    primary_action_label: "Cargar concepto a la factura",
+    primary_action(values) {
+      frappe.dom.freeze(`Cargando concepto a la factura`);
+      dialog.hide();
+
+      frm
+        .call("set_islr_concept", { tabulator_name: values.tabulator_islr })
+        .then((r) => {
+          frappe.dom.unfreeze();
+
+          frappe.show_alert({
+            message: "Concepto cargado satisfactoriamente",
+            indicator: "green",
+          });
+
+        })
+        .catch((error) => {
+          frappe.dom.unfreeze();
+          console.log(error);
+          frappe.msgprint({
+            title: __("Error"),
+            message:
+              "Ocurrió un error al cargar al concepto, intente nuevamente o comuníquese con el administrador del sistema",
+            indicator: "red",
+          });
+          dialog.hide();
+        });
+    },
+  });
+
+  dialog.show();
+}

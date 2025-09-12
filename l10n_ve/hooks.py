@@ -45,7 +45,10 @@ app_include_js = "/assets/l10n_ve/js/sales_invoice.js"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {
+    "Purchase Invoice" : ["public/js/doctype/purchase_invoice.js"]
+}
+
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -192,24 +195,14 @@ override_doctype_class = {
 
 fixtures = [
     {
-        "doctype": "Print Format",
-        "filters": [
-            ["name", "in", ["COMPROBANTE DE RETENCIÓN DE IVA EN COMPRA"]]
-        ]
-    },
-    {
         "doctype": "Custom Field",
-        "filters": [
-            
-             ["dt", "in", ["Sales Invoice", "Company" , "Customer", "Sales Taxes and Charges Template", "Purchase Invoice"]],
-            
+        "filters": [            
             ["module", "=", "L10N Ve"],
         ]
     },
     {
         "doctype": "Property Setter",
         "filters": [
-            ["doc_type", "in", ["Sales Invoice", "Company"]],
             ["module", "=", "L10N Ve"],
 
         ]
