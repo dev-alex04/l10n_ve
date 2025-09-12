@@ -1,11 +1,56 @@
 import frappe
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
+from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 class CustomPurchaseInvoice(PurchaseInvoice):
 
     def before_submit(self) -> None:
         super().before_submit()
         self.validate_duplicate_invoice_numbers()
+
+    def calculate_taxes_and_totals(self):
+        TaxesAndTotals(self)
+
+        if self.doctype in (
+            "Sales Order",
+            "Delivery Note",
+            "Sales Invoice",
+            "POS Invoice",
+        ):
+            self.calculate_commission()
+            self.calculate_contribution()
+
+    @frappe.whitelist()
+    def set_islr_concept(self, tabulator_name: str) -> None:
+
+        tabulator = frappe.get_doc("Tabulator ISLR", tabulator_name)
+
+        type_of_person: str = frappe.db.get_value("Supplier", 
+                                                  self.supplier, 
+                                                  "type_of_person")
+
+        account_head: str = frappe.db.get_value("Company", 
+                                                  self.company, 
+                                                  "account_head")
+        
+        for aliquot in tabulator.aliquot:
+            if type_of_person == aliquot.types_of_person:
+
+                self.append("taxes", {
+                    "category": "Total",
+                    "charge_type": "ISLR",
+                    "add_deduct_tax": "Add",
+                    "rate": aliquot.aliquot,
+                    "codigo": tabulator.codigo,
+                    "account_head": account_head,
+                    "subtracting": aliquot.subtracting,
+                    "description": tabulator.descripcion,
+                    "percentage_base": aliquot.percentage_base,
+                })
+
+        self.save()
+
+        return
 
     def validate_duplicate_invoice_numbers(self) -> None:
 
