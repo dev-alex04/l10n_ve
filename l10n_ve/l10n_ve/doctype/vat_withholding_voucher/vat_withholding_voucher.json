@@ -1,0 +1,203 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:voucher_number",
+ "creation": "2025-08-26 16:06:42.540261",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "voucher_number",
+  "start_date",
+  "end_date",
+  "column_break_flvf",
+  "empresa",
+  "supplier",
+  "column_break_fjrk",
+  "fiscal_period",
+  "issue_date",
+  "delivery_date",
+  "section_break_pncx",
+  "company_address",
+  "column_break_kbuz",
+  "supplier_address",
+  "section_break_sanm",
+  "vat_withholding_voucher_item",
+  "section_break_oyzq",
+  "column_break_tobf",
+  "column_break_vieg",
+  "totals_grand_total",
+  "totals_purchases_without_tax_credit",
+  "totals_total",
+  "totals_taxes_and_charges_added",
+  "totals_taxes_and_charges_deducted"
+ ],
+ "fields": [
+  {
+   "fieldname": "voucher_number",
+   "fieldtype": "Data",
+   "label": "No. de Comprobante",
+   "read_only": 1,
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_flvf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Proveedor",
+   "options": "Supplier",
+   "reqd": 1
+  },
+  {
+   "fieldname": "fiscal_period",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Periodo Fiscal",
+   "options": "Fiscal Year",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_fjrk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "empresa",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Empresa",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_sanm",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "vat_withholding_voucher_item",
+   "fieldtype": "Table",
+   "label": "Facturas",
+   "options": "VAT Withholding Voucher Item",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Fecha Inicio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "Fecha Fin"
+  },
+  {
+   "fieldname": "section_break_oyzq",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_tobf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_vieg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "totals_grand_total",
+   "fieldtype": "Currency",
+   "label": "Total Compras + IVA",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_purchases_without_tax_credit",
+   "fieldtype": "Currency",
+   "label": "Total Compras sin cr\u00e9dito fiscal",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_total",
+   "fieldtype": "Currency",
+   "label": "Total Base Imponible",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_taxes_and_charges_added",
+   "fieldtype": "Currency",
+   "label": "Total IVA",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_taxes_and_charges_deducted",
+   "fieldtype": "Currency",
+   "label": "Total IVA Retenido",
+   "read_only": 1
+  },
+  {
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Fecha Emisi\u00f3n",
+   "reqd": 1
+  },
+  {
+   "fieldname": "delivery_date",
+   "fieldtype": "Date",
+   "label": "Fecha Entrega",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_pncx",
+   "fieldtype": "Section Break",
+   "hidden": 1
+  },
+  {
+   "fieldname": "company_address",
+   "fieldtype": "Data",
+   "label": "Direcci\u00f3n Empresa",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_kbuz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier_address",
+   "fieldtype": "Data",
+   "label": "Direcci\u00f3n Proveedor",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-09-09 11:33:39.527516",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VAT Withholding Voucher",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

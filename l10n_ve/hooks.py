@@ -5,8 +5,7 @@ app_description = "Localizacion Venezolana"
 app_email = "dominaerp@domina.com.ve"
 app_license = "mit"
 
-
-
+app_include_js = "/assets/l10n_ve/js/company.js"
 
 # Apps
 # ------------------
@@ -207,11 +206,17 @@ scheduler_events = {
 
 
 fixtures = [
-{
+    {
+        "doctype": "Print Format",
+        "filters": [
+            ["name", "in", ["COMPROBANTE DE RETENCIÓN DE IVA EN COMPRA"]]
+        ]
+    },
+    {
         "doctype": "Custom Field",
         "filters": [
             
-             ["dt", "in", ["Sales Invoice", "Company" , "Customer", "Sales Taxes and Charges Template"]],
+             ["dt", "in", ["Sales Invoice", "Company" , "Customer", "Sales Taxes and Charges Template", "Purchase Invoice"]],
             
             ["module", "=", "L10N Ve"],
         ]

@@ -1,0 +1,156 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-08-26 16:45:18.582736",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "purchase_invoice",
+  "bill_no",
+  "bill_control",
+  "column_break_plby",
+  "posting_date",
+  "section_break_tjmu",
+  "debit_note",
+  "credit_note",
+  "column_break_sgzl",
+  "affected_invoice",
+  "totales_section",
+  "column_break_yoyv",
+  "column_break_pnui",
+  "grand_total",
+  "purchases_without_tax_credit",
+  "total",
+  "rate",
+  "taxes_and_charges_added",
+  "taxes_and_charges_deducted"
+ ],
+ "fields": [
+  {
+   "fieldname": "bill_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "No. Factura",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bill_control",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "No. Control",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_plby",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_tjmu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_sgzl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "totales_section",
+   "fieldtype": "Section Break",
+   "label": "Totales"
+  },
+  {
+   "fieldname": "column_break_yoyv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_pnui",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "debit_note",
+   "fieldtype": "Data",
+   "label": "N/D"
+  },
+  {
+   "fieldname": "credit_note",
+   "fieldtype": "Data",
+   "label": "N/C"
+  },
+  {
+   "fieldname": "affected_invoice",
+   "fieldtype": "Data",
+   "label": "Factura Afectada"
+  },
+  {
+   "fieldname": "purchases_without_tax_credit",
+   "fieldtype": "Currency",
+   "label": "Compras sin cr\u00e9dito fiscal"
+  },
+  {
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Factura de Compra",
+   "options": "Purchase Invoice",
+   "reqd": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Fecha Factura",
+   "reqd": 1
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Total Compras + IVA"
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Base Imponible"
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Float",
+   "label": "% Alicuota"
+  },
+  {
+   "fieldname": "taxes_and_charges_added",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "IVA"
+  },
+  {
+   "fieldname": "taxes_and_charges_deducted",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "IVA Retenido"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-09-05 11:57:08.680987",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VAT Withholding Voucher Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
