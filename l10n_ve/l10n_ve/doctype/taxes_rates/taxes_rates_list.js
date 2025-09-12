@@ -1,7 +1,7 @@
 
-    // Archivo JS para personalizar la vista de lista de kij
+    // Archivo JS para personalizar la vista de lista de Taxes Rates
     // Más información: https://frappeframework.com/docs/v15/user/en/desk/views/list-view#listviewsettings
-    frappe.listview_settings['kij'] = {
+    frappe.listview_settings['Taxes Rates'] = {
     // add fields to fetch
     // add_fields: ['title', 'public'],
     // set default filters
@@ -16,7 +16,7 @@
         // triggers once before the list is loaded
         // Ejemplo: Añadir un botón
         // listview.page.add_inner_button(__("Mi Acción"), function() {
-        // 	frappe.msgprint("Acción para kij");
+        // 	frappe.msgprint("Acción para Taxes Rates");
         // });
     },
     before_render() {
@@ -37,7 +37,7 @@
     // primary_action() {
         // triggers when the primary action is clicked
         // Ejemplo: Acción por defecto
-        // frappe.new_doc('kij');
+        // frappe.new_doc('Taxes Rates');
     // },
     // get_form_link(doc) {
         // override the form route for this doc
@@ -64,7 +64,7 @@
     // 	},
     // 	action(doc) {
     // 		// Acción al hacer clic en el botón
-    // 		frappe.set_route('Form', 'kij', doc.name);
+    // 		frappe.set_route('Form', 'Taxes Rates', doc.name);
     // 	}
     // },
     // format how a field value is shown

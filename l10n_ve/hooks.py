@@ -30,6 +30,7 @@ app_include_js = "/assets/l10n_ve/js/company.js"
 # app_include_css = "/assets/l10n_ve/css/l10n_ve.css"
 app_include_js = "/assets/l10n_ve/js/sales_invoice.js"
 
+
 # include js, css files in header of web template
 # web_include_css = "/assets/l10n_ve/css/l10n_ve.css"
 # web_include_js = "/assets/l10n_ve/js/l10n_ve.js"
@@ -137,6 +138,7 @@ override_doctype_class = {
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
 }
 
+
 # Document Events
 # ---------------
 # Hook on document methods and events
@@ -152,7 +154,20 @@ override_doctype_class = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
+scheduler_events = {
+    "cron": {
+    "3 13 * * *": [
+        "l10n_ve.tasks.create_currency_exchange"
+    ],
+    "3 8 * * *": [
+        "l10n_ve.tasks.create_currency_exchange"
+    ],
+    "37 15 * * *": [
+        "l10n_ve.tasks.create_currency_exchange"
+    ]
+}
+
+
 # 	"all": [
 # 		"l10n_ve.tasks.all"
 # 	],
@@ -168,7 +183,7 @@ override_doctype_class = {
 # 	"monthly": [
 # 		"l10n_ve.tasks.monthly"
 # 	],
-# }
+ }
 
 # Testing
 # -------

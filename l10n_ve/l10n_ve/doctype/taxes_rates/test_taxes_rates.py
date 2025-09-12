@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class Testkij(FrappeTestCase):
+class TestTaxesRates(FrappeTestCase):
 	pass

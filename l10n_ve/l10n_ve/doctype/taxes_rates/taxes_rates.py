@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class kij(Document):
+class TaxesRates(Document):
 	pass

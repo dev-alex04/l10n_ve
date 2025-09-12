@@ -1,7 +1,7 @@
 // Copyright (c) 2025, DominaERP and contributors
 // For license information, please see license.txt
 
-// frappe.ui.form.on("kij", {
+// frappe.ui.form.on("Taxes Rates", {
 // 	refresh(frm) {
 
 // 	},
