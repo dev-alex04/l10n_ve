@@ -28,19 +28,24 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         type_of_person: str = frappe.db.get_value("Supplier", 
                                                   self.supplier, 
                                                   "type_of_person")
+
+        account_head: str = frappe.db.get_value("Company", 
+                                                  self.company, 
+                                                  "account_head")
         
         for aliquot in tabulator.aliquot:
             if type_of_person == aliquot.types_of_person:
 
                 self.append("taxes", {
-                    "rate": aliquot.aliquot,
-                    "charge_type": "ISLR",
-                    "account_head": "4.1.1.1.10 - VENTAS NACIONALES SECTOR PRIVADO - Evelasquez",
-                    "description": tabulator.descripcion,
-                    "add_deduct_tax": "Add",
                     "category": "Total",
+                    "charge_type": "ISLR",
+                    "add_deduct_tax": "Add",
+                    "rate": aliquot.aliquot,
+                    "codigo": tabulator.codigo,
+                    "account_head": account_head,
+                    "subtracting": aliquot.subtracting,
+                    "description": tabulator.descripcion,
                     "percentage_base": aliquot.percentage_base,
-                    "subtracting": aliquot.subtracting
                 })
 
         self.save()
