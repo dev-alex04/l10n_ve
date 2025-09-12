@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _, throw
 
 def get_report_summary(totals):
     summary = [
@@ -97,7 +98,7 @@ def execute(filters=None):
         {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": 120},
         {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": 120},
         {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": 200},
-        {"fieldname": "tipo", "label": "Tipo", "fieldtype": "Data", "width": 60},
+        {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": 60},
         {"fieldname": "bill_no", "label": "Nro. de Factura", "fieldtype": "Data", "width": 100},
         {"fieldname": "bill_control", "label": "Nro. de Control", "fieldtype": "Data", "width": 100},
         {"fieldname": "nro_nota_credito", "label": "Nro. Nota de Crédito", "fieldtype": "Data", "width": 100},
@@ -120,63 +121,68 @@ def execute(filters=None):
         {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": 150}
     ]
 
-    conditions = "AND T1.docstatus = 1"
+    conditions = "AND tPI.docstatus = 1"
     values = []
 
-    if filters.get("start_date"):
-        conditions += " AND T1.posting_date >= %s"
-        values.append(filters.get("start_date"))
+    if filters.get("date_from"):
+        conditions += " AND tPI.posting_date >= %s"
+        values.append(filters.get("date_from"))
 
-    if filters.get("end_date"):
-        conditions += " AND T1.posting_date <= %s"
-        values.append(filters.get("end_date"))
+    if filters.get("to_date"):
+        conditions += " AND tPI.posting_date <= %s"
+        values.append(filters.get("to_date"))
 
     if filters.get("company"):
-        conditions += " AND T1.company = %s"
+        conditions += " AND tPI.company = %s"
         values.append(filters.get("company"))
     
     query = f"""
         SELECT
-            T1.name as nro_factura,
-            T1.posting_date as posting_date,
+            tPI.name as nro_factura,
+            tPI.posting_date as posting_date,
             T4.tax_id as tax_id,
-            T1.supplier_name as supplier_name,
-            T1.is_return as tipo,
-            T1.bill_no as bill_no,
-            T1.bill_control as bill_control,
-            T1.grand_total as grand_total,
-            SUM(CASE WHEN T5.rate = 8 THEN T1.total ELSE 0 END) as base_reducida,
+            tPI.supplier_name as supplier_name,
+            tPI.is_return as tipo,
+            tPI.bill_no as bill_no,
+            tPI.bill_control as bill_control,
+            tPI.grand_total as grand_total,
+            SUM(CASE WHEN T5.rate = 8 THEN tPI.total ELSE 0 END) as base_reducida,
             SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) as impuesto_reducida,
-            SUM(CASE WHEN T5.rate = 16 THEN T1.total ELSE 0 END) as base_general,
+            SUM(CASE WHEN T5.rate = 16 THEN tPI.total ELSE 0 END) as base_general,
             SUM(CASE WHEN T5.rate = 16 THEN T5.tax_amount ELSE 0 END) as impuesto_general,
-            SUM(CASE WHEN T5.rate = 31 THEN T1.total ELSE 0 END) as base_adicional,
+            SUM(CASE WHEN T5.rate = 31 THEN tPI.total ELSE 0 END) as base_adicional,
             SUM(CASE WHEN T5.rate = 31 THEN T5.tax_amount ELSE 0 END) as impuesto_adicional,
             MAX(T2.name) as nro_comprobante_retencion,
             MAX(T2.delivery_date) as fecha_entrega,
             MAX(CASE WHEN T5.charge_type = 'Actual' THEN T5.rate ELSE 0 END) as porcentaje_ret,
-            MAX(T1.taxes_and_charges_deducted) as taxes_and_charges_deducted
+            MAX(tPI.taxes_and_charges_deducted) as taxes_and_charges_deducted,
+            CASE 
+                WHEN T4.supplier_type = 'Company' THEN 'PJ' 
+                WHEN T4.supplier_type = 'Individual' THEN 'PN' 
+                WHEN T4.supplier_type = 'Partnership' THEN 'PJ' 
+                ELSE "N/A" 
+            END AS supplier_type
         FROM
-            `tabPurchase Invoice` as T1
+            `tabPurchase Invoice` as tPI
         LEFT JOIN
             `tabPurchase Taxes and Charges` as T5
-            ON T5.parent = T1.name
+            ON T5.parent = tPI.name
         LEFT JOIN
             `tabVAT Withholding Voucher Item` as T3
-            ON T3.purchase_invoice = T1.name
+            ON T3.purchase_invoice = tPI.name
         LEFT JOIN
             `tabVAT Withholding Voucher` as T2
             ON T3.parent = T2.name
         LEFT JOIN
             `tabSupplier` as T4
-            ON T4.name = T1.supplier
+            ON T4.name = tPI.supplier
         WHERE
             1=1 {conditions}
-        GROUP BY T1.name
+        GROUP BY tPI.name
     """
     
     data = frappe.db.sql(query, tuple(values), as_dict=True)
     totals = get_totals_from_data(data)
-
     report_summary = get_report_summary(totals)
 
     return columns, data, None, None, report_summary
