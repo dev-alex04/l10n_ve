@@ -10,17 +10,19 @@
 frappe.ui.form.on('VAT Withholding Voucher', {
     refresh: function(frm) {
         // Agrega un botón personalizado en el formulario
-        frm.add_custom_button(__('Imprimir Comprobante'), function() {
-            // Abre una nueva pestaña del navegador
-            window.open(
-                // Construye la URL de la vista de impresión
-                frappe.urllib.get_full_url(
-                    "/printview?doctype=" + frm.doctype +
-                    "&name=" + frm.doc.name +
-                    "&format=" + encodeURIComponent("COMPROBANTE DE RETENCIÓN DE IVA EN COMPRA")
-                )
-            );
-        }, "Imprimir", "btn-default");
+        if (!frm.is_new()) {
+            frm.add_custom_button(__('Imprimir Comprobante'), function() {
+                // Abre una nueva pestaña del navegador
+                window.open(
+                    // Construye la URL de la vista de impresión
+                    frappe.urllib.get_full_url(
+                        "/printview?doctype=" + frm.doctype +
+                        "&name=" + frm.doc.name +
+                        "&format=" + encodeURIComponent("COMPROBANTE DE RETENCIÓN DE IVA EN COMPRA")
+                    )
+                );
+            });
+        }
     },
 
     onload: function(frm) {
