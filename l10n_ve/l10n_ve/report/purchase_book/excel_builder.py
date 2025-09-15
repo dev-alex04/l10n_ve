@@ -7,8 +7,6 @@ from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
 from datetime import datetime
 
-# Importamos las funciones necesarias directamente de tu reporte de compras.
-# Asegúrate de que esta ruta de importación sea la correcta.
 from l10n_ve.l10n_ve.report.purchase_book.purchase_book import execute, get_totals_from_data
 
 class ExcelBuilder:
@@ -120,10 +118,8 @@ class ExcelBuilder:
                 column_widths[col_letter] = max(column_widths.get(col_letter, 0), cell_length + 2)
             row_index += 1
         
-        # --- Agregar una fila en blanco para crear un espacio antes de los totales ---
         row_index += 1
-        
-        # --- Agregar la fila de totales ---
+         
         total_row_index = row_index
         
         # Escribir el label "Totales" en la primera columna
@@ -178,15 +174,12 @@ class ExcelBuilder:
 
         current_row += 1
         
-        # Ahora usamos directamente el diccionario `totals` para rellenar las filas
-        # que corresponden a la tabla resumen.
         summary_rows = [
             {"concept": "Compras no Gravadas", "base": self.totals.get("compras_sin_credito", 0), "credit": 0, "retention": 0},
             {"concept": "Compras de Importación", "base": 0, "credit": 0, "retention": 0},
             {"concept": "Compras internas (tasa general)", "base": self.totals.get("base_general", 0), "credit": self.totals.get("impuesto_general", 0), "retention": 0},
             {"concept": "Compras internas (tasa general + adicional)", "base": self.totals.get("base_adicional", 0), "credit": self.totals.get("impuesto_adicional", 0), "retention": 0},
             {"concept": "Compras internas (tasa reducida)", "base": self.totals.get("base_reducida", 0), "credit": self.totals.get("impuesto_reducida", 0), "retention": 0},
-            # 🔑 Línea corregida: Se usa la clave correcta del diccionario
             {"concept": "Retención de IVA", "base": 0, "credit": 0, "retention": self.totals.get("taxes_and_charges_deducted", 0)}
         ]
         
@@ -266,21 +259,10 @@ def create_excel_file(report_name, filters=None, **kwargs):
         filters = json.loads(filters)
     
     try:
-        # Llamamos a la función `execute` de tu reporte de compras para obtener las columnas y los datos
+    
         columns, data, message, chart, report_summary = execute(filters)
         
-        # Obtenemos el diccionario de totales para la tabla principal
         totals = get_totals_from_data(data)
-
-        # 🔑 Bloque de código a eliminar: Ya no es necesario
-        # retention_fieldnames = ["retained_vat_amount", "vat_retained", "retencion_iva_amount"]
-        # total_retencion = 0
-        # for row_data in data:
-        #     for fieldname in retention_fieldnames:
-        #         if fieldname in row_data:
-        #             total_retencion += frappe.utils.flt(row_data.get(fieldname, 0))
-        #             break
-        # totals["total_retained_vat"] = total_retencion
 
         if not data:
             frappe.throw(_("No se encontraron datos para los filtros seleccionados."))

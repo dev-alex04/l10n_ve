@@ -217,6 +217,7 @@ def generate_xml_islr_file(filters=None):
             tPI.bill_control,
             tPI.grand_total,
             tPTC.tax_amount AS retention_amount,
+            tPTC.code AS code
             tPTC.rate AS retention_percentage
         FROM
             `tabPurchase Taxes and Charges` AS tPTC
@@ -232,12 +233,12 @@ def generate_xml_islr_file(filters=None):
     if not invoices:
         return None
 
-    # Construct the XML header and root element.
+   
     xml_data = '<?xml version="1.0" encoding="UTF-8"?>\n<RelacionRetencionesISLR>\n'
 
-    # Add each invoice as a <DetalleRetencion> entry.
+
     for i, inv in enumerate(invoices):
-        # We need to get the tax_id from the Supplier doctype, as it's not directly on the tax record.
+        
         supplier_tax_id = frappe.db.get_value("Supplier", inv.supplier, "tax_id")
         
         xml_data += f'    <DetalleRetencion>\n'
@@ -245,12 +246,12 @@ def generate_xml_islr_file(filters=None):
         xml_data += f'        <NumeroFactura>{inv.bill_no}</NumeroFactura>\n'
         xml_data += f'        <NumeroControl>{inv.bill_control}</NumeroControl>\n'
         xml_data += f'        <FechaOperacion>{inv.posting_date}</FechaOperacion>\n'
-        xml_data += f'        <CodigoConcepto>{inv.code}</CodigoConcepto>\n' # Example ISLR concept code
+        xml_data += f'        <CodigoConcepto>{inv.}</CodigoConcepto>\n' 
         xml_data += f'        <MontoOperacion>{inv.grand_total:.2f}</MontoOperacion>\n'
         xml_data += f'        <PorcentajeRetencion>{inv.retention_percentage}</PorcentajeRetencion>\n'
         xml_data += f'    </DetalleRetencion>\n'
 
-    # Close the root element.
+   
     xml_data += '</RelacionRetencionesISLR>'
 
     return xml_data

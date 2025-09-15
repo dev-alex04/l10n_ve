@@ -38,7 +38,7 @@ frappe.query_reports["purchase_book"] = {
             // Llama a la función de Python para la exportación y maneja la descarga
             frappe.call({
                 method: "l10n_ve.l10n_ve.report.purchase_book.excel_builder.create_excel_file",
-                args: { report_name: "Sales book", filters: JSON.stringify(filters) },
+                args: { report_name: "Libro de Compra", filters: JSON.stringify(filters) },
                 callback: function(r) {
                     if (r.message) {
                         // El servidor ha devuelto la URL del archivo, abrimos la descarga

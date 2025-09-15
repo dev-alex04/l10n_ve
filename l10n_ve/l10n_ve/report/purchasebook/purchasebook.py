@@ -281,7 +281,7 @@ def generate_txt_file(filters):
             "doctype": "File",
             "file_name": f"IVA_TXT-{company_doc.abbr}-{frappe.generate_hash(length=8)}.txt",
             "attached_to_doctype": "Report",
-            "attached_to_name": "vat-retention-report",
+            "attached_to_name": "purchasebook",
             "content": content,
             "is_private": 1
         })
