@@ -19,7 +19,7 @@
   "tax_amount",
   "column_break_mvde",
   "rate",
-  "codigo",
+  "code",
   "subtracting"
  ],
  "fields": [
@@ -83,7 +83,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "codigo",
+   "fieldname": "code",
    "fieldtype": "Data",
    "label": "C\u00f3digo Concepto",
    "reqd": 1

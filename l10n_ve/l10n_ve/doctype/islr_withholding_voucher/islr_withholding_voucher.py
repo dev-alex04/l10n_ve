@@ -113,7 +113,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
                     "posting_date": invoice.posting_date,
                     "rate": tax_item.rate, 
                     "subtracting": tax_item.subtracting, 
-                    "codigo": tax_item.codigo, 
+                    "code": tax_item.code, 
                     "amount_paid": invoice.grand_total,
                     "grand_total": invoice.grand_total,
                     "total": invoice.total,

@@ -171,7 +171,7 @@ function load_invoices(frm) {
                         new_row.amount_paid = invoice.grand_total;
                         new_row.rate = tax_item.rate; 
                         new_row.subtracting = tax_item.subtracting; 
-                        new_row.codigo = tax_item.codigo; 
+                        new_row.code = tax_item.code; 
                         new_row.tax_amount = tax_item.tax_amount;
                     }
                     
