@@ -3,6 +3,13 @@
 
 import frappe
 from frappe import _, throw
+from frappe.utils import flt, getdate, format_date
+from collections import defaultdict
+import calendar
+from datetime import date
+from io import StringIO
+import json
+import re
 
 def get_report_summary(totals):
     summary = [
@@ -186,3 +193,65 @@ def execute(filters=None):
     report_summary = get_report_summary(totals)
 
     return columns, data, None, None, report_summary
+
+
+@frappe.whitelist()
+def generate_xml_islr_file(filters=None):
+    """
+    Generates an XML string for ISLR retentions based on report filters.
+    """
+    if not filters:
+        frappe.throw(_("Filtros de fecha son requeridos."))
+
+    # Ensure filters is a dictionary
+    if isinstance(filters, str):
+        filters = json.loads(filters)
+
+  
+    invoices = frappe.db.sql("""
+        SELECT
+            tPI.name,
+            tPI.supplier,
+            tPI.posting_date,
+            tPI.bill_no,
+            tPI.bill_control,
+            tPI.grand_total,
+            tPTC.tax_amount AS retention_amount,
+            tPTC.rate AS retention_percentage
+        FROM
+            `tabPurchase Taxes and Charges` AS tPTC
+        JOIN
+            `tabPurchase Invoice` AS tPI ON tPTC.parent = tPI.name
+        WHERE
+            tPTC.charge_type = 'ISLR' AND tPI.docstatus = 1
+            AND tPI.posting_date >= %(date_from)s
+            AND tPI.posting_date <= %(to_date)s
+            AND tPI.company = %(company)s
+    """, filters, as_dict=True)
+
+    if not invoices:
+        return None
+
+    # Construct the XML header and root element.
+    xml_data = '<?xml version="1.0" encoding="UTF-8"?>\n<RelacionRetencionesISLR>\n'
+
+    # Add each invoice as a <DetalleRetencion> entry.
+    for i, inv in enumerate(invoices):
+        # We need to get the tax_id from the Supplier doctype, as it's not directly on the tax record.
+        supplier_tax_id = frappe.db.get_value("Supplier", inv.supplier, "tax_id")
+        
+        xml_data += f'    <DetalleRetencion>\n'
+        xml_data += f'        <RifRetenido>{supplier_tax_id}</RifRetenido>\n'
+        xml_data += f'        <NumeroFactura>{inv.bill_no}</NumeroFactura>\n'
+        xml_data += f'        <NumeroControl>{inv.bill_control}</NumeroControl>\n'
+        xml_data += f'        <FechaOperacion>{inv.posting_date}</FechaOperacion>\n'
+        xml_data += f'        <CodigoConcepto>{inv.codigo}</CodigoConcepto>\n' # Example ISLR concept code
+        xml_data += f'        <MontoOperacion>{inv.grand_total:.2f}</MontoOperacion>\n'
+        xml_data += f'        <PorcentajeRetencion>{inv.retention_percentage}</PorcentajeRetencion>\n'
+        xml_data += f'    </DetalleRetencion>\n'
+
+    # Close the root element.
+    xml_data += '</RelacionRetencionesISLR>'
+
+    return xml_data
+
