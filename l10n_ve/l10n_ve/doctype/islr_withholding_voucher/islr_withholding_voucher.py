@@ -10,7 +10,7 @@ class ISLRWithholdingVoucher(Document):
 	def before_insert(self):
 		company_doc = frappe.get_doc("Company", self.empresa)
 
-		current_correlative_value = company_doc.vat_withholding_correlative
+		current_correlative_value = company_doc.islr_withholding_correlative
 
 		today = getdate(nowdate())
 		current_year = str(today.year)
@@ -26,7 +26,7 @@ class ISLRWithholdingVoucher(Document):
 			voucher_correlative_num = 1
 			next_correlative_num = 2
 			
-			template = company_doc.vat_withholding_format
+			template = company_doc.islr_withholding_format
 			num_digits = len(template) - 6
 
 		formatted_voucher_correlative = str(voucher_correlative_num).zfill(num_digits)
@@ -37,7 +37,7 @@ class ISLRWithholdingVoucher(Document):
 
 		self.voucher_number = final_voucher_number
 
-		company_doc.vat_withholding_correlative = final_next_correlative_number
+		company_doc.islr_withholding_correlative = final_next_correlative_number
 		company_doc.save(ignore_permissions=True)
 
 @frappe.whitelist()
@@ -47,7 +47,7 @@ def get_vat_correlative(company_name):
     
     company_doc = frappe.get_doc("Company", company_name)
     
-    correlative_value = company_doc.vat_withholding_correlative
+    correlative_value = company_doc.islr_withholding_correlative
     
     today = getdate(nowdate())
     current_year = str(today.year)
@@ -61,7 +61,7 @@ def get_vat_correlative(company_name):
             
     else:
         new_correlative = 1
-        template = company_doc.vat_withholding_format
+        template = company_doc.islr_withholding_format
         num_digits = len(template) - 6
     
     formatted_correlative = str(new_correlative).zfill(num_digits)
