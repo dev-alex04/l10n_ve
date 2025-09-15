@@ -6,6 +6,14 @@ class TaxesAndTotals(calculate_taxes_and_totals):
     def __init__(self, doc):
         super().__init__(doc)
 
+    def calculate_total_without_exempt(self):
+        total_without_exempt = 0
+        for item in self.doc.items:
+            if item.vat_exempt:
+                total_without_exempt += item.amount
+
+        self.doc.total_without_exempt = total_without_exempt
+
     def get_current_tax_amount(self, item, tax, item_tax_map):
         tax_rate = self._get_tax_rate(tax, item_tax_map)
         current_tax_amount = 0.0
@@ -25,7 +33,10 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 )
 
         elif tax.charge_type == "On Net Total":
-            current_tax_amount = (tax_rate / 100.0) * item.net_amount
+            current_tax_amount = tax.tax_amount
+
+            if not item.vat_exempt:
+                current_tax_amount = (tax_rate / 100.0) * item.net_amount
 
         elif tax.charge_type == "On Previous Row Amount":
             current_tax_amount = (tax_rate / 100.0) * self.doc.get("taxes")[
