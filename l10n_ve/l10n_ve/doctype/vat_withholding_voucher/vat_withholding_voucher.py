@@ -150,15 +150,25 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     # Obtiene los datos de las facturas que cumplen con los criterios y no están excluidas
     valid_invoices_names = frappe.get_all(
         "Purchase Invoice",
-        filters={
-            "supplier": supplier,
-            "posting_date": ["between", [start_date, end_date]],
-            "company": company,
-            "docstatus": 1,
-            # "is_return": 0,
-            # "status": ["!=", "Cancelled"],
-            "name": ["not in", all_excluded_invoices]
-        },
+        # filters={
+        #     "supplier": supplier,
+        #     "posting_date": ["between", [start_date, end_date]],
+        #     "company": company,
+        #     "docstatus": 1,
+        #     # "is_return": 0,
+        #     # "status": ["!=", "Cancelled"],
+            
+        #     "name": ["not in", all_excluded_invoices]
+        # },
+        filters=[
+            {"supplier": supplier},
+            {"posting_date": ["between", [start_date, end_date]]},
+            {"company": company},
+            {"docstatus": 1},
+            {"name": ["not in", all_excluded_invoices]},
+            # Filtra por invoices que tienen un impuesto con `charge_type` = 'Actual'
+            ["Purchase Taxes and Charges", "charge_type", "=", "Actual"]
+        ],
         fields=["name"]
     )
 

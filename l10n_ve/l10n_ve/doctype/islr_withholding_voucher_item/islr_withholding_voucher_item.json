@@ -1,0 +1,123 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "allow_rename": 1,
+ "creation": "2025-09-14 02:25:05.169290",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "purchase_invoice",
+  "bill_no",
+  "bill_control",
+  "column_break_aqmi",
+  "posting_date",
+  "section_break_kdlk",
+  "grand_total",
+  "amount_paid",
+  "total",
+  "tax_amount",
+  "column_break_mvde",
+  "rate",
+  "codigo",
+  "subtracting"
+ ],
+ "fields": [
+  {
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Factura de Compra",
+   "options": "Purchase Invoice",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bill_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "No. Factura",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bill_control",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "No. Control",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_aqmi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Fecha Factura",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_kdlk",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Currency",
+   "label": "Monto de Documento",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amount_paid",
+   "fieldtype": "Currency",
+   "label": "Monto Abonado",
+   "reqd": 1
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "label": "Monto Objeto a Retenci\u00f3n",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_mvde",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "codigo",
+   "fieldtype": "Data",
+   "label": "C\u00f3digo Concepto",
+   "reqd": 1
+  },
+  {
+   "fieldname": "subtracting",
+   "fieldtype": "Currency",
+   "label": "Sustarendo"
+  },
+  {
+   "fieldname": "tax_amount",
+   "fieldtype": "Currency",
+   "label": "Impuesto Retenido"
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Float",
+   "label": "Tarifa %",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-09-14 21:17:24.767526",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "ISLR Withholding Voucher Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
