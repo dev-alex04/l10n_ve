@@ -1,20 +1,11 @@
 // // Copyright (c) 2025, DominaERP and contributors
 // // For license information, please see license.txt
 
-// // frappe.ui.form.on("VAT Withholding Voucher", {
-// // 	refresh(frm) {
-
-// // 	},
-// // });
-
 frappe.ui.form.on('VAT Withholding Voucher', {
     refresh: function(frm) {
-        // Agrega un botón personalizado en el formulario
         if (!frm.is_new()) {
             frm.add_custom_button(__('Imprimir Comprobante'), function() {
-                // Abre una nueva pestaña del navegador
                 window.open(
-                    // Construye la URL de la vista de impresión
                     frappe.urllib.get_full_url(
                         "/printview?doctype=" + frm.doctype +
                         "&name=" + frm.doc.name +
@@ -38,7 +29,6 @@ frappe.ui.form.on('VAT Withholding Voucher', {
                     },
                     callback: function(r) {
                         if (r.message) {
-                            // Muestra el correlativo en el campo del formulario
                             frm.set_value('voucher_number', r.message);
                         }
                     }
@@ -55,7 +45,6 @@ frappe.ui.form.on('VAT Withholding Voucher', {
             validar_fechas(frm, 'start_date');
         }
 
-        // Llama a la función de carga de facturas si ya hay un proveedor y fecha fin
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
@@ -72,7 +61,6 @@ frappe.ui.form.on('VAT Withholding Voucher', {
     },
 
     supplier: function(frm) {
-        // Limpiamos la tabla para que no se muestren facturas anteriores
         frm.clear_table('vat_withholding_voucher_item');
         frm.add_child('vat_withholding_voucher_item');
         frm.refresh_field('vat_withholding_voucher_item');
@@ -80,15 +68,13 @@ frappe.ui.form.on('VAT Withholding Voucher', {
         frm.set_value('supplier_address', '');
         frm.refresh_field('supplier_address');
         
-        // Si ya hay fechas seleccionadas, carga las facturas
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
 
-        // --- NUEVO CÓDIGO PARA OBTENER LA DIRECCIÓN ---
         if (frm.doc.supplier) {
             frappe.call({
-                method: "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.get_supplier_address",
+                method: "l10n_ve.utils.utils.get_supplier_address",
                 args: {
                     supplier_name: frm.doc.supplier
                 },
@@ -97,7 +83,6 @@ frappe.ui.form.on('VAT Withholding Voucher', {
                         const full_address = r.message.address_line1;
                         frm.set_value('supplier_address', full_address);
                     } else {
-                        // Limpia el campo si no hay dirección
                         frm.set_value('supplier_address', '');
                     }
                 }
@@ -106,7 +91,6 @@ frappe.ui.form.on('VAT Withholding Voucher', {
     },
 
     empresa: function(frm) {
-        // Limpiamos la tabla para que no se muestren facturas anteriores
         frm.clear_table('vat_withholding_voucher_item');
         frm.add_child('vat_withholding_voucher_item');
         frm.refresh_field('vat_withholding_voucher_item');
@@ -114,14 +98,13 @@ frappe.ui.form.on('VAT Withholding Voucher', {
         frm.set_value('company_address', '');
         frm.refresh_field('company_address');
         
-        // Si ya hay fechas seleccionadas, carga las facturas
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
 
         if (frm.doc.empresa) {
             frappe.call({
-                method: "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.get_company_address",
+                method: "l10n_ve.utils.utils.get_company_address",
                 args: {
                     company_name: frm.doc.empresa
                 },
@@ -130,7 +113,6 @@ frappe.ui.form.on('VAT Withholding Voucher', {
                         const full_address = r.message.address_line1;
                         frm.set_value('company_address', full_address);
                     } else {
-                        // Limpia el campo si no hay dirección
                         frm.set_value('company_address', '');
                     }
                 }
@@ -139,16 +121,13 @@ frappe.ui.form.on('VAT Withholding Voucher', {
     },
 });
 
-// Función para validar que la fecha fin no puede ser menor a fecha de inicio
 function validar_fechas(frm, campo) {
     try {
         const startDate = new Date(frm.doc.start_date);
         const endDate = new Date(frm.doc.end_date);
 
         if (endDate < startDate) {
-            // Limpia el campo para forzar al usuario a corregir
             frm.set_value(campo, null);
-            // Limpiar la tabla en caso de que tenga facturas cargadas anteriormente
             frm.clear_table('vat_withholding_voucher_item');
             frm.add_child('vat_withholding_voucher_item');
             frm.refresh_field('vat_withholding_voucher_item');
@@ -176,7 +155,6 @@ function load_invoices(frm) {
             company: frm.doc.empresa
         },
         callback: function(r) {
-            // Reiniciar los totales antes de calcular
             frm.doc.totals_grand_total = 0;
             frm.doc.totals_purchases_without_tax_credit = 0;
             frm.doc.totals_total = 0;
@@ -196,14 +174,12 @@ function load_invoices(frm) {
                     new_row.taxes_and_charges_added = invoice.taxes_and_charges_added;
                     new_row.taxes_and_charges_deducted = invoice.taxes_and_charges_deducted;
 
-                    // Lógica para los impuestos
                     if (invoice.taxes && invoice.taxes.length > 0) {
                         let tax_item = invoice.taxes[0];
                         new_row.rate = tax_item.rate; 
                         new_row.tax_amount = tax_item.tax_amount;
                     }
                     
-                    // Suma los valores de cada factura a los campos de totales
                     frm.doc.totals_grand_total += invoice.grand_total || 0;
                     frm.doc.totals_purchases_without_tax_credit += invoice.purchases_without_tax_credit || 0;
                     frm.doc.totals_total += invoice.total || 0;
@@ -211,7 +187,6 @@ function load_invoices(frm) {
                     frm.doc.totals_taxes_and_charges_deducted += invoice.taxes_and_charges_deducted || 0;
                 });
                 
-                // Refresca los campos para mostrar los nuevos valores
                 frm.refresh_fields([
                     'totals_grand_total', 
                     'totals_purchases_without_tax_credit', 
@@ -220,13 +195,12 @@ function load_invoices(frm) {
                     'totals_taxes_and_charges_deducted'
                 ]);
                 
-                frm.refresh_fields(); // Refresca todos los campos para mostrar los totales
+                frm.refresh_fields();
             } else {
                 frm.clear_table('vat_withholding_voucher_item');
                 frm.add_child('vat_withholding_voucher_item');
                 frm.refresh_field('vat_withholding_voucher_item');
 
-                // Reinicia los totales si no se encuentran facturas
                 frm.doc.totals_grand_total = 0;
                 frm.doc.totals_purchases_without_tax_credit = 0;
                 frm.doc.totals_total = 0;

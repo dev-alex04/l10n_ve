@@ -3,12 +3,9 @@
 
 frappe.ui.form.on("ISLR Withholding Voucher", {
 	refresh: function(frm) {
-        // Agrega un botón personalizado en el formulario
         if (!frm.is_new()) {
             frm.add_custom_button(__('Imprimir Comprobante'), function() {
-                // Abre una nueva pestaña del navegador
                 window.open(
-                    // Construye la URL de la vista de impresión
                     frappe.urllib.get_full_url(
                         "/printview?doctype=" + frm.doctype +
                         "&name=" + frm.doc.name +
@@ -33,14 +30,10 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
                     },
                     callback: function(r) {
                         if (r.message) {
-                            // Muestra el correlativo en el campo del formulario
                             frm.set_value('voucher_number', r.message);
                         }
                     }
                 });
-
-                // frm.set_value('issue_date', today);
-                // frm.set_value('delivery_date', today);
             }
         }
     },
@@ -50,7 +43,6 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
             validar_fechas(frm, 'start_date');
         }
 
-        // Llama a la función de carga de facturas si ya hay un proveedor y fecha fin
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
@@ -67,7 +59,6 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
     },
 
     supplier: function(frm) {
-        // Limpiamos la tabla para que no se muestren facturas anteriores
         frm.clear_table('islr_withholding_voucher_item');
         frm.add_child('islr_withholding_voucher_item');
         frm.refresh_field('islr_withholding_voucher_item');
@@ -75,15 +66,13 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
         frm.set_value('supplier_address', '');
         frm.refresh_field('supplier_address');
         
-        // Si ya hay fechas seleccionadas, carga las facturas
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
 
-        // --- NUEVO CÓDIGO PARA OBTENER LA DIRECCIÓN ---
         if (frm.doc.supplier) {
             frappe.call({
-                method: "l10n_ve.l10n_ve.doctype.islr_withholding_voucher.islr_withholding_voucher.get_supplier_address",
+                method: "l10n_ve.utils.utils.get_supplier_address",
                 args: {
                     supplier_name: frm.doc.supplier
                 },
@@ -92,7 +81,6 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
                         const full_address = r.message.address_line1;
                         frm.set_value('supplier_address', full_address);
                     } else {
-                        // Limpia el campo si no hay dirección
                         frm.set_value('supplier_address', '');
                     }
                 }
@@ -101,7 +89,6 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
     },
 
     empresa: function(frm) {
-        // Limpiamos la tabla para que no se muestren facturas anteriores
         frm.clear_table('islr_withholding_voucher_item');
         frm.add_child('islr_withholding_voucher_item');
         frm.refresh_field('islr_withholding_voucher_item');
@@ -109,14 +96,13 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
         frm.set_value('company_address', '');
         frm.refresh_field('company_address');
         
-        // Si ya hay fechas seleccionadas, carga las facturas
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
 
         if (frm.doc.empresa) {
             frappe.call({
-                method: "l10n_ve.l10n_ve.doctype.islr_withholding_voucher.islr_withholding_voucher.get_company_address",
+                method: "l10n_ve.utils.utils.get_company_address",
                 args: {
                     company_name: frm.doc.empresa
                 },
@@ -125,7 +111,6 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
                         const full_address = r.message.address_line1;
                         frm.set_value('company_address', full_address);
                     } else {
-                        // Limpia el campo si no hay dirección
                         frm.set_value('company_address', '');
                     }
                 }
@@ -134,16 +119,13 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
     },
 });
 
-// Función para validar que la fecha fin no puede ser menor a fecha de inicio
 function validar_fechas(frm, campo) {
     try {
         const startDate = new Date(frm.doc.start_date);
         const endDate = new Date(frm.doc.end_date);
 
         if (endDate < startDate) {
-            // Limpia el campo para forzar al usuario a corregir
             frm.set_value(campo, null);
-            // Limpiar la tabla en caso de que tenga facturas cargadas anteriormente
             frm.clear_table('islr_withholding_voucher_item');
             frm.add_child('islr_withholding_voucher_item');
             frm.refresh_field('islr_withholding_voucher_item');

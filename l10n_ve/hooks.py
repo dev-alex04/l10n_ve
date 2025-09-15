@@ -47,7 +47,7 @@ app_include_js = "/assets/l10n_ve/js/sales_invoice.js"
 
 # include js in doctype views
 doctype_js = {
-    "Purchase Invoice" : ["public/js/doctype/purchase_invoice.js"]
+    "Purchase Invoice" : ["public/js/doctype/purchase_invoice.js"],
 }
 
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
