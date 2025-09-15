@@ -1,0 +1,151 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "creation": "2025-09-14 02:24:04.110331",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "start_date",
+  "voucher_number",
+  "column_break_lzyc",
+  "end_date",
+  "section_break_vaxc",
+  "empresa",
+  "company_address",
+  "column_break_rpba",
+  "supplier",
+  "supplier_address",
+  "section_break_ucxr",
+  "islr_withholding_voucher_item",
+  "section_break_nqao",
+  "column_break_zbxa",
+  "column_break_zmix",
+  "totals_total",
+  "totals_tax_amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "company_address",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Direcci\u00f3n Empresa",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_lzyc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier_address",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Direcci\u00f3n Proveedor",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_ucxr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "islr_withholding_voucher_item",
+   "fieldtype": "Table",
+   "label": "Facturas",
+   "options": "ISLR Withholding Voucher Item",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_nqao",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_zbxa",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_zmix",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Fecha Inicio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "voucher_number",
+   "fieldtype": "Data",
+   "label": "No. de Comprobante",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Fecha Fin",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_vaxc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_rpba",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Proveedor",
+   "options": "Supplier",
+   "reqd": 1
+  },
+  {
+   "fieldname": "empresa",
+   "fieldtype": "Link",
+   "label": "Empresa",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "totals_total",
+   "fieldtype": "Currency",
+   "label": "Total Objeto a Retenci\u00f3n"
+  },
+  {
+   "fieldname": "totals_tax_amount",
+   "fieldtype": "Currency",
+   "label": "Total Impuesto Retenido"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-09-14 21:21:17.628404",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "ISLR Withholding Voucher",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

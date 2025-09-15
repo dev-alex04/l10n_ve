@@ -48,7 +48,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                     "percentage_base": aliquot.percentage_base,
                 })
 
-        self.save()
+        # self.save()
 
         return
 
