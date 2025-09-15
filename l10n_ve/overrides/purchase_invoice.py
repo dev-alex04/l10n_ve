@@ -41,7 +41,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                     "charge_type": "ISLR",
                     "add_deduct_tax": "Add",
                     "rate": aliquot.aliquot,
-                    "codigo": tabulator.codigo,
+                    "code": tabulator.codigo,
                     "account_head": account_head,
                     "subtracting": aliquot.subtracting,
                     "description": tabulator.descripcion,
