@@ -217,7 +217,7 @@ def generate_xml_islr_file(filters=None):
             tPI.bill_control,
             tPI.grand_total,
             tPTC.tax_amount AS retention_amount,
-            tPTC.code AS code
+            tPTC.code AS code,
             tPTC.rate AS retention_percentage
         FROM
             `tabPurchase Taxes and Charges` AS tPTC
@@ -246,7 +246,7 @@ def generate_xml_islr_file(filters=None):
         xml_data += f'        <NumeroFactura>{inv.bill_no}</NumeroFactura>\n'
         xml_data += f'        <NumeroControl>{inv.bill_control}</NumeroControl>\n'
         xml_data += f'        <FechaOperacion>{inv.posting_date}</FechaOperacion>\n'
-        xml_data += f'        <CodigoConcepto>{inv.}</CodigoConcepto>\n' 
+        xml_data += f'        <CodigoConcepto>{inv.code}</CodigoConcepto>\n' 
         xml_data += f'        <MontoOperacion>{inv.grand_total:.2f}</MontoOperacion>\n'
         xml_data += f'        <PorcentajeRetencion>{inv.retention_percentage}</PorcentajeRetencion>\n'
         xml_data += f'    </DetalleRetencion>\n'
