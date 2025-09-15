@@ -5,7 +5,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
-
+import base64
 # Importamos las funciones directamente del reporte para obtener los datos
 from l10n_ve.l10n_ve.report.sales_book.sales_book import get_columns, get_sales_data, get_total_row
 
@@ -378,17 +378,14 @@ def create_excel_file(report_name, filters=None, **kwargs):
         )
         excel_content = builder.build()
 
-        file_doc = frappe.get_doc({
-            "doctype": "File",
-            "file_name": f"{title}.xlsx",
-            "attached_to_doctype": "Report",
-            "attached_to_name": report_name,
-            "content": excel_content.getvalue(),
-            "is_private": 1
-        })
-        file_doc.insert(ignore_permissions=True)
+        excel_content_bytes = excel_content.getvalue()
+        base64_content = base64.b64encode(excel_content_bytes).decode('utf-8')
 
-        return file_doc.file_url
+        return {
+            "type": "download",
+            "filename": f"{title}.xlsx",
+            "filecontent": base64_content
+        }
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en create_excel_file")

@@ -7,6 +7,7 @@ from frappe.utils import flt, getdate, format_date
 from collections import defaultdict
 import calendar
 from datetime import date
+import base64
 from io import StringIO
 import json
 import re
@@ -29,7 +30,7 @@ def get_report_summary(totals):
             "datatype": "Currency"
         },
         {
-            "value": totals.get("impuesto_reducido"),
+            "value": totals.get("impuesto_reducida"),
             "label": "Total Impuesto Reducido",
             "datatype": "Currency"
         },
@@ -99,45 +100,36 @@ def get_totals_from_data(data):
         "taxes_and_charges_deducted": taxes_and_charges_deducted,
     }
 
-def execute(filters=None):
-    columns = [
-        {"fieldname": "nro_oper", "label": "Nro. Oper.", "fieldtype": "Data", "width": 80},
-        {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": 120},
-        {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": 120},
-        {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": 200},
-        {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": 60},
-        {"fieldname": "bill_no", "label": "Nro. de Factura", "fieldtype": "Data", "width": 100},
-        {"fieldname": "bill_control", "label": "Nro. de Control", "fieldtype": "Data", "width": 100},
-        {"fieldname": "nro_nota_credito", "label": "Nro. Nota de Crédito", "fieldtype": "Data", "width": 100},
-        {"fieldname": "nro_nota_debito", "label": "Nro. Nota de Débito", "fieldtype": "Data", "width": 100},
-        {"fieldname": "facturas_afectadas", "label": "Facturas Afectadas", "fieldtype": "Data", "width": 100},
-        {"fieldname": "nro_planilla", "label": "Nro. Planilla", "fieldtype": "Data", "width": 120},
-        {"fieldname": "nro_expediente_importacion", "label": "Nro. Expediente de Importación", "fieldtype": "Data", "width": 180},
-        {"fieldname": "tipo_transac", "label": "Tipo de Transac.", "fieldtype": "Data", "width": 120},
-        {"fieldname": "grand_total", "label": "Total Compras Incluyendo el IVA", "fieldtype": "Currency", "width": 150},
-        {"fieldname": "compras_sin_credito", "label": "Compras sin Derecho a Crédito IVA", "fieldtype": "Currency", "width": 150},
-        {"fieldname": "base_reducida", "label": "Base (Tasa Red. 8%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "impuesto_reducida", "label": "Impuesto (Tasa Red. 8%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "base_general", "label": "Base (Tasa Gen. 16%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "impuesto_general", "label": "Impuesto (Tasa Gen. 16%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "base_adicional", "label": "Base (Tasa Adic. 31%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "impuesto_adicional", "label": "Impuesto (Tasa Adic. 31%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "nro_comprobante_retencion", "label": "Nro. Comprob. de Retención", "fieldtype": "Data", "width": 150},
-        {"fieldname": "fecha_entrega", "label": "Fecha de Entrega", "fieldtype": "Date", "width": 120},
-        {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": 80},
-        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": 150}
-    ]
+
+def get_query_data(filters):
+    from_date = filters.get("date_from")
+    to_date = filters.get("to_date")
+
+    if filters.get("fiscal_year") and filters.get("fiscal_month"):
+        try:
+            year = int(filters.get("fiscal_year"))
+            month_mapping = {
+                'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
+                'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+            }
+            month_num = month_mapping.get(filters.get("fiscal_month"))
+            
+            from_date = date(year, month_num, 1)
+            last_day = calendar.monthrange(year, month_num)[1]
+            to_date = date(year, month_num, last_day)
+
+        except (ValueError, TypeError):
+            frappe.throw(_("Valores de Año o Mes Fiscal inválidos."))
+
+    if not from_date or not to_date:
+        frappe.throw(_("Por favor, selecciona un rango de fechas o un período fiscal."))
 
     conditions = "AND tPI.docstatus = 1"
     values = []
 
-    if filters.get("date_from"):
-        conditions += " AND tPI.posting_date >= %s"
-        values.append(filters.get("date_from"))
-
-    if filters.get("to_date"):
-        conditions += " AND tPI.posting_date <= %s"
-        values.append(filters.get("to_date"))
+    conditions += " AND tPI.posting_date BETWEEN %s AND %s"
+    values.append(from_date)
+    values.append(to_date)
 
     if filters.get("company"):
         conditions += " AND tPI.company = %s"
@@ -168,7 +160,8 @@ def execute(filters=None):
                 WHEN T4.supplier_type = 'Individual' THEN 'PN' 
                 WHEN T4.supplier_type = 'Partnership' THEN 'PJ' 
                 ELSE "N/A" 
-            END AS supplier_type
+            END AS supplier_type,
+            tPI.total AS taxable_base
         FROM
             `tabPurchase Invoice` as tPI
         LEFT JOIN
@@ -188,12 +181,45 @@ def execute(filters=None):
         GROUP BY tPI.name
     """
     
-    data = frappe.db.sql(query, tuple(values), as_dict=True)
+    return frappe.db.sql(query, tuple(values), as_dict=True)
+
+
+def execute(filters=None):
+    columns = [
+        {"fieldname": "nro_oper", "label": "Nro. Oper.", "fieldtype": "Data", "width": 80},
+        {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": 120},
+        {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": 120},
+        {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": 200},
+        {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": 60},
+        {"fieldname": "bill_no", "label": "Nro. de Factura", "fieldtype": "Data", "width": 100},
+        {"fieldname": "bill_control", "label": "Nro. de Control", "fieldtype": "Data", "width": 100},
+        {"fieldname": "nro_nota_credito", "label": "Nro. Nota de Crédito", "fieldtype": "Data", "width": 100},
+        {"fieldname": "nro_nota_debito", "label": "Nro. Nota de Débito", "fieldtype": "Data", "width": 100},
+        {"fieldname": "facturas_afectadas", "label": "Facturas Afectadas", "fieldtype": "Data", "width": 100},
+        {"fieldname": "nro_planilla", "label": "Nro. Planilla", "fieldtype": "Data", "width": 120},
+        {"fieldname": "nro_expediente_importacion", "label": "Nro. Expediente de Importación", "fieldtype": "Data", "width": 180},
+        {"fieldname": "tipo_transac", "label": "Tipo de Transac.", "fieldtype": "Data", "width": 120},
+        {"fieldname": "grand_total", "label": "Total Compras Incluyendo el IVA", "fieldtype": "Currency", "width": 150},
+        {"fieldname": "compras_sin_credito", "label": "Compras sin Derecho a Crédito IVA", "fieldtype": "Currency", "width": 150},
+        {"fieldname": "base_reducida", "label": "Base (Tasa Red. 8%)", "fieldtype": "Currency", "width": 120},
+        {"fieldname": "impuesto_reducida", "label": "Impuesto (Tasa Red. 8%)", "fieldtype": "Currency", "width": 120},
+        {"fieldname": "base_general", "label": "Base (Tasa Gen. 16%)", "fieldtype": "Currency", "width": 120},
+        {"fieldname": "impuesto_general", "label": "Impuesto (Tasa Gen. 16%)", "fieldtype": "Currency", "width": 120},
+        {"fieldname": "base_adicional", "label": "Base (Tasa Adic. 31%)", "fieldtype": "Currency", "width": 120},
+        {"fieldname": "impuesto_adicional", "label": "Impuesto (Tasa Adic. 31%)", "fieldtype": "Currency", "width": 120},
+        {"fieldname": "nro_comprobante_retencion", "label": "Nro. Comprob. de Retención", "fieldtype": "Data", "width": 150},
+        {"fieldname": "fecha_entrega", "label": "Fecha de Entrega", "fieldtype": "Date", "width": 120},
+        {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": 80},
+        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": 150}
+    ]
+
+   
+    data = get_query_data(filters) 
+    
     totals = get_totals_from_data(data)
     report_summary = get_report_summary(totals)
 
     return columns, data, None, None, report_summary
-
 
 @frappe.whitelist()
 def generate_xml_islr_file(filters=None):
@@ -203,9 +229,30 @@ def generate_xml_islr_file(filters=None):
     if not filters:
         frappe.throw(_("Filtros de fecha son requeridos."))
 
-    # Ensure filters is a dictionary
+    # Asegura que filters es un diccionario
     if isinstance(filters, str):
         filters = json.loads(filters)
+
+    # Lógica para convertir el año y mes fiscal a un rango de fechas
+    if filters.get("fiscal_year") and filters.get("fiscal_month"):
+        try:
+            year = int(filters.get("fiscal_year"))
+            month_mapping = {
+                'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
+                'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+            }
+            month_num = month_mapping.get(filters.get("fiscal_month"))
+            
+            from_date = date(year, month_num, 1)
+            last_day = calendar.monthrange(year, month_num)[1]
+            to_date = date(year, month_num, last_day)
+
+            # Reemplaza los filtros originales con el nuevo rango de fechas
+            filters["date_from"] = from_date.strftime('%Y-%m-%d')
+            filters["to_date"] = to_date.strftime('%Y-%m-%d')
+            
+        except (ValueError, TypeError):
+            frappe.throw(_("Valores de Año o Mes Fiscal inválidos."))
 
   
     invoices = frappe.db.sql("""
@@ -256,3 +303,88 @@ def generate_xml_islr_file(filters=None):
 
     return xml_data
 
+@frappe.whitelist()
+def generate_txt_file(filters):
+    
+    
+    try:
+        
+        filters = frappe.parse_json(filters)
+        data = get_query_data(filters)
+        # Obtenemos los datos del reporte usando la nueva función
+       
+
+        if not data:
+            frappe.throw(_("No se encontraron datos para el período seleccionado."))
+
+        company_doc = frappe.get_doc("Company", filters.get("company"))
+        company_rif = company_doc.tax_id or ""
+        
+        if not company_rif:
+            frappe.throw(_("El RIF de la compañía no está configurado. Por favor, agregue el RIF en la configuración de la compañía."))
+
+        # Lógica para determinar el período del TXT (mes y año)
+        fiscal_year = str(filters.get("fiscal_year"))
+        fiscal_month_name = filters.get("fiscal_month")
+
+        if not fiscal_year or not fiscal_month_name:
+             # Si no se seleccionaron los filtros de período fiscal, usamos las fechas
+            date_from = getdate(filters.get("date_from"))
+    
+    # 2. Ahora sí podemos acceder a los atributos `month` y `year`
+            month = str(date_from.month).zfill(2)
+            year = str(date_from.year)
+            
+        else:
+            month_mapping = {
+                'Enero': '01', 'Febrero': '02', 'Marzo': '03', 'Abril': '04', 'Mayo': '05', 'Junio': '06',
+                'Julio': '07', 'Agosto': '08', 'Septiembre': '09', 'Octubre': '10', 'Noviembre': '11', 'Diciembre': '12'
+            }
+            month = month_mapping.get(fiscal_month_name)
+            year = fiscal_year
+
+        periodo = f"{year}{month}"
+      
+        content = ""
+        for row in data:
+            # Determinamos la alícuota a mostrar
+            tax_rate = "0"
+            if flt(row.get("base_general")) > 0:
+                tax_rate = "16"
+            elif flt(row.get("base_reducida")) > 0:
+                tax_rate = "8"
+            elif flt(row.get("base_adicional")) > 0:
+                tax_rate = "31"
+                
+            line_data = [
+                str(company_rif) or "",
+                str(periodo) or "",
+                format_date(row.get("posting_date"), "YYYYMMDD") if row.get("posting_date") else "",
+                "D" if flt(row.get("is_return")) == 1 else "C",
+                "01", # Tipo de transacción (por defecto 01)
+                row.get("tax_id") or "",
+                row.get("bill_no") or "",
+                row.get("bill_control") or "",
+                f"{flt(row.get('grand_total')):.2f}".replace('.', ','),
+                f"{flt(row.get('taxable_base')):.2f}".replace('.', ','),
+                f"{flt(row.get('taxes_and_charges_deducted')):.2f}".replace('.', ','),
+                row.get("facturas_afectadas") or "",
+                row.get("nro_comprobante_retencion") or "",
+                f"{flt(row.get('compras_sin_credito')):.2f}".replace('.', ','),
+                tax_rate,
+                "0,00"
+            ]
+            content += "\t".join(line_data) + "\n"
+        
+        encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+        
+        
+        return {
+            "type": "download",
+            "filename": f"IVA_Compras_TXT-{company_doc.abbr}-{periodo}.txt",
+            "filecontent": encoded_content
+        }
+        
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error en generate_txt_file")
+        frappe.throw(_(f"Ocurrió un error al generar el archivo TXT: {e}"))
