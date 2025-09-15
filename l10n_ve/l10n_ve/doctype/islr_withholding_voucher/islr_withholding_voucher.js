@@ -171,7 +171,6 @@ function load_invoices(frm) {
             company: frm.doc.empresa
         },
         callback: function(r) {
-            // Reiniciar los totales antes de calcular
             frm.doc.totals_total = 0;
             frm.doc.totals_tax_amount = 0;
 
@@ -183,16 +182,7 @@ function load_invoices(frm) {
                     new_row.bill_control = invoice.bill_control;
                     new_row.posting_date = invoice.posting_date;
                     new_row.grand_total = invoice.grand_total;
-                    
-                    // new_row.percentage_base = invoice.percentage_base;
-                    // new_row.subtracting = invoice.subtracting;
-                    // new_row.codigo = invoice.codigo;
-                    // new_row.total = invoice.total;
-                    // new_row.taxes_and_charges_deducted = invoice.taxes_and_charges_deducted;
-                    
-                    // new_row.taxes_and_charges_added = invoice.taxes_and_charges_added;
-                    console.log(invoice);
-                    // Lógica para los impuestos
+
                     if (invoice.taxes) {
                         let tax_item = invoice.taxes;
                         new_row.total = invoice.total;
@@ -207,21 +197,19 @@ function load_invoices(frm) {
                     frm.doc.totals_tax_amount += invoice.tax_amount || 0;
                 });
                 
-                // Refresca los campos para mostrar los nuevos valores
                 frm.refresh_fields([
                     'totals_total',
                     'totals_tax_amount'
                 ]);
                 
-                frm.refresh_fields(); // Refresca todos los campos para mostrar los totales
+                frm.refresh_fields();
             } else {
                 frm.clear_table('islr_withholding_voucher_item');
                 frm.add_child('islr_withholding_voucher_item');
                 frm.refresh_field('islr_withholding_voucher_item');
 
-                // Reinicia los totales si no se encuentran facturas
-                frm.doc.totals_object_withheld = 0;
-                frm.doc.totals_taxes_and_charges_deducted = 0;
+                frm.doc.totals_total = 0;
+                frm.doc.totals_tax_amount = 0;
                 frm.refresh_fields();
 
                 frappe.show_alert({

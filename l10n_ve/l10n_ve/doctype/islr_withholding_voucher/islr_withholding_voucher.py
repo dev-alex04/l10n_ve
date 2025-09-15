@@ -48,7 +48,7 @@ class ISLRWithholdingVoucher(Document):
 @frappe.whitelist()
 def get_supplier_address(supplier_name):
     if not supplier_name:
-        return None
+        return
 
     try:
         # Intenta obtener la dirección por el campo 'address' o 'default_billing_address'
@@ -61,14 +61,11 @@ def get_supplier_address(supplier_name):
         
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error getting supplier address")
-        return None
-    
-import frappe
 
 @frappe.whitelist()
 def get_company_address(company_name):
     if not company_name:
-        return None
+        return
 
     try:
         # Intenta obtener la dirección por el campo 'address' o 'default_billing_address'
@@ -81,12 +78,11 @@ def get_company_address(company_name):
             
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error getting company address")
-        return None
 
 @frappe.whitelist()
 def get_vat_correlative(company_name):
     if not company_name:
-        return None
+        return
     
     company_doc = frappe.get_doc("Company", company_name)
     
@@ -114,15 +110,6 @@ def get_vat_correlative(company_name):
     final_withholding_number = f"{current_year}{current_month}{formatted_correlative}"
     
     return final_withholding_number
-
-@frappe.whitelist()
-def get_invoiced_purchase_invoices():
-    invoices = frappe.get_list(
-        "ISLR Withholding Voucher Item",
-        filters={"parenttype": "ISLR Withholding Voucher"},
-        fields=["purchase_invoice"]
-    )
-    return [d.purchase_invoice for d in invoices]
 
 @frappe.whitelist()
 def get_valid_invoices(supplier, start_date, end_date, company):
@@ -181,7 +168,6 @@ def get_valid_invoices(supplier, start_date, end_date, company):
                     "taxes": tax_item 
                 }
 
-                print(invoice_data)
                 invoices_with_taxes.append(invoice_data)
 
     return invoices_with_taxes
