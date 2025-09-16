@@ -7,6 +7,14 @@ class TaxesAndTotals(calculate_taxes_and_totals):
     def __init__(self, doc):
         super().__init__(doc)
 
+    def calculate_total_exempt(self):
+        total_exempt = 0
+        for item in self.doc.items:
+            if item.vat_exempt:
+                total_exempt += item.amount
+
+        self.doc.total_exempt = total_exempt
+
     def get_current_tax_amount(self, item, tax, item_tax_map):
         tax_rate = self._get_tax_rate(tax, item_tax_map)
         current_tax_amount = 0.0
@@ -26,7 +34,14 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 )
 
         elif tax.charge_type == "On Net Total":
-            current_tax_amount = (tax_rate / 100.0) * item.net_amount
+            if item.idx == 1:
+                taxable_base = 0
+                for doc_item in self.doc.items:
+                    if not doc_item.vat_exempt:
+                        taxable_base += doc_item.net_amount
+                current_tax_amount = (tax_rate / 100.0) * taxable_base
+            else:
+                current_tax_amount = 0
 
         elif tax.charge_type == "On Previous Row Amount":
             current_tax_amount = (tax_rate / 100.0) * self.doc.get("taxes")[
@@ -42,8 +57,13 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             current_tax_amount = tax_rate * item.qty
             
         elif tax.charge_type == "ISLR":
-            tax_base = (self.doc.total * tax.percentage_base) / 100
-            tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting
+            if item.idx == 1:
+                tax_base = (self.doc.total * tax.percentage_base) / 100
+                tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting
+                
+                current_tax_amount = tax_amount if tax_amount > 0 else 0
+            else:
+                current_tax_amount = 0
 
             current_tax_amount = tax_amount if tax_amount > 0 else 0
             

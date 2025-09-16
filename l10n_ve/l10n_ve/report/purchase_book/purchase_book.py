@@ -20,7 +20,7 @@ def get_report_summary(totals):
             "datatype": "Currency"
         },
         {
-            "value": totals.get("compras_sin_credito"),
+            "value": totals.get("total_exempt"),
             "label": "Total Compras Sin Crédito",
             "datatype": "Currency"
         },
@@ -66,7 +66,7 @@ def get_report_summary(totals):
 def get_totals_from_data(data):
     # Inicializar los contadores
     grand_total = 0
-    compras_sin_credito = 0
+    total_exempt = 0
     base_reducida = 0
     impuesto_reducida = 0
     base_general = 0
@@ -78,7 +78,7 @@ def get_totals_from_data(data):
     # Iterar sobre cada fila de la data
     for row in data:
         grand_total += row.get("grand_total", 0)
-        compras_sin_credito += row.get("compras_sin_credito", 0)
+        total_exempt += row.get("total_exempt", 0)
         base_reducida += row.get("base_reducida", 0)
         impuesto_reducida += row.get("impuesto_reducida", 0)
         base_general += row.get("base_general", 0)
@@ -90,7 +90,7 @@ def get_totals_from_data(data):
     # Retornar un diccionario con los totales
     return {
         "grand_total": grand_total,
-        "compras_sin_credito": compras_sin_credito,
+        "total_exempt": total_exempt,
         "base_reducida": base_reducida,
         "impuesto_reducida": impuesto_reducida,
         "base_general": base_general,
@@ -99,7 +99,6 @@ def get_totals_from_data(data):
         "impuesto_adicional": impuesto_adicional,
         "taxes_and_charges_deducted": taxes_and_charges_deducted,
     }
-
 
 def get_query_data(filters):
     from_date = filters.get("date_from")
@@ -145,6 +144,7 @@ def get_query_data(filters):
             tPI.bill_no as bill_no,
             tPI.bill_control as bill_control,
             tPI.grand_total as grand_total,
+            tPI.total_exempt as total_exempt,
             SUM(CASE WHEN T5.rate = 8 THEN tPI.total ELSE 0 END) as base_reducida,
             SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) as impuesto_reducida,
             SUM(CASE WHEN T5.rate = 16 THEN tPI.total ELSE 0 END) as base_general,

@@ -26,7 +26,7 @@
   "column_break_tobf",
   "column_break_vieg",
   "totals_grand_total",
-  "totals_purchases_without_tax_credit",
+  "totals_total_exempt",
   "totals_total",
   "totals_taxes_and_charges_added",
   "totals_taxes_and_charges_deducted"
@@ -116,12 +116,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "totals_purchases_without_tax_credit",
-   "fieldtype": "Currency",
-   "label": "Total Compras sin cr\u00e9dito fiscal",
-   "read_only": 1
-  },
-  {
    "fieldname": "totals_total",
    "fieldtype": "Currency",
    "label": "Total Base Imponible",
@@ -171,12 +165,18 @@
    "fieldtype": "Data",
    "label": "Direcci\u00f3n Proveedor",
    "reqd": 1
+  },
+  {
+   "fieldname": "totals_total_exempt",
+   "fieldtype": "Currency",
+   "label": "Total Compras sin cr\u00e9dito fiscal",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-09 11:33:39.527516",
+ "modified": "2025-09-16 14:39:09.371155",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
