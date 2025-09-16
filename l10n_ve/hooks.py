@@ -28,7 +28,7 @@ app_include_js = "/assets/l10n_ve/js/company.js"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/l10n_ve/css/l10n_ve.css"
-app_include_js = "/assets/l10n_ve/js/sales_invoice.js"
+# app_include_js = ""
 
 
 # include js, css files in header of web template
@@ -47,7 +47,8 @@ app_include_js = "/assets/l10n_ve/js/sales_invoice.js"
 
 # include js in doctype views
 doctype_js = {
-    "Purchase Invoice" : ["public/js/doctype/purchase_invoice.js"]
+    "Purchase Invoice" : ["public/js/doctype/purchase_invoice.js"],
+    "Sales Invoice" : ["public/js/doctype/sales_invoice/sales_invoice.js"],
 }
 
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}

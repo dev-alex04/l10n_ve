@@ -2,8 +2,20 @@ import frappe
 from frappe.model.document import Document
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 from l10n_ve.overrides.company import CustomCompany
+from frappe.utils import flt
+from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 class CustomSalesInvoice(SalesInvoice):
+    
+
+    def calculate_taxes_and_totals(self):
+
+        self.template_change()
+      
+        TaxesAndTotals(self)
+
+        self.calculate_commission()
+        self.calculate_contribution()
 
     def before_submit(self) -> None:
         """
@@ -11,17 +23,16 @@ class CustomSalesInvoice(SalesInvoice):
         y de factura si no existen.
         """
         super().before_submit()
-        self.recalculate_tax_bases()
         self.set_control_and_invoice_number()
-
+        
     def validate(self):
         super().validate()
         # validación de numero de control y de factura
         self._validate_bill_control(raise_throw=True)
-        self._validate_bill_no(raise_throw=True)
-        # 
-        self.validate_vat_tax()
-        self.template_change()
+        self._validate_bill_no(raise_throw=True)                
+
+
+        
        
     def set_control_and_invoice_number(self):
         """
@@ -102,91 +113,85 @@ class CustomSalesInvoice(SalesInvoice):
         return True
     
     def get_iva_tax_row(self):
-        """Función auxiliar para encontrar y devolver la fila del impuesto de IVA de la factura."""
-        # Obtener el nombre de la cuenta de IVA de la plantilla
-        vat_tax_account = frappe.db.get_value(
-            "Sales Taxes and Charges Template",
-            self.taxes_and_charges,
-            "withholding_account_head"
-        )
-        
-        if not vat_tax_account:
-            return None
-
-        # Encuentra la fila del impuesto de IVA usando la cuenta de la plantilla
+        """
+        Función auxiliar para encontrar y devolver la fila del impuesto de IVA de la factura.
+        Se busca en la tabla de impuestos de la factura, no en la plantilla.
+        """
+        # Encuentra la fila del impuesto de IVA buscando la descripción "Iva"
         for tax_row in self.taxes:
-            
-            if tax_row.account_head == vat_tax_account:
+            # Una forma robusta de identificar el IVA es buscando "IVA" en la descripción
+            if tax_row.charge_type == "On Net Total" and frappe.as_json(tax_row.description).lower() == '"iva"':
                 return tax_row
-        
         return None
 
-    def validate_vat_tax(self):
-        """Valida que la cuenta de IVA tenga un monto positivo (crédito)."""
-        vat_tax = self.get_iva_tax_row()
-        
-        # Si se encontró una fila de IVA, verifica si su monto es positivo.
-        if vat_tax and vat_tax.tax_amount <= 0:
-            frappe.throw("El balance para la cuenta de IVA debe ser de crédito. Por favor, asegure que el monto del impuesto es un valor positivo.")
+   
 
     def template_change(self):
-
-        # Verificar si el cliente es un contribuyente especial
+        """
+        Gestiona la lógica de retención de IVA para contribuyentes especiales.
+        """
+        # 1. Verificar si el cliente es un contribuyente especial
         is_special_taxpayer = frappe.db.get_value("Customer", self.customer, "is_special_taxpayer")
-    
         if not is_special_taxpayer:
             return
 
-        # Obtener la categoría de retención directamente de la plantilla de impuestos
-        taxes_and_charges_template = self.taxes_and_charges
-        if not taxes_and_charges_template:
-            return 
+        # Obtener el nombre de la plantilla de impuestos y cargos
+        taxes_and_charges_template_name = self.taxes_and_charges
+        if not taxes_and_charges_template_name:
+            return
+
+        # Obtener el documento de la plantilla de impuestos y cargos
+        taxes_and_charges_template = frappe.get_doc("Sales Taxes and Charges Template", taxes_and_charges_template_name)
         
-        withholding_category_name = frappe.db.get_value("Sales Taxes and Charges Template", taxes_and_charges_template, "withholding")
+        # 2. Obtener la categoría de retención (campo personalizado 'withholding' en tu plantilla)
+        withholding_category_name = taxes_and_charges_template.withholding
+        if not withholding_category_name:
+            return
 
-        if withholding_category_name:
-            withholding_description = frappe.db.get_value("Tax Withholding Category", withholding_category_name, "name")
+        # 3. Obtener el documento de la categoría de retención
+        withholding_category = frappe.get_doc("Tax Withholding Category", withholding_category_name)
+        if not withholding_category:
+            return
+        
+        # 4. Acceder a la cuenta contable desde la tabla hija 'accounts' del documento de la categoría
+        if withholding_category.accounts:
+            # Se usa .account para obtener la cuenta y .description para la descripción
+            withholding_account = withholding_category.accounts[0].account
+            withholding_description = withholding_category.accounts[0].account
+        else:
+            frappe.throw("No se encontró la cuenta de retención en la categoría de retención.")
+
+        # 5. Obtener la tasa de retención desde el campo de la Compañía
+        company_name = self.company
+        withholding_rate = frappe.db.get_value("Company", company_name, "sales_vat_withholding_rate")
+        
+        # Validar que la tasa de retención exista
+        if not withholding_rate:
+            frappe.throw("La tasa de retención de IVA para ventas no está configurada en el documento de la Compañía.")
+
+        # Limpiar las retenciones existentes en la factura para evitar duplicados
+        self.taxes = [row for row in self.taxes if row.account_head != withholding_account]
+
+        # 6. Encontrar el impuesto de IVA en las filas de la factura
+        vat_tax = self.get_iva_tax_row()
+        
+        # 7. Si se encontró el IVA y existe la tasa de retención, agregar la nueva fila
+        if vat_tax and withholding_rate:     
             
-            #  Verificar si la factura ya tiene la retención de IVA y eliminarla para volver a calcularla
-            self.taxes = [row for row in self.taxes if row.description != withholding_description]
 
-            #  Obtener la tasa de retención directamente del campo 'sales_vat_withholding_rate' en la Compañía
-            company = frappe.db.get_value("Company", self.company, "name")
-            if not company:
-                frappe.throw("Compañía no encontrada.")
-            withholding_rate = frappe.db.get_value("Company", company, "sales_vat_withholding_rate")
+            iva_amount = vat_tax.tax_amount
+            withholding_amount = flt(iva_amount * withholding_rate / 100.0)
 
-            #  Obtener la cuenta contable de la categoría de retención
-            withholding_account = frappe.db.get_value("Tax Withholding Account", {"parent": withholding_category_name}, "account")
+            self.vat_withholding_rate = withholding_rate
 
-            #  Encontrar el impuesto de IVA en las filas de la factura usando la nueva función auxiliar
-            vat_tax = self.get_iva_tax_row()
-                
-            #  Si se encontró el IVA y existe la tasa de retención, agregar la nueva fila de retención
-            if vat_tax and withholding_rate:
-                iva_amount = vat_tax.tax_amount
-                withholding_amount = (iva_amount * withholding_rate) / 100.0
-
-                self.append("taxes", {
-                    "charge_type": "Actual",
-                    "add_deduct_tax": "Deduct",
-                    "account_head": withholding_account,
-                    "description": withholding_description,
-                    "rate": withholding_rate,
-                    "tax_amount": -withholding_amount,
-                })
-
-            self.calculate_taxes_and_totals()
+            print(withholding_rate, 'withholding_rate')
             
-            for row in self.taxes:
-                if  row.description == withholding_description:
-                    row.rate = withholding_rate
-
-    def recalculate_tax_bases(self):
-        """
-        Recalcula la base imponible para cada impuesto en la tabla `taxes`
-        basado en el total neto de la factura.
-        """
-        for tax_row in self.taxes:
-            if tax_row.rate > 0:
-                tax_row.base_tax_amount = self.net_total        
+            self.append("taxes", {
+                "charge_type": "VAT Withholding",
+                "add_deduct_tax": "Deduct",                
+                "account_head": withholding_account,
+                "description": withholding_description,
+                "rate": withholding_rate,
+                "tax_amount": withholding_amount,
+            })
+            

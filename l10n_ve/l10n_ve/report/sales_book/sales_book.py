@@ -148,27 +148,25 @@ def get_sales_data(filters):
 				ELSE "N/A"
 			END AS customer_type,		  
 			siv.grand_total,
-			CASE
-                WHEN siv.grand_total = siv.net_total THEN siv.net_total
-                ELSE COALESCE(tstac_ex.base_tax_amount, 0)
-            END AS non_taxable_internal_sales,
+			siv.total,		  
+			
 	
 					  
-			-- Ventas a NO Contribuyentes
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.base_tax_amount, 0) ELSE 0 END AS base_general_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_red.base_tax_amount, 0) ELSE 0 END AS base_reduced_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_add.base_tax_amount, 0) ELSE 0 END AS base_additional_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_non_taxpayer,
-			
-			-- Ventas a Contribuyentes
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_gen.base_tax_amount, 0) ELSE 0 END AS base_general_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_red.base_tax_amount, 0) ELSE 0 END AS base_reduced_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_add.base_tax_amount, 0) ELSE 0 END AS base_additional_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_taxpayer,
+			 -- Ventas a NO Contribuyentes
+            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_red.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_reduced_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_add.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_additional_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_non_taxpayer,
+            
+            -- Ventas a Contribuyentes
+            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_red.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_reduced_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_add.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_additional_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_taxpayer,
 
 			COALESCE(ABS(tstac_retained.tax_amount), 0) AS iva_retained,
 			siv.vat_withholding_voucher_number,

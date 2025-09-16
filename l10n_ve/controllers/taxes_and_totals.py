@@ -1,4 +1,5 @@
 from frappe.utils import cint, flt
+from frappe.model.document import Document
 
 from erpnext.controllers.taxes_and_totals import calculate_taxes_and_totals
 
@@ -45,8 +46,35 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting
 
             current_tax_amount = tax_amount if tax_amount > 0 else 0
+            
+        elif tax.charge_type == "VAT Withholding":
+
+            tax_base = self.doc.get("taxes")[cint(tax.idx) - 2].tax_amount                                   
+
+            current_tax_amount = (tax_base * tax.rate) / 100        
 
         if not (self.doc.get("is_consolidated") or tax.get("dont_recompute_tax")):
             self.set_item_wise_tax(item, tax, tax_rate, current_tax_amount)
 
         return current_tax_amount
+    
+    def get_tax_amount_if_for_valuation_or_deduction(self,
+                                                        tax_amount: float,
+                                                        tax: Document) -> float:
+
+            # if just for valuation, do not add the tax amount in total
+            # if tax/charges is for deduction, multiply by -1
+            tax_amount = 0.0 \
+                if (tax.get('category', '') == "Valuation") else tax_amount
+
+            if self.doc.doctype in [
+                "Sales Invoice",
+                "Purchase Order",
+                "Purchase Invoice",
+                "Purchase Receipt",
+                "Supplier Quotation",
+            ]:
+                tax_amount *= -1.0 if (tax.add_deduct_tax == "Deduct") else 1.0
+
+            return tax_amount
+    

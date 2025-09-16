@@ -172,9 +172,8 @@ class ExcelBuilder:
                 
                 cell = self.sheet.cell(row=row_index, column=col_index, value=cell_value)
                 cell.border = self.data_border
-                cell.alignment = self.data_alignment
                 
-                # Aplicamos formato numérico si es un número
+                # Aplicamos formato numérico si es un número y luego la alineación
                 if isinstance(cell_value, (int, float)):
                     if fieldname == "sequence_number":
                         # Formato para el contador (entero)
@@ -182,6 +181,10 @@ class ExcelBuilder:
                     else:
                         # Formato para los demás números (con decimales)
                         cell.number_format = self.numeric_format
+                
+                # Aplicamos la alineación a todas las celdas, incluyendo los números, al final
+                cell.alignment = self.data_alignment
+                
                 # Calcular el ancho de la columna basado en los datos
                 cell_length = len(str(cell_value)) if cell_value is not None else 0
                 col_letter = get_column_letter(col_index)
@@ -192,8 +195,32 @@ class ExcelBuilder:
         for col, width in column_widths.items():
             self.sheet.column_dimensions[col].width = width
         
+        # Agregar una fila vacía para separar la tabla de los totales
+        row_index += 1
+
+        # Escribir la fila de totales
+        total_row = get_total_row(self.data)  # Llama a la función para obtener la fila de totales
+        
+        for col_index, col in enumerate(self.columns, start=1):
+            fieldname = col.get("fieldname")
+            cell_value = total_row.get(fieldname)
+            
+            cell = self.sheet.cell(row=row_index, column=col_index, value=cell_value)
+            cell.font = Font(bold=True)
+            cell.border = self.data_border
+            
+            # Formato numérico
+            if isinstance(cell_value, (int, float)):
+                cell.number_format = self.numeric_format
+            
+            # Usar la misma alineación de los datos
+            cell.alignment = self.data_alignment
+
+        # Unir las celdas de las dos primeras columnas para el texto del total
+        self.sheet.merge_cells(start_row=row_index, start_column=1, end_row=row_index, end_column=2)
+
         return self.sheet.max_row
-    
+
    
     
     def _build_summary_table(self, start_row):
@@ -347,9 +374,7 @@ def create_excel_file(report_name, filters=None, **kwargs):
         
         summary_data = get_total_row(data)
          
-        total_summary_row = get_total_row(data)
-    
-        data.append(total_summary_row) 
+        
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
         address_name = company_doc.get("custom_company_primary_address")
