@@ -178,13 +178,10 @@ class CustomSalesInvoice(SalesInvoice):
         # 7. Si se encontró el IVA y existe la tasa de retención, agregar la nueva fila
         if vat_tax and withholding_rate:     
             
-
             iva_amount = vat_tax.tax_amount
             withholding_amount = flt(iva_amount * withholding_rate / 100.0)
 
             self.vat_withholding_rate = withholding_rate
-
-            print(withholding_rate, 'withholding_rate')
             
             self.append("taxes", {
                 "charge_type": "VAT Withholding",
