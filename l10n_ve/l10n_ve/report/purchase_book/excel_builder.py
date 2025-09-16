@@ -6,7 +6,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
 from datetime import datetime
-
+import base64
 from l10n_ve.l10n_ve.report.purchase_book.purchase_book import execute, get_totals_from_data
 
 class ExcelBuilder:
@@ -88,6 +88,51 @@ class ExcelBuilder:
         """
         current_row = start_row + 1
         
+        headers_2level = {
+            16: _("Compras a Contribuyentes"),
+           
+            
+        }
+        
+        # Escribimos los títulos del primer nivel en la fila actual
+        for col, header_text in headers_2level.items():
+            cell = self.sheet.cell(row=current_row, column=col, value=header_text)
+            cell.font = Font(bold=True)
+            cell.border = self.data_border
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+      
+        self.sheet.merge_cells(start_row=current_row, start_column=16, end_row=current_row, end_column=21)
+
+        
+        current_row += 1
+
+        headers_3level = {
+            16: _("Tasa Reducida 8%"),
+            18: _("Tasa General 16%"),
+            20: _("Tasa General + Adicional 31%"),
+           
+            22: _("Retención"),
+            
+
+        }
+
+        for col, header_text in headers_3level.items():
+            cell = self.sheet.cell(row=current_row, column=col, value=header_text)
+            cell.font = Font(bold=True)
+            cell.border = self.data_border
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        self.sheet.merge_cells(start_row=current_row, start_column=16, end_row=current_row, end_column=17)
+       
+        self.sheet.merge_cells(start_row=current_row, start_column=18, end_row=current_row, end_column=19)
+        self.sheet.merge_cells(start_row=current_row, start_column=20, end_row=current_row, end_column=21)
+       
+        self.sheet.merge_cells(start_row=current_row, start_column=22, end_row=current_row, end_column=25) 
+        
+
+        current_row += 1
+
         # Escribimos los encabezados de las columnas
         main_table_headers = [col.get("label") for col in self.columns]
         for col_index, header in enumerate(main_table_headers, start=1):
@@ -95,9 +140,9 @@ class ExcelBuilder:
             cell.font = self.header_font
             cell.border = self.data_border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            self.sheet.row_dimensions[current_row].height = 40
-        
-        column_widths = {get_column_letter(i + 1): len(header) + 2 for i, header in enumerate(main_table_headers)}
+            self.sheet.row_dimensions[current_row].height = 45
+            # Establecemos un ancho de columna fijo
+            self.sheet.column_dimensions[get_column_letter(col_index)].width = 11
 
         # Agregar los datos y aplicar estilos
         row_index = current_row + 1
@@ -112,14 +157,13 @@ class ExcelBuilder:
                 
                 if isinstance(cell_value, (int, float)):
                     cell.number_format = self.numeric_format
-                
-                cell_length = len(str(cell_value)) if cell_value is not None else 0
-                col_letter = get_column_letter(col_index)
-                column_widths[col_letter] = max(column_widths.get(col_letter, 0), cell_length + 2)
+            
+            # Establecemos una altura fija para las filas de datos
+            self.sheet.row_dimensions[row_index].height = 15
             row_index += 1
         
         row_index += 1
-         
+          
         total_row_index = row_index
         
         # Escribir el label "Totales" en la primera columna
@@ -140,10 +184,6 @@ class ExcelBuilder:
                 total_cell.number_format = self.numeric_format
                 total_cell.alignment = self.data_alignment
         
-        # Aplicar los anchos de columna finales
-        for col, width in column_widths.items():
-            self.sheet.column_dimensions[col].width = width
-        
         return self.sheet.max_row
     
     def _add_summary_table(self, start_row):
@@ -156,7 +196,7 @@ class ExcelBuilder:
         current_row = start_row + 5
         
         # Definimos el offset para mover la tabla a la derecha
-        offset = 5
+        offset = 13
 
         # Encabezados de la tabla de resumen
         headers = [_("RESUMEN"), _("Base Imponible"), _("Crédito Fiscal"), _("Retención")]
@@ -295,17 +335,15 @@ def create_excel_file(report_name, filters=None, **kwargs):
         )
         excel_content = builder.build()
 
-        file_doc = frappe.get_doc({
-            "doctype": "File",
-            "file_name": f"{title}.xlsx",
-            "attached_to_doctype": "Report",
-            "attached_to_name": report_name,
-            "content": excel_content.getvalue(),
-            "is_private": 1
-        })
-        file_doc.insert(ignore_permissions=True)
+        excel_content_bytes = excel_content.getvalue()
+        base64_content = base64.b64encode(excel_content_bytes).decode('utf-8')
 
-        return file_doc.file_url
+        return {
+            "type": "download",
+            "filename": f"{title}.xlsx",
+            "filecontent": base64_content
+        }
+
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en create_excel_file")

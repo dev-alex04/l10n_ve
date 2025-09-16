@@ -1,7 +1,7 @@
 # Copyright (c) 2025, DominaERP and contributors
 # For license information, please see license.txt
 
-# import frappe
+
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, add_days 
@@ -9,24 +9,52 @@ from frappe.utils.file_manager import save_file
 import json
 import datetime
 
+def get_report_summary(totals):
+    """
+    Returns the summary data for the top of the report.
+    """
+    summary = [
+        {"value": totals.get("grand_total"), "label": "Total Ventas Incl. IVA", "datatype": "Currency"},
+        {"value": totals.get("non_taxable_internal_sales"), "label": "Ventas No Gravadas", "datatype": "Currency"},
+        {"value": totals.get("base_general_taxpayer") + totals.get("base_general_non_taxpayer"),
+         "label": "Base Imponible General", "datatype": "Currency"},
+        {"value": totals.get("iva_general_taxpayer") + totals.get("iva_general_non_taxpayer"),
+         "label": "Impuesto General", "datatype": "Currency"},
+        {"value": totals.get("base_reduced_taxpayer") + totals.get("base_reduced_non_taxpayer"),
+         "label": "Base Imponible Reducida", "datatype": "Currency"},
+        {"value": totals.get("iva_reduced_taxpayer") + totals.get("iva_reduced_non_taxpayer"),
+         "label": "Impuesto Reducido", "datatype": "Currency"},
+        {"value": totals.get("base_additional_taxpayer") + totals.get("base_additional_non_taxpayer"),
+         "label": "Base Imponible Adicional", "datatype": "Currency"},
+        {"value": totals.get("iva_additional_taxpayer") + totals.get("iva_additional_non_taxpayer"),
+         "label": "Impuesto Adicional", "datatype": "Currency"},
+        {"value": totals.get("iva_retained"), "label": "IVA Retenido", "datatype": "Currency"},
+        {"value": totals.get("igtf_amount"), "label": "Monto IGTF", "datatype": "Currency"},
+
+    ]
+
+    
+    return summary
 
 def execute(filters=None):
     """
     Punto de entrada principal para el Reporte de Libro de Ventas.
     Devuelve las columnas y los datos basados en los filtros.
     """
-
     columns = get_columns()
     data = get_sales_data(filters)
-    
-    # Agregamos los números de secuencia aquí, después de obtener los datos
-  
+
+ 
+    totals = get_total_row(data)
 
     if data:
-        total_row = get_total_row(data)
-        data.append(total_row)
+        for i, row in enumerate(data):
+            row["sequence_number"] = i + 1
+        data.append(totals)
 
-    return columns, data, None, None, None
+   
+    report_summary = get_report_summary(totals)
+    return columns, data, None, None, report_summary
 
 
 def get_columns():
@@ -120,27 +148,25 @@ def get_sales_data(filters):
 				ELSE "N/A"
 			END AS customer_type,		  
 			siv.grand_total,
-			CASE
-                WHEN siv.grand_total = siv.net_total THEN siv.net_total
-                ELSE COALESCE(tstac_ex.base_tax_amount, 0)
-            END AS non_taxable_internal_sales,
+			siv.total,		  
+			
 	
 					  
-			-- Ventas a NO Contribuyentes
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.base_tax_amount, 0) ELSE 0 END AS base_general_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_red.base_tax_amount, 0) ELSE 0 END AS base_reduced_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_add.base_tax_amount, 0) ELSE 0 END AS base_additional_non_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_non_taxpayer,
-			
-			-- Ventas a Contribuyentes
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_gen.base_tax_amount, 0) ELSE 0 END AS base_general_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_red.base_tax_amount, 0) ELSE 0 END AS base_reduced_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_add.base_tax_amount, 0) ELSE 0 END AS base_additional_taxpayer,
-			CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_taxpayer,
+			 -- Ventas a NO Contribuyentes
+            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_red.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_reduced_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_add.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_additional_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_non_taxpayer,
+            
+            -- Ventas a Contribuyentes
+            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_red.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_reduced_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_add.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_additional_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_taxpayer,
 
 			COALESCE(ABS(tstac_retained.tax_amount), 0) AS iva_retained,
 			siv.vat_withholding_voucher_number,
