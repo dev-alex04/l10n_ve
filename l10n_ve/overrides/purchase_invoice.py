@@ -9,7 +9,8 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         self.validate_duplicate_invoice_numbers()
 
     def calculate_taxes_and_totals(self):
-        TaxesAndTotals(self)
+        taxes_and_totals_calculator = TaxesAndTotals(self)
+        taxes_and_totals_calculator.calculate_total_exempt()
 
         if self.doctype in (
             "Sales Order",
