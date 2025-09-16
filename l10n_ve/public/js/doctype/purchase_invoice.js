@@ -11,6 +11,7 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
 ) {
     var tax_rate = this._get_tax_rate(tax, item_tax_map);
     var current_tax_amount = 0.0;
+    // let taxable_base = 0;
 
     // To set row_id by default as previous row.
     if(["On Previous Row Amount", "On Previous Row Total"].includes(tax.charge_type)) {
@@ -29,7 +30,17 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
             ((item.net_amount / this.frm.doc.net_total) * actual) : 0.0;
 
     } else if(tax.charge_type == "On Net Total") {
-        current_tax_amount = (tax_rate / 100.0) * item.net_amount;
+        if (item.idx === 1) {
+            let taxable_base = 0;
+            this.frm.doc.items.forEach(doc_item => {
+                if (!doc_item.vat_exempt) {
+                    taxable_base += doc_item.net_amount;
+                }
+            });
+            current_tax_amount = (tax_rate / 100.0) * taxable_base;
+        } else {
+            current_tax_amount = 0;
+        }
     } else if(tax.charge_type == "On Previous Row Amount") {
         current_tax_amount = (tax_rate / 100.0) *
             this.frm.doc["taxes"][cint(tax.row_id) - 1].tax_amount_for_current_item;

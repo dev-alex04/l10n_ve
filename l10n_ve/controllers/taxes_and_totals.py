@@ -33,10 +33,14 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 )
 
         elif tax.charge_type == "On Net Total":
-            current_tax_amount = tax.tax_amount
-
-            if not item.vat_exempt:
-                current_tax_amount = (tax_rate / 100.0) * item.net_amount
+            if item.idx == 1:
+                taxable_base = 0
+                for doc_item in self.doc.items:
+                    if not doc_item.vat_exempt:
+                        taxable_base += doc_item.net_amount
+                current_tax_amount = (tax_rate / 100.0) * taxable_base
+            else:
+                current_tax_amount = 0
 
         elif tax.charge_type == "On Previous Row Amount":
             current_tax_amount = (tax_rate / 100.0) * self.doc.get("taxes")[
