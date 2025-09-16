@@ -121,6 +121,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             "rate": rate, 
             "grand_total": invoice.grand_total,
             "total": invoice.total,
+            "total_exempt": invoice.total_exempt,
             "taxes_and_charges_added": invoice.taxes_and_charges_added,
             "taxes_and_charges_deducted": invoice.taxes_and_charges_deducted,
             "taxes": invoice.get("taxes") 

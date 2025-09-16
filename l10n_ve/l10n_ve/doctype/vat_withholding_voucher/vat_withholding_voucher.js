@@ -156,7 +156,7 @@ function load_invoices(frm) {
         },
         callback: function(r) {
             frm.doc.totals_grand_total = 0;
-            frm.doc.totals_purchases_without_tax_credit = 0;
+            frm.doc.totals_total_exempt = 0;
             frm.doc.totals_total = 0;
             frm.doc.totals_taxes_and_charges_added = 0;
             frm.doc.totals_taxes_and_charges_deducted = 0;
@@ -181,7 +181,7 @@ function load_invoices(frm) {
                     }
                     
                     frm.doc.totals_grand_total += invoice.grand_total || 0;
-                    frm.doc.totals_purchases_without_tax_credit += invoice.purchases_without_tax_credit || 0;
+                    frm.doc.totals_total_exempt += invoice.total_exempt || 0;
                     frm.doc.totals_total += invoice.total || 0;
                     frm.doc.totals_taxes_and_charges_added += invoice.taxes_and_charges_added || 0;
                     frm.doc.totals_taxes_and_charges_deducted += invoice.taxes_and_charges_deducted || 0;
@@ -189,7 +189,7 @@ function load_invoices(frm) {
                 
                 frm.refresh_fields([
                     'totals_grand_total', 
-                    'totals_purchases_without_tax_credit', 
+                    'totals_total_exempt', 
                     'totals_total',
                     'totals_taxes_and_charges_added',
                     'totals_taxes_and_charges_deducted'
@@ -202,7 +202,7 @@ function load_invoices(frm) {
                 frm.refresh_field('vat_withholding_voucher_item');
 
                 frm.doc.totals_grand_total = 0;
-                frm.doc.totals_purchases_without_tax_credit = 0;
+                frm.doc.totals_totals_total_exempt = 0;
                 frm.doc.totals_total = 0;
                 frm.doc.totals_taxes_and_charges_added = 0;
                 frm.doc.totals_taxes_and_charges_deducted = 0;

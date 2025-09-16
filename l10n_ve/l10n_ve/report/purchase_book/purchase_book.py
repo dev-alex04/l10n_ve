@@ -19,7 +19,7 @@ def get_report_summary(totals):
             "datatype": "Currency"
         },
         {
-            "value": totals.get("compras_sin_credito"),
+            "value": totals.get("total_exempt"),
             "label": "Total Compras Sin Crédito",
             "datatype": "Currency"
         },
@@ -29,7 +29,7 @@ def get_report_summary(totals):
             "datatype": "Currency"
         },
         {
-            "value": totals.get("impuesto_reducido"),
+            "value": totals.get("impuesto_reducida"),
             "label": "Total Impuesto Reducido",
             "datatype": "Currency"
         },
@@ -65,7 +65,7 @@ def get_report_summary(totals):
 def get_totals_from_data(data):
     # Inicializar los contadores
     grand_total = 0
-    compras_sin_credito = 0
+    total_exempt = 0
     base_reducida = 0
     impuesto_reducida = 0
     base_general = 0
@@ -77,7 +77,7 @@ def get_totals_from_data(data):
     # Iterar sobre cada fila de la data
     for row in data:
         grand_total += row.get("grand_total", 0)
-        compras_sin_credito += row.get("compras_sin_credito", 0)
+        total_exempt += row.get("total_exempt", 0)
         base_reducida += row.get("base_reducida", 0)
         impuesto_reducida += row.get("impuesto_reducida", 0)
         base_general += row.get("base_general", 0)
@@ -89,7 +89,7 @@ def get_totals_from_data(data):
     # Retornar un diccionario con los totales
     return {
         "grand_total": grand_total,
-        "compras_sin_credito": compras_sin_credito,
+        "total_exempt": total_exempt,
         "base_reducida": base_reducida,
         "impuesto_reducida": impuesto_reducida,
         "base_general": base_general,
@@ -101,31 +101,31 @@ def get_totals_from_data(data):
 
 def execute(filters=None):
     columns = [
-        {"fieldname": "nro_oper", "label": "Nro. Oper.", "fieldtype": "Data", "width": 80},
-        {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": 120},
-        {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": 120},
-        {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": 200},
-        {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": 60},
-        {"fieldname": "bill_no", "label": "Nro. de Factura", "fieldtype": "Data", "width": 100},
-        {"fieldname": "bill_control", "label": "Nro. de Control", "fieldtype": "Data", "width": 100},
-        {"fieldname": "nro_nota_credito", "label": "Nro. Nota de Crédito", "fieldtype": "Data", "width": 100},
-        {"fieldname": "nro_nota_debito", "label": "Nro. Nota de Débito", "fieldtype": "Data", "width": 100},
-        {"fieldname": "facturas_afectadas", "label": "Facturas Afectadas", "fieldtype": "Data", "width": 100},
-        {"fieldname": "nro_planilla", "label": "Nro. Planilla", "fieldtype": "Data", "width": 120},
-        {"fieldname": "nro_expediente_importacion", "label": "Nro. Expediente de Importación", "fieldtype": "Data", "width": 180},
-        {"fieldname": "tipo_transac", "label": "Tipo de Transac.", "fieldtype": "Data", "width": 120},
-        {"fieldname": "grand_total", "label": "Total Compras Incluyendo el IVA", "fieldtype": "Currency", "width": 150},
-        {"fieldname": "compras_sin_credito", "label": "Compras sin Derecho a Crédito IVA", "fieldtype": "Currency", "width": 150},
-        {"fieldname": "base_reducida", "label": "Base (Tasa Red. 8%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "impuesto_reducida", "label": "Impuesto (Tasa Red. 8%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "base_general", "label": "Base (Tasa Gen. 16%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "impuesto_general", "label": "Impuesto (Tasa Gen. 16%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "base_adicional", "label": "Base (Tasa Adic. 31%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "impuesto_adicional", "label": "Impuesto (Tasa Adic. 31%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "nro_comprobante_retencion", "label": "Nro. Comprob. de Retención", "fieldtype": "Data", "width": 150},
-        {"fieldname": "fecha_entrega", "label": "Fecha de Entrega", "fieldtype": "Date", "width": 120},
-        {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": 80},
-        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": 150}
+        {"fieldname": "nro_oper", "label": "Nro. Oper.", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": "auto"},
+        {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "bill_no", "label": "Nro. de Factura", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "bill_control", "label": "Nro. de Control", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "nro_nota_credito", "label": "Nro. Nota de Crédito", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "nro_nota_debito", "label": "Nro. Nota de Débito", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "facturas_afectadas", "label": "Facturas Afectadas", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "nro_planilla", "label": "Nro. Planilla", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "nro_expediente_importacion", "label": "Nro. Expediente de Importación", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "tipo_transac", "label": "Tipo de Transac.", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "grand_total", "label": "Total Compras Incluyendo el IVA", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "total_exempt", "label": "Compras sin Derecho a Crédito IVA", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "base_reducida", "label": "Base (Tasa Red. 8%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "impuesto_reducida", "label": "Impuesto (Tasa Red. 8%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "base_general", "label": "Base (Tasa Gen. 16%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "impuesto_general", "label": "Impuesto (Tasa Gen. 16%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "base_adicional", "label": "Base (Tasa Adic. 31%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "impuesto_adicional", "label": "Impuesto (Tasa Adic. 31%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "nro_comprobante_retencion", "label": "Nro. Comprob. de Retención", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "fecha_entrega", "label": "Fecha de Entrega", "fieldtype": "Date", "width": "auto"},
+        {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": "auto"},
+        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": "auto"}
     ]
 
     conditions = "AND tPI.docstatus = 1"
@@ -153,6 +153,7 @@ def execute(filters=None):
             tPI.bill_no as bill_no,
             tPI.bill_control as bill_control,
             tPI.grand_total as grand_total,
+            tPI.total_exempt as total_exempt,
             SUM(CASE WHEN T5.rate = 8 THEN tPI.total ELSE 0 END) as base_reducida,
             SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) as impuesto_reducida,
             SUM(CASE WHEN T5.rate = 16 THEN tPI.total ELSE 0 END) as base_general,

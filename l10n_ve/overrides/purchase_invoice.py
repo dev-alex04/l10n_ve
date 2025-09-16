@@ -49,6 +49,9 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                     "percentage_base": aliquot.percentage_base,
                 })
 
+        self.save()
+        return self.name
+
     def validate_duplicate_invoice_numbers(self) -> None:
 
         numero_factura = self.bill_no
