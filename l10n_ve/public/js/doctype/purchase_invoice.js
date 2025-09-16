@@ -51,11 +51,15 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
     } else if (tax.charge_type == "On Item Quantity") {
         current_tax_amount = tax_rate * item.qty;
     } else if (tax.charge_type == "ISLR") {
-        tax_base = (this.frm.doc.total * tax.percentage_base) / 100;
-        tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting;
+      if (item.idx === 1) {
+          let tax_base = (this.frm.doc.total * tax.percentage_base) / 100;
+          let tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting;
 
-        current_tax_amount = tax_amount > 0 ? tax_amount : 0;
-    }
+          current_tax_amount = tax_amount > 0 ? tax_amount : 0;
+      } else {
+          current_tax_amount = 0;
+      }
+  }
 
     if (!tax.dont_recompute_tax) {
         this.set_item_wise_tax(item, tax, tax_rate, current_tax_amount);
