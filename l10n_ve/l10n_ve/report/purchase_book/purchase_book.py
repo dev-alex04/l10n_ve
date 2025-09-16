@@ -304,8 +304,7 @@ def generate_xml_islr_file(filters=None):
     return xml_data
 
 @frappe.whitelist()
-def generate_txt_file(filters):
-    
+def generate_txt_file(filters):    
     
     try:
         
@@ -313,7 +312,6 @@ def generate_txt_file(filters):
         data = get_query_data(filters)
         # Obtenemos los datos del reporte usando la nueva función
        
-
         if not data:
             frappe.throw(_("No se encontraron datos para el período seleccionado."))
 
@@ -328,10 +326,8 @@ def generate_txt_file(filters):
         fiscal_month_name = filters.get("fiscal_month")
 
         if not fiscal_year or not fiscal_month_name:
-             # Si no se seleccionaron los filtros de período fiscal, usamos las fechas
             date_from = getdate(filters.get("date_from"))
     
-    # 2. Ahora sí podemos acceder a los atributos `month` y `year`
             month = str(date_from.month).zfill(2)
             year = str(date_from.year)
             
@@ -377,8 +373,7 @@ def generate_txt_file(filters):
             content += "\t".join(line_data) + "\n"
         
         encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
-        
-        
+                
         return {
             "type": "download",
             "filename": f"IVA_Compras_TXT-{company_doc.abbr}-{periodo}.txt",
