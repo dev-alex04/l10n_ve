@@ -1055,7 +1055,7 @@
   "insert_after": "shipping_rule",
   "is_system_generated": 0,
   "is_virtual": 0,
-  "label": "Total sin Exento",
+  "label": "Total Exento",
   "length": 0,
   "link_filters": null,
   "mandatory_depends_on": null,
