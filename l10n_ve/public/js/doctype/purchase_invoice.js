@@ -11,7 +11,6 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
 ) {
     var tax_rate = this._get_tax_rate(tax, item_tax_map);
     var current_tax_amount = 0.0;
-    // let taxable_base = 0;
 
     // To set row_id by default as previous row.
     if(["On Previous Row Amount", "On Previous Row Total"].includes(tax.charge_type)) {

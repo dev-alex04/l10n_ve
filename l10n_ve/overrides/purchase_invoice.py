@@ -10,7 +10,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
     def calculate_taxes_and_totals(self):
         taxes_and_totals_calculator = TaxesAndTotals(self)
-        taxes_and_totals_calculator.calculate_total_without_exempt()
+        taxes_and_totals_calculator.calculate_total_exempt()
 
         if self.doctype in (
             "Sales Order",

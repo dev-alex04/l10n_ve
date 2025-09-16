@@ -6,13 +6,13 @@ class TaxesAndTotals(calculate_taxes_and_totals):
     def __init__(self, doc):
         super().__init__(doc)
 
-    def calculate_total_without_exempt(self):
-        total_without_exempt = 0
+    def calculate_total_exempt(self):
+        total_exempt = 0
         for item in self.doc.items:
             if item.vat_exempt:
-                total_without_exempt += item.amount
+                total_exempt += item.amount
 
-        self.doc.total_without_exempt = total_without_exempt
+        self.doc.total_exempt = total_exempt
 
     def get_current_tax_amount(self, item, tax, item_tax_map):
         tax_rate = self._get_tax_rate(tax, item_tax_map)
