@@ -1,17 +1,17 @@
-import frappe     
-from frappe.model.document import Document
+import frappe
+from frappe import _, _dict
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 from l10n_ve.overrides.company import CustomCompany
 from frappe.utils import flt
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 class CustomSalesInvoice(SalesInvoice):
-    
 
-    def calculate_taxes_and_totals(self):
+
+    def calculate_taxes_and_totals(self) -> None:
 
         self.template_change()
-      
+
         TaxesAndTotals(self)
 
         self.calculate_commission()
@@ -24,17 +24,14 @@ class CustomSalesInvoice(SalesInvoice):
         """
         super().before_submit()
         self.set_control_and_invoice_number()
-        
+
     def validate(self):
         super().validate()
         # validación de numero de control y de factura
         self._validate_bill_control(raise_throw=True)
-        self._validate_bill_no(raise_throw=True)                
+        self._validate_bill_no(raise_throw=True)
 
-
-        
-       
-    def set_control_and_invoice_number(self):
+    def set_control_and_invoice_number(self) -> None:
         """
         Asigna el número de control y de factura si no existen.
         Utiliza un bucle para asegurar la unicidad en caso de concurrencia.
@@ -44,7 +41,7 @@ class CustomSalesInvoice(SalesInvoice):
 
         while True:
             # Carga el documento Company (con su clase de override)
-            company: CustomCompany = frappe.get_doc('Company', self.company)   
+            company: CustomCompany = frappe.get_doc('Company', self.company)
             numbers = company.get_control_and_invoice_number()
             bill_control = numbers.get('bill_control')
             bill_no = numbers.get('bill_no')
@@ -57,10 +54,12 @@ class CustomSalesInvoice(SalesInvoice):
 
             self.bill_control = bill_control
             self.bill_no = bill_no
-            
+
             break
 
-    def _validate_bill_control(self, bill_control: str = None, raise_throw: bool = True) -> bool:
+    def _validate_bill_control(self,
+                               bill_control: str = '',
+                               raise_throw: bool = True) -> bool:
         """
         Valida que el número de control no esté ya asignado.
         Acepta un valor opcional para validar.
@@ -84,7 +83,7 @@ class CustomSalesInvoice(SalesInvoice):
                 frappe.throw(message, title="Advertencia de Duplicado")
             return False
         return True
-    
+
     def _validate_bill_no(self, bill_no: str = None, raise_throw: bool = True) -> bool:
         """
         Valida que el número de factura no esté ya asignado.
@@ -109,24 +108,24 @@ class CustomSalesInvoice(SalesInvoice):
             if raise_throw:
                 frappe.throw(message, title="Advertencia de Duplicado")
             return False
-        
+
         return True
-    
-    def get_iva_tax_row(self):
+
+    def get_iva_tax_row(self) -> _dict | None:
         """
         Función auxiliar para encontrar y devolver la fila del impuesto de IVA de la factura.
         Se busca en la tabla de impuestos de la factura, no en la plantilla.
+
+        Returns:
+            _dict | None: La fila del impuesto de IVA si se encuentra,
+            de lo contrario None.
         """
-        # Encuentra la fila del impuesto de IVA buscando la descripción "Iva"
+
         for tax_row in self.taxes:
-            # Una forma robusta de identificar el IVA es buscando "IVA" en la descripción
-            if tax_row.charge_type == "On Net Total" and frappe.as_json(tax_row.description).lower() == '"iva"':
+            if tax_row.charge_type == "VAT":
                 return tax_row
-        return None
 
-   
-
-    def template_change(self):
+    def template_change(self) -> None:
         """
         Gestiona la lógica de retención de IVA para contribuyentes especiales.
         """
@@ -142,7 +141,7 @@ class CustomSalesInvoice(SalesInvoice):
 
         # Obtener el documento de la plantilla de impuestos y cargos
         taxes_and_charges_template = frappe.get_doc("Sales Taxes and Charges Template", taxes_and_charges_template_name)
-        
+
         # 2. Obtener la categoría de retención (campo personalizado 'withholding' en tu plantilla)
         withholding_category_name = taxes_and_charges_template.withholding
         if not withholding_category_name:
@@ -152,7 +151,7 @@ class CustomSalesInvoice(SalesInvoice):
         withholding_category = frappe.get_doc("Tax Withholding Category", withholding_category_name)
         if not withholding_category:
             return
-        
+
         # 4. Acceder a la cuenta contable desde la tabla hija 'accounts' del documento de la categoría
         if withholding_category.accounts:
             # Se usa .account para obtener la cuenta y .description para la descripción
@@ -164,31 +163,27 @@ class CustomSalesInvoice(SalesInvoice):
         # 5. Obtener la tasa de retención desde el campo de la Compañía
         company_name = self.company
         withholding_rate = frappe.db.get_value("Company", company_name, "sales_vat_withholding_rate")
-        
+
         # Validar que la tasa de retención exista
         if not withholding_rate:
-            frappe.throw("La tasa de retención de IVA para ventas no está configurada en el documento de la Compañía.")
+            frappe.throw("El porcentaje de retención de IVA para ventas no está configurada en el documento de la Compañía.")
 
         # Limpiar las retenciones existentes en la factura para evitar duplicados
         self.taxes = [row for row in self.taxes if row.account_head != withholding_account]
 
         # 6. Encontrar el impuesto de IVA en las filas de la factura
         vat_tax = self.get_iva_tax_row()
-        
+
+
         # 7. Si se encontró el IVA y existe la tasa de retención, agregar la nueva fila
-        if vat_tax and withholding_rate:     
-            
-            iva_amount = vat_tax.tax_amount
-            withholding_amount = flt(iva_amount * withholding_rate / 100.0)
+        if vat_tax and withholding_rate:
 
             self.vat_withholding_rate = withholding_rate
-            
+
             self.append("taxes", {
+                "rate": withholding_rate,
+                "add_deduct_tax": "Deduct",
                 "charge_type": "VAT Withholding",
-                "add_deduct_tax": "Deduct",                
                 "account_head": withholding_account,
                 "description": withholding_description,
-                "rate": withholding_rate,
-                "tax_amount": withholding_amount,
             })
-            
