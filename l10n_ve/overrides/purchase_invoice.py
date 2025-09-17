@@ -1,6 +1,12 @@
 import frappe
+from frappe.utils import flt
+from erpnext.accounts.utils import get_account_currency
+
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
+
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
+
+
 
 class CustomPurchaseInvoice(PurchaseInvoice):
 
@@ -26,24 +32,25 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
         tabulator = frappe.get_doc("Tabulator ISLR", tabulator_name)
 
-        type_of_person: str = frappe.db.get_value("Supplier", 
-                                                  self.supplier, 
+        type_of_person: str = frappe.db.get_value("Supplier",
+                                                  self.supplier,
                                                   "type_of_person")
 
-        account_head: str = frappe.db.get_value("Company", 
-                                                  self.company, 
+        account_head: str = frappe.db.get_value("Company",
+                                                  self.company,
                                                   "account_head")
-        
+
         for aliquot in tabulator.aliquot:
             if type_of_person == aliquot.types_of_person:
 
                 self.append("taxes", {
                     "category": "Total",
                     "charge_type": "ISLR",
-                    "add_deduct_tax": "Add",
+                    "add_deduct_tax": "Deduct",
                     "rate": aliquot.aliquot,
                     "code": tabulator.codigo,
                     "account_head": account_head,
+                    "is_tax_withholding_account": True,
                     "subtracting": aliquot.subtracting,
                     "description": tabulator.descripcion,
                     "percentage_base": aliquot.percentage_base,
@@ -126,3 +133,125 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             self.calculate_taxes_and_totals()
 
             retention_row.rate = retention_rate
+
+    def make_tax_gl_entries(self, gl_entries) -> None:
+            valuation_tax = {}
+
+            for tax in self.get("taxes"):
+                amount, base_amount = self.get_tax_amounts(tax, None)
+                if tax.category in ("Total", "Valuation and Total") and flt(base_amount):
+                    account_currency = get_account_currency(tax.account_head)
+
+                    dr_or_cr = "debit" if tax.add_deduct_tax == "Add" else "credit"
+
+                    gl_entries.append(
+                        self.get_gl_dict(
+                            {
+                                "account": tax.account_head,
+                                "against": self.supplier,
+                                dr_or_cr: base_amount,
+                                dr_or_cr + "_in_account_currency": base_amount
+                                if account_currency == self.company_currency
+                                else amount,
+                                dr_or_cr + "_in_transaction_currency": amount,
+                                "cost_center": tax.cost_center,
+                            },
+                            account_currency,
+                            item=tax,
+                        )
+                    )
+
+                    if tax.is_tax_withholding_account:
+
+                        gl_entries.append(
+                            self.get_gl_dict(
+                                {
+                                    "account": self.credit_to,
+                                    "party_type": "Supplier",
+                                    "party": self.supplier,
+                                    "due_date": self.due_date,
+                                    "against": tax.account_head,
+                                    "debit": tax.tax_amount,
+                                    "debit_in_account_currency": tax.tax_amount,
+                                    "debit_in_transaction_currency": tax.tax_amount,
+                                    "against_voucher": self.name,
+                                    "against_voucher_type": self.doctype,
+                                    "project": self.project,
+                                    "cost_center": self.cost_center,
+
+                                },
+                                account_currency,
+                                item=tax,
+                            )
+                        )
+                # accumulate valuation tax
+                if (
+                    self.is_opening == "No"
+                    and tax.category in ("Valuation", "Valuation and Total")
+                    and flt(base_amount)
+                    and not self.is_internal_transfer()
+                ):
+                    if self.auto_accounting_for_stock and not tax.cost_center:
+                        frappe.throw(
+                            _("Cost Center is required in row {0} in Taxes table for type {1}").format(
+                                tax.idx, _(tax.category)
+                            )
+                        )
+                    valuation_tax.setdefault(tax.name, 0)
+                    valuation_tax[tax.name] += (tax.add_deduct_tax == "Add" and 1 or -1) * flt(base_amount)
+
+            if self.is_opening == "No" and self.negative_expense_to_be_booked and valuation_tax:
+                # credit valuation tax amount in "Expenses Included In Valuation"
+                # this will balance out valuation amount included in cost of goods sold
+
+                total_valuation_amount = sum(valuation_tax.values())
+                amount_including_divisional_loss = self.negative_expense_to_be_booked
+                i = 1
+                for tax in self.get("taxes"):
+                    if valuation_tax.get(tax.name):
+                        if i == len(valuation_tax):
+                            applicable_amount = amount_including_divisional_loss
+                        else:
+                            applicable_amount = self.negative_expense_to_be_booked * (
+                                valuation_tax[tax.name] / total_valuation_amount
+                            )
+                            amount_including_divisional_loss -= applicable_amount
+
+                        gl_entries.append(
+                            self.get_gl_dict(
+                                {
+                                    "account": tax.account_head,
+                                    "cost_center": tax.cost_center,
+                                    "against": self.supplier,
+                                    "credit": applicable_amount,
+                                    "credit_in_transaction_currency": flt(
+                                        applicable_amount / self.conversion_rate,
+                                        frappe.get_precision("Purchase Invoice Item", "item_tax_amount"),
+                                    ),
+                                    "remarks": self.remarks or _("Accounting Entry for Stock"),
+                                },
+                                item=tax,
+                            )
+                        )
+
+                        i += 1
+
+            if self.auto_accounting_for_stock and self.update_stock and valuation_tax:
+                for tax in self.get("taxes"):
+                    if valuation_tax.get(tax.name):
+                        gl_entries.append(
+                            self.get_gl_dict(
+                                {
+                                    "account": tax.account_head,
+                                    "cost_center": tax.cost_center,
+                                    "against": self.supplier,
+                                    "credit": valuation_tax[tax.name],
+                                    "credit_in_transaction_currency": flt(
+                                        valuation_tax[tax.name] / self.conversion_rate,
+                                        frappe.get_precision("Purchase Invoice Item", "item_tax_amount"),
+                                    ),
+                                    "remarks": self.remarks or _("Accounting Entry for Stock"),
+                                },
+                                item=tax,
+                            )
+                        )

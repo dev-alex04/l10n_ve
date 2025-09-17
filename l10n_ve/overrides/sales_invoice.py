@@ -191,6 +191,7 @@ class CustomSalesInvoice(SalesInvoice):
             self.append("taxes", {
                 "rate": withholding_rate,
                 "charge_type": "VAT Withholding",
+                "add_deduct_tax": "Deduct",
                 "is_tax_withholding_account": True,
                 "account_head": withholding_account,
                 "description": withholding_description,
