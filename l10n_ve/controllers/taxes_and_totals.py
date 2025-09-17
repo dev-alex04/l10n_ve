@@ -74,6 +74,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             current_tax_amount = (item.net_amount * tax.rate) / 100
 
         elif tax.charge_type == "VAT Withholding" and not item.vat_exempt:
+            
             tax_base = self.doc.get("taxes")[cint(tax.idx) - 2].tax_amount
             current_tax_amount = (tax_base * tax.rate) / 100
 
@@ -82,22 +83,16 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
         return current_tax_amount
 
-    def get_tax_amount_if_for_valuation_or_deduction(self,
-                                                        tax_amount: float,
-                                                        tax: Document) -> float:
+    def set_cumulative_total(self, row_idx, tax):
+        tax_amount = tax.tax_amount_after_discount_amount
+        tax_amount = self.get_tax_amount_if_for_valuation_or_deduction(tax_amount, tax)
 
-            # if just for valuation, do not add the tax amount in total
-            # if tax/charges is for deduction, multiply by -1
-            tax_amount = 0.0 \
-                if (tax.get('category', '') == "Valuation") else tax_amount
+        if row_idx == 0:
+            tax_base = self.doc.net_total
+        else:
+            tax_base = self.doc.get("taxes")[row_idx - 1].total
 
-            if self.doc.doctype in [
-                "Sales Invoice",
-                "Purchase Order",
-                "Purchase Invoice",
-                "Purchase Receipt",
-                "Supplier Quotation",
-            ]:
-                tax_amount *= -1.0 if (tax.add_deduct_tax == "Deduct") else 1.0
-
-            return tax_amount
+        if tax.is_tax_withholding_account:
+            tax.total = tax_base
+        else:
+            tax.total = flt(tax_base + tax_amount, tax.precision("total"))

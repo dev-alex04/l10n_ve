@@ -33,7 +33,6 @@ def get_supplier_address(supplier_name):
         frappe.log_error(frappe.get_traceback(), "Error getting supplier address")
 
 
-
 def check_gl_entries(gl_entries: list=[], do_exit: bool = True) -> None:
     # NO QUITAR PRINT SE USA PARA DEBUGEAR
     print('INICIO ASIENTO')
