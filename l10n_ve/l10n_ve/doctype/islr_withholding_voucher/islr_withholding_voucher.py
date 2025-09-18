@@ -4,41 +4,57 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate
+from l10n_ve.utils.utils import format_amounts
 
 class ISLRWithholdingVoucher(Document):
+
+    def before_print(self, settings):
+        main_fields = [
+            "totals_total_exempt",
+            "totals_tax_amount",
+        ]
+
+        child_fields = [
+            "grand_total",
+            "total_exempt",
+            "subtracting",
+            "tax_amount"
+        ]
+
+        format_amounts(self, main_fields, child_fields, child_table_field="islr_withholding_voucher_item")
     
-	def before_insert(self):
-		company_doc = frappe.get_doc("Company", self.empresa)
+    def before_insert(self):
+        company_doc = frappe.get_doc("Company", self.empresa)
 
-		current_correlative_value = company_doc.islr_withholding_correlative
+        current_correlative_value = company_doc.islr_withholding_correlative
 
-		today = getdate(nowdate())
-		current_year = str(today.year)
-		current_month = f"{today.month:02d}"
+        today = getdate(nowdate())
+        current_year = str(today.year)
+        current_month = f"{today.month:02d}"
 
-		if current_correlative_value:
-			last_correlative_part = current_correlative_value[6:]
-			voucher_correlative_num = int(last_correlative_part)
+        if current_correlative_value:
+            last_correlative_part = current_correlative_value[6:]
+            voucher_correlative_num = int(last_correlative_part)
 
-			next_correlative_num = int(last_correlative_part) + 1
-			num_digits = len(last_correlative_part)
-		else:
-			voucher_correlative_num = 1
-			next_correlative_num = 2
-			
-			template = company_doc.islr_withholding_format
-			num_digits = len(template) - 6
+            next_correlative_num = int(last_correlative_part) + 1
+            num_digits = len(last_correlative_part)
+        else:
+            voucher_correlative_num = 1
+            next_correlative_num = 2
+            
+            template = company_doc.islr_withholding_format
+            num_digits = len(template) - 6
 
-		formatted_voucher_correlative = str(voucher_correlative_num).zfill(num_digits)
-		formatted_next_correlative = str(next_correlative_num).zfill(num_digits)
+        formatted_voucher_correlative = str(voucher_correlative_num).zfill(num_digits)
+        formatted_next_correlative = str(next_correlative_num).zfill(num_digits)
 
-		final_voucher_number = f"{current_year}{current_month}{formatted_voucher_correlative}"
-		final_next_correlative_number = f"{current_year}{current_month}{formatted_next_correlative}"
+        final_voucher_number = f"{current_year}{current_month}{formatted_voucher_correlative}"
+        final_next_correlative_number = f"{current_year}{current_month}{formatted_next_correlative}"
 
-		self.voucher_number = final_voucher_number
+        self.voucher_number = final_voucher_number
 
-		company_doc.islr_withholding_correlative = final_next_correlative_number
-		company_doc.save(ignore_permissions=True)
+        company_doc.islr_withholding_correlative = final_next_correlative_number
+        company_doc.save(ignore_permissions=True)
 
 @frappe.whitelist()
 def get_vat_correlative(company_name):
@@ -116,7 +132,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
                     "code": tax_item.code, 
                     "amount_paid": invoice.grand_total,
                     "grand_total": invoice.grand_total,
-                    "total": invoice.total,
+                    "total_exempt": invoice.total_exempt,
                     "tax_amount": tax_item.tax_amount,
                     "taxes": tax_item 
                 }

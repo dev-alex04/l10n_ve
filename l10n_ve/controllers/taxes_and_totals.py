@@ -63,11 +63,10 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
             if item.idx == 1:
                 tax_base = (self.doc.total * tax.percentage_base) / 100
+                tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting
             else:
-                tax_base = (item.net_amount * tax.percentage_base) / 100
-
-            tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting
-
+                tax_amount = 0
+            
             current_tax_amount = tax_amount if tax_amount > 0 else 0
 
         elif tax.charge_type == "VAT" and not item.vat_exempt:

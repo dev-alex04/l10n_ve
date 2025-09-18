@@ -4,8 +4,29 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate
+from l10n_ve.utils.utils import format_amounts
 
 class VATWithholdingVoucher(Document):
+
+    def before_print(self, settings):
+        main_fields = [
+            "totals_grand_total",
+            "totals_total_exempt",
+            "totals_total",
+            "totals_taxes_and_charges_added",
+            "totals_taxes_and_charges_deducted"
+        ]
+
+        child_fields = [
+            "grand_total",
+            "rate",
+            "total_exempt",
+            "total",
+            "taxes_and_charges_added",
+            "taxes_and_charges_deducted"
+        ]
+
+        format_amounts(self, main_fields, child_fields, child_table_field="vat_withholding_voucher_item")
 
     def before_insert(self):
         company_doc = frappe.get_doc("Company", self.empresa)
@@ -99,7 +120,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"company": company},
             {"docstatus": 1},
             {"name": ["not in", all_excluded_invoices]},
-            ["Purchase Taxes and Charges", "charge_type", "=", "Actual"]
+            ["Purchase Taxes and Charges", "charge_type", "=", "VAT Withholding"]
         ],
         fields=["name"]
     )

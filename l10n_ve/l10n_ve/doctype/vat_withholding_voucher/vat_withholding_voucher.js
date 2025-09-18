@@ -170,6 +170,7 @@ function load_invoices(frm) {
                     new_row.posting_date = invoice.posting_date;
                     new_row.rate = invoice.rate;
                     new_row.grand_total = invoice.grand_total;
+                    new_row.total_exempt = invoice.total_exempt;
                     new_row.total = invoice.total;
                     new_row.taxes_and_charges_added = invoice.taxes_and_charges_added;
                     new_row.taxes_and_charges_deducted = invoice.taxes_and_charges_deducted;
