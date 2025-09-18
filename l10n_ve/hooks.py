@@ -47,8 +47,14 @@ app_include_js = "/assets/l10n_ve/js/company.js"
 
 # include js in doctype views
 doctype_js = {
-    "Purchase Invoice" : ["public/js/doctype/purchase_invoice.js"],
-    "Sales Invoice" : ["public/js/doctype/sales_invoice/sales_invoice.js"],
+    "Purchase Invoice" : [
+        "public/js/doctype/purchase_invoice.js",
+        "public/js/controllers/taxes_and_totals.js"
+    ],
+    "Sales Invoice" : [
+        "public/js/controllers/taxes_and_totals.js",
+        "public/js/doctype/sales_invoice/sales_invoice.js",
+    ],
 }
 
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
@@ -212,7 +218,7 @@ scheduler_events = {
 fixtures = [
     {
         "doctype": "Custom Field",
-        "filters": [            
+        "filters": [
             ["module", "=", "L10N Ve"],
         ]
     },

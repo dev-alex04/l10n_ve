@@ -13,7 +13,7 @@
         "property": "options",
         "property_type": "Text",
         "row_name": null,
-        "value": "\nActual\nOn Net Total\nOn Previous Row Amount\nOn Previous Row Total\nOn Item Quantity\nISLR\nVAT Withholding"
+        "value": "\nActual\nOn Net Total\nOn Previous Row Amount\nOn Previous Row Total\nOn Item Quantity\nISLR\nVAT\nVAT Withholding"
    },
     {
         "default_value": null,
@@ -29,6 +29,6 @@
         "property": "options",
         "property_type": "Text",
         "row_name": null,
-        "value": "\nActual\nOn Net Total\nOn Previous Row Amount\nOn Previous Row Total\nOn Item Quantity\nISLR\nVAT Withholding"
+        "value": "\nActual\nOn Net Total\nOn Previous Row Amount\nOn Previous Row Total\nOn Item Quantity\nISLR\nVAT\nVAT Withholding"
    }
 ]
