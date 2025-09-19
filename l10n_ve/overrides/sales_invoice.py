@@ -1,6 +1,7 @@
 import frappe
 from frappe import _, _dict
 from frappe.utils import flt, cint
+from frappe.model.document import Document
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
@@ -14,12 +15,12 @@ class CustomSalesInvoice(SalesInvoice):
 
     def calculate_taxes_and_totals(self) -> None:
 
-        self.set_vat_withholding()
-
         TaxesAndTotals(self)
-
+        self.set_vat_withholding()
         self.calculate_commission()
         self.calculate_contribution()
+        taxes_and_totals_calculator = TaxesAndTotals(self)
+        taxes_and_totals_calculator.calculate_total_exempt()
 
     def before_submit(self) -> None:
         """
@@ -31,10 +32,14 @@ class CustomSalesInvoice(SalesInvoice):
         self.set_control_and_invoice_number()
 
     def validate(self):
+
+        self.validate_number()
         super().validate()
+        self.validate_item_iva()
+        self.calculate_total_withholding()
         # validación de numero de control y de factura
-        self._validate_bill_control(raise_throw=True)
         self._validate_bill_no(raise_throw=True)
+        self._validate_bill_control(raise_throw=True)
 
     def set_control_and_invoice_number(self) -> None:
         """
@@ -197,6 +202,19 @@ class CustomSalesInvoice(SalesInvoice):
                 "description": withholding_description,
             })
 
+    def calculate_total_withholding(self):
+        self.total_withholding  = 0.0
+
+        if not self.get("taxes"):
+            return
+
+        for tax in self.get("taxes"):
+            if not tax.is_tax_withholding_account:
+                    continue
+
+            self.total_withholding += tax.tax_amount
+
+
     def make_tax_gl_entries(self, gl_entries):
 
         enable_discount_accounting = cint(
@@ -242,3 +260,40 @@ class CustomSalesInvoice(SalesInvoice):
                     item=tax,
                 )
             )
+    def validate_item_iva(self):
+
+        has_taxable_items = False
+        for item in self.items:
+            if not item.vat_exempt:
+                has_taxable_items = True
+                break
+
+        if not has_taxable_items and self.taxes_and_charges:
+            self.taxes_and_charges = None
+            self.set("taxes", [])
+
+            self.apply_tds = 0
+
+        has_vat_charge = False
+        for tax in self.taxes:
+            if tax.charge_type == 'VAT':
+                has_vat_charge = True
+                break
+
+        if not has_vat_charge and self.apply_tds == 1:
+            self.set("taxes", [])
+            self.apply_tds = 0
+
+    def validate_number(self):
+        if self.vat_withholding_voucher_number:
+            # 1. Verifica si el valor contiene solo dígitos.
+            if not self.vat_withholding_voucher_number.isdigit():
+                frappe.throw("El número de comprobante de retención de IVA debe contener solo números.")
+
+            # 2. Verifica si la longitud es exactamente 14.
+            if len(self.vat_withholding_voucher_number) != 14:
+                frappe.throw("El número de comprobante de retención de IVA debe tener exactamente 14 caracteres.")
+
+        # Llama a la validación de la clase padre para mantener las validaciones estándar de Frappe.
+
+

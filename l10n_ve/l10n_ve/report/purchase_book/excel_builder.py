@@ -26,7 +26,7 @@ class ExcelBuilder:
         self.workbook = Workbook()
         self.sheet = self.workbook.active
         self.sheet.title = "Reporte de Compras"
-        
+
         # Definimos los estilos comunes
         self.header_font = Font(bold=True)
         self.total_font = Font(bold=True)
@@ -45,41 +45,41 @@ class ExcelBuilder:
         Agrega el encabezado con los datos de la compañía en un formato estructurado.
         """
         current_row = 1
-        
+
         self.sheet.cell(row=current_row, column=1, value=_("Libro de Compras Fiscal")).font = Font(size=14, bold=True)
-        
+
         current_row += 2
-        
+
         self.sheet.column_dimensions[get_column_letter(1)].width = 30
         self.sheet.column_dimensions[get_column_letter(2)].width = 40
         self.sheet.column_dimensions[get_column_letter(3)].width = 30
         self.sheet.column_dimensions[get_column_letter(4)].width = 40
-        
+
         title_font = Font(bold=True)
-        
+
         self.sheet.cell(row=current_row, column=1, value=_("Nombre o Razón Social:")).font = title_font
         self.sheet.cell(row=current_row, column=4, value=_("Número de Registro de Información Fiscal (RIF):")).font = title_font
-        
+
         current_row += 1
         self.sheet.cell(row=current_row, column=1, value=self.company_data.get("company_name"))
         self.sheet.cell(row=current_row, column=4, value=self.company_data.get("tax_id"))
-        
+
         current_row += 2
-        
+
         self.sheet.cell(row=current_row, column=1, value=_("Dirección:")).font = title_font
         self.sheet.cell(row=current_row, column=4, value=_("Tipo de Contribuyente:")).font = title_font
-        
+
         current_row += 1
         is_special_taxpayer_text = _("ESPECIAL") if self.company_data.get("is_special_taxpayer") else _("NO ESPECIAL")
         self.sheet.cell(row=current_row, column=1, value=self.company_data.get("address"))
         self.sheet.cell(row=current_row, column=4, value=is_special_taxpayer_text)
-        
+
         current_row += 2
-        
+
         self.sheet.cell(row=current_row, column=1, value=_("Período Fiscal:")).font = title_font
         current_row += 1
         self.sheet.cell(row=current_row, column=1, value=f"{self.from_date.strftime('%d-%m-%Y')} - {self.to_date.strftime('%d-%m-%Y')}")
-        
+
         return current_row + 2
 
     def _build_main_table(self, start_row):
@@ -87,13 +87,13 @@ class ExcelBuilder:
         Construye la tabla principal con todos los datos y agrega una fila de totales al final.
         """
         current_row = start_row + 1
-        
+
         headers_2level = {
             16: _("Compras a Contribuyentes"),
-           
-            
+
+
         }
-        
+
         # Escribimos los títulos del primer nivel en la fila actual
         for col, header_text in headers_2level.items():
             cell = self.sheet.cell(row=current_row, column=col, value=header_text)
@@ -101,19 +101,19 @@ class ExcelBuilder:
             cell.border = self.data_border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-      
+
         self.sheet.merge_cells(start_row=current_row, start_column=16, end_row=current_row, end_column=21)
 
-        
+
         current_row += 1
 
         headers_3level = {
             16: _("Tasa Reducida 8%"),
             18: _("Tasa General 16%"),
             20: _("Tasa General + Adicional 31%"),
-           
+
             22: _("Retención"),
-            
+
 
         }
 
@@ -124,12 +124,12 @@ class ExcelBuilder:
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
         self.sheet.merge_cells(start_row=current_row, start_column=16, end_row=current_row, end_column=17)
-       
+
         self.sheet.merge_cells(start_row=current_row, start_column=18, end_row=current_row, end_column=19)
         self.sheet.merge_cells(start_row=current_row, start_column=20, end_row=current_row, end_column=21)
-       
-        self.sheet.merge_cells(start_row=current_row, start_column=22, end_row=current_row, end_column=25) 
-        
+
+        self.sheet.merge_cells(start_row=current_row, start_column=22, end_row=current_row, end_column=25)
+
 
         current_row += 1
 
@@ -150,22 +150,22 @@ class ExcelBuilder:
             for col_index, col in enumerate(self.columns, start=1):
                 fieldname = col.get("fieldname")
                 cell_value = row_data.get(fieldname)
-                
+
                 cell = self.sheet.cell(row=row_index, column=col_index, value=cell_value)
                 cell.border = self.data_border
                 cell.alignment = self.data_alignment
-                
+
                 if isinstance(cell_value, (int, float)):
                     cell.number_format = self.numeric_format
-            
+
             # Establecemos una altura fija para las filas de datos
             self.sheet.row_dimensions[row_index].height = 15
             row_index += 1
-        
+
         row_index += 1
-          
+
         total_row_index = row_index
-        
+
         # Escribir el label "Totales" en la primera columna
         total_label_cell = self.sheet.cell(row=total_row_index, column=1, value=_("Totales"))
         total_label_cell.font = self.total_font
@@ -174,7 +174,7 @@ class ExcelBuilder:
         # Recorrer las columnas y escribir los valores totales
         for col_index, col in enumerate(self.columns, start=1):
             fieldname = col.get("fieldname")
-            
+
             # Verificar si el campo tiene un total asociado
             if fieldname in self.totals:
                 total_value = self.totals.get(fieldname)
@@ -183,9 +183,9 @@ class ExcelBuilder:
                 total_cell.border = self.data_border
                 total_cell.number_format = self.numeric_format
                 total_cell.alignment = self.data_alignment
-        
+
         return self.sheet.max_row
-    
+
     def _add_summary_table(self, start_row):
         """
         Agrega la tabla resumen de impuestos al final del reporte, con el formato original.
@@ -194,7 +194,7 @@ class ExcelBuilder:
             return start_row
 
         current_row = start_row + 5
-        
+
         # Definimos el offset para mover la tabla a la derecha
         offset = 13
 
@@ -213,7 +213,7 @@ class ExcelBuilder:
         self.sheet.column_dimensions[get_column_letter(4 + offset)].width = 25
 
         current_row += 1
-        
+
         summary_rows = [
             {"concept": "Compras no Gravadas", "base": self.totals.get("compras_sin_credito", 0), "credit": 0, "retention": 0},
             {"concept": "Compras de Importación", "base": 0, "credit": 0, "retention": 0},
@@ -222,29 +222,29 @@ class ExcelBuilder:
             {"concept": "Compras internas (tasa reducida)", "base": self.totals.get("base_reducida", 0), "credit": self.totals.get("impuesto_reducida", 0), "retention": 0},
             {"concept": "Retención de IVA", "base": 0, "credit": 0, "retention": self.totals.get("taxes_and_charges_deducted", 0)}
         ]
-        
+
         total_base = 0
         total_credit = 0
         total_retention = 0
 
         for row_data in summary_rows:
             self.sheet.cell(row=current_row, column=1 + offset, value=row_data["concept"]).border = self.data_border
-            
+
             base_cell = self.sheet.cell(row=current_row, column=2 + offset, value=row_data["base"])
             base_cell.border = self.data_border
             base_cell.number_format = self.numeric_format
             total_base += row_data["base"]
-            
+
             credit_cell = self.sheet.cell(row=current_row, column=3 + offset, value=row_data["credit"])
             credit_cell.border = self.data_border
             credit_cell.number_format = self.numeric_format
             total_credit += row_data["credit"]
-            
+
             retention_cell = self.sheet.cell(row=current_row, column=4 + offset, value=row_data["retention"])
             retention_cell.border = self.data_border
             retention_cell.number_format = self.numeric_format
             total_retention += row_data["retention"]
-            
+
             current_row += 1
 
         # Fila de total general
@@ -256,19 +256,19 @@ class ExcelBuilder:
         total_base_cell.font = self.total_font
         total_base_cell.border = self.data_border
         total_base_cell.number_format = self.numeric_format
-        
+
         total_credit_cell = self.sheet.cell(row=current_row, column=3 + offset, value=total_credit)
         total_credit_cell.font = self.total_font
         total_credit_cell.border = self.data_border
         total_credit_cell.number_format = self.numeric_format
-        
+
         total_retention_cell = self.sheet.cell(row=current_row, column=4 + offset, value=total_retention)
         total_retention_cell.font = self.total_font
         total_retention_cell.border = self.data_border
         total_retention_cell.number_format = self.numeric_format
 
         return self.sheet.max_row
-    
+
     def build(self):
         """
         Construye el libro de Excel orquestando los métodos de construcción.
@@ -276,7 +276,7 @@ class ExcelBuilder:
         try:
             last_row_header = self._add_report_header()
             last_row_main_table = self._build_main_table(last_row_header)
-            
+
             # Agregamos la tabla resumen
             self._add_summary_table(last_row_main_table)
 
@@ -294,43 +294,43 @@ def create_excel_file(report_name, filters=None, **kwargs):
     """
     if not filters:
         filters = kwargs.get("filters_json")
-    
+
     if isinstance(filters, str):
         filters = json.loads(filters)
-    
+
     try:
-    
+
         columns, data, message, chart, report_summary = execute(filters)
-        
+
         totals = get_totals_from_data(data)
 
         if not data:
             frappe.throw(_("No se encontraron datos para los filtros seleccionados."))
-        
+
         company_doc = frappe.get_doc("Company", filters.get("company"))
         address_name = company_doc.get("custom_company_primary_address")
         company_address = frappe.db.get_value("Address", address_name, "address_line1") if address_name else _("Dirección no disponible")
-        
+
         company_data = {
             "company_name": company_doc.company_name,
             "tax_id": company_doc.tax_id,
             "is_special_taxpayer": company_doc.is_special_taxpayer,
             "address": company_address
         }
-        
+
         from_date = frappe.utils.getdate(filters.get("date_from"))
         to_date = frappe.utils.getdate(filters.get("to_date"))
 
         title = _("Libro de Compras")
-        
+
         builder = ExcelBuilder(
-            title, 
-            columns, 
+            title,
+            columns,
             data,
-            totals, 
+            totals,
             company_data,
-            from_date, 
-            to_date, 
+            from_date,
+            to_date,
             report_summary
         )
         excel_content = builder.build()

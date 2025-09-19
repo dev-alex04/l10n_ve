@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, nowdate, add_days 
+from frappe.utils import getdate, nowdate, add_days
 from frappe.utils.file_manager import save_file
 import json
 import datetime
@@ -15,7 +15,7 @@ def get_report_summary(totals):
     """
     summary = [
         {"value": totals.get("grand_total"), "label": "Total Ventas Incl. IVA", "datatype": "Currency"},
-        {"value": totals.get("non_taxable_internal_sales"), "label": "Ventas No Gravadas", "datatype": "Currency"},
+        {"value": totals.get("total_exempt"), "label": "Ventas No Gravadas", "datatype": "Currency"},
         {"value": totals.get("base_general_taxpayer") + totals.get("base_general_non_taxpayer"),
          "label": "Base Imponible General", "datatype": "Currency"},
         {"value": totals.get("iva_general_taxpayer") + totals.get("iva_general_non_taxpayer"),
@@ -33,7 +33,7 @@ def get_report_summary(totals):
 
     ]
 
-    
+
     return summary
 
 def execute(filters=None):
@@ -44,7 +44,7 @@ def execute(filters=None):
     columns = get_columns()
     data = get_sales_data(filters)
 
- 
+
     totals = get_total_row(data)
 
     if data:
@@ -52,7 +52,7 @@ def execute(filters=None):
             row["sequence_number"] = i + 1
         data.append(totals)
 
-   
+
     report_summary = get_report_summary(totals)
     return columns, data, None, None, report_summary
 
@@ -62,7 +62,7 @@ def get_columns():
     Define las columnas de la tabla del reporte. Se han simplificado las etiquetas para evitar errores en el archivo Excel.
     """
     return [
-		
+
         {"label": _("Fecha"), "fieldname": "posting_date", "fieldtype": "Date", "width": 100},
         {"label": _("RIF del Cliente"), "fieldname": "customer_tax_id", "fieldtype": "Data", "width": 150},
         {"label": _("Nombre del Cliente"), "fieldname": "customer_name", "fieldtype": "Data", "width": 200},
@@ -75,19 +75,19 @@ def get_columns():
         {"label": _("Tipo de Transaccion"), "fieldname": "transaction_type", "fieldtype": "Data", "width": 150},
 		{"label": _("Total Incl. IVA"), "fieldname": "grand_total", "fieldtype": "Currency", "width": 120},
         {"label": _("Ventas Export. FOB"), "fieldname": "ve_fob", "fieldtype": "Currency", "width": 120},
-        {"label": _("Ventas internas no Gravadas"), "fieldname": "non_taxable_internal_sales", "fieldtype": "Currency", "width": 120},
-        
+        {"label": _("Ventas internas no Gravadas"), "fieldname": "total_exempt", "fieldtype": "Currency", "width": 120},
+
         # Columnas para Ventas a No Contribuyentes
-        
+
         {"label": _("Base Imponible No C. R"), "fieldname": "base_reduced_non_taxpayer", "fieldtype": "Currency", "width": 150},
         {"label": _("IVA No C. R"), "fieldname": "iva_reduced_non_taxpayer", "fieldtype": "Currency", "width": 120},
 		{"label": _("Base Imponible No C. G"), "fieldname": "base_general_non_taxpayer", "fieldtype": "Currency", "width": 150},
         {"label": _("IVA No C. G"), "fieldname": "iva_general_non_taxpayer", "fieldtype": "Currency", "width": 120},
         {"label": _("Base Imponible No C. A"), "fieldname": "base_additional_non_taxpayer", "fieldtype": "Currency", "width": 150},
         {"label": _("IVA No C. A"), "fieldname": "iva_additional_non_taxpayer", "fieldtype": "Currency", "width": 120},
-        
+
         # Columnas para Ventas a Contribuyentes
-        
+
         {"label": _("Base Imponible C. R"), "fieldname": "base_reduced_taxpayer", "fieldtype": "Currency", "width": 150},
         {"label": _("IVA C. R"), "fieldname": "iva_reduced_taxpayer", "fieldtype": "Currency", "width": 120},
 		{"label": _("Base Imponible C. G"), "fieldname": "base_general_taxpayer", "fieldtype": "Currency", "width": 150},
@@ -106,11 +106,11 @@ def get_columns():
         {"label": _("Tasa de IGTF"), "fieldname": "igtf_rate", "fieldtype": "Percent", "width": 120},
         {"label": _("Monto IGTF"), "fieldname": "igtf_amount", "fieldtype": "Currency", "width": 120},
 
-        
-       
+
+
     ]
 def get_sales_data(filters):
-	
+
 	"""
 	Obtiene los datos del reporte ejecutando una consulta SQL optimizada.
 	"""
@@ -127,7 +127,7 @@ def get_sales_data(filters):
 		general_rate = 16.0
 		reduced_rate = 8.0
 		additional_rate = 31.0
-	
+
 	# La consulta SQL es la parte principal de la optimización
 	data = frappe.db.sql("""
 		SELECT
@@ -146,12 +146,13 @@ def get_sales_data(filters):
 				WHEN tc.customer_type = 'Individual' THEN 'PN'
 				WHEN tc.customer_type = 'Partnership' THEN 'PJ'
 				ELSE "N/A"
-			END AS customer_type,		  
+			END AS customer_type,
 			siv.grand_total,
-			siv.total,		  
-			
-	
-					  
+			siv.total,
+			siv.total_exempt,
+
+
+
 			 -- Ventas a NO Contribuyentes
             CASE WHEN tc.is_special_taxpayer = 0 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_non_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_non_taxpayer,
@@ -159,7 +160,7 @@ def get_sales_data(filters):
             CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_non_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 0 AND tstac_add.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_additional_non_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_non_taxpayer,
-            
+
             -- Ventas a Contribuyentes
             CASE WHEN tc.is_special_taxpayer = 1 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_taxpayer,
@@ -191,7 +192,7 @@ def get_sales_data(filters):
 			ON tstac_add.parent = siv.name AND tstac_add.rate = %(additional_rate)s
 		LEFT JOIN
 			`tabSales Taxes and Charges` tstac_retained
-			ON tstac_retained.parent = siv.name AND tstac_retained.tax_amount < 0
+			ON tstac_retained.parent = siv.name AND tstac_retained.charge_type = 'VAT withholding'
 		WHERE
 			siv.company = %(company)s
 			AND siv.posting_date BETWEEN %(from_date)s AND %(to_date)s
@@ -199,7 +200,7 @@ def get_sales_data(filters):
 		ORDER BY
 			siv.posting_date ASC
 	""", {
-		
+
 		"company": filters.get("company"),
 		"from_date": filters.get("from_date"),
 		"to_date": filters.get("to_date"),
@@ -207,7 +208,7 @@ def get_sales_data(filters):
 		"reduced_rate": reduced_rate,
 		"additional_rate": additional_rate
 	}, as_dict=1)
-	
+
 	return data
 
 def get_total_row(data):
@@ -221,8 +222,8 @@ def get_total_row(data):
 		{
 			"grand_total": sum(d.get("grand_total", 0) for d in data),
 			"exempt_amount": sum(d.get("exempt_amount", 0) for d in data),
-			
-			"non_taxable_internal_sales": sum(d.get("non_taxable_internal_sales", 0) for d in data),
+
+			"total_exempt": sum(d.get("total_exempt", 0) for d in data),
 			"base_general_non_taxpayer": sum(d.get("base_general_non_taxpayer", 0) for d in data),
 			"iva_general_non_taxpayer": sum(d.get("iva_general_non_taxpayer", 0) for d in data),
 			"base_reduced_non_taxpayer": sum(d.get("base_reduced_non_taxpayer", 0) for d in data),
@@ -236,20 +237,20 @@ def get_total_row(data):
 			"iva_reduced_taxpayer": sum(d.get("iva_reduced_taxpayer", 0) for d in data),
 			"base_additional_taxpayer": sum(d.get("base_additional_taxpayer", 0) for d in data),
 			"iva_additional_taxpayer": sum(d.get("iva_additional_taxpayer", 0) for d in data),
-			
+
 			"iva_retained": sum(d.get("iva_retained", 0) for d in data),
-			
+
 			# Totales para las nuevas columnas de IGTF
 			"igtf_base": sum(d.get("igtf_base", 0) for d in data),
 			"igtf_amount": sum(d.get("igtf_amount", 0) for d in data),
 
-			
+
 		}
 	)
-	
-	
+
+
 	# El total se mostrará en la columna "Nro. de Factura" para una mejor visualización
-	
+
 	totals.bill_no = _("TOTALES")
 	return totals
 
