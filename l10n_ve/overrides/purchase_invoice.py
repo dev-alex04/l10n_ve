@@ -16,7 +16,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
     def validate(self):
         super().validate()
-        
+
         has_taxable_items = False
         for item in self.items:
             if not item.vat_exempt:
@@ -29,14 +29,15 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
             self.apply_tds = 0
 
-            frappe.msgprint("Se ha eliminado de la tabla de impuestos y cargos el "\
-            "IVA y la retención de IVA.")
-        elif has_taxable_items and self.apply_tds == 1 and not self.taxes_and_charges:
+        has_vat_charge = False
+        for tax in self.taxes:
+            if tax.charge_type == 'VAT':
+                has_vat_charge = True
+                break
+
+        if not has_vat_charge and self.apply_tds == 1:
             self.set("taxes", [])
             self.apply_tds = 0
-
-            frappe.msgprint("Se destildado 'Aplicar Monto de Retención de Impuestos' "\
-            "ya que no tiene plantilla de impuestos seleccionada.")
 
         self.calculate_taxes_and_totals()
 
