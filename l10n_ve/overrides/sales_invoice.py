@@ -1,7 +1,6 @@
 import frappe
 from frappe import _, _dict
 from frappe.utils import flt, cint
-from frappe.model.document import Document
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
@@ -14,12 +13,14 @@ class CustomSalesInvoice(SalesInvoice):
 
 
     def calculate_taxes_and_totals(self) -> None:
-
-        TaxesAndTotals(self)
         self.set_vat_withholding()
+
+        taxes_and_totals_calculator = TaxesAndTotals(self)
+
+
         self.calculate_commission()
         self.calculate_contribution()
-        taxes_and_totals_calculator = TaxesAndTotals(self)
+
         taxes_and_totals_calculator.calculate_total_exempt()
 
     def before_submit(self) -> None:
@@ -260,13 +261,10 @@ class CustomSalesInvoice(SalesInvoice):
                     item=tax,
                 )
             )
+
     def validate_item_iva(self):
 
-        has_taxable_items = False
-        for item in self.items:
-            if not item.vat_exempt:
-                has_taxable_items = True
-                break
+        has_taxable_items = any(not item.vat_exempt for item in self.items)
 
         if not has_taxable_items and self.taxes_and_charges:
             self.taxes_and_charges = None
@@ -274,11 +272,7 @@ class CustomSalesInvoice(SalesInvoice):
 
             self.apply_tds = 0
 
-        has_vat_charge = False
-        for tax in self.taxes:
-            if tax.charge_type == 'VAT':
-                has_vat_charge = True
-                break
+        has_vat_charge = any(tax.charge_type == 'VAT' for tax in self.taxes)
 
         if not has_vat_charge and self.apply_tds == 1:
             self.set("taxes", [])
@@ -286,14 +280,9 @@ class CustomSalesInvoice(SalesInvoice):
 
     def validate_number(self):
         if self.vat_withholding_voucher_number:
-            # 1. Verifica si el valor contiene solo dígitos.
+
             if not self.vat_withholding_voucher_number.isdigit():
                 frappe.throw("El número de comprobante de retención de IVA debe contener solo números.")
 
-            # 2. Verifica si la longitud es exactamente 14.
             if len(self.vat_withholding_voucher_number) != 14:
                 frappe.throw("El número de comprobante de retención de IVA debe tener exactamente 14 caracteres.")
-
-        # Llama a la validación de la clase padre para mantener las validaciones estándar de Frappe.
-
-
