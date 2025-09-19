@@ -13,13 +13,15 @@ class CustomSalesInvoice(SalesInvoice):
 
 
     def calculate_taxes_and_totals(self) -> None:
-
         self.set_vat_withholding()
 
-        TaxesAndTotals(self)
+        taxes_and_totals_calculator = TaxesAndTotals(self)
+
 
         self.calculate_commission()
         self.calculate_contribution()
+
+        taxes_and_totals_calculator.calculate_total_exempt()
 
     def before_submit(self) -> None:
         """
@@ -31,10 +33,14 @@ class CustomSalesInvoice(SalesInvoice):
         self.set_control_and_invoice_number()
 
     def validate(self):
+
+        self.validate_number()
         super().validate()
+        self.validate_item_iva()
+        self.calculate_total_withholding()
         # validación de numero de control y de factura
-        self._validate_bill_control(raise_throw=True)
         self._validate_bill_no(raise_throw=True)
+        self._validate_bill_control(raise_throw=True)
 
     def set_control_and_invoice_number(self) -> None:
         """
@@ -197,6 +203,19 @@ class CustomSalesInvoice(SalesInvoice):
                 "description": withholding_description,
             })
 
+    def calculate_total_withholding(self):
+        self.total_withholding  = 0.0
+
+        if not self.get("taxes"):
+            return
+
+        for tax in self.get("taxes"):
+            if not tax.is_tax_withholding_account:
+                    continue
+
+            self.total_withholding += tax.tax_amount
+
+
     def make_tax_gl_entries(self, gl_entries):
 
         enable_discount_accounting = cint(
@@ -242,3 +261,28 @@ class CustomSalesInvoice(SalesInvoice):
                     item=tax,
                 )
             )
+
+    def validate_item_iva(self):
+
+        has_taxable_items = any(not item.vat_exempt for item in self.items)
+
+        if not has_taxable_items and self.taxes_and_charges:
+            self.taxes_and_charges = None
+            self.set("taxes", [])
+
+            self.apply_tds = 0
+
+        has_vat_charge = any(tax.charge_type == 'VAT' for tax in self.taxes)
+
+        if not has_vat_charge and self.apply_tds == 1:
+            self.set("taxes", [])
+            self.apply_tds = 0
+
+    def validate_number(self):
+        if self.vat_withholding_voucher_number:
+
+            if not self.vat_withholding_voucher_number.isdigit():
+                frappe.throw("El número de comprobante de retención de IVA debe contener solo números.")
+
+            if len(self.vat_withholding_voucher_number) != 14:
+                frappe.throw("El número de comprobante de retención de IVA debe tener exactamente 14 caracteres.")

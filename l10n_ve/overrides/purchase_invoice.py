@@ -1,5 +1,6 @@
 import frappe
 from frappe.utils import flt
+from frappe import _
 from erpnext.accounts.utils import get_account_currency
 
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice

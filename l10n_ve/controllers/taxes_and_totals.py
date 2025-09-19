@@ -74,9 +74,16 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             current_tax_amount = (item.net_amount * tax.rate) / 100
 
         elif tax.charge_type == "VAT Withholding" and not item.vat_exempt:
-            
-            tax_base = self.doc.get("taxes")[cint(tax.idx) - 2].tax_amount
-            current_tax_amount = (tax_base * tax.rate) / 100
+
+            vat_row = None
+
+            for tax_row in self.doc.get("taxes"):
+                if tax_row.charge_type == "VAT":
+                    vat_row = tax_row
+
+            if vat_row:
+                tax_base = vat_row.tax_amount
+                current_tax_amount = ((tax_base * tax.rate) / 100)/ item.idx
 
         if not (self.doc.get("is_consolidated") or tax.get("dont_recompute_tax")):
             self.set_item_wise_tax(item, tax, tax_rate, current_tax_amount)
