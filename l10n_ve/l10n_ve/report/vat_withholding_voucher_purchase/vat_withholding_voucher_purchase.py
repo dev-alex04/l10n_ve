@@ -141,6 +141,8 @@ def generate_vat_report(voucher_name):
 			.withholding-voucher-details-table {{
 				border-collapse: collapse;
                 font-size: 12px;
+                width: 100%;
+                margin: 0 auto;
 			}}
 
 			.withholding-voucher-details-table th {{
