@@ -224,7 +224,7 @@ def get_header_html(doc):
                         <p class="mb-7">{doc.company_address}</p>
                     </td>
                     <td style="width: 15%;">
-                        <h6 class="mt-7" class="mb-7" style="font-weight: bold;">FECHA DE EMISIÓN</h6>
+                        <h6 class="mt-7" style="font-weight: bold;">FECHA DE EMISIÓN</h6>
                         <p class="mb-7">{getdate(doc.issue_date).strftime('%d/%m/%Y')}</p>
                     </td>
                     <td style="width: 15%;">

@@ -4,7 +4,6 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate
-from l10n_ve.utils.utils import format_amounts
 
 class VATWithholdingVoucher(Document):
 
