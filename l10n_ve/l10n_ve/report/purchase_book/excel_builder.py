@@ -215,7 +215,7 @@ class ExcelBuilder:
         current_row += 1
 
         summary_rows = [
-            {"concept": "Compras no Gravadas", "base": self.totals.get("compras_sin_credito", 0), "credit": 0, "retention": 0},
+            {"concept": "Compras no Gravadas", "base": self.totals.get("total_exempt", 0), "credit": 0, "retention": 0},
             {"concept": "Compras de Importación", "base": 0, "credit": 0, "retention": 0},
             {"concept": "Compras internas (tasa general)", "base": self.totals.get("base_general", 0), "credit": self.totals.get("impuesto_general", 0), "retention": 0},
             {"concept": "Compras internas (tasa general + adicional)", "base": self.totals.get("base_adicional", 0), "credit": self.totals.get("impuesto_adicional", 0), "retention": 0},

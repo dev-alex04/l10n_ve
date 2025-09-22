@@ -153,7 +153,7 @@ function load_invoices(frm) {
             company: frm.doc.empresa
         },
         callback: function(r) {
-            frm.doc.totals_total = 0;
+            frm.doc.totals_total_exempt = 0;
             frm.doc.totals_tax_amount = 0;
 
             if (r.message && r.message.length > 0) {
@@ -167,7 +167,7 @@ function load_invoices(frm) {
 
                     if (invoice.taxes) {
                         let tax_item = invoice.taxes;
-                        new_row.total = invoice.total;
+                        new_row.total_exempt = invoice.total_exempt;
                         new_row.amount_paid = invoice.grand_total;
                         new_row.rate = tax_item.rate; 
                         new_row.subtracting = tax_item.subtracting; 
@@ -175,12 +175,12 @@ function load_invoices(frm) {
                         new_row.tax_amount = tax_item.tax_amount;
                     }
                     
-                    frm.doc.totals_total += invoice.total || 0;
+                    frm.doc.totals_total_exempt += invoice.total_exempt || 0;
                     frm.doc.totals_tax_amount += invoice.tax_amount || 0;
                 });
                 
                 frm.refresh_fields([
-                    'totals_total',
+                    'totals_total_exempt',
                     'totals_tax_amount'
                 ]);
                 
@@ -190,7 +190,7 @@ function load_invoices(frm) {
                 frm.add_child('islr_withholding_voucher_item');
                 frm.refresh_field('islr_withholding_voucher_item');
 
-                frm.doc.totals_total = 0;
+                frm.doc.totals_total_exempt = 0;
                 frm.doc.totals_tax_amount = 0;
                 frm.refresh_fields();
 

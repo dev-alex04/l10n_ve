@@ -4,14 +4,21 @@
 frappe.ui.form.on('VAT Withholding Voucher', {
     refresh: function(frm) {
         if (!frm.is_new()) {
-            frm.add_custom_button(__('Imprimir Comprobante'), function() {
-                window.open(
-                    frappe.urllib.get_full_url(
-                        "/printview?doctype=" + frm.doctype +
-                        "&name=" + frm.doc.name +
-                        "&format=" + encodeURIComponent("COMPROBANTE DE RETENCIÓN DE IVA EN COMPRA")
-                    )
-                );
+            frm.add_custom_button(__('Imprimir'), function() {
+                frappe.call({
+                    method: "l10n_ve.l10n_ve.report.vat_withholding_voucher_purchase.vat_withholding_voucher_purchase.generate_vat_report",
+                    args: {
+                        voucher_name: frm.doc.name
+                    },
+                    callback: function(r) {
+                        if (r.message) {
+                            var w = window.open('about:blank');
+                            w.document.write(r.message);
+                            w.document.close();
+                            w.print();
+                        }
+                    }
+                });
             });
         }
     },
@@ -170,6 +177,7 @@ function load_invoices(frm) {
                     new_row.posting_date = invoice.posting_date;
                     new_row.rate = invoice.rate;
                     new_row.grand_total = invoice.grand_total;
+                    new_row.total_exempt = invoice.total_exempt;
                     new_row.total = invoice.total;
                     new_row.taxes_and_charges_added = invoice.taxes_and_charges_added;
                     new_row.taxes_and_charges_deducted = invoice.taxes_and_charges_deducted;

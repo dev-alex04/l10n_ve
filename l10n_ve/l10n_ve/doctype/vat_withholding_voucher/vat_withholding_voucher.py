@@ -99,7 +99,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"company": company},
             {"docstatus": 1},
             {"name": ["not in", all_excluded_invoices]},
-            ["Purchase Taxes and Charges", "charge_type", "=", "Actual"]
+            ["Purchase Taxes and Charges", "charge_type", "=", "VAT Withholding"]
         ],
         fields=["name"]
     )

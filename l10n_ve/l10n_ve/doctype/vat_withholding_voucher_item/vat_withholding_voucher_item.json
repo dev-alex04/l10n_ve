@@ -20,7 +20,7 @@
   "column_break_yoyv",
   "column_break_pnui",
   "grand_total",
-  "purchases_without_tax_credit",
+  "total_exempt",
   "total",
   "rate",
   "taxes_and_charges_added",
@@ -84,11 +84,6 @@
    "label": "Factura Afectada"
   },
   {
-   "fieldname": "purchases_without_tax_credit",
-   "fieldtype": "Currency",
-   "label": "Compras sin cr\u00e9dito fiscal"
-  },
-  {
    "fieldname": "purchase_invoice",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -137,13 +132,18 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "IVA Retenido"
+  },
+  {
+   "fieldname": "total_exempt",
+   "fieldtype": "Currency",
+   "label": "Compras sin cr\u00e9dito fiscal"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-05 11:57:08.680987",
+ "modified": "2025-09-18 13:34:56.116040",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher Item",
