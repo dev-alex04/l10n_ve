@@ -95,48 +95,69 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     )
     excluded_from_withholding_list = [d.purchase_invoice for d in excluded_from_withholding]
 
-    all_excluded_invoices = excluded_from_withholding_list
-
-    valid_invoices_names = frappe.get_all(
+    # Consulta optimizada: obtiene los datos principales de la factura
+    valid_invoices_list = frappe.get_all(
         "Purchase Invoice",
         filters=[
             {"supplier": supplier},
             {"posting_date": ["between", [start_date, end_date]]},
             {"company": company},
             {"docstatus": 1},
-            {"name": ["not in", all_excluded_invoices]},
+            {"name": ["not in", excluded_from_withholding_list]},
+            {"status": "Paid"},
             ["Purchase Taxes and Charges", "charge_type", "=", "ISLR"]
         ],
-        fields=["name"]
+        fields=[
+            "name",
+            "bill_no",
+            "bill_control",
+            "posting_date",
+            "grand_total",
+            "total_exempt"
+        ]
     )
 
     invoices_with_taxes = []
-    for item in valid_invoices_names:
-        invoice = frappe.get_doc("Purchase Invoice", item.name)
-        tax_item = None
+    for item in valid_invoices_list:
 
-        if invoice.taxes and len(invoice.taxes) > 0:
-            for tax in invoice.taxes:
-                if tax.charge_type == "ISLR":
-                    tax_item = tax
-                    break
+        tax_item = frappe.get_all(
+            "Purchase Taxes and Charges",
+            filters={
+                "parent": item.name,
+                "parenttype": "Purchase Invoice",
+                "charge_type": "ISLR"
+            },
+            fields=["rate", "subtracting", "tax_amount", "code"],
+            limit=1
+        )
+
+        payment_entry_name = frappe.get_value(
+            "Payment Entry Reference",
+            filters={
+                "reference_doctype": "Purchase Invoice",
+                "reference_name": item.name
+            },
+            fieldname="parent"
+        )
         
-            if tax_item:
-                invoice_data = {
-                    "purchase_invoice": invoice.name,
-                    "bill_no": invoice.bill_no,
-                    "bill_control": invoice.bill_control,
-                    "posting_date": invoice.posting_date,
-                    "rate": tax_item.rate, 
-                    "subtracting": tax_item.subtracting, 
-                    "code": tax_item.code, 
-                    "amount_paid": invoice.grand_total,
-                    "grand_total": invoice.grand_total,
-                    "total_exempt": invoice.total_exempt,
-                    "tax_amount": tax_item.tax_amount,
-                    "taxes": tax_item 
-                }
-
-                invoices_with_taxes.append(invoice_data)
+        if tax_item:
+            tax_data = tax_item[0]
+            
+            invoice_data = {
+                "purchase_invoice": item.name,
+                "bill_no": item.bill_no,
+                "bill_control": item.bill_control,
+                "posting_date": item.posting_date,
+                "rate": tax_data.rate,
+                "subtracting": tax_data.subtracting,
+                "tax_amount": tax_data.tax_amount,
+                "amount_paid": item.grand_total,
+                "grand_total": item.grand_total,
+                "total_exempt": item.total_exempt,
+                "payment_entry_name": payment_entry_name,
+                "taxes": tax_data
+            }
+            
+            invoices_with_taxes.append(invoice_data)
 
     return invoices_with_taxes
