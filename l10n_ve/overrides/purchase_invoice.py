@@ -15,6 +15,30 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         super().before_submit()
         self.validate_duplicate_invoice_numbers()
 
+    def on_cancel(self) -> None:
+        super().on_cancel()
+
+        has_iva_withholding = frappe.db.exists(
+            "VAT Withholding Voucher Item",
+            { "purchase_invoice": self.name }
+        )
+
+        has_islr_withholding = frappe.db.exists(
+            "ISLR Withholding Voucher Item",
+            { "purchase_invoice": self.name }
+        )
+
+        reasons = []
+        if has_iva_withholding:
+            reasons.append("un Comprobante de retención de IVA")
+            
+        if has_islr_withholding:
+            reasons.append("un Comprobante de retención de ISLR")
+
+        if reasons:
+            message = "No se puede cancelar esta factura. Está asociada a " + " y a ".join(reasons) + "."
+            frappe.throw(message, frappe.ValidationError)
+
     def validate(self):
         super().validate()
 
