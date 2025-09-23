@@ -32,16 +32,14 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "No. Factura",
-   "reqd": 1
+   "label": "No. Factura"
   },
   {
    "fieldname": "bill_control",
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "No. Control",
-   "reqd": 1
+   "label": "No. Control"
   },
   {
    "fieldname": "column_break_plby",
@@ -143,7 +141,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-23 14:25:00.970585",
+ "modified": "2025-09-23 15:10:30.025491",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher Item",

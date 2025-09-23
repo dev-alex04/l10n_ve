@@ -297,9 +297,9 @@ def generate_content_table(items, doc, current_page, total_pages):
             <td class="text-center">{getdate(item.posting_date).strftime('%d/%m/%Y')}</td>
             <td class="text-center">{item.bill_no or ''}</td>
             <td class="text-center">{item.bill_control or ''}</td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td class="text-center">{item.credit_note_no or ''}</td>
+            <td class="text-center">{item.debit_note_no or ''}</td>
+            <td class="text-center">{item.affected_invoice_number or ''}</td>
             <td class="text-right">{item.grand_total}</td>
             <td class="text-right">{item.total_exempt}</td>
             <td class="text-right">{item.total}</td>

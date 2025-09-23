@@ -107,7 +107,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     invoices_with_taxes = []
     for item in valid_invoices_names:
         invoice = frappe.get_doc("Purchase Invoice", item.name)
-        
+        print(invoice.as_dict())
         rate = 0
         if invoice.taxes and len(invoice.taxes) > 0:
             tax_item = invoice.taxes[0]
