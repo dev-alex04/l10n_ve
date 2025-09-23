@@ -145,6 +145,10 @@ def get_query_data(filters):
             tPI.bill_control as bill_control,
             tPI.grand_total as grand_total,
             tPI.total_exempt as total_exempt,
+            tPI.credit_note_no,
+            tPI.debit_note_no,
+            tPI.affected_invoice_number,
+
             SUM(CASE WHEN T5.rate = 8 THEN tPI.total ELSE 0 END) as base_reducida,
             SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) as impuesto_reducida,
             SUM(CASE WHEN T5.rate = 16 THEN tPI.total ELSE 0 END) as base_general,
@@ -161,6 +165,11 @@ def get_query_data(filters):
                 WHEN T4.supplier_type = 'Partnership' THEN 'PJ' 
                 ELSE "N/A" 
             END AS supplier_type,
+            CASE
+				WHEN tPI.is_return = 1 THEN 'NC'
+				WHEN tPI.is_debit_note = 1 THEN 'ND'
+				ELSE 'REG'
+			END AS transaction_type,
             tPI.total AS taxable_base
         FROM
             `tabPurchase Invoice` as tPI
@@ -183,7 +192,6 @@ def get_query_data(filters):
     
     return frappe.db.sql(query, tuple(values), as_dict=True)
 
-
 def execute(filters=None):
     columns = [
         {"fieldname": "nro_oper", "label": "Nro. Oper.", "fieldtype": "Data", "width": "auto"},
@@ -193,14 +201,14 @@ def execute(filters=None):
         {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "bill_no", "label": "Nro. de Factura", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "bill_control", "label": "Nro. de Control", "fieldtype": "Data", "width": "auto"},
-        {"fieldname": "nro_nota_credito", "label": "Nro. Nota de Crédito", "fieldtype": "Data", "width": "auto"},
-        {"fieldname": "nro_nota_debito", "label": "Nro. Nota de Débito", "fieldtype": "Data", "width": "auto"},
-        {"fieldname": "facturas_afectadas", "label": "Facturas Afectadas", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "credit_note_no", "label": "Nro. Nota de Crédito", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "debit_note_no", "label": "Nro. Nota de Débito", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "affected_invoice_number", "label": "Facturas Afectadas", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "nro_planilla", "label": "Nro. Planilla", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "nro_expediente_importacion", "label": "Nro. Expediente de Importación", "fieldtype": "Data", "width": "auto"},
-        {"fieldname": "tipo_transac", "label": "Tipo de Transac.", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "transaction_type", "label": "Tipo de Transac.", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "grand_total", "label": "Total Compras Incluyendo el IVA", "fieldtype": "Currency", "width": "auto"},
-        {"fieldname": "total_exempt", "label": "Compras sin Derecho a Crédito IVA", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "compras_sin_credito", "label": "Compras sin Derecho a Crédito IVA", "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "base_reducida", "label": "Base (Tasa Red. 8%)", "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "impuesto_reducida", "label": "Impuesto (Tasa Red. 8%)", "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "base_general", "label": "Base (Tasa Gen. 16%)", "fieldtype": "Currency", "width": "auto"},
@@ -212,7 +220,6 @@ def execute(filters=None):
         {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": "auto"},
         {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": "auto"}
     ]
-
    
     data = get_query_data(filters) 
     
@@ -265,6 +272,7 @@ def generate_xml_islr_file(filters=None):
             tPI.grand_total,
             tPTC.tax_amount AS retention_amount,
             tPTC.code AS code,
+            tPI.affected_invoice_number,
             tPTC.rate AS retention_percentage
         FROM
             `tabPurchase Taxes and Charges` AS tPTC
@@ -364,7 +372,7 @@ def generate_txt_file(filters):
                 f"{flt(row.get('grand_total')):.2f}".replace('.', ','),
                 f"{flt(row.get('taxable_base')):.2f}".replace('.', ','),
                 f"{flt(row.get('taxes_and_charges_deducted')):.2f}".replace('.', ','),
-                row.get("facturas_afectadas") or "",
+                row.get("affected_invoice_number") or "",
                 row.get("nro_comprobante_retencion") or "",
                 f"{flt(row.get('total_exempt')):.2f}".replace('.', ','),
                 tax_rate,
