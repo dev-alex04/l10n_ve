@@ -296,6 +296,7 @@ class CustomSalesInvoice(SalesInvoice):
             )
 
     def validate_item_iva(self):
+        return
 
         has_taxable_items = any(not item.vat_exempt for item in self.items)
 

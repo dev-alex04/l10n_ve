@@ -150,8 +150,7 @@ def get_sales_data(filters):
 			siv.total,
 			siv.total_exempt,
 			siv.credit_note_no,
-			siv.debit_note_no,
-			siv.debit_note_no,					  
+			siv.debit_note_no,				  
 			siv.affected_invoice_number,
 			
 			 -- Ventas a NO Contribuyentes
