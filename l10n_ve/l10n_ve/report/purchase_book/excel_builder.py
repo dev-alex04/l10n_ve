@@ -21,7 +21,7 @@ class ExcelBuilder:
         self.from_date = from_date
         self.to_date = to_date
         self.report_summary = report_summary
-        
+
         self.workbook = Workbook()
         self.sheet = self.workbook.active
         self.sheet.title = "Reporte de Compras"
@@ -299,21 +299,32 @@ class ExcelBuilder:
 
                 withholding_voucher = invoice.copy()
 
-                
-                withholding_voucher['affected_invoice_number'] = invoice.get('bill_no')
+
                 withholding_voucher['bill_no'] = ''
+                withholding_voucher['grand_total'] = '0,00'
                 withholding_voucher['bill_control'] = ''
+                withholding_voucher['base_general'] = '0,00'
+                withholding_voucher['base_reducida'] = '0,00'
+                withholding_voucher['base_adicional'] = '0,00'
+                withholding_voucher['impuesto_general'] = '0,00'
+                withholding_voucher['impuesto_reducida'] = '0,00'
+                withholding_voucher['impuesto_adicional'] = '0,00'
+                withholding_voucher['affected_invoice_number'] = invoice.get('bill_no')
 
                 processesed_data.append(withholding_voucher)
 
 
+                invoice['fecha_entrega'] = ''
+                invoice['porcentaje_ret'] = ''
+                invoice['taxes_and_charges_deducted'] = ''
                 invoice['nro_comprobante_retencion'] = ''
+
 
 
             processesed_data.append(invoice)
 
 
-        return processesed_data            
+        return processesed_data
 
 @frappe.whitelist()
 def create_excel_file(report_name, filters=None, **kwargs):
