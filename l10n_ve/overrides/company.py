@@ -3,41 +3,46 @@ from erpnext.setup.doctype.company.company import Company
 
 class CustomCompany(Company):
 
-    def get_control_and_invoice_number(self) -> dict:
-        """
-        Lee los correlativos actuales y los devuelve formateados.
-        """
-       
+    def get_invoice_number(self) -> str:
         invoice_format = self.sales_invoce_number_format or "#####"
         next_invoice_num = self.sales_invoice_number_correlative or 1
-        bill_no = self.format_number(invoice_format, next_invoice_num)
-        
-       
-        control_format = self.sales_invoce_control_number_format or "#####"
-        next_control_num = self.sales_invoice_control_number_correlative or 1
-        bill_control = self.format_number(control_format, next_control_num)
-        
-        self.set_control_and_invoice_number()    
-        return {
-            'bill_control': bill_control,
-            'bill_no': bill_no
-        }
+        return self.format_number(invoice_format, next_invoice_num)
 
-    def set_control_and_invoice_number(self):
-        """
-        Incrementa los contadores de correlativos y guarda el documento.
-        """
+    def get_credit_note_number(self) -> str:
+        credit_note_format = self.sales_credit_note_number_format or "#####"
+        next_credit_note_num = self.sales_credit_note_number_correlative or 1
+        return self.format_number(credit_note_format, next_credit_note_num)
+
+    def get_debit_note_number(self) -> str:
+        # Asegúrate de tener los campos en el Doctype de Company
+        debit_note_format = self.sales_debit_note_number_format or "#####"
+        next_debit_note_num = self.sales_debit_note_number_correlative or 1
+        return self.format_number(debit_note_format, next_debit_note_num)
+
+    def increment_invoice_number(self):
         next_invoice = (self.sales_invoice_number_correlative or 1) + 1
-        next_control = (self.sales_invoice_control_number_correlative or 1) + 1
-        
         frappe.db.set_value("Company", self.name, "sales_invoice_number_correlative", next_invoice)
+
+    def increment_credit_note_number(self):
+        next_credit_note = (self.sales_credit_note_number_correlative or 1) + 1
+        frappe.db.set_value("Company", self.name, "sales_credit_note_number_correlative", next_credit_note)
+
+    def increment_debit_note_number(self):
+        next_debit_note = (self.sales_debit_note_number_correlative or 1) + 1
+        frappe.db.set_value("Company", self.name, "sales_debit_note_number_correlative", next_debit_note)
+    
+    def increment_control_number(self):
+        next_control = (self.sales_invoice_control_number_correlative or 1) + 1
         frappe.db.set_value("Company", self.name, "sales_invoice_control_number_correlative", next_control)
         frappe.db.commit()
 
-    def format_number(self, number_format: str, number: int) -> str:
+    def format_number(self, number_format: str | None, number: int) -> str:
         """
         Función de utilidad para aplicar el formato al número.
         """
+        # Asegura que number_format no sea None
+        number_format = number_format or "" 
+        
         if '#' not in number_format:
             return f"{number_format}{number}"
         

@@ -35,6 +35,8 @@ class CustomSalesInvoice(SalesInvoice):
     def validate(self):
 
         self.validate_number()
+        self.set_control_and_invoice_number()  
+        self.set_affected_invoice_number()
         super().validate()
         self.validate_item_iva()
         self.calculate_total_withholding()
@@ -43,30 +45,52 @@ class CustomSalesInvoice(SalesInvoice):
         self._validate_bill_control(raise_throw=True)
 
     def set_control_and_invoice_number(self) -> None:
-        """
-        Asigna el número de control y de factura si no existen.
-        Utiliza un bucle para asegurar la unicidad en caso de concurrencia.
-        """
-        if self.bill_control and self.bill_no:
+    
+        if self.bill_no or self.credit_note_no or self.debit_note_no:
             return
+        
+        company = frappe.get_doc('Company', self.company)
+        
+        if self.is_return:
+            self.credit_note_no = company.get_credit_note_number()
+            self.bill_no = None  
+            self.debit_note_no = None 
+            company.increment_credit_note_number()
+        
+        elif self.is_debit_note:
+            self.debit_note_no = company.get_debit_note_number()
+            self.bill_no = None 
+            self.credit_note_no = None 
+            company.increment_debit_note_number()
+            
+        else:
+            self.bill_no = company.get_invoice_number()
+            self.credit_note_no = None 
+            self.debit_note_no = None 
+            company.increment_invoice_number()
 
-        while True:
-            # Carga el documento Company (con su clase de override)
-            company: CustomCompany = frappe.get_doc('Company', self.company)
-            numbers = company.get_control_and_invoice_number()
-            bill_control = numbers.get('bill_control')
-            bill_no = numbers.get('bill_no')
+        
+        self.bill_control = company.format_number(company.sales_invoce_control_number_format, company.sales_invoice_control_number_correlative)
+        company.increment_control_number()
+    
 
-            # Valida si los números están duplicados.
-            if not self._validate_bill_control(bill_control, raise_throw=False) or not self._validate_bill_no(bill_no, raise_throw=False):
-                # Si son duplicados, se revierte y el bucle continúa
-                frappe.db.rollback()
-                continue
-
-            self.bill_control = bill_control
-            self.bill_no = bill_no
-
-            break
+    def set_affected_invoice_number(self):
+        # Esta función se ejecutará solo para notas de crédito o débito
+        if self.is_return or self.is_debit_note:
+            
+            if self.return_against:
+                
+                original_invoice_number = frappe.db.get_value(
+                    "Sales Invoice", 
+                    self.return_against, 
+                    "bill_no"
+                )
+                
+                # Asignamos el número de factura original al nuevo campo.
+                self.affected_invoice_number = original_invoice_number
+            else:
+                # Si no hay una factura de venta asociada, el campo queda vacío
+                self.affected_invoice_number = None
 
     def _validate_bill_control(self,
                                bill_control: str = '',
@@ -80,16 +104,20 @@ class CustomSalesInvoice(SalesInvoice):
             return True
 
         is_duplicated = frappe.db.exists(
-            "Sales Invoice",
-            {
-                'docstatus': 1,
-                'company': self.company,
-                'name': ['!=', self.name],
-                'bill_control': bill_control_to_validate
-            }
+        "Sales Invoice",
+        {
+            'docstatus': 1,
+            'company': self.company,
+            'name': ['!=', self.name],
+            'bill_control': bill_control_to_validate,
+        }
         )
         if is_duplicated:
-            message = ("El número de control ya está asignado a otra factura.")
+            if self.is_return:
+                message = ("El número de control ya está asignado a otra Nota de Crédito.")
+            else:
+                message = ("El número de control ya está asignado a otra factura.")
+
             if raise_throw:
                 frappe.throw(message, title="Advertencia de Duplicado")
             return False
@@ -110,18 +138,23 @@ class CustomSalesInvoice(SalesInvoice):
                 'docstatus': 1,
                 'company': self.company,
                 'name': ['!=', self.name],
-                'bill_no': bill_no_to_validate
+                'bill_no': bill_no_to_validate,
+                'is_return': self.is_return
             }
         )
 
         if is_duplicated:
-            message = ("El número de factura ya está asignado a otra factura.")
+            if self.is_return:
+                message = ("El número de factura ya está asignado a otra Nota de Crédito.")
+            else:
+                message = ("El número de factura ya está asignado a otra factura.")
+
             if raise_throw:
                 frappe.throw(message, title="Advertencia de Duplicado")
             return False
 
         return True
-
+    
     def get_iva_tax_row(self) -> _dict | None:
         """
         Función auxiliar para encontrar y devolver la fila del impuesto de IVA de la factura.

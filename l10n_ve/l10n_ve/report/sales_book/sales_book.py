@@ -44,18 +44,15 @@ def execute(filters=None):
     columns = get_columns()
     data = get_sales_data(filters)
 
-
     totals = get_total_row(data)
 
     if data:
         for i, row in enumerate(data):
             row["sequence_number"] = i + 1
-        data.append(totals)
-
+    data.append(totals)
 
     report_summary = get_report_summary(totals)
     return columns, data, None, None, report_summary
-
 
 def get_columns():
     """
@@ -72,10 +69,12 @@ def get_columns():
         {"label": _("Nro. de Maquina Fiscal"), "fieldname": "maquina_fiscal", "fieldtype": "Data", "width": 150},
         {"label": _("Nro. Nota de Credito"), "fieldname": "credit_note_no", "fieldtype": "Data", "width": 150},
         {"label": _("Nro. Nota de Debito"), "fieldname": "debit_note_no", "fieldtype": "Data", "width": 150},
+		{"label": _("Facturas afectadas"), "fieldname": "affected_invoice_number", "fieldtype": "Data", "width": 120},
         {"label": _("Tipo de Transaccion"), "fieldname": "transaction_type", "fieldtype": "Data", "width": 150},
 		{"label": _("Total Incl. IVA"), "fieldname": "grand_total", "fieldtype": "Currency", "width": 120},
         {"label": _("Ventas Export. FOB"), "fieldname": "ve_fob", "fieldtype": "Currency", "width": 120},
         {"label": _("Ventas internas no Gravadas"), "fieldname": "total_exempt", "fieldtype": "Currency", "width": 120},
+		
 
         # Columnas para Ventas a No Contribuyentes
 
@@ -150,9 +149,11 @@ def get_sales_data(filters):
 			siv.grand_total,
 			siv.total,
 			siv.total_exempt,
-
-
-
+			siv.credit_note_no,
+			siv.debit_note_no,
+			siv.debit_note_no,					  
+			siv.affected_invoice_number,
+			
 			 -- Ventas a NO Contribuyentes
             CASE WHEN tc.is_special_taxpayer = 0 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_non_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_non_taxpayer,

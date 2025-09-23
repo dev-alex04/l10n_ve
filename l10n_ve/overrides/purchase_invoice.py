@@ -8,13 +8,12 @@ from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseI
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 
-
 class CustomPurchaseInvoice(PurchaseInvoice):
 
     def before_submit(self) -> None:
         super().before_submit()
         self.validate_duplicate_invoice_numbers()
-
+        self.set_affected_invoice_number() 
     def calculate_taxes_and_totals(self):
         taxes_and_totals_calculator = TaxesAndTotals(self)
         taxes_and_totals_calculator.calculate_total_exempt()
@@ -28,6 +27,26 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             self.calculate_commission()
             self.calculate_contribution()
 
+    def set_affected_invoice_number(self):
+        """
+        Función para llenar el número de factura afectada.
+        """
+        
+        if self.is_return or self.is_debit_note :
+            
+            if self.return_against:
+                original_invoice_number = frappe.db.get_value(
+                    "Purchase Invoice", 
+                    self.return_against, 
+                    "bill_no"
+                )
+                
+                self.affected_invoice_number = original_invoice_number
+            else:
+                self.affected_invoice_number = None
+        else:
+            
+            self.affected_invoice_number = None
     @frappe.whitelist()
     def set_islr_concept(self, tabulator_name: str) -> None:
 
@@ -60,36 +79,33 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         self.save()
         return self.name
 
-    def validate_duplicate_invoice_numbers(self) -> None:
-
-        numero_factura = self.bill_no
-        numero_control = self.bill_control
-
-        if not numero_factura and not numero_control:
-            return
-
-        new_filter = {}
-        or_filters = {}
-
-        new_filter = {
-            'docstatus': 1,
-            'name': ['!=', self.name],
-            'supplier': ['=', self.supplier],
+    def validate_duplicate_invoice_numbers(self):
+        # Inicializar el diccionario de filtros
+        filters = {
+            'supplier': self.supplier,
+            'docstatus': 1, 
+            'name': ('!=', self.name),
         }
 
-        if numero_factura:
-            or_filters["bill_no"] = ["=", numero_factura]
+        if self.is_return:
+            filters['is_return'] = 1
+            filters['bill_control'] = self.bill_control
+            if self.credit_note_no:
+                filters['credit_note_no'] = self.credit_note_no
+        elif self.is_debit_note:
+            filters['is_debit_note'] = 1
+            filters['bill_control'] = self.bill_control
+            if self.debit_note_no:
+                filters['debit_note_no'] = self.debit_note_no
+        else:
+            
+            filters['bill_no'] = self.bill_no
+            filters['bill_control'] = self.bill_control
 
-        if numero_control:
-            or_filters["bill_control"] = ["=", numero_control]
-
-        if len(or_filters) > 1:
-            filters = {**new_filter, **or_filters}
-
-        if frappe.db.get_all("Purchase Invoice",
-                             filters=filters):
+        # Ahora sí, tu validación
+        if frappe.db.get_all("Purchase Invoice", filters=filters):
             message = (
-                "El número de factura o número de control, ya se encuentra asignado a otra factura del mismo proveedor. Intente nuevamente")  # noqa
+                "El número de factura o número de control, ya se encuentra asignado a otra factura del mismo proveedor. Intente nuevamente")
             frappe.throw(message)
 
     def set_tax_withholding(self) -> None:
