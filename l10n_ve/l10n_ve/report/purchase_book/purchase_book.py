@@ -157,7 +157,7 @@ def get_query_data(filters):
             SUM(CASE WHEN T5.rate = 31 THEN T5.tax_amount ELSE 0 END) as impuesto_adicional,
             MAX(T2.name) as nro_comprobante_retencion,
             MAX(T2.delivery_date) as fecha_entrega,
-            MAX(CASE WHEN T5.charge_type = 'Actual' THEN T5.rate ELSE 0 END) as porcentaje_ret,
+            MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
             MAX(tPI.taxes_and_charges_deducted) as taxes_and_charges_deducted,
             CASE 
                 WHEN T4.supplier_type = 'Company' THEN 'PJ' 
@@ -192,36 +192,34 @@ def get_query_data(filters):
     
     return frappe.db.sql(query, tuple(values), as_dict=True)
 
-
 def execute(filters=None):
     columns = [
-        {"fieldname": "nro_oper", "label": "Nro. Oper.", "fieldtype": "Data", "width": 80},
-        {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": 120},
-        {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": 120},
-        {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": 200},
-        {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": 60},
-        {"fieldname": "bill_no", "label": "Nro. de Factura", "fieldtype": "Data", "width": 100},
-        {"fieldname": "bill_control", "label": "Nro. de Control", "fieldtype": "Data", "width": 100},
-        {"fieldname": "credit_note_no", "label": "Nro. Nota de Crédito", "fieldtype": "Data", "width": 100},
-        {"fieldname": "debit_note_no", "label": "Nro. Nota de Débito", "fieldtype": "Data", "width": 100},
-        {"fieldname": "affected_invoice_number", "label": "Facturas Afectadas", "fieldtype": "Data", "width": 100},
-        {"fieldname": "nro_planilla", "label": "Nro. Planilla", "fieldtype": "Data", "width": 120},
-        {"fieldname": "nro_expediente_importacion", "label": "Nro. Expediente de Importación", "fieldtype": "Data", "width": 180},
-        {"fieldname": "transaction_type", "label": "Tipo de Transac.", "fieldtype": "Data", "width": 120},
-        {"fieldname": "grand_total", "label": "Total Compras Incluyendo el IVA", "fieldtype": "Currency", "width": 150},
-        {"fieldname": "compras_sin_credito", "label": "Compras sin Derecho a Crédito IVA", "fieldtype": "Currency", "width": 150},
-        {"fieldname": "base_reducida", "label": "Base (Tasa Red. 8%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "impuesto_reducida", "label": "Impuesto (Tasa Red. 8%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "base_general", "label": "Base (Tasa Gen. 16%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "impuesto_general", "label": "Impuesto (Tasa Gen. 16%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "base_adicional", "label": "Base (Tasa Adic. 31%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "impuesto_adicional", "label": "Impuesto (Tasa Adic. 31%)", "fieldtype": "Currency", "width": 120},
-        {"fieldname": "nro_comprobante_retencion", "label": "Nro. Comprob. de Retención", "fieldtype": "Data", "width": 150},
-        {"fieldname": "fecha_entrega", "label": "Fecha de Entrega", "fieldtype": "Date", "width": 120},
-        {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": 80},
-        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": 150}
+        {"fieldname": "nro_oper", "label": "Nro. Oper.", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": "auto"},
+        {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "bill_no", "label": "Nro. de Factura", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "bill_control", "label": "Nro. de Control", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "credit_note_no", "label": "Nro. Nota de Crédito", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "debit_note_no", "label": "Nro. Nota de Débito", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "affected_invoice_number", "label": "Facturas Afectadas", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "nro_planilla", "label": "Nro. Planilla", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "nro_expediente_importacion", "label": "Nro. Expediente de Importación", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "transaction_type", "label": "Tipo de Transac.", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "grand_total", "label": "Total Compras Incluyendo el IVA", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "compras_sin_credito", "label": "Compras sin Derecho a Crédito IVA", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "base_reducida", "label": "Base (Tasa Red. 8%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "impuesto_reducida", "label": "Impuesto (Tasa Red. 8%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "base_general", "label": "Base (Tasa Gen. 16%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "impuesto_general", "label": "Impuesto (Tasa Gen. 16%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "base_adicional", "label": "Base (Tasa Adic. 31%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "impuesto_adicional", "label": "Impuesto (Tasa Adic. 31%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "nro_comprobante_retencion", "label": "Nro. Comprob. de Retención", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "fecha_entrega", "label": "Fecha de Entrega", "fieldtype": "Date", "width": "auto"},
+        {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": "auto"},
+        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": "auto"}
     ]
-
    
     data = get_query_data(filters) 
     
@@ -376,7 +374,7 @@ def generate_txt_file(filters):
                 f"{flt(row.get('taxes_and_charges_deducted')):.2f}".replace('.', ','),
                 row.get("affected_invoice_number") or "",
                 row.get("nro_comprobante_retencion") or "",
-                f"{flt(row.get('compras_sin_credito')):.2f}".replace('.', ','),
+                f"{flt(row.get('total_exempt')):.2f}".replace('.', ','),
                 tax_rate,
                 "0,00"
             ]

@@ -4,41 +4,57 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate
+from l10n_ve.utils.utils import format_amounts
 
 class ISLRWithholdingVoucher(Document):
+
+    def before_print(self, settings):
+        main_fields = [
+            "totals_total_exempt",
+            "totals_tax_amount",
+        ]
+
+        child_fields = [
+            "grand_total",
+            "total_exempt",
+            "subtracting",
+            "tax_amount"
+        ]
+
+        format_amounts(self, main_fields, child_fields, child_table_field="islr_withholding_voucher_item")
     
-	def before_insert(self):
-		company_doc = frappe.get_doc("Company", self.empresa)
+    def before_insert(self):
+        company_doc = frappe.get_doc("Company", self.empresa)
 
-		current_correlative_value = company_doc.islr_withholding_correlative
+        current_correlative_value = company_doc.islr_withholding_correlative
 
-		today = getdate(nowdate())
-		current_year = str(today.year)
-		current_month = f"{today.month:02d}"
+        today = getdate(nowdate())
+        current_year = str(today.year)
+        current_month = f"{today.month:02d}"
 
-		if current_correlative_value:
-			last_correlative_part = current_correlative_value[6:]
-			voucher_correlative_num = int(last_correlative_part)
+        if current_correlative_value:
+            last_correlative_part = current_correlative_value[6:]
+            voucher_correlative_num = int(last_correlative_part)
 
-			next_correlative_num = int(last_correlative_part) + 1
-			num_digits = len(last_correlative_part)
-		else:
-			voucher_correlative_num = 1
-			next_correlative_num = 2
-			
-			template = company_doc.islr_withholding_format
-			num_digits = len(template) - 6
+            next_correlative_num = int(last_correlative_part) + 1
+            num_digits = len(last_correlative_part)
+        else:
+            voucher_correlative_num = 1
+            next_correlative_num = 2
+            
+            template = company_doc.islr_withholding_format
+            num_digits = len(template) - 6
 
-		formatted_voucher_correlative = str(voucher_correlative_num).zfill(num_digits)
-		formatted_next_correlative = str(next_correlative_num).zfill(num_digits)
+        formatted_voucher_correlative = str(voucher_correlative_num).zfill(num_digits)
+        formatted_next_correlative = str(next_correlative_num).zfill(num_digits)
 
-		final_voucher_number = f"{current_year}{current_month}{formatted_voucher_correlative}"
-		final_next_correlative_number = f"{current_year}{current_month}{formatted_next_correlative}"
+        final_voucher_number = f"{current_year}{current_month}{formatted_voucher_correlative}"
+        final_next_correlative_number = f"{current_year}{current_month}{formatted_next_correlative}"
 
-		self.voucher_number = final_voucher_number
+        self.voucher_number = final_voucher_number
 
-		company_doc.islr_withholding_correlative = final_next_correlative_number
-		company_doc.save(ignore_permissions=True)
+        company_doc.islr_withholding_correlative = final_next_correlative_number
+        company_doc.save(ignore_permissions=True)
 
 @frappe.whitelist()
 def get_vat_correlative(company_name):
@@ -79,48 +95,81 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     )
     excluded_from_withholding_list = [d.purchase_invoice for d in excluded_from_withholding]
 
-    all_excluded_invoices = excluded_from_withholding_list
-
-    valid_invoices_names = frappe.get_all(
+    # Consulta optimizada: obtiene los datos principales de la factura
+    valid_invoices_list = frappe.get_all(
         "Purchase Invoice",
         filters=[
             {"supplier": supplier},
             {"posting_date": ["between", [start_date, end_date]]},
             {"company": company},
             {"docstatus": 1},
-            {"name": ["not in", all_excluded_invoices]},
+            {"name": ["not in", excluded_from_withholding_list]},
+            {"status": "Paid"},
             ["Purchase Taxes and Charges", "charge_type", "=", "ISLR"]
         ],
-        fields=["name"]
+        fields=[
+            "name",
+            "bill_no",
+            "bill_control",
+            "posting_date",
+            "grand_total",
+            "total_exempt"
+        ]
     )
 
     invoices_with_taxes = []
-    for item in valid_invoices_names:
-        invoice = frappe.get_doc("Purchase Invoice", item.name)
-        tax_item = None
+    invoice_names = [d.name for d in valid_invoices_list]
 
-        if invoice.taxes and len(invoice.taxes) > 0:
-            for tax in invoice.taxes:
-                if tax.charge_type == "ISLR":
-                    tax_item = tax
-                    break
+    if not invoice_names:
+        return []
+
+    all_tax_items = frappe.get_all(
+        "Purchase Taxes and Charges",
+        filters={
+            "parent": ["in", invoice_names],
+            "parenttype": "Purchase Invoice",
+            "charge_type": "ISLR"
+        },
+        fields=["parent", "rate", "subtracting", "tax_amount", "code"]
+    )
+    tax_items_map = {item.pop("parent"): item for item in all_tax_items}
+
+    all_payment_entries = frappe.get_all(
+        "Payment Entry Reference",
+        filters={
+            "reference_doctype": "Purchase Invoice",
+            "reference_name": ["in", invoice_names]
+        },
+        fields=["reference_name", "parent"],
+        order_by="creation desc"
+    )
+    
+    payment_entries_map = {}
+    for pe in all_payment_entries:
+        if pe.reference_name not in payment_entries_map:
+            payment_entries_map[pe.reference_name] = pe.parent
+
+    for item in valid_invoices_list:
+        tax_data = tax_items_map.get(item.name)
         
-            if tax_item:
-                invoice_data = {
-                    "purchase_invoice": invoice.name,
-                    "bill_no": invoice.bill_no,
-                    "bill_control": invoice.bill_control,
-                    "posting_date": invoice.posting_date,
-                    "rate": tax_item.rate, 
-                    "subtracting": tax_item.subtracting, 
-                    "code": tax_item.code, 
-                    "amount_paid": invoice.grand_total,
-                    "grand_total": invoice.grand_total,
-                    "total": invoice.total,
-                    "tax_amount": tax_item.tax_amount,
-                    "taxes": tax_item 
-                }
-
-                invoices_with_taxes.append(invoice_data)
+        if tax_data:
+            payment_entry_name = payment_entries_map.get(item.name)
+            
+            invoice_data = {
+                "purchase_invoice": item.name,
+                "bill_no": item.bill_no,
+                "bill_control": item.bill_control,
+                "posting_date": item.posting_date,
+                "rate": tax_data.rate,
+                "subtracting": tax_data.subtracting,
+                "tax_amount": tax_data.tax_amount,
+                "amount_paid": item.grand_total,
+                "grand_total": item.grand_total,
+                "total_exempt": item.total_exempt,
+                "payment_entry_name": payment_entry_name,
+                "taxes": tax_data
+            }
+            
+            invoices_with_taxes.append(invoice_data)
 
     return invoices_with_taxes

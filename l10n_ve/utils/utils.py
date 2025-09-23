@@ -86,3 +86,21 @@ def check_gl_entries(gl_entries: list=[], do_exit: bool = True) -> None:
 
     if do_exit:
         exit()
+
+def format_amounts(doc, main_fields=[], child_fields=[], child_table_field=None):
+    company_name = doc.get("empresa")
+    company_currency = frappe.db.get_value("Company", company_name, "default_currency")
+    currency_symbol = frappe.db.get_value("Currency", company_currency, "symbol") or ""
+
+    if main_fields:
+        for field in main_fields:
+            if doc.get(field) is not None:
+                formatted_value = frappe.format(doc.get(field), "Currency").replace(currency_symbol, "").strip()
+                doc.set(field, formatted_value)
+
+    if doc.get(child_table_field) and child_fields:
+        for item in doc.get(child_table_field):
+            for field in child_fields:
+                if item.get(field) is not None:
+                    formatted_value = frappe.format(item.get(field), "Currency").replace(currency_symbol, "").strip()
+                    item.set(field, formatted_value)
