@@ -12,10 +12,10 @@
   "column_break_plby",
   "posting_date",
   "section_break_tjmu",
-  "debit_note",
-  "credit_note",
+  "debit_note_no",
+  "credit_note_no",
   "column_break_sgzl",
-  "affected_invoice",
+  "affected_invoice_number",
   "totales_section",
   "column_break_yoyv",
   "column_break_pnui",
@@ -67,21 +67,6 @@
   {
    "fieldname": "column_break_pnui",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "debit_note",
-   "fieldtype": "Data",
-   "label": "N/D"
-  },
-  {
-   "fieldname": "credit_note",
-   "fieldtype": "Data",
-   "label": "N/C"
-  },
-  {
-   "fieldname": "affected_invoice",
-   "fieldtype": "Data",
-   "label": "Factura Afectada"
   },
   {
    "fieldname": "purchase_invoice",
@@ -137,13 +122,28 @@
    "fieldname": "total_exempt",
    "fieldtype": "Currency",
    "label": "Compras sin cr\u00e9dito fiscal"
+  },
+  {
+   "fieldname": "debit_note_no",
+   "fieldtype": "Data",
+   "label": "N/D"
+  },
+  {
+   "fieldname": "credit_note_no",
+   "fieldtype": "Data",
+   "label": "N/C"
+  },
+  {
+   "fieldname": "affected_invoice_number",
+   "fieldtype": "Data",
+   "label": "Factura Afectada"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-18 13:34:56.116040",
+ "modified": "2025-09-23 14:25:00.970585",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher Item",

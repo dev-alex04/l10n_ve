@@ -124,6 +124,9 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             "total_exempt": invoice.total_exempt,
             "taxes_and_charges_added": invoice.taxes_and_charges_added,
             "taxes_and_charges_deducted": invoice.taxes_and_charges_deducted,
+            "credit_note_no": invoice.credit_note_no,
+            "debit_note_no": invoice.debit_note_no,
+            "affected_invoice_number": invoice.affected_invoice_number,
             "taxes": invoice.get("taxes") 
         }
         invoices_with_taxes.append(invoice_data)

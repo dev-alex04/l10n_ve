@@ -181,6 +181,9 @@ function load_invoices(frm) {
                     new_row.total = invoice.total;
                     new_row.taxes_and_charges_added = invoice.taxes_and_charges_added;
                     new_row.taxes_and_charges_deducted = invoice.taxes_and_charges_deducted;
+                    new_row.credit_note_no = invoice.credit_note_no;
+                    new_row.debit_note_no = invoice.debit_note_no;
+                    new_row.affected_invoice_number = invoice.affected_invoice_number;
 
                     if (invoice.taxes && invoice.taxes.length > 0) {
                         let tax_item = invoice.taxes[0];
@@ -193,6 +196,8 @@ function load_invoices(frm) {
                     frm.doc.totals_total += invoice.total || 0;
                     frm.doc.totals_taxes_and_charges_added += invoice.taxes_and_charges_added || 0;
                     frm.doc.totals_taxes_and_charges_deducted += invoice.taxes_and_charges_deducted || 0;
+
+                    console.log(new_row);
                 });
                 
                 frm.refresh_fields([
