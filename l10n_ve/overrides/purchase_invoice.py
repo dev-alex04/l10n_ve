@@ -28,12 +28,16 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             { "purchase_invoice": self.name }
         )
 
-        if has_iva_withholding and has_islr_withholding:
-            frappe.throw("No se puede cancelar esta factura. Está asociada a un Comprobante de retención de IVA y a un Comprobante de retención de ISLR.", frappe.ValidationError)
-        elif has_iva_withholding:
-            frappe.throw("No se puede cancelar esta factura. Está asociada a un Comprobante de retención de IVA.", frappe.ValidationError)
-        elif has_islr_withholding:
-            frappe.throw("No se puede cancelar esta factura. Está asociada a un Comprobante de retención de ISLR.", frappe.ValidationError)
+        reasons = []
+        if has_iva_withholding:
+            reasons.append("un Comprobante de retención de IVA")
+            
+        if has_islr_withholding:
+            reasons.append("un Comprobante de retención de ISLR")
+
+        if reasons:
+            message = "No se puede cancelar esta factura. Está asociada a " + " y a ".join(reasons) + "."
+            frappe.throw(message, frappe.ValidationError)
 
     def validate(self):
         super().validate()
