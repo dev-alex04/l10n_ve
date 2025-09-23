@@ -222,11 +222,18 @@ def execute(filters=None):
     ]
    
     data = get_query_data(filters) 
+
     
     totals = get_totals_from_data(data)
     report_summary = get_report_summary(totals)
 
+    
     return columns, data, None, None, report_summary
+
+
+
+    
+
 
 @frappe.whitelist()
 def generate_xml_islr_file(filters=None):

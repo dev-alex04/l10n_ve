@@ -15,14 +15,13 @@ class ExcelBuilder:
     """
     def __init__(self, title, columns, data, totals, company_data, from_date, to_date, report_summary):
         self.title = title
-        self.data = data
         self.columns = columns
         self.totals = totals
         self.company_data = company_data
         self.from_date = from_date
         self.to_date = to_date
         self.report_summary = report_summary
-
+        
         self.workbook = Workbook()
         self.sheet = self.workbook.active
         self.sheet.title = "Reporte de Compras"
@@ -39,6 +38,8 @@ class ExcelBuilder:
         self.data_alignment = Alignment(horizontal="left", vertical="center")
         self.numeric_format = '#,##0.00'
         self.int_format = '0'
+
+        self.data = self.process_data(data)
 
     def _add_report_header(self):
         """
@@ -286,6 +287,33 @@ class ExcelBuilder:
             return file_stream
         except Exception as e:
             frappe.throw(_("Ocurrió un error al construir el archivo de Excel: {0}").format(e))
+
+
+    def process_data(self, data: list[dict]) -> list[dict]:
+
+        processesed_data = []
+
+        for invoice in data:
+
+            if invoice.get("nro_comprobante_retencion"):
+
+                withholding_voucher = invoice.copy()
+
+                
+                withholding_voucher['affected_invoice_number'] = invoice.get('bill_no')
+                withholding_voucher['bill_no'] = ''
+                withholding_voucher['bill_control'] = ''
+
+                processesed_data.append(withholding_voucher)
+
+
+                invoice['nro_comprobante_retencion'] = ''
+
+
+            processesed_data.append(invoice)
+
+
+        return processesed_data            
 
 @frappe.whitelist()
 def create_excel_file(report_name, filters=None, **kwargs):
