@@ -12,6 +12,7 @@
   "bill_control",
   "column_break_aqmi",
   "posting_date",
+  "payment_entry_name",
   "section_break_kdlk",
   "grand_total",
   "amount_paid",
@@ -103,13 +104,20 @@
    "fieldtype": "Currency",
    "label": "Monto Objeto a Retenci\u00f3n",
    "reqd": 1
+  },
+  {
+   "fieldname": "payment_entry_name",
+   "fieldtype": "Link",
+   "label": "No. Pago",
+   "options": "Payment Entry",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-18 16:57:05.120019",
+ "modified": "2025-09-22 17:20:57.332342",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "ISLR Withholding Voucher Item",

@@ -164,6 +164,7 @@ function load_invoices(frm) {
                     new_row.bill_control = invoice.bill_control;
                     new_row.posting_date = invoice.posting_date;
                     new_row.grand_total = invoice.grand_total;
+                    new_row.payment_entry_name = invoice.payment_entry_name || '';
 
                     if (invoice.taxes) {
                         let tax_item = invoice.taxes;
