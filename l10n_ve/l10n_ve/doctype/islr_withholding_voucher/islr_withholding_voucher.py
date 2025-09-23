@@ -118,30 +118,42 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     )
 
     invoices_with_taxes = []
+    invoice_names = [d.name for d in valid_invoices_list]
+
+    if not invoice_names:
+        return []
+
+    all_tax_items = frappe.get_all(
+        "Purchase Taxes and Charges",
+        filters={
+            "parent": ["in", invoice_names],
+            "parenttype": "Purchase Invoice",
+            "charge_type": "ISLR"
+        },
+        fields=["parent", "rate", "subtracting", "tax_amount", "code"]
+    )
+    tax_items_map = {item.pop("parent"): item for item in all_tax_items}
+
+    all_payment_entries = frappe.get_all(
+        "Payment Entry Reference",
+        filters={
+            "reference_doctype": "Purchase Invoice",
+            "reference_name": ["in", invoice_names]
+        },
+        fields=["reference_name", "parent"],
+        order_by="creation desc"
+    )
+    
+    payment_entries_map = {}
+    for pe in all_payment_entries:
+        if pe.reference_name not in payment_entries_map:
+            payment_entries_map[pe.reference_name] = pe.parent
+
     for item in valid_invoices_list:
-
-        tax_item = frappe.get_all(
-            "Purchase Taxes and Charges",
-            filters={
-                "parent": item.name,
-                "parenttype": "Purchase Invoice",
-                "charge_type": "ISLR"
-            },
-            fields=["rate", "subtracting", "tax_amount", "code"],
-            limit=1
-        )
-
-        payment_entry_name = frappe.get_value(
-            "Payment Entry Reference",
-            filters={
-                "reference_doctype": "Purchase Invoice",
-                "reference_name": item.name
-            },
-            fieldname="parent"
-        )
+        tax_data = tax_items_map.get(item.name)
         
-        if tax_item:
-            tax_data = tax_item[0]
+        if tax_data:
+            payment_entry_name = payment_entries_map.get(item.name)
             
             invoice_data = {
                 "purchase_invoice": item.name,
