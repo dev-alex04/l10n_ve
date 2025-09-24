@@ -1,6 +1,5 @@
 # Copyright (c) 2025, DominaERP and contributors
 # For license information, please see license.txt
-
 import frappe
 from frappe import _, throw
 from frappe.utils import flt, getdate, format_date
@@ -60,7 +59,7 @@ def get_report_summary(totals):
             "datatype": "Currency"
         },
     ]
-    
+
     return summary
 
 def get_totals_from_data(data):
@@ -85,7 +84,8 @@ def get_totals_from_data(data):
         impuesto_general += row.get("impuesto_general", 0)
         base_adicional += row.get("base_adicional", 0)
         impuesto_adicional += row.get("impuesto_adicional", 0)
-        taxes_and_charges_deducted += row.get("taxes_and_charges_deducted", 0)
+        if row.get("nro_comprobante_retencion"):
+            taxes_and_charges_deducted += row.get("taxes_and_charges_deducted", 0)
 
     # Retornar un diccionario con los totales
     return {
@@ -98,6 +98,7 @@ def get_totals_from_data(data):
         "base_adicional": base_adicional,
         "impuesto_adicional": impuesto_adicional,
         "taxes_and_charges_deducted": taxes_and_charges_deducted,
+
     }
 
 def get_query_data(filters):
@@ -112,7 +113,7 @@ def get_query_data(filters):
                 'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
             }
             month_num = month_mapping.get(filters.get("fiscal_month"))
-            
+
             from_date = date(year, month_num, 1)
             last_day = calendar.monthrange(year, month_num)[1]
             to_date = date(year, month_num, last_day)
@@ -133,7 +134,7 @@ def get_query_data(filters):
     if filters.get("company"):
         conditions += " AND tPI.company = %s"
         values.append(filters.get("company"))
-    
+
     query = f"""
         SELECT
             tPI.name as nro_factura,
@@ -159,11 +160,11 @@ def get_query_data(filters):
             MAX(T2.delivery_date) as fecha_entrega,
             MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
             MAX(tPI.taxes_and_charges_deducted) as taxes_and_charges_deducted,
-            CASE 
-                WHEN T4.supplier_type = 'Company' THEN 'PJ' 
-                WHEN T4.supplier_type = 'Individual' THEN 'PN' 
-                WHEN T4.supplier_type = 'Partnership' THEN 'PJ' 
-                ELSE "N/A" 
+            CASE
+                WHEN T4.supplier_type = 'Company' THEN 'PJ'
+                WHEN T4.supplier_type = 'Individual' THEN 'PN'
+                WHEN T4.supplier_type = 'Partnership' THEN 'PJ'
+                ELSE "N/A"
             END AS supplier_type,
             CASE
 				WHEN tPI.is_return = 1 THEN 'NC'
@@ -189,7 +190,7 @@ def get_query_data(filters):
             1=1 {conditions}
         GROUP BY tPI.name
     """
-    
+
     return frappe.db.sql(query, tuple(values), as_dict=True)
 
 def execute(filters=None):
@@ -220,19 +221,19 @@ def execute(filters=None):
         {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": "auto"},
         {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": "auto"}
     ]
-   
-    data = get_query_data(filters) 
 
-    
+    data = get_query_data(filters)
+
+
     totals = get_totals_from_data(data)
     report_summary = get_report_summary(totals)
 
-    
+
     return columns, data, None, None, report_summary
 
 
 
-    
+
 
 
 @frappe.whitelist()
@@ -256,7 +257,7 @@ def generate_xml_islr_file(filters=None):
                 'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
             }
             month_num = month_mapping.get(filters.get("fiscal_month"))
-            
+
             from_date = date(year, month_num, 1)
             last_day = calendar.monthrange(year, month_num)[1]
             to_date = date(year, month_num, last_day)
@@ -264,11 +265,11 @@ def generate_xml_islr_file(filters=None):
             # Reemplaza los filtros originales con el nuevo rango de fechas
             filters["date_from"] = from_date.strftime('%Y-%m-%d')
             filters["to_date"] = to_date.strftime('%Y-%m-%d')
-            
+
         except (ValueError, TypeError):
             frappe.throw(_("Valores de Año o Mes Fiscal inválidos."))
 
-  
+
     invoices = frappe.db.sql("""
         SELECT
             tPI.name,
@@ -295,44 +296,44 @@ def generate_xml_islr_file(filters=None):
     if not invoices:
         return None
 
-   
+
     xml_data = '<?xml version="1.0" encoding="UTF-8"?>\n<RelacionRetencionesISLR>\n'
 
 
     for i, inv in enumerate(invoices):
-        
+
         supplier_tax_id = frappe.db.get_value("Supplier", inv.supplier, "tax_id")
-        
+
         xml_data += f'    <DetalleRetencion>\n'
         xml_data += f'        <RifRetenido>{supplier_tax_id}</RifRetenido>\n'
         xml_data += f'        <NumeroFactura>{inv.bill_no}</NumeroFactura>\n'
         xml_data += f'        <NumeroControl>{inv.bill_control}</NumeroControl>\n'
         xml_data += f'        <FechaOperacion>{inv.posting_date}</FechaOperacion>\n'
-        xml_data += f'        <CodigoConcepto>{inv.code}</CodigoConcepto>\n' 
+        xml_data += f'        <CodigoConcepto>{inv.code}</CodigoConcepto>\n'
         xml_data += f'        <MontoOperacion>{inv.grand_total:.2f}</MontoOperacion>\n'
         xml_data += f'        <PorcentajeRetencion>{inv.retention_percentage}</PorcentajeRetencion>\n'
         xml_data += f'    </DetalleRetencion>\n'
 
-   
+
     xml_data += '</RelacionRetencionesISLR>'
 
     return xml_data
 
 @frappe.whitelist()
-def generate_txt_file(filters):    
-    
+def generate_txt_file(filters):
+
     try:
-        
+
         filters = frappe.parse_json(filters)
         data = get_query_data(filters)
         # Obtenemos los datos del reporte usando la nueva función
-       
+
         if not data:
             frappe.throw(_("No se encontraron datos para el período seleccionado."))
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
         company_rif = company_doc.tax_id or ""
-        
+
         if not company_rif:
             frappe.throw(_("El RIF de la compañía no está configurado. Por favor, agregue el RIF en la configuración de la compañía."))
 
@@ -342,10 +343,10 @@ def generate_txt_file(filters):
 
         if not fiscal_year or not fiscal_month_name:
             date_from = getdate(filters.get("date_from"))
-    
+
             month = str(date_from.month).zfill(2)
             year = str(date_from.year)
-            
+
         else:
             month_mapping = {
                 'Enero': '01', 'Febrero': '02', 'Marzo': '03', 'Abril': '04', 'Mayo': '05', 'Junio': '06',
@@ -355,7 +356,7 @@ def generate_txt_file(filters):
             year = fiscal_year
 
         periodo = f"{year}{month}"
-      
+
         content = ""
         for row in data:
             # Determinamos la alícuota a mostrar
@@ -366,7 +367,7 @@ def generate_txt_file(filters):
                 tax_rate = "8"
             elif flt(row.get("base_adicional")) > 0:
                 tax_rate = "31"
-                
+
             line_data = [
                 str(company_rif) or "",
                 str(periodo) or "",
@@ -386,15 +387,15 @@ def generate_txt_file(filters):
                 "0,00"
             ]
             content += "\t".join(line_data) + "\n"
-        
+
         encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
-                
+
         return {
             "type": "download",
             "filename": f"IVA_Compras_TXT-{company_doc.abbr}-{periodo}.txt",
             "filecontent": encoded_content
         }
-        
+
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en generate_txt_file")
         frappe.throw(_(f"Ocurrió un error al generar el archivo TXT: {e}"))
