@@ -91,23 +91,42 @@ def get_valid_invoices(supplier, start_date, end_date, company):
 
     all_excluded_invoices = excluded_from_withholding_list
 
-    valid_invoices_names = frappe.get_all(
+    valid_invoices = frappe.get_all(
         "Purchase Invoice",
         filters=[
             {"supplier": supplier},
             {"posting_date": ["between", [start_date, end_date]]},
             {"company": company},
             {"docstatus": 1},
+            {"is_return": 0},
             {"name": ["not in", all_excluded_invoices]},
             ["Purchase Taxes and Charges", "charge_type", "=", "VAT Withholding"]
         ],
-        fields=["name"]
+        fields=["name", "bill_no"],
+        limit=5
     )
 
+    valid_invoices_names = [d.name for d in valid_invoices]
+    valid_invoices_bill_nos = [d.bill_no for d in valid_invoices]
+
+    associated_credit_notes_names = []
+    if valid_invoices_bill_nos:
+        associated_credit_notes = frappe.get_all(
+            "Purchase Invoice",
+            filters={
+                "is_return": 1,
+                "docstatus": 1,
+                "affected_invoice_number": ["in", valid_invoices_bill_nos]
+            },
+            fields=["name"]
+        )
+        associated_credit_notes_names = [d.name for d in associated_credit_notes]
+
+    final_document_list = valid_invoices_names + associated_credit_notes_names
+
     invoices_with_taxes = []
-    for item in valid_invoices_names:
-        invoice = frappe.get_doc("Purchase Invoice", item.name)
-        print(invoice.as_dict())
+    for item in final_document_list:
+        invoice = frappe.get_doc("Purchase Invoice", item)
         rate = 0
         if invoice.taxes and len(invoice.taxes) > 0:
             tax_item = invoice.taxes[0]
@@ -119,14 +138,15 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             "bill_control": invoice.bill_control,
             "posting_date": invoice.posting_date,
             "rate": rate, 
-            "grand_total": invoice.grand_total,
-            "total": invoice.total,
-            "total_exempt": invoice.total_exempt,
-            "taxes_and_charges_added": invoice.taxes_and_charges_added,
-            "taxes_and_charges_deducted": invoice.taxes_and_charges_deducted,
+            "grand_total": abs(invoice.grand_total),
+            "total": abs(invoice.total),
+            "total_exempt": abs(invoice.total_exempt),
+            "taxes_and_charges_added": abs(invoice.taxes_and_charges_added),
+            "taxes_and_charges_deducted": abs(invoice.taxes_and_charges_deducted),
             "credit_note_no": invoice.credit_note_no,
             "debit_note_no": invoice.debit_note_no,
             "affected_invoice_number": invoice.affected_invoice_number,
+            "is_return": invoice.is_return,
             "taxes": invoice.get("taxes") 
         }
         invoices_with_taxes.append(invoice_data)

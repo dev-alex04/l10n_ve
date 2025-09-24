@@ -191,11 +191,13 @@ function load_invoices(frm) {
                         new_row.tax_amount = tax_item.tax_amount;
                     }
                     
-                    frm.doc.totals_grand_total += invoice.grand_total || 0;
-                    frm.doc.totals_total_exempt += invoice.total_exempt || 0;
-                    frm.doc.totals_total += invoice.total || 0;
-                    frm.doc.totals_taxes_and_charges_added += invoice.taxes_and_charges_added || 0;
-                    frm.doc.totals_taxes_and_charges_deducted += invoice.taxes_and_charges_deducted || 0;
+                    let negative = invoice.is_return ? -1 : 1;
+                    
+                    frm.doc.totals_grand_total += invoice.grand_total * negative || 0;
+                    frm.doc.totals_total_exempt += invoice.total_exempt * negative || 0;
+                    frm.doc.totals_total += invoice.total * negative || 0;
+                    frm.doc.totals_taxes_and_charges_added += invoice.taxes_and_charges_added * negative || 0;
+                    frm.doc.totals_taxes_and_charges_deducted += invoice.taxes_and_charges_deducted * negative || 0;
                 });
                 
                 frm.refresh_fields([

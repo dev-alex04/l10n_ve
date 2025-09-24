@@ -29,7 +29,7 @@ def generate_vat_report(voucher_name):
 		"taxes_and_charges_deducted",
 	], "vat_withholding_voucher_item")
     
-    items_per_page = 14
+    items_per_page = 10
     total_items = len(doc.vat_withholding_voucher_item)
     total_pages = int(total_items / items_per_page) + (1 if total_items % items_per_page > 0 else 0)
 
@@ -50,8 +50,8 @@ def generate_vat_report(voucher_name):
         """
         page_content_html += page_html
 
-        if i < total_pages - 1:
-            page_content_html += '<div class="page-break" style="page-break-after: always;"></div>'
+        # if i < total_pages - 1:
+        #     page_content_html += page_html
 
     full_html = f"""
     <!DOCTYPE html>
@@ -69,7 +69,12 @@ def generate_vat_report(voucher_name):
 			.page-container {{
 				width: 90%;
 				margin: 0 auto;
+                page-break-after: always;
 			}}
+
+            .page-container:last-child {{
+                page-break-after: avoid;
+            }}
 
 			.page-header {{
 				width: 90%;
@@ -188,11 +193,11 @@ def get_header_html(doc):
             <tbody>
                 <tr>
                     <td>
-                        <p class="mt-7"> Decreto con Rango, Valor y Fuerza de Ley de Reforma de la Ley del Impuesto al Valor Agregado N° 1.436 del 17 de Noviembre de 2014 </p>
-                        <p class="mb-7">
-                            (Ley IVA - Art. 11. Gaceta Oficial 6.152 Extraordinario: "La Administración Tributaria podrá designar como responsables del pago del impuesto, 
-                            en calidad de agentes de retención, a quienes por sus funciones públicas o por razón de sus actividades privadas intervengan en operaciones 
-                            gravadas con el impuesto establecido en este Decreto con Rango, Valor y Fuerza de Ley")  
+                        <p class="mt-7">
+                            (Ley IVA - Art. 11. Gaceta Oficial 6.152 Extraordinario: "La Administración Tributaria podrá designar como 
+                            responsables del pago del impuesto, en calidad de agentes de retención, a quienes por sus funciones públicas 
+                            o por razón de sus actividades privadas intervengan en operaciones gravadas como el impuesto establecido en 
+                            este Documento con Rango, Valor y Fuerza de Ley")
                         </p>
                     </td>
                 </tr>
@@ -297,8 +302,8 @@ def generate_content_table(items, doc, current_page, total_pages):
             <td class="text-center">{getdate(item.posting_date).strftime('%d/%m/%Y')}</td>
             <td class="text-center">{item.bill_no or ''}</td>
             <td class="text-center">{item.bill_control or ''}</td>
-            <td class="text-center">{item.credit_note_no or ''}</td>
             <td class="text-center">{item.debit_note_no or ''}</td>
+            <td class="text-center">{item.credit_note_no or ''}</td>
             <td class="text-center">{item.affected_invoice_number or ''}</td>
             <td class="text-right">{item.grand_total}</td>
             <td class="text-right">{item.total_exempt}</td>
