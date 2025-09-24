@@ -201,21 +201,10 @@ class ExcelBuilder:
         resumen_cell.border = no_border
         resumen_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-        cell_vacio1 = self.sheet.cell(row=current_row, column=1 + offset_vacio1, value="")
-        cell_vacio1.font = self.header_font
-        cell_vacio1.border = no_border
-
-        cell_vacio2 = self.sheet.cell(row=current_row, column=1 + offset_vacio2, value="")
-        cell_vacio2.font = self.header_font
-        cell_vacio2.border = no_border
-
-        cell_vacio3 = self.sheet.cell(row=current_row, column=1 + offset_vacio3, value="")
-        cell_vacio3.font = self.header_font
-        cell_vacio3.border = no_border
-
-        cell_vacio4 = self.sheet.cell(row=current_row, column=1 + offset_vacio4, value="")
-        cell_vacio4.font = self.header_font
-        cell_vacio4.border = no_border
+        for offset in [offset_vacio1, offset_vacio2, offset_vacio3, offset_vacio4]:
+            cell = self.sheet.cell(row=current_row, column=1 + offset, value="")
+            cell.font = self.header_font
+            cell.border = no_border
 
         headers = [_("Base Imponible"), _("Crédito Fiscal"), _("Retención")]
         for col_index, header in enumerate(headers, start=1 + offset_datos):
