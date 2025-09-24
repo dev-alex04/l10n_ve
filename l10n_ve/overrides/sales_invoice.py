@@ -35,7 +35,7 @@ class CustomSalesInvoice(SalesInvoice):
     def validate(self):
 
         self.validate_number()
-        self.set_control_and_invoice_number()  
+        self.set_control_and_invoice_number()
         self.set_affected_invoice_number()
         super().validate()
         self.validate_item_iva()
@@ -45,51 +45,49 @@ class CustomSalesInvoice(SalesInvoice):
         self._validate_bill_control(raise_throw=True)
 
     def set_control_and_invoice_number(self) -> None:
-    
+
         if self.bill_no or self.credit_note_no or self.debit_note_no:
             return
-        
+
         company = frappe.get_doc('Company', self.company)
-        
+
         if self.is_return:
             self.credit_note_no = company.get_credit_note_number()
-            self.bill_no = None  
-            self.debit_note_no = None 
+            self.bill_no = None
+            self.debit_note_no = None
             company.increment_credit_note_number()
-        
+
         elif self.is_debit_note:
             self.debit_note_no = company.get_debit_note_number()
-            self.bill_no = None 
-            self.credit_note_no = None 
+            self.bill_no = None
+            self.credit_note_no = None
             company.increment_debit_note_number()
-            
+
         else:
             self.bill_no = company.get_invoice_number()
-            self.credit_note_no = None 
-            self.debit_note_no = None 
+            self.credit_note_no = None
+            self.debit_note_no = None
             company.increment_invoice_number()
 
-        
+
         self.bill_control = company.format_number(company.sales_invoce_control_number_format, company.sales_invoice_control_number_correlative)
         company.increment_control_number()
-    
+
 
     def set_affected_invoice_number(self):
         # Esta función se ejecutará solo para notas de crédito o débito
         if self.is_return or self.is_debit_note:
-            
+
             if self.return_against:
-                
+
                 original_invoice_number = frappe.db.get_value(
-                    "Sales Invoice", 
-                    self.return_against, 
+                    "Sales Invoice",
+                    self.return_against,
                     "bill_no"
                 )
-                
-                # Asignamos el número de factura original al nuevo campo.
+
                 self.affected_invoice_number = original_invoice_number
             else:
-                # Si no hay una factura de venta asociada, el campo queda vacío
                 self.affected_invoice_number = None
 
     def _validate_bill_control(self,
@@ -154,7 +152,7 @@ class CustomSalesInvoice(SalesInvoice):
             return False
 
         return True
-    
+
     def get_iva_tax_row(self) -> _dict | None:
         """
         Función auxiliar para encontrar y devolver la fila del impuesto de IVA de la factura.
@@ -320,3 +318,40 @@ class CustomSalesInvoice(SalesInvoice):
 
             if len(self.vat_withholding_voucher_number) != 14:
                 frappe.throw("El número de comprobante de retención de IVA debe tener exactamente 14 caracteres.")
+
+
+@frappe.whitelist()
+def upload_voucher_data(docname, voucher_number, withholding_date, file_url):
+    """
+    Actualiza la Sales Invoice (Factura de Venta) con los datos del comprobante de retención.
+    """
+    try:
+        doc = frappe.get_doc("Sales Invoice", docname)
+
+        doc.db_set('vat_withholding_voucher_number', voucher_number)
+        doc.db_set('withholding_date', withholding_date)
+        doc.db_set('voucher_image', file_url)
+
+        doc.add_comment(
+            "Comment",
+            f"Comprobante de Retención cargado. Número: {voucher_number}. Fecha: {withholding_date}.",
+
+        )
+
+        return {
+            "status": "success",
+            "msg": "Factura de Venta actualizada con los datos del comprobante."
+        }
+
+    except frappe.DoesNotExistError:
+        frappe.log_error(f"Sales Invoice {docname} no encontrada.", "Error en upload_voucher_data")
+        return {
+            "status": "error",
+            "msg": f"Factura de Venta con ID {docname} no encontrada."
+        }
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error en upload_voucher_data")
+        return {
+            "status": "error",
+            "msg": f"Error inesperado al guardar los datos: {str(e)}"
+        }

@@ -33,7 +33,6 @@ def get_report_summary(totals):
 
     ]
 
-
     return summary
 
 def execute(filters=None):
@@ -152,6 +151,20 @@ def get_sales_data(filters):
 			siv.credit_note_no,
 			siv.debit_note_no,
 			siv.affected_invoice_number,
+			CASE
+                WHEN tc.is_special_taxpayer = 1
+                     AND siv.vat_withholding_voucher_number IS NOT NULL
+                     AND siv.vat_withholding_voucher_number != ''
+                THEN siv.total_withholding
+                ELSE 0
+            END AS iva_retained,
+            CASE
+                WHEN tc.is_special_taxpayer = 1
+                     AND siv.vat_withholding_voucher_number IS NOT NULL
+                     AND siv.vat_withholding_voucher_number != ''
+                THEN COALESCE(ABS(tstac_retained.rate), 0)
+                ELSE 0
+            END AS vat_withholding_rate,
 
 			 -- Ventas a NO Contribuyentes
             CASE WHEN tc.is_special_taxpayer = 0 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_non_taxpayer,
@@ -169,11 +182,10 @@ def get_sales_data(filters):
             CASE WHEN tc.is_special_taxpayer = 1 AND tstac_add.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_additional_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_taxpayer,
 
-			COALESCE(ABS(tstac_retained.tax_amount), 0) AS iva_retained,
 			siv.vat_withholding_voucher_number,
 			siv.withholding_date,
-			siv.base_grand_total AS total_in_usd,
-			COALESCE(ABS(tstac_retained.rate), 0) AS vat_withholding_rate
+			siv.base_grand_total AS total_in_usd
+
 		FROM
 			`tabSales Invoice` siv
 		LEFT JOIN
@@ -247,9 +259,6 @@ def get_total_row(data):
 
 		}
 	)
-
-
-	# El total se mostrará en la columna "Nro. de Factura" para una mejor visualización
 
 	totals.bill_no = _("TOTALES")
 	return totals
