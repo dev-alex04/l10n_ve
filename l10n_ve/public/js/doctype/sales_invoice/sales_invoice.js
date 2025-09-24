@@ -61,7 +61,6 @@ frappe.ui.form.on("Sales Invoice", {
                                     primary_action_label: __('Subir y Guardar'),
                                     primary_action: (values) => {
 
-
                                         frappe.call({
                                             method: 'l10n_ve.overrides.sales_invoice.upload_voucher_data',
                                             args: {

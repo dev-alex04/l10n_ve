@@ -9,7 +9,6 @@ def create_currency_exchange():
 
     doctype_name_str = "Currency Exchange"
     response_error_str = "Error obteniendo la tasa USD del BCV"
-    print("exsadasda")
     bcv_endpoint = frappe.get_site_config().bcv_endpoint
     if not bool(bcv_endpoint):
         frappe.log_error(

@@ -164,8 +164,6 @@ override_doctype_class = {
 # Scheduled Tasks
 # ---------------
 
-# En l10n_ve/l10n_ve/hooks.py (o donde esté tu hooks.py)
-
 scheduler_events = {
     "cron": {
         "17 18 * * *": [
