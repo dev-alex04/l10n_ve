@@ -15,7 +15,6 @@ class ExcelBuilder:
     """
     def __init__(self, title, columns, data, totals, company_data, from_date, to_date, report_summary):
         self.title = title
-        self.data = data
         self.columns = columns
         self.totals = totals
         self.company_data = company_data
@@ -39,6 +38,8 @@ class ExcelBuilder:
         self.data_alignment = Alignment(horizontal="left", vertical="center")
         self.numeric_format = '#,##0.00'
         self.int_format = '0'
+
+        self.data = self.process_data(data)
 
     def _add_report_header(self):
         """
@@ -90,8 +91,6 @@ class ExcelBuilder:
 
         headers_2level = {
             16: _("Compras a Contribuyentes"),
-
-
         }
 
         # Escribimos los títulos del primer nivel en la fila actual
@@ -101,9 +100,7 @@ class ExcelBuilder:
             cell.border = self.data_border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-
         self.sheet.merge_cells(start_row=current_row, start_column=16, end_row=current_row, end_column=21)
-
 
         current_row += 1
 
@@ -111,10 +108,7 @@ class ExcelBuilder:
             16: _("Tasa Reducida 8%"),
             18: _("Tasa General 16%"),
             20: _("Tasa General + Adicional 31%"),
-
             22: _("Retención"),
-
-
         }
 
         for col, header_text in headers_3level.items():
@@ -130,7 +124,6 @@ class ExcelBuilder:
 
         self.sheet.merge_cells(start_row=current_row, start_column=22, end_row=current_row, end_column=25)
 
-
         current_row += 1
 
         # Escribimos los encabezados de las columnas
@@ -141,10 +134,8 @@ class ExcelBuilder:
             cell.border = self.data_border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             self.sheet.row_dimensions[current_row].height = 45
-            # Establecemos un ancho de columna fijo
-            self.sheet.column_dimensions[get_column_letter(col_index)].width = 11
+            self.sheet.column_dimensions[get_column_letter(col_index)].width = 13
 
-        # Agregar los datos y aplicar estilos
         row_index = current_row + 1
         for row_data in self.data:
             for col_index, col in enumerate(self.columns, start=1):
@@ -158,7 +149,6 @@ class ExcelBuilder:
                 if isinstance(cell_value, (int, float)):
                     cell.number_format = self.numeric_format
 
-            # Establecemos una altura fija para las filas de datos
             self.sheet.row_dimensions[row_index].height = 15
             row_index += 1
 
@@ -166,16 +156,13 @@ class ExcelBuilder:
 
         total_row_index = row_index
 
-        # Escribir el label "Totales" en la primera columna
         total_label_cell = self.sheet.cell(row=total_row_index, column=1, value=_("Totales"))
         total_label_cell.font = self.total_font
         total_label_cell.border = self.data_border
 
-        # Recorrer las columnas y escribir los valores totales
         for col_index, col in enumerate(self.columns, start=1):
             fieldname = col.get("fieldname")
 
-            # Verificar si el campo tiene un total asociado
             if fieldname in self.totals:
                 total_value = self.totals.get(fieldname)
                 total_cell = self.sheet.cell(row=total_row_index, column=col_index, value=total_value)
@@ -187,31 +174,56 @@ class ExcelBuilder:
         return self.sheet.max_row
 
     def _add_summary_table(self, start_row):
-        """
-        Agrega la tabla resumen de impuestos al final del reporte, con el formato original.
-        """
         if not self.totals:
             return start_row
 
         current_row = start_row + 5
 
-        # Definimos el offset para mover la tabla a la derecha
-        offset = 13
+        offset_resumen = 12
+        offset_vacio1 = offset_resumen + 1
+        offset_vacio2 = offset_resumen + 2
+        offset_vacio3 = offset_resumen + 3
+        offset_vacio4 = offset_resumen + 4
+        offset_datos = offset_resumen + 5
 
-        # Encabezados de la tabla de resumen
-        headers = [_("RESUMEN"), _("Base Imponible"), _("Crédito Fiscal"), _("Retención")]
-        for col_index, header in enumerate(headers, start=1 + offset):
+        thin_border = Border(left=Side(style='thin'),
+                            right=Side(style='thin'),
+                            top=Side(style='thin'),
+                            bottom=Side(style='thin'))
+
+        no_border = Border(left=Side(style=None),
+                        right=Side(style=None),
+                        top=Side(style=None),
+                        bottom=Side(style=None))
+
+        resumen_cell = self.sheet.cell(row=current_row, column=1 + offset_resumen, value=_("RESUMEN"))
+        resumen_cell.font = self.header_font
+        resumen_cell.border = no_border
+        resumen_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        for offset in [offset_vacio1, offset_vacio2, offset_vacio3, offset_vacio4]:
+            cell = self.sheet.cell(row=current_row, column=1 + offset, value="")
+            cell.font = self.header_font
+            cell.border = no_border
+
+        headers = [_("Base Imponible"), _("Crédito Fiscal"), _("Retención")]
+        for col_index, header in enumerate(headers, start=1 + offset_datos):
             cell = self.sheet.cell(row=current_row, column=col_index, value=header)
             cell.font = self.header_font
-            cell.border = self.data_border
+            cell.border = no_border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-        # Ajustar ancho de columnas para la tabla resumen
-        self.sheet.column_dimensions[get_column_letter(1 + offset)].width = 50
-        self.sheet.column_dimensions[get_column_letter(2 + offset)].width = 25
-        self.sheet.column_dimensions[get_column_letter(3 + offset)].width = 25
-        self.sheet.column_dimensions[get_column_letter(4 + offset)].width = 25
 
+        self.sheet.column_dimensions[get_column_letter(1 + offset_resumen)].width = 12
+        self.sheet.column_dimensions[get_column_letter(1 + offset_vacio1)].width = 12
+        self.sheet.column_dimensions[get_column_letter(1 + offset_vacio2)].width = 12
+        self.sheet.column_dimensions[get_column_letter(1 + offset_vacio3)].width = 12
+        self.sheet.column_dimensions[get_column_letter(1 + offset_vacio4)].width = 12
+        self.sheet.column_dimensions[get_column_letter(1 + offset_datos)].width = 12
+        self.sheet.column_dimensions[get_column_letter(2 + offset_datos)].width = 12
+        self.sheet.column_dimensions[get_column_letter(3 + offset_datos)].width = 12
+
+        start_table_row = current_row
         current_row += 1
 
         summary_rows = [
@@ -228,44 +240,77 @@ class ExcelBuilder:
         total_retention = 0
 
         for row_data in summary_rows:
-            self.sheet.cell(row=current_row, column=1 + offset, value=row_data["concept"]).border = self.data_border
+            self.sheet.cell(row=current_row, column=1 + offset_resumen, value=row_data["concept"]).border = no_border
 
-            base_cell = self.sheet.cell(row=current_row, column=2 + offset, value=row_data["base"])
-            base_cell.border = self.data_border
+            self.sheet.cell(row=current_row, column=1 + offset_vacio1).border = no_border
+
+            self.sheet.cell(row=current_row, column=1 + offset_vacio2).border = no_border
+
+            self.sheet.cell(row=current_row, column=1 + offset_vacio3).border = no_border
+
+            self.sheet.cell(row=current_row, column=1 + offset_vacio4).border = no_border
+
+            base_cell = self.sheet.cell(row=current_row, column=1 + offset_datos, value=row_data["base"])
+            base_cell.border = no_border
             base_cell.number_format = self.numeric_format
             total_base += row_data["base"]
 
-            credit_cell = self.sheet.cell(row=current_row, column=3 + offset, value=row_data["credit"])
-            credit_cell.border = self.data_border
+            credit_cell = self.sheet.cell(row=current_row, column=2 + offset_datos, value=row_data["credit"])
+            credit_cell.border = no_border
             credit_cell.number_format = self.numeric_format
             total_credit += row_data["credit"]
 
-            retention_cell = self.sheet.cell(row=current_row, column=4 + offset, value=row_data["retention"])
-            retention_cell.border = self.data_border
+            retention_cell = self.sheet.cell(row=current_row, column=3 + offset_datos, value=row_data["retention"])
+            retention_cell.border = no_border
             retention_cell.number_format = self.numeric_format
             total_retention += row_data["retention"]
 
             current_row += 1
 
-        # Fila de total general
-        total_label_cell = self.sheet.cell(row=current_row, column=1 + offset, value=_("Total"))
-        total_label_cell.font = self.total_font
-        total_label_cell.border = self.data_border
+        end_table_row = current_row
 
-        total_base_cell = self.sheet.cell(row=current_row, column=2 + offset, value=total_base)
+        total_label_cell = self.sheet.cell(row=current_row, column=1 + offset_resumen, value=_("Total"))
+        total_label_cell.font = self.total_font
+        total_label_cell.border = no_border
+
+        self.sheet.cell(row=current_row, column=1 + offset_vacio1).border = no_border
+
+        self.sheet.cell(row=current_row, column=1 + offset_vacio2).border = no_border
+
+        self.sheet.cell(row=current_row, column=1 + offset_vacio3).border = no_border
+
+        self.sheet.cell(row=current_row, column=1 + offset_vacio4).border = no_border
+
+        total_base_cell = self.sheet.cell(row=current_row, column=1 + offset_datos, value=total_base)
         total_base_cell.font = self.total_font
-        total_base_cell.border = self.data_border
+        total_base_cell.border = no_border
         total_base_cell.number_format = self.numeric_format
 
-        total_credit_cell = self.sheet.cell(row=current_row, column=3 + offset, value=total_credit)
+        total_credit_cell = self.sheet.cell(row=current_row, column=2 + offset_datos, value=total_credit)
         total_credit_cell.font = self.total_font
-        total_credit_cell.border = self.data_border
+        total_credit_cell.border = no_border
         total_credit_cell.number_format = self.numeric_format
 
-        total_retention_cell = self.sheet.cell(row=current_row, column=4 + offset, value=total_retention)
+        total_retention_cell = self.sheet.cell(row=current_row, column=3 + offset_datos, value=total_retention)
         total_retention_cell.font = self.total_font
-        total_retention_cell.border = self.data_border
+        total_retention_cell.border = no_border
         total_retention_cell.number_format = self.numeric_format
+
+        current_row += 1
+
+
+        start_col = 1 + offset_resumen
+        end_col = 3 + offset_datos
+
+        for r_idx in range(start_table_row, end_table_row + 1):
+            for c_idx in range(start_col, end_col + 1):
+                cell = self.sheet.cell(row=r_idx, column=c_idx)
+                cell.border = Border(
+                    left=thin_border.left if c_idx == start_col else None,
+                    right=thin_border.right if c_idx == end_col else None,
+                    top=thin_border.top if r_idx == start_table_row else None,
+                    bottom=thin_border.bottom if r_idx == end_table_row else None,
+                )
 
         return self.sheet.max_row
 
@@ -286,6 +331,41 @@ class ExcelBuilder:
             return file_stream
         except Exception as e:
             frappe.throw(_("Ocurrió un error al construir el archivo de Excel: {0}").format(e))
+
+
+    def process_data(self, data: list[dict]) -> list[dict]:
+        processesed_data = []
+
+        for invoice in data:
+            processed_invoice = invoice.copy()
+
+            processed_invoice['fecha_entrega'] = ''
+            processed_invoice['porcentaje_ret'] = ''
+            processed_invoice['taxes_and_charges_deducted'] = 0.0
+            processed_invoice['nro_comprobante_retencion'] = ''
+
+            if invoice.get("nro_comprobante_retencion"):
+
+                withholding_voucher = invoice.copy()
+
+                withholding_voucher['bill_no'] = ''
+                withholding_voucher['grand_total'] = 0.0
+                withholding_voucher['bill_control'] = ''
+                withholding_voucher['base_general'] = 0.0
+                withholding_voucher['base_reducida'] = 0.0
+                withholding_voucher['base_adicional'] = 0.0
+                withholding_voucher['impuesto_general'] = 0.0
+                withholding_voucher['impuesto_reducida'] = 0.0
+                withholding_voucher['impuesto_adicional'] = 0.0
+                withholding_voucher['affected_invoice_number'] = invoice.get('bill_no')
+
+                processesed_data.append(withholding_voucher)
+
+                pass
+
+            processesed_data.append(processed_invoice)
+
+        return processesed_data
 
 @frappe.whitelist()
 def create_excel_file(report_name, filters=None, **kwargs):
