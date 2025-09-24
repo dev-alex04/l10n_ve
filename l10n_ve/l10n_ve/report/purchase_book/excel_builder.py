@@ -313,24 +313,15 @@ class ExcelBuilder:
         start_col = 1 + offset_resumen
         end_col = 3 + offset_datos
 
-        for row in range(start_table_row, end_table_row + 1):
-            for col in range(start_col, end_col + 1):
-                cell = self.sheet.cell(row=row, column=col)
-
-                if not cell.border:
-                    cell.border = Border()
-
-                if row == start_table_row:
-                    cell.border = cell.border + Border(top=thin_border.top)
-
-                if row == end_table_row:
-                    cell.border = cell.border + Border(bottom=thin_border.bottom)
-
-                if col == start_col:
-                    cell.border = cell.border + Border(left=thin_border.left)
-
-                if col == end_col:
-                    cell.border = cell.border + Border(right=thin_border.right)
+        for r_idx in range(start_table_row, end_table_row + 1):
+            for c_idx in range(start_col, end_col + 1):
+                cell = self.sheet.cell(row=r_idx, column=c_idx)
+                cell.border = Border(
+                    left=thin_border.left if c_idx == start_col else None,
+                    right=thin_border.right if c_idx == end_col else None,
+                    top=thin_border.top if r_idx == start_table_row else None,
+                    bottom=thin_border.bottom if r_idx == end_table_row else None,
+                )
 
         return self.sheet.max_row
 
