@@ -10,11 +10,6 @@ from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 class CustomPurchaseInvoice(PurchaseInvoice):
 
-    def before_submit(self) -> None:
-        super().before_submit()
-        self.validate_duplicate_invoice_numbers()
-        self.set_affected_invoice_number() 
-
     def on_cancel(self) -> None:
         super().on_cancel()
 
@@ -41,6 +36,8 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
     def validate(self):
         super().validate()
+        self.validate_duplicate_invoice_numbers()
+        self.set_affected_invoice_number() 
 
         has_taxable_items = False
         for item in self.items:
@@ -66,10 +63,29 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
         if self.is_debit_note:
             self.validate_debit_note_number()
+            self.validate_affected_invoice_number()
         elif self.is_return:
             self.validate_credit_note_number()
 
         self.calculate_taxes_and_totals()
+
+    def validate_affected_invoice_number(self):
+        if self.is_debit_note:
+            if not self.affected_invoice_number:
+                frappe.throw("El número de la Factura Afectada es obligatorio.")
+            else:
+                affected_invoice_exists = frappe.db.exists(
+                    "Purchase Invoice", {
+                        "supplier": self.supplier,
+                        "bill_no": self.affected_invoice_number,
+                        "name": ["!=", self.name],
+                        "is_debit_note": 0,
+                        "is_return": 0
+                    }
+                )
+
+                if not affected_invoice_exists:
+                    frappe.throw("La factura con el número de Factura Afectada no existe.")
 
     def validate_debit_note_number(self):
         if self.is_debit_note:

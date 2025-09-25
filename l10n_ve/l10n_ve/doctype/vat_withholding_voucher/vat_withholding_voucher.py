@@ -102,8 +102,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"name": ["not in", all_excluded_invoices]},
             ["Purchase Taxes and Charges", "charge_type", "=", "VAT Withholding"]
         ],
-        fields=["name", "bill_no"],
-        limit=5
+        fields=["name", "bill_no"]
     )
 
     valid_invoices_names = [d.name for d in valid_invoices]
