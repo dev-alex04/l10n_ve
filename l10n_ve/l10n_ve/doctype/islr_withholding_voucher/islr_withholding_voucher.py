@@ -112,9 +112,6 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     )
 
     valid_invoices_names = [d.name for d in valid_invoices]
-    valid_invoices_bill_nos = [d.bill_no for d in valid_invoices]
-
-    associated_credit_notes_names = []
     
     associated_credit_notes = frappe.get_all(
         "Purchase Invoice",
@@ -131,8 +128,6 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         fields=["name"]
     )
     associated_credit_notes_names = [d.name for d in associated_credit_notes]
-
-    associated_debit_notes_names = []
     
     associated_debit_notes = frappe.get_all(
         "Purchase Invoice",
