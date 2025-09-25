@@ -66,7 +66,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting
             else:
                 tax_amount = 0
-            
+
             current_tax_amount = tax_amount if tax_amount > 0 else 0
 
         elif tax.charge_type == "VAT" and not item.vat_exempt:
