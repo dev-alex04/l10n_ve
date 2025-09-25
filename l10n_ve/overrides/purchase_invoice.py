@@ -10,11 +10,6 @@ from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 class CustomPurchaseInvoice(PurchaseInvoice):
 
-    def before_submit(self) -> None:
-        super().before_submit()
-        self.validate_duplicate_invoice_numbers()
-        self.set_affected_invoice_number() 
-
     def on_cancel(self) -> None:
         super().on_cancel()
 
@@ -41,6 +36,8 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
     def validate(self):
         super().validate()
+        self.validate_duplicate_invoice_numbers()
+        self.set_affected_invoice_number() 
 
         has_taxable_items = False
         for item in self.items:
@@ -64,7 +61,65 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             self.set("taxes", [])
             self.apply_tds = 0
 
+        if self.is_debit_note:
+            self.validate_debit_note_number()
+            self.validate_affected_invoice_number()
+        elif self.is_return:
+            self.validate_credit_note_number()
+
         self.calculate_taxes_and_totals()
+
+    def validate_affected_invoice_number(self):
+        if self.is_debit_note:
+            if not self.affected_invoice_number:
+                frappe.throw("El número de la Factura Afectada es obligatorio.")
+            else:
+                affected_invoice_exists = frappe.db.exists(
+                    "Purchase Invoice", {
+                        "supplier": self.supplier,
+                        "bill_no": self.affected_invoice_number,
+                        "name": ["!=", self.name],
+                        "is_debit_note": 0,
+                        "is_return": 0
+                    }
+                )
+
+                if not affected_invoice_exists:
+                    frappe.throw("La factura con el número de Factura Afectada no existe.")
+
+    def validate_debit_note_number(self):
+        if self.is_debit_note:
+            if not self.debit_note_no:
+                frappe.throw("El número de la Nota de Débito es obligatorio para una Nota de Débito.")
+
+            debit_note_exists = frappe.db.exists(
+                "Purchase Invoice", {
+                    "debit_note_no": self.debit_note_no,
+                    "supplier": self.supplier,
+                    "is_debit_note": 1,
+                    "name": ["!=", self.name]
+                }
+            )
+
+            if debit_note_exists:
+                frappe.throw(f"Ya existe una Nota de Débito con el número {self.debit_note_no} para este proveedor.")
+
+    def validate_credit_note_number(self):
+        if self.is_return:
+            if not self.credit_note_no:
+                frappe.throw("El número de la Nota de Crédito es obligatorio para una Nota de Crédito.")
+                
+            credit_note_exists = frappe.db.exists(
+                "Purchase Invoice", {
+                    "credit_note_no": self.credit_note_no,
+                    "supplier": self.supplier,
+                    "is_return": 1,
+                    "name": ["!=", self.name]
+                }
+            )
+
+            if credit_note_exists:
+                frappe.throw(f"Ya existe una Nota de Crédito con el número {self.credit_note_no} para este proveedor.")
 
     def calculate_taxes_and_totals(self):
         taxes_and_totals_calculator = TaxesAndTotals(self)
@@ -79,13 +134,8 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             self.calculate_commission()
             self.calculate_contribution()
 
-    def set_affected_invoice_number(self):
-        """
-        Función para llenar el número de factura afectada.
-        """
-        
+    def set_affected_invoice_number(self):        
         if self.is_return or self.is_debit_note :
-            
             if self.return_against:
                 original_invoice_number = frappe.db.get_value(
                     "Purchase Invoice", 
@@ -94,11 +144,9 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                 )
                 
                 self.affected_invoice_number = original_invoice_number
-            else:
-                self.affected_invoice_number = None
         else:
-            
             self.affected_invoice_number = None
+
     @frappe.whitelist()
     def set_islr_concept(self, tabulator_name: str) -> None:
 
@@ -132,75 +180,102 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         return self.name
 
     def validate_duplicate_invoice_numbers(self):
-        # Inicializar el diccionario de filtros
-        filters = {
-            'supplier': self.supplier,
-            'docstatus': 1, 
-            'name': ('!=', self.name),
-        }
+        if self.bill_no:
+            filters_bill_no = {
+                'supplier': self.supplier,
+                'bill_no': self.bill_no,
+                # 'docstatus': 1,
+                'name': ('!=', self.name),
+            }
+            if frappe.db.get_all("Purchase Invoice", filters=filters_bill_no):
+                message = "El número de factura ya se encuentra asignado a otra factura del mismo proveedor."
+                frappe.throw(message)
 
-        if self.is_return:
-            filters['is_return'] = 1
-            filters['bill_control'] = self.bill_control
-            if self.credit_note_no:
-                filters['credit_note_no'] = self.credit_note_no
-        elif self.is_debit_note:
-            filters['is_debit_note'] = 1
-            filters['bill_control'] = self.bill_control
-            if self.debit_note_no:
-                filters['debit_note_no'] = self.debit_note_no
-        else:
-            
-            filters['bill_no'] = self.bill_no
-            filters['bill_control'] = self.bill_control
-
-        # Ahora sí, tu validación
-        if frappe.db.get_all("Purchase Invoice", filters=filters):
-            message = (
-                "El número de factura o número de control, ya se encuentra asignado a otra factura del mismo proveedor. Intente nuevamente")
-            frappe.throw(message)
+        if self.bill_control:
+            filters_bill_control = {
+                'supplier': self.supplier,
+                'bill_control': self.bill_control,
+                # 'docstatus': 1,
+                'name': ('!=', self.name),
+            }
+            if frappe.db.get_all("Purchase Invoice", filters=filters_bill_control):
+                message = "El número de control ya se encuentra asignado a otra factura del mismo proveedor."
+                frappe.throw(message)
 
     def set_tax_withholding(self) -> None:
-        super(CustomPurchaseInvoice, self).set_tax_withholding()
+        super().set_tax_withholding()
 
-        if not self.tax_withholding_category:
-            return
+        if self.is_return:
+            if not self.return_against:
+                return
 
-        retention_details = frappe.get_all(
-            "Tax Withholding Account",
-            filters={"parent": self.tax_withholding_category},
-            pluck="account"
-        )
-        if not retention_details:
-            return
-        retention_account_head = retention_details[0]
+            original_invoice = frappe.get_doc("Purchase Invoice", self.return_against)
+            original_iva_amount = 0
+            original_retention_row = None
 
-        retention_rate_data = frappe.get_all(
-            "Tax Withholding Rate",
-            filters={"parent": self.tax_withholding_category},
-            pluck="tax_withholding_rate"
-        )
-        if not retention_rate_data:
-            return
-        retention_rate = retention_rate_data[0]
+            for tax in original_invoice.taxes:
+                if tax.charge_type == 'VAT':
+                    original_iva_amount = tax.tax_amount
+                if tax.charge_type == "VAT Withholding":
+                    original_retention_row = tax
+            
+            if original_retention_row:
+                retention_row_found_in_credit_note = False
+                for tax in self.taxes:
+                    if tax.account_head == original_retention_row.account_head:
+                        tax.charge_type = "VAT Withholding"
+                        tax.tax_amount = original_retention_row.tax_amount * -1
+                        tax.rate = original_retention_row.rate
+                        tax.add_deduct_tax = 'Deduct'
+                        tax.description = 'Retención de IVA por Nota de Crédito'
+                        retention_row_found_in_credit_note = True
+                        break
+                
+                if not retention_row_found_in_credit_note:
+                    self.append("taxes", {
+                        "charge_type": "VAT Withholding",
+                        "account_head": original_retention_row.account_head,
+                        "rate": original_retention_row.rate,
+                        "tax_amount": original_retention_row.tax_amount * -1,
+                        "add_deduct_tax": 'Deduct',
+                        "description": 'Retención de IVA por Nota de Crédito'
+                    })
+        else:
+            if not self.tax_withholding_category:
+                return
 
-        iva_amount = 0
-        retention_row = None
+            retention_details = frappe.get_all(
+                "Tax Withholding Account",
+                filters={"parent": self.tax_withholding_category},
+                pluck="account"
+            )
+            if not retention_details:
+                return
+            retention_account_head = retention_details[0]
 
-        for tax in self.taxes:
-            if tax.charge_type == 'VAT':
-                iva_amount = tax.tax_amount
+            retention_rate_data = frappe.get_all(
+                "Tax Withholding Rate",
+                filters={"parent": self.tax_withholding_category},
+                pluck="tax_withholding_rate"
+            )
+            if not retention_rate_data:
+                return
+            retention_rate = retention_rate_data[0]
 
-            if tax.account_head == retention_account_head:
-                retention_row = tax
+            iva_amount = 0
+            retention_row = None
 
-        if retention_row and iva_amount > 0:
-            retention_amount = (retention_rate / 100) * iva_amount
+            for tax in self.taxes:
+                if tax.charge_type == 'VAT':
+                    iva_amount = tax.tax_amount
+                if tax.account_head == retention_account_head:
+                    retention_row = tax
+            if retention_row and iva_amount > 0:
+                retention_amount = (retention_rate / 100) * iva_amount
 
-            retention_row.tax_amount = retention_amount
-            retention_row.charge_type = "VAT Withholding"
-            retention_row.rate = retention_rate
-
+                retention_row.tax_amount = retention_amount
+                retention_row.charge_type = "VAT Withholding"
+                retention_row.rate = retention_rate
         self.calculate_taxes_and_totals()
 
 

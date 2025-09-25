@@ -1,15 +1,24 @@
 frappe.ui.form.on("Purchase Invoice", {
-  refresh: function (frm) {
+  onload: function(frm) {
+    toggle_purchase_type_fields(frm);
+  },
+  refresh: function(frm) {
     set_purchase_invoice_buttons(frm);
-    toggle_purchase_fields(frm);
-  }, 
-  is_debit_note: function (frm) {
-        toggle_purchase_fields(frm);
-    },
+    toggle_purchase_type_fields(frm);
+  },
 
-    is_return: function (frm) {
-        toggle_purchase_fields(frm);
-    },
+  is_debit_note: function(frm) {
+    if (frm.doc.is_debit_note) {
+      frm.set_value('is_return', 0);
+    }
+    toggle_purchase_type_fields(frm);
+  },
+  is_return: function(frm) {
+    if (frm.doc.is_return) {
+      frm.set_value('is_debit_note', 0);
+    }
+    toggle_purchase_type_fields(frm);
+  }
 });
 
 function set_purchase_invoice_buttons(frm) {
@@ -69,34 +78,33 @@ function set_islr_concept(frm) {
   dialog.show();
 }
 
+function toggle_purchase_type_fields(frm) {
+    const is_debit_note = frm.doc.is_debit_note;
+    const is_return = frm.doc.is_return;
 
-function toggle_purchase_fields(frm) {
-    if (frm.doc.is_return) {
-        
-        frm.toggle_display(['credit_note_no', 'affected_invoice_number', 'bill_control'], true);
-       
-        frm.toggle_display(['bill_no'], false);
-       
+    if (frm.is_new() || (!is_debit_note && !is_return)) {
+      frm.toggle_display(['bill_no'], !is_debit_note && !is_return);
+      frm.toggle_display(['debit_note_no', 'credit_note_no', 'affected_invoice_number'], false);
+      
+      if (is_debit_note) {
+        frm.toggle_display(['debit_note_no', 'affected_invoice_number'], is_debit_note);
         frm.set_value('bill_no', '');
-        frm.set_value('debit_note_no', '');
-        
-    } else if (frm.doc.is_debit_note) {
-       
-        frm.toggle_display(['debit_note_no', 'affected_invoice_number', 'bill_control'], true);
-        
-        frm.toggle_display(['bill_no'], false);
-        
-       
-        frm.set_value('bill_no', '');
+        frm.set_value('bill_control', '');
         frm.set_value('credit_note_no', '');
-
+      }
+      
+      if (is_return) {
+        frm.toggle_display(['credit_note_no', 'affected_invoice_number'], is_return);
+        frm.set_value('bill_no', '');
+        frm.set_value('bill_control', '');
+        frm.set_value('debit_note_no', '');
+      }
+  
+      frm.toggle_display('is_return', !is_debit_note);
+      frm.toggle_display('is_debit_note', !is_return);
     } else {
-        
-        frm.toggle_display(['bill_no', 'bill_control'], true);
-        
-        frm.toggle_display(['credit_note_no', 'debit_note_no', 'affected_invoice_number'], false);
-        frm.set_value('credit_note_no', '');
-        frm.set_value('debit_note_no', '');
-        frm.set_value('affected_invoice_number', '');
+      if (is_return) {
+        frm.toggle_display(['credit_note_no'], is_return);
+      }
     }
 }
