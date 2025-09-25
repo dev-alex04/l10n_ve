@@ -223,18 +223,9 @@ def execute(filters=None):
     ]
 
     data = get_query_data(filters)
-
-
     totals = get_totals_from_data(data)
     report_summary = get_report_summary(totals)
-
-
     return columns, data, None, None, report_summary
-
-
-
-
-
 
 @frappe.whitelist()
 def generate_xml_islr_file(filters=None):
@@ -253,8 +244,9 @@ def generate_xml_islr_file(filters=None):
         try:
             year = int(filters.get("fiscal_year"))
             month_mapping = {
-                'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
-                'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+            'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
+            'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10,
+            'Noviembre': 11, 'Diciembre': 12
             }
             month_num = month_mapping.get(filters.get("fiscal_month"))
 
@@ -335,7 +327,8 @@ def generate_txt_file(filters):
         company_rif = company_doc.tax_id or ""
 
         if not company_rif:
-            frappe.throw(_("El RIF de la compañía no está configurado. Por favor, agregue el RIF en la configuración de la compañía."))
+            frappe.throw(_("El RIF de la compañía no está configurado. "
+            "Por favor, agregue el RIF en la configuración de la compañía."))
 
         # Lógica para determinar el período del TXT (mes y año)
         fiscal_year = str(filters.get("fiscal_year"))
@@ -368,12 +361,21 @@ def generate_txt_file(filters):
             elif flt(row.get("base_adicional")) > 0:
                 tax_rate = "31"
 
+            if flt(row.get("is_return")) == 1:
+                transaction_code = "02"
+
+            elif flt(row.get("is_debit_note")) == 1:
+                transaction_code = "03"
+
+            else:
+                transaction_code = "01"
+
             line_data = [
                 str(company_rif) or "",
                 str(periodo) or "",
                 format_date(row.get("posting_date"), "YYYYMMDD") if row.get("posting_date") else "",
                 "D" if flt(row.get("is_return")) == 1 else "C",
-                "01", # Tipo de transacción (por defecto 01)
+                transaction_code,
                 row.get("tax_id") or "",
                 row.get("bill_no") or "",
                 row.get("bill_control") or "",

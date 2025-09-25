@@ -74,7 +74,6 @@ def get_columns():
         {"label": _("Ventas Export. FOB"), "fieldname": "ve_fob", "fieldtype": "Currency", "width": 120},
         {"label": _("Ventas internas no Gravadas"), "fieldname": "total_exempt", "fieldtype": "Currency", "width": 120},
 
-
         # Columnas para Ventas a No Contribuyentes
 
         {"label": _("Base Imponible No C. R"), "fieldname": "base_reduced_non_taxpayer", "fieldtype": "Currency", "width": 150},
@@ -104,9 +103,8 @@ def get_columns():
         {"label": _("Tasa de IGTF"), "fieldname": "igtf_rate", "fieldtype": "Percent", "width": 120},
         {"label": _("Monto IGTF"), "fieldname": "igtf_amount", "fieldtype": "Currency", "width": 120},
 
-
-
     ]
+
 def get_sales_data(filters):
 
 	"""
@@ -155,7 +153,7 @@ def get_sales_data(filters):
                 WHEN tc.is_special_taxpayer = 1
                      AND siv.vat_withholding_voucher_number IS NOT NULL
                      AND siv.vat_withholding_voucher_number != ''
-                THEN siv.total_withholding
+                THEN COALESCE(ABS(tstac_retained.tax_amount), 0)
                 ELSE 0
             END AS iva_retained,
             CASE
@@ -208,7 +206,7 @@ def get_sales_data(filters):
 		WHERE
 			siv.company = %(company)s
 			AND siv.posting_date BETWEEN %(from_date)s AND %(to_date)s
-			AND siv.docstatus IN (1, 2)
+			AND siv.docstatus IN (1)
 		ORDER BY
 			siv.posting_date ASC
 	""", {
@@ -262,4 +260,3 @@ def get_total_row(data):
 
 	totals.bill_no = _("TOTALES")
 	return totals
-
