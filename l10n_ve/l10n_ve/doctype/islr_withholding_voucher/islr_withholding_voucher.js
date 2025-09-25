@@ -158,7 +158,6 @@ function load_invoices(frm) {
 
             if (r.message && r.message.length > 0) {
                 r.message.forEach(invoice => {
-                    console.log(invoice);
                     let new_row = frm.add_child('islr_withholding_voucher_item');
                     new_row.purchase_invoice = invoice.purchase_invoice;
                     new_row.doc_no = invoice.doc_no;
