@@ -107,7 +107,8 @@ class CustomPurchaseInvoice(PurchaseInvoice):
     def validate_credit_note_number(self):
         if self.is_return:
             if not self.credit_note_no:
-                frappe.throw("El número de la Nota de Débito es obligatorio para una Nota de Débito.")
+                frappe.throw("El número de la Nota de Crédito es obligatorio para una Nota de Crédito.")
+                
             credit_note_exists = frappe.db.exists(
                 "Purchase Invoice", {
                     "credit_note_no": self.credit_note_no,
