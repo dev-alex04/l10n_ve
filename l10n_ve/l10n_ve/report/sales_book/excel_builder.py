@@ -266,11 +266,23 @@ class ExcelBuilder:
         summary_row_index += 1
 
         summary_data_rows = [
-            {"concepto": _("De las Ventas Internas NO Gravadas"), "base": self.summary_data.get("non_taxable_internal_sales", 0), "iva": 0, "retencion": 0},
+            {"concepto": _("De las Ventas Internas NO Gravadas"), "base": self.summary_data.get("total_exempt", 0), "iva": 0, "retencion": 0},
             {"concepto": _("Ventas de exportación"), "base": 0, "iva": 0, "retencion": 0},
-            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota General"), "base": self.summary_data.get("base_general_taxpayer", 0) + self.summary_data.get("base_general_non_taxpayer", 0), "iva": self.summary_data.get("iva_general_taxpayer", 0) + self.summary_data.get("iva_general_non_taxpayer", 0), "retencion": self.summary_data.get("iva_retained_general", 0)},
-            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota General + Adicional"), "base": self.summary_data.get("base_additional_taxpayer", 0) + self.summary_data.get("base_additional_non_taxpayer", 0), "iva": self.summary_data.get("iva_additional_taxpayer", 0) + self.summary_data.get("iva_additional_non_taxpayer", 0), "retencion": self.summary_data.get("iva_retained_additional", 0)},
-            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota Reducida)"), "base": self.summary_data.get("base_reduced_taxpayer", 0) + self.summary_data.get("base_reduced_non_taxpayer", 0), "iva": self.summary_data.get("iva_reduced_taxpayer", 0) + self.summary_data.get("iva_reduced_non_taxpayer", 0), "retencion": self.summary_data.get("iva_retained_reduced", 0)}
+
+            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota General"),
+            "base": self.summary_data.get("base_general_taxpayer", 0) + self.summary_data.get("base_general_non_taxpayer", 0),
+            "iva": self.summary_data.get("iva_general_taxpayer", 0) + self.summary_data.get("iva_general_non_taxpayer", 0),
+            "retencion": self.summary_data.get("iva_retained_general", 0)}, # <-- USAMOS EL NUEVO CAMPO
+
+            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota General + Adicional"),
+            "base": self.summary_data.get("base_additional_taxpayer", 0) + self.summary_data.get("base_additional_non_taxpayer", 0),
+            "iva": self.summary_data.get("iva_additional_taxpayer", 0) + self.summary_data.get("iva_additional_non_taxpayer", 0),
+            "retencion": self.summary_data.get("iva_retained_additional", 0)},
+
+            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota Reducida)"),
+            "base": self.summary_data.get("base_reduced_taxpayer", 0) + self.summary_data.get("base_reduced_non_taxpayer", 0),
+            "iva": self.summary_data.get("iva_reduced_taxpayer", 0) + self.summary_data.get("iva_reduced_non_taxpayer", 0),
+            "retencion": self.summary_data.get("iva_retained_reduced", 0)}
         ]
 
         for i, row_data in enumerate(summary_data_rows):

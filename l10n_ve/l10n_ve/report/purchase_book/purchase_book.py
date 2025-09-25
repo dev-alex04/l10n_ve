@@ -74,8 +74,13 @@ def get_totals_from_data(data):
     impuesto_adicional = 0
     taxes_and_charges_deducted = 0
 
+    retencion_general = 0
+    retencion_adicional = 0
+    retencion_reducida = 0
+
     # Iterar sobre cada fila de la data
     for row in data:
+        ret_monto = flt(row.get("taxes_and_charges_deducted"))
         grand_total += row.get("grand_total", 0)
         total_exempt += row.get("total_exempt", 0)
         base_reducida += row.get("base_reducida", 0)
@@ -84,10 +89,25 @@ def get_totals_from_data(data):
         impuesto_general += row.get("impuesto_general", 0)
         base_adicional += row.get("base_adicional", 0)
         impuesto_adicional += row.get("impuesto_adicional", 0)
-        if row.get("nro_comprobante_retencion"):
-            taxes_and_charges_deducted += row.get("taxes_and_charges_deducted", 0)
+        if row.get("nro_comprobante_retencion") and ret_monto > 0:
+            taxes_and_charges_deducted += ret_monto
 
-    # Retornar un diccionario con los totales
+            bases = {
+                "general": flt(row.get("base_general")),
+                "adicional": flt(row.get("base_adicional")),
+                "reducida": flt(row.get("base_reducida")),
+            }
+
+            # Encuentra la base más alta (que asume tiene el impuesto más representativo)
+            if bases["general"] >= bases["adicional"] and bases["general"] >= bases["reducida"]:
+                retencion_general += ret_monto
+            elif bases["adicional"] >= bases["general"] and bases["adicional"] >= bases["reducida"]:
+                retencion_adicional += ret_monto
+            elif bases["reducida"] > 0:
+                retencion_reducida += ret_monto
+            else:
+                retencion_general += ret_monto
+
     return {
         "grand_total": grand_total,
         "total_exempt": total_exempt,
@@ -98,6 +118,9 @@ def get_totals_from_data(data):
         "base_adicional": base_adicional,
         "impuesto_adicional": impuesto_adicional,
         "taxes_and_charges_deducted": taxes_and_charges_deducted,
+        "retencion_general": retencion_general,
+        "retencion_adicional": retencion_adicional,
+        "retencion_reducida": retencion_reducida,
 
     }
 
@@ -361,20 +384,19 @@ def generate_txt_file(filters):
             elif flt(row.get("base_adicional")) > 0:
                 tax_rate = "31"
 
-            if flt(row.get("is_return")) == 1:
+            transaction_code = "01"
+
+            if flt(row.get("tipo")) == 1:
                 transaction_code = "02"
 
-            elif flt(row.get("is_debit_note")) == 1:
+            elif row.get("debit_note_no"):
                 transaction_code = "03"
-
-            else:
-                transaction_code = "01"
 
             line_data = [
                 str(company_rif) or "",
                 str(periodo) or "",
                 format_date(row.get("posting_date"), "YYYYMMDD") if row.get("posting_date") else "",
-                "D" if flt(row.get("is_return")) == 1 else "C",
+                "D" if flt(row.get("tipo")) == 1 else "C",
                 transaction_code,
                 row.get("tax_id") or "",
                 row.get("bill_no") or "",
@@ -385,8 +407,8 @@ def generate_txt_file(filters):
                 row.get("affected_invoice_number") or "",
                 row.get("nro_comprobante_retencion") or "",
                 f"{flt(row.get('total_exempt')):.2f}".replace('.', ','),
-                tax_rate,
-                "0,00"
+                tax_rate
+
             ]
             content += "\t".join(line_data) + "\n"
 

@@ -227,14 +227,27 @@ class ExcelBuilder:
         current_row += 1
 
         summary_rows = [
-            {"concept": "Compras no Gravadas", "base": self.totals.get("total_exempt", 0), "credit": 0, "retention": 0},
-            {"concept": "Compras de Importación", "base": 0, "credit": 0, "retention": 0},
-            {"concept": "Compras internas (tasa general)", "base": self.totals.get("base_general", 0), "credit": self.totals.get("impuesto_general", 0), "retention": 0},
-            {"concept": "Compras internas (tasa general + adicional)", "base": self.totals.get("base_adicional", 0), "credit": self.totals.get("impuesto_adicional", 0), "retention": 0},
-            {"concept": "Compras internas (tasa reducida)", "base": self.totals.get("base_reducida", 0), "credit": self.totals.get("impuesto_reducida", 0), "retention": 0},
-            {"concept": "Retención de IVA", "base": 0, "credit": 0, "retention": self.totals.get("taxes_and_charges_deducted", 0)}
-        ]
+                {"concept": _("Compras no Gravadas"), "base": self.totals.get("total_exempt", 0), "credit": 0, "retention": 0},
+                {"concept": _("Compras de Importación"), "base": 0, "credit": 0, "retention": 0},
 
+                # Línea de Tasa General (ahora con la retención desglosada)
+                {"concept": _("Compras internas (tasa general)"),
+                "base": self.totals.get("base_general", 0),
+                "credit": self.totals.get("impuesto_general", 0),
+                "retention": self.totals.get("retencion_general", 0)},
+
+                # Línea de Tasa General + Adicional (ahora con la retención desglosada)
+                {"concept": _("Compras internas (tasa general + adicional)"),
+                "base": self.totals.get("base_adicional", 0),
+                "credit": self.totals.get("impuesto_adicional", 0),
+                "retention": self.totals.get("retencion_adicional", 0)},
+
+                # Línea de Tasa Reducida (ahora con la retención desglosada)
+                {"concept": _("Compras internas (tasa reducida)"),
+                "base": self.totals.get("base_reducida", 0),
+                "credit": self.totals.get("impuesto_reducida", 0),
+                "retention": self.totals.get("retencion_reducida", 0)},
+                ]
         total_base = 0
         total_credit = 0
         total_retention = 0
