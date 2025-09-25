@@ -60,10 +60,18 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
     let tax_amount = (tax_base * tax.rate) / 100 - tax.subtracting;
     current_tax_amount = tax_amount > 0 ? tax_amount : 0;
   } else if (tax.charge_type == "VAT" && !item.vat_exempt) {
-    current_tax_amount = ((item.net_amount * tax.rate) / 100)/ item.idx ;
+    current_tax_amount = (item.net_amount * tax.rate) / 100 / item.idx;
   } else if (tax.charge_type == "VAT Withholding" && !item.vat_exempt) {
-    let tax_base = this.frm.doc["taxes"][cint(tax.idx) - 2].tax_amount;
-    current_tax_amount = (tax_base * tax.rate) / 100;
+
+    const vat_row = (this.frm.doc.taxes || []).reduce(
+      (found, tax_row) => (tax_row.charge_type === "VAT" ? tax_row : found),
+      null
+    );
+
+    if (vat_row) {
+      current_tax_amount = (vat_row.tax_amount * tax.rate) / 100 / item.idx;
+    }
+
   }
 
   if (!tax.dont_recompute_tax) {
@@ -71,4 +79,25 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
   }
 
   return current_tax_amount;
+};
+
+erpnext.taxes_and_totals.prototype.set_cumulative_total = function (
+  row_idx,
+  tax
+) {
+  var tax_amount = tax.tax_amount_after_discount_amount;
+
+  let tax_base = 0;
+
+  if (row_idx == 0) {
+    tax_base = this.frm.doc.net_total;
+  } else {
+    tax_base = this.frm.doc["taxes"][row_idx - 1].total;
+  }
+
+  if (tax.is_tax_withholding_account) {
+    tax.total = tax_base;
+  } else {
+    tax.total = flt(tax_base + tax_amount, precision("total"));
+  }
 };
