@@ -26,7 +26,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         reasons = []
         if has_iva_withholding:
             reasons.append("un Comprobante de retención de IVA")
-            
+
         if has_islr_withholding:
             reasons.append("un Comprobante de retención de ISLR")
 
@@ -37,8 +37,8 @@ class CustomPurchaseInvoice(PurchaseInvoice):
     def validate(self):
         super().validate()
         self.validate_duplicate_invoice_numbers()
-        self.set_affected_invoice_number() 
-
+        self.set_affected_invoice_number()
+        self.calculate_total_withholding()
         has_taxable_items = False
         for item in self.items:
             if not item.vat_exempt:
@@ -108,7 +108,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         if self.is_return:
             if not self.credit_note_no:
                 frappe.throw("El número de la Nota de Crédito es obligatorio para una Nota de Crédito.")
-                
+
             credit_note_exists = frappe.db.exists(
                 "Purchase Invoice", {
                     "credit_note_no": self.credit_note_no,
@@ -134,15 +134,15 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             self.calculate_commission()
             self.calculate_contribution()
 
-    def set_affected_invoice_number(self):        
+    def set_affected_invoice_number(self):
         if self.is_return or self.is_debit_note :
             if self.return_against:
                 original_invoice_number = frappe.db.get_value(
-                    "Purchase Invoice", 
-                    self.return_against, 
+                    "Purchase Invoice",
+                    self.return_against,
                     "bill_no"
                 )
-                
+
                 self.affected_invoice_number = original_invoice_number
         else:
             self.affected_invoice_number = None
@@ -218,7 +218,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                     original_iva_amount = tax.tax_amount
                 if tax.charge_type == "VAT Withholding":
                     original_retention_row = tax
-            
+
             if original_retention_row:
                 retention_row_found_in_credit_note = False
                 for tax in self.taxes:
@@ -230,13 +230,14 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                         tax.description = 'Retención de IVA por Nota de Crédito'
                         retention_row_found_in_credit_note = True
                         break
-                
+
                 if not retention_row_found_in_credit_note:
                     self.append("taxes", {
                         "charge_type": "VAT Withholding",
                         "account_head": original_retention_row.account_head,
                         "rate": original_retention_row.rate,
                         "tax_amount": original_retention_row.tax_amount * -1,
+                        "is_tax_withholding_account": True,
                         "add_deduct_tax": 'Deduct',
                         "description": 'Retención de IVA por Nota de Crédito'
                     })
@@ -278,6 +279,17 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                 retention_row.rate = retention_rate
         self.calculate_taxes_and_totals()
 
+    def calculate_total_withholding(self):
+        self.total_withholding  = 0.0
+
+        if not self.get("taxes"):
+            return
+
+        for tax in self.get("taxes"):
+            if not tax.is_tax_withholding_account:
+                    continue
+
+            self.total_withholding += tax.tax_amount
 
     def make_tax_gl_entries(self, gl_entries) -> None:
             valuation_tax = {}

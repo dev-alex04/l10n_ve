@@ -40,9 +40,11 @@ class CustomSalesInvoice(SalesInvoice):
         super().validate()
         self.validate_item_iva()
         self.calculate_total_withholding()
-        # validación de numero de control y de factura
+        # validación de numero de control, debito, credito y de factura
         self._validate_bill_no(raise_throw=True)
         self._validate_bill_control(raise_throw=True)
+        self._validate_debit_note_no(raise_throw=True)
+        self._validate_credit_note_no(raise_throw=True)
 
     def set_control_and_invoice_number(self) -> None:
 
@@ -70,7 +72,8 @@ class CustomSalesInvoice(SalesInvoice):
             company.increment_invoice_number()
 
 
-        self.bill_control = company.format_number(company.sales_invoce_control_number_format, company.sales_invoice_control_number_correlative)
+        self.bill_control = company.format_number(company.sales_invoce_control_number_format,
+                                                   company.sales_invoice_control_number_correlative)
         company.increment_control_number()
 
 
@@ -147,6 +150,60 @@ class CustomSalesInvoice(SalesInvoice):
             else:
                 message = ("El número de factura ya está asignado a otra factura.")
 
+            if raise_throw:
+                frappe.throw(message, title="Advertencia de Duplicado")
+            return False
+
+        return True
+
+    def _validate_credit_note_no(self, credit_note_no: str = None, raise_throw: bool = True) -> bool:
+        """
+        Valida que el número de Nota de Crédito no esté ya asignado.
+        """
+        credit_note_to_validate = credit_note_no or self.credit_note_no
+        if not credit_note_to_validate:
+            return True
+
+        is_duplicated = frappe.db.exists(
+            "Sales Invoice",
+            {
+                'docstatus': 1,
+                'company': self.company,
+                'name': ['!=', self.name],
+                'credit_note_no': credit_note_to_validate
+            }
+        )
+
+        if is_duplicated:
+            message = ("El número de Nota de Crédito ya está "
+            "asignado a otra Nota de Crédito.")
+            if raise_throw:
+                frappe.throw(message, title="Advertencia de Duplicado")
+            return False
+
+        return True
+
+    def _validate_debit_note_no(self, debit_note_no: str = None,
+                                raise_throw: bool = True) -> bool:
+        """
+        Valida que el número de Nota de Débito no esté ya asignado.
+        """
+        debit_note_to_validate = debit_note_no or self.debit_note_no
+        if not debit_note_to_validate:
+            return True
+
+        is_duplicated = frappe.db.exists(
+            "Sales Invoice",
+            {
+                'docstatus': 1,
+                'company': self.company,
+                'name': ['!=', self.name],
+                'debit_note_no': debit_note_to_validate
+            }
+        )
+
+        if is_duplicated:
+            message = ("El número de Nota de Débito ya está asignado a otra Nota de Débito.")
             if raise_throw:
                 frappe.throw(message, title="Advertencia de Duplicado")
             return False
@@ -314,14 +371,16 @@ class CustomSalesInvoice(SalesInvoice):
         if self.vat_withholding_voucher_number:
 
             if not self.vat_withholding_voucher_number.isdigit():
-                frappe.throw("El número de comprobante de retención de IVA debe contener solo números.")
+                frappe.throw("El número de comprobante de retención " \
+                "de IVA debe contener solo números.")
 
             if len(self.vat_withholding_voucher_number) != 14:
-                frappe.throw("El número de comprobante de retención de IVA debe tener exactamente 14 caracteres.")
+                frappe.throw("El número de comprobante de retención " \
+                "de IVA debe tener exactamente 14 caracteres.")
 
 
 @frappe.whitelist()
-def upload_voucher_data(docname, voucher_number, withholding_date, file_url):
+def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None):
     """
     Actualiza la Sales Invoice (Factura de Venta) con los datos del comprobante de retención.
     """
