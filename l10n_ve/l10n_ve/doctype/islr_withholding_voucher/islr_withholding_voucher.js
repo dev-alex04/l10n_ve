@@ -158,9 +158,11 @@ function load_invoices(frm) {
 
             if (r.message && r.message.length > 0) {
                 r.message.forEach(invoice => {
+                    console.log(invoice);
                     let new_row = frm.add_child('islr_withholding_voucher_item');
                     new_row.purchase_invoice = invoice.purchase_invoice;
-                    new_row.bill_no = invoice.bill_no;
+                    new_row.doc_no = invoice.doc_no;
+                    new_row.doc_type = invoice.doc_type;
                     new_row.bill_control = invoice.bill_control;
                     new_row.posting_date = invoice.posting_date;
                     new_row.grand_total = invoice.grand_total;
@@ -175,9 +177,11 @@ function load_invoices(frm) {
                         new_row.code = tax_item.code; 
                         new_row.tax_amount = tax_item.tax_amount;
                     }
+
+                    let negative = invoice.is_return ? -1 : 1;
                     
-                    frm.doc.totals_total_exempt += invoice.total_exempt || 0;
-                    frm.doc.totals_tax_amount += invoice.tax_amount || 0;
+                    frm.doc.totals_total_exempt += invoice.total_exempt * negative || 0;
+                    frm.doc.totals_tax_amount += invoice.tax_amount * negative || 0;
                 });
                 
                 frm.refresh_fields([

@@ -93,40 +93,72 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         filters={"purchase_invoice": ["!=", ""]},
         fields=["purchase_invoice"]
     )
-    excluded_from_withholding_list = [d.purchase_invoice for d in excluded_from_withholding]
+    all_excluded_invoices = [d.purchase_invoice for d in excluded_from_withholding]
 
-    # Consulta optimizada: obtiene los datos principales de la factura
-    valid_invoices_list = frappe.get_all(
+    valid_invoices = frappe.get_all(
         "Purchase Invoice",
         filters=[
             {"supplier": supplier},
             {"posting_date": ["between", [start_date, end_date]]},
             {"company": company},
             {"docstatus": 1},
-            {"name": ["not in", excluded_from_withholding_list]},
+            {"is_return": 0}, 
+            {"is_debit_note": 0},
             {"status": "Paid"},
+            {"name": ["not in", all_excluded_invoices]},
             ["Purchase Taxes and Charges", "charge_type", "=", "ISLR"]
         ],
-        fields=[
-            "name",
-            "bill_no",
-            "bill_control",
-            "posting_date",
-            "grand_total",
-            "total_exempt"
-        ]
+        fields=["name", "bill_no"]
     )
 
-    invoices_with_taxes = []
-    invoice_names = [d.name for d in valid_invoices_list]
+    valid_invoices_names = [d.name for d in valid_invoices]
+    valid_invoices_bill_nos = [d.bill_no for d in valid_invoices]
 
-    if not invoice_names:
+    associated_credit_notes_names = []
+    
+    associated_credit_notes = frappe.get_all(
+        "Purchase Invoice",
+        filters=[
+            {"supplier": supplier},
+            {"posting_date": ["between", [start_date, end_date]]},
+            {"company": company},
+            {"docstatus": 1},
+            {"is_return": 1},
+            {"is_debit_note": 0},
+            {"name": ["not in", all_excluded_invoices]},
+            ["Purchase Taxes and Charges", "charge_type", "=", "ISLR"]
+        ],
+        fields=["name"]
+    )
+    associated_credit_notes_names = [d.name for d in associated_credit_notes]
+
+    associated_debit_notes_names = []
+    
+    associated_debit_notes = frappe.get_all(
+        "Purchase Invoice",
+        filters=[
+            {"supplier": supplier},
+            {"posting_date": ["between", [start_date, end_date]]},
+            {"company": company},
+            {"docstatus": 1},
+            {"is_return": 0},
+            {"is_debit_note": 1},
+            {"name": ["not in", all_excluded_invoices]},
+            ["Purchase Taxes and Charges", "charge_type", "=", "ISLR"]
+        ],
+        fields=["name"]
+    )
+    associated_debit_notes_names = [d.name for d in associated_debit_notes]
+
+    final_document_list = valid_invoices_names + associated_credit_notes_names + associated_debit_notes_names
+    
+    if not final_document_list:
         return []
 
     all_tax_items = frappe.get_all(
         "Purchase Taxes and Charges",
         filters={
-            "parent": ["in", invoice_names],
+            "parent": ["in", final_document_list],
             "parenttype": "Purchase Invoice",
             "charge_type": "ISLR"
         },
@@ -138,7 +170,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         "Payment Entry Reference",
         filters={
             "reference_doctype": "Purchase Invoice",
-            "reference_name": ["in", invoice_names]
+            "reference_name": ["in", final_document_list]
         },
         fields=["reference_name", "parent"],
         order_by="creation desc"
@@ -148,25 +180,58 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     for pe in all_payment_entries:
         if pe.reference_name not in payment_entries_map:
             payment_entries_map[pe.reference_name] = pe.parent
+    
+    all_invoices_data = frappe.get_all(
+        "Purchase Invoice",
+        filters={"name": ["in", final_document_list]},
+        fields=[
+            "name", "bill_no", "bill_control", "posting_date", "grand_total",
+            "total_exempt", "is_return", "is_debit_note", "total", 
+            "taxes_and_charges_added", "taxes_and_charges_deducted", 
+            "credit_note_no", "debit_note_no", "affected_invoice_number"
+        ]
+    )
 
-    for item in valid_invoices_list:
+    invoices_with_taxes = []
+    
+    for item in all_invoices_data:
         tax_data = tax_items_map.get(item.name)
         
         if tax_data:
-            payment_entry_name = payment_entries_map.get(item.name)
+
+            doc_no = (
+                (item.credit_note_no or "") if item.is_return else
+                (item.debit_note_no or "") if item.is_debit_note else
+                (item.bill_no or "")
+            )
+
+            doc_type = (
+                "NC" if item.is_return else
+                "ND" if item.is_debit_note else
+                "FACT"
+            )
             
             invoice_data = {
                 "purchase_invoice": item.name,
-                "bill_no": item.bill_no,
+                "doc_no": doc_no,
+                "doc_type": doc_type,
                 "bill_control": item.bill_control,
                 "posting_date": item.posting_date,
                 "rate": tax_data.rate,
                 "subtracting": tax_data.subtracting,
                 "tax_amount": tax_data.tax_amount,
-                "amount_paid": item.grand_total,
-                "grand_total": item.grand_total,
-                "total_exempt": item.total_exempt,
-                "payment_entry_name": payment_entry_name,
+                "grand_total": abs(item.grand_total),
+                "total": abs(item.total),
+                "total_exempt": abs(item.total_exempt),
+                "taxes_and_charges_added": abs(item.taxes_and_charges_added),
+                "taxes_and_charges_deducted": abs(item.taxes_and_charges_deducted),
+                "is_return": item.is_return,
+                "is_debit_note": item.is_debit_note,
+                "credit_note_no": item.credit_note_no,
+                "debit_note_no": item.debit_note_no,
+                "affected_invoice_number": item.affected_invoice_number,
+                "amount_paid": abs(item.grand_total),
+                "payment_entry_name": payment_entries_map.get(item.name),
                 "taxes": tax_data
             }
             
