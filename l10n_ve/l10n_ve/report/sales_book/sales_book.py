@@ -165,19 +165,19 @@ def get_sales_data(filters):
             END AS vat_withholding_rate,
 
 			 -- Ventas a NO Contribuyentes
-            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_gen.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_general_non_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_non_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_red.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_reduced_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_red.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_reduced_non_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_non_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_add.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_additional_non_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_add.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_additional_non_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_non_taxpayer,
 
             -- Ventas a Contribuyentes
-            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_gen.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_general_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_gen.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_general_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_red.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_reduced_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_red.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_reduced_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_add.parent IS NOT NULL THEN siv.total ELSE 0 END AS base_additional_taxpayer,
+            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_add.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_additional_taxpayer,
             CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_taxpayer,
 
 			siv.vat_withholding_voucher_number,
@@ -222,41 +222,65 @@ def get_sales_data(filters):
 	return data
 
 def get_total_row(data):
-	"""
-	Calcula los totales para las columnas relevantes y devuelve un diccionario.
-	"""
-	if not data:
-		return {}
+    """
+    Calcula los totales para las columnas relevantes y devuelve un diccionario,
+    incluyendo el desglose de IVA retenido por alícuota.
+    """
+    if not data:
+        return {}
 
-	totals = frappe._dict(
-		{
-			"grand_total": sum(d.get("grand_total", 0) for d in data),
-			"exempt_amount": sum(d.get("exempt_amount", 0) for d in data),
+    iva_retained_general = 0
+    iva_retained_reduced = 0
+    iva_retained_additional = 0
 
-			"total_exempt": sum(d.get("total_exempt", 0) for d in data),
-			"base_general_non_taxpayer": sum(d.get("base_general_non_taxpayer", 0) for d in data),
-			"iva_general_non_taxpayer": sum(d.get("iva_general_non_taxpayer", 0) for d in data),
-			"base_reduced_non_taxpayer": sum(d.get("base_reduced_non_taxpayer", 0) for d in data),
-			"iva_reduced_non_taxpayer": sum(d.get("iva_reduced_non_taxpayer", 0) for d in data),
-			"base_additional_non_taxpayer": sum(d.get("base_additional_non_taxpayer", 0) for d in data),
-			"iva_additional_non_taxpayer": sum(d.get("iva_additional_non_taxpayer", 0) for d in data),
+    totals = frappe._dict({
+        "grand_total": 0,
+        "exempt_amount": 0,
+        "total_exempt": 0,
+        "base_general_non_taxpayer": 0,
+        "iva_general_non_taxpayer": 0,
+        "base_reduced_non_taxpayer": 0,
+        "iva_reduced_non_taxpayer": 0,
+        "base_additional_non_taxpayer": 0,
+        "iva_additional_non_taxpayer": 0,
+        "base_general_taxpayer": 0,
+        "iva_general_taxpayer": 0,
+        "base_reduced_taxpayer": 0,
+        "iva_reduced_taxpayer": 0,
+        "base_additional_taxpayer": 0,
+        "iva_additional_taxpayer": 0,
+        "iva_retained": 0,
+        "igtf_base": 0,
+        "igtf_amount": 0,
+    })
 
-			"base_general_taxpayer": sum(d.get("base_general_taxpayer", 0) for d in data),
-			"iva_general_taxpayer": sum(d.get("iva_general_taxpayer", 0) for d in data),
-			"base_reduced_taxpayer": sum(d.get("base_reduced_taxpayer", 0) for d in data),
-			"iva_reduced_taxpayer": sum(d.get("iva_reduced_taxpayer", 0) for d in data),
-			"base_additional_taxpayer": sum(d.get("base_additional_taxpayer", 0) for d in data),
-			"iva_additional_taxpayer": sum(d.get("iva_additional_taxpayer", 0) for d in data),
+    for row in data:
+        for key in totals.keys():
+            if key not in ["iva_retained_general", "iva_retained_reduced", "iva_retained_additional"]:
+                totals[key] += row.get(key, 0)
 
-			"iva_retained": sum(d.get("iva_retained", 0) for d in data),
+        ret_monto = row.get("iva_retained", 0)
 
-			# Totales para las nuevas columnas de IGTF
-			"igtf_base": sum(d.get("igtf_base", 0) for d in data),
-			"igtf_amount": sum(d.get("igtf_amount", 0) for d in data),
+        if ret_monto > 0:
 
+            bases = {
+                "general": row.get("base_general_taxpayer", 0) + row.get("base_general_non_taxpayer", 0),
+                "reduced": row.get("base_reduced_taxpayer", 0) + row.get("base_reduced_non_taxpayer", 0),
+                "additional": row.get("base_additional_taxpayer", 0) + row.get("base_additional_non_taxpayer", 0),
+            }
 
-		}
-	)
+            if bases["general"] >= bases["reduced"] and bases["general"] >= bases["additional"]:
+                iva_retained_general += ret_monto
+            elif bases["additional"] >= bases["general"] and bases["additional"] >= bases["reduced"]:
+                iva_retained_additional += ret_monto
+            elif bases["reduced"] > 0:
+                iva_retained_reduced += ret_monto
+            else:
+                iva_retained_general += ret_monto
 
-	totals.bill_no = _("TOTALES")
-	return totals
+    totals["iva_retained_general"] = iva_retained_general
+    totals["iva_retained_reduced"] = iva_retained_reduced
+    totals["iva_retained_additional"] = iva_retained_additional
+
+    totals.bill_no = _("TOTALES")
+    return totals
