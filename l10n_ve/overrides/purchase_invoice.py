@@ -280,14 +280,14 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         self.calculate_taxes_and_totals()
 
     def calculate_total_withholding(self):
-        self.total_withholding  = 0.0
+        self.total_withholding = 0.0
 
         if not self.get("taxes"):
             return
 
         for tax in self.get("taxes"):
             if not tax.is_tax_withholding_account:
-                    continue
+                continue
 
             self.total_withholding += tax.tax_amount
 

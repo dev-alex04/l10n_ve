@@ -327,7 +327,7 @@ def generate_txt_file(filters):
         company_rif = company_doc.tax_id or ""
 
         if not company_rif:
-            frappe.throw(_("El RIF de la compañía no está configurado. " \
+            frappe.throw(_("El RIF de la compañía no está configurado. "
             "Por favor, agregue el RIF en la configuración de la compañía."))
 
         # Lógica para determinar el período del TXT (mes y año)

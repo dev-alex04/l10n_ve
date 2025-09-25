@@ -371,11 +371,11 @@ class CustomSalesInvoice(SalesInvoice):
         if self.vat_withholding_voucher_number:
 
             if not self.vat_withholding_voucher_number.isdigit():
-                frappe.throw("El número de comprobante de retención " \
+                frappe.throw("El número de comprobante de retención "
                 "de IVA debe contener solo números.")
 
             if len(self.vat_withholding_voucher_number) != 14:
-                frappe.throw("El número de comprobante de retención " \
+                frappe.throw("El número de comprobante de retención "
                 "de IVA debe tener exactamente 14 caracteres.")
 
 
