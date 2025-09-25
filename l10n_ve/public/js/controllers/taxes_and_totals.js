@@ -62,12 +62,11 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
   } else if (tax.charge_type == "VAT" && !item.vat_exempt) {
     current_tax_amount = (item.net_amount * tax.rate) / 100 / item.idx;
   } else if (tax.charge_type == "VAT Withholding" && !item.vat_exempt) {
-    let vat_row = null;
-    for (let tax_row of this.frm.doc.taxes || []) {
-      if (tax_row.charge_type == "VAT") {
-        vat_row = tax_row;
-      }
-    }
+
+    const vat_row = (this.frm.doc.taxes || []).reduce(
+      (found, tax_row) => (tax_row.charge_type === "VAT" ? tax_row : found),
+      null
+    );
 
     if (vat_row) {
       current_tax_amount = (vat_row.tax_amount * tax.rate) / 100 / item.idx;
