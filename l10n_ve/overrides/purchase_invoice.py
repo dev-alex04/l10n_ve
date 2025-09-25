@@ -108,8 +108,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         if self.is_return:
             if not self.credit_note_no:
                 frappe.throw("El número de la Nota de Débito es obligatorio para una Nota de Débito.")
-
-            debit_note_exists = frappe.db.exists(
+            credit_note_exists = frappe.db.exists(
                 "Purchase Invoice", {
                     "credit_note_no": self.credit_note_no,
                     "supplier": self.supplier,
@@ -118,7 +117,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                 }
             )
 
-            if debit_note_exists:
+            if credit_note_exists:
                 frappe.throw(f"Ya existe una Nota de Crédito con el número {self.credit_note_no} para este proveedor.")
 
     def calculate_taxes_and_totals(self):
