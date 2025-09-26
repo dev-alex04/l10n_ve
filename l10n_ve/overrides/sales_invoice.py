@@ -11,12 +11,10 @@ from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 class CustomSalesInvoice(SalesInvoice):
 
-
     def calculate_taxes_and_totals(self) -> None:
         self.set_vat_withholding()
 
         taxes_and_totals_calculator = TaxesAndTotals(self)
-
 
         self.calculate_commission()
         self.calculate_contribution()
@@ -31,6 +29,7 @@ class CustomSalesInvoice(SalesInvoice):
         """
         super().before_submit()
         self.set_control_and_invoice_number()
+        self.set_title_field()
 
     def validate(self):
 
@@ -59,11 +58,17 @@ class CustomSalesInvoice(SalesInvoice):
             self.debit_note_no = None
             company.increment_credit_note_number()
 
+            self.bill_control = company.get_control_number()
+            company.increment_control_number()
+
         elif self.is_debit_note:
             self.debit_note_no = company.get_debit_note_number()
             self.bill_no = None
             self.credit_note_no = None
             company.increment_debit_note_number()
+
+            self.bill_control = company.get_control_number()
+            company.increment_control_number()
 
         else:
             self.bill_no = company.get_invoice_number()
@@ -71,10 +76,8 @@ class CustomSalesInvoice(SalesInvoice):
             self.debit_note_no = None
             company.increment_invoice_number()
 
-
-        self.bill_control = company.format_number(company.sales_invoce_control_number_format,
-                                                   company.sales_invoice_control_number_correlative)
-        company.increment_control_number()
+            self.bill_control = company.get_control_number()
+            company.increment_control_number()
 
 
     def set_affected_invoice_number(self):
@@ -377,6 +380,19 @@ class CustomSalesInvoice(SalesInvoice):
             if len(self.vat_withholding_voucher_number) != 14:
                 frappe.throw("El número de comprobante de retención "
                 "de IVA debe tener exactamente 14 caracteres.")
+
+    def set_title_field(self):
+        super().set_title_field()
+        if self.docstatus == 0:
+            return
+        if self.is_return:
+            self.title = self.credit_note_no
+
+        elif self.is_debit_note:
+            self.title = self.debit_note_no
+
+        else:
+            self.title = self.bill_no
 
 
 @frappe.whitelist()

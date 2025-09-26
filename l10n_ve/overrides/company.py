@@ -14,10 +14,15 @@ class CustomCompany(Company):
         return self.format_number(credit_note_format, next_credit_note_num)
 
     def get_debit_note_number(self) -> str:
-        # Asegúrate de tener los campos en el Doctype de Company
         debit_note_format = self.sales_debit_note_number_format or "#####"
         next_debit_note_num = self.sales_debit_note_number_correlative or 1
         return self.format_number(debit_note_format, next_debit_note_num)
+
+    def get_control_number(self) -> str:
+        control_format = self.sales_invoce_control_number_format or "#####"
+        next_control_num = self.sales_invoice_control_number_correlative or 1
+        return self.format_number(control_format, next_control_num)
+
 
     def increment_invoice_number(self):
         next_invoice = (self.sales_invoice_number_correlative or 1) + 1
@@ -30,7 +35,7 @@ class CustomCompany(Company):
     def increment_debit_note_number(self):
         next_debit_note = (self.sales_debit_note_number_correlative or 1) + 1
         frappe.db.set_value("Company", self.name, "sales_debit_note_number_correlative", next_debit_note)
-    
+
     def increment_control_number(self):
         next_control = (self.sales_invoice_control_number_correlative or 1) + 1
         frappe.db.set_value("Company", self.name, "sales_invoice_control_number_correlative", next_control)
@@ -41,21 +46,21 @@ class CustomCompany(Company):
         Función de utilidad para aplicar el formato al número.
         """
         # Asegura que number_format no sea None
-        number_format = number_format or "" 
-        
+        number_format = number_format or ""
+
         if '#' not in number_format:
             return f"{number_format}{number}"
-        
+
         num_placeholders = number_format.count('#')
         formatted_number = str(number).zfill(num_placeholders)
-        
+
         return number_format.replace('#' * num_placeholders, formatted_number)
-            
+
     def before_save(self):
         # Inicializa los campos si están vacíos al crear la compañía
         if not self.vat_withholding_format:
             # Puedes usar un formato por defecto si el cliente no lo ha especificado
-            self.vat_withholding_format = "##############" 
-        
+            self.vat_withholding_format = "##############"
+
         if not self.vat_withholding_correlative:
             self.vat_withholding_correlative = 1

@@ -17,6 +17,7 @@ frappe.ui.form.on("Sales Invoice", {
 
   refresh: function (frm) {
     toggle_vat_withholding_fields(frm);
+    reorganize_customer_fields(frm);
 
     if (
       !frm.doc.__islocal &&
@@ -157,7 +158,7 @@ function toggle_document_number_fields(frm) {
   frm.toggle_display(["bill_no"], !is_credit_note && !is_debit_note);
   frm.toggle_display(["credit_note_no"], is_credit_note);
   frm.toggle_display(["debit_note_no"], is_debit_note);
-
+  frm.toggle_display(["affected_invoice_number"], is_debit_note || is_credit_note );
   frm.toggle_display(["bill_control"], true);
 }
 
@@ -186,4 +187,27 @@ function toggle_vat_withholding_fields(frm) {
         }
       });
   }
+}
+function reorganize_customer_fields(frm) {
+
+  let grand_total_wrapper = frm.get_field(
+    "grand_total"
+  ).$wrapper;
+
+  let total_advance_wrapper = frm.get_field(
+    "total_advance"
+  ).$wrapper;
+
+   let outstanding_amount_wrapper = frm.get_field(
+    "outstanding_amount"
+  ).$wrapper;
+
+ let base_grand_total_wrapper = frm.get_field(
+    "base_grand_total"
+  ).$wrapper;
+
+grand_total_wrapper.insertBefore(base_grand_total_wrapper);
+total_advance_wrapper.insertBefore(base_grand_total_wrapper);
+outstanding_amount_wrapper.insertBefore(base_grand_total_wrapper);
+
 }
