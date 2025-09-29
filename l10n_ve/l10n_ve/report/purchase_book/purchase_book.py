@@ -396,7 +396,7 @@ def generate_txt_file(filters):
                 str(company_rif) or "",
                 str(periodo) or "",
                 format_date(row.get("posting_date"), "YYYYMMDD") if row.get("posting_date") else "",
-                "D" if flt(row.get("tipo")) == 1 else "C",
+                "V" if flt(row.get("tipo")) == 1 else "C",
                 transaction_code,
                 row.get("tax_id") or "",
                 row.get("bill_no") or "",
