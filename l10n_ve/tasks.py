@@ -2,10 +2,9 @@ import requests
 
 import frappe
 from frappe.utils import getdate, formatdate, get_datetime_str
-from frappe.exceptions import DuplicateEntryError
 
 
-def create_currency_exchange():
+def create_currency_exchange() -> None:
 
     doctype_name_str = "Currency Exchange"
     response_error_str = "Error obteniendo la tasa USD del BCV"

@@ -10,6 +10,7 @@
  ],
  "fields": [
   {
+   "default": "83,33",
    "fieldname": "subtracting_calculation_factor",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -22,8 +23,8 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-08-14 21:12:46.209315",
- "modified_by": "Administrator",
+ "modified": "2025-09-29 14:01:43.477429",
+ "modified_by": "daniel@domina.com",
  "module": "L10N Ve",
  "name": "Venezuela Account Settings",
  "owner": "Administrator",

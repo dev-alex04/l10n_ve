@@ -11,21 +11,24 @@ class TabulatorISLR(Document):
 
     def set_subtracting(self) -> None:
 
-        factor_pnr= frappe.db.get_single_value('Venezuela Account Settings',
-                                               'subtracting_calculation_factor')
+        subtracting_calculation_factor = \
+            frappe.db.get_single_value('Venezuela Account Settings',
+                                       'subtracting_calculation_factor')
 
         value_ut = frappe.db.get_value('Tax Unit', {'is_active': 1}, 'value')
 
         for row in self.aliquot:
-            if row.types_of_person == "Natural person domiciled":
+            row.subtracting = 0
 
-                # Fórmula para Persona Natural Residente
-                if row.aliquot and value_ut > 0:
+            if row.types_of_person != "Natural person domiciled":
+                continue
 
-                    row.subtracting = \
-                        (value_ut * factor_pnr) * (row.aliquot / row.percentage_base)
-                else:
-                    row.subtracting = 0
+            # Fórmula para Persona Natural Residente
+            if all([bool(float(row.aliquot)),
+                    bool(float(row.percentage_base)),
+                    bool(float(value_ut))]):
+
+                row.subtracting = \
+                    (value_ut * subtracting_calculation_factor) * (float(row.aliquot) / float(row.percentage_base))
             else:
-                # Para los demás, el subtracting es 0
                 row.subtracting = 0

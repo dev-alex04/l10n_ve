@@ -14,7 +14,7 @@
         "property_type": "Text",
         "row_name": null,
         "value": "\nActual\nOn Net Total\nOn Previous Row Amount\nOn Previous Row Total\nOn Item Quantity\nISLR\nVAT\nVAT Withholding"
-   },
+    },
     {
         "default_value": null,
         "doc_type": "Sales Taxes and Charges",
@@ -30,5 +30,89 @@
         "property_type": "Text",
         "row_name": null,
         "value": "\nActual\nOn Net Total\nOn Previous Row Amount\nOn Previous Row Total\nOn Item Quantity\nISLR\nVAT\nVAT Withholding"
-   }
+    },
+    {
+        "doc_type": "Customer",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "quick_entry",
+        "value": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Customer-quick_entry"
+    },
+    {
+        "doc_type": "Supplier",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "quick_entry",
+        "value": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Supplier-quick_entry"
+    },
+    {
+        "default_value": null,
+        "doc_type": "Tax Withholding Account",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "account",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Tax Withholding Account-account-label",
+        "property": "label",
+        "property_type": "Text",
+        "row_name": null,
+        "value": "Purchase Account"
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Customer",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "tax_category",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Customer-tax_category-hidden",
+        "property": "hidden",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Supplier",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "tax_category",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Supplier-tax_category-hidden",
+        "property": "hidden",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Supplier",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "tax_tab",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Supplier-tax_tab-hidden",
+        "property": "hidden",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+    }
 ]
