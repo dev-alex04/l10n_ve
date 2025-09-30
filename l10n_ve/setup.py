@@ -292,9 +292,8 @@ def create_vat_withholding() -> None:
 
             for company in companies:
 
-                if not all([company['sales_vat_withholding_account'],
-                            company['purchase_vat_withholding_account']]
-                        for company in companies):
+                if not (company.get('sales_vat_withholding_account') and company.get('purchase_vat_withholding_account')):
+                    print(f"  !! ADVERTENCIA: Cuentas de retención de IVA no configuradas para la compañía '{company.name}'. Se omitirá.")
                     continue
 
                 withholding.append('accounts', {
