@@ -72,7 +72,7 @@ class CustomSalesInvoice(SalesInvoice):
             company.increment_invoice_number()
 
 
-        self.bill_control = company.format_number(company.sales_invoce_control_number_format,
+        self.bill_control = company.format_number(company.sales_invoice_control_number_format,
                                                    company.sales_invoice_control_number_correlative)
         company.increment_control_number()
 

@@ -4,7 +4,7 @@ from erpnext.setup.doctype.company.company import Company
 class CustomCompany(Company):
 
     def get_invoice_number(self) -> str:
-        invoice_format = self.sales_invoce_number_format or "#####"
+        invoice_format = self.sales_invoice_number_format or "#####"
         next_invoice_num = self.sales_invoice_number_correlative or 1
         return self.format_number(invoice_format, next_invoice_num)
 
@@ -30,7 +30,7 @@ class CustomCompany(Company):
     def increment_debit_note_number(self):
         next_debit_note = (self.sales_debit_note_number_correlative or 1) + 1
         frappe.db.set_value("Company", self.name, "sales_debit_note_number_correlative", next_debit_note)
-    
+
     def increment_control_number(self):
         next_control = (self.sales_invoice_control_number_correlative or 1) + 1
         frappe.db.set_value("Company", self.name, "sales_invoice_control_number_correlative", next_control)
@@ -41,21 +41,21 @@ class CustomCompany(Company):
         Función de utilidad para aplicar el formato al número.
         """
         # Asegura que number_format no sea None
-        number_format = number_format or "" 
-        
+        number_format = number_format or ""
+
         if '#' not in number_format:
             return f"{number_format}{number}"
-        
+
         num_placeholders = number_format.count('#')
         formatted_number = str(number).zfill(num_placeholders)
-        
+
         return number_format.replace('#' * num_placeholders, formatted_number)
-            
+
     def before_save(self):
         # Inicializa los campos si están vacíos al crear la compañía
         if not self.vat_withholding_format:
             # Puedes usar un formato por defecto si el cliente no lo ha especificado
-            self.vat_withholding_format = "##############" 
-        
+            self.vat_withholding_format = "##############"
+
         if not self.vat_withholding_correlative:
             self.vat_withholding_correlative = 1
