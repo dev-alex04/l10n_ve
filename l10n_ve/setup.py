@@ -14,7 +14,7 @@ def set_l10n_ve_data() -> None:
         create_islr_tabulator()
         set_chart_of_accounts()
         create_vat_withholding()
-        # create_sales_taxes_and_charges_template()
+        create_sales_taxes_and_charges_template()
 
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
@@ -45,11 +45,9 @@ def create_tax_unit() -> None:
     print("Iniciando la creación de la Unidad Tributaria...")
 
     try:
-        # Define los datos de la unidad tributaria a crear
         tax_unit_value = 43
         effective_date = "2025-01-01" # Fecha de vigencia de la UT
 
-        # Verifica si ya existe una unidad tributaria para esa fecha para no duplicar
         if not frappe.db.exists("Tax Unit", {"effective_date": effective_date}):
 
             tax_unit = frappe.new_doc("Tax Unit")
@@ -92,12 +90,10 @@ def create_islr_tabulator() -> None:
                 codigo = row.get("Codigo", "").strip()
                 subtracting = row.get('Sustraendo', '').strip()
                 descripcion = row.get('Descripcion', '').strip()
-                percentage_base = row.get('Alicuota', '').strip()
+                percentage_base = row.get('Porcentaje Base', '').strip()
                 types_of_person = row.get('Tipo de persona', '').strip()
                 payments_greater_than_bs = row.get('Pagos mayores a', '').strip()
 
-
-                # Si la fila tiene código y descripción, es un nuevo documento padre
                 if codigo and descripcion:
 
                     if int(codigo) >= 10:
@@ -121,11 +117,11 @@ def create_islr_tabulator() -> None:
                         current_islr_doc.insert(ignore_permissions=True)
                         print(f"  -> Creado concepto: {codigo} - {descripcion}")
                     else:
-                        # Si ya existe, lo cargamos para añadirle las alícuotas hijas
-                        current_islr_doc = frappe.get_doc("Tabulator ISLR", {"codigo": codigo})
+                        current_islr_doc = frappe.get_doc("Tabulator ISLR",
+                                                          {"codigo": codigo})
+
                         print(f"  -- Omitiendo (ya existe): {codigo} - {descripcion}")
 
-                # Si no tiene código, es una alícuota hija del documento anterior
                 elif current_islr_doc:
                     current_islr_doc.append("aliquot", {
                         "aliquot": aliquot,
@@ -134,7 +130,7 @@ def create_islr_tabulator() -> None:
                         "types_of_person": types_of_person,
                         "payments_greater_than_bs": payments_greater_than_bs
                     })
-                    # Guardar el documento padre después de añadir cada hijo
+
                     current_islr_doc.save(ignore_permissions=True)
 
         frappe.db.commit()
@@ -156,11 +152,7 @@ def set_chart_of_accounts() -> None:
     """
     print("Iniciando la configuración de cuentas contables en las Compañías...")
 
-    # Lista de diccionarios con el mapeo de campos y cuentas.
-    # El 'account_name' debe coincidir exactamente con el nombre de la cuenta
-    # en el Plan de Cuentas, incluyendo el sufijo de la compañía si existe.
     account_map = [
-        # {'fieldname': 'sales_ica_account', 'account_name': '261510 - De industria y comercio'},
         {
             'account_name': 'IVA retenido en compras',
             'account_number': '2.7.2.15.99.01.01',
@@ -252,7 +244,6 @@ def set_chart_of_accounts() -> None:
 
                 else:
                     print(f"  !! ADVERTENCIA: No se encontró la cuenta  '{account_name}' para la compañía '{company.name}'. Se omitirá la configuración del campo '{fieldname}'.")
-
                     continue
 
             try:
@@ -300,12 +291,12 @@ def create_vat_withholding() -> None:
                 'tax_withholding_rate': aliquot,
             })
 
-            if not all([company['sales_vat_withholding_account'],
-                        company['purchase_vat_withholding_account']]
-                    for company in companies):
-                continue
-
             for company in companies:
+
+                if not all([company['sales_vat_withholding_account'],
+                            company['purchase_vat_withholding_account']]
+                        for company in companies):
+                    continue
 
                 withholding.append('accounts', {
                     'company': company['name'],
@@ -322,50 +313,54 @@ def create_vat_withholding() -> None:
 
 def create_sales_taxes_and_charges_template() -> None:
 
-    template_types = (
-        'Sales',
-        'Purchase'
-    )
+    print("Creando impuesto deIVA")
 
-    companies = frappe.db.get_all('Company', fields=['name', 'abbr'])
+    try:
 
-    for doctype in template_types:
+        template_types = {
+            'Sales': 'sales_vat_account',
+            'Purchase': 'purchase_vat_account'
+        }
 
-        doctype_name = f'{doctype} Taxes and Charges Template'
+        companies = frappe.db.get_all('Company', fields=['name', 'abbr'])
 
-        taxes_templates = frappe.db.get_all(doctype_name,
-                                            pluck='name')
+        for doctype, fieldname in template_types.items():
 
-        for template_name in taxes_templates:
+            doctype_name = f'{doctype} Taxes and Charges Template'
 
-            if 'Colombia Tax' in template_name:
-                tax_tempate = frappe.get_doc(doctype_name,
-                                             template_name)
+            for company in companies:
 
-                tax_tempate.delete()
-
-        for company in companies:
-
-            vat_account_str = f'VAT - {company["abbr"]}'
-
-            for i, aliquot in enumerate([16, 8, 15]):
-
-                if frappe.db.exists(doctype_name,
-                                    f'IVA {aliquot}% - {company["abbr"]}'):
+                vat_account_str = frappe.db.get_value('Company',
+                                                    company['name'],
+                                                    fieldname)
+                if not vat_account_str:
                     continue
 
-                tax_template = frappe.new_doc(doctype_name)
+                for i, aliquot in enumerate([16, 8, 15, 31]):
 
-                tax_template.company = company['name']
-                tax_template.title = f'IVA {aliquot}%'
-                tax_template.is_default = bool(i == 0)
+                    if frappe.db.exists(doctype_name,
+                                        f'IVA {aliquot}% - {company["abbr"]}'):
+                        continue
 
-                tax_template.append('taxes', {
-                    'rate': aliquot,
-                    'charge_type': 'VAT',
-                    'add_decut_tax': 'Add',
-                    'account_head': vat_account_str,
-                    'description': f'IVA {aliquot}%',
-                })
+                    tax_template = frappe.new_doc(doctype_name)
 
-                tax_template.insert(ignore_permissions=True)
+                    tax_template.company = company['name']
+                    tax_template.title = f'IVA {aliquot}%'
+                    tax_template.is_default = bool(i == 0)
+
+                    tax_template.append('taxes', {
+                        'rate': aliquot,
+                        'charge_type': 'VAT',
+                        'add_decut_tax': 'Add',
+                        'account_head': vat_account_str,
+                        'description': f'IVA {aliquot}%',
+                    })
+
+                    tax_template.insert(ignore_permissions=True)
+
+                    print(f"Success: Impuesto de IVA {aliquot}% para {doctype} creado exitosamente.")
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error durante la creación del impuesto de IVA: {e}")
+        frappe.log_error(frappe.get_traceback(),
+                         'Error en create_sales_taxes_and_charges_template')
