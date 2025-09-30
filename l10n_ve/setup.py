@@ -92,7 +92,7 @@ def create_islr_tabulator() -> None:
                 codigo = row.get("Codigo", "").strip()
                 subtracting = row.get('Sustraendo', '').strip()
                 descripcion = row.get('Descripcion', '').strip()
-                percentage_base = row.get('Alicuota', '').strip()
+                percentage_base = row.get('Porcentaje Base', '').strip()
                 types_of_person = row.get('Tipo de persona', '').strip()
                 payments_greater_than_bs = row.get('Pagos mayores a', '').strip()
 
