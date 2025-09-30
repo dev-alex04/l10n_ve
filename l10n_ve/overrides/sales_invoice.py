@@ -12,9 +12,15 @@ from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 class CustomSalesInvoice(SalesInvoice):
 
     def calculate_taxes_and_totals(self) -> None:
+        user_exemption_values = {}
+        for idx, item in enumerate(self.items):
+                user_exemption_values[idx] = item.vat_exempt
         self.set_vat_withholding()
 
         taxes_and_totals_calculator = TaxesAndTotals(self)
+
+        for idx, item in enumerate(self.items):
+            item.vat_exempt = user_exemption_values.get(idx, 0)
 
         self.calculate_commission()
         self.calculate_contribution()

@@ -1323,7 +1323,7 @@
   "docstatus": 0,
   "doctype": "Custom Field",
   "dt": "Purchase Invoice Item",
-  "fetch_from": "item_code.vat_exempt",
+  "fetch_from": null,
   "fetch_if_empty": 0,
   "fieldname": "vat_exempt",
   "fieldtype": "Check",
@@ -1380,7 +1380,7 @@
   "docstatus": 0,
   "doctype": "Custom Field",
   "dt": "Sales Invoice Item",
-  "fetch_from": "item_code.vat_exempt",
+  "fetch_from": null,
   "fetch_if_empty": 0,
   "fieldname": "vat_exempt",
   "fieldtype": "Check",
@@ -1783,6 +1783,7 @@
   "ignore_xss_filter": 0,
   "in_global_search": 0,
   "in_list_view": 0,
+  "insert_after": "sales_invoce_control_number_format",
   "in_preview": 0,
   "in_standard_filter": 0,
   "is_system_generated": 0,
@@ -1843,6 +1844,7 @@
   "in_standard_filter": 0,
   "is_system_generated": 0,
   "is_virtual": 0,
+  "insert_after": "sales_credit_note_number_correlative",
   "label": "Sales credit note number format",
   "length": 0,
   "link_filters": null,
@@ -1994,6 +1996,7 @@
   "default": null,
   "depends_on": null,
   "description": null,
+  "insert_after": "sales_credit_note_number_format",
   "docstatus": 0,
   "doctype": "Custom Field",
   "dt": "Company",
@@ -2066,6 +2069,7 @@
   "in_global_search": 0,
   "in_list_view": 0,
   "in_preview": 0,
+  "insert_after": "sales_debit_note_number_correlative",
   "in_standard_filter": 0,
   "is_system_generated": 0,
   "is_virtual": 0,
@@ -2661,5 +2665,17 @@
   "translatable": 0,
   "unique": 0,
   "width": null
- }
+ },
+ {
+    "doctype": "Custom Field",
+    "dt": "Company",
+    "fieldname": "tab_l10n_ve_config",
+    "fieldtype": "Tab Break",
+    "label": "Configuracion de correlativos y formatos",
+    "insert_after": "dashboard_tab",
+    "modified": "2025-09-12 16:00:00",
+    "module": "L10N Ve",
+    "name": "Tabla-Custo-company"
+}
+
 ]

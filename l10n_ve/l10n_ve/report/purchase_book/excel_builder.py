@@ -149,7 +149,7 @@ class ExcelBuilder:
                 if isinstance(cell_value, (int, float)):
                     cell.number_format = self.numeric_format
 
-            self.sheet.row_dimensions[row_index].height = 15
+            #self.sheet.row_dimensions[row_index].height = 15
             row_index += 1
 
         row_index += 1
