@@ -343,7 +343,7 @@ def create_sales_taxes_and_charges_template() -> None:
                     tax_template = frappe.new_doc(doctype_name)
 
                     tax_template.company = company['name']
-                    tax_template.title = f'IVA {aliquot}%'
+                    tax_template.title = f'IVA {aliquot}% - {company["abbr"]}'
                     tax_template.is_default = bool(i == 0)
 
                     tax_template.append('taxes', {
