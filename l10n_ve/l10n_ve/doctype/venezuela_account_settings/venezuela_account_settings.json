@@ -10,7 +10,7 @@
  ],
  "fields": [
   {
-   "default": "83,33",
+   "default": "83.33",
    "fieldname": "subtracting_calculation_factor",
    "fieldtype": "Float",
    "in_list_view": 1,
