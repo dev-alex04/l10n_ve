@@ -350,7 +350,7 @@ def create_sales_taxes_and_charges_template() -> None:
                     tax_template.append('taxes', {
                         'rate': aliquot,
                         'charge_type': 'VAT',
-                        'add_decut_tax': 'Add',
+                        'add_deduct_tax': 'Add',
                         'account_head': vat_account_str,
                         'description': f'IVA {aliquot}%',
                     })
