@@ -226,7 +226,6 @@ def set_chart_of_accounts() -> None:
                 account_number = account_info["account_number"]
                 parent_account = f'{account_info["parent_account"]} - {company.abbr}'
 
-
                 if account_info.get('for_create') \
                         and not frappe.db.exists(
                             "Account", f'{account_number} - {account_name}'):
