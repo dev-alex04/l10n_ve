@@ -20,8 +20,8 @@ def set_l10n_ve_data() -> None:
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error durante la configuración de l10n_co_data: {e}")
-        frappe.log_error(frappe.get_traceback(), 'Error en set_l10n_co_data')
+        print(f"Failure: Ocurrió un error durante la configuración de l10n_ve_data: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en set_l10n_ve_data')
 
 
 def create_currency_exchange() -> None:
