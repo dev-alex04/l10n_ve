@@ -46,8 +46,7 @@ def create_tax_unit() -> None:
 
     try:
         tax_unit_value = 43
-        effective_date = "2025-01-01" # Fecha de vigencia de la UT
-
+        effective_date = "2025-01-01"
         if not frappe.db.exists("Tax Unit", {"effective_date": effective_date}):
 
             tax_unit = frappe.new_doc("Tax Unit")
@@ -152,115 +151,106 @@ def set_chart_of_accounts() -> None:
     """
     print("Iniciando la configuración de cuentas contables en las Compañías...")
 
-    account_map = [
-        {
-            'account_name': 'IVA retenido en compras',
-            'account_number': '2.7.2.15.99.01.01',
-            'account_type': 'Tax',
-            'fieldname': 'purchase_vat_withholding_account',
-            'for_create': True,
-            'parent_account': '2 - PASIVO',
-        },
-        {
-            'account_name': 'Debito Fiscal IVA',
-            'account_number': '2.7.2.15.99.01.02',
-            'account_type': 'Tax',
-            'fieldname': 'purchase_vat_account',
-            'for_create': True,
-            'parent_account': '2 - PASIVO',
-        },
-        {
-            'account_name': 'ISLR retenido a terceros',
-            'account_number': '2.7.2.15.01.01.01',
-            'account_type': 'Tax',
-            'fieldname': 'purchase_islr_account',
-            'for_create': True,
-            'parent_account': '2 - PASIVO',
-        },
-        {
-            'account_name': 'Inventario Recibido pero no Facturado',
-            'account_number': '2.7.2.15.99.01.03',
-            'account_type': 'Stock Received But Not Billed',
-            'fieldname': 'stock_received_but_not_billed',
-            'for_create': True,
-            'parent_account': '2 - PASIVO',
-        },
-        {
-            'account_name': 'Credito Fiscal IVA',
-            'account_number': '1.8.8.02.01.01.01',
-            'account_type': 'Tax',
-            'fieldname': 'sales_vat_account',
-            'for_create': True,
-            'parent_account': '1 - ACTIVO',
-        },
-        {
-            'account_name': 'IVA retenido por terceros',
-            'account_number': '1.8.8.02.01.02.01',
-            'account_type': 'Tax',
-            'fieldname': 'sales_vat_withholding_account',
-            'for_create': True,
-            'parent_account': '1 - ACTIVO',
-        },
-        {
-            'account_name': 'ISLR retenido por terceros',
-            'account_number': '1.8.8.02.02.01.01',
-            'account_type': 'Tax',
-            'fieldname': 'sales_islr_account',
-            'for_create': True,
-            'parent_account': '1 - ACTIVO',
-        }
-    ]
+    try:
 
-    companies = frappe.get_all("Company", fields=["name", "abbr"])
-    for company in companies:
-        print(f"Configurando cuentas para la compañía: {company.name}")
+        account_map = [
+            {
+                'account_name': 'IVA retenido en compras',
+                'account_number': '2.7.2.15.99.01.01',
+                'account_type': 'Tax',
+                'fieldname': 'purchase_vat_withholding_account',
+                'for_create': True,
+                'parent_account': '2 - PASIVO',
+            },
+            {
+                'account_name': 'Debito Fiscal IVA',
+                'account_number': '2.7.2.15.99.01.02',
+                'account_type': 'Tax',
+                'fieldname': 'purchase_vat_account',
+                'for_create': True,
+                'parent_account': '2 - PASIVO',
+            },
+            {
+                'account_name': 'ISLR retenido a terceros',
+                'account_number': '2.7.2.15.01.01.01',
+                'account_type': 'Tax',
+                'fieldname': 'purchase_islr_account',
+                'for_create': True,
+                'parent_account': '2 - PASIVO',
+            },
+            {
+                'account_name': 'Inventario Recibido pero no Facturado',
+                'account_number': '2.7.2.15.99.01.03',
+                'account_type': 'Stock Received But Not Billed',
+                'fieldname': 'stock_received_but_not_billed',
+                'for_create': True,
+                'parent_account': '2 - PASIVO',
+            },
+            {
+                'account_name': 'Credito Fiscal IVA',
+                'account_number': '1.8.8.02.01.01.01',
+                'account_type': 'Tax',
+                'fieldname': 'sales_vat_account',
+                'for_create': True,
+                'parent_account': '1 - ACTIVO',
+            },
+            {
+                'account_name': 'IVA retenido por terceros',
+                'account_number': '1.8.8.02.01.02.01',
+                'account_type': 'Tax',
+                'fieldname': 'sales_vat_withholding_account',
+                'for_create': True,
+                'parent_account': '1 - ACTIVO',
+            },
+            {
+                'account_name': 'ISLR retenido por terceros',
+                'account_number': '1.8.8.02.02.01.01',
+                'account_type': 'Tax',
+                'fieldname': 'sales_islr_account',
+                'for_create': True,
+                'parent_account': '1 - ACTIVO',
+            }
+        ]
 
-        for account_info in account_map:
-            fieldname = account_info['fieldname']
-            base_account_name = account_info['account_name']
+        companies = frappe.get_all("Company", fields=["name", "abbr"])
+        for company in companies:
+            print(f"Configurando cuentas para la compañía: {company.name}")
 
-            account_name = f"{base_account_name} - {company.abbr}"
+            for account_info in account_map:
+                fieldname = account_info['fieldname']
 
-            if not frappe.db.exists("Account", account_name):
+                account_name = f"{account_info['account_number']} - {account_info['account_name']} - {company.abbr}"
 
-                account_number = account_info["account_number"]
-                parent_account = f'{account_info["parent_account"]} - {company.abbr}'
-
-                if account_info.get('for_create') \
-                        and not frappe.db.exists(
-                            "Account", f'{account_number} - {account_name}'):
+                if not frappe.db.exists("Account", account_name):
 
                     new_account = frappe.new_doc('Account')
 
-                    new_account.parent_account = parent_account
-                    new_account.account_number = account_number
                     new_account.account_type = account_info['account_type']
                     new_account.account_name = account_info["account_name"]
+                    new_account.parent_account = account_info['parent_account']
+                    new_account.account_number = account_info['account_number']
 
                     new_account.insert(ignore_permissions=True)
 
-                    account_name = new_account.name
-
-                else:
-                    print(f"  !! ADVERTENCIA: No se encontró la cuenta  '{account_name}' para la compañía '{company.name}'. Se omitirá la configuración del campo '{fieldname}'.")
-                    continue
-
-            try:
                 frappe.db.set_value("Company",
                                     company.name,
                                     fieldname,
                                     account_name)
 
-                print(f" -> Campo '{fieldname}' configurado con la cuenta '{account_name}'.")
+                print(f"  Cuenta  '{account_name}' para la compañía '{company.name}' Creada satisfactoriamente y establecida en el campo{fieldname} de la empresa.")
 
-            except Exception as e:
-                print(f" !! ERROR configurando el campo '{fieldname}' en la compañía '{company.name}': {e}")
+        frappe.db.commit()
 
-    frappe.db.commit()
+    except Exception as e:
+        print(f" !! ERROR configucreando las cuentas contables: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en set_chart_of_accounts')
+
     print("Success: Configuración de cuentas contables en las compañías completada.")
 
 
 def create_vat_withholding() -> None:
+
+    print(f"Configurando retenciones de IVA")
 
     try:
 
@@ -275,8 +265,6 @@ def create_vat_withholding() -> None:
 
         to_date = getdate('2025-12-31')
         from_date = getdate('2025-01-01')
-
-        print(f"Configurando retenciones de IVA")
 
         for aliquot in (100, 75):
 
@@ -309,6 +297,9 @@ def create_vat_withholding() -> None:
         frappe.log_error(frappe.get_traceback(), 'Error en create_vat_withholding')
 
 
+    print(f"Retenciones de IVA configuradas exitosamente")
+
+
 def create_sales_taxes_and_charges_template() -> None:
 
     print("Creando impuesto deIVA")
@@ -329,8 +320,8 @@ def create_sales_taxes_and_charges_template() -> None:
             for company in companies:
 
                 vat_account_str = frappe.db.get_value('Company',
-                                                    company['name'],
-                                                    fieldname)
+                                                      company['name'],
+                                                      fieldname)
                 if not vat_account_str:
                     continue
 
