@@ -47,11 +47,20 @@ app_include_js = "/assets/l10n_ve/js/company.js"
 
 # include js in doctype views
 doctype_js = {
-    "Purchase Invoice" : [
+    "Company": [
+        "public/js/doctype/company/company.js",
+    ],
+    "Customer": [
+        "public/js/doctype/customer/customer.js",
+    ],
+    "Supplier": [
+        "public/js/doctype/supplier/supplier.js",
+    ],
+    "Purchase Invoice": [
         "public/js/doctype/purchase_invoice.js",
         "public/js/controllers/taxes_and_totals.js"
     ],
-    "Sales Invoice" : [
+    "Sales Invoice": [
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/sales_invoice/sales_invoice.js",
     ],
@@ -96,7 +105,10 @@ doctype_list_js = {"Sales Invoice" : "public/js/doctype/sales_invoice/sales_invo
 # ------------
 
 # before_install = "l10n_ve.install.before_install"
-# after_install = "l10n_ve.install.after_install"
+
+after_install = [
+    "l10n_ve.setup.set_l10n_ve_data"
+]
 
 # Uninstallation
 # ------------
@@ -144,7 +156,7 @@ doctype_list_js = {"Sales Invoice" : "public/js/doctype/sales_invoice/sales_invo
 
 override_doctype_class = {
     "Company": "l10n_ve.overrides.company.CustomCompany",
- 	"Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
+    "Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
 }
 
@@ -171,8 +183,6 @@ scheduler_events = {
         "00 18 * * *": ["l10n_ve.tasks.create_currency_exchange"],
     }
 
-
-
 # 	"all": [
 # 		"l10n_ve.tasks.all"
 # 	],
@@ -188,7 +198,7 @@ scheduler_events = {
 # 	"monthly": [
 # 		"l10n_ve.tasks.monthly"
 # 	],
- }
+}
 
 # Testing
 # -------

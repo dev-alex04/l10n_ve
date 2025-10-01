@@ -76,8 +76,16 @@ class CustomSalesInvoice(SalesInvoice):
             self.debit_note_no = None
             company.increment_invoice_number()
 
+
             self.bill_control = company.get_control_number()
             company.increment_control_number()
+
+
+        self.bill_control = company.format_number(company.sales_invoice_control_number_format,
+                                                   company.sales_invoice_control_number_correlative)
+        company.increment_control_number()
+
+
 
     def set_affected_invoice_number(self):
         # Esta función se ejecutará solo para notas de crédito o débito

@@ -4,7 +4,7 @@ from erpnext.setup.doctype.company.company import Company
 class CustomCompany(Company):
 
     def get_invoice_number(self) -> str:
-        invoice_format = self.sales_invoce_number_format or "#####"
+        invoice_format = self.sales_invoice_number_format or "#####"
         next_invoice_num = self.sales_invoice_number_correlative or 1
         return self.format_number(invoice_format, next_invoice_num)
 
