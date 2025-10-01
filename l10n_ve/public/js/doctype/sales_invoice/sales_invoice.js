@@ -692,8 +692,8 @@ function generate_custom_invoice_preview(frm) {
 
                         background-color: #f9f9f9;
 
-                        border-top: nose;
-                        border-bottom: nose;
+                        border-top: none;
+                        border-bottom: none;
                     }
                     .totals-section .grand-total .label,
                      .totals-section .grand-total .value {
