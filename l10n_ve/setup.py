@@ -220,14 +220,16 @@ def set_chart_of_accounts() -> None:
                 fieldname = account_info['fieldname']
 
                 account_name = f"{account_info['account_number']} - {account_info['account_name']} - {company.abbr}"
+                parent_account = f"{account_info['parent_account']} - {company.abbr}"
 
                 if not frappe.db.exists("Account", account_name):
 
                     new_account = frappe.new_doc('Account')
 
+                    new_account.parent_account = parent_account
+                    new_account.company = account_info['company.name']
                     new_account.account_type = account_info['account_type']
                     new_account.account_name = account_info["account_name"]
-                    new_account.parent_account = account_info['parent_account']
                     new_account.account_number = account_info['account_number']
 
                     new_account.insert(ignore_permissions=True)
@@ -237,7 +239,7 @@ def set_chart_of_accounts() -> None:
                                     fieldname,
                                     account_name)
 
-                print(f"  Cuenta  '{account_name}' para la compañía '{company.name}' Creada satisfactoriamente y establecida en el campo{fieldname} de la empresa.")
+                print(f"  Cuenta  '{account_name}' para la compañía '{company.name}' establecida satisfactoriamente y establecida en el campo{fieldname} de la empresa.")
 
         frappe.db.commit()
 
@@ -292,12 +294,11 @@ def create_vat_withholding() -> None:
 
             withholding.insert(ignore_permissions=True)
 
+        print(f"Retenciones de IVA configuradas exitosamente")
+
     except Exception as e:
         print(f"Failure: Ocurrió un error durante la creación del retencioes de IVA: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_vat_withholding')
-
-
-    print(f"Retenciones de IVA configuradas exitosamente")
 
 
 def create_sales_taxes_and_charges_template() -> None:
