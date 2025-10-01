@@ -14,10 +14,15 @@ class CustomCompany(Company):
         return self.format_number(credit_note_format, next_credit_note_num)
 
     def get_debit_note_number(self) -> str:
-        # Asegúrate de tener los campos en el Doctype de Company
         debit_note_format = self.sales_debit_note_number_format or "#####"
         next_debit_note_num = self.sales_debit_note_number_correlative or 1
         return self.format_number(debit_note_format, next_debit_note_num)
+
+    def get_control_number(self) -> str:
+        control_format = self.sales_invoce_control_number_format or "#####"
+        next_control_num = self.sales_invoice_control_number_correlative or 1
+        return self.format_number(control_format, next_control_num)
+
 
     def increment_invoice_number(self):
         next_invoice = (self.sales_invoice_number_correlative or 1) + 1

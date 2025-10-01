@@ -173,11 +173,11 @@ def get_query_data(filters):
             tPI.debit_note_no,
             tPI.affected_invoice_number,
 
-            SUM(CASE WHEN T5.rate = 8 THEN tPI.total ELSE 0 END) as base_reducida,
+            SUM(CASE WHEN T5.rate = 8 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_reducida,
             SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) as impuesto_reducida,
-            SUM(CASE WHEN T5.rate = 16 THEN tPI.total ELSE 0 END) as base_general,
+            SUM(CASE WHEN T5.rate = 16 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_general,
             SUM(CASE WHEN T5.rate = 16 THEN T5.tax_amount ELSE 0 END) as impuesto_general,
-            SUM(CASE WHEN T5.rate = 31 THEN tPI.total ELSE 0 END) as base_adicional,
+            SUM(CASE WHEN T5.rate = 31 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_adicional,
             SUM(CASE WHEN T5.rate = 31 THEN T5.tax_amount ELSE 0 END) as impuesto_adicional,
             MAX(T2.name) as nro_comprobante_retencion,
             MAX(T2.delivery_date) as fecha_entrega,
@@ -387,26 +387,26 @@ def generate_txt_file(filters):
             transaction_code = "01"
 
             if flt(row.get("tipo")) == 1:
-                transaction_code = "02"
+                transaction_code = "03"
 
             elif row.get("debit_note_no"):
-                transaction_code = "03"
+                transaction_code = "02"
 
             line_data = [
                 str(company_rif) or "",
                 str(periodo) or "",
-                format_date(row.get("posting_date"), "YYYYMMDD") if row.get("posting_date") else "",
-                "D" if flt(row.get("tipo")) == 1 else "C",
+                getdate(row.get("posting_date")).strftime("%Y-%m-%d") if row.get("posting_date") else "",
+                "V" if flt(row.get("tipo")) == 1 else "C",
                 transaction_code,
-                row.get("tax_id") or "",
-                row.get("bill_no") or "",
-                row.get("bill_control") or "",
-                f"{flt(row.get('grand_total')):.2f}".replace('.', ','),
-                f"{flt(row.get('taxable_base')):.2f}".replace('.', ','),
-                f"{flt(row.get('taxes_and_charges_deducted')):.2f}".replace('.', ','),
-                row.get("affected_invoice_number") or "",
-                row.get("nro_comprobante_retencion") or "",
-                f"{flt(row.get('total_exempt')):.2f}".replace('.', ','),
+                row.get("tax_id") or "0",
+                row.get("bill_no") or "0",
+                row.get("bill_control") or "0",
+                f"{flt(row.get('grand_total') or 0):.2f}".replace('.', ','),
+                f"{flt(row.get('taxable_base') or 0):.2f}".replace('.', ','),
+                f"{flt(row.get('taxes_and_charges_deducted') or 0):.2f}".replace('.', ','),
+                row.get("affected_invoice_number") or "0",
+                row.get("nro_comprobante_retencion") or "0",
+                f"{flt(row.get('total_exempt') or 0):.2f}".replace('.', ','),
                 tax_rate
 
             ]

@@ -6,7 +6,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
 import base64
-# Importamos las funciones directamente del reporte para obtener los datos
+
 from l10n_ve.l10n_ve.report.sales_book.sales_book import get_columns, get_sales_data, get_total_row
 
 class ExcelBuilder:
@@ -220,7 +220,10 @@ class ExcelBuilder:
             else:
                 cell.alignment = self.data_alignment
 
-        self.sheet.merge_cells(start_row=current_row_for_totals, start_column=1, end_row=current_row_for_totals, end_column=2)
+        self.sheet.merge_cells(start_row=current_row_for_totals,
+                               start_column=1,
+                               end_row=current_row_for_totals,
+                               end_column=2)
 
         return self.sheet.max_row
 
@@ -231,14 +234,22 @@ class ExcelBuilder:
 
         summary_start_col = 10
 
-        self.sheet.cell(row=current_row, column=summary_start_col, value=_("Resumen de Totales")).font = Font(bold=True, size=12)
+        self.sheet.cell(row=current_row,
+                        column=summary_start_col,
+                        value=_("Resumen de Totales")).font = Font(bold=True, size=12)
 
         summary_row_index = current_row + 1
-        summary_headers = [_("Concepto"), _("Base Imponible"), _("Débito Fiscal"), _("Retención")]
+        summary_headers = [_("Concepto"), _("Base Imponible"),
+                           _("Débito Fiscal"), _("Retención")]
 
-        concept_header_cell = self.sheet.cell(row=summary_row_index, column=summary_start_col, value=summary_headers[0])
+        concept_header_cell = self.sheet.cell(row=summary_row_index,
+                                              column=summary_start_col,
+                                              value=summary_headers[0])
+
         concept_header_cell.font = Font(bold=True)
-        concept_header_cell.border = Border(top=thin_border_style, bottom=thin_border_style, left=thin_border_style)
+        concept_header_cell.border = Border(top=thin_border_style,
+                                             bottom=thin_border_style,
+                                             left=thin_border_style)
 
         self.sheet.merge_cells(
             start_row=summary_row_index, start_column=summary_start_col,
@@ -266,22 +277,35 @@ class ExcelBuilder:
         summary_row_index += 1
 
         summary_data_rows = [
-            {"concepto": _("De las Ventas Internas NO Gravadas"), "base": self.summary_data.get("total_exempt", 0), "iva": 0, "retencion": 0},
-            {"concepto": _("Ventas de exportación"), "base": 0, "iva": 0, "retencion": 0},
+            {"concepto": _("De las Ventas Internas NO Gravadas"),
+             "base": self.summary_data.get("total_exempt", 0),
+             "iva": 0,
+             "retencion": 0
+             },
+            {"concepto": _("Ventas de exportación"),
+             "base": 0,
+             "iva": 0,
+             "retencion": 0},
 
             {"concepto": _("De las Ventas Internas Solo Afecta Alicuota General"),
-            "base": self.summary_data.get("base_general_taxpayer", 0) + self.summary_data.get("base_general_non_taxpayer", 0),
-            "iva": self.summary_data.get("iva_general_taxpayer", 0) + self.summary_data.get("iva_general_non_taxpayer", 0),
-            "retencion": self.summary_data.get("iva_retained_general", 0)}, # <-- USAMOS EL NUEVO CAMPO
+            "base": self.summary_data.get("base_general_taxpayer", 0)
+            + self.summary_data.get("base_general_non_taxpayer", 0),
+            "iva": self.summary_data.get("iva_general_taxpayer", 0)
+            + self.summary_data.get("iva_general_non_taxpayer", 0),
+            "retencion": self.summary_data.get("iva_retained_general", 0)},
 
             {"concepto": _("De las Ventas Internas Solo Afecta Alicuota General + Adicional"),
-            "base": self.summary_data.get("base_additional_taxpayer", 0) + self.summary_data.get("base_additional_non_taxpayer", 0),
-            "iva": self.summary_data.get("iva_additional_taxpayer", 0) + self.summary_data.get("iva_additional_non_taxpayer", 0),
+            "base": self.summary_data.get("base_additional_taxpayer", 0)
+            + self.summary_data.get("base_additional_non_taxpayer", 0),
+            "iva": self.summary_data.get("iva_additional_taxpayer", 0)
+            + self.summary_data.get("iva_additional_non_taxpayer", 0),
             "retencion": self.summary_data.get("iva_retained_additional", 0)},
 
             {"concepto": _("De las Ventas Internas Solo Afecta Alicuota Reducida)"),
-            "base": self.summary_data.get("base_reduced_taxpayer", 0) + self.summary_data.get("base_reduced_non_taxpayer", 0),
-            "iva": self.summary_data.get("iva_reduced_taxpayer", 0) + self.summary_data.get("iva_reduced_non_taxpayer", 0),
+            "base": self.summary_data.get("base_reduced_taxpayer", 0)
+            + self.summary_data.get("base_reduced_non_taxpayer", 0),
+            "iva": self.summary_data.get("iva_reduced_taxpayer", 0)
+            + self.summary_data.get("iva_reduced_non_taxpayer", 0),
             "retencion": self.summary_data.get("iva_retained_reduced", 0)}
         ]
 
@@ -291,7 +315,10 @@ class ExcelBuilder:
             bottom_border_style = thin_border_style if is_last_row else Side(style=None)
             right_side_border = thin_border_style
 
-            concept_cell = self.sheet.cell(row=summary_row_index, column=summary_start_col, value=row_data.get("concepto"))
+            concept_cell = self.sheet.cell(row=summary_row_index,
+                                           column=summary_start_col,
+                                           value=row_data.get("concepto"))
+
             concept_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             concept_cell.border = Border(left=thin_border_style, bottom=bottom_border_style)
 
@@ -300,15 +327,23 @@ class ExcelBuilder:
                 end_row=summary_row_index, end_column=summary_start_col + 3
             )
 
-            base_cell = self.sheet.cell(row=summary_row_index, column=summary_start_col + 4, value=row_data.get("base"))
+            base_cell = self.sheet.cell(row=summary_row_index,
+                                        column=summary_start_col
+                                        + 4, value=row_data.get("base"))
+
             base_cell.number_format = self.numeric_format
             base_cell.border = Border(bottom=bottom_border_style)
 
-            iva_cell = self.sheet.cell(row=summary_row_index, column=summary_start_col + 5, value=row_data.get("iva"))
+            iva_cell = self.sheet.cell(row=summary_row_index,
+                                       column=summary_start_col
+                                       + 5, value=row_data.get("iva"))
+
             iva_cell.number_format = self.numeric_format
             iva_cell.border = Border(bottom=bottom_border_style)
 
-            retention_cell = self.sheet.cell(row=summary_row_index, column=summary_start_col + 6, value=row_data.get("retencion"))
+            retention_cell = self.sheet.cell(row=summary_row_index,
+                                             column=summary_start_col + 6,
+                                             value=row_data.get("retencion"))
             retention_cell.number_format = self.numeric_format
             retention_cell.border = Border(right=thin_border_style, bottom=bottom_border_style)
 
@@ -329,15 +364,24 @@ class ExcelBuilder:
             end_row=current_row, end_column=summary_start_col + 3
         )
 
-        base_total_cell = self.sheet.cell(row=current_row, column=summary_start_col + 4, value=total_base)
+        base_total_cell = self.sheet.cell(row=current_row,
+                                          column=summary_start_col
+                                          + 4, value=total_base)
+
         base_total_cell.number_format = self.numeric_format
         base_total_cell.border = self.data_border
 
-        iva_total_cell = self.sheet.cell(row=current_row, column=summary_start_col + 5, value=total_iva)
+        iva_total_cell = self.sheet.cell(row=current_row,
+                                         column=summary_start_col
+                                         + 5, value=total_iva)
+
         iva_total_cell.number_format = self.numeric_format
         iva_total_cell.border = self.data_border
 
-        retention_total_cell = self.sheet.cell(row=current_row, column=summary_start_col + 6, value=total_retencion)
+        retention_total_cell = self.sheet.cell(row=current_row,
+                                               column=summary_start_col
+                                               + 6, value=total_retencion)
+
         retention_total_cell.number_format = self.numeric_format
         retention_total_cell.border = self.data_border
 

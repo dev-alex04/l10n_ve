@@ -85,21 +85,21 @@ function toggle_purchase_type_fields(frm) {
     if (frm.is_new() || (!is_debit_note && !is_return)) {
       frm.toggle_display(['bill_no'], !is_debit_note && !is_return);
       frm.toggle_display(['debit_note_no', 'credit_note_no', 'affected_invoice_number'], false);
-      
+
       if (is_debit_note) {
         frm.toggle_display(['debit_note_no', 'affected_invoice_number'], is_debit_note);
         frm.set_value('bill_no', '');
         frm.set_value('bill_control', '');
         frm.set_value('credit_note_no', '');
       }
-      
+
       if (is_return) {
         frm.toggle_display(['credit_note_no', 'affected_invoice_number'], is_return);
         frm.set_value('bill_no', '');
         frm.set_value('bill_control', '');
         frm.set_value('debit_note_no', '');
       }
-  
+
       frm.toggle_display('is_return', !is_debit_note);
       frm.toggle_display('is_debit_note', !is_return);
     } else {
@@ -108,3 +108,23 @@ function toggle_purchase_type_fields(frm) {
       }
     }
 }
+
+frappe.ui.form.on('Purchase Invoice Item', {
+    item_code: function(frm, cdt, cdn) {
+        var row = frappe.get_doc(cdt, cdn);
+
+        if (row.item_code && !row.vat_exempt) {
+
+            frappe.db.get_value(
+              "Item",
+              row.item_code,
+              "vat_exempt",
+              function (value) {
+                if (value.vat_exempt) {
+                  frappe.model.set_value(cdt, cdn, "vat_exempt", 1);
+                }
+              }
+            );
+        }
+    }
+});

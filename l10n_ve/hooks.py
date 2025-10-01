@@ -66,7 +66,7 @@ doctype_js = {
     ],
 }
 
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_list_js = {"Sales Invoice" : "public/js/doctype/sales_invoice/sales_invoice_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -178,9 +178,9 @@ override_doctype_class = {
 
 scheduler_events = {
     "cron": {
-        "50 15 * * *": ["l10n_ve.tasks.create_currency_exchange"],
-        "28 19 * * *": ["l10n_ve.tasks.create_currency_exchange"],
-        "37 19 * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "03 8 * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "02 13 * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "00 18 * * *": ["l10n_ve.tasks.create_currency_exchange"],
     }
 
 # 	"all": [

@@ -99,9 +99,9 @@ def get_columns():
         {"label": _("Tasa de Retencion IVA"), "fieldname": "vat_withholding_rate", "fieldtype": "Percent", "width": 120},
 
         # Columnas para IGTF Impuesto a las Grandes Transacciones Financieras
-        {"label": _("Base Imponible IGTF"), "fieldname": "igtf_base", "fieldtype": "Currency", "width": 120},
+        {"label": _("Base Imponible IGTF"), "fieldname": "base_amount_igtf", "fieldtype": "Currency", "width": 120},
         {"label": _("Tasa de IGTF"), "fieldname": "igtf_rate", "fieldtype": "Percent", "width": 120},
-        {"label": _("Monto IGTF"), "fieldname": "igtf_amount", "fieldtype": "Currency", "width": 120},
+        {"label": _("Monto IGTF"), "fieldname": "total_igtf", "fieldtype": "Currency", "width": 120},
 
     ]
 
@@ -182,7 +182,10 @@ def get_sales_data(filters):
 
 			siv.vat_withholding_voucher_number,
 			siv.withholding_date,
-			siv.base_grand_total AS total_in_usd
+			siv.base_grand_total AS total_in_usd,
+            siv.total_igtf,
+            siv.igtf_rate,
+            siv.base_amount_igtf
 
 		FROM
 			`tabSales Invoice` siv
