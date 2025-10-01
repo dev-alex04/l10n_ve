@@ -73,7 +73,7 @@
         "is_system_generated": 0,
         "modified": "2025-09-12 10:00:00",
         "module": "l10n_ve",
-        "name": "Sales Invoice-is_debit_note-escription",
+        "name": "Sales Invoice-is_debit_note-description",
         "property": "description",
         "property_type": "Text",
         "row_name": null,
