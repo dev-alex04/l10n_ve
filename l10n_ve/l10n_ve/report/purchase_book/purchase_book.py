@@ -91,6 +91,7 @@ def get_totals_from_data(data):
         impuesto_adicional += row.get("impuesto_adicional", 0)
         if row.get("nro_comprobante_retencion") and ret_monto > 0:
             taxes_and_charges_deducted += ret_monto
+            print(taxes_and_charges_deducted)
 
             bases = {
                 "general": flt(row.get("base_general")),
@@ -179,10 +180,11 @@ def get_query_data(filters):
             SUM(CASE WHEN T5.rate = 16 THEN T5.tax_amount ELSE 0 END) as impuesto_general,
             SUM(CASE WHEN T5.rate = 31 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_adicional,
             SUM(CASE WHEN T5.rate = 31 THEN T5.tax_amount ELSE 0 END) as impuesto_adicional,
+            SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) as taxes_and_charges_deducted,
             MAX(T2.name) as nro_comprobante_retencion,
             MAX(T2.delivery_date) as fecha_entrega,
             MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
-            MAX(tPI.taxes_and_charges_deducted) as taxes_and_charges_deducted,
+
             CASE
                 WHEN T4.supplier_type = 'Company' THEN 'PJ'
                 WHEN T4.supplier_type = 'Individual' THEN 'PN'

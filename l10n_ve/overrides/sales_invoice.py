@@ -76,15 +76,8 @@ class CustomSalesInvoice(SalesInvoice):
             self.debit_note_no = None
             company.increment_invoice_number()
 
-
             self.bill_control = company.get_control_number()
             company.increment_control_number()
-
-
-        self.bill_control = company.format_number(company.sales_invoice_control_number_format,
-                                                   company.sales_invoice_control_number_correlative)
-        company.increment_control_number()
-
 
 
     def set_affected_invoice_number(self):
@@ -266,8 +259,9 @@ class CustomSalesInvoice(SalesInvoice):
         # Acceder a la cuenta contable desde la tabla hija 'accounts'
         # del documento de la categoría
         if withholding_category.accounts:
-            withholding_account = withholding_category.accounts[0].account
-            withholding_description = withholding_category.accounts[0].account
+            rate = withholding_category.rates[0].tax_withholding_rate
+            withholding_account = withholding_category.accounts[0].sales_account
+            withholding_description = withholding_category.accounts[0].sales_account
         else:
             frappe.throw("No se encontró la cuenta de retención en la categoría de retención.")
 
@@ -293,7 +287,7 @@ class CustomSalesInvoice(SalesInvoice):
             self.vat_withholding_rate = withholding_rate
 
             self.append("taxes", {
-                "rate": withholding_rate,
+                "rate": rate,
                 "charge_type": "VAT Withholding",
                 "add_deduct_tax": "Deduct",
                 "is_tax_withholding_account": True,

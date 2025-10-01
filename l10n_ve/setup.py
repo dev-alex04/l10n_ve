@@ -226,8 +226,8 @@ def set_chart_of_accounts() -> None:
 
                     new_account = frappe.new_doc('Account')
 
+                    new_account.company = company.name
                     new_account.parent_account = parent_account
-                    new_account.company = account_info['company.name']
                     new_account.account_type = account_info['account_type']
                     new_account.account_name = account_info["account_name"]
                     new_account.account_number = account_info['account_number']
