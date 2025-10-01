@@ -66,7 +66,7 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
     for (let tax_row of this.frm.doc.taxes || []) {
       if (tax_row.charge_type === "VAT") {
         let vat = (item.net_amount * tax_row.rate) / 100;
-        current_tax_amount = (vat* tax.rate) / 100 ;
+        current_tax_amount = (vat* tax.rate) / 100 ; break;
       }
     }
   }
