@@ -233,24 +233,20 @@ class CustomSalesInvoice(SalesInvoice):
         Gestiona la lógica de retención de IVA para contribuyentes especiales.
         """
 
+        # La retención de IVA solo aplica si el cliente es Contribuyente Especial.
         is_special_taxpayer = frappe.db.get_value("Customer",
                                                   self.customer,
                                                   "is_special_taxpayer")
         if not is_special_taxpayer:
             return
-
-        taxes_and_charges_template_name = self.taxes_and_charges
-        if not taxes_and_charges_template_name:
-            return
-
-        taxes_and_charges_template = \
-            frappe.get_doc("Sales Taxes and Charges Template",
-                           taxes_and_charges_template_name)
-
-        withholding_category_name = taxes_and_charges_template.withholding
+        # Obtener la categoría de retención directamente del cliente
+        withholding_category_name = frappe.db.get_value("Customer",
+                                                        self.customer,
+                                                        "tax_withholding_category")
         if not withholding_category_name:
             return
 
+        # Cargar el documento de la categoría de retención
         withholding_category = frappe.get_doc("Tax Withholding Category",
                                               withholding_category_name)
         if not withholding_category:
@@ -258,21 +254,21 @@ class CustomSalesInvoice(SalesInvoice):
 
         # Acceder a la cuenta contable desde la tabla hija 'accounts'
         # del documento de la categoría
-        if withholding_category.accounts:
-            rate = withholding_category.rates[0].tax_withholding_rate
-            withholding_account = withholding_category.accounts[0].sales_account
-            withholding_description = withholding_category.accounts[0].sales_account
-        else:
-            frappe.throw("No se encontró la cuenta de retención en la categoría de retención.")
+        account_details_for_company = None
+        for acc_details in withholding_category.accounts:
+            if acc_details.company == self.company:
+                account_details_for_company = acc_details
+                break
 
-        company_name = self.company
-        withholding_rate = frappe.db.get_value("Company",
-                                               company_name,
-                                               "sales_vat_withholding_rate")
-        if not withholding_rate:
-            msg = f"El porcentaje de retención de IVA para ventas no está " \
-                  f"configurada en el documento de la Compañía."
-            frappe.throw(msg)
+        if not account_details_for_company:
+            frappe.throw(_("No se encontró una cuenta de retención "
+            "de ventas para la compañía {0} en la categoría '{1}'.").format(
+                self.company, withholding_category_name
+            ))
+
+        rate = withholding_category.rates[0].tax_withholding_rate if withholding_category.rates else 0
+        withholding_account = account_details_for_company.sales_account
+        withholding_description = withholding_category.category_name or withholding_category.name
 
         self.taxes = [
             row for row
@@ -280,11 +276,7 @@ class CustomSalesInvoice(SalesInvoice):
             if row.account_head != withholding_account
         ]
 
-        vat_tax = self.get_iva_tax_row()
-
-        if vat_tax and withholding_rate:
-
-            self.vat_withholding_rate = withholding_rate
+        if self.get_iva_tax_row() and rate > 0:
 
             self.append("taxes", {
                 "rate": rate,
@@ -294,6 +286,25 @@ class CustomSalesInvoice(SalesInvoice):
                 "account_head": withholding_account,
                 "description": withholding_description,
             })
+
+    def set_tax_withholding(self):
+        """
+        Sobrescribe el método estándar para evitar que se aplique la lógica
+        de retención de compras (TDS) en una factura de venta cuando ya se
+        ha gestionado la retención de IVA (TCS).
+        """
+
+        is_special_taxpayer = frappe.db.get_value("Customer", self.customer, "is_special_taxpayer")
+        if not is_special_taxpayer:
+            return
+
+        has_vat_withholding = any(tax.charge_type == "VAT Withholding"
+                                  for tax in self.get("taxes", []))
+
+        if has_vat_withholding:
+            return
+
+        super().set_tax_withholding()
 
     def calculate_total_withholding(self):
         self.total_withholding  = 0.0
@@ -306,7 +317,6 @@ class CustomSalesInvoice(SalesInvoice):
                     continue
 
             self.total_withholding += tax.tax_amount
-
 
     def make_tax_gl_entries(self, gl_entries):
 
@@ -394,7 +404,6 @@ class CustomSalesInvoice(SalesInvoice):
 
         else:
             self.title = self.bill_no
-
 
 @frappe.whitelist()
 def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None):

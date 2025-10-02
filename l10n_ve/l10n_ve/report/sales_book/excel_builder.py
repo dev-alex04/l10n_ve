@@ -53,27 +53,28 @@ class ExcelBuilder:
         self.sheet.column_dimensions[get_column_letter(2)].width = 40
         self.sheet.column_dimensions[get_column_letter(3)].width = 30
         self.sheet.column_dimensions[get_column_letter(4)].width = 40
-        self.sheet.column_dimensions[get_column_letter(5)].width = 15
+        self.sheet.column_dimensions[get_column_letter(8)].width = 30
+        self.sheet.column_dimensions[get_column_letter(9)].width = 40
 
         title_font = Font(bold=True)
 
         self.sheet.cell(row=current_row, column=1, value=_("Nombre o Razón Social:")).font = title_font
-        self.sheet.cell(row=current_row, column=4, value=_("Número de Registro de Información Fiscal (RIF):")).font = title_font
+        self.sheet.cell(row=current_row, column=12, value=_("Número de Registro de Información Fiscal (RIF):")).font = title_font
 
         current_row += 1
         self.sheet.cell(row=current_row, column=1, value=self.company_data.get("company_name"))
-        self.sheet.cell(row=current_row, column=4, value=self.company_data.get("tax_id"))
+        self.sheet.cell(row=current_row, column=12, value=self.company_data.get("tax_id"))
 
         current_row += 2
 
         is_special_taxpayer_text = _("ESPECIAL") if self.company_data.get("is_special_taxpayer") else _("NO ESPECIAL")
 
         self.sheet.cell(row=current_row, column=1, value=_("Dirección:")).font = title_font
-        self.sheet.cell(row=current_row, column=4, value=_("Tipo de Contribuyente:")).font = title_font
+        self.sheet.cell(row=current_row, column=12, value=_("Tipo de Contribuyente:")).font = title_font
 
         current_row += 1
         self.sheet.cell(row=current_row, column=1, value=self.company_data.get("address"))
-        self.sheet.cell(row=current_row, column=4, value=is_special_taxpayer_text)
+        self.sheet.cell(row=current_row, column=12, value=is_special_taxpayer_text)
 
         current_row += 2
 
@@ -253,10 +254,10 @@ class ExcelBuilder:
 
         self.sheet.merge_cells(
             start_row=summary_row_index, start_column=summary_start_col,
-            end_row=summary_row_index, end_column=summary_start_col + 3
+            end_row=summary_row_index, end_column=summary_start_col + 4
         )
 
-        for col_index, header_text in enumerate(summary_headers[1:], start=summary_start_col + 4):
+        for col_index, header_text in enumerate(summary_headers[1:], start=summary_start_col + 5):
             cell = self.sheet.cell(row=summary_row_index, column=col_index, value=header_text)
             cell.font = Font(bold=True)
             border = Border(top=thin_border_style, bottom=thin_border_style)
@@ -270,9 +271,10 @@ class ExcelBuilder:
         self.sheet.column_dimensions[get_column_letter(summary_start_col + 1)].width = 10
         self.sheet.column_dimensions[get_column_letter(summary_start_col + 2)].width = 10
         self.sheet.column_dimensions[get_column_letter(summary_start_col + 3)].width = 10
-        self.sheet.column_dimensions[get_column_letter(summary_start_col + 4)].width = 11
+        self.sheet.column_dimensions[get_column_letter(summary_start_col + 4)].width = 10
         self.sheet.column_dimensions[get_column_letter(summary_start_col + 5)].width = 11
         self.sheet.column_dimensions[get_column_letter(summary_start_col + 6)].width = 11
+        self.sheet.column_dimensions[get_column_letter(summary_start_col + 7)].width = 11
 
         summary_row_index += 1
 
@@ -301,7 +303,7 @@ class ExcelBuilder:
             + self.summary_data.get("iva_additional_non_taxpayer", 0),
             "retencion": self.summary_data.get("iva_retained_additional", 0)},
 
-            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota Reducida)"),
+            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota Reducida"),
             "base": self.summary_data.get("base_reduced_taxpayer", 0)
             + self.summary_data.get("base_reduced_non_taxpayer", 0),
             "iva": self.summary_data.get("iva_reduced_taxpayer", 0)
@@ -324,25 +326,25 @@ class ExcelBuilder:
 
             self.sheet.merge_cells(
                 start_row=summary_row_index, start_column=summary_start_col,
-                end_row=summary_row_index, end_column=summary_start_col + 3
+                end_row=summary_row_index, end_column=summary_start_col + 4
             )
 
             base_cell = self.sheet.cell(row=summary_row_index,
                                         column=summary_start_col
-                                        + 4, value=row_data.get("base"))
+                                        + 5, value=row_data.get("base"))
 
             base_cell.number_format = self.numeric_format
             base_cell.border = Border(bottom=bottom_border_style)
 
             iva_cell = self.sheet.cell(row=summary_row_index,
                                        column=summary_start_col
-                                       + 5, value=row_data.get("iva"))
+                                       + 6, value=row_data.get("iva"))
 
             iva_cell.number_format = self.numeric_format
             iva_cell.border = Border(bottom=bottom_border_style)
 
             retention_cell = self.sheet.cell(row=summary_row_index,
-                                             column=summary_start_col + 6,
+                                             column=summary_start_col + 7,
                                              value=row_data.get("retencion"))
             retention_cell.number_format = self.numeric_format
             retention_cell.border = Border(right=thin_border_style, bottom=bottom_border_style)
@@ -361,26 +363,26 @@ class ExcelBuilder:
 
         self.sheet.merge_cells(
             start_row=current_row, start_column=summary_start_col,
-            end_row=current_row, end_column=summary_start_col + 3
+            end_row=current_row, end_column=summary_start_col + 4
         )
 
         base_total_cell = self.sheet.cell(row=current_row,
                                           column=summary_start_col
-                                          + 4, value=total_base)
+                                          + 5, value=total_base)
 
         base_total_cell.number_format = self.numeric_format
         base_total_cell.border = self.data_border
 
         iva_total_cell = self.sheet.cell(row=current_row,
                                          column=summary_start_col
-                                         + 5, value=total_iva)
+                                         + 6, value=total_iva)
 
         iva_total_cell.number_format = self.numeric_format
         iva_total_cell.border = self.data_border
 
         retention_total_cell = self.sheet.cell(row=current_row,
                                                column=summary_start_col
-                                               + 6, value=total_retencion)
+                                               + 7, value=total_retencion)
 
         retention_total_cell.number_format = self.numeric_format
         retention_total_cell.border = self.data_border
@@ -421,7 +423,7 @@ def create_excel_file(report_name, filters=None, **kwargs):
         counter_column = {
             "label": "Nr Oper.",
             "fieldname": "sequence_number",
-            "width": 50
+            "width": 20
         }
         columns.insert(0, counter_column)
         for i, row in enumerate(data):
@@ -431,8 +433,6 @@ def create_excel_file(report_name, filters=None, **kwargs):
             frappe.throw(_("No se encontraron datos para los filtros seleccionados."))
 
         summary_data = get_total_row(data)
-
-
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
         address_name = company_doc.get("custom_company_primary_address")

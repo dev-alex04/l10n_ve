@@ -55,25 +55,27 @@ class ExcelBuilder:
         self.sheet.column_dimensions[get_column_letter(2)].width = 40
         self.sheet.column_dimensions[get_column_letter(3)].width = 30
         self.sheet.column_dimensions[get_column_letter(4)].width = 40
+        self.sheet.column_dimensions[get_column_letter(8)].width = 30
+        self.sheet.column_dimensions[get_column_letter(9)].width = 40
 
         title_font = Font(bold=True)
 
         self.sheet.cell(row=current_row, column=1, value=_("Nombre o Razón Social:")).font = title_font
-        self.sheet.cell(row=current_row, column=4, value=_("Número de Registro de Información Fiscal (RIF):")).font = title_font
+        self.sheet.cell(row=current_row, column=12, value=_("Número de Registro de Información Fiscal (RIF):")).font = title_font
 
         current_row += 1
         self.sheet.cell(row=current_row, column=1, value=self.company_data.get("company_name"))
-        self.sheet.cell(row=current_row, column=4, value=self.company_data.get("tax_id"))
+        self.sheet.cell(row=current_row, column=12, value=self.company_data.get("tax_id"))
 
         current_row += 2
 
         self.sheet.cell(row=current_row, column=1, value=_("Dirección:")).font = title_font
-        self.sheet.cell(row=current_row, column=4, value=_("Tipo de Contribuyente:")).font = title_font
+        self.sheet.cell(row=current_row, column=12, value=_("Tipo de Contribuyente:")).font = title_font
 
         current_row += 1
         is_special_taxpayer_text = _("ESPECIAL") if self.company_data.get("is_special_taxpayer") else _("NO ESPECIAL")
         self.sheet.cell(row=current_row, column=1, value=self.company_data.get("address"))
-        self.sheet.cell(row=current_row, column=4, value=is_special_taxpayer_text)
+        self.sheet.cell(row=current_row, column=12, value=is_special_taxpayer_text)
 
         current_row += 2
 
@@ -127,14 +129,18 @@ class ExcelBuilder:
         current_row += 1
 
         # Escribimos los encabezados de las columnas
-        main_table_headers = [col.get("label") for col in self.columns]
-        for col_index, header in enumerate(main_table_headers, start=1):
+        for col_index, col_def in enumerate(self.columns, start=1):
+            header = col_def.get("label")
+            fieldname = col_def.get("fieldname")
+
             cell = self.sheet.cell(row=current_row, column=col_index, value=header)
             cell.font = self.header_font
             cell.border = self.data_border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             self.sheet.row_dimensions[current_row].height = 45
-            self.sheet.column_dimensions[get_column_letter(col_index)].width = 13
+
+            # Asignar anchos de columna específicos
+            self.sheet.column_dimensions[get_column_letter(col_index)].width = 5 if fieldname == "sequence_number" else 11
 
         row_index = current_row + 1
         for row_data in self.data:
@@ -144,12 +150,17 @@ class ExcelBuilder:
 
                 cell = self.sheet.cell(row=row_index, column=col_index, value=cell_value)
                 cell.border = self.data_border
-                cell.alignment = self.data_alignment
 
                 if isinstance(cell_value, (int, float)):
-                    cell.number_format = self.numeric_format
+                    cell.alignment = Alignment(horizontal="right", vertical="center", wrap_text=True)
+                    if fieldname == "sequence_number":
+                        cell.number_format = self.int_format
+                    else:
+                        cell.number_format = self.numeric_format
+                else:
+                    cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-            #self.sheet.row_dimensions[row_index].height = 15
+            self.sheet.row_dimensions[row_index].height = None # Permite el ajuste automático de altura
             row_index += 1
 
         row_index += 1
@@ -352,6 +363,7 @@ class ExcelBuilder:
         for invoice in data:
             processed_invoice = invoice.copy()
 
+
             processed_invoice['fecha_entrega'] = ''
             processed_invoice['porcentaje_ret'] = ''
             processed_invoice['taxes_and_charges_deducted'] = 0.0
@@ -378,6 +390,10 @@ class ExcelBuilder:
 
             processesed_data.append(processed_invoice)
 
+        # Asignar el número de secuencia después de procesar y duplicar filas
+        for i, row in enumerate(processesed_data):
+            row["sequence_number"] = i + 1
+
         return processesed_data
 
 @frappe.whitelist()
@@ -394,6 +410,13 @@ def create_excel_file(report_name, filters=None, **kwargs):
     try:
 
         columns, data, message, chart, report_summary = execute(filters)
+
+        counter_column = {
+            "label": "Nr Oper.",
+            "fieldname": "sequence_number",
+            "width": 50
+        }
+        columns.insert(0, counter_column)
 
         totals = get_totals_from_data(data)
 

@@ -220,7 +220,7 @@ def get_query_data(filters):
 
 def execute(filters=None):
     columns = [
-        {"fieldname": "nro_oper", "label": "Nro. Oper.", "fieldtype": "Data", "width": "auto"},
+
         {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": "auto"},
         {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": "auto"},
