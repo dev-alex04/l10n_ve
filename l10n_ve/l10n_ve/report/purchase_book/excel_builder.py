@@ -363,7 +363,6 @@ class ExcelBuilder:
         for invoice in data:
             processed_invoice = invoice.copy()
 
-
             processed_invoice['fecha_entrega'] = ''
             processed_invoice['porcentaje_ret'] = ''
             processed_invoice['taxes_and_charges_deducted'] = 0.0
