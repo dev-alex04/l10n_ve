@@ -19,7 +19,7 @@ class CustomCompany(Company):
         return self.format_number(debit_note_format, next_debit_note_num)
 
     def get_control_number(self) -> str:
-        control_format = self.sales_invoce_control_number_format or "#####"
+        control_format = self.sales_invoice_control_number_format or "#####"
         next_control_num = self.sales_invoice_control_number_correlative or 1
         return self.format_number(control_format, next_control_num)
 

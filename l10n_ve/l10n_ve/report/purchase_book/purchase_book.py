@@ -179,10 +179,11 @@ def get_query_data(filters):
             SUM(CASE WHEN T5.rate = 16 THEN T5.tax_amount ELSE 0 END) as impuesto_general,
             SUM(CASE WHEN T5.rate = 31 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_adicional,
             SUM(CASE WHEN T5.rate = 31 THEN T5.tax_amount ELSE 0 END) as impuesto_adicional,
+            SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) as taxes_and_charges_deducted,
             MAX(T2.name) as nro_comprobante_retencion,
             MAX(T2.delivery_date) as fecha_entrega,
             MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
-            MAX(tPI.taxes_and_charges_deducted) as taxes_and_charges_deducted,
+
             CASE
                 WHEN T4.supplier_type = 'Company' THEN 'PJ'
                 WHEN T4.supplier_type = 'Individual' THEN 'PN'
@@ -218,7 +219,7 @@ def get_query_data(filters):
 
 def execute(filters=None):
     columns = [
-        {"fieldname": "nro_oper", "label": "Nro. Oper.", "fieldtype": "Data", "width": "auto"},
+
         {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": "auto"},
         {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": "auto"},

@@ -158,7 +158,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
         account_head: str = frappe.db.get_value("Company",
                                                   self.company,
-                                                  "account_head")
+                                                  "purchase_islr_account")
 
         for aliquot in tabulator.aliquot:
             if type_of_person == aliquot.types_of_person:

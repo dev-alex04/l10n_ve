@@ -257,7 +257,7 @@ async function get_address_text(address_name) {
     }
 }
 
-function generate_custom_invoice_preview(frm) {
+async function generate_custom_invoice_preview(frm) {
     const doc = frm.doc;
 
     let document_title = __("FACTURA DE VENTA");
@@ -284,172 +284,68 @@ function generate_custom_invoice_preview(frm) {
     control_number = control_number || "No. Control no disponible";
     document_number = document_number || "No. Documento no disponible";
 
-    frappe.call({
-      method: "frappe.client.get",
-      args: {
-        doctype: "Customer",
-        name: frm.doc.customer,
-      },
-      callback: function (r) {
-        if (!r.message) {
-          frappe.msgprint(__("No se pudo encontrar al cliente."));
-          return;
-        }
-        const customer_data = r.message;
-        const customer_address =
-          customer_data.primary_address ||
-          frm.doc.address_display ||
-          "Dirección no disponible";
+    try {
+        // 1. Obtener datos del cliente y la compañía en paralelo
+        const [customer_data, company_r, template_html, styles_css] = await Promise.all([
+            frappe.db.get_doc("Customer", frm.doc.customer),
+            frappe.db.get_value("Company", frm.doc.company, ["company_logo", "tax_id", "custom_company_primary_address"]),
+            fetch('/assets/l10n_ve/js/doctype/sales_invoice/invoice_preview_template.html').then(res => res.text()),
+            fetch('/assets/l10n_ve/js/doctype/sales_invoice/invoice_preview.css').then(res => res.text())
+        ]);
 
-        // --- Llamada a la API para obtener datos de la Compañía ---
-        frappe.db
-          .get_value("Company", frm.doc.company, [
-            "company_logo",
-            "tax_id",
-            "custom_company_primary_address",
-          ])
-          .then(async (company_r) => {
-            const company_logo_url = company_r.message.company_logo
-              ? frappe.urllib.get_full_url(company_r.message.company_logo)
-              : null;
-            const company_tax_id =
-              company_r.message.tax_id || "RIF no disponible";
-            const address_name = company_r.message.custom_company_primary_address;
+        const customer_address = customer_data.primary_address || frm.doc.address_display || "Dirección no disponible";
+        const company_logo_url = company_r.message.company_logo ? frappe.urllib.get_full_url(company_r.message.company_logo) : null;
+        const company_tax_id = company_r.message.tax_id || "RIF no disponible";
+        const company_primary_address = await get_address_text(company_r.message.custom_company_primary_address);
 
-            const company_primary_address = await get_address_text(address_name);
+        // 2. Construir fragmentos de HTML
+        let items_html = frm.doc.items.map((item, index) =>
+            `<tr>
+                <td>${index + 1}</td>
+                <td class="item-description">${item.item_name}</td>
+                <td class="text-right">${item.qty}</td>
+                <td class="text-right">${format_currency(item.amount, frm.doc.currency)}</td>
+            </tr>`
+        ).join('');
 
-            // --- Construcción de Tablas HTML ---
+        let taxes_html = (frm.doc.taxes || [])
+            .filter(tax => tax.tax_amount && !tax.charge_type.toLowerCase().includes('withholding'))
+            .map(tax =>
+                `<tr>
+                    <td class="label">${__(tax.charge_type) || tax.account_head}:</td>
+                    <td class="value">${format_currency(tax.tax_amount, frm.doc.currency)}</td>
+                </tr>`
+            ).join('');
 
-            // 1. Items
-            let items_html = "";
-            frm.doc.items.forEach((item, index) => {
-              items_html += `<tr><td>${
-                index + 1
-              }</td><td class="item-description">${
-                item.item_name
-              }</td><td class="text-right">${
-                item.qty
-              }</td><td class="text-right">${frappe.format(
-                item.amount,
-                { fieldtype: 'Currency', currency: frm.doc.currency }
-              )}</td></tr>`;
-            });
+        // 3. Rellenar la plantilla
+        const context = {
+            document_title,
+            company_primary_address,
+            company_logo_html: company_logo_url ? `<img src="${company_logo_url}" alt="Logo" class="company-logo">` : "",
+            company_tax_id,
+            control_label,
+            control_number,
+            document_label,
+            document_number,
+            posting_date: formatDate(frm.doc.posting_date),
+            customer_name: frm.doc.customer_name || frm.doc.customer,
+            customer_tax_id: customer_data.tax_id || "RIF no disponible",
+            customer_address,
+            items_html,
+            total: format_currency(frm.doc.total, frm.doc.currency),
+            total_exempt: format_currency(frm.doc.total_exempt, frm.doc.currency),
+            taxes_html,
+            grand_total: format_currency(frm.doc.grand_total, frm.doc.currency),
+            in_words: frm.doc.in_words || "Cálculo pendiente",
+            remarks: frm.doc.remarks || "Ninguna"
+        };
 
-            // 2. Impuestos
-            let taxes_html = "";
-            if (frm.doc.taxes && frm.doc.taxes.length) {
-              frm.doc.taxes.forEach((tax) => {
+        let preview_html = template_html.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+            return context[key.trim()] || '';
+        });
 
-                const is_retention = tax.charge_type && tax.charge_type.toLowerCase().includes('withholding');
-
-                if (tax.tax_amount && !is_retention) {
-                  taxes_html += `<tr><td class="label">${
-
-                    __(tax.charge_type) || tax.account_head
-                  }:</td><td class="value">${frappe.format(
-                    tax.tax_amount,
-                    { fieldtype: 'Currency', currency: frm.doc.currency }
-                  )}</td></tr>`;
-                }
-              });
-            }
-
-            // --- BLOQUE HTML DE LA VISTA PREVIA ---
-            const preview_html = `
-            <div class="invoice-box">
-                <table class="main-header-with-logo-table">
-                    <tr>
-                        <td class="header-main-title">
-                            <strong>${document_title}</strong>
-                            <div class="company-address">  <p><span class="label-bold">Dirección:</span> ${
-                                company_primary_address || "Dirección no disponible"
-                            }</p>
-                            </div>
-                        </td>
-                        <td class="header-logo-container">
-                            ${
-                                company_logo_url
-                                    ? `<img src="${company_logo_url}" alt="Logo" class="company-logo">`
-                                    : ""
-                            }
-                            <p><span class="label-bold">RIF:</span> ${
-                                company_tax_id|| "Dirección no disponible"
-                            }</p>
-                        </td>
-                    </tr>
-                </table>
-
-                <table class="main-header-table">
-                    <tr>
-                        <td class="invoice-details-col">
-                            <strong>Datos del documento:</strong>
-
-                            <p><span class="label-bold">${control_label} </span>  ${
-                                control_number
-                            }</p>
-                            <p><span class="label-bold">${document_label} </span> ${
-                                document_number
-                            }</p>
-                            <p><span class="label-bold">Fecha emisión: </span> ${frappe.datetime.str_to_user(
-                                frm.doc.posting_date
-                            )}</p>
-                        </td>
-
-                        <td class="customer-details-col">
-                            <strong>Datos del Cliente:</strong>
-                            <p><span class="label-bold">Nombre:</span> ${
-                                frm.doc.customer_name || frm.doc.customer
-                            }</p>
-                            <p><span class="label-bold">RIF: </span>${
-                                customer_data.tax_id || "RIF no disponible"
-                            }</p>
-                            <p><span class="label-bold">Dirección: </span>${customer_address}</p>
-                        </td>
-                    </tr>
-                </table>
-
-                <div class="items-full-width">
-                    <table class="items-table">
-                        <thead>
-                            <tr><th>N°</th><th class="item-description">Producto</th><th class="text-right">Cantidad</th><th class="text-right">Total</th></tr>
-                        </thead>
-                        <tbody>${items_html}</tbody>
-                    </table>
-                </div>
-
-                <div class="totals-row">
-                    <table class="totals-section">
-
-                        <tr><td class="label">Base imponible:</td><td class="value">${frappe.format(
-                            frm.doc.total,
-                            { fieldtype: 'Currency', currency: frm.doc.currency }
-                        )}</td></tr>
-                        <tr><td class="label">Total exento:</td><td class="value">${frappe.format(
-                            frm.doc.total_exempt,
-                            { fieldtype: 'Currency', currency: frm.doc.currency }
-                        )}</td></tr>
-
-                        ${taxes_html}
-
-                        <tr class="grand-total"><td class="label">Total a Pagar:</td><td class="value">${frappe.format(
-                            frm.doc.grand_total,
-                            { fieldtype: 'Currency', currency: frm.doc.currency }
-                        )}</td></tr>
-                    </table>
-                </div>
-
-                <div class="additional-info-section">
-                    <p><strong>Valor en Letras:</strong> ${
-                        frm.doc.in_words || "Cálculo pendiente"
-                    }</p>
-                    <p style="margin-top: 10px;"><strong>Observaciones:</strong> ${
-                        frm.doc.remarks || "Ninguna"
-                    }</p>
-                    <p style="margin-top: 20px; font-style: italic;">Sujeto a Retención de IVA e ISLR según corresponda a Contribuyentes Especiales.</p>
-                </div>
-            </div>`;
-
-            const dialog = new frappe.ui.Dialog({
+        // 4. Mostrar el diálogo
+        const dialog = new frappe.ui.Dialog({
               title: __("Imprimir") + " " + document_title,
               size: "large",
               primary_action_label: __("Descargar PDF"),
@@ -508,219 +404,33 @@ function generate_custom_invoice_preview(frm) {
             fields: [{ fieldname: "preview_area", fieldtype: "HTML" }],
           });
 
-          dialog.show();
-          const preview_area = dialog.get_field("preview_area").$wrapper;
-          preview_area.html(
+        dialog.show();
+        const preview_area = dialog.get_field("preview_area").$wrapper;
+        preview_area.html(
             '<iframe style="width: 100%; height: 600px; border: 0;"></iframe>'
-          );
-          const iframe = preview_area.find("iframe")[0];
+        );
+        const iframe = preview_area.find("iframe")[0];
 
-          if (iframe) {
+        if (iframe) {
             iframe.onload = function () {
               const iframe_doc = iframe.contentWindow.document;
               iframe_doc.open();
               iframe_doc.write(`
                 <html>
                   <head>
-                    <!-- Bibliotecas para PDF y captura de HTML -->
                     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
                     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-                    <style>
-                    /* --- Estilos CSS (Sin cambios) --- */
-                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-
-                    /* === Colores DESIGNET === */
-                    :root {
-                        --color-primary: #1D87E6;
-                        --color-secondary: #1E3B7D;
-                        --color-text: #333;
-                        --color-light-background: #E8F4FF;
-                        --color-accent-text: #ffffff;
-                    }
-                    /* === Estilos Base === */
-                    body {
-                        font-family: 'Inter', sans-serif;
-                        font-size: 9pt;
-                        color: var(--color-text);
-                    }
-                    .invoice-box {
-                        max-width: 800px;
-                        margin: auto;
-                        padding: 25px;
-                    }
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                    }
-
-                    /* === 1. Encabezado Principal (Título, Logo y Datos de la Empresa) === */
-                    .main-header-with-logo-table {
-                        margin-bottom: 5px;
-                        border-bottom: 4px solid var(--color-secondary);
-                        padding-bottom: 5px;
-                    }
-                    .main-header-with-logo-table td {
-                       vertical-align: top;
-                        vertical-align: bottom;
-                        padding: 0;
-                    }
-                     .header-main-title {
-                        width: 50%;
-                        text-align: left;
-                    }
-                     .header-main-title strong {
-                          font-size: 1.8em;
-                          font-weight: 800;
-                          color: var(--color-text);
-                          display: block;
-                          padding: 0;
-                          margin: 0;
-                    }
-                    /* --- EN LA CELDA DEL LOGO/EMPRESA --- */
-                    .header-logo-container {
-                        width: 50%;
-                        text-align: right;
-                        padding-right: 0;
-                    }
-                    .company-logo {
-                        max-width: 150px;
-                        max-height: 200px;
-                        display: inline-block;
-                        margin-bottom: 5px;
-                        margin-right: 30px;
-                    }
-                    .company-address {
-                        margin-top: -25px;
-                        line-height: 1.2;
-                    }
-                    .company-address p {
-                        font-size: 0.8em;
-                        margin: 0 important!;
-                        line-height: 1.3;
-
-                    }
-                    .label-bold {
-                        font-weight: 700;
-                        color: var(--color-secondary);
-                    }
-
-                    /* === 2. Bloque de Información (Factura y Cliente) === */
-                    .main-header-table {
-                        margin-top: 20px;
-                        margin-bottom: 25px;
-                    }
-                    .main-header-table td {
-                        width: 50%;
-                        padding: 0;
-                        vertical-align: top;
-                        line-height: 1.5;
-                        border: none;
-                        background-color: transparent;
-                    }
-                    .main-header-table strong {
-                        display: block;
-                        font-size: 10pt;
-                        font-weight: 700;
-                        padding: 5px 15px;
-                        margin-bottom: 8px;
-
-                        background-color: var(--color-secondary);
-                        color: var(--color-accent-text);
-                    }
-                    .main-header-table p {
-                        margin: 0 !important;
-                        line-height: 1.4;
-                        margin-bottom: 3px !important;
-                        padding: 0 15px;
-                    }
-                    .customer-details-col {
-                        padding-left: 10px;
-                    }
-                    .invoice-details-col {
-                        padding-right: 10px;
-                    }
-
-                    /* === 3. TABLA DE ITEMS === */
-                    .items-full-width {
-                        margin-top: 20px;
-                        margin-bottom: 30px;
-                        border: 1px solid #ddd;
-                    }
-                    .items-table {
-                        font-size: 9pt;
-                    }
-                    .items-table th {
-                        background-color: var(--color-light-background);
-                        color: var(--color-secondary);
-                        border-bottom: 2px solid var(--color-primary);
-                        font-weight: 700;
-                        padding: 8px 10px;
-                        text-transform: uppercase;
-                        text-align: left;
-                    }
-                    .items-table td {
-                        border-bottom: 1px solid #eee;
-                        padding: 7px 10px;
-                    }
-                    .items-table .text-right { text-align: right; }
-                    .items-table .item-description { width: 45%; }
-
-                    /* === 4. Totales === */
-                    .totals-row {
-                        width: 45%;
-                        float: right;
-                        clear: both;
-                        border-left: 1px solid #ddd;
-                        padding-left: 10px;
-                    }
-                    .totals-section td {
-                        width: 50%;
-                        padding: 4px 0;
-                        border-bottom: 1px solid #eee;
-                    }
-                    .totals-section .label {
-                        font-weight: 600;
-                        color: var(--color-text);
-                        padding-right: 10px;
-                    }
-                    .totals-section .value {
-                        text-align: right;
-                        font-weight: 700;
-                        color: var(--color-secondary);
-                    }
-                    .totals-section .grand-total {
-
-                        background-color: #f9f9f9;
-
-                        border-top: none;
-                        border-bottom: none;
-                    }
-                    .totals-section .grand-total .label,
-                     .totals-section .grand-total .value {
-                        font-size: 1.1em;
-                        font-weight: 800;
-                          color: var(--color-secondary);
-
-                    }
-
-                    /* === 5. Información Adicional / Pie de Página === */
-                    .additional-info-section {
-                        clear: both;
-                        margin-top: 35px;
-                        border-top: 4px solid var(--color-primary);
-                        padding-top: 15px;
-                        font-size: 0.9em;
-                    }
-                    </style>
+                    <style>${styles_css}</style>
                   </head>
                   <body>${preview_html}</body>
                 </html>`);
               iframe_doc.close();
             };
-          }
-        });
-      },
-    });
+        }
+    } catch (e) {
+        console.error("Error al generar la vista previa de la factura:", e);
+        frappe.msgprint(__("No se pudo generar la vista previa. Revise la consola para más detalles."));
+    }
 }
 
 frappe.ui.form.on('Sales Invoice Item', {
