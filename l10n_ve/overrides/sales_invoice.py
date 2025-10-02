@@ -307,6 +307,39 @@ class CustomSalesInvoice(SalesInvoice):
         if has_vat_withholding:
             return
 
+    @frappe.whitelist()
+    def set_islr_concept(self, tabulator_name: str) -> None:
+
+        tabulator = frappe.get_doc("Tabulator ISLR", tabulator_name)
+
+        type_of_person: str = frappe.db.get_value("Customer",
+                                                    self.customer,
+                                                    "type_of_person")
+
+        account_head: str = frappe.db.get_value("Company",
+                                                    self.company,
+                                                    "sales_islr_account")
+
+        for aliquot in tabulator.aliquot:
+            if type_of_person == aliquot.types_of_person:
+
+                self.append("taxes", {
+                    "category": "Total",
+                    "charge_type": "ISLR",
+                    "add_deduct_tax": "Deduct",
+                    "rate": aliquot.aliquot,
+                    "code": tabulator.codigo,
+                    "account_head": account_head,
+                    "is_tax_withholding_account": True,
+                    "subtracting": aliquot.subtracting,
+                    "description": tabulator.descripcion,
+                    "percentage_base": aliquot.percentage_base,
+                })
+
+        self.save()
+        return self.name
+
+
     def calculate_total_withholding(self):
         self.total_withholding  = 0.0
 

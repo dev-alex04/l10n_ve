@@ -19,6 +19,7 @@ frappe.ui.form.on("Sales Invoice", {
     toggle_vat_withholding_fields(frm);
     reorganize_customer_fields(frm);
     print_button_pdf(frm);
+    set_sales_invoice_buttons(frm);
 
     let has_vat_withholding = false;
     if (frm.doc.taxes && frm.doc.taxes.length) {
@@ -177,6 +178,14 @@ function toggle_document_number_fields(frm) {
     is_debit_note || is_credit_note
   );
   frm.toggle_display(["bill_control"], true);
+}
+
+function set_sales_invoice_buttons(frm) {
+  if (frm.doc.docstatus == 0) {
+    frm.add_custom_button(__("Agregar concepto de ISLR"), function () {
+      l10n_ve.controllers.taxes_and_totals.set_islr_concept(frm);
+    });
+  }
 }
 
 function toggle_vat_withholding_fields(frm) {
