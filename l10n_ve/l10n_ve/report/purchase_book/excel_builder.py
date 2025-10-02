@@ -358,7 +358,7 @@ class ExcelBuilder:
 
 
     def process_data(self, data: list[dict]) -> list[dict]:
-        processesed_data = []
+        processed_data = []
 
         for invoice in data:
             processed_invoice = invoice.copy()
@@ -384,17 +384,17 @@ class ExcelBuilder:
                 withholding_voucher['impuesto_adicional'] = 0.0
                 withholding_voucher['affected_invoice_number'] = invoice.get('bill_no')
 
-                processesed_data.append(withholding_voucher)
+                processed_data.append(withholding_voucher)
 
                 pass
 
-            processesed_data.append(processed_invoice)
+            processed_data.append(processed_invoice)
 
         # Asignar el número de secuencia después de procesar y duplicar filas
-        for i, row in enumerate(processesed_data):
+        for i, row in enumerate(processed_data):
             row["sequence_number"] = i + 1
 
-        return processesed_data
+        return processed_data
 
 @frappe.whitelist()
 def create_excel_file(report_name, filters=None, **kwargs):

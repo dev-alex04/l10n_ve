@@ -266,7 +266,7 @@ class CustomSalesInvoice(SalesInvoice):
                 self.company, withholding_category_name
             ))
 
-        rate = withholding_category.rates[0].tax_withholding_rate if withholding_category.rates else 0
+        rate = withholding_category.rates[0].tax_withholding_rate if withholding_category.rates and len(withholding_category.rates) > 0 else 0
         withholding_account = account_details_for_company.sales_account
         withholding_description = withholding_category.category_name or withholding_category.name
 

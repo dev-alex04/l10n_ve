@@ -91,7 +91,6 @@ def get_totals_from_data(data):
         impuesto_adicional += row.get("impuesto_adicional", 0)
         if row.get("nro_comprobante_retencion") and ret_monto > 0:
             taxes_and_charges_deducted += ret_monto
-            print(taxes_and_charges_deducted)
 
             bases = {
                 "general": flt(row.get("base_general")),
