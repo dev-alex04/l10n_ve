@@ -123,30 +123,32 @@ window.l10n_ve.controllers.taxes_and_totals = {
                 dialog.hide();
 
                 frm
-                    .call("set_islr_concept", { tabulator_name: values.tabulator_islr })
-                    .then((r) => {
-                        frappe.dom.unfreeze();
+                  .call("set_islr_concept", {
+                    tabulator_name: values.tabulator_islr,
+                  })
+                  .then((r) => {
+                    frappe.dom.unfreeze();
 
-                        frappe.show_alert({
-                            message: "Concepto cargado satisfactoriamente",
-                            indicator: "green",
-                        });
-
-                        if (frm.is_new()) {
-                            frappe.set_route("Form", frm.doc.doctype, r.message);
-                        }
-                    })
-                    .catch((error) => {
-                        frappe.dom.unfreeze();
-                        console.log(error);
-                        frappe.msgprint({
-                            title: __("Error"),
-                            message:
-                                "Ocurrió un error al cargar al concepto, intente nuevamente o comuníquese con el administrador del sistema",
-                            indicator: "red",
-                        });
-                        dialog.hide();
+                    frappe.show_alert({
+                      message: "Concepto cargado satisfactoriamente",
+                      indicator: "green",
                     });
+
+                    if (frm.is_new()) {
+                      frappe.set_route("Form", frm.doc.doctype, r.message);
+                    }
+                  })
+                  .catch((error) => {
+                    frappe.dom.unfreeze();
+                    console.log(error);
+                    frappe.msgprint({
+                      title: __("Error"),
+                      message:
+                        "Ocurrió un error al cargar al concepto, intente nuevamente o comuníquese con el administrador del sistema",
+                      indicator: "red",
+                    });
+                    dialog.hide();
+                  });
             },
         });
 

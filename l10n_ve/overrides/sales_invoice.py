@@ -474,3 +474,32 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
             "status": "error",
             "msg": f"Error inesperado al guardar los datos: {str(e)}"
         }
+
+@frappe.whitelist()
+def upload_islr_voucher_data(docname, islr_receipt_number, islr_date, file_url=None):
+    """
+    Actualiza la Sales Invoice (Factura de Venta) con los datos del comprobante de retención de ISLR.
+    """
+    try:
+        doc = frappe.get_doc("Sales Invoice", docname)
+
+        doc.db_set('islr_receipt_number', islr_receipt_number)
+        doc.db_set('islr_date', islr_date)
+        doc.db_set('voucher_image_islr', file_url)
+
+        doc.add_comment(
+            "Comment",
+            f"Comprobante de Retención de ISLR cargado. Número: {islr_receipt_number}. Fecha: {islr_date}.",
+        )
+
+        return {
+            "status": "success",
+            "msg": "Factura de Venta actualizada con los datos del comprobante de ISLR."
+        }
+
+    except frappe.DoesNotExistError:
+        frappe.log_error(f"Sales Invoice {docname} no encontrada.", "Error en upload_islr_voucher_data")
+        return {"status": "error", "msg": f"Factura de Venta con ID {docname} no encontrada."}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error en upload_islr_voucher_data")
+        return {"status": "error", "msg": f"Error inesperado al guardar los datos: {str(e)}"}
