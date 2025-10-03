@@ -128,28 +128,28 @@ frappe.ui.form.on("Sales Invoice", {
                   label: __("Número de Comprobante ISLR"),
                   fieldname: "islr_receipt_number",
                   fieldtype: "Data",
-                  reqd: 0,
+                  reqd: 0, // No es obligatorio
                 },
                 {
                   label: __("Fecha de Comprobante ISLR"),
                   fieldname: "islr_date",
                   fieldtype: "Date",
-                  reqd: 1,
+                  reqd: 1, // La fecha sigue siendo obligatoria
                 },
                 {
                   label: __("Imagen/PDF del Comprobante ISLR"),
                   fieldname: "voucher_image_islr",
                   fieldtype: "Attach",
-                  reqd: 1,
+                  reqd: 1, // El archivo adjunto ahora es obligatorio
                 },
               ],
               primary_action_label: __("Subir y Guardar"),
               primary_action: (values) => {
-                if (!values.islr_receipt_number || !values.islr_date) {
+                if (!values.islr_date || !values.voucher_image_islr) {
                   frappe.msgprint({
                     title: __("Error de Validación"),
                     indicator: "red",
-                    message: __("Debe ingresar el Número y la Fecha del Comprobante de ISLR."),
+                    message: __("Debe ingresar la Fecha y adjuntar el archivo del Comprobante de ISLR."),
                   });
                   return;
                 }
