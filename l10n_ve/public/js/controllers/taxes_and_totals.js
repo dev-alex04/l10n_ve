@@ -98,3 +98,60 @@ erpnext.taxes_and_totals.prototype.set_cumulative_total = function (
     tax.total = flt(tax_base + tax_amount, precision("total"));
   }
 };
+window.l10n_ve = window.l10n_ve || {};
+window.l10n_ve.controllers = window.l10n_ve.controllers || {};
+
+window.l10n_ve.controllers.taxes_and_totals = {
+
+    // Esta es ahora la función que se llama
+    set_islr_concept: function(frm) {
+        let dialog = new frappe.ui.Dialog({
+            title: "Agregar concepto de ISLR",
+            fields: [
+                {
+                    in_list_view: 1,
+                    fieldtype: "Link",
+                    fieldname: "tabulator_islr",
+                    label: "Concepto",
+                    options: "Tabulator ISLR",
+                    reqd: 1,
+                },
+            ],
+            primary_action_label: "Cargar concepto a la factura",
+            primary_action(values) {
+                frappe.dom.freeze(`Cargando concepto a la factura`);
+                dialog.hide();
+
+                frm
+                  .call("set_islr_concept", {
+                    tabulator_name: values.tabulator_islr,
+                  })
+                  .then((r) => {
+                    frappe.dom.unfreeze();
+
+                    frappe.show_alert({
+                      message: "Concepto cargado satisfactoriamente",
+                      indicator: "green",
+                    });
+
+                    if (frm.is_new()) {
+                      frappe.set_route("Form", frm.doc.doctype, r.message);
+                    }
+                  })
+                  .catch((error) => {
+                    frappe.dom.unfreeze();
+                    console.log(error);
+                    frappe.msgprint({
+                      title: __("Error"),
+                      message:
+                        "Ocurrió un error al cargar al concepto, intente nuevamente o comuníquese con el administrador del sistema",
+                      indicator: "red",
+                    });
+                    dialog.hide();
+                  });
+            },
+        });
+
+        dialog.show();
+    }
+};

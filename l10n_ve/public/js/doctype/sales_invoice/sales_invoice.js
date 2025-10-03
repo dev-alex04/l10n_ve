@@ -10,136 +10,173 @@ frappe.ui.form.on("Sales Invoice", {
     frm.set_df_property("vat_withholding_voucher_number", "read_only", 1);
     frm.set_df_property("withholding_date", "read_only", 1);
     frm.set_df_property("voucher_image", "read_only", 1);
+    frm.set_df_property("islr_receipt_number", "read_only", 1);
+    frm.set_df_property("islr_date", "read_only", 1);
+    frm.set_df_property("voucher_image_islr", "read_only", 1);
 
     toggle_document_number_fields(frm);
     toggle_vat_withholding_fields(frm);
+    toggle_islr_withholding_fields(frm);
   },
 
   refresh: function (frm) {
     toggle_vat_withholding_fields(frm);
+    toggle_islr_withholding_fields(frm);
     reorganize_customer_fields(frm);
     print_button_pdf(frm);
+    set_sales_invoice_buttons(frm);
+
+    let has_islr_withholding = false;
+    if (frm.doc.taxes && frm.doc.taxes.length) {
+      has_islr_withholding = frm.doc.taxes.some(
+        (tax_row) => tax_row.charge_type && tax_row.charge_type === "ISLR"
+      );
+    }
 
     let has_vat_withholding = false;
     if (frm.doc.taxes && frm.doc.taxes.length) {
-      has_vat_withholding = frm.doc.taxes.some(tax_row =>
-        tax_row.charge_type && tax_row.charge_type.toLowerCase().includes('withholding')
+      has_vat_withholding = frm.doc.taxes.some(
+        (tax_row) =>
+          tax_row.charge_type &&
+          tax_row.charge_type.toLowerCase().includes("withholding")
       );
     }
 
     if (
       !frm.doc.__islocal &&
-       has_vat_withholding &&
-      !frm.custom_buttons["Cargar Comprobante de Retencion"]
+      (has_vat_withholding || has_islr_withholding) &&
+      !frm.custom_buttons["Cargar Comprobante"]
     ) {
-      if (frm.doc.customer) {
-        frappe.db
-          .get_value("Customer", frm.doc.customer, "is_special_taxpayer")
-          .then((r) => {
-            if (r.message && r.message.is_special_taxpayer) {
-              frm.add_custom_button(
-                __("Cargar Comprobante de Retencion"),
-                () => {
-                  const dialog = new frappe.ui.Dialog({
-                    title: __("Cargar Comprobante de Pago y Número"),
-                    fields: [
-                      {
-                        label: __("Número de Comprobante"),
-                        fieldname: "vat_withholding_voucher_number",
-                        fieldtype: "Data",
-                        reqd: 0,
-                      },
-                      {
-                        label: __("Fecha de Comprobante"),
-                        fieldname: "withholding_date",
-                        fieldtype: "Date",
-                        reqd: 0,
-                      },
-                      {
-                        label: __("Imagen/PDF del Comprobante"),
-                        fieldname: "voucher_image",
-                        fieldtype: "Attach",
-                        reqd: 0,
-                      },
-                      {
-                        fieldname: "invoice_id",
-                        fieldtype: "Data",
-                        hidden: 1,
-                        default: frm.doc.name,
-                      },
-                    ],
-                    primary_action_label: __("Subir y Guardar"),
-                    primary_action: (values) => {
-                      const voucher_number =
-                        values.vat_withholding_voucher_number;
+      const button_group = __("Cargar Comprobante");
 
-                      if (!voucher_number) {
-                        frappe.msgprint({
-                          title: __("Error de Validación"),
-                          indicator: "red",
-                          message: __(
-                            "Debe ingresar el Número de Comprobante."
-                          ),
-                        });
-                        return;
-                      }
-                      const regex = /^\d{14}$/;
-                      if (!regex.test(voucher_number)) {
-                        frappe.msgprint({
-                          title: __("Error de Formato"),
-                          indicator: "red",
-                          message: __(
-                            "El Número de Comprobante debe tener exactamente 14 " +
-                              "caracteres y solo puede contener números."
-                          ),
-                        });
-                        return;
-                      }
-
-                      if (!values.withholding_date) {
-                        frappe.msgprint({
-                          title: __("Error de Validación"),
-                          indicator: "red",
-                          message: __("Debe ingresar la Fecha de Comprobante."),
-                        });
-                        return;
-                      }
-                      frappe.call({
-                        method:
-                          "l10n_ve.overrides.sales_invoice.upload_voucher_data",
-                        args: {
-                          docname: frm.doc.name,
-                          voucher_number: values.vat_withholding_voucher_number,
-                          withholding_date: values.withholding_date,
-                          file_url: values.voucher_image,
-                        },
-                        callback: function (r) {
-                          if (r.message && r.message.status === "success") {
-                            frappe.msgprint(
-                              __(
-                                "Comprobante cargado y datos guardados exitosamente."
-                              )
-                            );
-                            frm.reload_doc();
-                            dialog.hide();
-                          } else if (
-                            r.message &&
-                            r.message.status === "error"
-                          ) {
-                            frappe.msgprint(
-                              __("Error al guardar: " + r.message.msg),
-                              "Error"
-                            );
-                          }
-                        },
-                      });
-                    },
+      if (has_vat_withholding) {
+        frm.add_custom_button(__("Retención de IVA"), () => {
+            const dialog = new frappe.ui.Dialog({
+              title: __("Cargar Comprobante de Retención de IVA"),
+              fields: [
+                {
+                  label: __("Número de Comprobante"),
+                  fieldname: "vat_withholding_voucher_number",
+                  fieldtype: "Data",
+                  reqd: 1,
+                },
+                {
+                  label: __("Fecha de Comprobante"),
+                  fieldname: "withholding_date",
+                  fieldtype: "Date",
+                  reqd: 1,
+                },
+                {
+                  label: __("Imagen/PDF del Comprobante"),
+                  fieldname: "voucher_image",
+                  fieldtype: "Attach",
+                  reqd: 0,
+                },
+              ],
+              primary_action_label: __("Subir y Guardar"),
+              primary_action: (values) => {
+                const voucher_number = values.vat_withholding_voucher_number;
+                if (!voucher_number || !values.withholding_date) {
+                  frappe.msgprint({
+                    title: __("Error de Validación"),
+                    indicator: "red",
+                    message: __("Debe ingresar el Número y la Fecha del Comprobante."),
                   });
-                  dialog.show();
+                  return;
                 }
-              );
-            }
-          });
+                const regex = /^\d{14}$/;
+                if (!regex.test(voucher_number)) {
+                  frappe.msgprint({
+                    title: __("Error de Formato"),
+                    indicator: "red",
+                    message: __("El Número de Comprobante debe tener exactamente 14 caracteres y solo puede contener números."),
+                  });
+                  return;
+                }
+                frappe.call({
+                  method: "l10n_ve.overrides.sales_invoice.upload_voucher_data",
+                  args: {
+                    docname: frm.doc.name,
+                    voucher_number: values.vat_withholding_voucher_number,
+                    withholding_date: values.withholding_date,
+                    file_url: values.voucher_image,
+                  },
+                  callback: function (r) {
+                    if (r.message && r.message.status === "success") {
+                      frappe.msgprint(__("Comprobante de IVA cargado exitosamente."));
+                      frm.reload_doc();
+                      dialog.hide();
+                    } else if (r.message && r.message.status === "error") {
+                      frappe.msgprint(__("Error al guardar: " + r.message.msg), "Error");
+                    }
+                  },
+                });
+              },
+            });
+            dialog.show();
+          },
+          button_group
+        );
+      }
+
+      if (has_islr_withholding) {
+        frm.add_custom_button(__("Retención de ISLR"), () => {
+            const dialog = new frappe.ui.Dialog({
+              title: __("Cargar Comprobante de Retención de ISLR"),
+              fields: [
+                {
+                  label: __("Número de Comprobante ISLR"),
+                  fieldname: "islr_receipt_number",
+                  fieldtype: "Data",
+                  reqd: 0, // No es obligatorio
+                },
+                {
+                  label: __("Fecha de Comprobante ISLR"),
+                  fieldname: "islr_date",
+                  fieldtype: "Date",
+                  reqd: 1, // La fecha sigue siendo obligatoria
+                },
+                {
+                  label: __("Imagen/PDF del Comprobante ISLR"),
+                  fieldname: "voucher_image_islr",
+                  fieldtype: "Attach",
+                  reqd: 1, // El archivo adjunto ahora es obligatorio
+                },
+              ],
+              primary_action_label: __("Subir y Guardar"),
+              primary_action: (values) => {
+                if (!values.islr_date || !values.voucher_image_islr) {
+                  frappe.msgprint({
+                    title: __("Error de Validación"),
+                    indicator: "red",
+                    message: __("Debe ingresar la Fecha y adjuntar el archivo del Comprobante de ISLR."),
+                  });
+                  return;
+                }
+                frappe.call({
+                  method: "l10n_ve.overrides.sales_invoice.upload_islr_voucher_data",
+                  args: {
+                    docname: frm.doc.name,
+                    islr_receipt_number: values.islr_receipt_number,
+                    islr_date: values.islr_date,
+                    file_url: values.voucher_image_islr,
+                  },
+                  callback: function (r) {
+                    if (r.message && r.message.status === "success") {
+                      frappe.msgprint(__("Comprobante de ISLR cargado exitosamente."));
+                      frm.reload_doc();
+                      dialog.hide();
+                    } else if (r.message && r.message.status === "error") {
+                      frappe.msgprint(__("Error al guardar: " + r.message.msg), "Error");
+                    }
+                  },
+                });
+              },
+            });
+            dialog.show();
+          },
+          button_group
+        );
       }
     }
   },
@@ -179,6 +216,14 @@ function toggle_document_number_fields(frm) {
   frm.toggle_display(["bill_control"], true);
 }
 
+function set_sales_invoice_buttons(frm) {
+  if (frm.doc.docstatus == 0) {
+    frm.add_custom_button(__("Agregar concepto de ISLR"), function () {
+      l10n_ve.controllers.taxes_and_totals.set_islr_concept(frm);
+    });
+  }
+}
+
 function toggle_vat_withholding_fields(frm) {
   const fields_to_toggle = [
     "vat_withholding_voucher_number",
@@ -203,6 +248,29 @@ function toggle_vat_withholding_fields(frm) {
           frm.toggle_display(fields_to_toggle, true);
         }
       });
+  }
+}
+
+function toggle_islr_withholding_fields(frm) {
+  const fields_to_toggle = [
+    "islr_receipt_number",
+    "islr_date",
+    "voucher_image_islr",
+  ];
+
+  frm.toggle_display(fields_to_toggle, false);
+
+  const has_voucher_data = frm.doc.islr_receipt_number;
+  if (has_voucher_data) {
+    frm.toggle_display(fields_to_toggle, true);
+    return;
+  }
+
+  const has_islr_tax = (frm.doc.taxes || []).some(
+    (tax) => tax.charge_type === "ISLR"
+  );
+  if (has_islr_tax) {
+    frm.toggle_display(fields_to_toggle, true);
   }
 }
 function reorganize_customer_fields(frm) {
