@@ -1,9 +1,12 @@
 import frappe
-from frappe.utils import flt
 from frappe import _, _dict
-from erpnext.accounts.utils import get_account_currency
+from frappe.utils import flt, get_link_to_form
 
+import erpnext
+from erpnext.stock import get_warehouse_account_map
+from erpnext.assets.doctype.asset.asset import is_cwip_accounting_enabled
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
+from erpnext.assets.doctype.asset_category.asset_category import get_asset_category_account
 
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
@@ -15,12 +18,12 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
         has_iva_withholding = frappe.db.exists(
             "VAT Withholding Voucher Item",
-            { "purchase_invoice": self.name }
+            {"purchase_invoice": self.name }
         )
 
         has_islr_withholding = frappe.db.exists(
             "ISLR Withholding Voucher Item",
-            { "purchase_invoice": self.name }
+            {"purchase_invoice": self.name }
         )
 
         reasons = []
@@ -67,8 +70,6 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             self.validate_affected_invoice_number()
         elif self.is_return:
             self.validate_credit_note_number()
-
-        self.calculate_taxes_and_totals()
 
     def validate_affected_invoice_number(self) -> None:
         if self.is_debit_note:
@@ -122,20 +123,30 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             if credit_note_exists:
                 frappe.throw(f"Ya existe una Nota de Crédito con el número {self.credit_note_no} para este proveedor.")
 
-    def calculate_taxes_and_totals(self) -> None:
-        taxes_and_totals_calculator = TaxesAndTotals(self)
-        taxes_and_totals_calculator.calculate_total_exempt()
+    def validate_duplicate_invoice_numbers(self) -> None:
+        if self.bill_no:
+            filters_bill_no = {
+                'docstatus': ['!=', 2],
+                'bill_no': self.bill_no,
+                'supplier': self.supplier,
+                'name': ('!=', self.name),
+            }
 
-        if self.doctype in (
-            "Sales Order",
-            "Delivery Note",
-            "Sales Invoice",
-            "POS Invoice",
-        ):
-            self.calculate_commission()
-            self.calculate_contribution()
+            if frappe.db.get_all("Purchase Invoice", filters=filters_bill_no):
+                message = "El número de factura ya se encuentra asignado a otra factura del mismo proveedor."
+                frappe.throw(message)
 
-        self.calculate_total_withholding()
+        if self.bill_control:
+            filters_bill_control = {
+                'docstatus': ['!=', 2],
+                'name': ['!=', self.name],
+                'supplier': self.supplier,
+                'bill_control': self.bill_control,
+            }
+
+            if frappe.db.get_all("Purchase Invoice", filters=filters_bill_control):
+                message = "El número de control ya se encuentra asignado a otra factura del mismo proveedor."
+                frappe.throw(message)
 
     def set_affected_invoice_number(self) -> None:
         if self.is_return or self.is_debit_note :
@@ -146,6 +157,19 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                     self.return_against,
                     "bill_no"
                 )
+
+    def calculate_total_withholding(self) -> None:
+        self.total_withholding = 0.0
+
+        if not self.get("taxes"):
+            return
+
+        for tax in self.get("taxes"):
+
+            if not tax.is_tax_withholding_account:
+                continue
+
+            self.total_withholding += tax.get('tax_amount', 0)
 
     @frappe.whitelist()
     def set_islr_concept(self, tabulator_name: str) -> None:
@@ -179,32 +203,182 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         self.save()
         return self.name
 
-    def validate_duplicate_invoice_numbers(self) -> None:
-        if self.bill_no:
-            filters_bill_no = {
-                'docstatus': ['!=', 2],
-                'bill_no': self.bill_no,
-                'supplier': self.supplier,
-                'name': ('!=', self.name),
-            }
+    # ------------------------------ OVERRIDES ------------------------------ #
 
-            if frappe.db.get_all("Purchase Invoice", filters=filters_bill_no):
-                message = "El número de factura ya se encuentra asignado a otra factura del mismo proveedor."
-                frappe.throw(message)
+    def set_taxes_and_charges(self) -> None:
+        super().set_taxes_and_charges()
 
-        if self.bill_control:
-            filters_bill_control = {
-                'docstatus': ['!=', 2],
-                'name': ['!=', self.name],
-                'supplier': self.supplier,
-                'bill_control': self.bill_control,
-            }
+        self.set_tax_withholding_ve()
 
-            if frappe.db.get_all("Purchase Invoice", filters=filters_bill_control):
-                message = "El número de control ya se encuentra asignado a otra factura del mismo proveedor."
-                frappe.throw(message)
+    def calculate_taxes_and_totals(self) -> None:
+        taxes_and_totals_calculator = TaxesAndTotals(self)
+        taxes_and_totals_calculator.calculate_total_exempt()
+
+        self.calculate_total_withholding()
+
+    def set_expense_account(self, for_validate=False) -> None:
+            auto_accounting_for_stock = erpnext.is_perpetual_inventory_enabled(self.company)
+
+            if auto_accounting_for_stock:
+                stock_not_billed_account = self.get_company_default("stock_received_but_not_billed")
+                stock_items = self.get_stock_items()
+
+            self.asset_received_but_not_billed = None
+
+            if self.update_stock:
+                self.validate_item_code()
+                self.validate_warehouse(for_validate)
+                if auto_accounting_for_stock:
+                    warehouse_account = get_warehouse_account_map(self.company)
+
+            for item in self.get("items"):
+                # in case of auto inventory accounting,
+                # expense account is always "Stock Received But Not Billed" for a stock item
+                # except opening entry, drop-ship entry and fixed asset items
+                if (
+                    auto_accounting_for_stock
+                    and item.item_code in stock_items
+                    and self.is_opening == "No"
+                    and not item.is_fixed_asset
+                    and (
+                        not item.po_detail
+                        or not frappe.db.get_value("Purchase Order Item",
+                                                   item.po_detail,
+                                                   "delivered_by_supplier")
+                    )
+                ):
+                    if self.update_stock and item.warehouse and (not item.from_warehouse):
+                        if (
+                            for_validate
+                            and item.expense_account
+                            and item.expense_account != warehouse_account[item.warehouse]["account"]
+                        ):
+                            msg = _(
+                                "Row {0}: Expense Head changed to {1} because account {2} is not linked to warehouse {3} or it is not the default inventory account"
+                            ).format(
+                                item.idx,
+                                frappe.bold(warehouse_account[item.warehouse]["account"]),
+                                frappe.bold(item.expense_account),
+                                frappe.bold(item.warehouse),
+                            )
+                            # Se desactiva este mensaje hasta que sea revisado
+                            # Por el contador
+                            # frappe.msgprint(msg, title=_("Expense Head Changed"))
+                        item.expense_account = warehouse_account[item.warehouse]["account"]
+                    else:
+                        # check if 'Stock Received But Not Billed' account is credited in Purchase receipt or not
+                        if item.purchase_receipt:
+                            negative_expense_booked_in_pr = frappe.db.sql(
+                                """select name from `tabGL Entry`
+                                where voucher_type='Purchase Receipt' and voucher_no=%s and account = %s""",
+                                (item.purchase_receipt, stock_not_billed_account),
+                            )
+
+                            if negative_expense_booked_in_pr:
+                                if (
+                                    for_validate
+                                    and item.expense_account
+                                    and item.expense_account != stock_not_billed_account
+                                ):
+                                    msg = _(
+                                        "Row {0}: Expense Head changed to {1} because expense is booked against this account in Purchase Receipt {2}"
+                                    ).format(
+                                        item.idx,
+                                        frappe.bold(stock_not_billed_account),
+                                        frappe.bold(item.purchase_receipt),
+                                    )
+                                    # Se desactiva este mensaje hasta que sea revisado
+                                    # Por el contador
+                                    # frappe.msgprint(msg, title=_("Expense Head Changed"))
+
+                                item.expense_account = stock_not_billed_account
+                        else:
+                            # If no purchase receipt present then book expense in 'Stock Received But Not Billed'
+                            # This is done in cases when Purchase Invoice is created before Purchase Receipt
+                            if (
+                                for_validate
+                                and item.expense_account
+                                and item.expense_account != stock_not_billed_account
+                            ):
+                                msg = _(
+                                    "Row {0}: Expense Head changed to {1} as no Purchase Receipt is created against Item {2}."
+                                ).format(
+                                    item.idx, frappe.bold(stock_not_billed_account), frappe.bold(item.item_code)
+                                )
+                                msg += "<br>"
+                                msg += _(
+                                    "This is done to handle accounting for cases when Purchase Receipt is created after Purchase Invoice"
+                                )
+                                # Se desactiva este mensaje hasta que sea revisado
+                                # Por el contador
+                                # frappe.msgprint(msg, title=_("Expense Head Changed"))
+
+                            item.expense_account = stock_not_billed_account
+                elif item.is_fixed_asset:
+                    account = None
+                    if not item.pr_detail and item.po_detail:
+                        receipt_item = frappe.get_cached_value(
+                            "Purchase Receipt Item",
+                            {
+                                "purchase_order": item.purchase_order,
+                                "purchase_order_item": item.po_detail,
+                                "docstatus": 1,
+                            },
+                            ["name", "parent"],
+                            as_dict=1,
+                        )
+                        if receipt_item:
+                            item.pr_detail = receipt_item.name
+                            item.purchase_receipt = receipt_item.parent
+
+                    if item.pr_detail:
+                        if not self.asset_received_but_not_billed:
+                            self.asset_received_but_not_billed = self.get_company_default(
+                                "asset_received_but_not_billed"
+                            )
+
+                        # check if 'Asset Received But Not Billed' account is credited in Purchase receipt or not
+                        arbnb_booked_in_pr = frappe.db.get_value(
+                            "GL Entry",
+                            {
+                                "voucher_type": "Purchase Receipt",
+                                "voucher_no": item.purchase_receipt,
+                                "account": self.asset_received_but_not_billed,
+                            },
+                            "name",
+                        )
+                        if arbnb_booked_in_pr:
+                            account = self.asset_received_but_not_billed
+
+                    if not account:
+                        account_type = (
+                            "capital_work_in_progress_account"
+                            if is_cwip_accounting_enabled(item.asset_category)
+                            else "fixed_asset_account"
+                        )
+                        account = get_asset_category_account(
+                            account_type, item=item.item_code, company=self.company
+                        )
+                        if not account:
+                            form_link = get_link_to_form("Asset Category", item.asset_category)
+                            frappe.throw(
+                                _("Please set Fixed Asset Account in {} against {}.").format(
+                                    form_link, self.company
+                                ),
+                                title=_("Missing Account"),
+                            )
+                    item.expense_account = account
+                elif not item.expense_account and for_validate:
+                    frappe.throw(_("Expense account is mandatory for item {0}").format(item.item_code or item.item_name))
 
     def set_tax_withholding(self) -> None:
+        """
+        Se inactiva la funcion nativa para obtener las retenciones.
+        La funcion set_tax_withholding_ve  se encargara de esto
+        """
+        return
+
+    def set_tax_withholding_ve(self) -> None:
 
         withholding_category_name = frappe.db.get_value("Supplier",
                                                         self.supplier,
@@ -238,19 +412,6 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         ]
 
         self.append("taxes", withholding)
-
-    def calculate_total_withholding(self) -> None:
-        self.total_withholding = 0.0
-
-        if not self.get("taxes"):
-            return
-
-        for tax in self.get("taxes"):
-
-            if not tax.is_tax_withholding_account:
-                continue
-
-            self.total_withholding += tax.get('tax_amount', 0)
 
     def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
         """

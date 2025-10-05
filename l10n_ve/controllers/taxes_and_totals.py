@@ -79,6 +79,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
                     vat = (item.net_amount * tax_row.rate) / 100
                     current_tax_amount = (vat * tax.rate) / 100
+                    break
 
         if not (self.doc.get("is_consolidated") or tax.get("dont_recompute_tax")):
             self.set_item_wise_tax(item, tax, tax_rate, current_tax_amount)
