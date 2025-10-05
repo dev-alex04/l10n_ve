@@ -397,5 +397,37 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Incoterm",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "title",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Incoterm-title-translatable",
+        "property": "translatable",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Purchase Invoice",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "incoterm",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Purchase Invoice-incoterm-translatable",
+        "property": "translatable",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
     }
 ]

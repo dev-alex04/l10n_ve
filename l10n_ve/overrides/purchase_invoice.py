@@ -378,7 +378,13 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         """
         return
 
+    # TODO: Refactorizar a una sola funcion
     def set_tax_withholding_ve(self) -> None:
+
+        if not bool(frappe.db.get_value('Company',
+                                        self.company,
+                                        'is_special_taxpayer')):
+            return
 
         withholding_category_name = frappe.db.get_value("Supplier",
                                                         self.supplier,

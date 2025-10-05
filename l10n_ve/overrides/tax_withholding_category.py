@@ -11,7 +11,7 @@ class CustomTaxWithholdingCategory(TaxWithholdingCategory):
     def get_withholding(self, company: str, doctype: str) -> dict:
 
         if doctype in DocumentTransactionType.__SALES_DOCTYPES__:
-            account_field = 'sales_sales_account'
+            account_field = 'sales_account'
         elif doctype in DocumentTransactionType.__PURCHASE_DOCTYPES__:
             account_field = 'account'
         else:

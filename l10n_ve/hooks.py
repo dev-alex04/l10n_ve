@@ -156,6 +156,7 @@ after_install = [
 
 override_doctype_class = {
     "Company": "l10n_ve.overrides.company.CustomCompany",
+    "Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
     "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
 }
