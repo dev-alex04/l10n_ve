@@ -233,27 +233,23 @@ class CustomSalesInvoice(SalesInvoice):
         Gestiona la lógica de retención de IVA para contribuyentes especiales.
         """
 
-        # La retención de IVA solo aplica si el cliente es Contribuyente Especial.
         is_special_taxpayer = frappe.db.get_value("Customer",
                                                   self.customer,
                                                   "is_special_taxpayer")
         if not is_special_taxpayer:
             return
-        # Obtener la categoría de retención directamente del cliente
+
         withholding_category_name = frappe.db.get_value("Customer",
                                                         self.customer,
                                                         "tax_withholding_category")
         if not withholding_category_name:
             return
 
-        # Cargar el documento de la categoría de retención
         withholding_category = frappe.get_doc("Tax Withholding Category",
                                               withholding_category_name)
         if not withholding_category:
             return
 
-        # Acceder a la cuenta contable desde la tabla hija 'accounts'
-        # del documento de la categoría
         account_details_for_company = None
         for acc_details in withholding_category.accounts:
             if acc_details.company == self.company:
