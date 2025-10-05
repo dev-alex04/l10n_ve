@@ -182,22 +182,24 @@ class CustomPurchaseInvoice(PurchaseInvoice):
     def validate_duplicate_invoice_numbers(self) -> None:
         if self.bill_no:
             filters_bill_no = {
-                'supplier': self.supplier,
+                'docstatus': ['!=', 2],
                 'bill_no': self.bill_no,
-                # 'docstatus': 1,
+                'supplier': self.supplier,
                 'name': ('!=', self.name),
             }
+
             if frappe.db.get_all("Purchase Invoice", filters=filters_bill_no):
                 message = "El número de factura ya se encuentra asignado a otra factura del mismo proveedor."
                 frappe.throw(message)
 
         if self.bill_control:
             filters_bill_control = {
+                'docstatus': ['!=', 2],
+                'name': ['!=', self.name],
                 'supplier': self.supplier,
                 'bill_control': self.bill_control,
-                # 'docstatus': 1,
-                'name': ('!=', self.name),
             }
+
             if frappe.db.get_all("Purchase Invoice", filters=filters_bill_control):
                 message = "El número de control ya se encuentra asignado a otra factura del mismo proveedor."
                 frappe.throw(message)
@@ -250,124 +252,43 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
             self.total_withholding += tax.get('tax_amount', 0)
 
-    def make_tax_gl_entries(self, gl_entries) -> None:
-            valuation_tax = {}
+    def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
+        """
+        Tax withholding amount is not part of supplier invoice.
+        Separate supplier GL Entry for correct reporting.
+        """
 
-            for tax in self.get("taxes"):
-                amount, base_amount = self.get_tax_amounts(tax, None)
-                if tax.category in ("Total", "Valuation and Total") and flt(base_amount):
-                    account_currency = get_account_currency(tax.account_head)
+        for tax in self.get("taxes") or []:
 
-                    dr_or_cr = "debit" if tax.add_deduct_tax == "Add" else "credit"
+            if not tax.is_tax_withholding_account or not tax.tax_amount:
+                continue
 
-                    gl_entries.append(
-                        self.get_gl_dict(
-                            {
-                                "account": tax.account_head,
-                                "against": self.supplier,
-                                dr_or_cr: base_amount,
-                                dr_or_cr + "_in_account_currency": base_amount
-                                if account_currency == self.company_currency
-                                else amount,
-                                dr_or_cr + "_in_transaction_currency": amount,
-                                "cost_center": tax.cost_center,
-                            },
-                            account_currency,
-                            item=tax,
-                        )
-                    )
+            if (
+                self.is_return
+                and self.return_against
+                and not self.update_outstanding_for_self
+            ):
+                against_voucher = self.return_against
+            else:
+                against_voucher = self.name
 
-                    if tax.is_tax_withholding_account:
+            debit_or_credit = "debit" if self.docstatus == 1 else "credit"
 
-                        gl_entries.append(
-                            self.get_gl_dict(
-                                {
-                                    "account": self.credit_to,
-                                    "party_type": "Supplier",
-                                    "party": self.supplier,
-                                    "due_date": self.due_date,
-                                    "against": tax.account_head,
-                                    "debit": tax.tax_amount,
-                                    "debit_in_account_currency": tax.tax_amount,
-                                    "debit_in_transaction_currency": tax.tax_amount,
-                                    "against_voucher": self.name,
-                                    "against_voucher_type": self.doctype,
-                                    "project": self.project,
-                                    "cost_center": self.cost_center,
+            gl = {
+                "account": self.credit_to,
+                "against": tax.account_head,
+                "against_voucher": against_voucher,
+                "against_voucher_type": self.doctype,
+                "cost_center": self.cost_center,
+                debit_or_credit: tax.tax_amount,
+                f"{debit_or_credit}_in_account_currency": tax.tax_amount,
+                f"{debit_or_credit}_in_transaction_currency": tax.tax_amount,
+                "due_date": self.due_date,
+                "party": self.supplier,
+                "party_type": "Supplier",
+                "project": self.project,
+                "remarks": self.remarks,
+                "_skip_merge": True,
+            }
 
-                                },
-                                account_currency,
-                                item=tax,
-                            )
-                        )
-                # accumulate valuation tax
-                if (
-                    self.is_opening == "No"
-                    and tax.category in ("Valuation", "Valuation and Total")
-                    and flt(base_amount)
-                    and not self.is_internal_transfer()
-                ):
-                    if self.auto_accounting_for_stock and not tax.cost_center:
-                        frappe.throw(
-                            _("Cost Center is required in row {0} in Taxes table for type {1}").format(
-                                tax.idx, _(tax.category)
-                            )
-                        )
-                    valuation_tax.setdefault(tax.name, 0)
-                    valuation_tax[tax.name] += (tax.add_deduct_tax == "Add" and 1 or -1) * flt(base_amount)
-
-            if self.is_opening == "No" and self.negative_expense_to_be_booked and valuation_tax:
-                # credit valuation tax amount in "Expenses Included In Valuation"
-                # this will balance out valuation amount included in cost of goods sold
-
-                total_valuation_amount = sum(valuation_tax.values())
-                amount_including_divisional_loss = self.negative_expense_to_be_booked
-                i = 1
-                for tax in self.get("taxes"):
-                    if valuation_tax.get(tax.name):
-                        if i == len(valuation_tax):
-                            applicable_amount = amount_including_divisional_loss
-                        else:
-                            applicable_amount = self.negative_expense_to_be_booked * (
-                                valuation_tax[tax.name] / total_valuation_amount
-                            )
-                            amount_including_divisional_loss -= applicable_amount
-
-                        gl_entries.append(
-                            self.get_gl_dict(
-                                {
-                                    "account": tax.account_head,
-                                    "cost_center": tax.cost_center,
-                                    "against": self.supplier,
-                                    "credit": applicable_amount,
-                                    "credit_in_transaction_currency": flt(
-                                        applicable_amount / self.conversion_rate,
-                                        frappe.get_precision("Purchase Invoice Item", "item_tax_amount"),
-                                    ),
-                                    "remarks": self.remarks or _("Accounting Entry for Stock"),
-                                },
-                                item=tax,
-                            )
-                        )
-
-                        i += 1
-
-            if self.auto_accounting_for_stock and self.update_stock and valuation_tax:
-                for tax in self.get("taxes"):
-                    if valuation_tax.get(tax.name):
-                        gl_entries.append(
-                            self.get_gl_dict(
-                                {
-                                    "account": tax.account_head,
-                                    "cost_center": tax.cost_center,
-                                    "against": self.supplier,
-                                    "credit": valuation_tax[tax.name],
-                                    "credit_in_transaction_currency": flt(
-                                        valuation_tax[tax.name] / self.conversion_rate,
-                                        frappe.get_precision("Purchase Invoice Item", "item_tax_amount"),
-                                    ),
-                                    "remarks": self.remarks or _("Accounting Entry for Stock"),
-                                },
-                                item=tax,
-                            )
-                        )
+            gl_entries.append(self.get_gl_dict(gl, self.party_account_currency, item=self))
