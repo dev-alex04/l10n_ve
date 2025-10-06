@@ -1,4 +1,7 @@
 import frappe
+from frappe import _
+from frappe.utils import getdate
+
 
 @frappe.whitelist()
 def get_company_address(company_name):
@@ -32,6 +35,30 @@ def get_supplier_address(supplier_name):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error getting supplier address")
 
+def validate_return_in_same_month(self):
+    """
+    Valida que una Nota de Crédito o Débito se cree en el mismo mes
+    que la factura original a la que hace referencia.
+    """
+    if not (self.is_return or self.is_debit_note) or not self.return_against:
+        return
+
+    current_posting_date = getdate(self.posting_date)
+    origin_invoice_date = frappe.db.get_value(
+        self.doctype, self.return_against, "posting_date"
+    )
+
+    if not origin_invoice_date:
+        return
+
+    origin_posting_date = getdate(origin_invoice_date)
+
+    if (current_posting_date.month == origin_posting_date.month and
+        current_posting_date.year == origin_posting_date.year):
+        return
+
+    document_type = _("Nota de Crédito") if self.is_return else _("Nota de Débito")
+    frappe.throw(_("La {0} debe ser creada en el mismo mes que la factura original.").format(document_type))
 
 def check_gl_entries(gl_entries: list=[], do_exit: bool = True) -> None:
     # NO QUITAR PRINT SE USA PARA DEBUGEAR

@@ -1,11 +1,12 @@
 import frappe
 from frappe import _, _dict
-from frappe.utils import flt, cint
+from frappe.utils import flt, cint, getdate
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 
 from l10n_ve.overrides.company import CustomCompany
+from l10n_ve.utils.utils import validate_return_in_same_month
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 
@@ -38,12 +39,22 @@ class CustomSalesInvoice(SalesInvoice):
         self.set_affected_invoice_number()
         super().validate()
         self.validate_item_iva()
+        self.validate_return_in_same_month()
         self.calculate_total_withholding()
         # validación de numero de control, debito, credito y de factura
         self._validate_bill_no(raise_throw=True)
         self._validate_bill_control(raise_throw=True)
         self._validate_debit_note_no(raise_throw=True)
         self._validate_credit_note_no(raise_throw=True)
+
+    def validate_return_in_same_month(self):
+        """
+        Valida que una Nota de Crédito o Débito se cree en el mismo mes
+        que la factura original a la que hace referencia.
+        Llama a la función centralizada en utils.
+        """
+        validate_return_in_same_month(self)
+
 
     def set_control_and_invoice_number(self) -> None:
 
