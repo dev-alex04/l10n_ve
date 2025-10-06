@@ -5,6 +5,7 @@ from erpnext.accounts.utils import get_account_currency, getdate
 
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
 
+from l10n_ve.utils.utils import validate_return_in_same_month
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 
@@ -39,7 +40,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         self.validate_duplicate_invoice_numbers()
         self.set_affected_invoice_number()
         self.calculate_total_withholding()
-        self.validate_same_month_for_return()
+        self.validate_return_in_same_month()
         has_taxable_items = False
         for item in self.items:
             if not item.vat_exempt:
@@ -122,27 +123,14 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             if credit_note_exists:
                 frappe.throw(f"Ya existe una Nota de Crédito con el número {self.credit_note_no} para este proveedor.")
 
-    def validate_same_month_for_return(self):
+    def validate_return_in_same_month(self):
         """
         Valida que una Nota de Crédito o Débito se cree en el mismo mes
         que la factura original a la que hace referencia.
+        Llama a la función centralizada en utils.
         """
-        if not (self.is_return or self.is_debit_note) or not self.return_against:
-            return
+        validate_return_in_same_month(self)
 
-        current_posting_date = getdate(self.posting_date)
-        origin_invoice_date = frappe.db.get_value(
-            "Purchase Invoice", self.return_against, "posting_date"
-        )
-
-        origin_posting_date = getdate(origin_invoice_date)
-
-        if (current_posting_date.month == origin_posting_date.month and
-            current_posting_date.year == origin_posting_date.year):
-            return
-
-        document_type = _("Nota de Crédito") if self.is_return else _("Nota de Débito")
-        frappe.throw(_("La {0} debe ser creada en el mismo mes que la factura original.").format(document_type))
 
     def calculate_taxes_and_totals(self):
         taxes_and_totals_calculator = TaxesAndTotals(self)
