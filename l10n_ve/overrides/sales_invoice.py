@@ -1,6 +1,6 @@
 import frappe
 from frappe import _, _dict
-from frappe.utils import flt, cint
+from frappe.utils import flt, cint, getdate
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
@@ -38,6 +38,7 @@ class CustomSalesInvoice(SalesInvoice):
         self.set_affected_invoice_number()
         super().validate()
         self.validate_item_iva()
+        self.validate_same_month_for_return()
         self.calculate_total_withholding()
         # validación de numero de control, debito, credito y de factura
         self._validate_bill_no(raise_throw=True)
@@ -95,6 +96,28 @@ class CustomSalesInvoice(SalesInvoice):
                 self.affected_invoice_number = original_invoice_number
             else:
                 self.affected_invoice_number = None
+
+    def validate_same_month_for_return(self):
+        """
+        Valida que una Nota de Crédito o Débito se cree en el mismo mes
+        que la factura original a la que hace referencia.
+        """
+        if not (self.is_return or self.is_debit_note) or not self.return_against:
+            return
+
+        current_posting_date = getdate(self.posting_date)
+        origin_invoice_date = frappe.db.get_value(
+            "Sales Invoice", self.return_against, "posting_date"
+        )
+
+        origin_posting_date = getdate(origin_invoice_date)
+
+        if (current_posting_date.month == origin_posting_date.month and
+            current_posting_date.year == origin_posting_date.year):
+            return
+
+        document_type = _("Nota de Crédito") if self.is_return else _("Nota de Débito")
+        frappe.throw(_("La {0} debe ser creada en el mismo mes que la factura original.").format(document_type))
 
     def _validate_bill_control(self,
                                bill_control: str = '',
