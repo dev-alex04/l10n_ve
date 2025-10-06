@@ -184,7 +184,6 @@ function load_invoices(frm) {
                     new_row.credit_note_no = invoice.credit_note_no;
                     new_row.debit_note_no = invoice.debit_note_no;
                     new_row.affected_invoice_number = invoice.affected_invoice_number;
-                    new_row.rate = invoice.rate;
                     new_row.tax_amount = invoice.tax_amount;
 
                     let negative = invoice.is_return ? -1 : 1;

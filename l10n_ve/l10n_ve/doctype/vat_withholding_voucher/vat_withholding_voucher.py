@@ -110,7 +110,11 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     )
 
     invoices_with_taxes = []
+    processed_invoices = set()
     for item in valid_invoices:
+        if item.name in processed_invoices:
+            continue
+
         invoice_data = {
             "purchase_invoice": item.name,
             "bill_no": item.bill_no,
@@ -130,5 +134,6 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             "tax_amount": abs(item.tax_amount_vat),
         }
         invoices_with_taxes.append(invoice_data)
+        processed_invoices.add(item.name)
 
     return invoices_with_taxes
