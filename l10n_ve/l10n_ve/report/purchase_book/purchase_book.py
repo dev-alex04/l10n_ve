@@ -186,15 +186,16 @@ def get_query_data(filters):
             MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
 
             CASE
-                WHEN T4.supplier_type = 'Company' THEN 'PJ'
-                WHEN T4.supplier_type = 'Individual' THEN 'PN'
-                WHEN T4.supplier_type = 'Partnership' THEN 'PJ'
+                WHEN T4.type_of_person = 'Persona Juridica domiciliada' THEN 'PJD'
+                WHEN T4.type_of_person = 'Persona Juridica no domiciliada' THEN 'PJND'
+                WHEN T4.type_of_person = 'Persona Natural domiciliada' THEN 'PND'
+                WHEN T4.type_of_person = 'Persona Natural no domiciliada' THEN 'PNND'
                 ELSE "N/A"
             END AS supplier_type,
             CASE
-				WHEN tPI.is_return = 1 THEN 'NC'
-				WHEN tPI.is_debit_note = 1 THEN 'ND'
-				ELSE 'REG'
+				WHEN tPI.is_return = 1 THEN '03-REG'
+				WHEN tPI.is_debit_note = 1 THEN '02-REG'
+				ELSE '01-REG'
 			END AS transaction_type,
             (tPI.total - tPI.total_exempt) AS taxable_base
         FROM
@@ -244,7 +245,9 @@ def execute(filters=None):
         {"fieldname": "nro_comprobante_retencion", "label": "Nro. Comprob. de Retención", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "fecha_entrega", "label": "Fecha de Entrega", "fieldtype": "Date", "width": "auto"},
         {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": "auto"},
-        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": "auto"}
+        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "iva_retenido_terceros", "label": "IVA Retenido (a terceros)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "anticipo_iva_importacion", "label": "Anticipo de IVA (Importación)", "fieldtype": "Currency", "width": "auto"}
     ]
 
     data = get_query_data(filters)

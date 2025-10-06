@@ -138,10 +138,10 @@ def get_sales_data(filters):
 				ELSE 'REG'
 			END AS transaction_type,
 			CASE
-				WHEN tc.customer_type = 'Company' THEN 'PJ'
-				WHEN tc.customer_type = 'Individual' THEN 'PN'
-				WHEN tc.customer_type = 'Partnership' THEN 'PJ'
-				ELSE "N/A"
+			    WHEN T4.type_of_person = 'Persona Juridica domiciliada' THEN 'PJD'
+                WHEN T4.type_of_person = 'Persona Juridica no domiciliada' THEN 'PJND'
+                WHEN T4.type_of_person = 'Persona Natural domiciliada' THEN 'PND'
+                WHEN T4.type_of_person = 'Persona Natural no domiciliada' THEN 'PNND'
 			END AS customer_type,
 			siv.grand_total,
 			siv.total,
