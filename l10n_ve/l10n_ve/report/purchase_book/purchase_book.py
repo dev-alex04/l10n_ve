@@ -370,26 +370,18 @@ def generate_txt_file(filters):
             year = fiscal_year
 
         periodo = f"{year}{month}"
-        if not data:
-            # Si no hay datos, crea una línea con valores por defecto
-            today_date = frappe.utils.nowdate()
+
+        invoices_with_voucher = [row for row in data if row.get("nro_comprobante_retencion")]
+
+        if not invoices_with_voucher:
+            # Si no hay facturas con comprobante, crea una línea con valores por defecto
             line_data = [
                 str(company_rif) or "",
                 str(periodo) or "",
-                "0",
-                "0",
-                "0",
-                "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"
-            ]
+            ] + ["0"] * 14
             content = "\t".join(line_data) + "\n"
             encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
         else:
-            invoices_with_voucher = [row for row in data if row.get("nro_comprobante_retencion")]
-
-            if not invoices_with_voucher:
-                frappe.throw(_("Las facturas encontradas en el período seleccionado "
-                "no tienen comprobantes de retención para generar el archivo TXT."))
-
             content_lines = []
             for row in invoices_with_voucher:
 
@@ -409,8 +401,8 @@ def generate_txt_file(filters):
                     transaction_code = "02"
 
                 line_data = [
-                    str(company_rif) or "",
-                    str(periodo) or "",
+                    str(company_rif),
+                    str(periodo),
                     getdate(row.get("posting_date")).strftime("%Y-%m-%d") if row.get("posting_date") else "",
                     "V" if flt(row.get("tipo")) == 1 else "C",
                     transaction_code,
