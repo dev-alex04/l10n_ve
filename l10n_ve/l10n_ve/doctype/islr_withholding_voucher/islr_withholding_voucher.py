@@ -9,9 +9,6 @@ from l10n_ve.utils.utils import format_amounts
 class ISLRWithholdingVoucher(Document):
 
     def before_print(self, settings):
-        self.company_tax_id = frappe.db.get_value("Company", self.empresa, "tax_id")
-        self.supplier_tax_id = frappe.db.get_value("Supplier", self.supplier, "tax_id")
-
         main_fields = [
             "totals_total_exempt",
             "totals_tax_amount",
@@ -25,7 +22,7 @@ class ISLRWithholdingVoucher(Document):
         ]
 
         format_amounts(self, main_fields, child_fields, child_table_field="islr_withholding_voucher_item")
-
+    
     def before_insert(self):
         company_doc = frappe.get_doc("Company", self.empresa)
 
@@ -44,7 +41,7 @@ class ISLRWithholdingVoucher(Document):
         else:
             voucher_correlative_num = 1
             next_correlative_num = 2
-
+            
             template = company_doc.islr_withholding_format
             num_digits = len(template) - 6
 
@@ -63,30 +60,30 @@ class ISLRWithholdingVoucher(Document):
 def get_vat_correlative(company_name):
     if not company_name:
         return
-
+    
     company_doc = frappe.get_doc("Company", company_name)
-
+    
     correlative_value = company_doc.islr_withholding_correlative
-
+    
     today = getdate(nowdate())
     current_year = str(today.year)
     current_month = f"{today.month:02d}"
 
     if correlative_value:
         last_correlative_part = correlative_value[6:]
-
+        
         new_correlative = int(last_correlative_part)
         num_digits = len(last_correlative_part)
-
+            
     else:
         new_correlative = 1
         template = company_doc.islr_withholding_format
         num_digits = len(template) - 6
-
+    
     formatted_correlative = str(new_correlative).zfill(num_digits)
-
+    
     final_withholding_number = f"{current_year}{current_month}{formatted_correlative}"
-
+    
     return final_withholding_number
 
 @frappe.whitelist()
@@ -105,7 +102,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"posting_date": ["between", [start_date, end_date]]},
             {"company": company},
             {"docstatus": 1},
-            {"is_return": 0},
+            {"is_return": 0}, 
             {"is_debit_note": 0},
             {"status": "Paid"},
             {"name": ["not in", all_excluded_invoices]},
@@ -115,7 +112,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     )
 
     valid_invoices_names = [d.name for d in valid_invoices]
-
+    
     associated_credit_notes = frappe.get_all(
         "Purchase Invoice",
         filters=[
@@ -131,7 +128,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         fields=["name"]
     )
     associated_credit_notes_names = [d.name for d in associated_credit_notes]
-
+    
     associated_debit_notes = frappe.get_all(
         "Purchase Invoice",
         filters=[
@@ -149,7 +146,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     associated_debit_notes_names = [d.name for d in associated_debit_notes]
 
     final_document_list = valid_invoices_names + associated_credit_notes_names + associated_debit_notes_names
-
+    
     if not final_document_list:
         return []
 
@@ -173,28 +170,28 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         fields=["reference_name", "parent"],
         order_by="creation desc"
     )
-
+    
     payment_entries_map = {}
     for pe in all_payment_entries:
         if pe.reference_name not in payment_entries_map:
             payment_entries_map[pe.reference_name] = pe.parent
-
+    
     all_invoices_data = frappe.get_all(
         "Purchase Invoice",
         filters={"name": ["in", final_document_list]},
         fields=[
             "name", "bill_no", "bill_control", "posting_date", "grand_total",
-            "total_exempt", "is_return", "is_debit_note", "total",
-            "taxes_and_charges_added", "taxes_and_charges_deducted",
+            "total_exempt", "is_return", "is_debit_note", "total", 
+            "taxes_and_charges_added", "taxes_and_charges_deducted", 
             "credit_note_no", "debit_note_no", "affected_invoice_number"
         ]
     )
 
     invoices_with_taxes = []
-
+    
     for item in all_invoices_data:
         tax_data = tax_items_map.get(item.name)
-
+        
         if tax_data:
 
             doc_no = (
@@ -208,7 +205,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
                 "ND" if item.is_debit_note else
                 "FACT"
             )
-
+            
             invoice_data = {
                 "purchase_invoice": item.name,
                 "doc_no": doc_no,
@@ -232,7 +229,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
                 "payment_entry_name": payment_entries_map.get(item.name),
                 "taxes": tax_data
             }
-
+            
             invoices_with_taxes.append(invoice_data)
 
     return invoices_with_taxes
