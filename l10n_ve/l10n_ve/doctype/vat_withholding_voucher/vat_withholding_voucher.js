@@ -74,7 +74,7 @@ frappe.ui.form.on('VAT Withholding Voucher', {
 
         frm.set_value('supplier_address', '');
         frm.refresh_field('supplier_address');
-        
+
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
@@ -104,7 +104,7 @@ frappe.ui.form.on('VAT Withholding Voucher', {
 
         frm.set_value('company_address', '');
         frm.refresh_field('company_address');
-        
+
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
@@ -138,7 +138,7 @@ function validar_fechas(frm, campo) {
             frm.clear_table('vat_withholding_voucher_item');
             frm.add_child('vat_withholding_voucher_item');
             frm.refresh_field('vat_withholding_voucher_item');
-            
+
             throw new Error('La fecha de fin no puede ser menor que la fecha de inicio.');
         }
     } catch (e) {
@@ -184,30 +184,26 @@ function load_invoices(frm) {
                     new_row.credit_note_no = invoice.credit_note_no;
                     new_row.debit_note_no = invoice.debit_note_no;
                     new_row.affected_invoice_number = invoice.affected_invoice_number;
+                    new_row.rate = invoice.rate;
+                    new_row.tax_amount = invoice.tax_amount;
 
-                    if (invoice.taxes && invoice.taxes.length > 0) {
-                        let tax_item = invoice.taxes[0];
-                        new_row.rate = tax_item.rate; 
-                        new_row.tax_amount = tax_item.tax_amount;
-                    }
-                    
                     let negative = invoice.is_return ? -1 : 1;
-                    
+
                     frm.doc.totals_grand_total += invoice.grand_total * negative || 0;
                     frm.doc.totals_total_exempt += invoice.total_exempt * negative || 0;
                     frm.doc.totals_total += invoice.total * negative || 0;
                     frm.doc.totals_taxes_and_charges_added += invoice.taxes_and_charges_added * negative || 0;
                     frm.doc.totals_taxes_and_charges_deducted += invoice.taxes_and_charges_deducted * negative || 0;
                 });
-                
+
                 frm.refresh_fields([
-                    'totals_grand_total', 
-                    'totals_total_exempt', 
+                    'totals_grand_total',
+                    'totals_total_exempt',
                     'totals_total',
                     'totals_taxes_and_charges_added',
                     'totals_taxes_and_charges_deducted'
                 ]);
-                
+
                 frm.refresh_fields();
             } else {
                 frm.clear_table('vat_withholding_voucher_item');
@@ -215,7 +211,7 @@ function load_invoices(frm) {
                 frm.refresh_field('vat_withholding_voucher_item');
 
                 frm.doc.totals_grand_total = 0;
-                frm.doc.totals_totals_total_exempt = 0;
+                frm.doc.totals_total_exempt = 0;
                 frm.doc.totals_total = 0;
                 frm.doc.totals_taxes_and_charges_added = 0;
                 frm.doc.totals_taxes_and_charges_deducted = 0;
