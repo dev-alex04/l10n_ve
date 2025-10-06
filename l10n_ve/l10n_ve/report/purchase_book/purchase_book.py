@@ -345,6 +345,7 @@ def generate_txt_file(filters):
         # Obtenemos los datos del reporte usando la nueva función
         company_doc = frappe.get_doc("Company", filters.get("company"))
         company_rif = company_doc.tax_id or ""
+        company_rif = company_rif.replace('-', '')
 
         if not company_rif:
             frappe.throw(_("El RIF de la compañía no está configurado. "
@@ -369,62 +370,66 @@ def generate_txt_file(filters):
             year = fiscal_year
 
         periodo = f"{year}{month}"
-        content = ""
-
         if not data:
             # Si no hay datos, crea una línea con valores por defecto
             today_date = frappe.utils.nowdate()
             line_data = [
                 str(company_rif) or "",
                 str(periodo) or "",
-                "0",  # Fecha de hoy como placeholder
+                "0",
                 "0",
                 "0",
                 "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"
             ]
             content = "\t".join(line_data) + "\n"
+            encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
         else:
-            for row in data:
-                # Solo procesar la fila si tiene un número de comprobante de retención
-                if row.get("nro_comprobante_retencion"):
-                    # Determinamos la alícuota a mostrar
-                    tax_rate = "0"
-                    if flt(row.get("base_general")) > 0:
-                        tax_rate = "16"
-                    elif flt(row.get("base_reducida")) > 0:
-                        tax_rate = "8"
-                    elif flt(row.get("base_adicional")) > 0:
-                        tax_rate = "31"
+            invoices_with_voucher = [row for row in data if row.get("nro_comprobante_retencion")]
 
-                    transaction_code = "01"
+            if not invoices_with_voucher:
+                frappe.throw(_("Las facturas encontradas en el período seleccionado "
+                "no tienen comprobantes de retención para generar el archivo TXT."))
 
-                    if flt(row.get("tipo")) == 1:
-                        transaction_code = "03"
+            content_lines = []
+            for row in invoices_with_voucher:
 
-                    elif row.get("debit_note_no"):
-                        transaction_code = "02"
+                tax_rate = "0"
+                if flt(row.get("base_general")) > 0:
+                    tax_rate = "16"
+                elif flt(row.get("base_reducida")) > 0:
+                    tax_rate = "8"
+                elif flt(row.get("base_adicional")) > 0:
+                    tax_rate = "31"
 
-                    line_data = [
-                        str(company_rif) or "",
-                        str(periodo) or "",
-                        getdate(row.get("posting_date")).strftime("%Y-%m-%d") if row.get("posting_date") else "",
-                        "V" if flt(row.get("tipo")) == 1 else "C",
-                        transaction_code,
-                        row.get("tax_id") or "0",
-                        row.get("bill_no") or "0",
-                        row.get("bill_control") or "0",
-                        f"{flt(row.get('grand_total') or 0):.2f}",
-                        f"{flt(row.get('taxable_base') or 0):.2f}",
-                        f"{flt(row.get('taxes_and_charges_deducted') or 0):.2f}",
-                        row.get("affected_invoice_number") or "0",
-                        row.get("nro_comprobante_retencion") or "0",
-                        f"{flt(row.get('total_exempt') or 0):.2f}",
-                        f"{flt(tax_rate):.2f}",
-                        "0",
-                    ]
-                    content += "\t".join(line_data) + "\n"
+                transaction_code = "01"
 
-        encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+                if flt(row.get("tipo")) == 1:
+                    transaction_code = "03"
+                elif row.get("debit_note_no"):
+                    transaction_code = "02"
+
+                line_data = [
+                    str(company_rif) or "",
+                    str(periodo) or "",
+                    getdate(row.get("posting_date")).strftime("%Y-%m-%d") if row.get("posting_date") else "",
+                    "V" if flt(row.get("tipo")) == 1 else "C",
+                    transaction_code,
+                    row.get("tax_id") or "0",
+                    row.get("bill_no") or "0",
+                    row.get("bill_control") or "0",
+                    f"{flt(row.get('grand_total') or 0):.2f}",
+                    f"{flt(row.get('taxable_base') or 0):.2f}",
+                    f"{flt(row.get('taxes_and_charges_deducted') or 0):.2f}",
+                    row.get("affected_invoice_number") or "0",
+                    row.get("nro_comprobante_retencion") or "0",
+                    f"{flt(row.get('total_exempt') or 0):.2f}",
+                    f"{flt(tax_rate):.2f}",
+                    "0",
+                ]
+                content_lines.append("\t".join(line_data))
+
+            content = "\n".join(content_lines) + "\n"
+            encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
 
         return {
             "type": "download",
