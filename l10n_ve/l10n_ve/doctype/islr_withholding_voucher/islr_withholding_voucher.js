@@ -65,7 +65,7 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
 
         frm.set_value('supplier_address', '');
         frm.refresh_field('supplier_address');
-        
+
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
@@ -95,7 +95,7 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
 
         frm.set_value('company_address', '');
         frm.refresh_field('company_address');
-        
+
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
@@ -129,7 +129,7 @@ function validar_fechas(frm, campo) {
             frm.clear_table('islr_withholding_voucher_item');
             frm.add_child('islr_withholding_voucher_item');
             frm.refresh_field('islr_withholding_voucher_item');
-            
+
             throw new Error('La fecha de fin no puede ser menor que la fecha de inicio.');
         }
     } catch (e) {
@@ -166,28 +166,22 @@ function load_invoices(frm) {
                     new_row.posting_date = invoice.posting_date;
                     new_row.grand_total = invoice.grand_total;
                     new_row.payment_entry_name = invoice.payment_entry_name || '';
+                    new_row.total_exempt = invoice.total_exempt;
+                    new_row.amount_paid = invoice.grand_total;
+                    new_row.rate = invoice.rate;
+                    new_row.subtracting = invoice.subtracting;
+                    new_row.code = invoice.code;
+                    new_row.tax_amount = invoice.tax_amount;
 
-                    if (invoice.taxes) {
-                        let tax_item = invoice.taxes;
-                        new_row.total_exempt = invoice.total_exempt;
-                        new_row.amount_paid = invoice.grand_total;
-                        new_row.rate = tax_item.rate; 
-                        new_row.subtracting = tax_item.subtracting; 
-                        new_row.code = tax_item.code; 
-                        new_row.tax_amount = tax_item.tax_amount;
-                    }
-
-                    let negative = invoice.is_return ? -1 : 1;
-                    
-                    frm.doc.totals_total_exempt += invoice.total_exempt * negative || 0;
-                    frm.doc.totals_tax_amount += invoice.tax_amount * negative || 0;
+                    frm.doc.totals_total_exempt += invoice.total_exempt || 0;
+                    frm.doc.totals_tax_amount += invoice.tax_amount || 0;
                 });
-                
+
                 frm.refresh_fields([
                     'totals_total_exempt',
                     'totals_tax_amount'
                 ]);
-                
+
                 frm.refresh_fields();
             } else {
                 frm.clear_table('islr_withholding_voucher_item');
