@@ -294,7 +294,7 @@ def generate_xml_islr_file(filters=None):
             frappe.throw(_("Filtros son requeridos."))
 
         if isinstance(filters, str):
-            filters = json.loads(filters)
+            filters = frappe.parse_json(filters)
 
         from_date, to_date = _get_date_range_from_filters(filters)
         filters["date_from"] = from_date
@@ -345,9 +345,7 @@ def generate_xml_islr_file(filters=None):
         reparsed = minidom.parseString(rough_string)
         pretty_xml_as_string = reparsed.toprettyxml(indent="  ", encoding="UTF-8").decode()
 
-        final_xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + pretty_xml_as_string.split('?>\n', 1)[-1]
-
-        return final_xml
+        return pretty_xml_as_string
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en generate_xml_islr_file")
