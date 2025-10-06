@@ -3,13 +3,14 @@
 import frappe
 from frappe import _, throw
 from frappe.utils import flt, getdate, format_date
-from collections import defaultdict
+
 import calendar
 from datetime import date
 import base64
-from io import StringIO
 import json
-import re
+
+from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.dom import minidom
 
 def get_report_summary(totals):
     summary = [
@@ -195,7 +196,7 @@ def get_query_data(filters):
 				WHEN tPI.is_debit_note = 1 THEN 'ND'
 				ELSE 'REG'
 			END AS transaction_type,
-            tPI.total AS taxable_base
+            (tPI.total - tPI.total_exempt) AS taxable_base
         FROM
             `tabPurchase Invoice` as tPI
         LEFT JOIN
@@ -251,137 +252,143 @@ def execute(filters=None):
     report_summary = get_report_summary(totals)
     return columns, data, None, None, report_summary
 
+def _get_date_range_from_filters(filters):
+    """
+    Helper function to determine date range from report filters.
+    Handles both direct date ranges and fiscal period selections.
+    """
+    from_date = filters.get("date_from")
+    to_date = filters.get("to_date")
+    fiscal_year = filters.get("fiscal_year")
+    fiscal_month_name = filters.get("fiscal_month")
+
+    if fiscal_year and fiscal_month_name:
+        try:
+            year = int(fiscal_year)
+            month_mapping = {
+                'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
+                'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+            }
+            month_num = month_mapping.get(fiscal_month_name)
+            if not month_num:
+                raise ValueError("Invalid month name")
+
+            from_date = date(year, month_num, 1).strftime('%Y-%m-%d')
+            last_day = calendar.monthrange(year, month_num)[1]
+            to_date = date(year, month_num, last_day).strftime('%Y-%m-%d')
+        except (ValueError, TypeError):
+            frappe.throw(_("Valores de Año o Mes Fiscal inválidos."))
+
+    if not from_date or not to_date:
+        frappe.throw(_("Por favor, seleccione un rango de fechas o un período fiscal para generar el archivo."))
+
+    return from_date, to_date
+
 @frappe.whitelist()
 def generate_xml_islr_file(filters=None):
     """
     Generates an XML string for ISLR retentions based on report filters.
     """
-    if not filters:
-        frappe.throw(_("Filtros de fecha son requeridos."))
+    try:
+        if not filters:
+            frappe.throw(_("Filtros son requeridos."))
 
-    # Asegura que filters es un diccionario
-    if isinstance(filters, str):
-        filters = json.loads(filters)
+        if isinstance(filters, str):
+            filters = json.loads(filters)
 
-    # Lógica para convertir el año y mes fiscal a un rango de fechas
-    if filters.get("fiscal_year") and filters.get("fiscal_month"):
-        try:
-            year = int(filters.get("fiscal_year"))
-            month_mapping = {
-            'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
-            'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10,
-            'Noviembre': 11, 'Diciembre': 12
-            }
-            month_num = month_mapping.get(filters.get("fiscal_month"))
+        from_date, to_date = _get_date_range_from_filters(filters)
+        filters["date_from"] = from_date
+        filters["to_date"] = to_date
 
-            from_date = date(year, month_num, 1)
-            last_day = calendar.monthrange(year, month_num)[1]
-            to_date = date(year, month_num, last_day)
+        company_doc = frappe.get_doc("Company", filters.get("company"))
+        company_rif = (company_doc.tax_id or "").replace('-', '')
+        periodo = getdate(from_date).strftime('%Y%m')
 
-            # Reemplaza los filtros originales con el nuevo rango de fechas
-            filters["date_from"] = from_date.strftime('%Y-%m-%d')
-            filters["to_date"] = to_date.strftime('%Y-%m-%d')
+        invoices = frappe.db.sql("""
+            SELECT
+                REPLACE(tS.tax_id, '-', '') AS supplier_rif,
+                tPI.bill_no,
+                tPI.bill_control,
+                tPI.posting_date,
+                tPTC.code,
+                tPI.grand_total,
+                tPTC.rate AS retention_percentage
+            FROM `tabPurchase Taxes and Charges` AS tPTC
+            JOIN `tabPurchase Invoice` AS tPI ON tPTC.parent = tPI.name
+            JOIN `tabSupplier` AS tS ON tPI.supplier = tS.name
+            WHERE
+                tPTC.charge_type = 'ISLR' AND tPI.docstatus = 1
+                AND tPI.posting_date BETWEEN %(date_from)s AND %(to_date)s
+                AND tPI.company = %(company)s
+        """, filters, as_dict=True)
 
-        except (ValueError, TypeError):
-            frappe.throw(_("Valores de Año o Mes Fiscal inválidos."))
+        if not invoices:
+            frappe.msgprint(_("No se encontraron retenciones de "
+                            "ISLR para los filtros seleccionados."))
+            return None
 
+        # Construcción del XML
+        root = Element('RelacionRetencionesISLR', {'RifAgente': company_rif, 'Periodo': periodo})
 
-    invoices = frappe.db.sql("""
-        SELECT
-            tPI.name,
-            tPI.supplier,
-            tPI.posting_date,
-            tPI.bill_no,
-            tPI.bill_control,
-            tPI.grand_total,
-            tPTC.tax_amount AS retention_amount,
-            tPTC.code AS code,
-            tPI.affected_invoice_number,
-            tPTC.rate AS retention_percentage
-        FROM
-            `tabPurchase Taxes and Charges` AS tPTC
-        JOIN
-            `tabPurchase Invoice` AS tPI ON tPTC.parent = tPI.name
-        WHERE
-            tPTC.charge_type = 'ISLR' AND tPI.docstatus = 1
-            AND tPI.posting_date >= %(date_from)s
-            AND tPI.posting_date <= %(to_date)s
-            AND tPI.company = %(company)s
-    """, filters, as_dict=True)
+        for inv in invoices:
+            detalle = SubElement(root, 'DetalleRetencion')
+            SubElement(detalle, 'RifRetenido').text = inv.supplier_rif or 'N/A'
+            SubElement(detalle, 'NumeroFactura').text = inv.bill_no or 'N/A'
+            SubElement(detalle, 'NumeroControl').text = inv.bill_control or 'N/A'
+            SubElement(detalle, 'FechaOperacion').text = getdate(inv.posting_date).strftime('%d/%m/%Y')
+            SubElement(detalle, 'CodigoConcepto').text = inv.code or 'N/A'
+            SubElement(detalle, 'MontoOperacion').text = f"{flt(inv.grand_total):.2f}"
+            SubElement(detalle, 'PorcentajeRetencion').text = f"{flt(inv.retention_percentage)}"
 
-    if not invoices:
-        return None
+        # Formatear para una salida legible (pretty print)
+        rough_string = tostring(root, 'utf-8')
+        reparsed = minidom.parseString(rough_string)
+        pretty_xml_as_string = reparsed.toprettyxml(indent="  ", encoding="UTF-8").decode()
 
+        final_xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + pretty_xml_as_string.split('?>\n', 1)[-1]
 
-    xml_data = '<?xml version="1.0" encoding="UTF-8"?>\n<RelacionRetencionesISLR>\n'
+        return final_xml
 
-
-    for i, inv in enumerate(invoices):
-
-        supplier_tax_id = frappe.db.get_value("Supplier", inv.supplier, "tax_id")
-
-        xml_data += f'    <DetalleRetencion>\n'
-        xml_data += f'        <RifRetenido>{supplier_tax_id}</RifRetenido>\n'
-        xml_data += f'        <NumeroFactura>{inv.bill_no}</NumeroFactura>\n'
-        xml_data += f'        <NumeroControl>{inv.bill_control}</NumeroControl>\n'
-        xml_data += f'        <FechaOperacion>{inv.posting_date}</FechaOperacion>\n'
-        xml_data += f'        <CodigoConcepto>{inv.code}</CodigoConcepto>\n'
-        xml_data += f'        <MontoOperacion>{inv.grand_total:.2f}</MontoOperacion>\n'
-        xml_data += f'        <PorcentajeRetencion>{inv.retention_percentage}</PorcentajeRetencion>\n'
-        xml_data += f'    </DetalleRetencion>\n'
-
-
-    xml_data += '</RelacionRetencionesISLR>'
-
-    return xml_data
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error en generate_xml_islr_file")
+        frappe.throw(_(f"Ocurrió un error al generar el archivo XML de ISLR: {e}"))
 
 @frappe.whitelist()
 def generate_txt_file(filters):
 
     try:
+        if isinstance(filters, str):
+            filters = frappe.parse_json(filters)
 
-        filters = frappe.parse_json(filters)
-        data = get_query_data(filters)
-        # Obtenemos los datos del reporte usando la nueva función
+        from_date, to_date = _get_date_range_from_filters(filters)
+        filters["date_from"] = from_date
+        filters["to_date"] = to_date
+
         company_doc = frappe.get_doc("Company", filters.get("company"))
         company_rif = company_doc.tax_id or ""
         company_rif = company_rif.replace('-', '')
 
         if not company_rif:
-            frappe.throw(_("El RIF de la compañía no está configurado. "
-            "Por favor, agregue el RIF en la configuración de la compañía."))
+            frappe.throw(_("El RIF de la compañía no está configurado."))
 
-        # Lógica para determinar el período del TXT (mes y año)
-        fiscal_year = str(filters.get("fiscal_year"))
-        fiscal_month_name = filters.get("fiscal_month")
-
-        if not fiscal_year or not fiscal_month_name:
-            date_from = getdate(filters.get("date_from"))
-
-            month = str(date_from.month).zfill(2)
-            year = str(date_from.year)
-
-        else:
-            month_mapping = {
-                'Enero': '01', 'Febrero': '02', 'Marzo': '03', 'Abril': '04', 'Mayo': '05', 'Junio': '06',
-                'Julio': '07', 'Agosto': '08', 'Septiembre': '09', 'Octubre': '10', 'Noviembre': '11', 'Diciembre': '12'
-            }
-            month = month_mapping.get(fiscal_month_name)
-            year = fiscal_year
-
-        periodo = f"{year}{month}"
-
+        periodo = getdate(from_date).strftime('%Y%m')
+        data = get_query_data(filters)
         invoices_with_voucher = [row for row in data if row.get("nro_comprobante_retencion")]
 
         if not invoices_with_voucher:
             # Si no hay facturas con comprobante, crea una línea con valores por defecto
             line_data = [
+
                 str(company_rif) or "",
                 str(periodo) or "",
+
             ] + ["0"] * 14
+
             content = "\t".join(line_data) + "\n"
             encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+
         else:
+
             content_lines = []
             for row in invoices_with_voucher:
 
@@ -406,7 +413,7 @@ def generate_txt_file(filters):
                     getdate(row.get("posting_date")).strftime("%Y-%m-%d") if row.get("posting_date") else "",
                     "V" if flt(row.get("tipo")) == 1 else "C",
                     transaction_code,
-                    row.get("tax_id") or "0",
+                    (row.get("tax_id") or "0").replace('-', ''),
                     row.get("bill_no") or "0",
                     row.get("bill_control") or "0",
                     f"{flt(row.get('grand_total') or 0):.2f}",
