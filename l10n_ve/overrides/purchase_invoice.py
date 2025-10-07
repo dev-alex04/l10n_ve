@@ -2,8 +2,10 @@ import frappe
 from frappe import _, _dict
 from frappe.utils import flt, get_link_to_form
 
+
 import erpnext
 from erpnext.stock import get_warehouse_account_map
+from erpnext.accounts.utils import get_account_currency
 from erpnext.assets.doctype.asset.asset import is_cwip_accounting_enabled
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
 from erpnext.assets.doctype.asset_category.asset_category import get_asset_category_account
@@ -419,11 +421,128 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
         self.append("taxes", withholding)
 
+    def make_tax_gl_entries(self, gl_entries) -> None:
+
+        """
+        Override para solo hacer los asientos que NO sean de retenciones
+        """
+
+        # tax table gl entries
+        valuation_tax = {}
+
+        for tax in self.get("taxes"):
+
+            if tax.is_tax_withholding_account:
+                continue
+
+            amount, base_amount = self.get_tax_amounts(tax, None)
+            if tax.category in ("Total", "Valuation and Total") and flt(base_amount):
+                account_currency = get_account_currency(tax.account_head)
+
+                dr_or_cr = "debit" if tax.add_deduct_tax == "Add" else "credit"
+
+                gl_entries.append(
+                    self.get_gl_dict(
+                        {
+                            "account": tax.account_head,
+                            "against": self.supplier,
+                            dr_or_cr: base_amount,
+                            dr_or_cr + "_in_account_currency": base_amount
+                            if account_currency == self.company_currency
+                            else amount,
+                            dr_or_cr + "_in_transaction_currency": amount,
+                            "cost_center": tax.cost_center,
+                        },
+                        account_currency,
+                        item=tax,
+                    )
+                )
+            # accumulate valuation tax
+            if (
+                self.is_opening == "No"
+                and tax.category in ("Valuation", "Valuation and Total")
+                and flt(base_amount)
+                and not self.is_internal_transfer()
+            ):
+                if self.auto_accounting_for_stock and not tax.cost_center:
+                    frappe.throw(
+                        _("Cost Center is required in row {0} in Taxes table for type {1}").format(
+                            tax.idx, _(tax.category)
+                        )
+                    )
+                valuation_tax.setdefault(tax.name, 0)
+                valuation_tax[tax.name] += (tax.add_deduct_tax == "Add" and 1 or -1) * flt(base_amount)
+
+        if self.is_opening == "No" and self.negative_expense_to_be_booked and valuation_tax:
+            # credit valuation tax amount in "Expenses Included In Valuation"
+            # this will balance out valuation amount included in cost of goods sold
+
+            total_valuation_amount = sum(valuation_tax.values())
+            amount_including_divisional_loss = self.negative_expense_to_be_booked
+            i = 1
+
+            for tax in self.get("taxes"):
+
+                if tax.is_tax_withholding_account:
+                    continue
+
+                if valuation_tax.get(tax.name):
+                    if i == len(valuation_tax):
+                        applicable_amount = amount_including_divisional_loss
+                    else:
+                        applicable_amount = self.negative_expense_to_be_booked * (
+                            valuation_tax[tax.name] / total_valuation_amount
+                        )
+                        amount_including_divisional_loss -= applicable_amount
+
+                    gl_entries.append(
+                        self.get_gl_dict(
+                            {
+                                "account": tax.account_head,
+                                "cost_center": tax.cost_center,
+                                "against": self.supplier,
+                                "credit": applicable_amount,
+                                "credit_in_transaction_currency": flt(
+                                    applicable_amount / self.conversion_rate,
+                                    frappe.get_precision("Purchase Invoice Item", "item_tax_amount"),
+                                ),
+                                "remarks": self.remarks or _("Accounting Entry for Stock"),
+                            },
+                            item=tax,
+                        )
+                    )
+
+                    i += 1
+
+        if self.auto_accounting_for_stock and self.update_stock and valuation_tax:
+            for tax in self.get("taxes"):
+
+                if tax.is_tax_withholding_account:
+                    continue
+
+                if valuation_tax.get(tax.name):
+                    gl_entries.append(
+                        self.get_gl_dict(
+                            {
+                                "account": tax.account_head,
+                                "cost_center": tax.cost_center,
+                                "against": self.supplier,
+                                "credit": valuation_tax[tax.name],
+                                "credit_in_transaction_currency": flt(
+                                    valuation_tax[tax.name] / self.conversion_rate,
+                                    frappe.get_precision("Purchase Invoice Item", "item_tax_amount"),
+                                ),
+                                "remarks": self.remarks or _("Accounting Entry for Stock"),
+                            },
+                            item=tax,
+                        )
+                    )
+
     def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
         """
-        Tax withholding amount is not part of supplier invoice.
-        Separate supplier GL Entry for correct reporting.
+        Se inactiva esta funcion, ya que aqui no se haran los asientos de las retenciones
         """
+        return
 
         for tax in self.get("taxes") or []:
 

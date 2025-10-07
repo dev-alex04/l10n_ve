@@ -96,7 +96,6 @@
         "value": 1
    },
    {
-
         "doc_type": "Sales Invoice",
         "doctype": "Property Setter",
         "doctype_or_field": "DocType",
@@ -429,5 +428,53 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
-    }
+    },
+    {
+        "default_value": null,
+        "doc_type": "Advance Taxes and Charges",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "charge_type",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Advance Taxes and Charges-charge_type-options",
+        "property": "options",
+        "property_type": "Text",
+        "row_name": null,
+        "value": "\nActual\nOn Net Total\nOn Previous Row Amount\nOn Previous Row Total\nOn Item Quantity\nISLR\nVAT\nVAT Withholding"
+   },
+   {
+        "default_value": 1,
+        "doc_type": "Purchase Invoice",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "bill_no",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Purchase Invoice-bill_no-reqd",
+        "property": "reqd",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+   },
+   {
+        "default_value": 1,
+        "doc_type": "Payment Entry",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "taxes",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Payment Entry-taxes-read_only",
+        "property": "read_only",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+   }
 ]

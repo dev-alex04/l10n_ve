@@ -1,7 +1,6 @@
-from typing import NoReturn
 import frappe
 from frappe import _, _dict
-from frappe.utils import flt, cint
+from frappe.utils import flt
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
@@ -78,7 +77,6 @@ class CustomSalesInvoice(SalesInvoice):
 
             self.bill_control = company.get_control_number()
             company.increment_control_number()
-
 
     def set_affected_invoice_number(self) -> None:
         # Esta función se ejecutará solo para notas de crédito o débito
@@ -317,7 +315,7 @@ class CustomSalesInvoice(SalesInvoice):
         self.save()
         return self.name
 
-    def calculate_total_withholding(self):
+    def calculate_total_withholding(self) -> None:
         self.total_withholding  = 0.0
 
         if not self.get("taxes"):
@@ -353,68 +351,6 @@ class CustomSalesInvoice(SalesInvoice):
                     account_currency,
                     item=tax,
                 ))
-
-        self.make_gl_entries_for_tax_withholding(gl_entries)
-
-    def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
-
-        for tax in self.get("taxes") or []:
-
-            if not tax.is_tax_withholding_account or not tax.tax_amount:
-                continue
-
-            if (
-                self.is_return
-                and self.return_against
-                and not self.update_outstanding_for_self
-            ):
-                against_voucher = self.return_against
-            else:
-                against_voucher = self.name
-
-            # TODO: Mejorar para no repetir codigo
-
-            # Withholding GL
-            debit_or_credit = "debit" if self.docstatus == 1 else "credit"
-
-            gl = {
-                "account": tax.account_head,
-                "against": self.debit_to,
-                "against_voucher": against_voucher,
-                "against_voucher_type": self.doctype,
-                "cost_center": self.cost_center,
-                debit_or_credit: tax.tax_amount,
-                f"{debit_or_credit}_in_account_currency": tax.tax_amount,
-                f"{debit_or_credit}_in_transaction_currency": tax.tax_amount,
-                "due_date": self.due_date,
-                "project": self.project,
-                "remarks": self.remarks,
-                "_skip_merge": True,
-            }
-
-            gl_entries.append(self.get_gl_dict(gl, self.party_account_currency, item=self))
-
-            # Customer GL
-            debit_or_credit = "credit" if self.docstatus == 1 else "debit"
-
-            gl = {
-                "account": self.debit_to,
-                "against": tax.account_head,
-                "against_voucher": against_voucher,
-                "against_voucher_type": self.doctype,
-                "cost_center": self.cost_center,
-                debit_or_credit: tax.tax_amount,
-                f"{debit_or_credit}_in_account_currency": tax.tax_amount,
-                f"{debit_or_credit}_in_transaction_currency": tax.tax_amount,
-                "due_date": self.due_date,
-                "party": self.customer,
-                "party_type": "Customer",
-                "project": self.project,
-                "remarks": self.remarks,
-                "_skip_merge": True,
-            }
-
-            gl_entries.append(self.get_gl_dict(gl, self.party_account_currency, item=self))
 
     def validate_item_iva(self):
         return
