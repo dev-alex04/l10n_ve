@@ -1,7 +1,6 @@
 # Copyright (c) 2025, DominaERP and contributors
 # For license information, please see license.txt
 
-
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, add_days
@@ -66,6 +65,7 @@ def get_columns():
         {"label": _("Nro. de Factura"), "fieldname": "bill_no", "fieldtype": "Data", "width": 150},
         {"label": _("Nro. de Control"), "fieldname": "bill_control", "fieldtype": "Data", "width": 120},
         {"label": _("Nro. de Maquina Fiscal"), "fieldname": "maquina_fiscal", "fieldtype": "Data", "width": 150},
+        {"label": _("Nro. Reporte Z"), "fieldname": "reporte_z", "fieldtype": "Data", "width": 150},
         {"label": _("Nro. Nota de Credito"), "fieldname": "credit_note_no", "fieldtype": "Data", "width": 150},
         {"label": _("Nro. Nota de Debito"), "fieldname": "debit_note_no", "fieldtype": "Data", "width": 150},
 		{"label": _("Facturas afectadas"), "fieldname": "affected_invoice_number", "fieldtype": "Data", "width": 120},
@@ -133,15 +133,18 @@ def get_sales_data(filters):
 			siv.bill_no,
 			siv.bill_control,
 			CASE
-				WHEN siv.is_return = 1 THEN 'NC'
-				WHEN siv.is_debit_note = 1 THEN 'ND'
-				ELSE 'REG'
+				WHEN siv.docstatus = 2 THEN '03-Anu'
+                WHEN MONTH(siv.posting_date) != MONTH(%(from_date)s) OR YEAR(siv.posting_date) != YEAR(%(from_date)s) THEN '04-Ajuste'
+				WHEN siv.is_return = 1 THEN '02-Comp'
+				WHEN siv.is_debit_note = 1 THEN '02-Comp'
+				ELSE '01-Reg'
 			END AS transaction_type,
 			CASE
-			    WHEN T4.type_of_person = 'Persona Juridica domiciliada' THEN 'PJD'
-                WHEN T4.type_of_person = 'Persona Juridica no domiciliada' THEN 'PJND'
-                WHEN T4.type_of_person = 'Persona Natural domiciliada' THEN 'PND'
-                WHEN T4.type_of_person = 'Persona Natural no domiciliada' THEN 'PNND'
+			    WHEN tc.type_of_person = 'Domiciled legal entity' THEN 'PJD'
+                WHEN tc.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
+                WHEN tc.type_of_person = 'Natural person domiciled' THEN 'PND'
+                WHEN tc.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
+				ELSE 'N/A'
 			END AS customer_type,
 			siv.grand_total,
 			siv.total,
@@ -209,7 +212,7 @@ def get_sales_data(filters):
 		WHERE
 			siv.company = %(company)s
 			AND siv.posting_date BETWEEN %(from_date)s AND %(to_date)s
-			AND siv.docstatus IN (1)
+			AND siv.docstatus IN (1, 2)
 		ORDER BY
 			siv.posting_date ASC
 	""", {
