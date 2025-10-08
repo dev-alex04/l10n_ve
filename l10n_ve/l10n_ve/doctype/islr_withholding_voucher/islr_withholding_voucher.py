@@ -125,7 +125,12 @@ def get_valid_invoices(supplier, start_date, end_date, company):
 
     approved_payment_entries = frappe.get_all(
         "Payment Entry",
-        filters={"docstatus": 1},
+        filters={
+            "docstatus": 1,
+            "company": company,
+            "party_type": "Supplier",
+            "party": supplier,
+        },
         fields=["name"]
     )
     approved_payment_entry_names = [d.name for d in approved_payment_entries]
