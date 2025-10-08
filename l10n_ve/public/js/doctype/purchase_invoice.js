@@ -4,6 +4,11 @@ frappe.ui.form.on("Purchase Invoice", {
   },
   refresh: function(frm) {
     set_purchase_invoice_buttons(frm);
+
+    if (frappe.l10n_ve && frappe.l10n_ve.utils) {
+        frappe.l10n_ve.utils.setup_void_button(frm, "Purchase Invoice");
+    }
+
     toggle_purchase_type_fields(frm);
   },
 

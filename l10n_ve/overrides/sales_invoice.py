@@ -108,25 +108,42 @@ class CustomSalesInvoice(SalesInvoice):
                 self.affected_invoice_number = None
 
     def _validate_bill_control(self,
-                               bill_control: str = '',
-                               raise_throw: bool = True) -> bool:
+                            bill_control: str = '',
+                            raise_throw: bool = True) -> bool:
         """
-        Valida que el número de control no esté ya asignado.
-        Acepta un valor opcional para validar.
+        Valida que el número de control no esté ya asignado,
+        considerando documentos Aprobados (docstatus 1) o Cancelados (docstatus 2)
+        que NO hayan sido anulados (is_void 0).
         """
         bill_control_to_validate = bill_control or self.bill_control
         if not bill_control_to_validate:
             return True
 
-        is_duplicated = frappe.db.exists(
-        "Sales Invoice",
-        {
-            'docstatus': 1,
+        base_filters = {
             'company': self.company,
             'name': ['!=', self.name],
             'bill_control': bill_control_to_validate,
         }
+
+        is_duplicated_approved = frappe.db.exists(
+            "Sales Invoice",
+            {
+                **base_filters,
+                'docstatus': 1,
+            }
         )
+
+        is_duplicated_cancelled_and_void = frappe.db.exists(
+            "Sales Invoice",
+            {
+                **base_filters,
+                'docstatus': 2, # Los documentos anulados tienen docstatus 2
+                'is_void': 1,
+            }
+        )
+
+        is_duplicated = is_duplicated_approved or is_duplicated_cancelled_and_void
+
         if is_duplicated:
             if self.is_return:
                 message = ("El número de control ya está asignado a otra Nota de Crédito.")
@@ -136,6 +153,7 @@ class CustomSalesInvoice(SalesInvoice):
             if raise_throw:
                 frappe.throw(message, title="Advertencia de Duplicado")
             return False
+
         return True
 
     def _validate_bill_no(self, bill_no: str = None, raise_throw: bool = True) -> bool:
@@ -147,16 +165,28 @@ class CustomSalesInvoice(SalesInvoice):
         if not bill_no_to_validate:
             return True
 
-        is_duplicated = frappe.db.exists(
+        base_filters = {
+            'company': self.company,
+            'name': ['!=', self.name],
+            'bill_no': bill_no_to_validate,
+            'is_return': self.is_return
+        }
+
+        is_duplicated_approved = frappe.db.exists(
+            "Sales Invoice",
+            {**base_filters, 'docstatus': 1}
+        )
+
+        is_duplicated_cancelled_and_void = frappe.db.exists(
             "Sales Invoice",
             {
-                'docstatus': 1,
-                'company': self.company,
-                'name': ['!=', self.name],
-                'bill_no': bill_no_to_validate,
-                'is_return': self.is_return
+                **base_filters,
+                'docstatus': 2,
+                'is_void': 1,
             }
         )
+
+        is_duplicated = is_duplicated_approved or is_duplicated_cancelled_and_void
 
         if is_duplicated:
             if self.is_return:
@@ -178,15 +208,27 @@ class CustomSalesInvoice(SalesInvoice):
         if not credit_note_to_validate:
             return True
 
-        is_duplicated = frappe.db.exists(
+        base_filters = {
+            'company': self.company,
+            'name': ['!=', self.name],
+            'credit_note_no': credit_note_to_validate
+        }
+
+        is_duplicated_approved = frappe.db.exists(
+            "Sales Invoice",
+            {**base_filters, 'docstatus': 1}
+        )
+
+        is_duplicated_cancelled_and_void = frappe.db.exists(
             "Sales Invoice",
             {
-                'docstatus': 1,
-                'company': self.company,
-                'name': ['!=', self.name],
-                'credit_note_no': credit_note_to_validate
+                **base_filters,
+                'docstatus': 2,
+                'is_void': 1,
             }
         )
+
+        is_duplicated = is_duplicated_approved or is_duplicated_cancelled_and_void
 
         if is_duplicated:
             message = ("El número de Nota de Crédito ya está "
@@ -206,15 +248,27 @@ class CustomSalesInvoice(SalesInvoice):
         if not debit_note_to_validate:
             return True
 
-        is_duplicated = frappe.db.exists(
+        base_filters = {
+            'company': self.company,
+            'name': ['!=', self.name],
+            'debit_note_no': debit_note_to_validate
+        }
+
+        is_duplicated_approved = frappe.db.exists(
+            "Sales Invoice",
+            {**base_filters, 'docstatus': 1}
+        )
+
+        is_duplicated_cancelled_and_void = frappe.db.exists(
             "Sales Invoice",
             {
-                'docstatus': 1,
-                'company': self.company,
-                'name': ['!=', self.name],
-                'debit_note_no': debit_note_to_validate
+                **base_filters,
+                'docstatus': 2,
+                'is_void': 1,
             }
         )
+
+        is_duplicated = is_duplicated_approved or is_duplicated_cancelled_and_void
 
         if is_duplicated:
             message = ("El número de Nota de Débito ya está asignado a otra Nota de Débito.")
@@ -525,3 +579,18 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en upload_islr_voucher_data")
         return {"status": "error", "msg": f"Error inesperado al guardar los datos: {str(e)}"}
+
+@frappe.whitelist()
+def void_document(doctype, name):
+    """
+    Marca el documento como anulado (is_void = 1).
+    Solo se permite en documentos cancelados (docstatus = 2).
+    """
+    doc = frappe.get_doc(doctype, name)
+    if doc.docstatus != 2:
+        frappe.throw(_("Solo se pueden anular documentos que han sido cancelados."))
+
+    frappe.db.set_value(doctype, name, "is_void", 1)
+    doc.add_comment("Comment", _("Documento marcado como Anulado."))
+
+    frappe.clear_document_cache(doctype, name)

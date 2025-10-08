@@ -400,6 +400,8 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                                 },
                                 item=tax,
                             )
+
+
                         )
 
                         i += 1
@@ -423,3 +425,4 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                                 item=tax,
                             )
                         )
+

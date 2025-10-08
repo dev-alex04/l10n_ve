@@ -125,20 +125,28 @@ def get_sales_data(filters):
 		additional_rate = 31.0
 
 	# La consulta SQL es la parte principal de la optimización
-	data = frappe.db.sql("""
+	data = frappe.db.sql(f"""
 		SELECT
 			siv.posting_date,
 			tc.tax_id AS customer_tax_id,
 			siv.customer_name,
 			siv.bill_no,
 			siv.bill_control,
+			siv.credit_note_no,
+			siv.debit_note_no,
+			siv.affected_invoice_number,
+			siv.vat_withholding_voucher_number,
+			siv.withholding_date,
+			siv.base_grand_total AS total_in_usd,
+
 			CASE
-				WHEN siv.docstatus = 2 THEN '03-Anu'
+				WHEN siv.is_void = 1 THEN '03-Anu' -- Si está anulado, siempre es '03-Anu'
                 WHEN MONTH(siv.posting_date) != MONTH(%(from_date)s) OR YEAR(siv.posting_date) != YEAR(%(from_date)s) THEN '04-Ajuste'
 				WHEN siv.is_return = 1 THEN '02-Comp'
 				WHEN siv.is_debit_note = 1 THEN '02-Comp'
 				ELSE '01-Reg'
 			END AS transaction_type,
+
 			CASE
 			    WHEN tc.type_of_person = 'Domiciled legal entity' THEN 'PJD'
                 WHEN tc.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
@@ -146,76 +154,46 @@ def get_sales_data(filters):
                 WHEN tc.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
 				ELSE 'N/A'
 			END AS customer_type,
-			siv.grand_total,
-			siv.total,
-			siv.total_exempt,
-			siv.credit_note_no,
-			siv.debit_note_no,
-			siv.affected_invoice_number,
-			CASE
-                WHEN tc.is_special_taxpayer = 1
-                     AND siv.vat_withholding_voucher_number IS NOT NULL
-                     AND siv.vat_withholding_voucher_number != ''
-                THEN COALESCE(ABS(tstac_retained.tax_amount), 0)
-                ELSE 0
-            END AS iva_retained,
-            CASE
-                WHEN tc.is_special_taxpayer = 1
-                     AND siv.vat_withholding_voucher_number IS NOT NULL
-                     AND siv.vat_withholding_voucher_number != ''
-                THEN COALESCE(ABS(tstac_retained.rate), 0)
-                ELSE 0
-            END AS vat_withholding_rate,
 
-			 -- Ventas a NO Contribuyentes
-            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_gen.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_general_non_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_non_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_red.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_reduced_non_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_non_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 0 AND tstac_add.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_additional_non_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 0 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total END) AS grand_total,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total END) AS total,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_exempt END) AS total_exempt,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.igtf_rate END) AS igtf_rate,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.base_amount_igtf END) AS base_amount_igtf,
 
-            -- Ventas a Contribuyentes
-            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_gen.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_general_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_gen.tax_amount, 0) ELSE 0 END AS iva_general_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_red.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_reduced_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_red.tax_amount, 0) ELSE 0 END AS iva_reduced_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 1 AND tstac_add.parent IS NOT NULL THEN (siv.total-total_exempt) ELSE 0 END AS base_additional_taxpayer,
-            CASE WHEN tc.is_special_taxpayer = 1 THEN COALESCE(tstac_add.tax_amount, 0) ELSE 0 END AS iva_additional_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_general_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_general_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_reduced_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_reduced_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_additional_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_additional_non_taxpayer,
 
-			siv.vat_withholding_voucher_number,
-			siv.withholding_date,
-			siv.base_grand_total AS total_in_usd,
-            siv.total_igtf,
-            siv.igtf_rate,
-            siv.base_amount_igtf
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_general_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_general_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_reduced_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_reduced_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_additional_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_additional_taxpayer,
+
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END) END) AS iva_retained,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END) END) AS vat_withholding_rate
 
 		FROM
 			`tabSales Invoice` siv
 		LEFT JOIN
 			`tabCustomer` tc ON tc.name = siv.customer
 		LEFT JOIN
-			`tabSales Taxes and Charges` tstac_ex
-			ON tstac_ex.parent = siv.name AND tstac_ex.rate = 0
-		LEFT JOIN
-			`tabSales Taxes and Charges` tstac_gen
-			ON tstac_gen.parent = siv.name AND tstac_gen.rate = %(general_rate)s
-		LEFT JOIN
-			`tabSales Taxes and Charges` tstac_red
-			ON tstac_red.parent = siv.name AND tstac_red.rate = %(reduced_rate)s
-		LEFT JOIN
-			`tabSales Taxes and Charges` tstac_add
-			ON tstac_add.parent = siv.name AND tstac_add.rate = %(additional_rate)s
-		LEFT JOIN
-			`tabSales Taxes and Charges` tstac_retained
-			ON tstac_retained.parent = siv.name AND tstac_retained.charge_type = 'VAT withholding'
+			`tabSales Taxes and Charges` tstac ON tstac.parent = siv.name
 		WHERE
 			siv.company = %(company)s
 			AND siv.posting_date BETWEEN %(from_date)s AND %(to_date)s
-			AND siv.docstatus IN (1, 2)
+			AND (siv.docstatus = 1 OR (siv.docstatus = 2 AND siv.is_void = 1)) -- Incluye enviados o cancelados Y anulados
+		GROUP BY
+			siv.name
 		ORDER BY
 			siv.posting_date ASC
-	""", {
+	""", { # type: ignore
 
 		"company": filters.get("company"),
 		"from_date": filters.get("from_date"),
@@ -223,6 +201,7 @@ def get_sales_data(filters):
 		"general_rate": general_rate,
 		"reduced_rate": reduced_rate,
 		"additional_rate": additional_rate
+
 	}, as_dict=1)
 
 	return data

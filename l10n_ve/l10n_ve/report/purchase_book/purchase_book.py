@@ -175,7 +175,7 @@ def get_query_data(filters):
     # Asegurarse de que from_date sea un objeto de fecha
     from_date_obj = getdate(from_date)
 
-    conditions = "AND tPI.docstatus IN (1, 2)"
+    conditions = "AND tPI.docstatus IN (1)"
     values = {}
 
     conditions += " AND tPI.posting_date BETWEEN %(from_date)s AND %(to_date)s"
@@ -443,6 +443,8 @@ def generate_txt_file(filters):
                 else:
                     transaction_code = "01"
 
+                document_number = row.get("credit_note_no") or row.get("debit_note_no") or row.get("bill_no") or "0"
+
                 line_data = [
                     str(company_rif),
                     str(periodo),
@@ -450,7 +452,7 @@ def generate_txt_file(filters):
                     "V" if flt(row.get("tipo")) == 1 else "C",
                     transaction_code,
                     (row.get("tax_id") or "0").replace('-', ''),
-                    row.get("bill_no") or "0",
+                    document_number,
                     row.get("bill_control") or "0",
                     f"{flt(row.get('grand_total') or 0):.2f}",
                     f"{flt(row.get('taxable_base') or 0):.2f}",

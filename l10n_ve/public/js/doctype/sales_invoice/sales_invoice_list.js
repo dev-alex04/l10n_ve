@@ -3,6 +3,7 @@
 
 // render
 frappe.listview_settings["Sales Invoice"] = {
+  has_indicator_for_cancelled: true,
   add_fields: [
     "customer",
     "customer_name",
@@ -13,6 +14,7 @@ frappe.listview_settings["Sales Invoice"] = {
     "currency",
     "is_return",
     "is_debit_note",
+    "is_void",
   ],
   get_indicator: function (doc) {
     let status = "";
@@ -29,9 +31,11 @@ frappe.listview_settings["Sales Invoice"] = {
       Overdue: "red",
       "Partly Paid": "yellow",
       "Internal Transfer": "darkgrey",
+      Cancelled: "red",
     };
     status = __(doc.status);
     indicator = status_colors[doc.status];
+
     if (doc.is_debit_note) {
       status = "Nota de Debito";
       indicator = "gray";
@@ -40,6 +44,12 @@ frappe.listview_settings["Sales Invoice"] = {
       status = "Nota de Credito";
       indicator = "gray";
     }
+
+    if (doc.is_void) {
+      status = "Anulado";
+      indicator = "red";
+    }
+
     return [status, indicator];
   },
   right_column: "grand_total",
