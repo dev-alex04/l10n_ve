@@ -107,7 +107,6 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"docstatus": 1},
             {"is_return": 0},
             {"is_debit_note": 0},
-            {"status": "Paid"},
             {"name": ["not in", all_excluded_invoices]},
             ["Purchase Taxes and Charges", "charge_type", "=", "ISLR"]
         ],
@@ -124,11 +123,24 @@ def get_valid_invoices(supplier, start_date, end_date, company):
 
     valid_invoices_names = [d.name for d in valid_invoices]
 
+    approved_payment_entries = frappe.get_all(
+        "Payment Entry",
+        filters={
+            "docstatus": 1,
+            "company": company,
+            "party_type": "Supplier",
+            "party": supplier,
+        },
+        fields=["name"]
+    )
+    approved_payment_entry_names = [d.name for d in approved_payment_entries]
+
     all_payment_entries = frappe.get_all(
         "Payment Entry Reference",
         filters={
             "reference_doctype": "Purchase Invoice",
-            "reference_name": ["in", valid_invoices_names]
+            "reference_name": ["in", valid_invoices_names],
+            "parent": ["in", approved_payment_entry_names]
         },
         fields=["reference_name", "parent"],
         order_by="creation desc"
@@ -139,9 +151,13 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         if pe.reference_name not in payment_entries_map:
             payment_entries_map[pe.reference_name] = pe.parent
 
+    invoices_with_approved_payment = payment_entries_map.keys()
     invoices_with_taxes = []
 
     for item in valid_invoices:
+        if item.name not in invoices_with_approved_payment:
+            continue
+
         invoice_data = {
             "purchase_invoice": item.name,
             "doc_no": item.bill_no,
