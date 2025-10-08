@@ -185,7 +185,7 @@
         "property_type": "currency",
         "row_name": null,
         "value": 1
-   
+
     },
     {
         "doc_type": "Customer",
@@ -270,5 +270,44 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Purchase Invoice",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "return_against",
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Purchase Invoice-return_against-print_hide",
+        "property": "print_hide",
+        "property_type": "field",
+        "value": 0
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Purchase Invoice",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "return_against",
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Purchase Invoice-return_against-read_only",
+        "property": "read_only",
+        "property_type": "field",
+        "value": ""
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Purchase Invoice",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "return_against",
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Purchase Invoice-return_against-depends_on",
+        "property": "depends_on",
+        "property_type": "field",
+        "value": ""
     }
 ]
