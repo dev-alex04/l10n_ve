@@ -281,7 +281,7 @@
         "module": "L10N Ve",
         "name": "Purchase Invoice-return_against-print_hide",
         "property": "print_hide",
-        "property_type": "field",
+        "property_type": "Check",
         "value": 0
     },
     {
@@ -294,8 +294,8 @@
         "module": "L10N Ve",
         "name": "Purchase Invoice-return_against-read_only",
         "property": "read_only",
-        "property_type": "field",
-        "value": ""
+        "property_type": "Check",
+        "value": 0
     },
     {
         "default_value": 1,
@@ -307,7 +307,7 @@
         "module": "L10N Ve",
         "name": "Purchase Invoice-return_against-depends_on",
         "property": "depends_on",
-        "property_type": "field",
+        "property_type": "Small Text",
         "value": ""
     }
 ]

@@ -1,6 +1,11 @@
 frappe.ui.form.on("Purchase Invoice", {
   onload: function(frm) {
     toggle_purchase_type_fields(frm);
+
+    const return_against_field = 'return_against';
+    if (frm.get_docfield(return_against_field).label !== "Factura Afectada") {
+      frm.set_df_property(return_against_field, 'label', "Factura Afectada");
+    }
   },
   refresh: function(frm) {
     set_purchase_invoice_buttons(frm);
@@ -37,8 +42,6 @@ function toggle_return_against(frm) {
   let should_show = frm.doc.is_return || frm.doc.is_debit_note;
 
   frm.toggle_display(return_against_field, should_show);
-
-  frm.set_df_property(return_against_field, 'label', "Factura Afectada");
 
   if (!should_show) {
       frm.set_value(return_against_field, null);
