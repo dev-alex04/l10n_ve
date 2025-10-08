@@ -1,7 +1,6 @@
 frappe.ui.form.on("Purchase Invoice", {
   onload: function(frm) {
     toggle_purchase_type_fields(frm);
-    toggle_return_against(frm);
   },
   refresh: function(frm) {
     set_purchase_invoice_buttons(frm);
