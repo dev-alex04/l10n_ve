@@ -96,19 +96,19 @@ class ExcelBuilder:
         header_levels = [
             # Nivel 2
             [
-                {"text": _("Ventas a Contribuyentes"), "start_col": 16, "span": 6},
-                {"text": _("Ventas a No Contribuyentes"), "start_col": 22, "span": 6},
+                {"text": _("Ventas a Contribuyentes"), "start_col": 17, "span": 6},
+                {"text": _("Ventas a No Contribuyentes"), "start_col": 23, "span": 6},
             ],
             # Nivel 3
             [
-                {"text": _("Tasa Reducida 8%"), "start_col": 16, "span": 2},
-                {"text": _("Tasa General 16%"), "start_col": 18, "span": 2},
-                {"text": _("Tasa General + Adicional 31%"), "start_col": 20, "span": 2},
-                {"text": _("Tasa Reducida 8%"), "start_col": 22, "span": 2},
-                {"text": _("Tasa General 16%"), "start_col": 24, "span": 2},
-                {"text": _("Tasa General + Adicional 31%"), "start_col": 26, "span": 2},
-                {"text": _("Retención"), "start_col": 28, "span": 4},
-                {"text": _("IGTF"), "start_col": 32, "span": 3},
+                {"text": _("Tasa Reducida 8%"), "start_col": 17, "span": 2},
+                {"text": _("Tasa General 16%"), "start_col": 19, "span": 2},
+                {"text": _("Tasa General + Adicional 31%"), "start_col": 21, "span": 2},
+                {"text": _("Tasa Reducida 8%"), "start_col": 23, "span": 2},
+                {"text": _("Tasa General 16%"), "start_col": 25, "span": 2},
+                {"text": _("Tasa General + Adicional 31%"), "start_col": 27, "span": 2},
+                {"text": _("Retención"), "start_col": 29, "span": 4},
+                {"text": _("IGTF"), "start_col": 33, "span": 3},
             ]
         ]
 
