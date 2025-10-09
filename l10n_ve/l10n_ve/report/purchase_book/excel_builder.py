@@ -100,7 +100,7 @@ class ExcelBuilder:
                 {"text": _("Tasa Reducida 8%"), "start_col": 16, "span": 2},
                 {"text": _("Tasa General 16%"), "start_col": 18, "span": 2},
                 {"text": _("Tasa General + Adicional 31%"), "start_col": 20, "span": 2},
-                {"text": _("Retención"), "start_col": 23, "span": 6},
+                {"text": _("Retención"), "start_col": 23, "span":5},
             ],
         ]
 

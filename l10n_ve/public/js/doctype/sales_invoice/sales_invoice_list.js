@@ -3,7 +3,7 @@
 
 // render
 frappe.listview_settings["Sales Invoice"] = {
-  has_indicator_for_cancelled: true,
+  has_indicator_for_cancelled: true,
   add_fields: [
     "customer",
     "customer_name",
