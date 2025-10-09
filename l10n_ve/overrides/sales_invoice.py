@@ -20,6 +20,7 @@ class CustomSalesInvoice(SalesInvoice):
         self.calculate_contribution()
 
         taxes_and_totals_calculator.calculate_total_exempt()
+        self.calculate_total_withholding()
 
     def before_submit(self) -> None:
         """
@@ -34,12 +35,10 @@ class CustomSalesInvoice(SalesInvoice):
     def validate(self) -> None:
         super().validate()
 
-        self.validate_number()
+        self.validate_withholding_voucher_number()
         self.set_control_and_invoice_number()
         self.set_affected_invoice_number()
-        self.validate_item_iva()
         self.validate_return_in_same_month()
-        self.calculate_total_withholding()
 
         # validación de numero de control, debito, credito y de factura
         self._validate_bill_no(raise_throw=True)
@@ -107,13 +106,14 @@ class CustomSalesInvoice(SalesInvoice):
                 self.affected_invoice_number = None
 
     def _validate_bill_control(self,
-                            bill_control: str = '',
-                            raise_throw: bool = True) -> bool:
+                               bill_control: str = '',
+                               raise_throw: bool = True) -> bool:
         """
         Valida que el número de control no esté ya asignado,
         considerando documentos Aprobados (docstatus 1) o Cancelados (docstatus 2)
         que NO hayan sido anulados (is_void 0).
         """
+
         bill_control_to_validate = bill_control or self.bill_control
         if not bill_control_to_validate:
             return True
@@ -146,6 +146,10 @@ class CustomSalesInvoice(SalesInvoice):
         if is_duplicated:
             if self.is_return:
                 message = ("El número de control ya está asignado a otra Nota de Crédito.")
+
+            elif self.is_debit_note:
+                message = ("El número de control ya está asignado a otra Nota de Debito.")
+
             else:
                 message = ("El número de control ya está asignado a otra factura.")
 
@@ -160,46 +164,77 @@ class CustomSalesInvoice(SalesInvoice):
         Valida que el número de factura no esté ya asignado.
         Acepta un valor opcional para validar.
         """
+
+        if any([
+            self.is_return,
+            self.is_debit_note
+        ]):
+            return True
+
         bill_no_to_validate = bill_no or self.bill_no
         if not bill_no_to_validate:
             return True
 
         base_filters = {
+            'is_return': False,
+            'is_debit_note': False,
             'company': self.company,
             'name': ['!=', self.name],
             'bill_no': bill_no_to_validate,
-            'is_return': self.is_return
         }
 
-        is_duplicated_approved = frappe.db.exists(
+        duplicated_invoice: list[str] = \
+            frappe.db.get_all('Sales Invoice',
+                              filters=base_filters,
+                              pluck='name') or []
+
+        duplicated_msg = []
+        from erpnext.utilities.utils import get_link_to_form
+
+        for duplicated in duplicated_invoice:
+            invoice_link: str = get_link_to_form(self.doctype, duplicated)
+
+            msg = \
+                f'El numero de factura {bill_no_to_validate} ya esta siendo ' \
+                f'usado en la factura {invoice_link} ' \
+                f'Corrija e intente nuevamente'
+
+            duplicated_msg.append(msg)
+
+        if duplicated_msg:
+            frappe.throw(duplicated_msg,
+                         title="Advertencia de Duplicado",
+                         as_list=True)
+
+        is_duplicated_approved: bool = bool(frappe.db.exists(
             "Sales Invoice",
             {**base_filters, 'docstatus': 1}
-        )
+        ))
 
-        is_duplicated_cancelled_and_void = frappe.db.exists(
+        is_duplicated_void: bool = bool(frappe.db.exists(
             "Sales Invoice",
             {
                 **base_filters,
                 'docstatus': 2,
                 'is_void': 1,
             }
-        )
+        ))
 
-        is_duplicated = is_duplicated_approved or is_duplicated_cancelled_and_void
+        is_duplicated = is_duplicated_approved or is_duplicated_void
 
         if is_duplicated:
-            if self.is_return:
-                message = ("El número de factura ya está asignado a otra Nota de Crédito.")
-            else:
-                message = ("El número de factura ya está asignado a otra factura.")
+            message = ("El número de factura ya está asignado a otra factura.")
 
             if raise_throw:
                 frappe.throw(message, title="Advertencia de Duplicado")
+
             return False
 
         return True
 
-    def _validate_credit_note_no(self, credit_note_no: str = None, raise_throw: bool = True) -> bool:
+    def _validate_credit_note_no(self,
+                                 credit_note_no: str = None,
+                                 raise_throw: bool = True) -> bool:
         """
         Valida que el número de Nota de Crédito no esté ya asignado.
         """
@@ -208,6 +243,7 @@ class CustomSalesInvoice(SalesInvoice):
             return True
 
         base_filters = {
+            'is_return': True,
             'company': self.company,
             'name': ['!=', self.name],
             'credit_note_no': credit_note_to_validate
@@ -238,16 +274,19 @@ class CustomSalesInvoice(SalesInvoice):
 
         return True
 
-    def _validate_debit_note_no(self, debit_note_no: str = None,
+    def _validate_debit_note_no(self,
+                                debit_note_no: str = None,
                                 raise_throw: bool = True) -> bool:
         """
         Valida que el número de Nota de Débito no esté ya asignado.
         """
+
         debit_note_to_validate = debit_note_no or self.debit_note_no
         if not debit_note_to_validate:
             return True
 
         base_filters = {
+            'is_debit_note': True,
             'company': self.company,
             'name': ['!=', self.name],
             'debit_note_no': debit_note_to_validate
@@ -276,20 +315,6 @@ class CustomSalesInvoice(SalesInvoice):
             return False
 
         return True
-
-    def get_iva_tax_row(self) -> _dict | None:
-        """
-        Función auxiliar para encontrar y devolver la fila del impuesto de IVA de la factura.
-        Se busca en la tabla de impuestos de la factura, no en la plantilla.
-
-        Returns:
-            _dict | None: La fila del impuesto de IVA si se encuentra,
-            de lo contrario None.
-        """
-
-        for tax_row in self.taxes:
-            if tax_row.charge_type == "VAT":
-                return tax_row
 
     # ------------------------------ OVERRIDES ------------------------------ #
 
@@ -382,25 +407,24 @@ class CustomSalesInvoice(SalesInvoice):
         return self.name
 
     def calculate_total_withholding(self) -> None:
-        self.total_withholding  = 0.0
 
-        if not self.get("taxes"):
-            return
+        self.total_withholding = 0.0
 
-        for tax in self.get("taxes"):
-            if not tax.is_tax_withholding_account:
-                    continue
-
-            self.total_withholding += tax.tax_amount
+        self.total_withholding = sum([
+            tax.tax_amount
+            for tax in self.taxes or []
+            if tax.is_tax_withholding_account
+        ])
 
     def make_tax_gl_entries(self, gl_entries) -> None:
+
+        """
+        Override para solo hacer los asientos que NO sean de retenciones
+        """
 
         for tax in self.get("taxes"):
 
             if tax.is_tax_withholding_account or not tax.tax_amount:
-                continue
-
-            if not flt(tax.tax_amount):
                 continue
 
             account_currency = get_account_currency(tax.account_head)
@@ -418,24 +442,7 @@ class CustomSalesInvoice(SalesInvoice):
                     item=tax,
                 ))
 
-    def validate_item_iva(self):
-        return
-
-        has_taxable_items = any(not item.vat_exempt for item in self.items)
-
-        if not has_taxable_items and self.taxes_and_charges:
-            self.taxes_and_charges = None
-            self.set("taxes", [])
-
-            self.apply_tds = 0
-
-        has_vat_charge = any(tax.charge_type == 'VAT' for tax in self.taxes)
-
-        if not has_vat_charge and self.apply_tds == 1:
-            self.set("taxes", [])
-            self.apply_tds = 0
-
-    def validate_number(self):
+    def validate_withholding_voucher_number(self):
         if self.vat_withholding_voucher_number:
 
             if not self.vat_withholding_voucher_number.isdigit():
@@ -462,7 +469,8 @@ class CustomSalesInvoice(SalesInvoice):
 @frappe.whitelist()
 def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None):
     """
-    Actualiza la Sales Invoice (Factura de Venta) con los datos del comprobante de retención.
+    Actualiza la Sales Invoice (Factura de Venta) con los datos del
+    comprobante de retención.
     """
     try:
         doc = frappe.get_doc("Sales Invoice", docname)
@@ -483,7 +491,8 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
         }
 
     except frappe.DoesNotExistError:
-        frappe.log_error(f"Sales Invoice {docname} no encontrada.", "Error en upload_voucher_data")
+        frappe.log_error(f"Sales Invoice {docname} no encontrada.",
+                         "Error en upload_voucher_data")
         return {
             "status": "error",
             "msg": f"Factura de Venta con ID {docname} no encontrada."
@@ -531,6 +540,7 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
     except frappe.DoesNotExistError:
         frappe.log_error(f"Sales Invoice {docname} no encontrada.", "Error en upload_islr_voucher_data")
         return {"status": "error", "msg": f"Factura de Venta con ID {docname} no encontrada."}
+
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en upload_islr_voucher_data")
         return {"status": "error", "msg": f"Error inesperado al guardar los datos: {str(e)}"}
@@ -545,7 +555,7 @@ def void_document(doctype, name):
     if doc.docstatus != 2:
         frappe.throw(_("Solo se pueden anular documentos que han sido cancelados."))
 
-    frappe.db.set_value(doctype, name, "is_void", 1)
+    frappe.db.set_value(doctype, name, "is_void", True)
     doc.add_comment("Comment", _("Documento marcado como Anulado."))
 
     frappe.clear_document_cache(doctype, name)

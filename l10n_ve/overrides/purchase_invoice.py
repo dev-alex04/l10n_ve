@@ -2,7 +2,7 @@ import frappe
 from frappe import _, _dict
 from frappe.utils import flt, get_link_to_form
 
-from erpnext.accounts.utils import get_account_currency, getdate
+from erpnext.accounts.utils import get_account_currency
 
 
 import erpnext
@@ -20,6 +20,8 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
     def on_cancel(self) -> None:
         super().on_cancel()
+
+        #TODO: Mover a una funcion
 
         has_iva_withholding = frappe.db.exists(
             "VAT Withholding Voucher Item",
@@ -48,6 +50,8 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         self.validate_duplicate_invoice_numbers()
         self.set_affected_invoice_number()
         self.validate_return_in_same_month()
+
+        #TODO: Mover a una funcion
 
         has_taxable_items = False
         for item in self.items:
@@ -78,56 +82,65 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             self.validate_credit_note_number()
 
     def validate_affected_invoice_number(self) -> None:
-        if self.is_debit_note:
-            if not self.affected_invoice_number:
-                frappe.throw("El número de la Factura Afectada es obligatorio.")
-            else:
-                affected_invoice_exists = frappe.db.exists(
-                    "Purchase Invoice", {
-                        "supplier": self.supplier,
-                        "bill_no": self.affected_invoice_number,
-                        "name": ["!=", self.name],
-                        "is_debit_note": 0,
-                        "is_return": 0
-                    }
-                )
+        # Revisa si hace falta validar con is_return
 
-                if not affected_invoice_exists:
-                    frappe.throw("La factura con el número de Factura Afectada no existe.")
+        if not self.is_debit_note:
+            return
+
+        if not self.affected_invoice_number:
+            frappe.throw("El número de la Factura Afectada es obligatorio.")
+        else:
+            affected_invoice_exists = bool(frappe.db.exists(
+                "Purchase Invoice", {
+                    "supplier": self.supplier,
+                    "bill_no": self.affected_invoice_number,
+                    "name": ["!=", self.name],
+                    "is_debit_note": 0,
+                    "is_return": 0
+                }
+            ))
+
+            if not affected_invoice_exists:
+                frappe.throw("La factura con el número de Factura Afectada no existe.")
 
     def validate_debit_note_number(self) -> None:
-        if self.is_debit_note:
-            if not self.debit_note_no:
-                frappe.throw("El número de la Nota de Débito es obligatorio para una Nota de Débito.")
+        if not self.is_debit_note:
+            return
 
-            debit_note_exists = frappe.db.exists(
-                "Purchase Invoice", {
-                    "debit_note_no": self.debit_note_no,
-                    "supplier": self.supplier,
-                    "is_debit_note": 1,
-                    "name": ["!=", self.name]
-                }
-            )
+        if not self.debit_note_no:
+            frappe.throw("El número de la Nota de Débito es obligatorio para una Nota de Débito.")
 
-            if debit_note_exists:
-                frappe.throw(f"Ya existe una Nota de Débito con el número {self.debit_note_no} para este proveedor.")
+        debit_note_exists = bool(frappe.db.exists(
+            "Purchase Invoice", {
+                "debit_note_no": self.debit_note_no,
+                "supplier": self.supplier,
+                "is_debit_note": 1,
+                "name": ["!=", self.name]
+            }
+        ))
+
+        if debit_note_exists:
+            frappe.throw(f"Ya existe una Nota de Débito con el número {self.debit_note_no} para este proveedor.")
 
     def validate_credit_note_number(self) -> None:
-        if self.is_return:
-            if not self.credit_note_no:
-                frappe.throw("El número de la Nota de Crédito es obligatorio para una Nota de Crédito.")
 
-            credit_note_exists = frappe.db.exists(
-                "Purchase Invoice", {
-                    "credit_note_no": self.credit_note_no,
-                    "supplier": self.supplier,
-                    "is_return": 1,
-                    "name": ["!=", self.name]
-                }
-            )
+        if not self.is_return:
+            return
 
-            if credit_note_exists:
-                frappe.throw(f"Ya existe una Nota de Crédito con el número {self.credit_note_no} para este proveedor.")
+        if not self.credit_note_no:
+            frappe.throw("El número de la Nota de Crédito es obligatorio para una Nota de Crédito.")
+
+        credit_note_exists = bool(frappe.db.exists(
+            "Purchase Invoice", {
+                "credit_note_no": self.credit_note_no,
+                "supplier": self.supplier,
+                "is_return": 1,
+                "name": ["!=", self.name]
+            }
+        ))
+
+        if credit_note_exists:
+            frappe.throw(f"Ya existe una Nota de Crédito con el número {self.credit_note_no} para este proveedor.")
 
     def validate_return_in_same_month(self):
         """
@@ -136,10 +149,6 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         Llama a la función centralizada en utils.
         """
         validate_return_in_same_month(self)
-
-    def calculate_taxes_and_totals(self):
-        taxes_and_totals_calculator = TaxesAndTotals(self)
-        taxes_and_totals_calculator.calculate_total_exempt()
 
     def validate_duplicate_invoice_numbers(self) -> None:
         if self.bill_no:
@@ -176,18 +185,16 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                     "bill_no"
                 )
 
+    # TODO: Mover esto a una sola funcion
     def calculate_total_withholding(self) -> None:
+
         self.total_withholding = 0.0
 
-        if not self.get("taxes"):
-            return
-
-        for tax in self.get("taxes"):
-
-            if not tax.is_tax_withholding_account:
-                continue
-
-            self.total_withholding += tax.get('tax_amount', 0)
+        self.total_withholding = sum([
+            tax.tax_amount
+            for tax in self.taxes or []
+            if tax.is_tax_withholding_account
+        ])
 
     @frappe.whitelist()
     def set_islr_concept(self, tabulator_name: str) -> None:
@@ -448,7 +455,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
 
         for tax in self.get("taxes"):
 
-            if tax.is_tax_withholding_account:
+            if tax.is_tax_withholding_account or not tax.tax_amount:
                 continue
 
             amount, base_amount = self.get_tax_amounts(tax, None)

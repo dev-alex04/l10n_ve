@@ -62,9 +62,9 @@ doctype_js = {
         "public/js/doctype/purchase_invoice/purchase_invoice.js",
     ],
     "Sales Invoice": [
+        "public/js/utils/utils.js",
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/sales_invoice/sales_invoice.js",
-        "public/js/utils/utils.js",
     ],
 }
 

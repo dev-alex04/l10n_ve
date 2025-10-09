@@ -1,18 +1,27 @@
+// Agregar funcion general para ejecutgar funciones de botones
+
 frappe.ui.form.on("Sales Invoice", {
   onload: function (frm) {
+    // Mover esto a una funcion
+
     if (frm.is_new()) {
+      frm.set_value("is_void", false);
       frm.set_value("bill_no", null);
       frm.set_value("credit_note_no", null);
       frm.set_value("debit_note_no", null);
       frm.set_value("bill_control", null);
     }
 
-    frm.set_df_property("vat_withholding_voucher_number", "read_only", 1);
-    frm.set_df_property("withholding_date", "read_only", 1);
-    frm.set_df_property("voucher_image", "read_only", 1);
-    frm.set_df_property("islr_receipt_number", "read_only", 1);
-    frm.set_df_property("islr_date", "read_only", 1);
-    frm.set_df_property("voucher_image_islr", "read_only", 1);
+    // Mover esto a una funcion
+
+    frm.set_df_property("vat_withholding_voucher_number", "read_only", true);
+    frm.set_df_property("withholding_date", "read_only", true);
+    frm.set_df_property("voucher_image", "read_only", true);
+    frm.set_df_property("islr_receipt_number", "read_only", true);
+    frm.set_df_property("islr_date", "read_only", true);
+    frm.set_df_property("voucher_image_islr", "read_only", true);
+
+    // Mover esto a una funcion
 
     toggle_document_number_fields(frm);
     toggle_vat_withholding_fields(frm);
@@ -20,16 +29,15 @@ frappe.ui.form.on("Sales Invoice", {
   },
 
   refresh: function (frm) {
-
-    if (frappe.l10n_ve && frappe.l10n_ve.utils) {
-        frappe.l10n_ve.utils.setup_void_button(frm, "Sales Invoice");
-    }
+    setup_void_button(frm);
 
     toggle_vat_withholding_fields(frm);
     toggle_islr_withholding_fields(frm);
     reorganize_customer_fields(frm);
     print_button_pdf(frm);
     set_sales_invoice_buttons(frm);
+
+    // Mover esto a una funcion
 
     let has_islr_withholding = false;
     if (frm.doc.taxes && frm.doc.taxes.length) {
@@ -38,6 +46,7 @@ frappe.ui.form.on("Sales Invoice", {
       );
     }
 
+    // Mover esto a una funcion
     let has_vat_withholding = false;
     if (frm.doc.taxes && frm.doc.taxes.length) {
       has_vat_withholding = frm.doc.taxes.some(
@@ -46,6 +55,8 @@ frappe.ui.form.on("Sales Invoice", {
           tax_row.charge_type.toLowerCase().includes("withholding")
       );
     }
+
+    // Mover esto a una funcion
 
     if (
       !frm.doc.__islocal &&
@@ -134,7 +145,7 @@ frappe.ui.form.on("Sales Invoice", {
           button_group
         );
       }
-
+      // Mover esto a una funcion
       if (has_islr_withholding) {
         frm.add_custom_button(
           __("Retención de ISLR"),
@@ -596,3 +607,44 @@ frappe.ui.form.on("Sales Invoice Item", {
     }
   },
 });
+
+/**
+ * @param {object} frm
+ */
+function setup_void_button(frm) {
+  if (frm.doc.docstatus === 2 && !frm.doc.is_void) {
+    frm.add_custom_button(
+      __("Anular Documento"),
+      function () {
+        frappe.confirm(
+          __("¿Estás seguro de que deseas anular este documento?"),
+          () => {
+            frappe.call({
+              method: "l10n_ve.overrides.sales_invoice.void_document",
+              args: {
+                doctype: frm.doc.doctype,
+                name: frm.doc.name,
+              },
+              callback: function (r) {
+                if (!r.exc) {
+                  frappe.show_alert({
+                    message: __("Documento anulado correctamente."),
+                    indicator: "green",
+                  });
+                  frm.reload_doc();
+                }
+              },
+              error: () => {
+                frappe.show_alert({
+                  message: __("Ocurrió un error al anular el documento."),
+                  indicator: "red",
+                });
+              },
+            });
+          }
+        );
+      },
+      __("Acciones")
+    );
+  }
+}

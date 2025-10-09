@@ -1,10 +1,10 @@
 import frappe
+from frappe import _
 from frappe.utils import cint, flt
 from erpnext.accounts.doctype.payment_entry.payment_entry import PaymentEntry
 
 
 class CustomPaymentEntry(PaymentEntry):
-    pass
 
     def apply_taxes(self) -> None:
         self.initialize_taxes()
@@ -21,8 +21,6 @@ class CustomPaymentEntry(PaymentEntry):
 
     def set_taxes_withholding(self) -> None:
 
-        self.taxes = []
-
         documents_map = {}
 
         for reference in self.references or []:
@@ -31,6 +29,9 @@ class CustomPaymentEntry(PaymentEntry):
                 documents_map[reference.reference_doctype] = []
 
             documents_map[reference.reference_doctype].append(reference.reference_name)
+
+        if bool(documents_map):
+            self.taxes = []
 
         for doctype, docnames in documents_map.items():
 

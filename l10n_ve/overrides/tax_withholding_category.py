@@ -12,6 +12,7 @@ class CustomTaxWithholdingCategory(TaxWithholdingCategory):
 
         if doctype in DocumentTransactionType.__SALES_DOCTYPES__:
             account_field = 'sales_account'
+
         elif doctype in DocumentTransactionType.__PURCHASE_DOCTYPES__:
             account_field = 'account'
         else:
