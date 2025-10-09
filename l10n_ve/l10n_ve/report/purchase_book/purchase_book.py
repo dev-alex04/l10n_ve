@@ -59,6 +59,21 @@ def get_report_summary(totals):
             "label": "Total IVA Retenido",
             "datatype": "Currency"
         },
+        {
+            "value": totals.get("iva_retenido_terceros"),
+            "label": "IVA Retenido (a terceros)",
+            "datatype": "Currency"
+        },
+        {
+            "value": totals.get("anticipo_iva_importacion"),
+            "label": "Anticipo de IVA (Importación)",
+            "datatype": "Currency"
+        },
+        {
+            "value": totals.get("total_igtf"),
+            "label": "Total IGTF Pagado",
+            "datatype": "Currency"
+        },
     ]
 
     return summary
@@ -74,6 +89,9 @@ def get_totals_from_data(data):
     base_adicional = 0
     impuesto_adicional = 0
     taxes_and_charges_deducted = 0
+    iva_retenido_terceros = 0
+    anticipo_iva_importacion = 0
+    total_igtf = 0
 
     retencion_general = 0
     retencion_adicional = 0
@@ -92,6 +110,9 @@ def get_totals_from_data(data):
         impuesto_adicional += row.get("impuesto_adicional", 0)
         if row.get("nro_comprobante_retencion") and ret_monto > 0:
             taxes_and_charges_deducted += ret_monto
+            iva_retenido_terceros += row.get("iva_retenido_terceros", 0)
+            anticipo_iva_importacion += row.get("anticipo_iva_importacion", 0)
+            total_igtf += row.get("total_igtf", 0)
 
             bases = {
                 "general": flt(row.get("base_general")),
@@ -120,6 +141,9 @@ def get_totals_from_data(data):
         "impuesto_adicional": impuesto_adicional,
         "taxes_and_charges_deducted": taxes_and_charges_deducted,
         "retencion_general": retencion_general,
+        "iva_retenido_terceros": iva_retenido_terceros,
+        "anticipo_iva_importacion": anticipo_iva_importacion,
+        "total_igtf": total_igtf,
         "retencion_adicional": retencion_adicional,
         "retencion_reducida": retencion_reducida,
 
@@ -148,16 +172,19 @@ def get_query_data(filters):
     if not from_date or not to_date:
         frappe.throw(_("Por favor, selecciona un rango de fechas o un período fiscal."))
 
-    conditions = "AND tPI.docstatus = 1"
-    values = []
+    # Asegurarse de que from_date sea un objeto de fecha
+    from_date_obj = getdate(from_date)
 
-    conditions += " AND tPI.posting_date BETWEEN %s AND %s"
-    values.append(from_date)
-    values.append(to_date)
+    conditions = "AND tPI.docstatus IN (1)"
+    values = {}
+
+    conditions += " AND tPI.posting_date BETWEEN %(from_date)s AND %(to_date)s"
+    values['from_date'] = from_date
+    values['to_date'] = to_date
 
     if filters.get("company"):
-        conditions += " AND tPI.company = %s"
-        values.append(filters.get("company"))
+        conditions += " AND tPI.company = %(company)s"
+        values['company'] = filters.get("company")
 
     query = f"""
         SELECT
@@ -174,6 +201,7 @@ def get_query_data(filters):
             tPI.debit_note_no,
             tPI.affected_invoice_number,
 
+
             SUM(CASE WHEN T5.rate = 8 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_reducida,
             SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) as impuesto_reducida,
             SUM(CASE WHEN T5.rate = 16 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_general,
@@ -186,15 +214,18 @@ def get_query_data(filters):
             MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
 
             CASE
-                WHEN T4.supplier_type = 'Company' THEN 'PJ'
-                WHEN T4.supplier_type = 'Individual' THEN 'PN'
-                WHEN T4.supplier_type = 'Partnership' THEN 'PJ'
-                ELSE "N/A"
+                WHEN T4.type_of_person = 'Domiciled legal entity' THEN 'PJD'
+                WHEN T4.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
+                WHEN T4.type_of_person = 'Natural person domiciled' THEN 'PND'
+                WHEN T4.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
+                ELSE 'N/A'
             END AS supplier_type,
             CASE
-				WHEN tPI.is_return = 1 THEN 'NC'
-				WHEN tPI.is_debit_note = 1 THEN 'ND'
-				ELSE 'REG'
+                WHEN tPI.docstatus = 2 THEN '03-Anu'
+                WHEN MONTH(tPI.posting_date) != %(month)s OR YEAR(tPI.posting_date) != %(year)s THEN '04-Ajuste'
+                WHEN tPI.is_return = 1 THEN '02-Comp'
+                WHEN tPI.is_debit_note = 1 THEN '02-Comp'
+                ELSE '01-Reg'
 			END AS transaction_type,
             (tPI.total - tPI.total_exempt) AS taxable_base
         FROM
@@ -216,7 +247,10 @@ def get_query_data(filters):
         GROUP BY tPI.name
     """
 
-    return frappe.db.sql(query, tuple(values), as_dict=True)
+    values['month'] = from_date_obj.month
+    values['year'] = from_date_obj.year
+
+    return frappe.db.sql(query, values, as_dict=True)
 
 def execute(filters=None):
     columns = [
@@ -241,10 +275,14 @@ def execute(filters=None):
         {"fieldname": "impuesto_general", "label": "Impuesto (Tasa Gen. 16%)", "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "base_adicional", "label": "Base (Tasa Adic. 31%)", "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "impuesto_adicional", "label": "Impuesto (Tasa Adic. 31%)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "total_igtf", "label": "IGTF Pagado", "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "nro_comprobante_retencion", "label": "Nro. Comprob. de Retención", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "fecha_entrega", "label": "Fecha de Entrega", "fieldtype": "Date", "width": "auto"},
         {"fieldname": "porcentaje_ret", "label": "% Ret.", "fieldtype": "Percent", "width": "auto"},
-        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": "auto"}
+        {"fieldname": "taxes_and_charges_deducted", "label": "IVA Reducido (AL VENDEDOR)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "iva_retenido_terceros", "label": "IVA Retenido (a terceros)", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "anticipo_iva_importacion", "label": "Anticipo de IVA (Importación)", "fieldtype": "Currency", "width": "auto"}
+
     ]
 
     data = get_query_data(filters)
@@ -398,12 +436,14 @@ def generate_txt_file(filters):
                 elif flt(row.get("base_adicional")) > 0:
                     tax_rate = "31"
 
-                transaction_code = "01"
-
-                if flt(row.get("tipo")) == 1:
+                if row.get("credit_note_no"):
                     transaction_code = "03"
                 elif row.get("debit_note_no"):
                     transaction_code = "02"
+                else:
+                    transaction_code = "01"
+
+                document_number = row.get("credit_note_no") or row.get("debit_note_no") or row.get("bill_no") or "0"
 
                 line_data = [
                     str(company_rif),
@@ -412,7 +452,7 @@ def generate_txt_file(filters):
                     "V" if flt(row.get("tipo")) == 1 else "C",
                     transaction_code,
                     (row.get("tax_id") or "0").replace('-', ''),
-                    row.get("bill_no") or "0",
+                    document_number,
                     row.get("bill_control") or "0",
                     f"{flt(row.get('grand_total') or 0):.2f}",
                     f"{flt(row.get('taxable_base') or 0):.2f}",

@@ -20,6 +20,11 @@ frappe.ui.form.on("Sales Invoice", {
   },
 
   refresh: function (frm) {
+
+    if (frappe.l10n_ve && frappe.l10n_ve.utils) {
+        frappe.l10n_ve.utils.setup_void_button(frm, "Sales Invoice");
+    }
+
     toggle_vat_withholding_fields(frm);
     toggle_islr_withholding_fields(frm);
     reorganize_customer_fields(frm);
