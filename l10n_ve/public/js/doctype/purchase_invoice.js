@@ -1,14 +1,15 @@
 frappe.ui.form.on("Purchase Invoice", {
   onload: function(frm) {
     toggle_purchase_type_fields(frm);
+
+    const return_against_field = 'return_against';
+    if (frm.get_docfield(return_against_field).label !== "Factura Afectada") {
+      frm.set_df_property(return_against_field, 'label', "Factura Afectada");
+    }
   },
   refresh: function(frm) {
     set_purchase_invoice_buttons(frm);
-
-    if (frappe.l10n_ve && frappe.l10n_ve.utils) {
-        frappe.l10n_ve.utils.setup_void_button(frm, "Purchase Invoice");
-    }
-
+    toggle_return_against(frm);
     toggle_purchase_type_fields(frm);
   },
 
@@ -16,12 +17,14 @@ frappe.ui.form.on("Purchase Invoice", {
     if (frm.doc.is_debit_note) {
       frm.set_value('is_return', 0);
     }
+    toggle_return_against(frm);
     toggle_purchase_type_fields(frm);
   },
   is_return: function(frm) {
     if (frm.doc.is_return) {
       frm.set_value('is_debit_note', 0);
     }
+    toggle_return_against(frm);
     toggle_purchase_type_fields(frm);
   }
 });
@@ -34,7 +37,18 @@ function set_purchase_invoice_buttons(frm) {
   }
 }
 
+function toggle_return_against(frm) {
+  const return_against_field = 'return_against';
+  let should_show = frm.doc.is_return || frm.doc.is_debit_note;
 
+  frm.toggle_display(return_against_field, should_show);
+
+  if (!should_show) {
+      frm.set_value(return_against_field, null);
+  }
+
+  frm.refresh_field(return_against_field);
+}
 
 function toggle_purchase_type_fields(frm) {
     const is_debit_note = frm.doc.is_debit_note;

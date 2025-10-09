@@ -87,9 +87,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         filters={"purchase_invoice": ["!=", ""]},
         fields=["purchase_invoice"]
     )
-    excluded_from_withholding_list = [d.purchase_invoice for d in excluded_from_withholding]
-
-    all_excluded_invoices = excluded_from_withholding_list
+    all_excluded_invoices = [d.purchase_invoice for d in excluded_from_withholding]
 
     valid_invoices = frappe.get_all(
         "Purchase Invoice",
@@ -98,56 +96,44 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"posting_date": ["between", [start_date, end_date]]},
             {"company": company},
             {"docstatus": 1},
-            {"is_return": 0},
             {"name": ["not in", all_excluded_invoices]},
             ["Purchase Taxes and Charges", "charge_type", "=", "VAT Withholding"]
         ],
-        fields=["name", "bill_no"]
+        fields=[
+            "name", "bill_no", "bill_control", "posting_date", "grand_total",
+            "total_exempt", "is_return", "is_debit_note", "total",
+            "taxes_and_charges_added", "taxes_and_charges_deducted",
+            "credit_note_no", "debit_note_no", "affected_invoice_number",
+            "`tabPurchase Taxes and Charges`.rate as tax_rate",
+            "`tabPurchase Taxes and Charges`.tax_amount as tax_amount_vat",
+        ]
     )
 
-    valid_invoices_names = [d.name for d in valid_invoices]
-    valid_invoices_bill_nos = [d.bill_no for d in valid_invoices]
-
-    associated_credit_notes_names = []
-    if valid_invoices_bill_nos:
-        associated_credit_notes = frappe.get_all(
-            "Purchase Invoice",
-            filters={
-                "is_return": 1,
-                "docstatus": 1,
-                "affected_invoice_number": ["in", valid_invoices_bill_nos]
-            },
-            fields=["name"]
-        )
-        associated_credit_notes_names = [d.name for d in associated_credit_notes]
-
-    final_document_list = valid_invoices_names + associated_credit_notes_names
-
     invoices_with_taxes = []
-    for item in final_document_list:
-        invoice = frappe.get_doc("Purchase Invoice", item)
-        rate = 0
-        if invoice.taxes and len(invoice.taxes) > 0:
-            tax_item = invoice.taxes[0]
-            rate = tax_item.rate
+    processed_invoices = set()
+    for item in valid_invoices:
+        if item.name in processed_invoices:
+            continue
 
         invoice_data = {
-            "purchase_invoice": invoice.name,
-            "bill_no": invoice.bill_no,
-            "bill_control": invoice.bill_control,
-            "posting_date": invoice.posting_date,
-            "rate": rate,
-            "grand_total": abs(invoice.grand_total),
-            "total": abs(invoice.total),
-            "total_exempt": abs(invoice.total_exempt),
-            "taxes_and_charges_added": abs(invoice.taxes_and_charges_added),
-            "taxes_and_charges_deducted": abs(invoice.taxes_and_charges_deducted),
-            "credit_note_no": invoice.credit_note_no,
-            "debit_note_no": invoice.debit_note_no,
-            "affected_invoice_number": invoice.affected_invoice_number,
-            "is_return": invoice.is_return,
-            "taxes": invoice.get("taxes")
+            "purchase_invoice": item.name,
+            "bill_no": item.bill_no,
+            "bill_control": item.bill_control,
+            "posting_date": item.posting_date,
+            "grand_total": abs(item.grand_total),
+            "total": abs(item.total),
+            "total_exempt": abs(item.total_exempt),
+            "taxes_and_charges_added": abs(item.taxes_and_charges_added),
+            "taxes_and_charges_deducted": abs(item.taxes_and_charges_deducted),
+            "credit_note_no": item.credit_note_no,
+            "debit_note_no": item.debit_note_no,
+            "affected_invoice_number": item.affected_invoice_number,
+            "is_return": item.is_return,
+            "is_debit_note": item.is_debit_note,
+            "rate": item.tax_rate,
+            "tax_amount": abs(item.tax_amount_vat),
         }
         invoices_with_taxes.append(invoice_data)
+        processed_invoices.add(item.name)
 
     return invoices_with_taxes
