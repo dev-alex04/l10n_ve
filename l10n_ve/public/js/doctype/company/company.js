@@ -28,3 +28,16 @@ frappe.ui.form.on("Company", {
     }
   },
 });
+
+erpnext.company.set_custom_query = function (frm, v) {
+  var filters = {
+    company: frm.doc.name,
+    is_group: 0,
+  };
+
+  frm.set_query(v[0], function () {
+    return {
+      filters: filters,
+    };
+  });
+};

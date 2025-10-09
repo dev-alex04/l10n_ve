@@ -1,11 +1,10 @@
 import frappe
 from frappe import _, _dict
-from frappe.utils import flt, cint, getdate
+from frappe.utils import flt
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 
-from l10n_ve.overrides.company import CustomCompany
 from l10n_ve.utils.utils import validate_return_in_same_month
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
@@ -13,7 +12,6 @@ from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 class CustomSalesInvoice(SalesInvoice):
 
     def calculate_taxes_and_totals(self) -> None:
-        self.set_vat_withholding()
 
         taxes_and_totals_calculator = TaxesAndTotals(self)
 
@@ -32,15 +30,16 @@ class CustomSalesInvoice(SalesInvoice):
         self.set_control_and_invoice_number()
         self.set_title_field()
 
-    def validate(self):
+    def validate(self) -> None:
+        super().validate()
 
         self.validate_number()
         self.set_control_and_invoice_number()
         self.set_affected_invoice_number()
-        super().validate()
         self.validate_item_iva()
         self.validate_return_in_same_month()
         self.calculate_total_withholding()
+
         # validación de numero de control, debito, credito y de factura
         self._validate_bill_no(raise_throw=True)
         self._validate_bill_control(raise_throw=True)
@@ -90,8 +89,7 @@ class CustomSalesInvoice(SalesInvoice):
             self.bill_control = company.get_control_number()
             company.increment_control_number()
 
-
-    def set_affected_invoice_number(self):
+    def set_affected_invoice_number(self) -> None:
         # Esta función se ejecutará solo para notas de crédito o débito
         if self.is_return or self.is_debit_note:
 
@@ -292,85 +290,63 @@ class CustomSalesInvoice(SalesInvoice):
             if tax_row.charge_type == "VAT":
                 return tax_row
 
-    def set_vat_withholding(self) -> None:
+    # ------------------------------ OVERRIDES ------------------------------ #
 
-        """
-        Gestiona la lógica de retención de IVA para contribuyentes especiales.
-        """
+    def set_taxes_and_charges(self) -> None:
+        super().set_taxes_and_charges()
 
-        # La retención de IVA solo aplica si el cliente es Contribuyente Especial.
-        is_special_taxpayer = frappe.db.get_value("Customer",
-                                                  self.customer,
-                                                  "is_special_taxpayer")
-        if not is_special_taxpayer:
+        self.set_tax_withholding_ve()
+
+    def set_tax_withholding(self) -> None:
+        """
+        Se inactiva la funcion nativa para obtener las retenciones.
+        La funcion set_tax_withholding_ve  se encargara de esto
+        """
+        return
+
+    # TODO: Refactorizar a una sola funcion para usar en ventas y compras
+    def set_tax_withholding_ve(self) -> None:
+
+        if not bool(frappe.db.get_value('Customer',
+                                        self.customer,
+                                        'is_special_taxpayer')):
             return
-        # Obtener la categoría de retención directamente del cliente
-        withholding_category_name = frappe.db.get_value("Customer",
-                                                        self.customer,
-                                                        "tax_withholding_category")
+
+        withholding_category_name: str = frappe.db.get_value(
+            "Company",
+            self.company,
+            "tax_withholding_category")
+
         if not withholding_category_name:
             return
 
-        # Cargar el documento de la categoría de retención
-        withholding_category = frappe.get_doc("Tax Withholding Category",
-                                              withholding_category_name)
-        if not withholding_category:
-            return
+        withholding_category: Document = frappe.get_doc(
+            "Tax Withholding Category",
+            withholding_category_name)
 
-        # Acceder a la cuenta contable desde la tabla hija 'accounts'
-        # del documento de la categoría
-        account_details_for_company = None
-        for acc_details in withholding_category.accounts:
-            if acc_details.company == self.company:
-                account_details_for_company = acc_details
-                break
+        withholding: _dict = withholding_category.get_withholding(self.company,
+                                                                  self.doctype)
+        if self.is_return:
+            if not self.return_against:
+                return
 
-        if not account_details_for_company:
-            frappe.throw(_("No se encontró una cuenta de retención "
-            "de ventas para la compañía {0} en la categoría '{1}'.").format(
-                self.company, withholding_category_name
-            ))
+            withholding['description'] = \
+                f'{withholding.description} por Nota de Crédito contra factura {self.affected_invoice_number}'
 
-        rate = withholding_category.rates[0].tax_withholding_rate \
-                if withholding_category.rates \
-                and len(withholding_category.rates) > 0 else 0
+        elif self.is_debit_note:
 
-        withholding_account = account_details_for_company.sales_account
-        withholding_description = withholding_category.category_name or withholding_category.name
+            withholding.description = \
+                f'{withholding["description"]} por Nota de Crédito contra factura {self.affected_invoice_number}'
 
+        # Primero se limpia la tabla de impuestos
+        # Dejando solo los impuestos que no sean retencion de IVA
         self.taxes = [
-            row for row
-            in self.taxes
-            if row.account_head != withholding_account
+            tax
+            for tax in self.taxes or []
+            if tax.charge_type != withholding.charge_type
         ]
 
-        if self.get_iva_tax_row() and rate > 0:
-
-            self.append("taxes", {
-                "rate": rate,
-                "charge_type": "VAT Withholding",
-                "add_deduct_tax": "Deduct",
-                "is_tax_withholding_account": True,
-                "account_head": withholding_account,
-                "description": withholding_description,
-            })
-
-    def set_tax_withholding(self):
-        """
-        Sobrescribe el método estándar para evitar que se aplique la lógica
-        de retención de compras (TDS) en una factura de venta cuando ya se
-        ha gestionado la retención de IVA (TCS).
-        """
-
-        is_special_taxpayer = frappe.db.get_value("Customer", self.customer, "is_special_taxpayer")
-        if not is_special_taxpayer:
-            return
-
-        has_vat_withholding = any(tax.charge_type == "VAT Withholding"
-                                  for tax in self.get("taxes", []))
-
-        if has_vat_withholding:
-            return
+        self.append("taxes", withholding)
 
     @frappe.whitelist()
     def set_islr_concept(self, tabulator_name: str) -> None:
@@ -404,8 +380,7 @@ class CustomSalesInvoice(SalesInvoice):
         self.save()
         return self.name
 
-
-    def calculate_total_withholding(self):
+    def calculate_total_withholding(self) -> None:
         self.total_withholding  = 0.0
 
         if not self.get("taxes"):
@@ -417,33 +392,17 @@ class CustomSalesInvoice(SalesInvoice):
 
             self.total_withholding += tax.tax_amount
 
-    def make_tax_gl_entries(self, gl_entries):
-
-        enable_discount_accounting = cint(
-            frappe.db.get_single_value("Selling Settings",
-                                       "enable_discount_accounting"))
+    def make_tax_gl_entries(self, gl_entries) -> None:
 
         for tax in self.get("taxes"):
 
-            if tax.is_tax_withholding_account:
+            if tax.is_tax_withholding_account or not tax.tax_amount:
                 continue
 
-            amount, base_amount = self.get_tax_amounts(tax, enable_discount_accounting)
-
-            if not flt(tax.base_tax_amount_after_discount_amount):
+            if not flt(tax.tax_amount):
                 continue
 
             account_currency = get_account_currency(tax.account_head)
-            tax_amount_after_discount_amount = \
-                tax.precision("tax_amount_after_discount_amount")
-
-            base_tax_amount_after_discount_amount = \
-                tax.precision("base_tax_amount_after_discount_amount")
-
-            credit_in_account_currency = \
-                flt(base_amount, base_tax_amount_after_discount_amount) \
-                if account_currency == self.company_currency \
-                else flt(amount, tax_amount_after_discount_amount)
 
             gl_entries.append(
                 self.get_gl_dict(
@@ -451,17 +410,12 @@ class CustomSalesInvoice(SalesInvoice):
                         "against": self.customer,
                         "account": tax.account_head,
                         "cost_center": tax.cost_center,
-                        "credit_in_account_currency": credit_in_account_currency,
-                        "credit": flt(base_amount, tax_amount_after_discount_amount),
-
-                        "credit_in_transaction_currency": flt(
-                            amount, tax_amount_after_discount_amount
-                        ),
+                        "credit": flt(tax.tax_amount),
+                        "credit_in_account_currency": tax.tax_amount,
                     },
                     account_currency,
                     item=tax,
-                )
-            )
+                ))
 
     def validate_item_iva(self):
         return

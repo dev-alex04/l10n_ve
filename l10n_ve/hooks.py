@@ -57,9 +57,9 @@ doctype_js = {
         "public/js/doctype/supplier/supplier.js",
     ],
     "Purchase Invoice": [
-        "public/js/doctype/purchase_invoice.js",
-        "public/js/controllers/taxes_and_totals.js",
         "public/js/utils/utils.js",
+        "public/js/controllers/taxes_and_totals.js",
+        "public/js/doctype/purchase_invoice/purchase_invoice.js",
     ],
     "Sales Invoice": [
         "public/js/controllers/taxes_and_totals.js",
@@ -158,8 +158,10 @@ after_install = [
 
 override_doctype_class = {
     "Company": "l10n_ve.overrides.company.CustomCompany",
+    "Payment Entry": "l10n_ve.overrides.payment_entry.CustomPaymentEntry",
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
-    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice"
+    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
+    "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
 }
 
 
