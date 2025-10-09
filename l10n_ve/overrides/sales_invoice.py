@@ -1,6 +1,7 @@
 import frappe
 from frappe import _, _dict
 from frappe.utils import flt
+from frappe.model.document import Document
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
