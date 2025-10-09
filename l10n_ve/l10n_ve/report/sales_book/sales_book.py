@@ -155,6 +155,8 @@ def get_sales_data(filters):
 				ELSE 'N/A'
 			END AS customer_type,
 
+
+
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total END) AS grand_total,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total END) AS total,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_exempt END) AS total_exempt,
@@ -176,8 +178,18 @@ def get_sales_data(filters):
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_additional_taxpayer,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_additional_taxpayer,
 
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END) END) AS iva_retained,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END) END) AS vat_withholding_rate
+			CASE
+                WHEN siv.is_void = 1 THEN 0
+                WHEN siv.vat_withholding_voucher_number IS NOT NULL AND siv.vat_withholding_voucher_number != ''
+                THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END)
+                ELSE 0
+            END AS iva_retained,
+            CASE
+                WHEN siv.is_void = 1 THEN 0
+                WHEN siv.vat_withholding_voucher_number IS NOT NULL AND siv.vat_withholding_voucher_number != ''
+                THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END)
+                ELSE 0
+            END AS vat_withholding_rate
 
 		FROM
 			`tabSales Invoice` siv

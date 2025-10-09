@@ -3,6 +3,8 @@
 import frappe
 from frappe import _, throw
 from frappe.utils import flt, getdate, format_date
+from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.dom import minidom
 from collections import defaultdict
 import calendar
 from datetime import date
@@ -107,11 +109,12 @@ def get_totals_from_data(data):
         impuesto_general += row.get("impuesto_general", 0)
         base_adicional += row.get("base_adicional", 0)
         impuesto_adicional += row.get("impuesto_adicional", 0)
+        total_igtf += row.get("total_igtf", 0)
         if row.get("nro_comprobante_retencion") and ret_monto > 0:
             taxes_and_charges_deducted += ret_monto
             iva_retenido_terceros += row.get("iva_retenido_terceros", 0)
             anticipo_iva_importacion += row.get("anticipo_iva_importacion", 0)
-            total_igtf += row.get("total_igtf", 0)
+
 
             bases = {
                 "general": flt(row.get("base_general")),
@@ -350,55 +353,55 @@ def generate_xml_islr_file(filters=None):
     if not invoices:
         return None
 
-        if isinstance(filters, str):
-            filters = frappe.parse_json(filters)
+    if isinstance(filters, str):
+        filters = frappe.parse_json(filters)
 
-        company_doc = frappe.get_doc("Company", filters.get("company"))
-        company_rif = (company_doc.tax_id or "").replace('-', '')
-        periodo = getdate(from_date).strftime('%Y%m')
+    company_doc = frappe.get_doc("Company", filters.get("company"))
+    company_rif = (company_doc.tax_id or "").replace('-', '')
+    periodo = getdate(from_date).strftime('%Y%m')
 
-        invoices = frappe.db.sql("""
-            SELECT
-                REPLACE(tS.tax_id, '-', '') AS supplier_rif,
-                tPI.bill_no,
-                tPI.bill_control,
-                tPI.posting_date,
-                tPTC.code,
-                tPI.grand_total,
-                tPTC.rate AS retention_percentage
-            FROM `tabPurchase Taxes and Charges` AS tPTC
-            JOIN `tabPurchase Invoice` AS tPI ON tPTC.parent = tPI.name
-            JOIN `tabSupplier` AS tS ON tPI.supplier = tS.name
-            WHERE
-                tPTC.charge_type = 'ISLR' AND tPI.docstatus = 1
-                AND tPI.posting_date BETWEEN %(date_from)s AND %(to_date)s
-                AND tPI.company = %(company)s
-        """, filters, as_dict=True)
+    invoices = frappe.db.sql("""
+        SELECT
+            REPLACE(tS.tax_id, '-', '') AS supplier_rif,
+            tPI.bill_no,
+            tPI.bill_control,
+            tPI.posting_date,
+            tPTC.code,
+            tPI.grand_total,
+            tPTC.rate AS retention_percentage
+        FROM `tabPurchase Taxes and Charges` AS tPTC
+        JOIN `tabPurchase Invoice` AS tPI ON tPTC.parent = tPI.name
+        JOIN `tabSupplier` AS tS ON tPI.supplier = tS.name
+        WHERE
+            tPTC.charge_type = 'ISLR' AND tPI.docstatus = 1
+            AND tPI.posting_date BETWEEN %(date_from)s AND %(to_date)s
+            AND tPI.company = %(company)s
+    """, filters, as_dict=True)
 
-        if not invoices:
-            frappe.msgprint(_("No se encontraron retenciones de "
-                            "ISLR para los filtros seleccionados."))
-            return None
+    if not invoices:
+        frappe.msgprint(_("No se encontraron retenciones de "
+                        "ISLR para los filtros seleccionados."))
+        return None
 
-        # Construcción del XML
-        root = Element('RelacionRetencionesISLR', {'RifAgente': company_rif, 'Periodo': periodo})
+    # Construcción del XML
+    root = Element('RelacionRetencionesISLR', {'RifAgente': company_rif, 'Periodo': periodo})
 
-        for inv in invoices:
-            detalle = SubElement(root, 'DetalleRetencion')
-            SubElement(detalle, 'RifRetenido').text = inv.supplier_rif or 'N/A'
-            SubElement(detalle, 'NumeroFactura').text = inv.bill_no or 'N/A'
-            SubElement(detalle, 'NumeroControl').text = inv.bill_control or 'N/A'
-            SubElement(detalle, 'FechaOperacion').text = getdate(inv.posting_date).strftime('%d/%m/%Y')
-            SubElement(detalle, 'CodigoConcepto').text = inv.code or 'N/A'
-            SubElement(detalle, 'MontoOperacion').text = f"{flt(inv.grand_total):.2f}"
-            SubElement(detalle, 'PorcentajeRetencion').text = f"{flt(inv.retention_percentage)}"
+    for inv in invoices:
+        detalle = SubElement(root, 'DetalleRetencion')
+        SubElement(detalle, 'RifRetenido').text = inv.supplier_rif or 'N/A'
+        SubElement(detalle, 'NumeroFactura').text = inv.bill_no or 'N/A'
+        SubElement(detalle, 'NumeroControl').text = inv.bill_control or 'N/A'
+        SubElement(detalle, 'FechaOperacion').text = getdate(inv.posting_date).strftime('%d/%m/%Y')
+        SubElement(detalle, 'CodigoConcepto').text = inv.code or 'N/A'
+        SubElement(detalle, 'MontoOperacion').text = f"{flt(inv.grand_total):.2f}"
+        SubElement(detalle, 'PorcentajeRetencion').text = f"{flt(inv.retention_percentage)}"
 
-        # Formatear para una salida legible (pretty print)
-        rough_string = tostring(root, 'utf-8')
-        reparsed = minidom.parseString(rough_string)
-        pretty_xml_as_string = reparsed.toprettyxml(indent="  ", encoding="UTF-8").decode()
+    # Formatear para una salida legible (pretty print)
+    rough_string = tostring(root, 'utf-8')
+    reparsed = minidom.parseString(rough_string)
+    pretty_xml_as_string = reparsed.toprettyxml(indent="  ", encoding="UTF-8").decode()
 
-        return pretty_xml_as_string
+    return pretty_xml_as_string
 
 @frappe.whitelist()
 def generate_txt_file(filters):
@@ -439,7 +442,7 @@ def generate_txt_file(filters):
 
         periodo = f"{year}{month}"
 
-        content = ""
+        content_lines = []
         for row in data:
             # Determinamos la alícuota a mostrar
             tax_rate = "0"
@@ -450,48 +453,37 @@ def generate_txt_file(filters):
             elif flt(row.get("base_adicional")) > 0:
                 tax_rate = "31"
 
-            content_lines = []
-            for row in invoices_with_voucher:
+            if row.get("credit_note_no"):
+                transaction_code = "03"
+            elif row.get("debit_note_no"):
+                transaction_code = "02"
+            else:
+                transaction_code = "01"
 
-                tax_rate = "0"
-                if flt(row.get("base_general")) > 0:
-                    tax_rate = "16"
-                elif flt(row.get("base_reducida")) > 0:
-                    tax_rate = "8"
-                elif flt(row.get("base_adicional")) > 0:
-                    tax_rate = "31"
+            document_number = row.get("credit_note_no") or row.get("debit_note_no") or row.get("bill_no") or "0"
 
-                if row.get("credit_note_no"):
-                    transaction_code = "03"
-                elif row.get("debit_note_no"):
-                    transaction_code = "02"
-                else:
-                    transaction_code = "01"
+            line_data = [
+                str(company_rif),
+                str(periodo),
+                getdate(row.get("posting_date")).strftime("%Y-%m-%d") if row.get("posting_date") else "",
+                "V" if flt(row.get("tipo")) == 1 else "C",
+                transaction_code,
+                (row.get("tax_id") or "0").replace('-', ''),
+                document_number,
+                row.get("bill_control") or "0",
+                f"{flt(row.get('grand_total') or 0):.2f}",
+                f"{flt(row.get('taxable_base') or 0):.2f}",
+                f"{flt(row.get('taxes_and_charges_deducted') or 0):.2f}",
+                row.get("affected_invoice_number") or "0",
+                row.get("nro_comprobante_retencion") or "0",
+                f"{flt(row.get('total_exempt') or 0):.2f}",
+                f"{flt(tax_rate):.2f}",
+                "0",
+            ]
+            content_lines.append("\t".join(line_data))
 
-                document_number = row.get("credit_note_no") or row.get("debit_note_no") or row.get("bill_no") or "0"
-
-                line_data = [
-                    str(company_rif),
-                    str(periodo),
-                    getdate(row.get("posting_date")).strftime("%Y-%m-%d") if row.get("posting_date") else "",
-                    "V" if flt(row.get("tipo")) == 1 else "C",
-                    transaction_code,
-                    (row.get("tax_id") or "0").replace('-', ''),
-                    document_number,
-                    row.get("bill_control") or "0",
-                    f"{flt(row.get('grand_total') or 0):.2f}",
-                    f"{flt(row.get('taxable_base') or 0):.2f}",
-                    f"{flt(row.get('taxes_and_charges_deducted') or 0):.2f}",
-                    row.get("affected_invoice_number") or "0",
-                    row.get("nro_comprobante_retencion") or "0",
-                    f"{flt(row.get('total_exempt') or 0):.2f}",
-                    f"{flt(tax_rate):.2f}",
-                    "0",
-                ]
-                content_lines.append("\t".join(line_data))
-
-            content = "\n".join(content_lines) + "\n"
-            encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+        content = "\n".join(content_lines) + "\n"
+        encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
 
         return {
             "type": "download",

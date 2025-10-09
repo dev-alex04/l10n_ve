@@ -196,7 +196,7 @@ class CustomSalesInvoice(SalesInvoice):
 
             msg = \
                 f'El numero de factura {bill_no_to_validate} ya esta siendo ' \
-                f'usado en la factura {invoice_link} ' \
+                f'usado en otro documento {invoice_link} ' \
                 f'Corrija e intente nuevamente'
 
             duplicated_msg.append(msg)
