@@ -4117,7 +4117,7 @@
     "name": "Sales Invoice-custom_debit_note_no",
     "no_copy": 0,
     "non_negative": 0,
-    "options": "Tax Withholding Category",
+    "options": null,
     "permlevel": 0,
     "placeholder": null,
     "precision": "",
