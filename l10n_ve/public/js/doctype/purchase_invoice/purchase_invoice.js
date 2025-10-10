@@ -40,8 +40,10 @@ function toggle_purchase_type_fields(frm) {
 
   if (frm.is_new() || (!is_debit_note && !is_return)) {
     frm.toggle_display(["bill_no"], !is_debit_note && !is_return);
-    frm.toggle_display(
-      ["debit_note_no", "credit_note_no", "affected_invoice_number", "return_against"],
+    frm.toggle_display(["debit_note_no",
+                        "credit_note_no",
+                        "affected_invoice_number",
+                        "return_against"],
       false
     );
 
@@ -53,9 +55,7 @@ function toggle_purchase_type_fields(frm) {
       frm.set_value("bill_no", "");
       frm.set_value("bill_control", "");
       frm.set_value("credit_note_no", "");
-    }
-
-    if (is_return) {
+    } else if (is_return) {
       frm.toggle_display(
         ["credit_note_no", "affected_invoice_number", "return_against"],
         is_return
@@ -73,18 +73,21 @@ function toggle_purchase_type_fields(frm) {
         ["debit_note_no", "bill_no", "is_debit_note"],
         false
       );
-      frm.toggle_display(["credit_note_no", "affected_invoice_number", "return_against"], is_return);
+      frm.toggle_display(["credit_note_no",
+                          "affected_invoice_number",
+                          "return_against"], is_return);
       frm.set_value("bill_no", "");
       frm.set_value("bill_control", "");
       frm.set_value("debit_note_no", "");
-    }
-
-    if (is_debit_note) {
-    frm.toggle_display(
-        ["credit_note_no", "bill_no", "is_return"],
-        false
-      );
-      frm.toggle_display(["debit_note_no", "affected_invoice_number", "return_against"], is_debit_note);
+    } else if (is_debit_note) {
+      frm.toggle_display(
+          ["credit_note_no", "bill_no", "is_return"],
+          false
+        );
+      frm.toggle_display(["debit_note_no",
+                          "affected_invoice_number",
+                          "return_against"],
+                          is_debit_note);
       frm.set_value("bill_no", "");
       frm.set_value("bill_control", "");
       frm.set_value("credit_note_no", "");
