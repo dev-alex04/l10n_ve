@@ -3,6 +3,7 @@ from frappe import _, _dict
 from frappe.utils import flt
 from frappe.model.document import Document
 
+from erpnext.utilities.utils import get_link_to_form
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 
@@ -118,44 +119,48 @@ class CustomSalesInvoice(SalesInvoice):
         if not bill_control_to_validate:
             return True
 
-        base_filters = {
+
+        draft_submitted_filters = {
             'company': self.company,
             'name': ['!=', self.name],
             'bill_control': bill_control_to_validate,
+            'docstatus': ['in', [0, 1]],
         }
 
-        is_duplicated_approved = frappe.db.exists(
-            "Sales Invoice",
-            {
-                **base_filters,
-                'docstatus': 1,
-            }
-        )
 
-        is_duplicated_cancelled_and_void = frappe.db.exists(
-            "Sales Invoice",
-            {
-                **base_filters,
-                'docstatus': 2, # Los documentos anulados tienen docstatus 2
-                'is_void': 1,
-            }
-        )
+        void_filters = {
+            'company': self.company,
+            'name': ['!=', self.name],
+            'bill_control': bill_control_to_validate,
+            'docstatus': 2,
+            'is_void': 1,
+        }
 
-        is_duplicated = is_duplicated_approved or is_duplicated_cancelled_and_void
+        duplicated_docs = frappe.db.get_all('Sales Invoice',
+                                            filters=draft_submitted_filters,
+                                            pluck='name') or []
 
-        if is_duplicated:
+        duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
+                                                 filters=void_filters,
+                                                 pluck='name') or [])
+
+        if duplicated_docs:
+            duplicated_msg = []
             if self.is_return:
-                message = ("El número de control ya está asignado a otra Nota de Crédito.")
-
+                doc_type_str = "Nota de Crédito"
             elif self.is_debit_note:
-                message = ("El número de control ya está asignado a otra Nota de Debito.")
-
+                doc_type_str = "Nota de Débito"
             else:
-                message = ("El número de control ya está asignado a otra factura.")
+                doc_type_str = "Factura"
 
-            if raise_throw:
-                frappe.throw(message, title="Advertencia de Duplicado")
-            return False
+            for duplicated in set(duplicated_docs):
+                link = get_link_to_form(self.doctype, duplicated)
+                msg = \
+                f"El número de control {bill_control_to_validate} " \
+                f"ya está siendo usado en la {doc_type_str} {link}. Corrija e intente nuevamente."
+                duplicated_msg.append(msg)
+
+            frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
 
         return True
 
@@ -175,60 +180,50 @@ class CustomSalesInvoice(SalesInvoice):
         if not bill_no_to_validate:
             return True
 
-        base_filters = {
+
+        draft_submitted_filters = {
             'is_return': False,
             'is_debit_note': False,
             'company': self.company,
             'name': ['!=', self.name],
             'bill_no': bill_no_to_validate,
+            'docstatus': ['in', [0, 1]],
         }
 
-        duplicated_invoice: list[str] = \
-            frappe.db.get_all('Sales Invoice',
-                              filters=base_filters,
-                              pluck='name') or []
 
-        duplicated_msg = []
-        from erpnext.utilities.utils import get_link_to_form
+        void_filters = {
+            'is_return': False,
+            'is_debit_note': False,
+            'company': self.company,
+            'name': ['!=', self.name],
+            'bill_no': bill_no_to_validate,
+            'docstatus': 2,
+            'is_void': 1,
+        }
 
-        for duplicated in duplicated_invoice:
-            invoice_link: str = get_link_to_form(self.doctype, duplicated)
+        duplicated_docs = frappe.db.get_all('Sales Invoice',
+                                            filters=draft_submitted_filters,
+                                            pluck='name') or []
 
-            msg = \
-                f'El numero de factura {bill_no_to_validate} ya esta siendo ' \
-                f'usado en otro documento {invoice_link} ' \
-                f'Corrija e intente nuevamente'
+        duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
+                                                 filters=void_filters,
+                                                 pluck='name') or [])
 
-            duplicated_msg.append(msg)
-
-        if duplicated_msg:
-            frappe.throw(duplicated_msg,
-                         title="Advertencia de Duplicado",
-                         as_list=True)
-
-        is_duplicated_approved: bool = bool(frappe.db.exists(
-            "Sales Invoice",
-            {**base_filters, 'docstatus': 1}
-        ))
-
-        is_duplicated_void: bool = bool(frappe.db.exists(
-            "Sales Invoice",
-            {
-                **base_filters,
-                'docstatus': 2,
-                'is_void': 1,
-            }
-        ))
-
-        is_duplicated = is_duplicated_approved or is_duplicated_void
-
-        if is_duplicated:
-            message = ("El número de factura ya está asignado a otra factura.")
+        if duplicated_docs:
+            duplicated_msg = []
+            for duplicated in set(duplicated_docs):
+                invoice_link: str = get_link_to_form(self.doctype, duplicated)
+                msg = (
+                    f'El número de factura {bill_no_to_validate} ya está siendo '
+                    f'usado en otro documento {invoice_link}. '
+                    f'Corrija e intente nuevamente.'
+                )
+                duplicated_msg.append(msg)
 
             if raise_throw:
-                frappe.throw(message, title="Advertencia de Duplicado")
-
-            return False
+                frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
+            else:
+                return False
 
         return True
 
@@ -238,38 +233,47 @@ class CustomSalesInvoice(SalesInvoice):
         """
         Valida que el número de Nota de Crédito no esté ya asignado.
         """
+
         credit_note_to_validate = credit_note_no or self.credit_note_no
         if not credit_note_to_validate:
             return True
 
-        base_filters = {
+        draft_submitted_filters = {
             'is_return': True,
             'company': self.company,
             'name': ['!=', self.name],
-            'credit_note_no': credit_note_to_validate
+            'credit_note_no': credit_note_to_validate,
+            'docstatus': ['in', [0, 1]],
         }
 
-        is_duplicated_approved = frappe.db.exists(
-            "Sales Invoice",
-            {**base_filters, 'docstatus': 1}
-        )
+        void_filters = {
+            'is_return': True,
+            'company': self.company,
+            'name': ['!=', self.name],
+            'credit_note_no': credit_note_to_validate,
+            'docstatus': 2,
+            'is_void': 1,
+        }
 
-        is_duplicated_cancelled_and_void = frappe.db.exists(
-            "Sales Invoice",
-            {
-                **base_filters,
-                'docstatus': 2,
-                'is_void': 1,
-            }
-        )
+        duplicated_docs = frappe.db.get_all('Sales Invoice',
+                                            filters=draft_submitted_filters,
+                                            pluck='name') or []
 
-        is_duplicated = is_duplicated_approved or is_duplicated_cancelled_and_void
+        duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
+                                                 filters=void_filters,
+                                                 pluck='name') or [])
 
-        if is_duplicated:
-            message = ("El número de Nota de Crédito ya está "
-            "asignado a otra Nota de Crédito.")
+        if duplicated_docs:
+            duplicated_msg = []
+            for duplicated in set(duplicated_docs):
+                link = get_link_to_form(self.doctype, duplicated)
+                msg = \
+                f"El número de Nota de Crédito {credit_note_to_validate} " \
+                f"ya está siendo usado en el documento {link}. Corrija e intente nuevamente."
+                duplicated_msg.append(msg)
+
             if raise_throw:
-                frappe.throw(message, title="Advertencia de Duplicado")
+                frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
             return False
 
         return True
@@ -285,33 +289,42 @@ class CustomSalesInvoice(SalesInvoice):
         if not debit_note_to_validate:
             return True
 
-        base_filters = {
+        draft_submitted_filters = {
             'is_debit_note': True,
             'company': self.company,
             'name': ['!=', self.name],
-            'debit_note_no': debit_note_to_validate
+            'debit_note_no': debit_note_to_validate,
+            'docstatus': ['in', [0, 1]],
         }
 
-        is_duplicated_approved = frappe.db.exists(
-            "Sales Invoice",
-            {**base_filters, 'docstatus': 1}
-        )
+        void_filters = {
+            'is_debit_note': True,
+            'company': self.company,
+            'name': ['!=', self.name],
+            'debit_note_no': debit_note_to_validate,
+            'docstatus': 2,
+            'is_void': 1,
+        }
 
-        is_duplicated_cancelled_and_void = frappe.db.exists(
-            "Sales Invoice",
-            {
-                **base_filters,
-                'docstatus': 2,
-                'is_void': 1,
-            }
-        )
+        duplicated_docs = frappe.db.get_all('Sales Invoice',
+                                            filters=draft_submitted_filters,
+                                            pluck='name') or []
 
-        is_duplicated = is_duplicated_approved or is_duplicated_cancelled_and_void
+        duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
+                                                 filters=void_filters,
+                                                   pluck='name') or [])
 
-        if is_duplicated:
-            message = ("El número de Nota de Débito ya está asignado a otra Nota de Débito.")
+        if duplicated_docs:
+            duplicated_msg = []
+            for duplicated in set(duplicated_docs):
+                link = get_link_to_form(self.doctype, duplicated)
+                msg = \
+                f"El número de Nota de Débito {debit_note_to_validate} " \
+                f"ya está siendo usado en el documento {link}. Corrija e intente nuevamente."
+                duplicated_msg.append(msg)
+
             if raise_throw:
-                frappe.throw(message, title="Advertencia de Duplicado")
+                frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
             return False
 
         return True
@@ -551,11 +564,55 @@ def void_document(doctype, name):
     Marca el documento como anulado (is_void = 1).
     Solo se permite en documentos cancelados (docstatus = 2).
     """
+
     doc = frappe.get_doc(doctype, name)
     if doc.docstatus != 2:
-        frappe.throw(_("Solo se pueden anular documentos que han sido cancelados."))
+        frappe.throw(_("Solo se pueden anular documentos que ya están cancelados."))
+
+    def _check_for_duplicate_before_void(field_name, value_to_check, label):
+        if not value_to_check:
+            return
+
+        filters = {
+            field_name: value_to_check,
+            "company": doc.company,
+            "name": ["!=", doc.name],
+        }
+
+        # Busca en borradores (0), enviados (1) o anulados (is_void=1)
+        duplicated_doc_name = (
+            frappe.db.get_value(doctype, {**filters, "docstatus": ["in", [0, 1]]}, "name") or
+            frappe.db.get_value(doctype, {**filters, "is_void": 1}, "name")
+        )
+
+        if duplicated_doc_name:
+            link = get_link_to_form(doctype, duplicated_doc_name)
+            message = _(
+                "No se puede anular este documento porque el {label} '{value}' "
+                "ya está siendo utilizado por el documento {link}. "
+                "Este número debe ser liberado primero."
+            ).format(label=label, value=frappe.bold(value_to_check), link=link)
+            frappe.throw(message, title=_("Anulación Bloqueada por Duplicado"))
+
+    if doc.is_return:
+        _check_for_duplicate_before_void("credit_note_no",
+                                         doc.credit_note_no,
+                                         _("número de nota de crédito"))
+    elif doc.is_debit_note:
+        _check_for_duplicate_before_void("debit_note_no",
+                                          doc.debit_note_no,
+                                            _("número de nota de débito"))
+    else:
+        _check_for_duplicate_before_void("bill_no",
+                                         doc.bill_no,
+                                         _("número de factura"))
+
+    _check_for_duplicate_before_void("bill_control",
+                                     doc.bill_control,
+                                       _("número de control"))
 
     frappe.db.set_value(doctype, name, "is_void", True)
     doc.add_comment("Comment", _("Documento marcado como Anulado."))
 
     frappe.clear_document_cache(doctype, name)
+    doc.reload()
