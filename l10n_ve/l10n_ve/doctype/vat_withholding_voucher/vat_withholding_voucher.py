@@ -19,6 +19,21 @@ class VATWithholdingVoucher(Document):
         company_doc.vat_withholding_correlative = final_next_correlative_number
         company_doc.save(ignore_permissions=True)
 
+    def on_trash(self):
+        document_date = self.issue_date
+        current_date = frappe.utils.getdate(frappe.utils.nowdate())
+
+        if document_date:
+            document_month_year = getdate(document_date).strftime('%Y-%m')
+            current_month_year = current_date.strftime('%Y-%m')
+        else:
+            frappe.throw("No se puede determinar la fecha del comprobante para la validación.")
+
+        if document_month_year != current_month_year:
+            frappe.throw(
+                f"No se puede eliminar el comprobante. Solo se permiten eliminaciones para el periodo actual ({current_month_year})."
+            )
+
 def _get_and_format_correlatives(company_doc, correlative_format, current_correlative_value):
     today = getdate(nowdate())
     current_year = str(today.year)
