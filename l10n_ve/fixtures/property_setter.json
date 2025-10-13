@@ -517,7 +517,7 @@
         "value": "1"
    },
     {
-        "doc_type": "Pur Invoice",
+        "doc_type": "Purchase Invoice",
         "doctype": "Property Setter",
         "doctype_or_field": "DocType",
         "property": "search_fields",

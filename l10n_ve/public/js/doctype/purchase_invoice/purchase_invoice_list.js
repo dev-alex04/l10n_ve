@@ -13,9 +13,7 @@ frappe.listview_settings["Purchase Invoice"] = {
     "is_void",
   ],
   get_indicator: function (doc) {
-    let status = "";
-    let indicator = "blue";
-    const status_colors = {
+       const status_colors = {
       Draft: "red",
       Unpaid: "orange",
       Paid: "green",
@@ -29,14 +27,14 @@ frappe.listview_settings["Purchase Invoice"] = {
       "Internal Transfer": "darkgrey",
       Cancelled: "red",
     };
-    status = __(doc.status);
-    indicator = status_colors[doc.status];
+    let status = __(doc.status);
+    let indicator = status_colors[doc.status];
 
     if (doc.is_debit_note) {
-      status = "Nota de Debito";
-      indicator = "gray";
-    }
-    if (doc.is_return) {
+    status = "Nota de Debito";
+    indicator = "gray";
+
+    } else if (doc.is_return) {
       status = "Nota de Credito";
       indicator = "gray";
     }
@@ -55,7 +53,7 @@ frappe.listview_settings["Purchase Invoice"] = {
       listview.page.add_action_item(__("Delivery Note"), () => {
         erpnext.bulk_transaction_processing.create(
           listview,
-          "Sales Invoice",
+          "Purchase Invoice",
           "Delivery Note"
         );
       });
@@ -65,7 +63,7 @@ frappe.listview_settings["Purchase Invoice"] = {
       listview.page.add_action_item(__("Payment"), () => {
         erpnext.bulk_transaction_processing.create(
           listview,
-          "Sales Invoice",
+          "Purchase Invoice",
           "Payment Entry"
         );
       });
