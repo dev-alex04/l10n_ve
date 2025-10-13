@@ -132,18 +132,16 @@ class ExcelBuilder:
         main_table_headers = [col.get("label") for col in self.columns]
 
         column_widths_config = {
-            "Nr Oper.": 7, "Tipo de Persona": 7, "RIF del Cliente": 10,
-            "Nro. de Control": 10, "Nro. Factura": 10, "Fecha": 10,
-            "Nro. de Maquina Fiscal": 10, "Nro. Nota de Credito": 10, "Nro. Nota de Debito": 10
+            "Nr Oper.": 5, "Tipo de Persona": 5, "RIF del Cliente": 12,
+            "Nro. de Control": 12, "Nro. Factura": 12, "Fecha": 10,
+            "Nro. de Maquina Fiscal": 10, "Nro. Nota de Credito": 12, "Nro. Nota de Debito": 12
         }
 
         for i, header in enumerate(main_table_headers):
             col_index = i + 1
             col_letter = get_column_letter(col_index)
 
-            initial_width = max(len(header) + 2, 10)
-
-            self.sheet.column_dimensions[col_letter].width = column_widths_config.get(header, 11)
+            self.sheet.column_dimensions[col_letter].width = column_widths_config.get(header, 10)
 
             cell = self.sheet.cell(row=current_row, column=col_index, value=header)
             cell.font = self.header_font
