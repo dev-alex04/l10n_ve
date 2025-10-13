@@ -9,6 +9,9 @@ from l10n_ve.utils.utils import format_amounts
 class ISLRWithholdingVoucher(Document):
 
     def before_print(self, settings):
+        company_tax_id = frappe.db.get_value("Company", self.empresa, "tax_id")
+        supplier_tax_id = frappe.db.get_value("Supplier", self.supplier, "tax_id")
+
         main_fields = [
             "totals_total_exempt",
             "totals_tax_amount",
@@ -21,8 +24,10 @@ class ISLRWithholdingVoucher(Document):
             "tax_amount"
         ]
 
+        self.company_tax_id = company_tax_id or "N/A"
+        self.supplier_tax_id = supplier_tax_id or "N/A"
         format_amounts(self, main_fields, child_fields, child_table_field="islr_withholding_voucher_item")
-    
+
     def before_insert(self):
         company_doc = frappe.get_doc("Company", self.empresa)
 
@@ -41,7 +46,7 @@ class ISLRWithholdingVoucher(Document):
         else:
             voucher_correlative_num = 1
             next_correlative_num = 2
-            
+
             template = company_doc.islr_withholding_format
             num_digits = len(template) - 6
 
@@ -60,30 +65,30 @@ class ISLRWithholdingVoucher(Document):
 def get_vat_correlative(company_name):
     if not company_name:
         return
-    
+
     company_doc = frappe.get_doc("Company", company_name)
-    
+
     correlative_value = company_doc.islr_withholding_correlative
-    
+
     today = getdate(nowdate())
     current_year = str(today.year)
     current_month = f"{today.month:02d}"
 
     if correlative_value:
         last_correlative_part = correlative_value[6:]
-        
+
         new_correlative = int(last_correlative_part)
         num_digits = len(last_correlative_part)
-            
+
     else:
         new_correlative = 1
         template = company_doc.islr_withholding_format
         num_digits = len(template) - 6
-    
+
     formatted_correlative = str(new_correlative).zfill(num_digits)
-    
+
     final_withholding_number = f"{current_year}{current_month}{formatted_correlative}"
-    
+
     return final_withholding_number
 
 @frappe.whitelist()
@@ -102,7 +107,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"posting_date": ["between", [start_date, end_date]]},
             {"company": company},
             {"docstatus": 1},
-            {"is_return": 0}, 
+            {"is_return": 0},
             {"is_debit_note": 0},
             {"name": ["not in", all_excluded_invoices]},
             ["Purchase Taxes and Charges", "charge_type", "=", "ISLR"]
@@ -143,7 +148,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         fields=["reference_name", "parent"],
         order_by="creation desc"
     )
-    
+
     payment_entries_map = {}
     for pe in all_payment_entries:
         if pe.reference_name not in payment_entries_map:
