@@ -109,7 +109,7 @@ def get_totals_from_data(data):
         base_adicional += row.get("base_adicional", 0)
         impuesto_adicional += row.get("impuesto_adicional", 0)
         total_igtf += row.get("total_igtf", 0)
-        if row.get("nro_comprobante_retencion") and ret_monto > 0:
+        if row.get("nro_comprobante_retencion") and ret_monto != 0:
             taxes_and_charges_deducted += ret_monto
             iva_retenido_terceros += row.get("iva_retenido_terceros", 0)
             anticipo_iva_importacion += row.get("anticipo_iva_importacion", 0)
@@ -358,6 +358,8 @@ def generate_xml_islr_file(filters=None):
             WHERE
                 tPTC.charge_type = 'ISLR' AND tPI.docstatus = 1
                 AND tPI.posting_date BETWEEN %(date_from)s AND %(to_date)s
+                AND tPI.is_return = 0
+                AND tPI.is_debit_note = 0
                 AND tPI.company = %(company)s
         """, filters, as_dict=True)
 
@@ -430,11 +432,11 @@ def generate_txt_file(filters):
             for row in invoices_with_voucher:
 
                 tax_rate = "0"
-                if flt(row.get("base_general")) > 0:
+                if flt(row.get("base_general")) != 0:
                     tax_rate = "16"
-                elif flt(row.get("base_reducida")) > 0:
+                elif flt(row.get("base_reducida")) != 0:
                     tax_rate = "8"
-                elif flt(row.get("base_adicional")) > 0:
+                elif flt(row.get("base_adicional")) != 0:
                     tax_rate = "31"
 
                 if row.get("credit_note_no"):
@@ -450,7 +452,7 @@ def generate_txt_file(filters):
                     str(company_rif),
                     str(periodo),
                     getdate(row.get("posting_date")).strftime("%Y-%m-%d") if row.get("posting_date") else "",
-                    "V" if flt(row.get("tipo")) == 1 else "C",
+                    "C",
                     transaction_code,
                     (row.get("tax_id") or "0").replace('-', ''),
                     document_number,
