@@ -57,6 +57,7 @@ class ISLRWithholdingVoucher(Document):
         final_next_correlative_number = f"{current_year}{current_month}{formatted_next_correlative}"
 
         self.voucher_number = final_voucher_number
+        self.posting_date = nowdate()
 
         company_doc.islr_withholding_correlative = final_next_correlative_number
         company_doc.save(ignore_permissions=True)
@@ -75,9 +76,6 @@ class ISLRWithholdingVoucher(Document):
             frappe.throw(
                 f"No se puede eliminar el comprobante. Solo se permiten eliminaciones para el periodo actual ({current_month_year})."
             )
-
-    def before_insert(self):
-        self.posting_date = nowdate()
 
 @frappe.whitelist()
 def get_vat_correlative(company_name):
