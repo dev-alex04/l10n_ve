@@ -28,7 +28,7 @@ def generate_vat_report(voucher_name):
 		"taxes_and_charges_added",
 		"taxes_and_charges_deducted",
 	], "vat_withholding_voucher_item")
-    
+
     items_per_page = 10
     total_items = len(doc.vat_withholding_voucher_item)
     total_pages = int(total_items / items_per_page) + (1 if total_items % items_per_page > 0 else 0)
@@ -38,9 +38,9 @@ def generate_vat_report(voucher_name):
         start_index = i * items_per_page
         end_index = start_index + items_per_page
         current_items = doc.vat_withholding_voucher_item[start_index:end_index]
-        
+
         content_table_html = generate_content_table(current_items, doc, i, total_pages)
-        
+
         page_html = f"""
         <div class="page-container">
             {header_html}
@@ -62,7 +62,7 @@ def generate_vat_report(voucher_name):
         <style>
             /* Estilos para el formato de impresión */
             @page {{
-                size: A4 landscape; 
+                size: A4 landscape;
 				margin: 5mm;
             }}
 
@@ -80,38 +80,38 @@ def generate_vat_report(voucher_name):
 				width: 90%;
 				margin: 0 auto 5mm auto;
 			}}
-            
+
             .footer {{
 				position: fixed;
 				bottom: 0;
 				left: 0;
 				right: 0;
-				height: 20mm; 
+				height: 20mm;
 				text-align: right;
 				font-size: 10px;
 			}}
-            
+
             .mb-7 {{
                 margin-bottom: 0px !important;
             }}
-            
+
             .mt-7 {{
                 margin-top: 0px !important;
             }}
-            
+
             .text-right {{
                 text-align: right;
             }}
-            
+
             .text-center {{
                 text-align: center;
             }}
-            
+
             tr > th {{
                 text-align: center;
                 font-size: 12px;
             }}
-            
+
             .withholding-voucher-info {{
                 width: 100%;
                 border-collapse: separate;
@@ -134,11 +134,11 @@ def generate_vat_report(voucher_name):
 				vertical-align: top;
 				border: 1px solid #000;
 			}}
-            
+
             b, strong, h6 {{
                 font-weight: bold !important;
             }}
-            
+
             .withholding-voucher-details-table td, .withholding-voucher-details-table th {{
                 border-bottom: 1px solid #000;
             }}
@@ -153,19 +153,19 @@ def generate_vat_report(voucher_name):
 			.withholding-voucher-details-table th {{
                 border-top: 1px solid #000;
             }}
-            
+
             .withholding-voucher-details-table tr.totales td {{
                 border-bottom: none !important;
             }}
-            
+
             .withholding-voucher-details {{
                 padding-bottom: 40mm;
             }}
-            
+
             .page-container {{
                 page-break-after: always;
             }}
-            
+
             .page-container:last-child {{
                 page-break-after: avoid;
             }}
@@ -180,10 +180,13 @@ def generate_vat_report(voucher_name):
     </body>
     </html>
     """
-    
+
     return full_html
 
 def get_header_html(doc):
+    company_tax_id = frappe.db.get_value("Company", doc.empresa, "tax_id")
+    supplier_tax_id = frappe.db.get_value("Supplier", doc.supplier, "tax_id")
+
     return f"""
     <div class="page-header">
         <div style="text-align: center;">
@@ -194,9 +197,9 @@ def get_header_html(doc):
                 <tr>
                     <td>
                         <p class="mt-7">
-                            (Ley IVA - Art. 11. Gaceta Oficial 6.152 Extraordinario: "La Administración Tributaria podrá designar como 
-                            responsables del pago del impuesto, en calidad de agentes de retención, a quienes por sus funciones públicas 
-                            o por razón de sus actividades privadas intervengan en operaciones gravadas como el impuesto establecido en 
+                            (Ley IVA - Art. 11. Gaceta Oficial 6.152 Extraordinario: "La Administración Tributaria podrá designar como
+                            responsables del pago del impuesto, en calidad de agentes de retención, a quienes por sus funciones públicas
+                            o por razón de sus actividades privadas intervengan en operaciones gravadas como el impuesto establecido en
                             este Documento con Rango, Valor y Fuerza de Ley")
                         </p>
                     </td>
@@ -212,7 +215,7 @@ def get_header_html(doc):
                     </td>
                     <td style="width: 30%;">
                         <h6 class="mt-7" style="font-weight: bold; margin-bottom: 0px !important;">REGISTRO DE INFORMACIÓN FISCAL </br> DEL AGENTE DE RETENCIÓN (R.I.F) </h6>
-                        <p class="mb-7"> {frappe.db.get_value("Company", doc.empresa, "tax_id")} </p>
+                        <p class="mb-7"> {company_tax_id} </p>
                     </td>
                     <td style="width: 30%;">
                         <h6 class="mt-7" style="font-weight: bold;">Nº COMPROBANTE:</h6>
@@ -248,7 +251,7 @@ def get_header_html(doc):
                     </td>
                     <td style="width: 30%;">
                         <h6 class="mt-7" style="font-weight: bold; margin-bottom: 0px !important;">REGISTRO DE INFORMACIÓN FISCAL </br> DEL CONTRIBUYENTE (R.I.F) </h6>
-                        <p class="mb-7"> {frappe.db.get_value("Supplier", doc.supplier, "tax_id")} </p>
+                        <p class="mb-7"> {supplier_tax_id} </p>
                     </td>
                     <td style="width: 30%;">
                         <h6 class="mt-7" style="font-weight: bold;">PERIODO FISCAL:</h6>
@@ -296,14 +299,22 @@ def get_footer_html(doc):
 
 def generate_content_table(items, doc, current_page, total_pages):
     table_rows = ""
-    for item in items:
+
+    for index, item in enumerate(items):
+        transaction_type = ('02-Comp'
+            if item.debit_note_no or item.credit_note_no
+            else '01-Reg')
+
+        display_index = index + 1
         table_rows += f"""
         <tr>
+            <td class="text-center">{display_index:02d}</td>
             <td class="text-center">{getdate(item.posting_date).strftime('%d/%m/%Y')}</td>
             <td class="text-center">{item.bill_no or ''}</td>
             <td class="text-center">{item.bill_control or ''}</td>
             <td class="text-center">{item.debit_note_no or ''}</td>
             <td class="text-center">{item.credit_note_no or ''}</td>
+            <td class="text-center">{transaction_type}</td>
             <td class="text-center">{item.affected_invoice_number or ''}</td>
             <td class="text-right">{item.grand_total}</td>
             <td class="text-right">{item.total_exempt}</td>
@@ -313,10 +324,12 @@ def generate_content_table(items, doc, current_page, total_pages):
             <td class="text-right">{item.taxes_and_charges_deducted}</td>
         </tr>
         """
-    
+
     if current_page == total_pages - 1:
         table_rows += f"""
         <tr class="totales">
+            <td></td>
+            <td></td>
             <td></td>
             <td></td>
             <td></td>
@@ -338,11 +351,13 @@ def generate_content_table(items, doc, current_page, total_pages):
             <table class="withholding-voucher-details-table" style="margin-top: 5px; ">
                 <thead>
                     <tr>
+                        <th style="font-weight: bold; width: 5%;">Oper. N°</th>
                         <th style="font-weight: bold; width: 10%;">Fecha </br> Factura</th>
                         <th style="font-weight: bold; width: 10%;">Nº Factura</th>
-                        <th style="font-weight: bold; width: 10%;">Nº Control</th>
+                        <th style="font-weight: bold; width: 5%;">Nº Control</th>
                         <th style="font-weight: bold; width: 5%;">N/D</th>
                         <th style="font-weight: bold; width: 5%;">N/C</th>
+                        <th style="font-weight: bold; width: 5%;">Tipo Trans.</th>
                         <th style="font-weight: bold; width: 5%;">Factura </br> Afectada</th>
                         <th style="font-weight: bold; width: 10%;">Total Compras </br> + IVA</th>
                         <th style="font-weight: bold; width: 10%;">Compras sin </br> credito fiscal</th>
