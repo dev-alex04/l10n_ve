@@ -57,9 +57,25 @@ class ISLRWithholdingVoucher(Document):
         final_next_correlative_number = f"{current_year}{current_month}{formatted_next_correlative}"
 
         self.voucher_number = final_voucher_number
+        self.posting_date = nowdate()
 
         company_doc.islr_withholding_correlative = final_next_correlative_number
         company_doc.save(ignore_permissions=True)
+
+    def on_trash(self):
+        document_date = self.posting_date
+        current_date = frappe.utils.getdate(frappe.utils.nowdate())
+
+        if document_date:
+            document_month_year = getdate(document_date).strftime('%Y-%m')
+            current_month_year = current_date.strftime('%Y-%m')
+        else:
+            frappe.throw("No se puede determinar la fecha del comprobante para la validación.")
+
+        if document_month_year != current_month_year:
+            frappe.throw(
+                f"No se puede eliminar el comprobante. Solo se permiten eliminaciones para el periodo actual ({current_month_year})."
+            )
 
 @frappe.whitelist()
 def get_vat_correlative(company_name):

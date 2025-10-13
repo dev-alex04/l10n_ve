@@ -11,6 +11,7 @@
   "voucher_number",
   "column_break_lzyc",
   "end_date",
+  "posting_date",
   "section_break_vaxc",
   "empresa",
   "company_address",
@@ -119,12 +120,18 @@
    "fieldname": "totals_total_exempt",
    "fieldtype": "Currency",
    "label": "Total Objeto a Retenci\u00f3n"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "hidden": 1,
+   "label": "Fecha Creaci\u00f3n"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-18 17:04:48.475233",
+ "modified": "2025-10-13 16:43:24.428474",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "ISLR Withholding Voucher",
