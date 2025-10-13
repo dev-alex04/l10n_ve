@@ -44,6 +44,10 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             message = "No se puede cancelar esta factura. Está asociada a " + " y a ".join(reasons) + "."
             frappe.throw(message, frappe.ValidationError)
 
+    def before_submit(self) -> None:
+        super().before_submit()
+        self.set_title_field()
+
     def validate(self) -> None:
         super().validate()
 
@@ -560,6 +564,19 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                             item=tax,
                         )
                     )
+
+    def set_title_field(self):
+        super().set_title_field()
+        if self.docstatus == 0:
+            return
+        if self.is_return:
+            self.title = self.credit_note_no
+
+        elif self.is_debit_note:
+            self.title = self.debit_note_no
+
+        else:
+            self.title = self.bill_no
 
     def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
         """
