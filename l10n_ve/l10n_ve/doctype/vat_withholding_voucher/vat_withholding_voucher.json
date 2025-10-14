@@ -153,6 +153,7 @@
   {
    "fieldname": "company_address",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Direcci\u00f3n Empresa"
   },
   {
@@ -162,6 +163,7 @@
   {
    "fieldname": "supplier_address",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Direcci\u00f3n Proveedor"
   },
   {
@@ -174,7 +176,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-14 11:58:06.115607",
+ "modified": "2025-10-14 12:25:21.458723",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
