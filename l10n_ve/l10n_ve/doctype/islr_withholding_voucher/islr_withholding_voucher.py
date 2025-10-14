@@ -4,9 +4,13 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate
+from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 from l10n_ve.utils.utils import format_amounts
 
-class ISLRWithholdingVoucher(Document):
+class ISLRWithholdingVoucher(Document, WithholdingVoucher):
+
+    def validate(self):
+        self.validate_address()
 
     def before_print(self, settings):
         company_tax_id = frappe.db.get_value("Company", self.empresa, "tax_id")

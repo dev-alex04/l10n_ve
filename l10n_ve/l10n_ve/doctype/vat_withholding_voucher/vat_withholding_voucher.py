@@ -4,8 +4,11 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate
+from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
+class VATWithholdingVoucher(Document, WithholdingVoucher):
 
-class VATWithholdingVoucher(Document):
+    def validate(self):
+        self.validate_address()
 
     def before_insert(self):
         company_doc = frappe.get_doc("Company", self.empresa)

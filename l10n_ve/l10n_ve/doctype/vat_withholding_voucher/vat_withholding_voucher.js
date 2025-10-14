@@ -78,23 +78,6 @@ frappe.ui.form.on('VAT Withholding Voucher', {
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
         }
-
-        if (frm.doc.supplier) {
-            frappe.call({
-                method: "l10n_ve.utils.utils.get_supplier_address",
-                args: {
-                    supplier_name: frm.doc.supplier
-                },
-                callback: function(r) {
-                    if (r.message && r.message.address_line1) {
-                        const full_address = r.message.address_line1;
-                        frm.set_value('supplier_address', full_address);
-                    } else {
-                        frm.set_value('supplier_address', '');
-                    }
-                }
-            });
-        }
     },
 
     empresa: function(frm) {
@@ -107,23 +90,6 @@ frappe.ui.form.on('VAT Withholding Voucher', {
 
         if (frm.doc.supplier && frm.doc.start_date && frm.doc.end_date) {
             load_invoices(frm);
-        }
-
-        if (frm.doc.empresa) {
-            frappe.call({
-                method: "l10n_ve.utils.utils.get_company_address",
-                args: {
-                    company_name: frm.doc.empresa
-                },
-                callback: function(r) {
-                    if (r.message && r.message.address_line1) {
-                        const full_address = r.message.address_line1;
-                        frm.set_value('company_address', full_address);
-                    } else {
-                        frm.set_value('company_address', '');
-                    }
-                }
-            });
         }
     },
 });
