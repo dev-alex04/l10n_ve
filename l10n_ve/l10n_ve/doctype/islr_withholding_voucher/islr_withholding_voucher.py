@@ -34,31 +34,10 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
     def before_insert(self):
         company_doc = frappe.get_doc("Company", self.empresa)
+        correlative_format = company_doc.islr_withholding_format
 
-        current_correlative_value = company_doc.islr_withholding_correlative
-
-        today = getdate(nowdate())
-        current_year = str(today.year)
-        current_month = f"{today.month:02d}"
-
-        if current_correlative_value:
-            last_correlative_part = current_correlative_value[6:]
-            voucher_correlative_num = int(last_correlative_part)
-
-            next_correlative_num = int(last_correlative_part) + 1
-            num_digits = len(last_correlative_part)
-        else:
-            voucher_correlative_num = 1
-            next_correlative_num = 2
-
-            template = company_doc.islr_withholding_format
-            num_digits = len(template) - 6
-
-        formatted_voucher_correlative = str(voucher_correlative_num).zfill(num_digits)
-        formatted_next_correlative = str(next_correlative_num).zfill(num_digits)
-
-        final_voucher_number = f"{current_year}{current_month}{formatted_voucher_correlative}"
-        final_next_correlative_number = f"{current_year}{current_month}{formatted_next_correlative}"
+        final_voucher_number, final_next_correlative_number = \
+            WithholdingVoucher._get_and_format_correlatives(correlative_format, company_doc.islr_withholding_correlative)
 
         self.voucher_number = final_voucher_number
         self.posting_date = nowdate()
@@ -68,7 +47,7 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
     def on_trash(self):
         document_date = self.posting_date
-        current_date = frappe.utils.getdate(frappe.utils.nowdate())
+        current_date = getdate(nowdate())
 
         if document_date:
             document_month_year = getdate(document_date).strftime('%Y-%m')
@@ -82,34 +61,20 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
             )
 
 @frappe.whitelist()
-def get_vat_correlative(company_name):
+def get_islr_correlative(company_name):
     if not company_name:
-        return
+        return None
 
     company_doc = frappe.get_doc("Company", company_name)
+    correlative_format = company_doc.islr_withholding_format
 
-    correlative_value = company_doc.islr_withholding_correlative
+    final_voucher_number, _ = \
+        WithholdingVoucher._get_and_format_correlatives(
+            correlative_format,
+            company_doc.islr_withholding_correlative
+        )
 
-    today = getdate(nowdate())
-    current_year = str(today.year)
-    current_month = f"{today.month:02d}"
-
-    if correlative_value:
-        last_correlative_part = correlative_value[6:]
-
-        new_correlative = int(last_correlative_part)
-        num_digits = len(last_correlative_part)
-
-    else:
-        new_correlative = 1
-        template = company_doc.islr_withholding_format
-        num_digits = len(template) - 6
-
-    formatted_correlative = str(new_correlative).zfill(num_digits)
-
-    final_withholding_number = f"{current_year}{current_month}{formatted_correlative}"
-
-    return final_withholding_number
+    return final_voucher_number
 
 @frappe.whitelist()
 def get_valid_invoices(supplier, start_date, end_date, company):

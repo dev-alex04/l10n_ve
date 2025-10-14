@@ -24,7 +24,7 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
 
             if (company_name) {
                 frappe.call({
-                    method: "l10n_ve.l10n_ve.doctype.islr_withholding_voucher.islr_withholding_voucher.get_vat_correlative",
+                    method: "l10n_ve.l10n_ve.doctype.islr_withholding_voucher.islr_withholding_voucher.get_islr_correlative",
                     args: {
                         company_name: company_name
                     },

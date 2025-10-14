@@ -15,7 +15,7 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
         correlative_format = company_doc.vat_withholding_format
 
         final_voucher_number, final_next_correlative_number = \
-            _get_and_format_correlatives(company_doc, correlative_format, company_doc.vat_withholding_correlative)
+            WithholdingVoucher._get_and_format_correlatives(correlative_format, company_doc.vat_withholding_correlative)
 
         self.voucher_number = final_voucher_number
 
@@ -24,7 +24,7 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
 
     def on_trash(self):
         document_date = self.issue_date
-        current_date = frappe.utils.getdate(frappe.utils.nowdate())
+        current_date = getdate(nowdate())
 
         if document_date:
             document_month_year = getdate(document_date).strftime('%Y-%m')
@@ -37,28 +37,6 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
                 f"No se puede eliminar el comprobante. Solo se permiten eliminaciones para el periodo actual ({current_month_year})."
             )
 
-def _get_and_format_correlatives(company_doc, correlative_format, current_correlative_value):
-    today = getdate(nowdate())
-    current_year = str(today.year)
-    current_month = f"{today.month:02d}"
-
-    template = correlative_format or 'YYYYMM########'
-    num_digits = len(template) - 6
-
-    if current_correlative_value:
-        voucher_correlative_num = int(current_correlative_value)
-    else:
-        voucher_correlative_num = 1
-
-    next_correlative_num = voucher_correlative_num + 1
-
-    formatted_voucher = str(voucher_correlative_num).zfill(num_digits)
-
-    final_voucher_number = f"{current_year}{current_month}{formatted_voucher}"
-    final_next_correlative_number = f"{next_correlative_num}"
-
-    return final_voucher_number, final_next_correlative_number
-
 @frappe.whitelist()
 def get_vat_correlative(company_name):
     if not company_name:
@@ -68,7 +46,10 @@ def get_vat_correlative(company_name):
     correlative_format = company_doc.vat_withholding_format
 
     final_voucher_number, _ = \
-        _get_and_format_correlatives(company_doc, correlative_format, company_doc.vat_withholding_correlative)
+        WithholdingVoucher._get_and_format_correlatives(
+            correlative_format,
+            company_doc.vat_withholding_correlative
+        )
 
     return final_voucher_number
 
