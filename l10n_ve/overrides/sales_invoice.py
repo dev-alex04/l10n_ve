@@ -389,7 +389,7 @@ class CustomSalesInvoice(SalesInvoice):
         self.taxes = [
             tax
             for tax in self.taxes or []
-            if tax.charge_type != withholding.charge_type
+            if tax.get('charge_type') != withholding.charge_type
         ]
 
         self.append("taxes", withholding)
@@ -406,6 +406,13 @@ class CustomSalesInvoice(SalesInvoice):
         account_head: str = frappe.db.get_value("Company",
                                                     self.company,
                                                     "sales_islr_account")
+
+
+        # para evitar duplicados.
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if tax.get('charge_type') != "ISLR"
+        ]
 
         for aliquot in tabulator.aliquot:
             if type_of_person == aliquot.types_of_person:

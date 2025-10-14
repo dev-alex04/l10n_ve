@@ -213,6 +213,12 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                                                   self.company,
                                                   "purchase_islr_account")
 
+        # para evitar duplicados.
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if tax.get('charge_type') != "ISLR"
+        ]
+
         for aliquot in tabulator.aliquot:
             if type_of_person == aliquot.types_of_person:
 
@@ -228,6 +234,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                     "description": tabulator.descripcion,
                     "percentage_base": aliquot.percentage_base,
                 })
+                break
 
         self.save()
         return self.name
@@ -443,7 +450,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         self.taxes = [
             tax
             for tax in self.taxes or []
-            if tax.charge_type != withholding.charge_type
+            if tax.get('charge_type') != withholding.charge_type
         ]
 
         self.append("taxes", withholding)
