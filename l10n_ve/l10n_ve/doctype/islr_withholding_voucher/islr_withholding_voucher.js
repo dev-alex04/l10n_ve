@@ -23,11 +23,10 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
   onload: function (frm) {
     if (frm.doc.__islocal) {
       const company_name = frm.doc.empresa;
-      const today = new Date();
 
       if (company_name) {
         frm
-          .call("get_vat_correlative", {
+          .call("get_withholding_correlative", {
             company_name: company_name,
             voucher_type: "islr",
           })

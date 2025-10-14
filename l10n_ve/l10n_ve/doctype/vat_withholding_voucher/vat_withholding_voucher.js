@@ -31,7 +31,7 @@ frappe.ui.form.on("VAT Withholding Voucher", {
 
       if (company_name) {
         frm
-          .call("get_vat_correlative", {
+          .call("get_withholding_correlative", {
             company_name: company_name,
             voucher_type: "vat",
           })

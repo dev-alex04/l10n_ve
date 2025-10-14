@@ -33,7 +33,7 @@ class WithholdingVoucher():
             frappe.throw(final_error_message)
 
     @frappe.whitelist()
-    def get_vat_correlative(self, company_name, voucher_type):
+    def get_withholding_correlative(self, company_name, voucher_type):
         if not company_name:
             return None
 
