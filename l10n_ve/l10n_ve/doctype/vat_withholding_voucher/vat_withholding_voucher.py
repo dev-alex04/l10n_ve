@@ -15,7 +15,7 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
         correlative_format = company_doc.vat_withholding_format
 
         final_voucher_number, final_next_correlative_number = \
-            WithholdingVoucher._get_and_format_correlatives(correlative_format, company_doc.vat_withholding_correlative)
+            self._get_and_format_correlatives(correlative_format, company_doc.vat_withholding_correlative)
 
         self.voucher_number = final_voucher_number
 
@@ -36,22 +36,6 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
             frappe.throw(
                 f"No se puede eliminar el comprobante. Solo se permiten eliminaciones para el periodo actual ({current_month_year})."
             )
-
-@frappe.whitelist()
-def get_vat_correlative(company_name):
-    if not company_name:
-        return None
-
-    company_doc = frappe.get_doc("Company", company_name)
-    correlative_format = company_doc.vat_withholding_format
-
-    final_voucher_number, _ = \
-        WithholdingVoucher._get_and_format_correlatives(
-            correlative_format,
-            company_doc.vat_withholding_correlative
-        )
-
-    return final_voucher_number
 
 @frappe.whitelist()
 def get_invoiced_purchase_invoices():
