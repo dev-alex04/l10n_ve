@@ -450,7 +450,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         self.taxes = [
             tax
             for tax in self.taxes or []
-            if tax.get('charge_type') != withholding.charge_type
+            if tax.get('charge_type') != withholding.get('charge_type')
         ]
 
         self.append("taxes", withholding)

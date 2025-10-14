@@ -378,7 +378,7 @@ class CustomSalesInvoice(SalesInvoice):
 
             withholding['description'] = \
                 f'{withholding.description} por Nota de Crédito contra factura {self.affected_invoice_number}'
-
+s
         elif self.is_debit_note:
 
             withholding.description = \
@@ -389,7 +389,7 @@ class CustomSalesInvoice(SalesInvoice):
         self.taxes = [
             tax
             for tax in self.taxes or []
-            if tax.get('charge_type') != withholding.charge_type
+            if tax.get('charge_type') != withholding.get('charge_type')
         ]
 
         self.append("taxes", withholding)
