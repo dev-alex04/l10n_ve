@@ -32,7 +32,28 @@ class WithholdingVoucher():
 
             frappe.throw(final_error_message)
 
-    def _get_and_format_correlatives(correlative_format, current_correlative_value):
+    @frappe.whitelist()
+    def get_vat_correlative(self, company_name, voucher_type):
+        if not company_name:
+            return None
+
+        company_doc = frappe.get_doc("Company", company_name)
+
+        format_field = f"{voucher_type}_withholding_format"
+        correlative_field = f"{voucher_type}_withholding_correlative"
+
+        correlative_format = company_doc.get(format_field)
+        current_correlative = company_doc.get(correlative_field)
+
+        final_voucher_number, _ = \
+            self._get_and_format_correlatives(
+                correlative_format,
+                current_correlative
+            )
+
+        return final_voucher_number
+
+    def _get_and_format_correlatives(self, correlative_format, current_correlative_value):
         today = getdate(nowdate())
         current_year = str(today.year)
         current_month = f"{today.month:02d}"
