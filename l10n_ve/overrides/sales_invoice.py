@@ -378,7 +378,7 @@ class CustomSalesInvoice(SalesInvoice):
 
             withholding['description'] = \
                 f'{withholding.description} por Nota de Crédito contra factura {self.affected_invoice_number}'
-s
+
         elif self.is_debit_note:
 
             withholding.description = \
