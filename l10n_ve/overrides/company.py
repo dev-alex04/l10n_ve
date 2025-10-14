@@ -26,19 +26,31 @@ class CustomCompany(Company):
 
     def increment_invoice_number(self):
         next_invoice = (self.sales_invoice_number_correlative or 1) + 1
-        frappe.db.set_value("Company", self.name, "sales_invoice_number_correlative", next_invoice)
+        frappe.db.set_value("Company",
+                            self.name,
+                            "sales_invoice_number_correlative",
+                            next_invoice)
 
     def increment_credit_note_number(self):
         next_credit_note = (self.sales_credit_note_number_correlative or 1) + 1
-        frappe.db.set_value("Company", self.name, "sales_credit_note_number_correlative", next_credit_note)
+        frappe.db.set_value("Company",
+                            self.name,
+                            "sales_credit_note_number_correlative",
+                            next_credit_note)
 
     def increment_debit_note_number(self):
         next_debit_note = (self.sales_debit_note_number_correlative or 1) + 1
-        frappe.db.set_value("Company", self.name, "sales_debit_note_number_correlative", next_debit_note)
+        frappe.db.set_value("Company",
+                            self.name,
+                            "sales_debit_note_number_correlative",
+                            next_debit_note)
 
     def increment_control_number(self):
         next_control = (self.sales_invoice_control_number_correlative or 1) + 1
-        frappe.db.set_value("Company", self.name, "sales_invoice_control_number_correlative", next_control)
+        frappe.db.set_value("Company",
+                            self.name,
+                            "sales_invoice_control_number_correlative",
+                            next_control)
         frappe.db.commit()
 
     def format_number(self, number_format: str | None, number: int) -> str:

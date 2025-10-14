@@ -27,7 +27,8 @@ class ExcelBuilder:
         self.sheet.title = "Reporte"
 
         # Definimos los estilos comunes
-        self.header_font = Font(bold=True)
+        self.default_font = Font(name='Calibri', size=8)
+        self.header_font = Font(name='Calibri', size=8, bold=True)
         self.data_border = Border(
             left=Side(style="thin"),
             right=Side(style="thin"),
@@ -85,86 +86,77 @@ class ExcelBuilder:
 
         return current_row + 2
 
-    def _build_main_table(self, start_row):
+    def _build_multi_level_headers(self, start_row: int) -> int:
         """
-        Construye la tabla principal con todos los datos y encabezados,
-        usando anchos compactos y SEPARANDO LA FILA DE TOTALES.
+        Construye los encabezados de varios niveles para la tabla principal.
         """
         current_row = start_row
 
-        # --- Primer y Segundo nivel de encabezados (Títulos y Alícuotas) ---
+        # Configuración declarativa de los encabezados de varios niveles
+        header_levels = [
+            # Nivel 2
+            [
+                {"text": _("Ventas a Contribuyentes"), "start_col": 17, "span": 6},
+                {"text": _("Ventas a No Contribuyentes"), "start_col": 23, "span": 6},
+            ],
+            # Nivel 3
+            [
+                {"text": _("Tasa Reducida 8%"), "start_col": 17, "span": 2},
+                {"text": _("Tasa General 16%"), "start_col": 19, "span": 2},
+                {"text": _("Tasa General + Adicional 31%"), "start_col": 21, "span": 2},
+                {"text": _("Tasa Reducida 8%"), "start_col": 23, "span": 2},
+                {"text": _("Tasa General 16%"), "start_col": 25, "span": 2},
+                {"text": _("Tasa General + Adicional 31%"), "start_col": 27, "span": 2},
+                {"text": _("Retención"), "start_col": 29, "span": 4},
+                {"text": _("IGTF"), "start_col": 33, "span": 3},
+            ]
+        ]
 
-        headers_2level = {
-            15: _("Ventas a Contribuyentes"),
-            21: _("Ventas a No Contribuyentes"),
-        }
+        for level_headers in header_levels:
+            for header_info in level_headers:
+                cell = self.sheet.cell(row=current_row, column=header_info["start_col"], value=header_info["text"])
+                cell.font = self.header_font
+                cell.border = self.data_border
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-        # Escribimos los títulos del primer nivel en la fila actual
-        for col, header_text in headers_2level.items():
-            cell = self.sheet.cell(row=current_row, column=col, value=header_text)
-            cell.font = Font(bold=True)
-            cell.border = self.data_border
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                if header_info["span"] > 1:
+                    self.sheet.merge_cells(
+                        start_row=current_row,
+                        start_column=header_info["start_col"],
+                        end_row=current_row,
+                        end_column=header_info["start_col"] + header_info["span"] - 1
+                    )
+            current_row += 1
 
-        # Combinamos las celdas para los títulos que agrupan
-        self.sheet.merge_cells(start_row=current_row, start_column=15, end_row=current_row, end_column=20)
-        self.sheet.merge_cells(start_row=current_row, start_column=21, end_row=current_row, end_column=26)
-
-        current_row += 1
-
-        # --- Segundo nivel de encabezados (alícuotas) ---
-        headers_3level = {
-            15: _("Tasa Reducida 8%"), 17: _("Tasa General 16%"), 19: _("Tasa General + Adicional 31%"),
-            21: _("Tasa Reducida 8%"), 23: _("Tasa General 16%"), 25: _("Tasa General + Adicional 31%"),
-            27: _("Retención"), 31: _("IGTF")
-        }
-
-        for col, header_text in headers_3level.items():
-            cell = self.sheet.cell(row=current_row, column=col, value=header_text)
-            cell.font = Font(bold=True)
-            cell.border = self.data_border
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-        self.sheet.merge_cells(start_row=current_row, start_column=15, end_row=current_row, end_column=16)
-        self.sheet.merge_cells(start_row=current_row, start_column=17, end_row=current_row, end_column=18)
-        self.sheet.merge_cells(start_row=current_row, start_column=19, end_row=current_row, end_column=20)
-        self.sheet.merge_cells(start_row=current_row, start_column=21, end_row=current_row, end_column=22)
-        self.sheet.merge_cells(start_row=current_row, start_column=23, end_row=current_row, end_column=24)
-        self.sheet.merge_cells(start_row=current_row, start_column=25, end_row=current_row, end_column=26)
-        self.sheet.merge_cells(start_row=current_row, start_column=27, end_row=current_row, end_column=30)
-        self.sheet.merge_cells(start_row=current_row, start_column=31, end_row=current_row, end_column=33)
-
-        current_row += 1
-
+        # --- Encabezados principales de la tabla (Nivel 4) ---
         main_table_headers = [col.get("label") for col in self.columns]
-        column_widths = {}
+
+        column_widths_config = {
+            "Nr Oper.": 5, "Tipo de Persona": 5, "RIF del Cliente": 12,
+            "Nro. de Control": 12, "Nro. Factura": 12, "Fecha": 10,
+            "Nro. de Maquina Fiscal": 10, "Nro. Nota de Credito": 12, "Nro. Nota de Debito": 12
+        }
 
         for i, header in enumerate(main_table_headers):
             col_index = i + 1
             col_letter = get_column_letter(col_index)
 
-            initial_width = max(len(header) + 2, 10)
-
-            if header in ("Nr Oper.", "Tipo de Persona"):
-                initial_width = 7
-            elif header == "RIF del Cliente":
-                initial_width = 10
-            elif header in ("RIF", "Nro. de Control"):
-                initial_width = 10
-            elif header in ("Nro. Factura", "Fecha"):
-                initial_width = 10
-            elif header in ("Nro. de Maquina Fiscal", "Nro. Nota de Credito","Nro. Nota de Debito"):
-                initial_width = 10
-            elif col_index > 14:
-                initial_width = 11
-
-            column_widths[col_letter] = initial_width
+            self.sheet.column_dimensions[col_letter].width = column_widths_config.get(header, 10)
 
             cell = self.sheet.cell(row=current_row, column=col_index, value=header)
-            cell.font = Font(bold=True)
+            cell.font = self.header_font
             cell.border = self.data_border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             self.sheet.row_dimensions[current_row].height = 40
+
+        return current_row
+
+    def _write_data_rows(self, start_row):
+        """
+        Escribe las filas de datos en la tabla principal y ajusta dinámicamente el ancho de las columnas.
+        """
+        current_row = start_row
+        column_widths = {get_column_letter(i + 1): self.sheet.column_dimensions[get_column_letter(i + 1)].width for i in range(len(self.columns))}
 
         row_index = current_row + 1
         for row_data in self.data:
@@ -176,6 +168,7 @@ class ExcelBuilder:
                 cell_value = row_data.get(fieldname)
 
                 cell = self.sheet.cell(row=row_index, column=col_index, value=cell_value)
+                cell.font = self.default_font
                 cell.border = self.data_border
 
                 if isinstance(cell_value, (int, float)):
@@ -203,16 +196,20 @@ class ExcelBuilder:
         for col, width in column_widths.items():
             self.sheet.column_dimensions[col].width = width
 
-        current_row_for_totals = self.sheet.max_row + 2
+        return self.sheet.max_row
 
-        total_row = get_total_row(self.data)
+    def _write_totals_row(self, start_row):
+        """
+        Escribe la fila de totales al final de la tabla principal.
+        """
+        current_row_for_totals = self.sheet.max_row + 2
 
         for col_index, col in enumerate(self.columns, start=1):
             fieldname = col.get("fieldname")
-            cell_value = total_row.get(fieldname)
+            cell_value = self.summary_data.get(fieldname)
 
             cell = self.sheet.cell(row=current_row_for_totals, column=col_index, value=cell_value)
-            cell.font = Font(bold=True)
+            cell.font = self.header_font
             cell.border = self.data_border
 
             if isinstance(cell_value, (int, float)):
@@ -226,6 +223,19 @@ class ExcelBuilder:
                                end_row=current_row_for_totals,
                                end_column=2)
 
+        return self.sheet.max_row
+
+    def _build_main_table(self, start_row):
+        """
+        Construye la tabla principal con todos los datos y encabezados,
+        usando anchos compactos y SEPARANDO LA FILA DE TOTALES.
+        """
+        # Construye los encabezados de varios niveles
+        headers_last_row = self._build_multi_level_headers(start_row)
+        # Escribe las filas de datos
+        data_last_row = self._write_data_rows(headers_last_row)
+        # Escribe la fila de totales
+        self._write_totals_row(data_last_row)
         return self.sheet.max_row
 
     def _build_summary_table(self, start_row):
@@ -247,7 +257,7 @@ class ExcelBuilder:
                                               column=summary_start_col,
                                               value=summary_headers[0])
 
-        concept_header_cell.font = Font(bold=True)
+        concept_header_cell.font = self.header_font
         concept_header_cell.border = Border(top=thin_border_style,
                                              bottom=thin_border_style,
                                              left=thin_border_style)
@@ -259,7 +269,7 @@ class ExcelBuilder:
 
         for col_index, header_text in enumerate(summary_headers[1:], start=summary_start_col + 5):
             cell = self.sheet.cell(row=summary_row_index, column=col_index, value=header_text)
-            cell.font = Font(bold=True)
+            cell.font = self.header_font
             border = Border(top=thin_border_style, bottom=thin_border_style)
 
             if col_index == summary_start_col + 6:
@@ -278,6 +288,7 @@ class ExcelBuilder:
 
         summary_row_index += 1
 
+        # Configuración declarativa para las filas del resumen
         summary_data_rows = [
             {"concepto": _("De las Ventas Internas NO Gravadas"),
              "base": self.summary_data.get("total_exempt", 0),
@@ -313,39 +324,33 @@ class ExcelBuilder:
 
         for i, row_data in enumerate(summary_data_rows):
             is_last_row = (i == len(summary_data_rows) - 1)
-
             bottom_border_style = thin_border_style if is_last_row else Side(style=None)
-            right_side_border = thin_border_style
 
             concept_cell = self.sheet.cell(row=summary_row_index,
                                            column=summary_start_col,
                                            value=row_data.get("concepto"))
-
+            concept_cell.font = self.default_font
             concept_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             concept_cell.border = Border(left=thin_border_style, bottom=bottom_border_style)
-
             self.sheet.merge_cells(
                 start_row=summary_row_index, start_column=summary_start_col,
                 end_row=summary_row_index, end_column=summary_start_col + 4
             )
 
-            base_cell = self.sheet.cell(row=summary_row_index,
-                                        column=summary_start_col
-                                        + 5, value=row_data.get("base"))
-
+            base_cell = self.sheet.cell(row=summary_row_index, column=summary_start_col + 5, value=row_data.get("base"))
+            base_cell.font = self.default_font
             base_cell.number_format = self.numeric_format
             base_cell.border = Border(bottom=bottom_border_style)
 
-            iva_cell = self.sheet.cell(row=summary_row_index,
-                                       column=summary_start_col
-                                       + 6, value=row_data.get("iva"))
-
+            iva_cell = self.sheet.cell(row=summary_row_index, column=summary_start_col + 6, value=row_data.get("iva"))
+            iva_cell.font = self.default_font
             iva_cell.number_format = self.numeric_format
             iva_cell.border = Border(bottom=bottom_border_style)
 
             retention_cell = self.sheet.cell(row=summary_row_index,
                                              column=summary_start_col + 7,
                                              value=row_data.get("retencion"))
+            retention_cell.font = self.default_font
             retention_cell.number_format = self.numeric_format
             retention_cell.border = Border(right=thin_border_style, bottom=bottom_border_style)
 
@@ -357,33 +362,27 @@ class ExcelBuilder:
         total_iva = sum(row.get("iva") for row in summary_data_rows)
         total_retencion = self.summary_data.get("iva_retained", 0)
 
+        # Fila de totales del resumen
         total_cell = self.sheet.cell(row=current_row, column=summary_start_col, value=_("Totales"))
-        total_cell.font = Font(bold=True)
+        total_cell.font = self.header_font
         total_cell.border = self.data_border
-
         self.sheet.merge_cells(
             start_row=current_row, start_column=summary_start_col,
             end_row=current_row, end_column=summary_start_col + 4
         )
 
-        base_total_cell = self.sheet.cell(row=current_row,
-                                          column=summary_start_col
-                                          + 5, value=total_base)
-
+        base_total_cell = self.sheet.cell(row=current_row, column=summary_start_col + 5, value=total_base)
+        base_total_cell.font = self.header_font
         base_total_cell.number_format = self.numeric_format
         base_total_cell.border = self.data_border
 
-        iva_total_cell = self.sheet.cell(row=current_row,
-                                         column=summary_start_col
-                                         + 6, value=total_iva)
-
+        iva_total_cell = self.sheet.cell(row=current_row, column=summary_start_col + 6, value=total_iva)
+        iva_total_cell.font = self.header_font
         iva_total_cell.number_format = self.numeric_format
         iva_total_cell.border = self.data_border
 
-        retention_total_cell = self.sheet.cell(row=current_row,
-                                               column=summary_start_col
-                                               + 7, value=total_retencion)
-
+        retention_total_cell = self.sheet.cell(row=current_row, column=summary_start_col + 7, value=total_retencion)
+        retention_total_cell.font = self.header_font
         retention_total_cell.number_format = self.numeric_format
         retention_total_cell.border = self.data_border
 

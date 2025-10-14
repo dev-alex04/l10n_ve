@@ -27,8 +27,9 @@ class ExcelBuilder:
         self.sheet.title = "Reporte de Compras"
 
         # Definimos los estilos comunes
-        self.header_font = Font(bold=True)
-        self.total_font = Font(bold=True)
+        self.default_font = Font(name='Calibri', size=8)
+        self.header_font = Font(name='Calibri', size=8, bold=True)
+        self.total_font = Font(name='Calibri', size=8, bold=True)
         self.data_border = Border(
             left=Side(style="thin"),
             right=Side(style="thin"),
@@ -39,7 +40,11 @@ class ExcelBuilder:
         self.numeric_format = '#,##0.00'
         self.int_format = '0'
 
-        self.data = self.process_data(data)
+
+        all_data = self.process_data(data)
+        self.adjustment_data = [row for row in all_data if row.get("transaction_type") == "04-Ajuste"]
+        self.data = [row for row in all_data if row.get("transaction_type") != "04-Ajuste"]
+        self.totals = get_totals_from_data(self.data) # Recalcular totales solo para datos principales
 
     def _add_report_header(self):
         """
@@ -85,154 +90,150 @@ class ExcelBuilder:
 
         return current_row + 2
 
-    def _build_main_table(self, start_row):
-        """
-        Construye la tabla principal con todos los datos y agrega una fila de totales al final.
-        """
-        current_row = start_row + 1
+    def _build_multi_level_headers(self, start_row: int) -> int:
+        """Construye los encabezados de varios niveles para la tabla principal."""
+        current_row = start_row
 
-        headers_2level = {
-            16: _("Compras a Contribuyentes"),
-        }
+        header_levels = [
+            [{"text": _("Compras a Contribuyentes"), "start_col": 16, "span": 6}],
+            [
+                {"text": _("Tasa Reducida 8%"), "start_col": 16, "span": 2},
+                {"text": _("Tasa General 16%"), "start_col": 18, "span": 2},
+                {"text": _("Tasa General + Adicional 31%"), "start_col": 20, "span": 2},
+                {"text": _("Retención"), "start_col": 23, "span":5},
+            ],
+        ]
 
-        # Escribimos los títulos del primer nivel en la fila actual
-        for col, header_text in headers_2level.items():
-            cell = self.sheet.cell(row=current_row, column=col, value=header_text)
-            cell.font = Font(bold=True)
-            cell.border = self.data_border
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for level_headers in header_levels:
+            for header_info in level_headers:
+                cell = self.sheet.cell(row=current_row, column=header_info["start_col"], value=header_info["text"])
+                cell.font = self.header_font
+                cell.border = self.data_border
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                if header_info["span"] > 1:
+                    self.sheet.merge_cells(
+                        start_row=current_row,
+                        start_column=header_info["start_col"],
+                        end_row=current_row,
+                        end_column=header_info["start_col"] + header_info["span"] - 1,
+                    )
+            current_row += 1
 
-        self.sheet.merge_cells(start_row=current_row, start_column=16, end_row=current_row, end_column=21)
-
-        current_row += 1
-
-        headers_3level = {
-            16: _("Tasa Reducida 8%"),
-            18: _("Tasa General 16%"),
-            20: _("Tasa General + Adicional 31%"),
-            22: _("Retención"),
-        }
-
-        for col, header_text in headers_3level.items():
-            cell = self.sheet.cell(row=current_row, column=col, value=header_text)
-            cell.font = Font(bold=True)
-            cell.border = self.data_border
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-        self.sheet.merge_cells(start_row=current_row, start_column=16, end_row=current_row, end_column=17)
-
-        self.sheet.merge_cells(start_row=current_row, start_column=18, end_row=current_row, end_column=19)
-        self.sheet.merge_cells(start_row=current_row, start_column=20, end_row=current_row, end_column=21)
-
-        self.sheet.merge_cells(start_row=current_row, start_column=22, end_row=current_row, end_column=25)
-
-        current_row += 1
-
-        # Escribimos los encabezados de las columnas
         for col_index, col_def in enumerate(self.columns, start=1):
             header = col_def.get("label")
-            fieldname = col_def.get("fieldname")
-
             cell = self.sheet.cell(row=current_row, column=col_index, value=header)
             cell.font = self.header_font
             cell.border = self.data_border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            self.sheet.row_dimensions[current_row].height = 45
+            self.sheet.row_dimensions[current_row].height = 25
+            self.sheet.column_dimensions[get_column_letter(col_index)].width = (
+                5 if col_def.get("fieldname") == "sequence_number" else 10
+            )
 
-            # Asignar anchos de columna específicos
-            self.sheet.column_dimensions[get_column_letter(col_index)].width = 5 if fieldname == "sequence_number" else 11
+        return current_row
 
-        row_index = current_row + 1
+    def _write_data_rows(self, start_row: int) -> int:
+        """Escribe las filas de datos en la tabla principal."""
+        row_index = start_row + 1
         for row_data in self.data:
             for col_index, col in enumerate(self.columns, start=1):
                 fieldname = col.get("fieldname")
                 cell_value = row_data.get(fieldname)
 
                 cell = self.sheet.cell(row=row_index, column=col_index, value=cell_value)
+                cell.font = self.default_font
                 cell.border = self.data_border
 
                 if isinstance(cell_value, (int, float)):
                     cell.alignment = Alignment(horizontal="right", vertical="center", wrap_text=True)
-                    if fieldname == "sequence_number":
-                        cell.number_format = self.int_format
-                    else:
-                        cell.number_format = self.numeric_format
+                    cell.number_format = self.int_format if fieldname == "sequence_number" else self.numeric_format
                 else:
                     cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-            self.sheet.row_dimensions[row_index].height = None # Permite el ajuste automático de altura
+            self.sheet.row_dimensions[row_index].height = None
             row_index += 1
+        return row_index
 
-        row_index += 1
-
-        total_row_index = row_index
-
+    def _write_totals_row(self, start_row: int) -> int:
+        """Escribe la fila de totales al final de la tabla principal."""
+        total_row_index = start_row + 1
         total_label_cell = self.sheet.cell(row=total_row_index, column=1, value=_("Totales"))
         total_label_cell.font = self.total_font
         total_label_cell.border = self.data_border
 
         for col_index, col in enumerate(self.columns, start=1):
             fieldname = col.get("fieldname")
-
             if fieldname in self.totals:
                 total_value = self.totals.get(fieldname)
                 total_cell = self.sheet.cell(row=total_row_index, column=col_index, value=total_value)
                 total_cell.font = self.total_font
                 total_cell.border = self.data_border
                 total_cell.number_format = self.numeric_format
-                total_cell.alignment = self.data_alignment
+                total_cell.alignment = Alignment(horizontal="right", vertical="center")
 
-        return self.sheet.max_row
+        return total_row_index
 
-    def _add_summary_table(self, start_row):
+    def _build_main_table(self, start_row: int) -> int:
+        """Construye la tabla principal con encabezados, datos y totales."""
+        headers_last_row = self._build_multi_level_headers(start_row)
+        data_last_row = self._write_data_rows(headers_last_row)
+        totals_last_row = self._write_totals_row(data_last_row)
+        return totals_last_row
+
+    def _build_adjustments_table(self, start_row: int) -> int:
+        """Construye una tabla separada para las transacciones de ajuste."""
+        if not self.adjustment_data:
+            return start_row
+
+        current_row = start_row + 2
+
+        # Título para la tabla de ajustes
+        title_cell = self.sheet.cell(row=current_row, column=1, value=_("Ajustes de Períodos Anteriores"))
+        title_cell.font = Font(size=12, bold=True)
+        current_row += 2
+
+        # Guardar y restaurar datos originales para construir la tabla
+        original_data, original_totals = self.data, self.totals
+        self.data = self.adjustment_data
+        self.totals = get_totals_from_data(self.adjustment_data)
+
+        # Reutilizar la lógica de construcción de la tabla principal
+        last_row = self._build_main_table(current_row)
+
+        # Restaurar datos originales
+        self.data, self.totals = original_data, original_totals
+
+        return last_row
+
+    def _add_summary_table(self, start_row: int) -> int:
+        """Construye la tabla de resumen de totales."""
         if not self.totals:
             return start_row
 
-        current_row = start_row + 5
+        current_row = start_row + 2
+        summary_start_col = 13
+        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
-        offset_resumen = 12
-        offset_vacio1 = offset_resumen + 1
-        offset_vacio2 = offset_resumen + 2
-        offset_vacio3 = offset_resumen + 3
-        offset_vacio4 = offset_resumen + 4
-        offset_datos = offset_resumen + 5
+        # Configuración de encabezados del resumen
+        summary_headers = [
+            {"text": _("RESUMEN"), "start_col": summary_start_col, "span": 5, "align": "center"},
+            {"text": _("Base Imponible"), "start_col": summary_start_col + 5, "span": 1, "align": "center"},
+            {"text": _("Crédito Fiscal"), "start_col": summary_start_col + 6, "span": 1, "align": "center"},
+            {"text": _("Retención"), "start_col": summary_start_col + 7, "span": 1, "align": "center"},
+        ]
 
-        thin_border = Border(left=Side(style='thin'),
-                            right=Side(style='thin'),
-                            top=Side(style='thin'),
-                            bottom=Side(style='thin'))
-
-        no_border = Border(left=Side(style=None),
-                        right=Side(style=None),
-                        top=Side(style=None),
-                        bottom=Side(style=None))
-
-        resumen_cell = self.sheet.cell(row=current_row, column=1 + offset_resumen, value=_("RESUMEN"))
-        resumen_cell.font = self.header_font
-        resumen_cell.border = no_border
-        resumen_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-        for offset in [offset_vacio1, offset_vacio2, offset_vacio3, offset_vacio4]:
-            cell = self.sheet.cell(row=current_row, column=1 + offset, value="")
+        for header_info in summary_headers:
+            cell = self.sheet.cell(row=current_row, column=header_info["start_col"], value=header_info["text"])
             cell.font = self.header_font
-            cell.border = no_border
-
-        headers = [_("Base Imponible"), _("Crédito Fiscal"), _("Retención")]
-        for col_index, header in enumerate(headers, start=1 + offset_datos):
-            cell = self.sheet.cell(row=current_row, column=col_index, value=header)
-            cell.font = self.header_font
-            cell.border = no_border
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-
-        self.sheet.column_dimensions[get_column_letter(1 + offset_resumen)].width = 12
-        self.sheet.column_dimensions[get_column_letter(1 + offset_vacio1)].width = 12
-        self.sheet.column_dimensions[get_column_letter(1 + offset_vacio2)].width = 12
-        self.sheet.column_dimensions[get_column_letter(1 + offset_vacio3)].width = 12
-        self.sheet.column_dimensions[get_column_letter(1 + offset_vacio4)].width = 12
-        self.sheet.column_dimensions[get_column_letter(1 + offset_datos)].width = 12
-        self.sheet.column_dimensions[get_column_letter(2 + offset_datos)].width = 12
-        self.sheet.column_dimensions[get_column_letter(3 + offset_datos)].width = 12
+            cell.alignment = Alignment(horizontal=header_info["align"], vertical="center", wrap_text=True)
+            self.sheet.column_dimensions[get_column_letter(header_info["start_col"])].width = 12
+            if header_info["span"] > 1:
+                self.sheet.merge_cells(
+                    start_row=current_row,
+                    start_column=header_info["start_col"],
+                    end_row=current_row,
+                    end_column=header_info["start_col"] + header_info["span"] - 1,
+                )
 
         start_table_row = current_row
         current_row += 1
@@ -240,100 +241,66 @@ class ExcelBuilder:
         summary_rows = [
                 {"concept": _("Compras no Gravadas"), "base": self.totals.get("total_exempt", 0), "credit": 0, "retention": 0},
                 {"concept": _("Compras de Importación"), "base": 0, "credit": 0, "retention": 0},
-
-                # Línea de Tasa General (ahora con la retención desglosada)
                 {"concept": _("Compras internas (tasa general)"),
                 "base": self.totals.get("base_general", 0),
                 "credit": self.totals.get("impuesto_general", 0),
                 "retention": self.totals.get("retencion_general", 0)},
-
-                # Línea de Tasa General + Adicional (ahora con la retención desglosada)
                 {"concept": _("Compras internas (tasa general + adicional)"),
                 "base": self.totals.get("base_adicional", 0),
                 "credit": self.totals.get("impuesto_adicional", 0),
                 "retention": self.totals.get("retencion_adicional", 0)},
-
-                # Línea de Tasa Reducida (ahora con la retención desglosada)
                 {"concept": _("Compras internas (tasa reducida)"),
                 "base": self.totals.get("base_reducida", 0),
                 "credit": self.totals.get("impuesto_reducida", 0),
                 "retention": self.totals.get("retencion_reducida", 0)},
                 ]
-        total_base = 0
-        total_credit = 0
-        total_retention = 0
 
         for row_data in summary_rows:
-            self.sheet.cell(row=current_row, column=1 + offset_resumen, value=row_data["concept"]).border = no_border
+            concept_cell = self.sheet.cell(row=current_row, column=summary_start_col, value=row_data["concept"])
+            concept_cell.font = self.default_font
+            self.sheet.merge_cells(start_row=current_row, start_column=summary_start_col, end_row=current_row, end_column=summary_start_col + 4)
 
-            self.sheet.cell(row=current_row, column=1 + offset_vacio1).border = no_border
+            base_cell = self.sheet.cell(row=current_row, column=summary_start_col + 5, value=row_data["base"])
+            credit_cell = self.sheet.cell(row=current_row, column=summary_start_col + 6, value=row_data["credit"])
+            retention_cell = self.sheet.cell(row=current_row, column=summary_start_col + 7, value=row_data["retention"])
 
-            self.sheet.cell(row=current_row, column=1 + offset_vacio2).border = no_border
-
-            self.sheet.cell(row=current_row, column=1 + offset_vacio3).border = no_border
-
-            self.sheet.cell(row=current_row, column=1 + offset_vacio4).border = no_border
-
-            base_cell = self.sheet.cell(row=current_row, column=1 + offset_datos, value=row_data["base"])
-            base_cell.border = no_border
-            base_cell.number_format = self.numeric_format
-            total_base += row_data["base"]
-
-            credit_cell = self.sheet.cell(row=current_row, column=2 + offset_datos, value=row_data["credit"])
-            credit_cell.border = no_border
-            credit_cell.number_format = self.numeric_format
-            total_credit += row_data["credit"]
-
-            retention_cell = self.sheet.cell(row=current_row, column=3 + offset_datos, value=row_data["retention"])
-            retention_cell.border = no_border
-            retention_cell.number_format = self.numeric_format
-            total_retention += row_data["retention"]
-
+            for cell in [base_cell, credit_cell, retention_cell]:
+                cell.font = self.default_font
+                cell.number_format = self.numeric_format
+                cell.alignment = Alignment(horizontal="right")
             current_row += 1
 
-        end_table_row = current_row
+        # Fila de totales del resumen
+        total_base = sum(row["base"] for row in summary_rows)
+        total_credit = sum(row["credit"] for row in summary_rows)
+        total_retention = sum(row["retention"] for row in summary_rows)
 
-        total_label_cell = self.sheet.cell(row=current_row, column=1 + offset_resumen, value=_("Total"))
+        total_label_cell = self.sheet.cell(row=current_row, column=summary_start_col, value=_("Total"))
         total_label_cell.font = self.total_font
-        total_label_cell.border = no_border
+        self.sheet.merge_cells(start_row=current_row, start_column=summary_start_col, end_row=current_row, end_column=summary_start_col + 4)
 
-        self.sheet.cell(row=current_row, column=1 + offset_vacio1).border = no_border
+        total_base_cell = self.sheet.cell(row=current_row, column=summary_start_col + 5, value=total_base)
+        total_credit_cell = self.sheet.cell(row=current_row, column=summary_start_col + 6, value=total_credit)
+        total_retention_cell = self.sheet.cell(row=current_row, column=summary_start_col + 7, value=total_retention)
 
-        self.sheet.cell(row=current_row, column=1 + offset_vacio2).border = no_border
+        for cell in [total_base_cell, total_credit_cell, total_retention_cell]:
+            cell.font = self.total_font
+            cell.number_format = self.numeric_format
+            cell.alignment = Alignment(horizontal="right")
 
-        self.sheet.cell(row=current_row, column=1 + offset_vacio3).border = no_border
+        # Aplicar bordes a toda la tabla de resumen
+        end_table_row = current_row
+        start_col = summary_start_col
+        end_col = summary_start_col + 7
 
-        self.sheet.cell(row=current_row, column=1 + offset_vacio4).border = no_border
-
-        total_base_cell = self.sheet.cell(row=current_row, column=1 + offset_datos, value=total_base)
-        total_base_cell.font = self.total_font
-        total_base_cell.border = no_border
-        total_base_cell.number_format = self.numeric_format
-
-        total_credit_cell = self.sheet.cell(row=current_row, column=2 + offset_datos, value=total_credit)
-        total_credit_cell.font = self.total_font
-        total_credit_cell.border = no_border
-        total_credit_cell.number_format = self.numeric_format
-
-        total_retention_cell = self.sheet.cell(row=current_row, column=3 + offset_datos, value=total_retention)
-        total_retention_cell.font = self.total_font
-        total_retention_cell.border = no_border
-        total_retention_cell.number_format = self.numeric_format
-
-        current_row += 1
-
-
-        start_col = 1 + offset_resumen
-        end_col = 3 + offset_datos
-
-        for r_idx in range(start_table_row, end_table_row + 1):
+        for r_idx in range(start_table_row, end_table_row + 2):
             for c_idx in range(start_col, end_col + 1):
                 cell = self.sheet.cell(row=r_idx, column=c_idx)
                 cell.border = Border(
                     left=thin_border.left if c_idx == start_col else None,
                     right=thin_border.right if c_idx == end_col else None,
                     top=thin_border.top if r_idx == start_table_row else None,
-                    bottom=thin_border.bottom if r_idx == end_table_row else None,
+                    bottom=thin_border.bottom if r_idx == end_table_row + 1 else None,
                 )
 
         return self.sheet.max_row
@@ -345,9 +312,8 @@ class ExcelBuilder:
         try:
             last_row_header = self._add_report_header()
             last_row_main_table = self._build_main_table(last_row_header)
-
-            # Agregamos la tabla resumen
-            self._add_summary_table(last_row_main_table)
+            last_row_summary = self._add_summary_table(last_row_main_table)
+            self._build_adjustments_table(last_row_summary)
 
             file_stream = BytesIO()
             self.workbook.save(file_stream)
