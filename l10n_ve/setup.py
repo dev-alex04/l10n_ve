@@ -71,78 +71,75 @@ def create_tax_unit() -> None:
 def create_islr_tabulator() -> None:
     """
     Crea los registros del Tabulador de ISLR a partir de un archivo CSV.
+    Valida los valores de 'Tipo de persona' contra las opciones del DocType.
     """
     print("Iniciando la creación de datos del Tabulador de ISLR...")
 
-    csv_file_path = frappe.get_app_path('l10n_ve',
-                                        'resources',
-                                        'islr_tabulator.csv')
+    csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 'islr_tabulator.csv')
 
     try:
-        with open(csv_file_path, 'r', encoding='utf-8') as file:
+        meta = frappe.get_meta("Tabulator ISLR Aliquots")
+        valid_person_types = meta.get_field("types_of_person").options.split("\n")
+        valid_person_types = [opt.strip() for opt in valid_person_types if opt.strip()]
+
+        grouped_data = {}
+        with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
             reader = csv.DictReader(file)
-            current_islr_doc = None
-
-            for row in reader:
-
-                aliquot = row.get('Alicuota', '').strip()
+            for row_num, row in enumerate(reader, 1):
                 codigo = row.get("Codigo", "").strip()
-                subtracting = row.get('Sustraendo', '').strip()
-                descripcion = row.get('Descripcion', '').strip()
-                percentage_base = row.get('Porcentaje Base', '').strip()
-                types_of_person = row.get('Tipo de persona', '').strip()
-                payments_greater_than_bs = row.get('Pagos mayores a', '').strip()
+                if not codigo:
+                    continue
 
-                if codigo and descripcion:
+                if int(codigo) >= 10:
+                    codigo = f'0{codigo}'
+                else:
+                    codigo = f'00{codigo}'
 
-                    if int(codigo) >= 10:
-                        codigo = f'0{codigo}'
-                    else:
-                        codigo = f'00{codigo}'
+                if codigo not in grouped_data:
+                    grouped_data[codigo] = {
+                        "descripcion": row.get('Descripcion', '').strip(),
+                        "aliquots": []
+                    }
 
-                    if not frappe.db.exists("Tabulator ISLR", {"codigo": codigo}):
-                        current_islr_doc = frappe.new_doc("Tabulator ISLR")
-                        current_islr_doc.codigo = codigo
-                        current_islr_doc.descripcion = descripcion
+                row['original_row_num'] = row_num
+                grouped_data[codigo]["aliquots"].append(row)
 
-                        # Añadir la primera alícuota que viene en la misma fila
-                        current_islr_doc.append("aliquot", {
-                            "aliquot": aliquot,
-                            "subtracting": subtracting,
-                            "percentage_base": percentage_base,
-                            "types_of_person": types_of_person,
-                            "payments_greater_than_bs": payments_greater_than_bs
-                        })
-                        current_islr_doc.insert(ignore_permissions=True)
-                        print(f"  -> Creado concepto: {codigo} - {descripcion}")
-                    else:
-                        current_islr_doc = frappe.get_doc("Tabulator ISLR",
-                                                          {"codigo": codigo})
+        for codigo, data in grouped_data.items():
+            if frappe.db.exists("Tabulator ISLR", {"codigo": codigo}):
+                print(f"  -- Omitiendo (ya existe concepto padre): {codigo}")
+                continue
 
-                        print(f"  -- Omitiendo (ya existe): {codigo} - {descripcion}")
+            doc = frappe.new_doc("Tabulator ISLR")
+            doc.codigo = codigo
+            doc.descripcion = data["descripcion"]
 
-                elif current_islr_doc:
-                    current_islr_doc.append("aliquot", {
-                        "aliquot": aliquot,
-                        "subtracting": subtracting,
-                        "percentage_base": percentage_base,
-                        "types_of_person": types_of_person,
-                        "payments_greater_than_bs": payments_greater_than_bs
-                    })
+            for aliquot_data in data["aliquots"]:
+                types_of_person_from_csv = aliquot_data.get('Tipo de persona', '').strip()
 
-                    current_islr_doc.save(ignore_permissions=True)
+                if types_of_person_from_csv not in valid_person_types:
+                    print(f"!! ADVERTENCIA: Valor '{types_of_person_from_csv}' en la fila {aliquot_data['original_row_num']} del CSV no es una opción válida para 'Tipo de persona'. Omitiendo alícuota.")
+                    continue
+
+                doc.append("aliquot", {
+                    "aliquot": aliquot_data.get('Alicuota', '').strip(),
+                    "subtracting": aliquot_data.get('Sustraendo', '').strip(),
+                    "percentage_base": aliquot_data.get('Porcentaje Base', '').strip(),
+                    "types_of_person": types_of_person_from_csv, # Usamos el valor directo del CSV
+                    "payments_greater_than_bs": aliquot_data.get('Pagos mayores a', '').strip()
+                })
+
+            try:
+                doc.save(ignore_permissions=True)
+                print(f"  -> Creado concepto: {codigo} - {doc.descripcion} con {len(doc.aliquot)} alícuotas.")
+            except frappe.ValidationError as e:
+                print(f"!! FAILURE al guardar el código '{codigo}': {e}")
 
         frappe.db.commit()
-        print("Success: Datos del Tabulador de ISLR creados exitosamente.")
+        print("\nSuccess: Proceso de creación del Tabulador de ISLR completado.")
 
-    except FileNotFoundError:
-        print(f"!! FAILURE: No se encontró el archivo en la ruta: {csv_file_path}")
-        print("!! Por favor, asegúrate de que el archivo 'Tabulator ISLR.csv' exista en la carpeta 'resources' de tu aplicación.")
     except Exception as e:
-        print(f"Failure: Ocurrió un error durante la creación del Tabulador de ISLR: {e}")
+        print(f"!! FATAL: Ocurrió un error inesperado: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_islr_tabulator')
-
-
 
 def set_chart_of_accounts() -> None:
     """
