@@ -525,5 +525,29 @@
         "modified": "2025-09-12 10:00:00",
         "module": "l10n_ve",
         "name": "Pur Invoice-search_fields"
+   },
+   {
+        "doc_type": "Customer",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "tax_withholding_category",
+        "property": "reqd",
+        "property_type": "Check",
+        "value": "0",
+        "modified": "2025-10-18 10:00:00",
+        "module": "L10N Ve",
+        "name": "Customer-tax_withholding_category-reqd"
+   },
+   {
+        "doc_type": "Customer",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "tax_withholding_category",
+        "property": "hidden",
+        "property_type": "Check",
+        "value": "1",
+        "modified": "2025-10-18 11:00:00",
+        "module": "L10N Ve",
+        "name": "Customer-tax_withholding_category-hidden"
    }
 ]
