@@ -40,11 +40,8 @@ class ExcelBuilder:
         self.numeric_format = '#,##0.00'
         self.int_format = '0'
 
-
-        all_data = self.process_data(data)
-        self.adjustment_data = [row for row in all_data if row.get("transaction_type") == "04-Ajuste"]
-        self.data = [row for row in all_data if row.get("transaction_type") != "04-Ajuste"]
-        self.totals = get_totals_from_data(self.data) # Recalcular totales solo para datos principales
+        # Procesar y asignar números de secuencia a todos los datos
+        self.data = self.process_data(data)
 
     def _add_report_header(self):
         """
@@ -180,31 +177,6 @@ class ExcelBuilder:
         totals_last_row = self._write_totals_row(data_last_row)
         return totals_last_row
 
-    def _build_adjustments_table(self, start_row: int) -> int:
-        """Construye una tabla separada para las transacciones de ajuste."""
-        if not self.adjustment_data:
-            return start_row
-
-        current_row = start_row + 2
-
-        # Título para la tabla de ajustes
-        title_cell = self.sheet.cell(row=current_row, column=1, value=_("Ajustes de Períodos Anteriores"))
-        title_cell.font = Font(size=12, bold=True)
-        current_row += 2
-
-        # Guardar y restaurar datos originales para construir la tabla
-        original_data, original_totals = self.data, self.totals
-        self.data = self.adjustment_data
-        self.totals = get_totals_from_data(self.adjustment_data)
-
-        # Reutilizar la lógica de construcción de la tabla principal
-        last_row = self._build_main_table(current_row)
-
-        # Restaurar datos originales
-        self.data, self.totals = original_data, original_totals
-
-        return last_row
-
     def _add_summary_table(self, start_row: int) -> int:
         """Construye la tabla de resumen de totales."""
         if not self.totals:
@@ -239,17 +211,35 @@ class ExcelBuilder:
         current_row += 1
 
         summary_rows = [
-                {"concept": _("Compras no Gravadas"), "base": self.totals.get("total_exempt", 0), "credit": 0, "retention": 0},
-                {"concept": _("Compras de Importación"), "base": 0, "credit": 0, "retention": 0},
-                {"concept": _("Compras internas (tasa general)"),
+                {"concept": _("Compras no gravadas y/o sin derecho a crédito fiscal"),
+                "base": self.totals.get("total_exempt", 0), "credit": 0, "retention": 0},
+
+                {"concept": _("Importaciones gravadas por alícuota general"),
+                "base": self.totals.get("import_base_general", 0),
+                "credit": self.totals.get("import_impuesto_general", 0),
+                "retention": 0},
+
+                {"concept": _(" Importaciones gravadas por alícuota general más adicional"),
+                "base": self.totals.get("import_base_adicional", 0),
+                "credit": self.totals.get("import_impuesto_adicional", 0),
+                "retention": 0},
+
+                {"concept": _("Importaciones gravadas por alícuota reducida"),
+                "base": self.totals.get("import_base_reducida", 0),
+                "credit": self.totals.get("import_impuesto_reducida", 0),
+                "retention": 0},
+
+                {"concept": _("Compras Internas (tasa general)"),
                 "base": self.totals.get("base_general", 0),
                 "credit": self.totals.get("impuesto_general", 0),
                 "retention": self.totals.get("retencion_general", 0)},
-                {"concept": _("Compras internas (tasa general + adicional)"),
+
+                {"concept": _("Compras Internas (tasa general + adicional)"),
                 "base": self.totals.get("base_adicional", 0),
                 "credit": self.totals.get("impuesto_adicional", 0),
                 "retention": self.totals.get("retencion_adicional", 0)},
-                {"concept": _("Compras internas (tasa reducida)"),
+
+                {"concept": _("Compras Internas (tasa reducida)"),
                 "base": self.totals.get("base_reducida", 0),
                 "credit": self.totals.get("impuesto_reducida", 0),
                 "retention": self.totals.get("retencion_reducida", 0)},
@@ -312,8 +302,7 @@ class ExcelBuilder:
         try:
             last_row_header = self._add_report_header()
             last_row_main_table = self._build_main_table(last_row_header)
-            last_row_summary = self._add_summary_table(last_row_main_table)
-            self._build_adjustments_table(last_row_summary)
+            self._add_summary_table(last_row_main_table)
 
             file_stream = BytesIO()
             self.workbook.save(file_stream)
