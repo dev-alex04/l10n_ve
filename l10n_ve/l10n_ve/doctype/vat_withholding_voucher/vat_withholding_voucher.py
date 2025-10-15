@@ -69,7 +69,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         fields=[
             "name", "bill_no", "bill_control", "posting_date", "grand_total",
             "total_exempt", "is_return", "is_debit_note", "total",
-            "taxes_and_charges_added", "taxes_and_charges_deducted",
+            "taxes_and_charges_added",
             "credit_note_no", "debit_note_no", "affected_invoice_number",
             "`tabPurchase Taxes and Charges`.rate as tax_rate",
             "`tabPurchase Taxes and Charges`.tax_amount as tax_amount_vat",
@@ -91,14 +91,13 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             "total": abs(item.total),
             "total_exempt": abs(item.total_exempt),
             "taxes_and_charges_added": abs(item.taxes_and_charges_added),
-            "taxes_and_charges_deducted": abs(item.taxes_and_charges_deducted),
             "credit_note_no": item.credit_note_no,
             "debit_note_no": item.debit_note_no,
             "affected_invoice_number": item.affected_invoice_number,
             "is_return": item.is_return,
             "is_debit_note": item.is_debit_note,
             "rate": item.tax_rate,
-            "tax_amount": abs(item.tax_amount_vat),
+            "tax_amount_vat": abs(item.tax_amount_vat),
         }
         invoices_with_taxes.append(invoice_data)
         processed_invoices.add(item.name)

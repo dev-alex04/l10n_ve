@@ -125,9 +125,9 @@ function load_invoices(frm) {
 
   frm.clear_table("vat_withholding_voucher_item");
 
-  frappe.call({
+  frm.call({
     method:
-      "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.get_valid_invoices",
+      "get_valid_invoices",
     args: {
       supplier: frm.doc.supplier,
       start_date: frm.doc.start_date,
@@ -139,7 +139,8 @@ function load_invoices(frm) {
       frm.doc.totals_total_exempt = 0;
       frm.doc.totals_total = 0;
       frm.doc.totals_taxes_and_charges_added = 0;
-      frm.doc.totals_taxes_and_charges_deducted = 0;
+      frm.doc.totals_tax_amount_vat = 0;
+
 
       if (r.message && r.message.length > 0) {
         r.message.forEach((invoice) => {
@@ -153,8 +154,8 @@ function load_invoices(frm) {
           new_row.total_exempt = invoice.total_exempt;
           new_row.total = invoice.total;
           new_row.taxes_and_charges_added = invoice.taxes_and_charges_added;
-          new_row.taxes_and_charges_deducted =
-            invoice.taxes_and_charges_deducted;
+          new_row.tax_amount_vat =
+            invoice.tax_amount_vat;
           new_row.credit_note_no = invoice.credit_note_no;
           new_row.debit_note_no = invoice.debit_note_no;
           new_row.affected_invoice_number = invoice.affected_invoice_number;
@@ -167,8 +168,8 @@ function load_invoices(frm) {
           frm.doc.totals_total += invoice.total * negative || 0;
           frm.doc.totals_taxes_and_charges_added +=
             invoice.taxes_and_charges_added * negative || 0;
-          frm.doc.totals_taxes_and_charges_deducted +=
-            invoice.taxes_and_charges_deducted * negative || 0;
+          frm.doc.totals_tax_amount_vat +=
+            invoice.tax_amount_vat * negative || 0;
         });
 
         frm.refresh_fields([
@@ -176,7 +177,7 @@ function load_invoices(frm) {
           "totals_total_exempt",
           "totals_total",
           "totals_taxes_and_charges_added",
-          "totals_taxes_and_charges_deducted",
+          "totals_tax_amount_vat",
         ]);
 
         frm.refresh_fields();
@@ -189,7 +190,7 @@ function load_invoices(frm) {
         frm.doc.totals_total_exempt = 0;
         frm.doc.totals_total = 0;
         frm.doc.totals_taxes_and_charges_added = 0;
-        frm.doc.totals_taxes_and_charges_deducted = 0;
+        frm.doc.totals_tax_amount_vat = 0;
         frm.refresh_fields();
 
         frappe.show_alert({
