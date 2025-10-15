@@ -8,6 +8,7 @@ import calendar
 from datetime import date
 import base64
 
+
 from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
 
@@ -200,7 +201,7 @@ def get_query_data(filters):
             tPI.credit_note_no,
             tPI.debit_note_no,
             tPI.affected_invoice_number,
-            DATE_FORMAT(tPI.bill_date, '%%d-%%m-%%Y') as bill_date,
+
 
             SUM(CASE WHEN T5.rate = 8 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_reducida,
             SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) as impuesto_reducida,
@@ -222,6 +223,7 @@ def get_query_data(filters):
             END AS supplier_type,
             CASE
                 WHEN tPI.docstatus = 2 THEN '03-Anu'
+                WHEN MONTH(tPI.posting_date) != %(month)s OR YEAR(tPI.posting_date) != %(year)s THEN '04-Ajuste'
                 WHEN tPI.is_return = 1 THEN '02-Comp'
                 WHEN tPI.is_debit_note = 1 THEN '02-Comp'
                 ELSE '01-Reg'
@@ -244,7 +246,6 @@ def get_query_data(filters):
         WHERE
             1=1 {conditions}
         GROUP BY tPI.name
-        ORDER BY tPI.bill_date ASC
     """
 
     values['month'] = from_date_obj.month
@@ -255,7 +256,7 @@ def get_query_data(filters):
 def execute(filters=None):
     columns = [
 
-        {"fieldname": "bill_date", "label": "Fecha Doc.", "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": "auto"},
         {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": "auto"},

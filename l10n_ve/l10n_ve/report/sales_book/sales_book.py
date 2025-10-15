@@ -13,22 +13,22 @@ def get_report_summary(totals):
     Returns the summary data for the top of the report.
     """
     summary = [
-        {"value": totals.get("grand_total", 0), "label": "Total Ventas Incl. IVA", "datatype": "Currency"},
-        {"value": totals.get("total_exempt", 0), "label": "Ventas No Gravadas", "datatype": "Currency"},
-        {"value": totals.get("base_general_taxpayer", 0) + totals.get("base_general_non_taxpayer", 0),
+        {"value": totals.get("grand_total"), "label": "Total Ventas Incl. IVA", "datatype": "Currency"},
+        {"value": totals.get("total_exempt"), "label": "Ventas No Gravadas", "datatype": "Currency"},
+        {"value": totals.get("base_general_taxpayer") + totals.get("base_general_non_taxpayer"),
          "label": "Base Imponible General", "datatype": "Currency"},
-        {"value": totals.get("iva_general_taxpayer", 0) + totals.get("iva_general_non_taxpayer", 0),
+        {"value": totals.get("iva_general_taxpayer") + totals.get("iva_general_non_taxpayer"),
          "label": "Impuesto General", "datatype": "Currency"},
-        {"value": totals.get("base_reduced_taxpayer", 0) + totals.get("base_reduced_non_taxpayer", 0),
+        {"value": totals.get("base_reduced_taxpayer") + totals.get("base_reduced_non_taxpayer"),
          "label": "Base Imponible Reducida", "datatype": "Currency"},
-        {"value": totals.get("iva_reduced_taxpayer", 0) + totals.get("iva_reduced_non_taxpayer", 0),
+        {"value": totals.get("iva_reduced_taxpayer") + totals.get("iva_reduced_non_taxpayer"),
          "label": "Impuesto Reducido", "datatype": "Currency"},
-        {"value": totals.get("base_additional_taxpayer", 0) + totals.get("base_additional_non_taxpayer", 0),
+        {"value": totals.get("base_additional_taxpayer") + totals.get("base_additional_non_taxpayer"),
          "label": "Base Imponible Adicional", "datatype": "Currency"},
-        {"value": totals.get("iva_additional_taxpayer", 0) + totals.get("iva_additional_non_taxpayer", 0),
+        {"value": totals.get("iva_additional_taxpayer") + totals.get("iva_additional_non_taxpayer"),
          "label": "Impuesto Adicional", "datatype": "Currency"},
-        {"value": totals.get("iva_retained", 0), "label": "IVA Retenido", "datatype": "Currency"},
-        {"value": totals.get("igtf_amount", 0), "label": "Monto IGTF", "datatype": "Currency"},
+        {"value": totals.get("iva_retained"), "label": "IVA Retenido", "datatype": "Currency"},
+        {"value": totals.get("igtf_amount"), "label": "Monto IGTF", "datatype": "Currency"},
 
     ]
 
@@ -40,18 +40,14 @@ def execute(filters=None):
     Devuelve las columnas y los datos basados en los filtros.
     """
     columns = get_columns()
-    main_data, adjustment_data = get_sales_data(filters)
+    data = get_sales_data(filters)
 
-    data = main_data + adjustment_data
-
-    totals = get_total_row(main_data)
+    totals = get_total_row(data)
 
     if data:
         for i, row in enumerate(data):
             row["sequence_number"] = i + 1
-
-    total_row_for_report = totals.copy()
-    data.append(total_row_for_report)
+    data.append(totals)
 
     report_summary = get_report_summary(totals)
     return columns, data, None, None, report_summary
@@ -62,7 +58,7 @@ def get_columns():
     """
     return [
 
-        {"label": _("Fecha"), "fieldname": "posting_date", "fieldtype": "Data", "width": 100},
+        {"label": _("Fecha"), "fieldname": "posting_date", "fieldtype": "Date", "width": 100},
         {"label": _("RIF del Cliente"), "fieldname": "customer_tax_id", "fieldtype": "Data", "width": 150},
         {"label": _("Nombre del Cliente"), "fieldname": "customer_name", "fieldtype": "Data", "width": 200},
         {"label": _("Tipo de Persona"), "fieldname": "customer_type", "fieldtype": "Data", "width": 120},
@@ -129,9 +125,9 @@ def get_sales_data(filters):
 		additional_rate = 31.0
 
 	# La consulta SQL es la parte principal de la optimización
-	query_base = f"""
-        SELECT
-			DATE_FORMAT(siv.posting_date, '%%d-%%m-%%Y') as posting_date,
+	data = frappe.db.sql(f"""
+		SELECT
+			siv.posting_date,
 			tc.tax_id AS customer_tax_id,
 			siv.customer_name,
 			siv.bill_no,
@@ -141,6 +137,15 @@ def get_sales_data(filters):
 			siv.affected_invoice_number,
 			siv.vat_withholding_voucher_number,
 			siv.withholding_date,
+			siv.base_grand_total AS total_in_usd,
+
+			CASE
+				WHEN siv.is_void = 1 THEN '03-Anu' -- Si está anulado, siempre es '03-Anu'
+                WHEN MONTH(siv.posting_date) != MONTH(%(from_date)s) OR YEAR(siv.posting_date) != YEAR(%(from_date)s) THEN '04-Ajuste'
+				WHEN siv.is_return = 1 THEN '02-Comp'
+				WHEN siv.is_debit_note = 1 THEN '02-Comp'
+				ELSE '01-Reg'
+			END AS transaction_type,
 
 			CASE
 			    WHEN tc.type_of_person = 'Domiciled legal entity' THEN 'PJD'
@@ -149,6 +154,8 @@ def get_sales_data(filters):
                 WHEN tc.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
 				ELSE 'N/A'
 			END AS customer_type,
+
+
 
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total END) AS grand_total,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total END) AS total,
@@ -190,52 +197,15 @@ def get_sales_data(filters):
 			`tabCustomer` tc ON tc.name = siv.customer
 		LEFT JOIN
 			`tabSales Taxes and Charges` tstac ON tstac.parent = siv.name
-		WHERE siv.company = %(company)s
-        AND (siv.docstatus = 1 OR (siv.docstatus = 2 AND siv.is_void = 1))
-    """
-
-	# --- Datos del período principal ---
-	main_conditions = "AND siv.posting_date BETWEEN %(from_date)s AND %(to_date)s"
-	main_query = f"""
-        {query_base}
-        {main_conditions}
-        GROUP BY
+		WHERE
+			siv.company = %(company)s
+			AND siv.posting_date BETWEEN %(from_date)s AND %(to_date)s
+			AND (siv.docstatus = 1 OR (siv.docstatus = 2 AND siv.is_void = 1)) -- Incluye enviados o cancelados Y anulados
+		GROUP BY
 			siv.name
 		ORDER BY
 			siv.posting_date ASC
-    """
-	# Reemplazar transaction_type en la consulta principal
-	main_query = main_query.replace(
-        "SELECT",
-        """SELECT
-            CASE
-				WHEN siv.is_void = 1 THEN '03-Anu'
-				WHEN siv.is_return = 1 THEN '02-Comp'
-				WHEN siv.is_debit_note = 1 THEN '02-Comp'
-				ELSE '01-Reg'
-			END AS transaction_type,""", 1
-    )
-
-	# --- Datos de ajuste de períodos anteriores ---
-	adjustment_conditions = """
-        AND siv.posting_date < %(from_date)s
-        AND siv.withholding_date BETWEEN %(from_date)s AND %(to_date)s
-    """
-	adjustment_query = f"""
-        {query_base}
-        {adjustment_conditions}
-        GROUP BY
-			siv.name
-		ORDER BY
-			siv.withholding_date ASC
-    """
-	# Forzar transaction_type a '04-Ajus' para los ajustes
-	adjustment_query = adjustment_query.replace(
-        "SELECT",
-        "SELECT '04-Ajus' AS transaction_type,", 1
-    )
-
-	sql_params = {
+	""", { # type: ignore
 
 		"company": filters.get("company"),
 		"from_date": filters.get("from_date"),
@@ -244,12 +214,9 @@ def get_sales_data(filters):
 		"reduced_rate": reduced_rate,
 		"additional_rate": additional_rate
 
-	}
+	}, as_dict=1)
 
-	main_data = frappe.db.sql(main_query, sql_params, as_dict=1)
-	adjustment_data = frappe.db.sql(adjustment_query, sql_params, as_dict=1)
-
-	return main_data, adjustment_data
+	return data
 
 def get_total_row(data):
     """
