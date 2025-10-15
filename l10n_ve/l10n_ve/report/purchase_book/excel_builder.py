@@ -211,8 +211,8 @@ class ExcelBuilder:
         current_row += 1
 
         summary_rows = [
-                {"concept": _("Compras no gravadas y/o sin derecho a crédito fiscal")
-                 , "base": self.totals.get("total_exempt", 0), "credit": 0, "retention": 0},
+                {"concept": _("Compras no gravadas y/o sin derecho a crédito fiscal"),
+                "base": self.totals.get("total_exempt", 0), "credit": 0, "retention": 0},
 
                 {"concept": _("Importaciones gravadas por alícuota general"),
                 "base": self.totals.get("import_base_general", 0),

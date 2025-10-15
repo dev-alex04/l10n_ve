@@ -244,6 +244,7 @@ def get_query_data(filters):
         WHERE
             1=1 {conditions}
         GROUP BY tPI.name
+        ORDER BY tPI.bill_date ASC
     """
 
     values['month'] = from_date_obj.month
