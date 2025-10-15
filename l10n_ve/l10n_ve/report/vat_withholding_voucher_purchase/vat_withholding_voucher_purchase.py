@@ -19,14 +19,15 @@ def generate_vat_report(voucher_name):
 		"totals_total_exempt",
 		"totals_total",
 		"totals_taxes_and_charges_added",
-		"totals_taxes_and_charges_deducted",
+        "totals_tax_amount_vat",
 	], [
 		"grand_total",
 		"rate",
 		"total_exempt",
 		"total",
 		"taxes_and_charges_added",
-		"taxes_and_charges_deducted",
+		"tax_amount_vat",
+        ''
 	], "vat_withholding_voucher_item")
 
     items_per_page = 10
@@ -321,7 +322,7 @@ def generate_content_table(items, doc, current_page, total_pages):
             <td class="text-right">{item.total}</td>
             <td class="text-right">{item.rate or ''}</td>
             <td class="text-right">{item.taxes_and_charges_added}</td>
-            <td class="text-right">{item.taxes_and_charges_deducted}</td>
+            <td class="text-right">{item.tax_amount_vat}</td>
         </tr>
         """
 
@@ -341,7 +342,7 @@ def generate_content_table(items, doc, current_page, total_pages):
             <td class="text-right">{doc.totals_total}</td>
             <td class="text-right"></td>
             <td class="text-right">{doc.totals_taxes_and_charges_added}</td>
-            <td class="text-right">{doc.totals_taxes_and_charges_deducted}</td>
+            <td class="text-right">{doc.totals_tax_amount_vat}</td>
         </tr>
         """
 
