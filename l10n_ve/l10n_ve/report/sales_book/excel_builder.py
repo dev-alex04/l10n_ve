@@ -13,14 +13,10 @@ class ExcelBuilder:
     """
     Clase para construir el archivo de Excel en memoria con formato profesional.
     """
-    def __init__(self, title, columns, main_data, adjustment_data, summary_data, company_data, from_date, to_date):
+    def __init__(self, title, columns, data, summary_data, company_data, from_date, to_date):
         self.title = title
+        self.data = data
         self.columns = columns
-
-        # Separar los datos para las tablas
-        self.main_data = main_data
-        self.adjustment_data = adjustment_data
-
         self.summary_data = summary_data
         self.company_data = company_data
         self.from_date = from_date
@@ -160,7 +156,7 @@ class ExcelBuilder:
         Escribe las filas de datos en la tabla principal y ajusta dinámicamente el ancho de las columnas.
         """
         current_row = start_row
-        column_widths = {get_column_letter(i + 1): self.sheet.column_dimensions[get_column_letter(i + 1)].width or 10 for i in range(len(self.columns))}
+        column_widths = {get_column_letter(i + 1): self.sheet.column_dimensions[get_column_letter(i + 1)].width for i in range(len(self.columns))}
 
         row_index = current_row + 1
         for row_data in self.data:
@@ -234,34 +230,12 @@ class ExcelBuilder:
         Construye la tabla principal con todos los datos y encabezados,
         usando anchos compactos y SEPARANDO LA FILA DE TOTALES.
         """
-        self.data = self.main_data
-
+        # Construye los encabezados de varios niveles
         headers_last_row = self._build_multi_level_headers(start_row)
+        # Escribe las filas de datos
         data_last_row = self._write_data_rows(headers_last_row)
+        # Escribe la fila de totales
         self._write_totals_row(data_last_row)
-        return self.sheet.max_row
-
-    def _build_adjustments_table(self, start_row: int) -> int:
-        """Construye una tabla separada para las transacciones de ajuste."""
-        if not self.adjustment_data:
-            return start_row
-
-        current_row = start_row + 2
-
-        title_cell = self.sheet.cell(row=current_row,
-                                     column=1,
-                                     value=_("Ajustes de Períodos Anteriores (Retenciones)"))
-        title_cell.font = Font(size=12, bold=True)
-        current_row += 2
-
-        self.data = self.adjustment_data
-        adjustment_totals = get_total_row(self.adjustment_data)
-        self.summary_data = adjustment_totals
-
-        headers_last_row = self._build_multi_level_headers(current_row)
-        data_last_row = self._write_data_rows(headers_last_row)
-        self._write_totals_row(data_last_row)
-
         return self.sheet.max_row
 
     def _build_summary_table(self, start_row):
@@ -419,16 +393,11 @@ class ExcelBuilder:
         Construye el libro de Excel orquestando los métodos de construcción.
         """
         try:
-            # Restaurar los totales originales para la tabla de resumen principal
-            original_summary_data = self.summary_data
-
             last_row_header = self._add_report_header()
             last_row_main_table = self._build_main_table(last_row_header)
-            last_row_summary = self._build_summary_table(last_row_main_table)
-            self._build_adjustments_table(last_row_summary)
+            self._build_summary_table(last_row_main_table)
 
             file_stream = BytesIO()
-            self.summary_data = original_summary_data # Restaurar por si acaso
             self.workbook.save(file_stream)
             file_stream.seek(0)
             return file_stream
@@ -448,7 +417,7 @@ def create_excel_file(report_name, filters=None, **kwargs):
 
     try:
         columns = get_columns()
-        main_data, adjustment_data = get_sales_data(filters)
+        data = get_sales_data(filters)
 
         counter_column = {
             "label": "Nr Oper.",
@@ -456,17 +425,13 @@ def create_excel_file(report_name, filters=None, **kwargs):
             "width": 20
         }
         columns.insert(0, counter_column)
-
-        # Numerar ambas listas de datos
-        all_data_for_numbering = main_data + adjustment_data
-        for i, row in enumerate(all_data_for_numbering):
+        for i, row in enumerate(data):
             row["sequence_number"] = i + 1
 
-        if not main_data and not adjustment_data:
+        if not data:
             frappe.throw(_("No se encontraron datos para los filtros seleccionados."))
 
-        # El resumen principal se basa solo en los datos del período
-        summary_data = get_total_row(main_data)
+        summary_data = get_total_row(data)
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
         address_name = company_doc.get("custom_company_primary_address")
@@ -487,8 +452,7 @@ def create_excel_file(report_name, filters=None, **kwargs):
         builder = ExcelBuilder(
             title,
             columns,
-            main_data,
-            adjustment_data,
+            data,
             summary_data,
             company_data,
             from_date,
