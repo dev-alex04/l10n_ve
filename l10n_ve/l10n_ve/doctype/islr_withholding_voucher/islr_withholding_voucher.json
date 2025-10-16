@@ -52,7 +52,6 @@
    "fieldtype": "Table",
    "label": "Facturas",
    "options": "ISLR Withholding Voucher Item",
-   "read_only": 1,
    "reqd": 1
   },
   {
@@ -130,7 +129,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-14 15:42:28.083660",
+ "modified": "2025-10-16 17:55:08.603819",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "ISLR Withholding Voucher",
