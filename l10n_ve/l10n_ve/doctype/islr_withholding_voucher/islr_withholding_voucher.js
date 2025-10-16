@@ -4,20 +4,27 @@
 frappe.ui.form.on("ISLR Withholding Voucher", {
   refresh: function (frm) {
     if (!frm.is_new()) {
-      frm.add_custom_button(__("Imprimir Comprobante"), function () {
-        window.open(
-          frappe.urllib.get_full_url(
-            "/printview?doctype=" +
-              frm.doctype +
-              "&name=" +
-              frm.doc.name +
-              "&format=" +
-              encodeURIComponent("COMPROBANTE DE RETENCIÓN DE ISLR EN COMPRA")
-          )
-        );
+      frm.add_custom_button(__("Imprimir"), function () {
+        frappe.call({
+          method:
+            "l10n_ve.l10n_ve.report.islr_withholding_voucher_purchase.islr_withholding_voucher_purchase.generate_islr_report",
+          args: {
+            voucher_name: frm.doc.name,
+          },
+          callback: function (r) {
+            if (r.message) {
+              let w = window.open();
+              w.document.write(r.message);
+              w.document.close();
+              w.focus();
+              w.print();
+            } else if (r.exc) {
+              frappe.throw(__("Error al generar el comprobante."));
+            }
+          },
+        });
       });
     }
-    return;
   },
 
   onload: function (frm) {

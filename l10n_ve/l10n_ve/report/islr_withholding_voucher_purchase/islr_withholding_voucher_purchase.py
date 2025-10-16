@@ -15,21 +15,18 @@ def generate_islr_report(voucher_name):
     footer_html = get_footer_html(doc)
 
     format_amounts(doc, [
-		"totals_grand_total",
 		"totals_total_exempt",
-		"totals_total",
-		"totals_taxes_and_charges_added",
-		"totals_taxes_and_charges_deducted",
+		"totals_tax_amount",
 	], [
 		"grand_total",
 		"rate",
+		"amount_paid",
 		"total_exempt",
-		"total",
-		"taxes_and_charges_added",
-		"taxes_and_charges_deducted",
-	], "vat_withholding_voucher_item")
+		"subtracting",
+		"tax_amount",
+	], "islr_withholding_voucher_item")
 
-    items_per_page = 10
+    items_per_page = 13
     total_items = len(doc.islr_withholding_voucher_item)
     total_pages = int(total_items / items_per_page) + (1 if total_items % items_per_page > 0 else 0)
 
@@ -66,15 +63,15 @@ def generate_islr_report(voucher_name):
             }}
 
             body {{
-                font-size: 9px !important;
+                font-size: 12px;
                 margin: 0;
                 padding: 0;
             }}
 
-            .container {{
-                font-size: 11px !important;
-                width: 100%;
-                margin: auto;
+            .page-container {{
+                width: 90%;
+                margin: 0 auto;
+                padding-bottom: 25mm;
             }}
 
             .table-full-width {{
@@ -86,16 +83,9 @@ def generate_islr_report(voucher_name):
                 border: none;
             }}
 
-            .table-border-all td, .table-border-all th {{
-                border: 1px solid #000;
-            }}
-
             .text-center {{ text-align: center; }}
             .text-right {{ text-align: right; }}
             .text-left {{ text-align: left; }}
-
-            .align-bottom {{ vertical-align: bottom; }}
-            .align-top {{ vertical-align: top; }}
 
             .header-box {{
                 border: 1px solid #000;
@@ -103,6 +93,7 @@ def generate_islr_report(voucher_name):
                 display: flex;
                 justify-content: space-between;
                 align-items: flex-start;
+                margin-top: 1rem;
             }}
 
             .logo-section {{
@@ -124,7 +115,6 @@ def generate_islr_report(voucher_name):
             }}
 
             .main-header {{
-                font-size: 12px;
                 margin-bottom: 3px;
             }}
 
@@ -145,25 +135,25 @@ def generate_islr_report(voucher_name):
                 vertical-align: top;
             }}
 
-            .detail-table th, .detail-table td {{
-                color: #000 !important;
-                border: 1px solid #000;
-                /*padding: 5px 2px;*/
-                text-align: center;
-            }}
-
-            .info-text-small {{ font-size: 8px; }}
-            .info-text-normal {{ font-size: 9px; }}
-
             .footer {{
                 position: fixed;
-                bottom: 50px;
+                bottom: 0;
                 left: 0;
                 right: 0;
                 height: 20mm;
                 text-align: right;
                 font-size: 10px;
             }}
+
+            .withholding-voucher-details-table td, .withholding-voucher-details-table th {{
+                border: 1px solid #000;
+            }}
+
+			.withholding-voucher-details-table {{
+				border-collapse: collapse;
+                width: 100%;
+                margin: 0 auto;
+			}}
         </style>
     </head>
     <body>
@@ -184,22 +174,22 @@ def get_header_html(doc):
                 <img src="https://via.placeholder.com/60x60.png?text=LOGO" alt="Logo" style="width:50px; height:50px; margin-right:5px;">
                 <div style="line-height: 1.1;">
                     DOMINA ERP<br>
-                    {{ doc.empresa }}<br>
-                    R.I.F.: {{ doc.company_tax_id }}
+                    { doc.empresa }<br>
+                    R.I.F.: { company_tax_id }
                 </div>
             </div>
             <div class="header-title-section">
                 <div style="font-size: 10px; margin-bottom: 2px;">
-                    <span style="font-weight: bold;">{{ doc.voucher_number }}</span>
+                    <span style="font-weight: bold;">{ doc.voucher_number }</span>
                 </div>
                 <div class="main-header">I.S.L.R. - COMPROBANTE DE RETENCIÓN DE I.S.L.R.</div>
-                <div>Fecha:Desde {{ frappe.utils.getdate(doc.start_date).strftime('%d/%m/%Y') }} Hasta {{ frappe.utils.getdate(doc.end_date).strftime('%d/%m/%Y') }}:</div>
+                <div>Fecha:Desde { getdate(doc.start_date).strftime('%d/%m/%Y') } Hasta { getdate(doc.end_date).strftime('%d/%m/%Y') }</div>
             </div>
             <div class="header-user-info-section">
                 <table class="table-full-width table-no-border info-text-normal">
                     <tr>
                         <td class="text-left" style="width: 40%;">Usuario:</td>
-                        <td class="text-left">{{ frappe.session.user }}</td>
+                        <td class="text-left">{ frappe.session.user }</td>
                     </tr>
                     <tr>
                         <td class="text-left" style="width: 40%;">Página:</td>
@@ -207,7 +197,7 @@ def get_header_html(doc):
                     </tr>
                     <tr>
                         <td class="text-left" style="width: 40%;">Fecha:</td>
-                        <td class="text-left">{{ frappe.utils.get_datetime(frappe.utils.now_datetime()).strftime('%d/%m/%Y %I:%M:%S %p') }}</td>
+                        <td class="text-left">{ frappe.utils.get_datetime(frappe.utils.now_datetime()).strftime('%d/%m/%Y %I:%M:%S %p') }</td>
                     </tr>
                 </table>
             </div>
@@ -222,15 +212,15 @@ def get_header_html(doc):
             </thead>
             <tbody>
                 <tr>
-                    <td class="text-left align-top">
-                        Proveedor / Beneficiario: {{ doc.supplier }}<br>
-                        R.I.F.: {{ doc.supplier_tax_id }}<br>
-                        Dirección: {{ doc.supplier_address }}
+                    <td>
+                        Proveedor / Beneficiario: { doc.supplier }<br>
+                        R.I.F.: { supplier_tax_id }<br>
+                        Dirección: { doc.supplier_address }
                     </td>
-                    <td class="text-left align-top">
-                        Nombre / Razón Social: {{ doc.empresa }}<br>
-                        R.I.F.: {{ doc.company_tax_id }}<br>
-                        Dirección: {{ doc.company_address }}
+                    <td>
+                        Nombre / Razón Social: { doc.empresa }<br>
+                        R.I.F.: { company_tax_id }<br>
+                        Dirección: { doc.company_address }
                     </td>
                 </tr>
             </tbody>
@@ -254,9 +244,6 @@ def get_footer_html(doc):
                 </tr>
             </tbody>
         </table>
-        <div style="text-align: center; margin-top: 10px;">
-            <small>Éste comprobante se emite en función a lo establecido en el artículo 16 de la Providencia Administrativa N° SNAT/2025/000054 de fecha 02/07/2025 </small>
-        </div>
     </div>
     """
 
@@ -264,34 +251,29 @@ def generate_content_table(items, doc, current_page, total_pages):
     table_rows = ""
 
     for index, item in enumerate(items):
-        transaction_type = ('02-Comp'
-            if item.debit_note_no or item.credit_note_no
-            else '01-Reg')
-
         display_index = index + 1
         table_rows += f"""
         <tr>
             <td class="text-center">{display_index:02d}</td>
             <td class="text-center">{getdate(item.posting_date).strftime('%d/%m/%Y')}</td>
-            <td class="text-center">{item.bill_no or ''}</td>
+            <td class="text-center">{item.payment_entry_name}</td>
+            <td class="text-center">{item.doc_type or ''}</td>
+            <td class="text-center">{item.doc_no or ''}</td>
             <td class="text-center">{item.bill_control or ''}</td>
-            <td class="text-center">{item.debit_note_no or ''}</td>
-            <td class="text-center">{item.credit_note_no or ''}</td>
-            <td class="text-center">{transaction_type}</td>
-            <td class="text-center">{item.affected_invoice_number or ''}</td>
+            <td class="text-right">{item.grand_total}</td>
             <td class="text-right">{item.grand_total}</td>
             <td class="text-right">{item.total_exempt}</td>
-            <td class="text-right">{item.total}</td>
-            <td class="text-right">{item.rate or ''}</td>
-            <td class="text-right">{item.taxes_and_charges_added}</td>
-            <td class="text-right">{item.taxes_and_charges_deducted}</td>
+            <td class="text-right">{item.rate}</td>
+            <td class="text-center">{item.code or ''}</td>
+            <td class="text-right">{item.subtracting}</td>
+            <td class="text-right">{item.tax_amount}</td>
         </tr>
         """
 
     if current_page == total_pages - 1:
         table_rows += f"""
         <tr>
-            <td class="text-left">Totales</td>
+            <td class="text-center">Totales</td>
             <td></td>
             <td></td>
             <td></td>
