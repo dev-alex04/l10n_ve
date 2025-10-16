@@ -31,6 +31,7 @@
    "in_list_view": 1,
    "label": "Factura de Compra",
    "options": "Purchase Invoice",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -38,6 +39,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "No. Control",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -49,6 +51,7 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Fecha Factura",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -59,12 +62,14 @@
    "fieldname": "grand_total",
    "fieldtype": "Currency",
    "label": "Monto de Documento",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "amount_paid",
    "fieldtype": "Currency",
    "label": "Monto Abonado",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -75,28 +80,33 @@
    "fieldname": "code",
    "fieldtype": "Data",
    "label": "C\u00f3digo Concepto",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "subtracting",
    "fieldtype": "Currency",
-   "label": "Sustarendo"
+   "label": "Sustarendo",
+   "read_only": 1
   },
   {
    "fieldname": "tax_amount",
    "fieldtype": "Currency",
-   "label": "Impuesto Retenido"
+   "label": "Impuesto Retenido",
+   "read_only": 1
   },
   {
    "fieldname": "rate",
    "fieldtype": "Float",
    "label": "Tarifa %",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "total_exempt",
    "fieldtype": "Currency",
    "label": "Monto Objeto a Retenci\u00f3n",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -110,12 +120,14 @@
    "fieldname": "doc_no",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "No. Documento"
+   "label": "No. Documento",
+   "read_only": 1
   },
   {
    "fieldname": "doc_type",
    "fieldtype": "Data",
    "label": "Tipo",
+   "read_only": 1,
    "reqd": 1
   }
  ],
@@ -123,7 +135,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-25 14:40:14.515344",
+ "modified": "2025-10-16 17:56:05.926151",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "ISLR Withholding Voucher Item",

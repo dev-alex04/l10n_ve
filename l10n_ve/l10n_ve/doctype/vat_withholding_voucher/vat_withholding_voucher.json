@@ -81,7 +81,6 @@
    "fieldtype": "Table",
    "label": "Facturas",
    "options": "VAT Withholding Voucher Item",
-   "read_only": 1,
    "reqd": 1
   },
   {
@@ -176,7 +175,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-15 16:30:02.554246",
+ "modified": "2025-10-16 15:27:59.493665",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
