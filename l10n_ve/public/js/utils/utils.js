@@ -1,3 +1,5 @@
+const RIF_LEGAL_NATURES = ["Juridical", "Government", "Communal"];
+const RIF_NATURAL_NATURES = ["Venezuelan", "Extranjero", "Passport"];
 /**
  * 
  * @param {object} frm 
@@ -13,28 +15,19 @@ function sync_taxpayer_fields(frm, source_field) {
 	const person_type = frm.doc.type_of_person;
  
 	if (source_field === 'nature_of_the_taxpayer') {
-		
-		const legal_entities = ["Juridical", "Government", "Communal"];
-		const natural_persons = ["Venezuelan", "Extranjero", "Passport"];
- 
-		if (legal_entities.includes(nature)) {
-			
+		if (RIF_LEGAL_NATURES.includes(nature)) {
 			frm.set_value('type_of_person', 'Domiciled legal entity');
 
-		} else if (natural_persons.includes(nature)) {
-			
+		} else if (RIF_NATURAL_NATURES.includes(nature)) {
 			frm.set_value('type_of_person', 'Natural person domiciled');
 		}
 	} else if (source_field === 'type_of_person') {
-		
 		if (person_type.includes('natural person')) {
-			
-			if (!['Venezuelan', 'Extranjero', 'Passport'].includes(nature)) {
+			if (!RIF_NATURAL_NATURES.includes(nature)) {
 				frm.set_value('nature_of_the_taxpayer', 'Venezuelan');
 			}
 		} else if (person_type.includes('legal entity')) {
-			
-			if (!['Juridical', 'Government', 'Communal'].includes(nature)) {
+			if (!RIF_LEGAL_NATURES.includes(nature)) {
 				frm.set_value('nature_of_the_taxpayer', 'Juridical');
 			}
 		}
@@ -50,7 +43,6 @@ function build_rif(frm) {
 	const tax_id_value = frm.doc.tax_id || '';
  
 	if (!nature) {
-		
 		return;
 	}
  
@@ -68,25 +60,20 @@ function build_rif(frm) {
  */
 function set_person_type_filter(frm) {
 	const nature = frm.doc.nature_of_the_taxpayer;
-	const legal_natures = ["Juridical", "Government", "Communal"];
-	const natural_natures = ["Venezuelan", "Extranjero", "Passport"];
 
 	let allowed_person_types = [];
 
-	if (legal_natures.includes(nature)) {
+	if (RIF_LEGAL_NATURES.includes(nature)) {
 		allowed_person_types = ["Domiciled legal entity",
 			 "Non-domiciled legal entity"];
-			 
-	} else if (natural_natures.includes(nature)) {
+	} else if (RIF_NATURAL_NATURES.includes(nature)) {
 		allowed_person_types = ["Natural person domiciled", 
 			"Non-domiciled natural person"];
 	}
 
-	
 	if (frm.doc.type_of_person && !allowed_person_types.includes(frm.doc.type_of_person)) {
 		frm.set_value('type_of_person', '');
 	}
-
 
 	frm.set_df_property('type_of_person', 'options', allowed_person_types.join('\n'));
 }

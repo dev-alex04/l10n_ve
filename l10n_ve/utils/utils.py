@@ -84,10 +84,15 @@ def validate_rif_format(doc):
     doc.tax_id = cleaned_rif
 
     rif_regex = r"^[VEJGPC]\d{9}$"
+    
     if not re.match(rif_regex, cleaned_rif):
-        frappe.throw(_("El RIF/ID de Impuesto '{0}' no es válido. " \
-        "El formato debe ser una letra (V, E, J, G, C, P) " \
-        "seguida de 9 dígitos (ej: J123456789).").format(doc.tax_id))
+                frappe.throw(
+            _(
+                "El RIF/ID de Impuesto '{0}' no es válido. "
+                "El formato debe ser una letra (V, E, J, G, C, P) "
+                "seguida de 9 dígitos (ej: J123456789)."
+            ).format(doc.tax_id)
+        )
 
 def validate_return_in_same_month(self):
     """
