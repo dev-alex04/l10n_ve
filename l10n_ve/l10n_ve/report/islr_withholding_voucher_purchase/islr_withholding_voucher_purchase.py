@@ -47,9 +47,6 @@ def generate_islr_report(voucher_name):
         """
         page_content_html += page_html
 
-        # if i < total_pages - 1:
-        #     page_content_html += page_html
-
     full_html = f"""
     <!DOCTYPE html>
     <html>
