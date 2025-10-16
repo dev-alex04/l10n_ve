@@ -1,7 +1,13 @@
 VAT,IVA,
 Tax ID,RIF,
 Tax Id: ,RIF,
+Passport,Pasaporte,
+Jurídico,Juridical,
+Foreign,Extranjero,
+Communal,Comunales,
+Venezuelan,Venezolano,
 Withholding,Retención,
+Government,Gubernamental
 ISLR Date, Fecha de ISLR,
 Bill no,Número de Factura,
 Debit Note,Nota de Debito,
