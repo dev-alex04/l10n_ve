@@ -5,6 +5,12 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
   refresh: function (frm) {
     if (!frm.is_new()) {
       frm.add_custom_button(__("Imprimir"), function () {
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) {
+          frappe.msgprint(__("Por favor, deshabilite el bloqueador de ventanas emergentes para este sitio."));
+          return;
+        }
+
         frappe.call({
           method:
             "l10n_ve.l10n_ve.report.islr_withholding_voucher_purchase.islr_withholding_voucher_purchase.generate_islr_report",
@@ -13,13 +19,20 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
           },
           callback: function (r) {
             if (r.message) {
-              let w = window.open();
-              w.document.write(r.message);
-              w.document.close();
-              w.focus();
-              w.print();
-            } else if (r.exc) {
-              frappe.throw(__("Error al generar el comprobante."));
+              printWindow.document.write(r.message);
+              printWindow.document.close();
+              setTimeout(function() {
+                  printWindow.print();
+              }, 100);
+
+              if (printWindow.document.readyState === 'complete') {
+                  printWindow.onload();
+              }
+            } else {
+              printWindow.close();
+              if (r.exc) {
+                frappe.throw(__("Error al generar el comprobante."));
+              }
             }
           },
         });

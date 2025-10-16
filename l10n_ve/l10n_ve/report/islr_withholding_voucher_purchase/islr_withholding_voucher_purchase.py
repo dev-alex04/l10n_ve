@@ -1,7 +1,6 @@
 import frappe
 from frappe import _
-import json
-from frappe.utils import getdate
+from frappe.utils import getdate, get_url as get_full_url, escape_html
 from l10n_ve.utils.utils import format_amounts
 
 @frappe.whitelist()
@@ -11,7 +10,7 @@ def generate_islr_report(voucher_name):
     except frappe.DoesNotExistError:
         frappe.throw(_("Comprobante de Retención no encontrado."))
 
-    header_html = get_header_html(doc)
+    # header_html = get_header_html(doc)
     footer_html = get_footer_html(doc)
 
     format_amounts(doc, [
@@ -36,7 +35,10 @@ def generate_islr_report(voucher_name):
         end_index = start_index + items_per_page
         current_items = doc.islr_withholding_voucher_item[start_index:end_index]
 
-        content_table_html = generate_content_table(current_items, doc, i, total_pages)
+        current_page_number = i + 1
+        header_html = get_header_html(doc, current_page_number, total_pages)
+
+        content_table_html = generate_content_table(current_items, doc, i, total_pages, start_index)
 
         page_html = f"""
         <div class="page-container">
@@ -161,23 +163,31 @@ def generate_islr_report(voucher_name):
 
     return full_html
 
-def get_header_html(doc):
+def get_header_html(doc, current_page, total_pages):
     company_tax_id = frappe.db.get_value("Company", doc.empresa, "tax_id")
     supplier_tax_id = frappe.db.get_value("Supplier", doc.supplier, "tax_id")
+
+    logo_path = frappe.db.get_value("Company", doc.empresa, "company_logo")
+
+    company_logo_url = (
+        get_full_url(logo_path)
+        if logo_path
+        else ''
+    )
 
     return f"""
         <div class="header-box">
             <div class="logo-section">
-                <img src="https://via.placeholder.com/60x60.png?text=LOGO" alt="Logo" style="width:50px; height:50px; margin-right:5px;">
+                <img src="{company_logo_url}" alt="Logo empresa" style="width:50px; height:50px; margin-right:5px;">
                 <div style="line-height: 1.1;">
                     DOMINA ERP<br>
-                    { doc.empresa }<br>
-                    R.I.F.: { company_tax_id }
+                    { escape_html(doc.empresa) }<br>
+                    R.I.F.: { escape_html(company_tax_id) }
                 </div>
             </div>
             <div class="header-title-section">
                 <div style="font-size: 10px; margin-bottom: 2px;">
-                    <span style="font-weight: bold;">{ doc.voucher_number }</span>
+                    <span style="font-weight: bold;">{ escape_html(doc.voucher_number) }</span>
                 </div>
                 <div class="main-header">I.S.L.R. - COMPROBANTE DE RETENCIÓN DE I.S.L.R.</div>
                 <div>Fecha:Desde { getdate(doc.start_date).strftime('%d/%m/%Y') } Hasta { getdate(doc.end_date).strftime('%d/%m/%Y') }</div>
@@ -190,7 +200,7 @@ def get_header_html(doc):
                     </tr>
                     <tr>
                         <td class="text-left" style="width: 40%;">Página:</td>
-                        <td class="text-left">1 de 1</td>
+                        <td class="text-left">{ current_page } de { total_pages }</td>
                     </tr>
                     <tr>
                         <td class="text-left" style="width: 40%;">Fecha:</td>
@@ -211,13 +221,13 @@ def get_header_html(doc):
                 <tr>
                     <td>
                         Proveedor / Beneficiario: { doc.supplier }<br>
-                        R.I.F.: { supplier_tax_id }<br>
-                        Dirección: { doc.supplier_address }
+                        R.I.F.: { escape_html(supplier_tax_id) }<br>
+                        Dirección: { escape_html(doc.supplier_address) }
                     </td>
                     <td>
-                        Nombre / Razón Social: { doc.empresa }<br>
-                        R.I.F.: { company_tax_id }<br>
-                        Dirección: { doc.company_address }
+                        Nombre / Razón Social: { escape_html(doc.empresa) }<br>
+                        R.I.F.: { escape_html(company_tax_id) }<br>
+                        Dirección: { escape_html(doc.company_address) }
                     </td>
                 </tr>
             </tbody>
@@ -244,11 +254,11 @@ def get_footer_html(doc):
     </div>
     """
 
-def generate_content_table(items, doc, current_page, total_pages):
+def generate_content_table(items, doc, current_page, total_pages, start_index):
     table_rows = ""
 
     for index, item in enumerate(items):
-        display_index = index + 1
+        display_index = start_index + index + 1
         table_rows += f"""
         <tr>
             <td class="text-center">{display_index:02d}</td>
@@ -258,7 +268,7 @@ def generate_content_table(items, doc, current_page, total_pages):
             <td class="text-center">{item.doc_no or ''}</td>
             <td class="text-center">{item.bill_control or ''}</td>
             <td class="text-right">{item.grand_total}</td>
-            <td class="text-right">{item.grand_total}</td>
+            <td class="text-right">{item.amount_paid}</td>
             <td class="text-right">{item.total_exempt}</td>
             <td class="text-right">{item.rate}</td>
             <td class="text-center">{item.code or ''}</td>
