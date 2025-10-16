@@ -2,6 +2,20 @@ frappe.ui.form.on("Supplier", {
   refresh: function (frm) {
     reorganize_supplier_fields(frm);
   },
+
+  nature_of_the_taxpayer: function (frm) {
+    set_person_type_filter(frm);
+    sync_taxpayer_fields(frm, 'nature_of_the_taxpayer');
+    build_rif(frm);
+  },
+
+  type_of_person: function(frm) {
+    sync_taxpayer_fields(frm, 'type_of_person');
+  },
+
+  tax_id: function (frm) {
+    build_rif(frm);
+  },
 });
 
 function reorganize_supplier_fields(frm) {
