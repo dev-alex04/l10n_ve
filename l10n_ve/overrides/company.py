@@ -1,7 +1,13 @@
 import frappe
+import re
 from erpnext.setup.doctype.company.company import Company
+from frappe import _
 
 class CustomCompany(Company):
+
+    def validate(self):
+        super().validate()
+        self.validate_rif()
 
     def get_invoice_number(self) -> str:
         invoice_format = self.sales_invoice_number_format or "#####"
@@ -69,10 +75,24 @@ class CustomCompany(Company):
         return number_format.replace('#' * num_placeholders, formatted_number)
 
     def before_save(self):
-        # Inicializa los campos si están vacíos al crear la compañía
+        
         if not self.vat_withholding_format:
-            # Puedes usar un formato por defecto si el cliente no lo ha especificado
+        
             self.vat_withholding_format = "##############"
 
         if not self.vat_withholding_correlative:
             self.vat_withholding_correlative = 1
+
+    def validate_rif(self):
+        """Valida el formato del RIF en el campo tax_id."""
+        if not self.tax_id:
+            return
+
+        cleaned_rif = re.sub(r'[^a-zA-Z0-9]', '', self.tax_id).upper()
+
+        self.tax_id = cleaned_rif
+
+        rif_regex = r"^[VEJG]\d{9}$"
+        if not re.match(rif_regex, cleaned_rif):
+            frappe.throw(_("El RIF/ID de Impuesto '{0}' no es válido. " \
+            "El formato debe ser una letra seguida de 9 dígitos (ej: J123456789).").format(self.tax_id))
