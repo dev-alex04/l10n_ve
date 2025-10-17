@@ -1,4 +1,21 @@
 frappe.ui.form.on("Payment Entry", {
+  setup: function (frm) {
+    frm.events.get_current_tax_amount = function (frm, tax) {
+      return tax.tax_amount;
+    };
+  },
+  onload: function (frm) {
+    reorganize_payment_entry_fields(frm);
+  },
+  paid_on_currency: function (frm) {
+    set_custom_exchange_rate(frm);
+  },
+  paid_currency_amount: function (frm) {
+    compute_paid_amount(frm);
+  },
+  paid_amount: function (frm) {
+    set_igtf(frm);
+  },
   refresh: function (frm) {
     set_payment_entry_buttons(frm);
   },
@@ -24,6 +41,127 @@ function set_payment_entry_buttons(frm) {
     frm.add_custom_button(__("Agregar concepto de ISLR"), function () {
       set_islr_concept(frm);
     });
+  }
+}
+
+/**
+ * @param {object} frm - Instancia del formulario actual
+ * @returns {null}
+ */
+
+function reorganize_payment_entry_fields(frm) {
+  let paid_amount = frm.get_field("paid_amount").$wrapper;
+  let received_amount = frm.get_field("received_amount").$wrapper;
+
+  paid_amount.insertAfter(received_amount);
+}
+
+async function set_custom_exchange_rate(frm) {
+  console.log(rm.doc.default_company_currency, frm.doc.paid_on_currency);
+
+  if (!frm.doc.default_company_currency || !frm.doc.paid_on_currency) {
+    return;
+  }
+
+  if (frm.doc.default_company_currency != frm.doc.paid_on_currency) {
+    await set_current_exchange_rate(
+      frm,
+      "exchange_rate",
+      frm.doc.paid_on_currency,
+      frm.doc.default_company_currency
+    );
+    frm.set_df_property("exchange_rate", "hidden", false);
+    frm.refresh_field("exchange_rate");
+    compute_paid_amount(frm);
+  } else {
+    frm.set_df_property("exchange_rate", "hidden", true);
+    frm.set_value("exchange_rate", 1);
+    compute_paid_amount(frm);
+  }
+}
+
+function compute_paid_amount(frm) {
+  const paid_amount = frm.doc.paid_currency_amount * frm.doc.exchange_rate;
+  frm.set_value("paid_amount", paid_amount);
+  frm.refresh_field("paid_amount");
+}
+
+async function set_current_exchange_rate(
+  frm,
+  exchange_rate_field,
+  from_currency,
+  to_currency
+) {
+  try {
+    const r = await frappe.call({
+      method: "erpnext.setup.utils.get_exchange_rate",
+      args: {
+        transaction_date: frm.doc.posting_date,
+        from_currency: from_currency,
+        to_currency: to_currency,
+      },
+    });
+    if (r && r.message) {
+      const exchange_rate = flt(
+        r.message,
+        frm.get_field(exchange_rate_field).get_precision()
+      );
+      frm.set_value(exchange_rate_field, exchange_rate);
+    }
+  } catch (error) {
+    console.error("Error al obtener la tasa de cambio:", error);
+    frappe.msgprint(__("No se pudo obtener la tasa de cambio."));
+  }
+}
+
+// Impuestos
+
+async function set_igtf(frm) {
+  if (!frm.doc.default_company_currency || !frm.doc.paid_on_currency) {
+    return;
+  }
+
+  // Si es la misma moneda, el IGTF queda en cero
+  if (frm.doc.default_company_currency == frm.doc.paid_on_currency) {
+    for (let tax of frm.doc.taxes || []) {
+      if (tax.charge_type == "IGTF") {
+        tax.tax_amount = 0;
+        frm.refresh_field("taxes");
+
+        if (frm.cscript.calculate_taxes_and_totals) {
+          frm.cscript.calculate_taxes_and_totals();
+        }
+      }
+    }
+    return;
+  }
+
+  const igtf_amount = (frm.doc.paid_currency_amount * frm.doc.igtf_rate) / 100;
+
+  // En caso de que exista el IGTF en los impuestos:
+  for (let tax of frm.doc.taxes || []) {
+    if (tax.charge_type == "IGTF") {
+      tax.tax_amount = igtf_amount;
+      frm.refresh_field("taxes");
+      return;
+    }
+  }
+
+  // Si el codigo llega acá, es porque no existe y hay que agregar
+  // el IGTF a la tabla de impuestos
+  frm.add_child("taxes", {
+    charge_type: "IGTF",
+    rate: frm.doc.igtf_rate,
+    tax_amount: igtf_amount,
+    add_deduct_tax: "Add",
+    account_head: frm.doc.igtf_account,
+    description: "IGTF",
+  });
+
+  frm.refresh_field("taxes");
+
+  if (frm.cscript.calculate_taxes_and_totals) {
+    frm.cscript.calculate_taxes_and_totals();
   }
 }
 
@@ -67,6 +205,14 @@ function set_islr_concept(frm) {
             fieldname: "base_amount_reference",
             in_list_view: true,
             label: "Monto Pendiente",
+            read_only: true,
+          },
+          {
+            fieldtype: "Data",
+            fieldname: "reference_name",
+            in_list_view: false,
+            label: "Reference Name",
+            hidden: true,
             read_only: true,
           },
         ],
@@ -150,6 +296,7 @@ function get_islr_invoices(frm) {
   for (const reference of frm.doc.references || []) {
     islr_invoices.push({
       bill_no: reference.bill_no,
+      reference_name: reference.reference_name,
       base_amount: reference.outstanding_amount,
       base_amount_reference: reference.outstanding_amount,
     });

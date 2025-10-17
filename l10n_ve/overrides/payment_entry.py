@@ -1,6 +1,18 @@
+from collections import defaultdict
+
 import frappe
-from frappe import _
-from erpnext.accounts.doctype.payment_entry.payment_entry import PaymentEntry, validate_taxes_and_charges, validate_inclusive_tax
+from frappe import _, _dict
+
+from erpnext.accounts.doctype.payment_entry.payment_entry import (
+    PaymentEntry,
+    get_payment_entry,
+    validate_inclusive_tax,
+
+)
+from erpnext.controllers.accounts_controller import (
+    validate_taxes_and_charges,
+)
+from l10n_ve.overrides import company
 
 
 class CustomPaymentEntry(PaymentEntry):
@@ -62,7 +74,7 @@ class CustomPaymentEntry(PaymentEntry):
         if bool(documents_map):
             self.taxes = [
                 tax for tax in self.taxes or []
-                if tax.charge_type == "ISLR"
+                if tax.charge_type in ["ISLR", "IGTF"]
             ]
 
         for doctype, docnames in documents_map.items():
@@ -89,65 +101,70 @@ class CustomPaymentEntry(PaymentEntry):
                 self.append('taxes', tax)
 
     @frappe.whitelist()
-    def set_islr_concept(self, islr_concepts: list) -> None:
+    def set_islr_concept(self, islr_concepts: list) -> str:
 
-        if self.party_type == 'Supplier':
-            party_type = 'Supplier'
-            party = self.party
-            account_field = 'purchase_islr_account'
+        party_type = "Supplier" if self.party_type == "Supplier" else "Company"
+        party = self.party if self.party_type == "Supplier" else self.company
+        account_field = "purchase_islr_account" if self.party_type == "Supplier" else "sales_islr_account"
 
-        else: # Ventas
-            party_type = 'Company'
-            party = self.company
-            account_field = 'sales_islr_account'
+        type_of_person = frappe.db.get_value(party_type,
+                                             party,
+                                             "type_of_person")
 
-        type_of_person: str = frappe.db.get_value(party_type,
-                                                  party,
-                                                  "type_of_person")
+        account_head = frappe.db.get_value("Company",
+                                           self.company,
+                                           account_field)
 
-        account_head: str = frappe.db.get_value("Company",
-                                                self.company,
-                                                account_field)
-        # para evitar duplicados del ISLR
-        self.taxes = [
-            tax for tax in self.taxes or []
-            if tax.get('charge_type') != "ISLR"
-        ]
+        self.taxes = [tax for tax in self.taxes or []
+                      if tax.charge_type != "ISLR"]
 
-        islr_amounts = {}
-
+        concepts_by_tabulator = defaultdict(list)
         for concept in islr_concepts:
-            if concept['concept_islr'] not in islr_amounts:
-                islr_amounts[concept['concept_islr']] = 0
+            concepts_by_tabulator[concept['concept_islr']].append(concept)
 
-            islr_amounts[concept['concept_islr']] += concept['base_amount']
+        references_map = {ref.reference_name: ref
+                          for ref in self.references or []}
 
-        for tabulator_name, base_amount in islr_amounts.items():
+        for tabulator_name, concepts_in_group in concepts_by_tabulator.items():
             tabulator = frappe.get_doc("Tabulator ISLR", tabulator_name)
 
-            for aliquot in tabulator.aliquot:
+            aliquot_info = next((aq for aq in tabulator.aliquot
+                                 if aq.types_of_person == type_of_person
+                                 and aq.aliquot > 0), None)
 
+            if not aliquot_info:
+                continue
 
-                if type_of_person == aliquot.types_of_person \
-                        and aliquot.aliquot > 0:
+            total_base_for_concept = sum(c['base_amount']
+                                         for c in concepts_in_group)
 
-                    tax_base = (base_amount * aliquot.percentage_base) / 100
-                    tax_amount = ((tax_base * aliquot.aliquot) / 100) - aliquot.subtracting
+            total_tax_base = (total_base_for_concept * aliquot_info.percentage_base) / 100
+            total_tax_amount = ((total_tax_base * aliquot_info.aliquot) / 100) - aliquot_info.subtracting
 
-                    self.append("taxes", {
-                        "charge_type": "ISLR",
-                        "rate": aliquot.aliquot,
-                        "tax_amount": tax_amount,
-                        "code": tabulator.codigo,
-                        "add_deduct_tax": "Deduct",
-                        "account_head": account_head,
-                        "is_tax_withholding_account": True,
-                        "subtracting": aliquot.subtracting,
-                        "description": tabulator.descripcion,
-                        "percentage_base": aliquot.percentage_base,
-                    })
+            self.append("taxes", {
+                "charge_type": "ISLR",
+                "code": tabulator.codigo,
+                "add_deduct_tax": "Deduct",
+                "rate": aliquot_info.aliquot,
+                "account_head": account_head,
+                "tax_amount": total_tax_amount,
+                "is_tax_withholding_account": True,
+                "subtracting": aliquot_info.subtracting,
+                "description": tabulator.descripcion,
+            })
 
-                    break
+            for concept_detail in concepts_in_group:
+                reference_doc = references_map.get(concept_detail['reference_name'])
+                if not reference_doc:
+                    continue
+
+                individual_base = concept_detail['base_amount']
+                individual_tax_base = (individual_base * aliquot_info.percentage_base) / 100
+                individual_tax_amount = ((individual_tax_base * aliquot_info.aliquot) / 100) - aliquot_info.subtracting
+
+                reference_doc.islr_amount = individual_tax_amount
+                reference_doc.islr_base_amount = individual_base
+                reference_doc.islr_concept = tabulator_name
 
         self.save()
         return self.name
@@ -155,3 +172,57 @@ class CustomPaymentEntry(PaymentEntry):
     def get_current_tax_amount(self, tax) -> float:
 
         return tax.tax_amount
+
+get_payment_entry_copy = get_payment_entry
+
+@frappe.whitelist()
+def get_payment_entry(
+    dt,
+    dn,
+    party_amount=None,
+    bank_account=None,
+    bank_amount=None,
+    party_type=None,
+    payment_type=None,
+    reference_date=None,
+    ignore_permissions=False,
+    created_from_payment_request=False,
+) -> PaymentEntry:
+
+    payment_entry: PaymentEntry = get_payment_entry_copy(
+        dt,
+        dn,
+        party_amount=party_amount,
+        bank_account=bank_account,
+        bank_amount=bank_amount,
+        party_type=party_type,
+        payment_type=payment_type,
+        reference_date=reference_date,
+        ignore_permissions=ignore_permissions,
+        created_from_payment_request=created_from_payment_request,
+    )
+
+    igtf_rate: float = frappe.db.get_single_value(
+      "Venezuela Account Settings",
+      "igtf_rate"
+    )
+
+    igtf_account_field = 'sales_igtf_account' \
+        if payment_entry.party_type == "Customer" \
+        else "purchase_igtf_account"
+
+    company_data: _dict = frappe.db.get_value(
+      "Company",
+      payment_entry.company,
+      [igtf_account_field, 'default_currency'],
+      as_dict=True)
+
+    payment_entry.paid_currency_amount = payment_entry.paid_amount
+
+    payment_entry.igtf_rate = igtf_rate
+    payment_entry.igtf_account = company_data.get(igtf_account_field)
+
+    payment_entry.paid_on_currency = company_data.default_currency
+    payment_entry.default_company_currency = company_data.default_currency
+
+    return payment_entry
