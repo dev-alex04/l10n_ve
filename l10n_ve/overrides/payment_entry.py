@@ -149,10 +149,6 @@ class CustomPaymentEntry(PaymentEntry):
 
                     break
 
-        for tax in self.taxes:
-            if tax.charge_type == "ISLR":
-                print(tax.tax_amount, 'viendop la cagada esta')
-
         self.save()
         return self.name
 

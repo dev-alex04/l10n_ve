@@ -15,6 +15,7 @@ def set_l10n_ve_data() -> None:
         set_chart_of_accounts()
         create_vat_withholding()
         create_sales_taxes_and_charges_template()
+        set_title_field_on_purchase_invoice()
 
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
