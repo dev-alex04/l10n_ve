@@ -47,11 +47,12 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
 
         parts = self.fiscal_period.split('/')
 
-        is_invalid_format = len(parts) != 2 \
-                            or not parts[0].isdigit() \
-                            or not parts[1].isdigit() \
-                            or len(parts[0]) != 2 \
+        is_invalid_format = len(parts) != (2
+                            or not parts[0].isdigit()
+                            or not parts[1].isdigit()
+                            or len(parts[0]) != 2
                             or len(parts[1]) != 4
+                            )
 
         if is_invalid_format:
             frappe.throw(_("El Periodo Fiscal debe tener el formato MM/YYYY (ej: 10/2025)."))

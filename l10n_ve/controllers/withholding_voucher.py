@@ -45,12 +45,12 @@ class WithholdingVoucher():
         correlative_format = company_doc.get(format_field)
         current_correlative = company_doc.get(correlative_field)
 
-        final_voucher_number, _, year, month = \
+        final_voucher_number, _, year, month = (
             self._get_and_format_correlatives(
                 correlative_format,
                 current_correlative
             )
-
+         )
         return {
             "voucher_number": final_voucher_number,
             "year": year,
