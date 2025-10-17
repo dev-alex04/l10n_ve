@@ -56,15 +56,18 @@ doctype_js = {
     "Supplier": [
         "public/js/doctype/supplier/supplier.js",
     ],
-    "Purchase Invoice": [
-        "public/js/utils/utils.js",
-        "public/js/controllers/taxes_and_totals.js",
-        "public/js/doctype/purchase_invoice/purchase_invoice.js",
+    "Payment Entry": [
+        "public/js/doctype/payment_entry/payment_entry.js",
     ],
     "Sales Invoice": [
         "public/js/utils/utils.js",
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/sales_invoice/sales_invoice.js",
+    ],
+    "Purchase Invoice": [
+        "public/js/utils/utils.js",
+        "public/js/controllers/taxes_and_totals.js",
+        "public/js/doctype/purchase_invoice/purchase_invoice.js",
     ],
 }
 

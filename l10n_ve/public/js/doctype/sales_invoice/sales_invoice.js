@@ -35,7 +35,6 @@ frappe.ui.form.on("Sales Invoice", {
     toggle_islr_withholding_fields(frm);
     reorganize_customer_fields(frm);
     print_button_pdf(frm);
-    set_sales_invoice_buttons(frm);
 
     // Mover esto a una funcion
 
@@ -249,14 +248,6 @@ function toggle_document_number_fields(frm) {
     is_debit_note || is_credit_note
   );
   frm.toggle_display(["bill_control"], true);
-}
-
-function set_sales_invoice_buttons(frm) {
-  if (frm.doc.docstatus == 0) {
-    frm.add_custom_button(__("Agregar concepto de ISLR"), function () {
-      set_islr_concept(frm);
-    });
-  }
 }
 
 function toggle_vat_withholding_fields(frm) {

@@ -1,12 +1,15 @@
 import frappe
 from frappe import _
-from frappe.utils import cint, flt
-from erpnext.accounts.doctype.payment_entry.payment_entry import PaymentEntry
+from erpnext.accounts.doctype.payment_entry.payment_entry import PaymentEntry, validate_taxes_and_charges, validate_inclusive_tax
 
 
 class CustomPaymentEntry(PaymentEntry):
 
     def apply_taxes(self) -> None:
+
+        # Se sobreescribe esta funcion
+        # Para incrustar self.set_taxes_withholding()
+
         self.initialize_taxes()
         self.set_taxes_withholding()
         self.determine_exclusive_rate()
@@ -19,6 +22,28 @@ class CustomPaymentEntry(PaymentEntry):
         """
         return
 
+    def initialize_taxes(self) -> None:
+
+        # Se sobreescribe esta funcion
+        # Para avitar que el campo tax_amonunt se incialice en 0
+        # ya que ese monto ya se carga desde las funciones
+        # self.set_taxes_withholding() y self.set_islr_concept()
+
+        for tax in self.get("taxes"):
+            validate_taxes_and_charges(tax)
+            validate_inclusive_tax(tax, self)
+
+            tax_fields = [
+                "total",
+                "tax_fraction_for_current_item",
+                "grand_total_fraction_for_current_item"
+            ]
+
+            for fieldname in tax_fields:
+                tax.set(fieldname, 0.0)
+
+        self.paid_amount_after_tax = self.base_paid_amount
+
     def set_taxes_withholding(self) -> None:
 
         documents_map = {}
@@ -30,8 +55,15 @@ class CustomPaymentEntry(PaymentEntry):
 
             documents_map[reference.reference_doctype].append(reference.reference_name)
 
+        # Ya que el ISLR se carga desde la funciòn set_islr_concept,
+        # aquí limpiamos la tabla de impuestos, dejando sólo los impuestos
+        # de ISLR
+
         if bool(documents_map):
-            self.taxes = []
+            self.taxes = [
+                tax for tax in self.taxes or []
+                if tax.charge_type == "ISLR"
+            ]
 
         for doctype, docnames in documents_map.items():
 
@@ -56,32 +88,74 @@ class CustomPaymentEntry(PaymentEntry):
             for tax in taxes:
                 self.append('taxes', tax)
 
-    def get_current_tax_amount(self, tax):
-        tax_rate = tax.rate
+    @frappe.whitelist()
+    def set_islr_concept(self, islr_concepts: list) -> None:
 
-        # To set row_id by default as previous row.
-        if tax.charge_type in ["On Previous Row Amount", "On Previous Row Total"]:
-            if tax.idx == 1:
-                frappe.throw(
-                    _(
-                        "Cannot select charge type as 'On Previous Row Amount' or 'On Previous Row Total' for first row"
-                    )
-                )
+        if self.party_type == 'Supplier':
+            party_type = 'Supplier'
+            party = self.party
+            account_field = 'purchase_islr_account'
 
-            if not tax.row_id:
-                tax.row_id = tax.idx - 1
+        else: # Ventas
+            party_type = 'Company'
+            party = self.company
+            account_field = 'sales_islr_account'
 
-        if tax.charge_type == "Actual":
-            current_tax_amount = flt(tax.tax_amount, self.precision("tax_amount", tax))
-        elif tax.charge_type == "On Paid Amount":
-            current_tax_amount = (tax_rate / 100.0) * self.paid_amount_after_tax
-        elif tax.charge_type == "On Previous Row Amount":
-            current_tax_amount = (tax_rate / 100.0) * self.get("taxes")[cint(tax.row_id) - 1].tax_amount
+        type_of_person: str = frappe.db.get_value(party_type,
+                                                  party,
+                                                  "type_of_person")
 
-        elif tax.charge_type == "On Previous Row Total":
-            current_tax_amount = (tax_rate / 100.0) * self.get("taxes")[cint(tax.row_id) - 1].total
+        account_head: str = frappe.db.get_value("Company",
+                                                self.company,
+                                                account_field)
+        # para evitar duplicados del ISLR
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if tax.get('charge_type') != "ISLR"
+        ]
 
-        else:
-            current_tax_amount = tax.tax_amount or 0.0
+        islr_amounts = {}
 
-        return current_tax_amount
+        for concept in islr_concepts:
+            if concept['concept_islr'] not in islr_amounts:
+                islr_amounts[concept['concept_islr']] = 0
+
+            islr_amounts[concept['concept_islr']] += concept['base_amount']
+
+        for tabulator_name, base_amount in islr_amounts.items():
+            tabulator = frappe.get_doc("Tabulator ISLR", tabulator_name)
+
+            for aliquot in tabulator.aliquot:
+
+
+                if type_of_person == aliquot.types_of_person \
+                        and aliquot.aliquot > 0:
+
+                    tax_base = (base_amount * aliquot.percentage_base) / 100
+                    tax_amount = ((tax_base * aliquot.aliquot) / 100) - aliquot.subtracting
+
+                    self.append("taxes", {
+                        "charge_type": "ISLR",
+                        "rate": aliquot.aliquot,
+                        "tax_amount": tax_amount,
+                        "code": tabulator.codigo,
+                        "add_deduct_tax": "Deduct",
+                        "account_head": account_head,
+                        "is_tax_withholding_account": True,
+                        "subtracting": aliquot.subtracting,
+                        "description": tabulator.descripcion,
+                        "percentage_base": aliquot.percentage_base,
+                    })
+
+                    break
+
+        for tax in self.taxes:
+            if tax.charge_type == "ISLR":
+                print(tax.tax_amount, 'viendop la cagada esta')
+
+        self.save()
+        return self.name
+
+    def get_current_tax_amount(self, tax) -> float:
+
+        return tax.tax_amount

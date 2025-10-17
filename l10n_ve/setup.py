@@ -351,3 +351,27 @@ def create_sales_taxes_and_charges_template() -> None:
         print(f"Failure: Ocurrió un error durante la creación del impuesto de IVA: {e}")
         frappe.log_error(frappe.get_traceback(),
                          'Error en create_sales_taxes_and_charges_template')
+
+
+def set_title_field_on_purchase_invoice() -> None:
+
+    print("Estableciendo campo title_field en Purchase Invoice")
+
+    try:
+
+        frappe.db.set_value('DocType',
+                            'Purchase Invoice',
+                            'title_field',
+                            'bill_no' )
+
+        frappe.db.set_value('DocType',
+                            'Purchase Invoice',
+                            'show_title_field_in_link',
+                            True)
+
+        print("Campo bill_no establecido como campo Titulo en Purchase Invoice")
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error Estableciendo campo title_field en Purchase Invoice: {e}")
+        frappe.log_error(frappe.get_traceback(),
+                         'Estableciendo campo title_field en Purchase Invoice:')

@@ -1,6 +1,7 @@
 VAT,IVA,
 Tax ID,RIF,
 Tax Id: ,RIF,
+Invoice,Factura,
 Withholding,Retención,
 ISLR Date, Fecha de ISLR,
 Bill no,Número de Factura,
