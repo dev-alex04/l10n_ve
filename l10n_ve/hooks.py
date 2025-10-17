@@ -48,12 +48,15 @@ app_include_js = "/assets/l10n_ve/js/company.js"
 # include js in doctype views
 doctype_js = {
     "Company": [
+        "public/js/utils/utils.js",
         "public/js/doctype/company/company.js",
     ],
     "Customer": [
+        "public/js/utils/utils.js",
         "public/js/doctype/customer/customer.js",
     ],
     "Supplier": [
+        "public/js/utils/utils.js",
         "public/js/doctype/supplier/supplier.js",
     ],
     "Payment Entry": [
@@ -78,6 +81,7 @@ doctype_list_js = {
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
+
 
 # Svg Icons
 # ------------------
@@ -164,6 +168,8 @@ after_install = [
 # Override standard doctype classes
 
 override_doctype_class = {
+    "Customer": "l10n_ve.overrides.customer.CustomCustomer",
+    "Supplier": "l10n_ve.overrides.supplier.CustomSupplier",
     "Company": "l10n_ve.overrides.company.CustomCompany",
     "Payment Entry": "l10n_ve.overrides.payment_entry.CustomPaymentEntry",
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
