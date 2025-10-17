@@ -86,7 +86,7 @@ class ExcelBuilder:
         # Período Fiscal
         self.sheet.cell(row=current_row, column=1, value=_("Período Fiscal:")).font = title_font
         current_row += 1
-        self.sheet.cell(row=current_row, column=1, value=f"{self.from_date.strftime('%d-%m-%Y')} - {self.to_date.strftime('%d-%m-%Y')}")
+        self.sheet.cell(row=current_row, column=1, value=f"{self.from_date.strftime('%d/%m/%Y')} - {self.to_date.strftime('%d/%m/%Y')}")
 
         return current_row + 2
 
@@ -100,8 +100,8 @@ class ExcelBuilder:
         header_levels = [
             # Nivel 2
             [
-                {"text": _("Ventas a Contribuyentes"), "start_col": 17, "span": 6},
-                {"text": _("Ventas a No Contribuyentes"), "start_col": 23, "span": 6},
+                {"text": _("Ventas a No Contribuyentes"), "start_col": 17, "span": 6},
+                {"text": _("Ventas a Contribuyentes"), "start_col": 23, "span": 6},
             ],
             # Nivel 3
             [
@@ -206,11 +206,12 @@ class ExcelBuilder:
         """
         Escribe la fila de totales al final de la tabla principal.
         """
+        totals = get_total_row(self.data)
         current_row_for_totals = self.sheet.max_row + 2
 
         for col_index, col in enumerate(self.columns, start=1):
             fieldname = col.get("fieldname")
-            cell_value = self.summary_data.get(fieldname)
+            cell_value = totals.get(fieldname)
 
             cell = self.sheet.cell(row=current_row_for_totals, column=col_index, value=cell_value)
             cell.font = self.header_font
@@ -255,8 +256,6 @@ class ExcelBuilder:
         current_row += 2
 
         self.data = self.adjustment_data
-        adjustment_totals = get_total_row(self.adjustment_data)
-        self.summary_data = adjustment_totals
 
         headers_last_row = self._build_multi_level_headers(current_row)
         data_last_row = self._write_data_rows(headers_last_row)
@@ -348,6 +347,17 @@ class ExcelBuilder:
             "retencion": self.summary_data.get("iva_retained_reduced", 0)}
         ]
 
+        main_period_totals = get_total_row(self.main_data)
+        summary_data_rows[2]["retencion"] = main_period_totals.get("iva_retained_general", 0)
+        summary_data_rows[3]["retencion"] = main_period_totals.get("iva_retained_additional", 0)
+        summary_data_rows[4]["retencion"] = main_period_totals.get("iva_retained_reduced", 0)
+
+        if self.adjustment_data:
+            adjustment_totals = get_total_row(self.adjustment_data)
+            summary_data_rows.append({
+                "concepto": _("Ajuste de Retenciones de Períodos Anteriores"),
+                "base": 0, "iva": 0, "retencion": adjustment_totals.get("iva_retained", 0)})
+
         for i, row_data in enumerate(summary_data_rows):
             is_last_row = (i == len(summary_data_rows) - 1)
             bottom_border_style = thin_border_style if is_last_row else Side(style=None)
@@ -386,7 +396,7 @@ class ExcelBuilder:
 
         total_base = sum(row.get("base") for row in summary_data_rows)
         total_iva = sum(row.get("iva") for row in summary_data_rows)
-        total_retencion = self.summary_data.get("iva_retained", 0)
+        total_retencion = sum(row.get("retencion") for row in summary_data_rows)
 
         # Fila de totales del resumen
         total_cell = self.sheet.cell(row=current_row, column=summary_start_col, value=_("Totales"))
@@ -465,8 +475,8 @@ def create_excel_file(report_name, filters=None, **kwargs):
         if not main_data and not adjustment_data:
             frappe.throw(_("No se encontraron datos para los filtros seleccionados."))
 
-        # El resumen principal se basa solo en los datos del período
-        summary_data = get_total_row(main_data)
+        # El resumen principal se basa en la combinación de datos del período y ajustes
+        summary_data = get_total_row(main_data + adjustment_data)
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
         address_name = company_doc.get("custom_company_primary_address")
