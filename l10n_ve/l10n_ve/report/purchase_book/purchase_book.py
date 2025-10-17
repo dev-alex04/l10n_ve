@@ -380,32 +380,47 @@ def generate_xml_islr_file(filters=None):
             frappe.msgprint(_("No se encontraron retenciones de ISLR para los filtros seleccionados."))
             return None
 
-
         root = Element('RelacionRetencionesISLR', {'RifAgente': company_rif, 'Periodo': periodo})
+
+        tabulator_cache = {}
+        processing_errors = []
 
         for ret in retentions:
             try:
+                if ret.islr_concept not in tabulator_cache:
 
-                tabulator = frappe.get_doc("Tabulator ISLR", ret.islr_concept)
-                aliquot_row = next((a for a in tabulator.aliquot if a.types_of_person == ret.type_of_person), None)
+                    tabulator_cache[ret.islr_concept] = frappe.get_doc("Tabulator ISLR",
+                                                                       ret.islr_concept)
+
+                tabulator = tabulator_cache[ret.islr_concept]
+
+                aliquot_row = next((a for a in tabulator.aliquot
+                                    if a.types_of_person == ret.type_of_person), None)
 
                 if not aliquot_row:
-                    frappe.log_error(f"No se encontró alícuota para el tipo de persona "
-                                     f"'{ret.type_of_person}' en el concepto ISLR '{ret.islr_concept}'.",
-                                     f"Error en generate_xml_islr_file")
+                    error_msg = (f"No se encontró alícuota para '{ret.type_of_person}'"
+                                f"en concepto '{ret.islr_concept}' (Factura: {ret.bill_no or 'N/A'}).")
+
+                    if error_msg not in processing_errors:
+                        processing_errors.append(error_msg)
+
                     continue
 
             except frappe.DoesNotExistError:
 
-                frappe.log_error(f"Concepto de ISLR '{ret.islr_concept}'"
-                                 f"no encontrado en el Tabulador ISLR.",
-                                f"Error en generate_xml_islr_file")
+                tabulator_cache[ret.islr_concept] = None
+                error_msg = ( f"Concepto ISLR '{ret.islr_concept}'"
+                              f"no encontrado (Factura: {ret.bill_no or 'N/A'}).")
+
+                if error_msg not in processing_errors:
+
+                    processing_errors.append(error_msg)
                 continue
 
             detalle = SubElement(root, 'DetalleRetencion')
             SubElement(detalle, 'RifRetenido').text = ret.supplier_rif or 'N/A'
             SubElement(detalle, 'NumeroFactura').text = ret.bill_no or 'N/A'
-            SubElement(detalle, 'NumeroControl').text = str(ret.bill_control or 'N/A')
+            SubElement(detalle, 'NumeroControl').text = str(ret.bill_control) if ret.bill_control is not None else 'N/A'
             SubElement(detalle, 'FechaOperacion').text = getdate(ret.posting_date).strftime('%d/%m/%Y')
             SubElement(detalle, 'CodigoConcepto').text = tabulator.codigo or 'N/A'
             SubElement(detalle, 'MontoOperacion').text = f"{flt(ret.monto_operacion):.2f}"
