@@ -126,6 +126,12 @@ function validar_fechas(frm, campo) {
   }
 }
 
+frappe.ui.form.on('ISLR Withholding Voucher Item', {
+    islr_withholding_voucher_item_remove(frm, cdt, cdn) {
+        calculate_totals(frm);
+    }
+});
+
 function load_invoices(frm) {
   if (
     !frm.doc.supplier ||
@@ -148,8 +154,10 @@ function load_invoices(frm) {
       company: frm.doc.empresa,
     },
     callback: function (r) {
-      frm.doc.totals_total_exempt = 0;
-      frm.doc.totals_tax_amount = 0;
+      frm.doc.totals_islr_base_amount = 0;
+      frm.doc.totals_islr_amount = 0;
+      frm.doc.totals_grand_total = 0;
+      frm.doc.totals_paid_amount = 0;
 
       if (r.message && r.message.length > 0) {
         r.message.forEach((invoice) => {
@@ -161,18 +169,20 @@ function load_invoices(frm) {
           new_row.posting_date = invoice.posting_date;
           new_row.grand_total = invoice.grand_total;
           new_row.payment_entry_name = invoice.payment_entry_name || "";
-          new_row.total_exempt = invoice.total_exempt;
-          new_row.amount_paid = invoice.grand_total;
+          new_row.islr_base_amount = invoice.islr_base_amount;
+          new_row.paid_amount = invoice.paid_amount;
           new_row.rate = invoice.rate;
           new_row.subtracting = invoice.subtracting;
           new_row.code = invoice.code;
-          new_row.tax_amount = invoice.tax_amount;
+          new_row.islr_amount = invoice.islr_amount;
 
-          frm.doc.totals_total_exempt += invoice.total_exempt || 0;
-          frm.doc.totals_tax_amount += invoice.tax_amount || 0;
+          frm.doc.totals_islr_base_amount += invoice.islr_base_amount || 0;
+          frm.doc.totals_islr_amount += invoice.islr_amount || 0;
+          frm.doc.totals_grand_total += invoice.grand_total || 0;
+          frm.doc.totals_paid_amount += invoice.paid_amount || 0;
         });
 
-        frm.refresh_fields(["totals_total_exempt", "totals_tax_amount"]);
+        frm.refresh_fields(["totals_islr_base_amount", "totals_islr_amount"]);
 
         frm.refresh_fields();
       } else {
@@ -180,8 +190,8 @@ function load_invoices(frm) {
         frm.add_child("islr_withholding_voucher_item");
         frm.refresh_field("islr_withholding_voucher_item");
 
-        frm.doc.totals_total_exempt = 0;
-        frm.doc.totals_tax_amount = 0;
+        frm.doc.totals_islr_base_amount = 0;
+        frm.doc.totals_islr_amount = 0;
         frm.refresh_fields();
 
         frappe.show_alert({
@@ -194,3 +204,29 @@ function load_invoices(frm) {
     },
   });
 }
+
+function calculate_totals(frm) {
+    let total_islr_base = 0;
+    let total_islr_amount = 0;
+    let total_grand_total = 0;
+    let total_paid_amount = 0;
+
+    frm.doc.islr_withholding_voucher_item.forEach(item => {
+        total_islr_base += item.islr_base_amount || 0;
+        total_islr_amount += item.islr_amount || 0;
+        total_grand_total += item.grand_total || 0;
+        total_paid_amount += item.paid_amount || 0;
+    });
+
+    frm.doc.totals_islr_base_amount = total_islr_base;
+    frm.doc.totals_islr_amount = total_islr_amount;
+    frm.doc.totals_grand_total = total_grand_total;
+    frm.doc.totals_paid_amount = total_paid_amount;
+
+    frm.refresh_fields([
+        "totals_islr_base_amount",
+        "totals_islr_amount",
+        "totals_grand_total",
+        "totals_paid_amount"
+    ]);
+};

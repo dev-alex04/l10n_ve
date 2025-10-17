@@ -10,19 +10,20 @@ def generate_islr_report(voucher_name):
     except frappe.DoesNotExistError:
         frappe.throw(_("Comprobante de Retención no encontrado."))
 
-    # header_html = get_header_html(doc)
     footer_html = get_footer_html(doc)
 
     format_amounts(doc, [
-		"totals_total_exempt",
-		"totals_tax_amount",
+		"totals_islr_base_amount",
+		"totals_islr_amount",
+		"totals_paid_amount",
+		"totals_grand_total",
 	], [
 		"grand_total",
 		"rate",
-		"amount_paid",
-		"total_exempt",
+		"paid_amount",
+		"islr_base_amount",
 		"subtracting",
-		"tax_amount",
+		"islr_amount",
 	], "islr_withholding_voucher_item")
 
     items_per_page = 13
@@ -268,12 +269,12 @@ def generate_content_table(items, doc, current_page, total_pages, start_index):
             <td class="text-center">{item.doc_no or ''}</td>
             <td class="text-center">{item.bill_control or ''}</td>
             <td class="text-right">{item.grand_total}</td>
-            <td class="text-right">{item.amount_paid}</td>
-            <td class="text-right">{item.total_exempt}</td>
+            <td class="text-right">{item.paid_amount}</td>
+            <td class="text-right">{item.islr_base_amount}</td>
             <td class="text-right">{item.rate}</td>
             <td class="text-center">{item.code or ''}</td>
             <td class="text-right">{item.subtracting}</td>
-            <td class="text-right">{item.tax_amount}</td>
+            <td class="text-right">{item.islr_amount}</td>
         </tr>
         """
 
@@ -286,13 +287,13 @@ def generate_content_table(items, doc, current_page, total_pages, start_index):
             <td></td>
             <td></td>
             <td></td>
-            <td></td>
-            <td></td>
-            <td class="text-right">{ doc.totals_total_exempt }</td>
+            <td class="text-right">{ doc.totals_grand_total }</td>
+            <td class="text-right">{ doc.totals_paid_amount }</td>
+            <td class="text-right">{ doc.totals_islr_base_amount }</td>
             <td></td>
             <td></td>
             <td class="text-right"></td>
-            <td class="text-right">{ doc.totals_tax_amount }</td>
+            <td class="text-right">{ doc.totals_islr_amount }</td>
         </tr>
         """
 

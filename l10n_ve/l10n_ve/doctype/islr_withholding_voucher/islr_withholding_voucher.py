@@ -17,15 +17,18 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
         supplier_tax_id = frappe.db.get_value("Supplier", self.supplier, "tax_id")
 
         main_fields = [
-            "totals_total_exempt",
-            "totals_tax_amount",
+            "totals_islr_base_amount",
+            "totals_islr_amount",
+            "totals_grand_total",
+            "totals_paid_amount"
         ]
 
         child_fields = [
             "grand_total",
-            "total_exempt",
+            "islr_base_amount",
             "subtracting",
-            "tax_amount"
+            "islr_amount",
+            "subtracting"
         ]
 
         self.company_tax_id = company_tax_id or "N/A"
@@ -62,6 +65,11 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
 @frappe.whitelist()
 def get_valid_invoices(supplier, start_date, end_date, company):
+    type_of_person = frappe.db.get_value("Supplier", supplier, "type_of_person")
+
+    if not type_of_person:
+        frappe.throw(_("El Proveedor debe tener un 'Tipo de Persona' definido para procesar retenciones ISLR."))
+
     excluded_from_withholding = frappe.get_all(
         "ISLR Withholding Voucher Item",
         filters={"purchase_invoice": ["!=", ""]},
@@ -79,16 +87,9 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"is_return": 0},
             {"is_debit_note": 0},
             {"name": ["not in", all_excluded_invoices]},
-            ["Purchase Taxes and Charges", "charge_type", "=", "ISLR"]
         ],
         fields=["name", "bill_no", "bill_control", "posting_date", "grand_total",
-            "total_exempt", "is_return", "is_debit_note", "total",
-            "taxes_and_charges_added", "taxes_and_charges_deducted",
-            "credit_note_no", "debit_note_no", "affected_invoice_number",
-            "`tabPurchase Taxes and Charges`.rate as tax_rate",
-            "`tabPurchase Taxes and Charges`.subtracting as tax_subtracting",
-            "`tabPurchase Taxes and Charges`.tax_amount as tax_amount_islr",
-            "`tabPurchase Taxes and Charges`.code as tax_code"
+            "total", "affected_invoice_number"
         ]
     )
 
@@ -96,39 +97,79 @@ def get_valid_invoices(supplier, start_date, end_date, company):
 
     approved_payment_entries = frappe.get_all(
         "Payment Entry",
-
-        filters={
-            "docstatus": 1,
-            "company": company,
-            "party_type": "Supplier",
-            "party": supplier,
-        },
-        fields=["name"]
+        filters=[
+            {"docstatus": 1},
+            {"company": company},
+            {"party_type": "Supplier"},
+            {"party": supplier},
+            ["Advance Taxes and Charges", "charge_type", "=", "ISLR"]
+        ],
+        fields=["name", "paid_amount"]
     )
     approved_payment_entry_names = [d.name for d in approved_payment_entries]
+    paid_amount_map = {d.name: d.paid_amount or 0 for d in approved_payment_entries}
 
-    all_payment_entries = frappe.get_all(
+    islr_references = frappe.get_all(
         "Payment Entry Reference",
         filters={
             "reference_doctype": "Purchase Invoice",
             "reference_name": ["in", valid_invoices_names],
-            "parent": ["in", approved_payment_entry_names]
+            "parent": ["in", approved_payment_entry_names],
+            "islr_amount": [">", 0]
         },
-        fields=["reference_name", "parent"],
+        fields=[
+            "parent", "reference_name", "islr_concept", "islr_base_amount", "islr_amount"
+        ],
         order_by="creation desc"
     )
 
-    payment_entries_map = {}
-    for pe in all_payment_entries:
-        if pe.reference_name not in payment_entries_map:
-            payment_entries_map[pe.reference_name] = pe.parent
+    islr_concept_names = {ref.islr_concept for ref in islr_references if ref.islr_concept}
+    final_islr_data_map = {}
 
-    invoices_with_approved_payment = payment_entries_map.keys()
+    concept_codes = frappe.get_all(
+        "Tabulator ISLR",
+        filters={"name": ["in", list(islr_concept_names)]},
+        fields=["name", "codigo"]
+    )
+    concept_code_map = {str(d.name): d.codigo for d in concept_codes}
+
+    islr_aliquots = frappe.get_all(
+        "Tabulator ISLR Aliquots",
+        filters={
+            "parent": ["in", list(islr_concept_names)],
+            "types_of_person": type_of_person
+        },
+        fields=["parent", "aliquot", "subtracting"]
+    )
+    aliquot_details_map = {d.parent: d for d in islr_aliquots}
+
+    for ref in islr_references:
+        invoice_name = ref.reference_name
+
+        if ref.islr_concept and invoice_name not in final_islr_data_map:
+
+            concept_name = ref.islr_concept
+            aliquot_details = aliquot_details_map.get(concept_name, {})
+
+            final_islr_data_map[invoice_name] = {
+                "payment_entry_name": ref.parent,
+                "islr_base_amount": ref.islr_base_amount or 0,
+                "islr_amount": ref.islr_amount or 0,
+                "code": concept_code_map.get(concept_name),
+                "rate": aliquot_details.get("aliquot"),
+                "subtracting": aliquot_details.get("subtracting"),
+            }
+
     invoices_with_taxes = []
 
     for item in valid_invoices:
-        if item.name not in invoices_with_approved_payment:
+        islr_details = final_islr_data_map.get(item.name)
+
+        if not islr_details:
             continue
+
+        payment_entry_name = islr_details.get("payment_entry_name")
+        paid_amount = paid_amount_map.get(payment_entry_name, 0)
 
         invoice_data = {
             "purchase_invoice": item.name,
@@ -136,22 +177,16 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             "doc_type": "FACT",
             "bill_control": item.bill_control,
             "posting_date": item.posting_date,
-            "rate": item.tax_rate,
-            "subtracting": item.tax_subtracting,
-            "tax_amount": item.tax_amount_islr,
+            "rate": islr_details.get("rate", 0),
+            "subtracting": abs(islr_details.get("subtracting", 0)),
+            "islr_amount": abs(islr_details.get("islr_amount", 0)),
+            "code": islr_details.get("code", ""),
+            "islr_base_amount": abs(islr_details.get("islr_base_amount", 0)),
             "grand_total": abs(item.grand_total),
             "total": abs(item.total),
-            "total_exempt": abs(item.total_exempt),
-            "taxes_and_charges_added": abs(item.taxes_and_charges_added),
-            "taxes_and_charges_deducted": abs(item.taxes_and_charges_deducted),
-            "is_return": item.is_return,
-            "is_debit_note": item.is_debit_note,
-            "credit_note_no": item.credit_note_no,
-            "debit_note_no": item.debit_note_no,
             "affected_invoice_number": item.affected_invoice_number,
-            "amount_paid": abs(item.grand_total),
-            "payment_entry_name": payment_entries_map.get(item.name),
-            "code": item.tax_code,
+            "paid_amount": abs(paid_amount),
+            "payment_entry_name": payment_entry_name,
         }
 
         invoices_with_taxes.append(invoice_data)
