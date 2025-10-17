@@ -37,7 +37,9 @@ frappe.ui.form.on("VAT Withholding Voucher", {
           })
           .then((r) => {
             if (r.message) {
-              frm.set_value("voucher_number", r.message);
+              const { voucher_number, year, month } = r.message;
+              frm.set_value("voucher_number", voucher_number);
+              frm.set_value("fiscal_period", `${month}/${year}`);
               frm.set_value("issue_date", today);
               frm.set_value("delivery_date", today);
             }
