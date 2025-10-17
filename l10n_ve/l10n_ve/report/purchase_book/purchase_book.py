@@ -353,10 +353,7 @@ def generate_xml_islr_file(filters=None):
         company_rif = (company_doc.tax_id or "").replace('-', '')
         periodo = getdate(from_date).strftime('%m/%Y')
 
-        # La consulta itera sobre cada fila de la tabla de referencias de las Entradas de Pago.
-        # Si un pago tiene múltiples facturas, cada una será una fila en el resultado.
-        # La consulta itera sobre cada fila de la tabla de referencias de las Entradas de Pago (Payment Entry).
-        # Si un pago tiene múltiples facturas con retención, cada una será una fila en el resultado.
+
         retentions = frappe.db.sql("""
             SELECT
                 REPLACE(supp.tax_id, '-', '') AS supplier_rif,
@@ -383,26 +380,26 @@ def generate_xml_islr_file(filters=None):
             frappe.msgprint(_("No se encontraron retenciones de ISLR para los filtros seleccionados."))
             return None
 
-        # Construcción del XML
-        # Construcción del XML en memoria
+
         root = Element('RelacionRetencionesISLR', {'RifAgente': company_rif, 'Periodo': periodo})
 
         for ret in retentions:
             try:
-                # Usar el campo link (ret.islr_concept) para buscar en el Tabulador ISLR
+
                 tabulator = frappe.get_doc("Tabulator ISLR", ret.islr_concept)
                 aliquot_row = next((a for a in tabulator.aliquot if a.types_of_person == ret.type_of_person), None)
 
                 if not aliquot_row:
-                    # Si no se encuentra una alícuota para el tipo de persona, se omite esta retención.
-                    # Si no se encuentra una alícuota para el tipo de persona, se omite esta retención y se registra.
-                    frappe.log_error(f"No se encontró alícuota para el tipo de persona '{ret.type_of_person}' en el concepto ISLR '{ret.islr_concept}'.", "Error en generate_xml_islr_file")
+                    frappe.log_error(f"No se encontró alícuota para el tipo de persona "
+                                     f"'{ret.type_of_person}' en el concepto ISLR '{ret.islr_concept}'.",
+                                     f"Error en generate_xml_islr_file")
                     continue
 
             except frappe.DoesNotExistError:
-                # Si el concepto de ISLR no existe en el Tabulador, se omite.
-                # Si el concepto de ISLR no existe en el Tabulador, se omite y se registra el error.
-                frappe.log_error(f"Concepto de ISLR '{ret.islr_concept}' no encontrado en el Tabulador ISLR.", "Error en generate_xml_islr_file")
+
+                frappe.log_error(f"Concepto de ISLR '{ret.islr_concept}'"
+                                 f"no encontrado en el Tabulador ISLR.",
+                                f"Error en generate_xml_islr_file")
                 continue
 
             detalle = SubElement(root, 'DetalleRetencion')
