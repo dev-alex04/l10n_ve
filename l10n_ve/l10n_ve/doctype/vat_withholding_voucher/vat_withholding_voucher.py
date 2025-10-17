@@ -76,11 +76,30 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         ]
     )
 
+    if not valid_invoices:
+        return []
+
+    invoice_names = [d.name for d in valid_invoices]
+
+    vat_data = frappe.get_all(
+        "Purchase Taxes and Charges",
+        filters=[
+            {"parenttype": "Purchase Invoice"},
+            {"parent": ["in", invoice_names]},
+            {"charge_type": "VAT"}
+        ],
+        fields=["parent", "rate"],
+    )
+
+    vat_map = {d.parent: d for d in vat_data}
+
     invoices_with_taxes = []
     processed_invoices = set()
     for item in valid_invoices:
         if item.name in processed_invoices:
             continue
+
+        vat_details = vat_map.get(item.name, {})
 
         invoice_data = {
             "purchase_invoice": item.name,
@@ -96,7 +115,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             "affected_invoice_number": item.affected_invoice_number,
             "is_return": item.is_return,
             "is_debit_note": item.is_debit_note,
-            "rate": item.tax_rate,
+            "rate": vat_details.get("rate", 0),
             "tax_amount_vat": abs(item.tax_amount_vat),
         }
         invoices_with_taxes.append(invoice_data)
