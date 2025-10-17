@@ -12,7 +12,6 @@ from erpnext.accounts.doctype.payment_entry.payment_entry import (
 from erpnext.controllers.accounts_controller import (
     validate_taxes_and_charges,
 )
-from l10n_ve.overrides import company
 
 
 class CustomPaymentEntry(PaymentEntry):

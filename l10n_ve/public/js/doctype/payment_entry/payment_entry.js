@@ -57,8 +57,6 @@ function reorganize_payment_entry_fields(frm) {
 }
 
 async function set_custom_exchange_rate(frm) {
-  console.log(rm.doc.default_company_currency, frm.doc.paid_on_currency);
-
   if (!frm.doc.default_company_currency || !frm.doc.paid_on_currency) {
     return;
   }
