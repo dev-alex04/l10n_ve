@@ -17,15 +17,18 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
         supplier_tax_id = frappe.db.get_value("Supplier", self.supplier, "tax_id")
 
         main_fields = [
-            "totals_total_exempt",
-            "totals_tax_amount",
+            "totals_islr_base_amount",
+            "totals_islr_amount",
+            "totals_grand_total",
+            "totals_paid_amount"
         ]
 
         child_fields = [
             "grand_total",
-            "total_exempt",
+            "islr_base_amount",
             "subtracting",
-            "tax_amount"
+            "islr_amount",
+            "subtracting"
         ]
 
         self.company_tax_id = company_tax_id or "N/A"
@@ -86,9 +89,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"name": ["not in", all_excluded_invoices]},
         ],
         fields=["name", "bill_no", "bill_control", "posting_date", "grand_total",
-            "total_exempt", "is_return", "is_debit_note", "total",
-            "taxes_and_charges_added", "taxes_and_charges_deducted",
-            "credit_note_no", "debit_note_no", "affected_invoice_number",
+            "total", "affected_invoice_number"
         ]
     )
 

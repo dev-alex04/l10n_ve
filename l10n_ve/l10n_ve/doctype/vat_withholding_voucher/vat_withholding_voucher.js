@@ -95,6 +95,7 @@ frappe.ui.form.on("VAT Withholding Voucher", {
 
 frappe.ui.form.on('VAT Withholding Voucher Item', {
     vat_withholding_voucher_item_remove(frm, cdt, cdn) {
+      console.log("Hola");
         calculate_totals(frm);
     }
 });
@@ -211,31 +212,34 @@ function load_invoices(frm) {
 }
 
 function calculate_totals(frm) {
-    let total_grand_total = 0;
-    let total_total_exempt = 0;
-    let total_total = 0;
-    let total_taxes_and_charges_added = 0;
-    let total_tax_amount_vat = 0;
 
-    frm.doc.vat_withholding_voucher_item.forEach(item => {
-      total_grand_total += item.grand_total || 0;
-      total_total_exempt += item.total_exempt || 0;
-      total_total += item.total || 0;
-      total_taxes_and_charges_added += item.taxes_and_charges_added || 0;
-      total_tax_amount_vat += item.tax_amount_vat || 0;
-    });
+  let total_grand_total = 0;
+  let total_total_exempt = 0;
+  let total_total = 0;
+  let total_taxes_and_charges_added = 0;
+  let total_tax_amount_vat = 0;
 
-    frm.doc.totals_grand_total = total_grand_total;
-    frm.doc.totals_total_exempt = total_total_exempt;
-    frm.doc.totals_total = total_total;
-    frm.doc.totals_taxes_and_charges_added = total_taxes_and_charges_added;
-    frm.doc.totals_tax_amount_vat = total_tax_amount_vat;
+  frm.doc.vat_withholding_voucher_item.forEach(item => {
+    let negative = item.credit_note_no ? -1 : 1;
 
-    frm.refresh_fields([
-        "totals_grand_total",
-        "totals_total_exempt",
-        "totals_total",
-        "totals_taxes_and_charges_added",
-        "totals_tax_amount_vat"
-    ]);
+    total_grand_total += item.grand_total * negative || 0;
+    total_total_exempt += item.total_exempt * negative || 0;
+    total_total += item.total * negative || 0;
+    total_taxes_and_charges_added += item.taxes_and_charges_added * negative || 0;
+    total_tax_amount_vat += item.tax_amount_vat * negative || 0;
+  });
+
+  frm.doc.totals_grand_total = total_grand_total;
+  frm.doc.totals_total_exempt = total_total_exempt;
+  frm.doc.totals_total = total_total;
+  frm.doc.totals_taxes_and_charges_added = total_taxes_and_charges_added;
+  frm.doc.totals_tax_amount_vat = total_tax_amount_vat;
+
+  frm.refresh_fields([
+      "totals_grand_total",
+      "totals_total_exempt",
+      "totals_total",
+      "totals_taxes_and_charges_added",
+      "totals_tax_amount_vat"
+  ]);
 };
