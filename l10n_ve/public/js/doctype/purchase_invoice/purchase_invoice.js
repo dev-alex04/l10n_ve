@@ -1,6 +1,5 @@
 frappe.ui.form.on("Purchase Invoice", {
   onload: function (frm) {
-
     if (frm.is_new() && (frm.doc.is_return || frm.doc.is_debit_note)) {
       frm.set_value("bill_control", "");
     }
@@ -13,11 +12,10 @@ frappe.ui.form.on("Purchase Invoice", {
     }
   },
   refresh: function (frm) {
-    set_purchase_invoice_buttons(frm);
     toggle_purchase_type_fields(frm);
   },
 
-  is_debit_note: function(frm) {
+  is_debit_note: function (frm) {
     if (frm.doc.is_debit_note) {
       frm.set_value("is_return", 0);
       frm.set_value("bill_control", "");
@@ -25,7 +23,7 @@ frappe.ui.form.on("Purchase Invoice", {
     toggle_purchase_type_fields(frm);
   },
 
-  is_return: function(frm) {
+  is_return: function (frm) {
     if (frm.doc.is_return) {
       frm.set_value("is_debit_note", 0);
       frm.set_value("bill_control", "");
@@ -33,14 +31,6 @@ frappe.ui.form.on("Purchase Invoice", {
     toggle_purchase_type_fields(frm);
   },
 });
-
-function set_purchase_invoice_buttons(frm) {
-  if (frm.doc.docstatus == 0) {
-    frm.add_custom_button(__("Agregar concepto de ISLR"), function () {
-      set_islr_concept(frm);
-    });
-  }
-}
 
 function toggle_purchase_type_fields(frm) {
   const is_debit_note = frm.doc.is_debit_note;
@@ -53,10 +43,13 @@ function toggle_purchase_type_fields(frm) {
 
   if (frm.is_new() || (!is_debit_note && !is_return)) {
     frm.toggle_display(["bill_no"], !is_debit_note && !is_return);
-    frm.toggle_display(["debit_note_no",
-                        "credit_note_no",
-                        "affected_invoice_number",
-                        "return_against"],
+    frm.toggle_display(
+      [
+        "debit_note_no",
+        "credit_note_no",
+        "affected_invoice_number",
+        "return_against",
+      ],
       false
     );
 
@@ -75,29 +68,21 @@ function toggle_purchase_type_fields(frm) {
       frm.set_value("bill_no", "");
       frm.set_value("debit_note_no", "");
     }
-
   } else {
     if (is_return) {
+      frm.toggle_display(["debit_note_no", "bill_no", "is_debit_note"], false);
       frm.toggle_display(
-        ["debit_note_no", "bill_no", "is_debit_note"],
-        false
+        ["credit_note_no", "affected_invoice_number", "return_against"],
+        is_return
       );
-      frm.toggle_display(["credit_note_no",
-                          "affected_invoice_number",
-                          "return_against"], is_return);
       frm.set_value("bill_no", "");
-
     } else if (is_debit_note) {
+      frm.toggle_display(["credit_note_no", "bill_no", "is_return"], false);
       frm.toggle_display(
-          ["credit_note_no", "bill_no", "is_return"],
-          false
-        );
-      frm.toggle_display(["debit_note_no",
-                          "affected_invoice_number",
-                          "return_against"],
-                          is_debit_note);
+        ["debit_note_no", "affected_invoice_number", "return_against"],
+        is_debit_note
+      );
       frm.set_value("bill_no", "");
-
     }
   }
 }
