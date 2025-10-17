@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
@@ -9,15 +10,17 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
 
     def validate(self):
         self.validate_address()
+        self.validate_fiscal_period()
 
     def before_insert(self):
         company_doc = frappe.get_doc("Company", self.empresa)
         correlative_format = company_doc.vat_withholding_format
 
-        final_voucher_number, final_next_correlative_number = \
+        final_voucher_number, final_next_correlative_number, year, month = \
             self._get_and_format_correlatives(correlative_format, company_doc.vat_withholding_correlative)
 
         self.voucher_number = final_voucher_number
+        self.fiscal_period = f"{month}/{year}"
 
         company_doc.vat_withholding_correlative = final_next_correlative_number
         company_doc.save(ignore_permissions=True)
@@ -36,6 +39,27 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
             frappe.throw(
                 f"No se puede eliminar el comprobante. Solo se permiten eliminaciones para el periodo actual ({current_month_year})."
             )
+
+
+    def validate_fiscal_period(self):
+        if not self.fiscal_period:
+            return
+
+        parts = self.fiscal_period.split('/')
+
+        is_invalid_format = len(parts) != (2
+                            or not parts[0].isdigit()
+                            or not parts[1].isdigit()
+                            or len(parts[0]) != 2
+                            or len(parts[1]) != 4
+                            )
+
+        if is_invalid_format:
+            frappe.throw(_("El Periodo Fiscal debe tener el formato MM/YYYY (ej: 10/2025)."))
+
+        is_invalid_month = not (1 <= int(parts[0]) <= 12)
+        if is_invalid_month:
+            frappe.throw(_("El mes en el Periodo Fiscal no es válido."))
 
 @frappe.whitelist()
 def get_invoiced_purchase_invoices():

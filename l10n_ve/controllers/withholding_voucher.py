@@ -45,13 +45,17 @@ class WithholdingVoucher():
         correlative_format = company_doc.get(format_field)
         current_correlative = company_doc.get(correlative_field)
 
-        final_voucher_number, _ = \
+        final_voucher_number, _, year, month = (
             self._get_and_format_correlatives(
                 correlative_format,
                 current_correlative
             )
-
-        return final_voucher_number
+         )
+        return {
+            "voucher_number": final_voucher_number,
+            "year": year,
+            "month": month
+        }
 
     def _get_and_format_correlatives(self, correlative_format, current_correlative_value):
         today = getdate(nowdate())
@@ -73,4 +77,4 @@ class WithholdingVoucher():
         final_voucher_number = f"{current_year}{current_month}{formatted_voucher}"
         final_next_correlative_number = f"{next_correlative_num}"
 
-        return final_voucher_number, final_next_correlative_number
+        return final_voucher_number, final_next_correlative_number, current_year, current_month

@@ -54,10 +54,9 @@
   },
   {
    "fieldname": "fiscal_period",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_standard_filter": 1,
    "label": "Periodo Fiscal",
-   "options": "Fiscal Year",
    "reqd": 1
   },
   {
@@ -175,7 +174,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-16 15:27:59.493665",
+ "modified": "2025-10-17 09:06:39.063834",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
