@@ -93,7 +93,19 @@ erpnext.taxes_and_totals.prototype.set_cumulative_total = function (
   }
 
   if (tax.is_tax_withholding_account) {
-    tax.total = tax_base;
+    //  Solo en ventas, se resta la retenciòn de IVA
+
+    if (
+      tax.charge_type == "VAT Withholding" &&
+      ["Quotation", "Sales Order", "Sales Invoice", "Delivery Note"].includes(
+        this.frm.doc.doctype
+      )
+    ) {
+      //  Se multiplica por -1 para forzar la resta
+      tax.total = flt(tax_base + tax_amount * -1, precision("total"));
+    } else {
+      tax.total = tax_base;
+    }
   } else {
     tax.total = flt(tax_base + tax_amount, precision("total"));
   }

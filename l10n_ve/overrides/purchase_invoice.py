@@ -1,13 +1,10 @@
 import frappe
 from frappe import _, _dict
-from frappe.utils import flt, get_link_to_form
-
-from erpnext.accounts.utils import get_account_currency
-
-
+from frappe.utils import flt, get_link_to_form, getdate, cint
 import erpnext
+
 from erpnext.stock import get_warehouse_account_map
-from erpnext.accounts.utils import get_account_currency
+from erpnext.accounts.utils import get_account_currency, get_fiscal_year
 from erpnext.assets.doctype.asset.asset import is_cwip_accounting_enabled
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
 from erpnext.assets.doctype.asset_category.asset_category import get_asset_category_account
@@ -415,6 +412,12 @@ class CustomPurchaseInvoice(PurchaseInvoice):
         ]
 
         self.append("taxes", withholding)
+
+    def validate_supplier_invoice(self) -> None:
+
+        if self.bill_date:
+            if getdate(self.bill_date) > getdate(self.posting_date):
+                frappe.throw(_("Supplier Invoice Date cannot be greater than Posting Date"))
 
     def make_tax_gl_entries(self, gl_entries) -> None:
 

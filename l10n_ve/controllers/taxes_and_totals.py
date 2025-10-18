@@ -2,6 +2,15 @@ from frappe.utils import cint, flt
 
 from erpnext.controllers.taxes_and_totals import calculate_taxes_and_totals
 
+
+__SALES_DOCTYPES__ = [
+    "Quotation",
+    "Sales Order",
+    "Sales Invoice",
+    "Delivery Note",
+]
+
+
 class TaxesAndTotals(calculate_taxes_and_totals):
 
     def __init__(self, doc) -> None:
@@ -86,7 +95,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
         return current_tax_amount
 
-    def set_cumulative_total(self, row_idx, tax):
+    def set_cumulative_total(self, row_idx, tax) -> None:
         tax_amount = tax.tax_amount_after_discount_amount
         tax_amount = self.get_tax_amount_if_for_valuation_or_deduction(tax_amount, tax)
 
@@ -96,6 +105,15 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             tax_base = self.doc.get("taxes")[row_idx - 1].total
 
         if tax.is_tax_withholding_account:
-            tax.total = tax_base
+
+            # Solo en ventas, se resta la retenciòn de IVA
+            if tax.charge_type == "VAT Withholding" \
+                    and self.doc.doctype in __SALES_DOCTYPES__:
+
+                # Se multiplica por -1 para forzar la resta
+                tax.total = flt(tax_base + (tax_amount * -1), tax.precision("total"))
+
+            else:
+                tax.total = tax_base
         else:
             tax.total = flt(tax_base + tax_amount, tax.precision("total"))

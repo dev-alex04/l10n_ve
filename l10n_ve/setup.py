@@ -16,6 +16,7 @@ def set_l10n_ve_data() -> None:
         create_vat_withholding()
         create_sales_taxes_and_charges_template()
         set_title_field_on_purchase_invoice()
+        set_reference_currency_on_company()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -374,4 +375,25 @@ def set_title_field_on_purchase_invoice() -> None:
     except Exception as e:
         print(f"Failure: Ocurrió un error Estableciendo campo title_field en Purchase Invoice: {e}")
         frappe.log_error(frappe.get_traceback(),
-                         'Estableciendo campo title_field en Purchase Invoice:')
+                         'Error Estableciendo campo title_field en Purchase Invoice:')
+
+
+def set_reference_currency_on_company() -> None:
+
+    print("Estableciendo campo reference_currency en Purchase Invoice")
+
+    try:
+
+        for company in frappe.get_all('Company', pluck='name'):
+
+            frappe.db.set_value('Company',
+                                company,
+                                'reference_currency',
+                                'USD')
+
+        print("Campo reference_currency establecido en las empresas")
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error Estableciendo campo reference_currency: {e}")
+        frappe.log_error(frappe.get_traceback(),
+                         'Error Estableciendo campo reference_currency')

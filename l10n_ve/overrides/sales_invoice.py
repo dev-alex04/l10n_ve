@@ -54,14 +54,13 @@ class CustomSalesInvoice(SalesInvoice):
         self._validate_debit_note_no(raise_throw=True)
         self._validate_credit_note_no(raise_throw=True)
 
-    def validate_return_in_same_month(self):
+    def validate_return_in_same_month(self) -> None:
         """
         Valida que una Nota de Crédito o Débito se cree en el mismo mes
         que la factura original a la que hace referencia.
         Llama a la función centralizada en utils.
         """
         validate_return_in_same_month(self)
-
 
     def set_control_and_invoice_number(self) -> None:
 
@@ -171,7 +170,7 @@ class CustomSalesInvoice(SalesInvoice):
 
         return True
 
-    def _validate_bill_no(self, bill_no: str = None, raise_throw: bool = True) -> bool:
+    def _validate_bill_no(self, bill_no: str = '', raise_throw: bool = True) -> bool:
         """
         Valida que el número de factura no esté ya asignado.
         Acepta un valor opcional para validar.
@@ -187,7 +186,6 @@ class CustomSalesInvoice(SalesInvoice):
         if not bill_no_to_validate:
             return True
 
-
         draft_submitted_filters = {
             'is_return': False,
             'is_debit_note': False,
@@ -196,7 +194,6 @@ class CustomSalesInvoice(SalesInvoice):
             'bill_no': bill_no_to_validate,
             'docstatus': ['in', [0, 1]],
         }
-
 
         void_filters = {
             'is_return': False,
@@ -228,14 +225,16 @@ class CustomSalesInvoice(SalesInvoice):
                 duplicated_msg.append(msg)
 
             if raise_throw:
-                frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
+                frappe.throw(duplicated_msg,
+                             title="Advertencia de Duplicado",
+                             as_list=True)
             else:
                 return False
 
         return True
 
     def _validate_credit_note_no(self,
-                                 credit_note_no: str = None,
+                                 credit_note_no: str = '',
                                  raise_throw: bool = True) -> bool:
         """
         Valida que el número de Nota de Crédito no esté ya asignado.
@@ -286,7 +285,7 @@ class CustomSalesInvoice(SalesInvoice):
         return True
 
     def _validate_debit_note_no(self,
-                                debit_note_no: str = None,
+                                debit_note_no: str = '',
                                 raise_throw: bool = True) -> bool:
         """
         Valida que el número de Nota de Débito no esté ya asignado.
@@ -331,7 +330,9 @@ class CustomSalesInvoice(SalesInvoice):
                 duplicated_msg.append(msg)
 
             if raise_throw:
-                frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
+                frappe.throw(duplicated_msg,
+                             title="Advertencia de Duplicado",
+                             as_list=True)
             return False
 
         return True
@@ -412,10 +413,16 @@ class CustomSalesInvoice(SalesInvoice):
 
         for tax in self.get("taxes"):
 
-            if tax.is_tax_withholding_account or not tax.tax_amount:
+            if not tax.tax_amount:
                 continue
 
             account_currency = get_account_currency(tax.account_head)
+
+            if tax.charge_type == 'VAT':
+                debit_or_credit = 'credit'
+            else:
+                debit_or_credit = 'debit'
+
 
             gl_entries.append(
                 self.get_gl_dict(
@@ -423,14 +430,14 @@ class CustomSalesInvoice(SalesInvoice):
                         "against": self.customer,
                         "account": tax.account_head,
                         "cost_center": tax.cost_center,
-                        "credit": flt(tax.tax_amount),
-                        "credit_in_account_currency": tax.tax_amount,
+                        debit_or_credit: flt(tax.tax_amount),
+                        f"{debit_or_credit}_in_account_currency": tax.tax_amount,
                     },
                     account_currency,
                     item=tax,
                 ))
 
-    def validate_withholding_voucher_number(self):
+    def validate_withholding_voucher_number(self) -> None:
         if self.vat_withholding_voucher_number:
 
             if not self.vat_withholding_voucher_number.isdigit():
@@ -441,7 +448,7 @@ class CustomSalesInvoice(SalesInvoice):
                 frappe.throw("El número de comprobante de retención "
                 "de IVA debe tener exactamente 14 caracteres.")
 
-    def set_title_field(self):
+    def set_title_field(self) -> None:
         super().set_title_field()
         if self.docstatus == 0:
             return
@@ -455,7 +462,10 @@ class CustomSalesInvoice(SalesInvoice):
             self.title = self.bill_no
 
 @frappe.whitelist()
-def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None):
+def upload_voucher_data(docname,
+                        voucher_number,
+                        withholding_date,
+                        file_url=None)-> dict:
     """
     Actualiza la Sales Invoice (Factura de Venta) con los datos del
     comprobante de retención.
@@ -493,9 +503,13 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
         }
 
 @frappe.whitelist()
-def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_url=None):
+def upload_islr_voucher_data(docname,
+                             islr_date,
+                             islr_receipt_number=None,
+                             file_url=None)-> dict:
     """
-    Actualiza la Sales Invoice (Factura de Venta) con los datos del comprobante de retención de ISLR.
+    Actualiza la Sales Invoice (Factura de Venta)
+    con los datos del comprobante de retención de ISLR.
     """
     try:
         # Validación en el backend
@@ -544,7 +558,9 @@ def void_document(doctype, name):
     if doc.docstatus != 2:
         frappe.throw(_("Solo se pueden anular documentos que ya están cancelados."))
 
-    def _check_for_duplicate_before_void(field_name, value_to_check, label):
+    def _check_for_duplicate_before_void(field_name,
+                                         value_to_check,
+                                         label)-> None:
         if not value_to_check:
             return
 
