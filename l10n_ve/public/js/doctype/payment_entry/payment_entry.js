@@ -7,18 +7,16 @@ frappe.ui.form.on("Payment Entry", {
   onload: function (frm) {
     reorganize_payment_entry_fields(frm);
   },
-  paid_on_currency: function (frm) {
-    set_custom_exchange_rate(frm);
-  },
-  paid_currency_amount: function (frm) {
-    compute_paid_amount(frm);
-  },
-  paid_amount: function (frm) {
-    set_igtf(frm);
-  },
+
   refresh: function (frm) {
     set_payment_entry_buttons(frm);
   },
+
+  paid_on_currency: function (frm) {
+    set_custom_exchange_rate(frm);
+  },
+  paid_currency_amount: function (frm) {},
+
   party_type: function (frm) {
     set_payment_entry_buttons(frm);
   },
@@ -51,9 +49,11 @@ function set_payment_entry_buttons(frm) {
 
 function reorganize_payment_entry_fields(frm) {
   let paid_amount = frm.get_field("paid_amount").$wrapper;
+  let exchange_rate = frm.get_field("exchange_rate").$wrapper;
   let received_amount = frm.get_field("received_amount").$wrapper;
 
   paid_amount.insertAfter(received_amount);
+  exchange_rate.insertAfter(paid_amount);
 }
 
 async function set_custom_exchange_rate(frm) {
@@ -61,27 +61,36 @@ async function set_custom_exchange_rate(frm) {
     return;
   }
 
+  // Obtiene el monto pendiente total de todas las facturas
+  const outstanding_amount = (frm.doc.references || []).reduce(
+    (total, ref) => total + flt(ref.outstanding_amount),
+    0
+  );
+
   if (frm.doc.default_company_currency != frm.doc.paid_on_currency) {
+    // --- LÓGICA DE MONEDA EXTRANJERA ---
     await set_current_exchange_rate(
       frm,
       "exchange_rate",
       frm.doc.paid_on_currency,
       frm.doc.default_company_currency
     );
+
+    const paid_currency_amount = outstanding_amount / frm.doc.exchange_rate;
+
+    frm.set_value("paid_currency_amount", paid_currency_amount);
+
+    frm.set_df_property("paid_currency_amount", "description", "");
     frm.set_df_property("exchange_rate", "hidden", false);
-    frm.refresh_field("exchange_rate");
-    compute_paid_amount(frm);
+
+    set_igtf(frm);
   } else {
+    frm.set_value("paid_currency_amount", outstanding_amount);
     frm.set_df_property("exchange_rate", "hidden", true);
     frm.set_value("exchange_rate", 1);
-    compute_paid_amount(frm);
-  }
-}
 
-function compute_paid_amount(frm) {
-  const paid_amount = frm.doc.paid_currency_amount * frm.doc.exchange_rate;
-  frm.set_value("paid_amount", paid_amount);
-  frm.refresh_field("paid_amount");
+    set_igtf(frm);
+  }
 }
 
 async function set_current_exchange_rate(
@@ -119,6 +128,10 @@ async function set_igtf(frm) {
     return;
   }
 
+  if (!frm.doc.paid_amount) {
+    return;
+  }
+
   // Si es la misma moneda, el IGTF queda en cero
   if (frm.doc.default_company_currency == frm.doc.paid_on_currency) {
     for (let tax of frm.doc.taxes || []) {
@@ -134,19 +147,23 @@ async function set_igtf(frm) {
     return;
   }
 
-  const igtf_amount = (frm.doc.paid_currency_amount * frm.doc.igtf_rate) / 100;
+  const igtf_amount = (frm.doc.paid_amount * frm.doc.igtf_rate) / 100;
 
   // En caso de que exista el IGTF en los impuestos:
   for (let tax of frm.doc.taxes || []) {
     if (tax.charge_type == "IGTF") {
       tax.tax_amount = igtf_amount;
       frm.refresh_field("taxes");
+      if (frm.cscript.calculate_taxes_and_totals) {
+        frm.cscript.calculate_taxes_and_totals();
+      }
       return;
     }
   }
 
   // Si el codigo llega acá, es porque no existe y hay que agregar
   // el IGTF a la tabla de impuestos
+  console.log("entes de agregar");
   frm.add_child("taxes", {
     charge_type: "IGTF",
     rate: frm.doc.igtf_rate,

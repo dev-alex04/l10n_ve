@@ -2,6 +2,7 @@ from collections import defaultdict
 
 import frappe
 from frappe import _, _dict
+from frappe.utils import flt
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
     PaymentEntry,
@@ -15,6 +16,16 @@ from erpnext.controllers.accounts_controller import (
 
 
 class CustomPaymentEntry(PaymentEntry):
+
+    def on_submit(self) -> None:
+        super().on_submit()
+
+        self.set_igtf_on_invoices()
+
+    def on_cancel(self) -> None:
+        super().on_cancel()
+
+        self.set_igtf_on_invoices(is_cancelled=True)
 
     def apply_taxes(self) -> None:
 
@@ -148,8 +159,8 @@ class CustomPaymentEntry(PaymentEntry):
                 "account_head": account_head,
                 "tax_amount": total_tax_amount,
                 "is_tax_withholding_account": True,
-                "subtracting": aliquot_info.subtracting,
                 "description": tabulator.descripcion,
+                "subtracting": aliquot_info.subtracting,
             })
 
             for concept_detail in concepts_in_group:
@@ -168,9 +179,103 @@ class CustomPaymentEntry(PaymentEntry):
         self.save()
         return self.name
 
-    def get_current_tax_amount(self, tax) -> float:
+    # ------------------------- CALCULO DE IMPUESTOS ------------------------- #
 
+    def calculate_taxes(self) -> None:
+        self.total_taxes_and_charges = 0.0
+        self.base_total_taxes_and_charges = 0.0
+
+        actual_tax_dict = dict(
+            [
+                [tax.idx, flt(tax.tax_amount, tax.precision("tax_amount"))]
+                for tax in self.get("taxes")
+                if tax.charge_type == "Actual"
+            ]
+        )
+
+        for i, tax in enumerate(self.get("taxes")):
+            current_tax_amount = self.get_current_tax_amount(tax)
+
+            if tax.charge_type == "Actual":
+                actual_tax_dict[tax.idx] -= current_tax_amount
+                if i == len(self.get("taxes")) - 1:
+                    current_tax_amount += actual_tax_dict[tax.idx]
+
+            tax.tax_amount = current_tax_amount
+            tax.base_tax_amount = current_tax_amount
+
+            if tax.add_deduct_tax == "Deduct":
+                current_tax_amount *= -1.0
+            else:
+                current_tax_amount *= 1.0
+
+            if tax.charge_type == 'IGTF':
+                amount_for_total = 0 # El IGTF no debe modificar el total del pago
+            else:
+                amount_for_total = current_tax_amount
+
+            if i == 0:
+                tax.total = flt(self.paid_amount_after_tax + amount_for_total, self.precision("total", tax))
+            else:
+                tax.total = flt(
+                    self.get("taxes")[i - 1].total + amount_for_total, self.precision("total", tax)
+                )
+
+            tax.base_total = tax.total
+
+            if self.payment_type == "Pay":
+                if tax.currency != self.paid_to_account_currency:
+                    self.total_taxes_and_charges += flt(current_tax_amount / self.target_exchange_rate)
+                else:
+                    self.total_taxes_and_charges += current_tax_amount
+            elif self.payment_type == "Receive":
+                if tax.currency != self.paid_from_account_currency:
+                    self.total_taxes_and_charges += flt(current_tax_amount / self.source_exchange_rate)
+                else:
+                    self.total_taxes_and_charges += current_tax_amount
+
+            self.base_total_taxes_and_charges += tax.base_tax_amount
+
+        if self.get("taxes"):
+            self.paid_amount_after_tax = self.get("taxes")[-1].base_total
+
+    def get_current_tax_amount(self, tax) -> float:
         return tax.tax_amount
+
+    def set_igtf_on_invoices(self, is_cancelled=False) -> None:
+
+        igtf = next((tax for tax in self.taxes or []
+                     if tax.charge_type == 'IGTF'), None)
+
+        if not igtf:
+            return
+
+        reference_map = {}
+
+        for reference in self.references or []:
+
+            if reference.reference_doctype not in reference_map:
+                reference_map[reference.reference_doctype] = []
+
+            reference_map[reference.reference_doctype].append(reference.reference_name)
+
+        if is_cancelled:
+            total_igtf = 0
+            base_amount_igtf = 0
+        else:
+            total_igtf = igtf.tax_amount
+            base_amount_igtf = self.paid_amount
+
+        for doctype, docnames in list(reference_map.items()):
+
+            frappe.db.set_value(doctype,
+                                {
+                                    'name': ['in', docnames],
+                                },
+                                {
+                                    'total_igtf': total_igtf,
+                                    'base_amount_igtf': base_amount_igtf,
+                                })
 
 get_payment_entry_copy = get_payment_entry
 
@@ -213,7 +318,7 @@ def get_payment_entry(
     company_data: _dict = frappe.db.get_value(
       "Company",
       payment_entry.company,
-      [igtf_account_field, 'default_currency'],
+      [igtf_account_field, 'default_currency', 'reference_currency'],
       as_dict=True)
 
     payment_entry.paid_currency_amount = payment_entry.paid_amount
@@ -222,6 +327,7 @@ def get_payment_entry(
     payment_entry.igtf_account = company_data.get(igtf_account_field)
 
     payment_entry.paid_on_currency = company_data.default_currency
+    payment_entry.reference_currency = company_data.reference_currency
     payment_entry.default_company_currency = company_data.default_currency
 
     return payment_entry
