@@ -15,7 +15,7 @@ class ExcelBuilder:
     """
     def __init__(self, title, columns, data, totals, company_data, from_date, to_date, report_summary):
         self.title = title
-        self.columns = columns
+        self.columns = [col for col in columns if not col.get("hidden")]
         self.totals = totals
         self.company_data = company_data
         self.from_date = from_date
@@ -83,7 +83,7 @@ class ExcelBuilder:
 
         self.sheet.cell(row=current_row, column=1, value=_("Período Fiscal:")).font = title_font
         current_row += 1
-        self.sheet.cell(row=current_row, column=1, value=f"{self.from_date.strftime('%d-%m-%Y')} - {self.to_date.strftime('%d-%m-%Y')}")
+        self.sheet.cell(row=current_row, column=1, value=f"{self.from_date.strftime('%d/%m/%Y')} - {self.to_date.strftime('%d/%m/%Y')}")
 
         return current_row + 2
 
@@ -97,7 +97,7 @@ class ExcelBuilder:
                 {"text": _("Tasa Reducida 8%"), "start_col": 16, "span": 2},
                 {"text": _("Tasa General 16%"), "start_col": 18, "span": 2},
                 {"text": _("Tasa General + Adicional 31%"), "start_col": 20, "span": 2},
-                {"text": _("Retención"), "start_col": 23, "span":5},
+                {"text": _("Retención"), "start_col": 23, "span":6},
             ],
         ]
 
