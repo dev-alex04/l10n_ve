@@ -200,6 +200,7 @@ def get_query_data(filters):
             tPI.credit_note_no,
             tPI.debit_note_no,
             tPI.affected_invoice_number,
+            tPI.total_igtf,
             DATE_FORMAT(tPI.bill_date, '%%d/%%m/%%Y') AS bill_date,
 
             SUM(CASE WHEN T5.rate = 8 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_reducida,
@@ -351,7 +352,7 @@ def generate_xml_islr_file(filters=None):
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
         company_rif = (company_doc.tax_id or "").replace('-', '')
-        periodo = getdate(from_date).strftime('%m/%Y')
+        periodo = getdate(from_date).strftime('%Y%m')
 
 
         retentions = frappe.db.sql("""
@@ -455,7 +456,7 @@ def generate_txt_file(filters):
         if not company_rif:
             frappe.throw(_("El RIF de la compañía no está configurado."))
 
-        periodo = getdate(from_date).strftime('%m/%Y')
+        periodo = getdate(from_date).strftime('%Y%m')
         data = get_query_data(filters)
         invoices_with_voucher = [row for row in data if row.get("nro_comprobante_retencion")]
 
@@ -496,19 +497,19 @@ def generate_txt_file(filters):
                 line_data = [
                     str(company_rif),
                     str(periodo),
-                    getdate(row.get("posting_date")).strftime("%d/%m/%Y") if row.get("posting_date") else "",
+                    getdate(row.get("posting_date")).strftime("%Y-%m-%d") if row.get("posting_date") else "",
                     "C",
                     transaction_code,
                     (row.get("tax_id") or "0").replace('-', ''),
                     document_number,
                     row.get("bill_control") or "0",
-                    f"{flt(row.get('grand_total') or 0):.2f}",
-                    f"{flt(row.get('taxable_base') or 0):.2f}",
-                    f"{flt(row.get('taxes_and_charges_deducted') or 0):.2f}",
+                    f"{abs(flt(row.get('grand_total') or 0)):.2f}",
+                    f"{abs(flt(row.get('taxable_base') or 0)):.2f}",
+                    f"{abs(flt(row.get('taxes_and_charges_deducted') or 0)):.2f}",
                     row.get("affected_invoice_number") or "0",
                     row.get("nro_comprobante_retencion") or "0",
-                    f"{flt(row.get('total_exempt') or 0):.2f}",
-                    f"{flt(tax_rate):.2f}",
+                    f"{abs(flt(row.get('total_exempt') or 0)):.2f}",
+                    f"{abs(flt(tax_rate)):.2f}",
                     "0",
                 ]
                 content_lines.append("\t".join(line_data))

@@ -52,8 +52,12 @@ def validate_taxpayer_and_person_type_consistency(doc):
     is_legal_nature = nature in legal_entities_nature
     is_natural_nature = nature in natural_persons_nature
 
-    is_legal_person_type = "legal entity" in person_type.lower()
-    is_natural_person_type = "natural person" in person_type.lower()
+    is_legal_person_type = \
+    person_type.startswith("Domiciled legal entity") \
+    or person_type.startswith("Non-domiciled legal entity")
+
+    is_natural_person_type = person_type.startswith("Natural person") \
+    or person_type.startswith("Non-domiciled natural person")
 
     if is_legal_nature and not is_legal_person_type:
         frappe.throw(_("Con la Naturaleza de Contribuyente '{0}'," \
@@ -86,13 +90,9 @@ def validate_rif_format(doc):
     rif_regex = r"^[VEJGPC]\d{9}$"
     
     if not re.match(rif_regex, cleaned_rif):
-                frappe.throw(
-            _(
-                "El RIF/ID de Impuesto '{0}' no es válido. "
-                "El formato debe ser una letra (V, E, J, G, C, P) "
-                "seguida de 9 dígitos (ej: J123456789)."
-            ).format(doc.tax_id)
-        )
+        frappe.throw(_("El RIF/ID de Impuesto '{0}' no es válido. " \
+        "El formato debe ser una letra (V, E, J, G, C, P) " \
+        "seguida de 9 dígitos (ej: J123456789).").format(doc.tax_id))
 
 def validate_return_in_same_month(self):
     """

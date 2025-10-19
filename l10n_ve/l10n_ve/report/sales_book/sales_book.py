@@ -5,8 +5,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, add_days
 from frappe.utils.file_manager import save_file
-import json
-import datetime
+
 
 def get_report_summary(totals):
     """
@@ -28,7 +27,8 @@ def get_report_summary(totals):
         {"value": totals.get("iva_additional_taxpayer", 0) + totals.get("iva_additional_non_taxpayer", 0),
          "label": "Impuesto Adicional", "datatype": "Currency"},
         {"value": totals.get("iva_retained", 0), "label": "IVA Retenido", "datatype": "Currency"},
-        {"value": totals.get("igtf_amount", 0), "label": "Monto IGTF", "datatype": "Currency"},
+        {"value": totals.get("base_amount_igtf", 0), "label": "Base IGTF", "datatype": "Currency"},
+        {"value": totals.get("total_igtf", 0), "label": "Monto IGTF", "datatype": "Currency"},
 
     ]
 
@@ -127,6 +127,11 @@ def get_sales_data(filters):
 		reduced_rate = 8.0
 		additional_rate = 31.0
 
+	try:
+		igtf_rate = frappe.db.get_single_value("Venezuela Account Settings", "igtf_rate") or 0.0
+	except Exception:
+		igtf_rate = 0.0
+
 	# La consulta SQL es la parte principal de la optimización
 	query_base = f"""
         SELECT
@@ -152,9 +157,8 @@ def get_sales_data(filters):
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total END) AS grand_total,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total END) AS total,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_exempt END) AS total_exempt,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.igtf_rate END) AS igtf_rate,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.base_amount_igtf END) AS base_amount_igtf,
+            (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf,
 
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_general_non_taxpayer,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_general_non_taxpayer,
@@ -248,6 +252,12 @@ def get_sales_data(filters):
 	main_data = frappe.db.sql(main_query, sql_params, as_dict=1)
 	adjustment_data = frappe.db.sql(adjustment_query, sql_params, as_dict=1)
 
+	for row in main_data + adjustment_data:
+		if row.get("base_amount_igtf") > 0 or row.get("total_igtf") > 0:
+			row["igtf_rate"] = igtf_rate
+		else:
+			row["igtf_rate"] = 0
+
 	return main_data, adjustment_data
 
 def get_total_row(data):
@@ -280,7 +290,8 @@ def get_total_row(data):
         "iva_additional_taxpayer": 0,
         "iva_retained": 0,
         "igtf_base": 0,
-        "igtf_amount": 0,
+        "total_igtf": 0,
+        "base_amount_igtf": 0,
     })
 
     for row in data:
