@@ -11,7 +11,6 @@ def set_l10n_ve_data() -> None:
 
         create_currency_exchange()
         create_tax_unit()
-        create_islr_tabulator()
         set_chart_of_accounts()
         create_vat_withholding()
         create_sales_taxes_and_charges_template()
@@ -74,6 +73,7 @@ def create_islr_tabulator() -> None:
     Crea los registros del Tabulador de ISLR a partir de un archivo CSV.
     Valida los valores de 'Tipo de persona' contra las opciones del DocType.
     """
+    return
     print("Iniciando la creación de datos del Tabulador de ISLR...")
 
     csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 'islr_tabulator.csv')
