@@ -285,7 +285,7 @@ def set_chart_of_accounts() -> None:
             },
             {
                 'account_name': 'Cuenta IGTF en Compras',
-                'account_number': '6.1.7.1.04 ',
+                'account_number': '6.1.7.1.04',
                 'company_field': 'purchase_igtf_account',
             },
             {
