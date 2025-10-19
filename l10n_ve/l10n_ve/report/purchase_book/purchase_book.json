@@ -2,7 +2,7 @@
  "add_total_row": 0,
  "add_translate_data": 0,
  "columns": [],
- "creation": "2025-09-24 10:31:35.927024",
+ "creation": "2025-10-19 16:08:48.703578",
  "disabled": 0,
  "docstatus": 0,
  "doctype": "Report",
@@ -12,7 +12,7 @@
    "fieldtype": "Link",
    "label": "Company",
    "mandatory": 0,
-   "options": "",
+   "options": "Company",
    "wildcard_filter": 0
   },
   {
@@ -33,7 +33,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letterhead": null,
- "modified": "2025-09-24 10:33:45.938752",
+ "modified": "2025-10-19 16:09:32.263621",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "purchase_book",
