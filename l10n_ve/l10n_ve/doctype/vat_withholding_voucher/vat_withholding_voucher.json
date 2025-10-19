@@ -29,7 +29,7 @@
   "totals_total_exempt",
   "totals_total",
   "totals_taxes_and_charges_added",
-  "totals_taxes_and_charges_deducted"
+  "totals_tax_amount_vat"
  ],
  "fields": [
   {
@@ -54,10 +54,9 @@
   },
   {
    "fieldname": "fiscal_period",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_standard_filter": 1,
    "label": "Periodo Fiscal",
-   "options": "Fiscal Year",
    "reqd": 1
   },
   {
@@ -81,7 +80,6 @@
    "fieldtype": "Table",
    "label": "Facturas",
    "options": "VAT Withholding Voucher Item",
-   "read_only": 1,
    "reqd": 1
   },
   {
@@ -128,12 +126,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "totals_taxes_and_charges_deducted",
-   "fieldtype": "Currency",
-   "label": "Total IVA Retenido",
-   "read_only": 1
-  },
-  {
    "fieldname": "issue_date",
    "fieldtype": "Date",
    "label": "Fecha Emisi\u00f3n",
@@ -171,12 +163,18 @@
    "fieldtype": "Currency",
    "label": "Total Compras sin cr\u00e9dito fiscal",
    "read_only": 1
+  },
+  {
+   "fieldname": "totals_tax_amount_vat",
+   "fieldtype": "Currency",
+   "label": "Total IVA Retenido",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-14 12:25:21.458723",
+ "modified": "2025-10-17 09:06:39.063834",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",

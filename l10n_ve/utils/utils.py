@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+import re
 from frappe.utils import getdate
 
 
@@ -34,6 +35,64 @@ def get_supplier_address(supplier_name):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error getting supplier address")
+
+def validate_taxpayer_and_person_type_consistency(doc):
+    """
+    Valida que 'Nature of the Taxpayer' y 'Type of person' sean consistentes.
+    """
+    nature = doc.get("nature_of_the_taxpayer")
+    person_type = doc.get("type_of_person")
+
+    if not nature or not person_type:
+        return
+
+    legal_entities_nature = ["Juridical", "Government", "Communal"]
+    natural_persons_nature = ["Venezuelan", "Extranjero", "Passport"]
+
+    is_legal_nature = nature in legal_entities_nature
+    is_natural_nature = nature in natural_persons_nature
+
+    is_legal_person_type = \
+    person_type.startswith("Domiciled legal entity") \
+    or person_type.startswith("Non-domiciled legal entity")
+
+    is_natural_person_type = person_type.startswith("Natural person") \
+    or person_type.startswith("Non-domiciled natural person")
+
+    if is_legal_nature and not is_legal_person_type:
+        frappe.throw(_("Con la Naturaleza de Contribuyente '{0}'," \
+        " el Tipo de Persona debe ser una entidad legal.").format(nature))
+
+    if is_natural_nature and not is_natural_person_type:
+        frappe.throw(_("Con la Naturaleza de Contribuyente '{0}'," \
+        " el Tipo de Persona debe ser una persona natural.").format(nature))
+
+    if is_legal_person_type and not is_legal_nature:
+        frappe.throw(_("Con el Tipo de Persona '{0}'," \
+        " la Naturaleza del Contribuyente debe ser Jurídico," \
+        " Gubernamental o Comunal.").format(person_type))
+
+    if is_natural_person_type and not is_natural_nature:
+        frappe.throw(_("Con el Tipo de Persona '{0}', " \
+        "la Naturaleza del Contribuyente debe ser Venezolano," \
+        " Extranjero o Pasaporte.").format(person_type))
+
+def validate_rif_format(doc):
+    """
+    Valida el formato del RIF en el campo tax_id de un documento.
+    """
+    if not doc.tax_id:
+        return
+   
+    cleaned_rif = re.sub(r'[^a-zA-Z0-9]', '', doc.tax_id).upper()
+    doc.tax_id = cleaned_rif
+
+    rif_regex = r"^[VEJGPC]\d{9}$"
+    
+    if not re.match(rif_regex, cleaned_rif):
+        frappe.throw(_("El RIF/ID de Impuesto '{0}' no es válido. " \
+        "El formato debe ser una letra (V, E, J, G, C, P) " \
+        "seguida de 9 dígitos (ej: J123456789).").format(doc.tax_id))
 
 def validate_return_in_same_month(self):
     """

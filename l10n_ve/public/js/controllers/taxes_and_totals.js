@@ -93,60 +93,20 @@ erpnext.taxes_and_totals.prototype.set_cumulative_total = function (
   }
 
   if (tax.is_tax_withholding_account) {
-    tax.total = tax_base;
+    //  Solo en ventas, se resta la retenciòn de IVA
+
+    if (
+      tax.charge_type == "VAT Withholding" &&
+      ["Quotation", "Sales Order", "Sales Invoice", "Delivery Note"].includes(
+        this.frm.doc.doctype
+      )
+    ) {
+      //  Se multiplica por -1 para forzar la resta
+      tax.total = flt(tax_base + tax_amount * -1, precision("total"));
+    } else {
+      tax.total = tax_base;
+    }
   } else {
     tax.total = flt(tax_base + tax_amount, precision("total"));
   }
 };
-
-// Esta es ahora la función que se llama
-function set_islr_concept(frm) {
-  let dialog = new frappe.ui.Dialog({
-    title: "Agregar concepto de ISLR",
-    fields: [
-      {
-        in_list_view: 1,
-        fieldtype: "Link",
-        fieldname: "tabulator_islr",
-        label: "Concepto",
-        options: "Tabulator ISLR",
-        reqd: 1,
-      },
-    ],
-    primary_action_label: "Cargar concepto a la factura",
-    primary_action(values) {
-      frappe.dom.freeze(`Cargando concepto a la factura`);
-      dialog.hide();
-
-      frm
-        .call("set_islr_concept", {
-          tabulator_name: values.tabulator_islr,
-        })
-        .then((r) => {
-          frappe.dom.unfreeze();
-
-          frappe.show_alert({
-            message: "Concepto cargado satisfactoriamente",
-            indicator: "green",
-          });
-
-          if (frm.is_new()) {
-            frappe.set_route("Form", frm.doc.doctype, r.message);
-          }
-        })
-        .catch((error) => {
-          frappe.dom.unfreeze();
-          console.log(error);
-          frappe.msgprint({
-            title: __("Error"),
-            message:
-              "Ocurrió un error al cargar al concepto, intente nuevamente o comuníquese con el administrador del sistema",
-            indicator: "red",
-          });
-          dialog.hide();
-        });
-    },
-  });
-
-  dialog.show();
-}

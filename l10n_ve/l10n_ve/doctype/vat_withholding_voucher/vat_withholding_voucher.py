@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
@@ -9,15 +10,17 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
 
     def validate(self):
         self.validate_address()
+        self.validate_fiscal_period()
 
     def before_insert(self):
         company_doc = frappe.get_doc("Company", self.empresa)
         correlative_format = company_doc.vat_withholding_format
 
-        final_voucher_number, final_next_correlative_number = \
+        final_voucher_number, final_next_correlative_number, year, month = \
             self._get_and_format_correlatives(correlative_format, company_doc.vat_withholding_correlative)
 
         self.voucher_number = final_voucher_number
+        self.fiscal_period = f"{month}/{year}"
 
         company_doc.vat_withholding_correlative = final_next_correlative_number
         company_doc.save(ignore_permissions=True)
@@ -36,6 +39,27 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
             frappe.throw(
                 f"No se puede eliminar el comprobante. Solo se permiten eliminaciones para el periodo actual ({current_month_year})."
             )
+
+
+    def validate_fiscal_period(self):
+        if not self.fiscal_period:
+            return
+
+        parts = self.fiscal_period.split('/')
+
+        is_invalid_format = len(parts) != (2
+                            or not parts[0].isdigit()
+                            or not parts[1].isdigit()
+                            or len(parts[0]) != 2
+                            or len(parts[1]) != 4
+                            )
+
+        if is_invalid_format:
+            frappe.throw(_("El Periodo Fiscal debe tener el formato MM/YYYY (ej: 10/2025)."))
+
+        is_invalid_month = not (1 <= int(parts[0]) <= 12)
+        if is_invalid_month:
+            frappe.throw(_("El mes en el Periodo Fiscal no es válido."))
 
 @frappe.whitelist()
 def get_invoiced_purchase_invoices():
@@ -69,18 +93,37 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         fields=[
             "name", "bill_no", "bill_control", "posting_date", "grand_total",
             "total_exempt", "is_return", "is_debit_note", "total",
-            "taxes_and_charges_added", "taxes_and_charges_deducted",
+            "taxes_and_charges_added",
             "credit_note_no", "debit_note_no", "affected_invoice_number",
             "`tabPurchase Taxes and Charges`.rate as tax_rate",
             "`tabPurchase Taxes and Charges`.tax_amount as tax_amount_vat",
         ]
     )
 
+    if not valid_invoices:
+        return []
+
+    invoice_names = [d.name for d in valid_invoices]
+
+    vat_data = frappe.get_all(
+        "Purchase Taxes and Charges",
+        filters=[
+            {"parenttype": "Purchase Invoice"},
+            {"parent": ["in", invoice_names]},
+            {"charge_type": "VAT"}
+        ],
+        fields=["parent", "rate"],
+    )
+
+    vat_map = {d.parent: d for d in vat_data}
+
     invoices_with_taxes = []
     processed_invoices = set()
     for item in valid_invoices:
         if item.name in processed_invoices:
             continue
+
+        vat_details = vat_map.get(item.name, {})
 
         invoice_data = {
             "purchase_invoice": item.name,
@@ -91,14 +134,13 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             "total": abs(item.total),
             "total_exempt": abs(item.total_exempt),
             "taxes_and_charges_added": abs(item.taxes_and_charges_added),
-            "taxes_and_charges_deducted": abs(item.taxes_and_charges_deducted),
             "credit_note_no": item.credit_note_no,
             "debit_note_no": item.debit_note_no,
             "affected_invoice_number": item.affected_invoice_number,
             "is_return": item.is_return,
             "is_debit_note": item.is_debit_note,
-            "rate": item.tax_rate,
-            "tax_amount": abs(item.tax_amount_vat),
+            "rate": vat_details.get("rate", 0),
+            "tax_amount_vat": abs(item.tax_amount_vat),
         }
         invoices_with_taxes.append(invoice_data)
         processed_invoices.add(item.name)

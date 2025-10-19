@@ -23,8 +23,10 @@
   "section_break_nqao",
   "column_break_zbxa",
   "column_break_zmix",
-  "totals_total_exempt",
-  "totals_tax_amount"
+  "totals_grand_total",
+  "totals_paid_amount",
+  "totals_islr_base_amount",
+  "totals_islr_amount"
  ],
  "fields": [
   {
@@ -52,7 +54,6 @@
    "fieldtype": "Table",
    "label": "Facturas",
    "options": "ISLR Withholding Voucher Item",
-   "read_only": 1,
    "reqd": 1
   },
   {
@@ -111,26 +112,36 @@
    "reqd": 1
   },
   {
-   "fieldname": "totals_tax_amount",
-   "fieldtype": "Currency",
-   "label": "Total Impuesto Retenido"
-  },
-  {
-   "fieldname": "totals_total_exempt",
-   "fieldtype": "Currency",
-   "label": "Total Objeto a Retenci\u00f3n"
-  },
-  {
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "hidden": 1,
    "label": "Fecha Creaci\u00f3n"
+  },
+  {
+   "fieldname": "totals_islr_base_amount",
+   "fieldtype": "Currency",
+   "label": "Total Objeto a Retenci\u00f3n"
+  },
+  {
+   "fieldname": "totals_islr_amount",
+   "fieldtype": "Currency",
+   "label": "Total Impuesto Retenido"
+  },
+  {
+   "fieldname": "totals_grand_total",
+   "fieldtype": "Currency",
+   "label": "Total Facturas"
+  },
+  {
+   "fieldname": "totals_paid_amount",
+   "fieldtype": "Currency",
+   "label": "Total Abonado"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-14 15:42:28.083660",
+ "modified": "2025-10-17 14:27:16.055661",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "ISLR Withholding Voucher",

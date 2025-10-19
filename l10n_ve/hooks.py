@@ -48,23 +48,29 @@ app_include_js = "/assets/l10n_ve/js/company.js"
 # include js in doctype views
 doctype_js = {
     "Company": [
+        "public/js/utils/utils.js",
         "public/js/doctype/company/company.js",
     ],
     "Customer": [
+        "public/js/utils/utils.js",
         "public/js/doctype/customer/customer.js",
     ],
     "Supplier": [
+        "public/js/utils/utils.js",
         "public/js/doctype/supplier/supplier.js",
     ],
-    "Purchase Invoice": [
-        "public/js/utils/utils.js",
-        "public/js/controllers/taxes_and_totals.js",
-        "public/js/doctype/purchase_invoice/purchase_invoice.js",
+    "Payment Entry": [
+        "public/js/doctype/payment_entry/payment_entry.js",
     ],
     "Sales Invoice": [
         "public/js/utils/utils.js",
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/sales_invoice/sales_invoice.js",
+    ],
+    "Purchase Invoice": [
+        "public/js/utils/utils.js",
+        "public/js/controllers/taxes_and_totals.js",
+        "public/js/doctype/purchase_invoice/purchase_invoice.js",
     ],
 }
 
@@ -75,6 +81,7 @@ doctype_list_js = {
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
+
 
 # Svg Icons
 # ------------------
@@ -161,6 +168,8 @@ after_install = [
 # Override standard doctype classes
 
 override_doctype_class = {
+    "Customer": "l10n_ve.overrides.customer.CustomCustomer",
+    "Supplier": "l10n_ve.overrides.supplier.CustomSupplier",
     "Company": "l10n_ve.overrides.company.CustomCompany",
     "Payment Entry": "l10n_ve.overrides.payment_entry.CustomPaymentEntry",
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
@@ -186,9 +195,9 @@ override_doctype_class = {
 
 scheduler_events = {
     "cron": {
-        "03 8 * * *": ["l10n_ve.tasks.create_currency_exchange"],
-        "02 13 * * *": ["l10n_ve.tasks.create_currency_exchange"],
-        "00 18 * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "01 08 * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "14 01 * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "18 01 * * *": ["l10n_ve.tasks.create_currency_exchange"],
     }
 
 # 	"all": [
@@ -216,10 +225,10 @@ scheduler_events = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "l10n_ve.event.get_events"
-# }
-#
+
+override_whitelisted_methods = {
+    "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry": "l10n_ve.overrides.payment_entry.get_payment_entry"
+}
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps

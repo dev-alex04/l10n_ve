@@ -5,30 +5,30 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, add_days
 from frappe.utils.file_manager import save_file
-import json
-import datetime
+
 
 def get_report_summary(totals):
     """
     Returns the summary data for the top of the report.
     """
     summary = [
-        {"value": totals.get("grand_total"), "label": "Total Ventas Incl. IVA", "datatype": "Currency"},
-        {"value": totals.get("total_exempt"), "label": "Ventas No Gravadas", "datatype": "Currency"},
-        {"value": totals.get("base_general_taxpayer") + totals.get("base_general_non_taxpayer"),
+        {"value": totals.get("grand_total", 0), "label": "Total Ventas Incl. IVA", "datatype": "Currency"},
+        {"value": totals.get("total_exempt", 0), "label": "Ventas No Gravadas", "datatype": "Currency"},
+        {"value": totals.get("base_general_taxpayer", 0) + totals.get("base_general_non_taxpayer", 0),
          "label": "Base Imponible General", "datatype": "Currency"},
-        {"value": totals.get("iva_general_taxpayer") + totals.get("iva_general_non_taxpayer"),
+        {"value": totals.get("iva_general_taxpayer", 0) + totals.get("iva_general_non_taxpayer", 0),
          "label": "Impuesto General", "datatype": "Currency"},
-        {"value": totals.get("base_reduced_taxpayer") + totals.get("base_reduced_non_taxpayer"),
+        {"value": totals.get("base_reduced_taxpayer", 0) + totals.get("base_reduced_non_taxpayer", 0),
          "label": "Base Imponible Reducida", "datatype": "Currency"},
-        {"value": totals.get("iva_reduced_taxpayer") + totals.get("iva_reduced_non_taxpayer"),
+        {"value": totals.get("iva_reduced_taxpayer", 0) + totals.get("iva_reduced_non_taxpayer", 0),
          "label": "Impuesto Reducido", "datatype": "Currency"},
-        {"value": totals.get("base_additional_taxpayer") + totals.get("base_additional_non_taxpayer"),
+        {"value": totals.get("base_additional_taxpayer", 0) + totals.get("base_additional_non_taxpayer", 0),
          "label": "Base Imponible Adicional", "datatype": "Currency"},
-        {"value": totals.get("iva_additional_taxpayer") + totals.get("iva_additional_non_taxpayer"),
+        {"value": totals.get("iva_additional_taxpayer", 0) + totals.get("iva_additional_non_taxpayer", 0),
          "label": "Impuesto Adicional", "datatype": "Currency"},
-        {"value": totals.get("iva_retained"), "label": "IVA Retenido", "datatype": "Currency"},
-        {"value": totals.get("igtf_amount"), "label": "Monto IGTF", "datatype": "Currency"},
+        {"value": totals.get("iva_retained", 0), "label": "IVA Retenido", "datatype": "Currency"},
+        {"value": totals.get("base_amount_igtf", 0), "label": "Base IGTF", "datatype": "Currency"},
+        {"value": totals.get("total_igtf", 0), "label": "Monto IGTF", "datatype": "Currency"},
 
     ]
 
@@ -40,14 +40,17 @@ def execute(filters=None):
     Devuelve las columnas y los datos basados en los filtros.
     """
     columns = get_columns()
-    data = get_sales_data(filters)
+    main_data, adjustment_data = get_sales_data(filters)
 
+    data = main_data + adjustment_data
     totals = get_total_row(data)
 
     if data:
         for i, row in enumerate(data):
             row["sequence_number"] = i + 1
-    data.append(totals)
+
+    total_row_for_report = totals.copy()
+    data.append(total_row_for_report)
 
     report_summary = get_report_summary(totals)
     return columns, data, None, None, report_summary
@@ -58,50 +61,50 @@ def get_columns():
     """
     return [
 
-        {"label": _("Fecha"), "fieldname": "posting_date", "fieldtype": "Date", "width": 100},
-        {"label": _("RIF del Cliente"), "fieldname": "customer_tax_id", "fieldtype": "Data", "width": 150},
-        {"label": _("Nombre del Cliente"), "fieldname": "customer_name", "fieldtype": "Data", "width": 200},
-        {"label": _("Tipo de Persona"), "fieldname": "customer_type", "fieldtype": "Data", "width": 120},
-        {"label": _("Nro. de Factura"), "fieldname": "bill_no", "fieldtype": "Data", "width": 150},
-        {"label": _("Nro. de Control"), "fieldname": "bill_control", "fieldtype": "Data", "width": 120},
-        {"label": _("Nro. de Maquina Fiscal"), "fieldname": "maquina_fiscal", "fieldtype": "Data", "width": 150},
-        {"label": _("Nro. Reporte Z"), "fieldname": "reporte_z", "fieldtype": "Data", "width": 150},
-        {"label": _("Nro. Nota de Credito"), "fieldname": "credit_note_no", "fieldtype": "Data", "width": 150},
-        {"label": _("Nro. Nota de Debito"), "fieldname": "debit_note_no", "fieldtype": "Data", "width": 150},
-		{"label": _("Facturas afectadas"), "fieldname": "affected_invoice_number", "fieldtype": "Data", "width": 120},
-        {"label": _("Tipo de Transaccion"), "fieldname": "transaction_type", "fieldtype": "Data", "width": 150},
-		{"label": _("Total Incl. IVA"), "fieldname": "grand_total", "fieldtype": "Currency", "width": 120},
-        {"label": _("Ventas Export. FOB"), "fieldname": "ve_fob", "fieldtype": "Currency", "width": 120},
-        {"label": _("Ventas internas no Gravadas"), "fieldname": "total_exempt", "fieldtype": "Currency", "width": 120},
+        {"label": _("Fecha"), "fieldname": "posting_date", "fieldtype": "Data", "width": "auto"},
+        {"label": _("RIF del Cliente"), "fieldname": "customer_tax_id", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Nombre del Cliente"), "fieldname": "customer_name", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Tipo de Persona"), "fieldname": "customer_type", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Nro. de Factura"), "fieldname": "bill_no", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Nro. de Control"), "fieldname": "bill_control", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Nro. de Maquina Fiscal"), "fieldname": "maquina_fiscal", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Nro. Reporte Z"), "fieldname": "reporte_z", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Nro. Nota de Credito"), "fieldname": "credit_note_no", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Nro. Nota de Debito"), "fieldname": "debit_note_no", "fieldtype": "Data", "width": "auto"},
+		{"label": _("Facturas afectadas"), "fieldname": "affected_invoice_number", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Tipo de Transaccion"), "fieldname": "transaction_type", "fieldtype": "Data", "width": "auto"},
+		{"label": _("Total Incl. IVA"), "fieldname": "grand_total", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("Ventas Export. FOB"), "fieldname": "ve_fob", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("Ventas internas no Gravadas"), "fieldname": "total_exempt", "fieldtype": "Currency", "width": "auto"},
 
         # Columnas para Ventas a No Contribuyentes
 
-        {"label": _("Base Imponible No C. R"), "fieldname": "base_reduced_non_taxpayer", "fieldtype": "Currency", "width": 150},
-        {"label": _("IVA No C. R"), "fieldname": "iva_reduced_non_taxpayer", "fieldtype": "Currency", "width": 120},
-		{"label": _("Base Imponible No C. G"), "fieldname": "base_general_non_taxpayer", "fieldtype": "Currency", "width": 150},
-        {"label": _("IVA No C. G"), "fieldname": "iva_general_non_taxpayer", "fieldtype": "Currency", "width": 120},
-        {"label": _("Base Imponible No C. A"), "fieldname": "base_additional_non_taxpayer", "fieldtype": "Currency", "width": 150},
-        {"label": _("IVA No C. A"), "fieldname": "iva_additional_non_taxpayer", "fieldtype": "Currency", "width": 120},
+        {"label": _("Base Imponible No C. R"), "fieldname": "base_reduced_non_taxpayer", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("IVA No C. R"), "fieldname": "iva_reduced_non_taxpayer", "fieldtype": "Currency", "width": "auto"},
+		{"label": _("Base Imponible No C. G"), "fieldname": "base_general_non_taxpayer", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("IVA No C. G"), "fieldname": "iva_general_non_taxpayer", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("Base Imponible No C. A"), "fieldname": "base_additional_non_taxpayer", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("IVA No C. A"), "fieldname": "iva_additional_non_taxpayer", "fieldtype": "Currency", "width": "auto"},
 
         # Columnas para Ventas a Contribuyentes
 
-        {"label": _("Base Imponible C. R"), "fieldname": "base_reduced_taxpayer", "fieldtype": "Currency", "width": 150},
-        {"label": _("IVA C. R"), "fieldname": "iva_reduced_taxpayer", "fieldtype": "Currency", "width": 120},
-		{"label": _("Base Imponible C. G"), "fieldname": "base_general_taxpayer", "fieldtype": "Currency", "width": 150},
-        {"label": _("IVA C. G"), "fieldname": "iva_general_taxpayer", "fieldtype": "Currency", "width": 120},
-        {"label": _("Base Imponible C. A"), "fieldname": "base_additional_taxpayer", "fieldtype": "Currency", "width": 150},
-        {"label": _("IVA C. A"), "fieldname": "iva_additional_taxpayer", "fieldtype": "Currency", "width": 120},
+        {"label": _("Base Imponible C. R"), "fieldname": "base_reduced_taxpayer", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("IVA C. R"), "fieldname": "iva_reduced_taxpayer", "fieldtype": "Currency", "width": "auto"},
+		{"label": _("Base Imponible C. G"), "fieldname": "base_general_taxpayer", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("IVA C. G"), "fieldname": "iva_general_taxpayer", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("Base Imponible C. A"), "fieldname": "base_additional_taxpayer", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("IVA C. A"), "fieldname": "iva_additional_taxpayer", "fieldtype": "Currency", "width": "auto"},
 
         # Campos de Retencion de IVA
-        {"label": _("IVA Retenido"), "fieldname": "iva_retained", "fieldtype": "Currency", "width": 120},
-        {"label": _("Nro. Comprobante de Retencion IVA"), "fieldname": "vat_withholding_voucher_number", "fieldtype": "Data", "width": 150},
-        {"label": _("Fecha Comprobante"), "fieldname": "withholding_date", "fieldtype": "Date", "width": 120},
-        {"label": _("Tasa de Retencion IVA"), "fieldname": "vat_withholding_rate", "fieldtype": "Percent", "width": 120},
+        {"label": _("IVA Retenido"), "fieldname": "iva_retained", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("Nro. Comprobante de Retencion IVA"), "fieldname": "vat_withholding_voucher_number", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Fecha Comprobante"), "fieldname": "withholding_date", "fieldtype": "Date", "width": "auto"},
+        {"label": _("Tasa de Retencion IVA"), "fieldname": "vat_withholding_rate", "fieldtype": "Percent", "width": "auto"},
 
         # Columnas para IGTF Impuesto a las Grandes Transacciones Financieras
-        {"label": _("Base Imponible IGTF"), "fieldname": "base_amount_igtf", "fieldtype": "Currency", "width": 120},
-        {"label": _("Tasa de IGTF"), "fieldname": "igtf_rate", "fieldtype": "Percent", "width": 120},
-        {"label": _("Monto IGTF"), "fieldname": "total_igtf", "fieldtype": "Currency", "width": 120},
+        {"label": _("Base Imponible IGTF"), "fieldname": "base_amount_igtf", "fieldtype": "Currency", "width": "auto"},
+        {"label": _("Tasa de IGTF"), "fieldname": "igtf_rate", "fieldtype": "Percent", "width": "auto"},
+        {"label": _("Monto IGTF"), "fieldname": "total_igtf", "fieldtype": "Currency", "width": "auto"},
 
     ]
 
@@ -124,10 +127,14 @@ def get_sales_data(filters):
 		reduced_rate = 8.0
 		additional_rate = 31.0
 
+	igtf_rate = 0.0
+	if frappe.db.exists("DocType", "Venezuela Account Settings"):
+		igtf_rate = frappe.db.get_single_value("Venezuela Account Settings", "igtf_rate") or 0.0
+
 	# La consulta SQL es la parte principal de la optimización
-	data = frappe.db.sql(f"""
-		SELECT
-			siv.posting_date,
+	query_base = f"""
+        SELECT
+			DATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,
 			tc.tax_id AS customer_tax_id,
 			siv.customer_name,
 			siv.bill_no,
@@ -136,16 +143,7 @@ def get_sales_data(filters):
 			siv.debit_note_no,
 			siv.affected_invoice_number,
 			siv.vat_withholding_voucher_number,
-			siv.withholding_date,
-			siv.base_grand_total AS total_in_usd,
-
-			CASE
-				WHEN siv.is_void = 1 THEN '03-Anu' -- Si está anulado, siempre es '03-Anu'
-                WHEN MONTH(siv.posting_date) != MONTH(%(from_date)s) OR YEAR(siv.posting_date) != YEAR(%(from_date)s) THEN '04-Ajuste'
-				WHEN siv.is_return = 1 THEN '02-Comp'
-				WHEN siv.is_debit_note = 1 THEN '02-Comp'
-				ELSE '01-Reg'
-			END AS transaction_type,
+			DATE_FORMAT(siv.withholding_date, '%%d/%%m/%%Y') AS withholding_date,
 
 			CASE
 			    WHEN tc.type_of_person = 'Domiciled legal entity' THEN 'PJD'
@@ -155,14 +153,11 @@ def get_sales_data(filters):
 				ELSE 'N/A'
 			END AS customer_type,
 
-
-
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total END) AS grand_total,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total END) AS total,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_exempt END) AS total_exempt,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.igtf_rate END) AS igtf_rate,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.base_amount_igtf END) AS base_amount_igtf,
+            (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf,
 
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_general_non_taxpayer,
 			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_general_non_taxpayer,
@@ -197,15 +192,52 @@ def get_sales_data(filters):
 			`tabCustomer` tc ON tc.name = siv.customer
 		LEFT JOIN
 			`tabSales Taxes and Charges` tstac ON tstac.parent = siv.name
-		WHERE
-			siv.company = %(company)s
-			AND siv.posting_date BETWEEN %(from_date)s AND %(to_date)s
-			AND (siv.docstatus = 1 OR (siv.docstatus = 2 AND siv.is_void = 1)) -- Incluye enviados o cancelados Y anulados
-		GROUP BY
+		WHERE siv.company = %(company)s
+        AND (siv.docstatus = 1 OR (siv.docstatus = 2 AND siv.is_void = 1))
+    """
+
+	# --- Datos del período principal ---
+	main_conditions = "AND siv.posting_date BETWEEN %(from_date)s AND %(to_date)s"
+	main_query = f"""
+        {query_base}
+        {main_conditions}
+        GROUP BY
 			siv.name
 		ORDER BY
 			siv.posting_date ASC
-	""", { # type: ignore
+    """
+	# Reemplazar transaction_type en la consulta principal
+	main_query = main_query.replace(
+        "SELECT",
+        """SELECT
+            CASE
+				WHEN siv.is_void = 1 THEN '03-Anu'
+				WHEN siv.is_return = 1 THEN '02-Comp'
+				WHEN siv.is_debit_note = 1 THEN '02-Comp'
+				ELSE '01-Reg'
+			END AS transaction_type,""", 1
+    )
+
+	# --- Datos de ajuste de períodos anteriores ---
+	adjustment_conditions = """
+        AND siv.posting_date < %(from_date)s
+        AND siv.withholding_date BETWEEN %(from_date)s AND %(to_date)s
+    """
+	adjustment_query = f"""
+        {query_base}
+        {adjustment_conditions}
+        GROUP BY
+			siv.name
+		ORDER BY
+			siv.withholding_date ASC
+    """
+	# Forzar transaction_type a '04-Ajus' para los ajustes
+	adjustment_query = adjustment_query.replace(
+        "SELECT",
+        "SELECT '04-Ajus' AS transaction_type,", 1
+    )
+
+	sql_params = {
 
 		"company": filters.get("company"),
 		"from_date": filters.get("from_date"),
@@ -214,9 +246,18 @@ def get_sales_data(filters):
 		"reduced_rate": reduced_rate,
 		"additional_rate": additional_rate
 
-	}, as_dict=1)
+	}
 
-	return data
+	main_data = frappe.db.sql(main_query, sql_params, as_dict=1)
+	adjustment_data = frappe.db.sql(adjustment_query, sql_params, as_dict=1)
+
+	for row in main_data + adjustment_data:
+		if row.get("base_amount_igtf") > 0 or row.get("total_igtf") > 0:
+			row["igtf_rate"] = igtf_rate
+		else:
+			row["igtf_rate"] = 0
+
+	return main_data, adjustment_data
 
 def get_total_row(data):
     """
@@ -248,7 +289,8 @@ def get_total_row(data):
         "iva_additional_taxpayer": 0,
         "iva_retained": 0,
         "igtf_base": 0,
-        "igtf_amount": 0,
+        "total_igtf": 0,
+        "base_amount_igtf": 0,
     })
 
     for row in data:

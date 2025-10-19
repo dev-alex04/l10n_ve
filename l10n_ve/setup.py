@@ -15,7 +15,8 @@ def set_l10n_ve_data() -> None:
         set_chart_of_accounts()
         create_vat_withholding()
         create_sales_taxes_and_charges_template()
-
+        set_title_field_on_purchase_invoice()
+        set_mode_of_payments()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -141,72 +142,192 @@ def create_islr_tabulator() -> None:
         print(f"!! FATAL: Ocurrió un error inesperado: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_islr_tabulator')
 
+
 def set_chart_of_accounts() -> None:
     """
     Configura las cuentas contables de impuestos en los campos
     personalizados del Doctype Company para cada compañía existente.
     """
+
     print("Iniciando la configuración de cuentas contables en las Compañías...")
 
     try:
-
         account_map = [
             {
-                'account_name': 'IVA retenido en compras',
-                'account_number': '2.7.2.15.99.01.01',
-                'account_type': 'Tax',
-                'fieldname': 'purchase_vat_withholding_account',
-                'for_create': True,
-                'parent_account': '2 - PASIVO',
+                'account_name': 'Cuenta de costos (venta) por defecto',
+                'account_number': '5.1.1.1.01',
+                'company_field': 'default_expense_account',
             },
             {
-                'account_name': 'Debito Fiscal IVA',
-                'account_number': '2.7.2.15.99.01.02',
-                'account_type': 'Tax',
-                'fieldname': 'purchase_vat_account',
-                'for_create': True,
-                'parent_account': '2 - PASIVO',
+                'account_name': 'Cuenta de efectivo por defecto',
+                'account_number': '1.1.1.1.01',
+                'company_field': 'default_cash_account',
             },
             {
-                'account_name': 'ISLR retenido a terceros',
-                'account_number': '2.7.2.15.01.01.01',
-                'account_type': 'Tax',
-                'fieldname': 'purchase_islr_account',
-                'for_create': True,
-                'parent_account': '2 - PASIVO',
+                'account_name': 'Cuenta de ingresos por defecto',
+                'account_number': '4.1.1.1.01',
+                'company_field': 'default_income_account',
             },
             {
-                'account_name': 'Inventario Recibido pero no Facturado',
-                'account_number': '2.7.2.15.99.01.03',
-                'account_type': 'Stock Received But Not Billed',
-                'fieldname': 'stock_received_but_not_billed',
-                'for_create': True,
-                'parent_account': '2 - PASIVO',
+                'account_name': 'Cuenta por cobrar por defecto',
+                'account_number': '1.1.3.1.01',
+                'company_field': 'default_receivable_account',
             },
             {
-                'account_name': 'Credito Fiscal IVA',
-                'account_number': '1.8.8.02.01.01.01',
-                'account_type': 'Tax',
-                'fieldname': 'sales_vat_account',
-                'for_create': True,
-                'parent_account': '1 - ACTIVO',
+                'account_name': 'Cuenta por pagar por defecto',
+                'account_number': '2.1.2.1.01',
+                'company_field': 'default_payable_account',
             },
             {
-                'account_name': 'IVA retenido por terceros',
-                'account_number': '1.8.8.02.01.02.01',
-                'account_type': 'Tax',
-                'fieldname': 'sales_vat_withholding_account',
-                'for_create': True,
-                'parent_account': '1 - ACTIVO',
+                'account_name': 'Cuenta de Desajuste',
+                'account_number': '1.6.1.1.01',
+                'company_field': 'write_off_account',
             },
             {
-                'account_name': 'ISLR retenido por terceros',
-                'account_number': '1.8.8.02.02.01.01',
-                'account_type': 'Tax',
-                'fieldname': 'sales_islr_account',
-                'for_create': True,
-                'parent_account': '1 - ACTIVO',
-            }
+                'account_name': 'Cuenta de Pérdidas/Ganancias no realizada',
+                'account_number': '4.1.2.1.04',
+                'company_field': 'unrealized_profit_loss_account',
+            },
+            {
+                'account_name': 'Cuenta de Ganancias / Pérdidas en Cambio',
+                'account_number': '8.1.3.3.01',
+                'company_field': 'exchange_gain_loss_account',
+            },
+            {
+                'account_name': 'Cuenta de descuento por pago predeterminado',
+                'account_number': '1.1.3.1.01',
+                'company_field': 'default_discount_account',
+            },
+            {
+                'account_name': 'Cuenta de Ganancia / Pérdida de Canje no Realizada',
+                'account_number': '8.1.3.3.01',
+                'company_field': 'unrealized_exchange_gain_loss_account',
+            },
+            {
+                'account_name': 'Cuenta de redondeo por defecto',
+                'account_number': '4.1.2.2.01',
+                'company_field': 'round_off_account',
+            },
+            {
+                'account_name': 'Cuenta de Redondeo para Apertura',
+                'account_number': '4.1.2.2.01',
+                'company_field': 'round_off_for_opening',
+            },
+            {
+                'account_name': 'Cuenta de Ingresos Diferidos Predeterminada',
+                'account_number': '2.6.1.1.01',
+                'company_field': 'default_deferred_revenue_account',
+            },
+            {
+                'account_name': 'Cuenta de Gastos Diferidos Predeterminada',
+                'account_number': '1.6.1.1.01',
+                'company_field': 'default_deferred_expense_account',
+            },
+            {
+                'account_name': 'Cuenta de depreciación acumulada',
+                'account_number': '1.3.1.5.02',
+                'company_field': 'accumulated_depreciation_account',
+            },
+            {
+                'account_name': 'Cuenta de ganancias/pérdidas por enajenación de activos fijos',
+                'account_number': '6.1.2.2.05',
+                'company_field': 'disposal_account',
+            },
+            {
+                'account_name': 'Cuenta de gastos de depreciación',
+                'account_number': '6.1.5.1.01',
+                'company_field': 'depreciation_expense_account',
+            },
+            {
+                'account_name': 'Gastos incluidos en la valoración de activos',
+                'account_number': '6.1.2.2.05',
+                'company_field': 'expenses_included_in_asset_valuation',
+            },
+            {
+                'account_name': 'Cuenta de Activo recibido pero no facturado',
+                'account_number': '1.3.1.5.01',
+                'company_field': 'asset_received_but_not_billed',
+            },
+            {
+                'account_name': 'Cuenta de IVA en ventas',
+                'account_number': '2.1.2.4.01',
+                'company_field': 'sales_vat_account',
+            },
+            {
+                'account_name': 'Cuenta de IVA en compras',
+                'account_number': '1.2.1.1.01',
+                'company_field': 'purchase_vat_account',
+            },
+            {
+                'account_name': 'Cuenta de Retención de IVA en ventas',
+                'account_number': '1.2.1.1.02',
+                'company_field': 'sales_vat_withholding_account',
+            },
+            {
+                'account_name': 'Cuenta de Retención de IVA en Compras',
+                'account_number': '2.1.2.4.04',
+                'company_field': 'purchase_vat_withholding_account',
+            },
+            {
+                'account_name': 'Cuenta ISLR en ventas',
+                'account_number': '1.2.1.1.06',
+                'company_field': 'sales_islr_account',
+            },
+            {
+                'account_name': 'Cuenta ISLR en Compras',
+                'account_number': '2.1.2.4.06',
+                'company_field': 'purchase_islr_account',
+            },
+            {
+                'account_name': 'Cuenta IGTF en Ventas',
+                'account_number': '2.1.2.2.06',
+                'company_field': 'sales_igtf_account',
+            },
+            {
+                'account_name': 'Cuenta IGTF en Compras',
+                'account_number': '6.1.7.1.04',
+                'company_field': 'purchase_igtf_account',
+            },
+            {
+                'account_name': 'Cuenta de Inventario Predeterminada',
+                'account_number': '1.1.5.1.01',
+                'company_field': 'default_inventory_account',
+            },
+            {
+                'account_name': 'Cuenta de Inventario Recibido pero no Facturado',
+                'account_number': '1.1.5.1.01',
+                'company_field': 'stock_received_but_not_billed',
+            },
+            {
+                'account_name': 'Cuenta provisional predeterminada',
+                'account_number': '1.6.1.1.01',
+                'company_field': 'default_provisional_account',
+            },
+            {
+                'account_name': 'Cuenta de ajuste de existencias',
+                'account_number': '1.6.1.1.01',
+                'company_field': 'stock_adjustment_account',
+            },
+            {
+                'account_name': 'Cuenta GASTOS DE VALORACIÓN',
+                'account_number': '6.1.2.2.05',
+                'company_field': 'expenses_included_in_valuation',
+            },
+            {
+                'account_name': 'Cuenta de costos operativos por defecto',
+                'account_number': '6.1.2.1.01',
+                'company_field': 'default_operating_cost_account',
+            },
+            {
+                'account_name': 'Cuenta bancaria por defecto',
+                'account_number': '1.1.2.1.01',
+                'company_field': 'default_bank_account',
+            },
+            {
+                'account_name': 'Capital Work in Progress por defecto',
+                'account_number': '1.3.1.9.03',
+                'company_field': 'capital_work_in_progress_account',
+            },
         ]
 
         companies = frappe.get_all("Company", fields=["name", "abbr"])
@@ -214,34 +335,30 @@ def set_chart_of_accounts() -> None:
             print(f"Configurando cuentas para la compañía: {company.name}")
 
             for account_info in account_map:
-                fieldname = account_info['fieldname']
+                company_field = account_info['company_field']
 
-                account_name = f"{account_info['account_number']} - {account_info['account_name']} - {company.abbr}"
-                parent_account = f"{account_info['parent_account']} - {company.abbr}"
+                account_name = frappe.get_value("Account",
+                                                {
+                                                    "company": company.name,
+                                                    "account_number": account_info['account_number'],
+                                                },
+                                                "name")
 
-                if not frappe.db.exists("Account", account_name):
-
-                    new_account = frappe.new_doc('Account')
-
-                    new_account.company = company.name
-                    new_account.parent_account = parent_account
-                    new_account.account_type = account_info['account_type']
-                    new_account.account_name = account_info["account_name"]
-                    new_account.account_number = account_info['account_number']
-
-                    new_account.insert(ignore_permissions=True)
+                if not account_name:
+                    print(f"  !! ADVERTENCIA: La cuenta {account_info['account_number']} no existe para la compañía {company.name}. Se omitirá.")
+                    continue
 
                 frappe.db.set_value("Company",
                                     company.name,
-                                    fieldname,
+                                    company_field,
                                     account_name)
 
-                print(f"  Cuenta  '{account_name}' para la compañía '{company.name}' establecida satisfactoriamente y establecida en el campo{fieldname} de la empresa.")
+                print(f"  Cuenta '{account_name}' enlazada satisfactoriamente en el campo '{company_field}'.")
 
         frappe.db.commit()
 
     except Exception as e:
-        print(f" !! ERROR configucreando las cuentas contables: {e}")
+        print(f" !! ERROR configurando las cuentas contables: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en set_chart_of_accounts')
 
     print("Success: Configuración de cuentas contables en las compañías completada.")
@@ -351,3 +468,87 @@ def create_sales_taxes_and_charges_template() -> None:
         print(f"Failure: Ocurrió un error durante la creación del impuesto de IVA: {e}")
         frappe.log_error(frappe.get_traceback(),
                          'Error en create_sales_taxes_and_charges_template')
+
+
+def set_title_field_on_purchase_invoice() -> None:
+
+    print("Estableciendo campo title_field en Purchase Invoice")
+
+    try:
+
+        frappe.db.set_value('DocType',
+                            'Purchase Invoice',
+                            'title_field',
+                            'bill_no' )
+
+        frappe.db.set_value('DocType',
+                            'Purchase Invoice',
+                            'show_title_field_in_link',
+                            True)
+
+        print("Campo bill_no establecido como campo Titulo en Purchase Invoice")
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error Estableciendo campo title_field en Purchase Invoice: {e}")
+        frappe.log_error(frappe.get_traceback(),
+                         'Error Estableciendo campo title_field en Purchase Invoice:')
+
+
+def set_mode_of_payments() -> None:
+
+    print('Confgurando modos de pago')
+
+    try:
+
+        mode_of_payments = [
+            {
+                'mode_of_payment': 'Tarjetas de credito',
+                'account_number': '2.1.1.2.01',
+            },
+            {
+                'mode_of_payment': 'Transferencia bancaria',
+                'account_number': '1.1.2.1.01',
+            },
+            {
+                'mode_of_payment': 'Giro bancario',
+                'account_number': '1.1.2.1.01',
+            },
+            {
+                'mode_of_payment': 'Efectivo',
+                'account_number': '1.1.1.1.01',
+            },
+            {
+                'mode_of_payment': 'Cheque',
+                'account_number': '1.1.2.1.01',
+            },
+        ]
+
+        companies = frappe.db.get_all('Company', pluck='name')
+
+        for mode in mode_of_payments:
+            mode_of_payment = frappe.get_doc('Mode of Payment', mode['mode_of_payment'])
+
+            mode_of_payment.accounts = []
+
+            for company in companies:
+
+                default_account: str = frappe.db.get_value('Account',
+                                                            {
+                                                            'company': company,
+                                                            'account_number': mode['account_number']
+                                                            },
+                                                            'name')
+
+                print(f'Cuenta {default_account} cargada en el modo de pago {mode["mode_of_payment"]} para la compañía {company}')
+
+                mode_of_payment.append('accounts', {
+                    'company': company,
+                    'default_account': default_account,
+                })
+
+            mode_of_payment.save(ignore_permissions=True)
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error configurando los modos de pago: {e}")
+        frappe.log_error(frappe.get_traceback(),
+                         'Error configurando los modos de pago:')

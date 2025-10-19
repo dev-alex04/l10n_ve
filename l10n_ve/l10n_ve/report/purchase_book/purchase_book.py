@@ -8,7 +8,6 @@ import calendar
 from datetime import date
 import base64
 
-
 from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
 
@@ -201,7 +200,8 @@ def get_query_data(filters):
             tPI.credit_note_no,
             tPI.debit_note_no,
             tPI.affected_invoice_number,
-
+            tPI.total_igtf,
+            DATE_FORMAT(tPI.bill_date, '%%d/%%m/%%Y') AS bill_date,
 
             SUM(CASE WHEN T5.rate = 8 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_reducida,
             SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) as impuesto_reducida,
@@ -210,8 +210,8 @@ def get_query_data(filters):
             SUM(CASE WHEN T5.rate = 31 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) as base_adicional,
             SUM(CASE WHEN T5.rate = 31 THEN T5.tax_amount ELSE 0 END) as impuesto_adicional,
             SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) as taxes_and_charges_deducted,
-            MAX(T2.name) as nro_comprobante_retencion,
-            MAX(T2.delivery_date) as fecha_entrega,
+            MAX(T2.voucher_number) AS nro_comprobante_retencion,
+            DATE_FORMAT(MAX(T2.delivery_date), '%%d/%%m/%%Y') AS fecha_entrega,
             MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
 
             CASE
@@ -223,11 +223,16 @@ def get_query_data(filters):
             END AS supplier_type,
             CASE
                 WHEN tPI.docstatus = 2 THEN '03-Anu'
-                WHEN MONTH(tPI.posting_date) != %(month)s OR YEAR(tPI.posting_date) != %(year)s THEN '04-Ajuste'
                 WHEN tPI.is_return = 1 THEN '02-Comp'
                 WHEN tPI.is_debit_note = 1 THEN '02-Comp'
                 ELSE '01-Reg'
-			END AS transaction_type,
+            END AS transaction_type,
+
+            MAX(CASE
+                WHEN tPER.islr_concept IS NOT NULL AND tPER.islr_concept != '' THEN 'Sí'
+                ELSE 'No'
+            END) AS islr_retention_applied,
+
             (tPI.total - tPI.total_exempt) AS taxable_base
         FROM
             `tabPurchase Invoice` as tPI
@@ -243,9 +248,14 @@ def get_query_data(filters):
         LEFT JOIN
             `tabSupplier` as T4
             ON T4.name = tPI.supplier
+        LEFT JOIN
+            `tabPayment Entry Reference` as tPER
+            ON tPER.reference_name = tPI.name AND tPER.reference_doctype = 'Purchase Invoice'
+
         WHERE
             1=1 {conditions}
         GROUP BY tPI.name
+        ORDER BY tPI.bill_date ASC
     """
 
     values['month'] = from_date_obj.month
@@ -256,7 +266,7 @@ def get_query_data(filters):
 def execute(filters=None):
     columns = [
 
-        {"fieldname": "posting_date", "label": "Fecha Doc.", "fieldtype": "Date", "width": "auto"},
+        {"fieldname": "bill_date", "label": "Fecha Doc.", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "tax_id", "label": "Rif", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "supplier_name", "label": "Nombre o Razón Social", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "supplier_type", "label": "Tipo", "fieldtype": "Data", "width": "auto"},
@@ -269,6 +279,7 @@ def execute(filters=None):
         {"fieldname": "nro_expediente_importacion", "label": "Nro. Expediente de Importación", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "transaction_type", "label": "Tipo de Transac.", "fieldtype": "Data", "width": "auto"},
         {"fieldname": "grand_total", "label": "Total Compras Incluyendo el IVA", "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "islr_retention_applied", "label": "Retención ISLR Aplicada", "fieldtype": "Data", "width": "auto", "hidden": 1},
         {"fieldname": "total_exempt", "label": "Compras sin Derecho a Crédito IVA", "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "base_reducida", "label": "Base (Tasa Red. 8%)", "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "impuesto_reducida", "label": "Impuesto (Tasa Red. 8%)", "fieldtype": "Currency", "width": "auto"},
@@ -343,43 +354,78 @@ def generate_xml_islr_file(filters=None):
         company_rif = (company_doc.tax_id or "").replace('-', '')
         periodo = getdate(from_date).strftime('%Y%m')
 
-        invoices = frappe.db.sql("""
+
+        retentions = frappe.db.sql("""
             SELECT
-                REPLACE(tS.tax_id, '-', '') AS supplier_rif,
-                tPI.bill_no,
-                tPI.bill_control,
-                tPI.posting_date,
-                tPTC.code,
-                tPI.grand_total,
-                tPTC.rate AS retention_percentage
-            FROM `tabPurchase Taxes and Charges` AS tPTC
-            JOIN `tabPurchase Invoice` AS tPI ON tPTC.parent = tPI.name
-            JOIN `tabSupplier` AS tS ON tPI.supplier = tS.name
+                REPLACE(supp.tax_id, '-', '') AS supplier_rif,
+                pi.bill_no,
+                pi.bill_control,
+                pe.posting_date,
+                ref.islr_concept AS islr_concept,
+                ref.islr_base_amount AS monto_operacion,
+                supp.type_of_person
+            FROM `tabPayment Entry Reference` AS ref
+            JOIN `tabPayment Entry` AS pe ON ref.parent = pe.name
+            JOIN `tabPurchase Invoice` AS pi ON ref.reference_name = pi.name
+            JOIN `tabSupplier` AS supp ON pi.supplier = supp.name
             WHERE
-                tPTC.charge_type = 'ISLR' AND tPI.docstatus = 1
-                AND tPI.posting_date BETWEEN %(date_from)s AND %(to_date)s
-                AND tPI.is_return = 0
-                AND tPI.is_debit_note = 0
-                AND tPI.company = %(company)s
+                pe.docstatus = 1
+                AND pe.company = %(company)s
+                AND pe.posting_date BETWEEN %(date_from)s AND %(to_date)s
+                AND ref.reference_doctype = 'Purchase Invoice'
+                AND ref.islr_concept IS NOT NULL
+                AND ref.islr_concept != ''
         """, filters, as_dict=True)
 
-        if not invoices:
-            frappe.msgprint(_("No se encontraron retenciones de "
-                            "ISLR para los filtros seleccionados."))
+        if not retentions:
+            frappe.msgprint(_("No se encontraron retenciones de ISLR para los filtros seleccionados."))
             return None
 
-        # Construcción del XML
         root = Element('RelacionRetencionesISLR', {'RifAgente': company_rif, 'Periodo': periodo})
 
-        for inv in invoices:
+        tabulator_cache = {}
+        processing_errors = []
+
+        for ret in retentions:
+            try:
+                if ret.islr_concept not in tabulator_cache:
+
+                    tabulator_cache[ret.islr_concept] = frappe.get_doc("Tabulator ISLR",
+                                                                       ret.islr_concept)
+
+                tabulator = tabulator_cache[ret.islr_concept]
+
+                aliquot_row = next((a for a in tabulator.aliquot
+                                    if a.types_of_person == ret.type_of_person), None)
+
+                if not aliquot_row:
+                    error_msg = (f"No se encontró alícuota para '{ret.type_of_person}'"
+                                f"en concepto '{ret.islr_concept}' (Factura: {ret.bill_no or 'N/A'}).")
+
+                    if error_msg not in processing_errors:
+                        processing_errors.append(error_msg)
+
+                    continue
+
+            except frappe.DoesNotExistError:
+
+                tabulator_cache[ret.islr_concept] = None
+                error_msg = ( f"Concepto ISLR '{ret.islr_concept}'"
+                              f"no encontrado (Factura: {ret.bill_no or 'N/A'}).")
+
+                if error_msg not in processing_errors:
+
+                    processing_errors.append(error_msg)
+                continue
+
             detalle = SubElement(root, 'DetalleRetencion')
-            SubElement(detalle, 'RifRetenido').text = inv.supplier_rif or 'N/A'
-            SubElement(detalle, 'NumeroFactura').text = inv.bill_no or 'N/A'
-            SubElement(detalle, 'NumeroControl').text = inv.bill_control or 'N/A'
-            SubElement(detalle, 'FechaOperacion').text = getdate(inv.posting_date).strftime('%d/%m/%Y')
-            SubElement(detalle, 'CodigoConcepto').text = inv.code or 'N/A'
-            SubElement(detalle, 'MontoOperacion').text = f"{flt(inv.grand_total):.2f}"
-            SubElement(detalle, 'PorcentajeRetencion').text = f"{flt(inv.retention_percentage)}"
+            SubElement(detalle, 'RifRetenido').text = ret.supplier_rif or 'N/A'
+            SubElement(detalle, 'NumeroFactura').text = ret.bill_no or 'N/A'
+            SubElement(detalle, 'NumeroControl').text = str(ret.bill_control) if ret.bill_control is not None else 'N/A'
+            SubElement(detalle, 'FechaOperacion').text = getdate(ret.posting_date).strftime('%d/%m/%Y')
+            SubElement(detalle, 'CodigoConcepto').text = tabulator.codigo or 'N/A'
+            SubElement(detalle, 'MontoOperacion').text = f"{flt(ret.monto_operacion):.2f}"
+            SubElement(detalle, 'PorcentajeRetencion').text = f"{flt(aliquot_row.aliquot)}"
 
         # Formatear para una salida legible (pretty print)
         rough_string = tostring(root, 'utf-8')
@@ -457,13 +503,13 @@ def generate_txt_file(filters):
                     (row.get("tax_id") or "0").replace('-', ''),
                     document_number,
                     row.get("bill_control") or "0",
-                    f"{flt(row.get('grand_total') or 0):.2f}",
-                    f"{flt(row.get('taxable_base') or 0):.2f}",
-                    f"{flt(row.get('taxes_and_charges_deducted') or 0):.2f}",
+                    f"{abs(flt(row.get('grand_total') or 0)):.2f}",
+                    f"{abs(flt(row.get('taxable_base') or 0)):.2f}",
+                    f"{abs(flt(row.get('taxes_and_charges_deducted') or 0)):.2f}",
                     row.get("affected_invoice_number") or "0",
                     row.get("nro_comprobante_retencion") or "0",
-                    f"{flt(row.get('total_exempt') or 0):.2f}",
-                    f"{flt(tax_rate):.2f}",
+                    f"{abs(flt(row.get('total_exempt') or 0)):.2f}",
+                    f"{abs(flt(tax_rate)):.2f}",
                     "0",
                 ]
                 content_lines.append("\t".join(line_data))

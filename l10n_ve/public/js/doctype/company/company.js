@@ -11,9 +11,11 @@ frappe.ui.form.on("Company", {
 
     for (const account_name of [
       "sales_vat_account",
+      "sales_igtf_account",
       "sales_islr_account",
       "purchase_vat_account",
       "purchase_islr_account",
+      "purchase_igtf_account",
       "sales_vat_withholding_account",
       "purchase_vat_withholding_account",
     ]) {
@@ -26,6 +28,20 @@ frappe.ui.form.on("Company", {
         };
       });
     }
+  },
+
+  nature_of_the_taxpayer: function (frm) {
+    set_person_type_filter(frm);
+    sync_taxpayer_fields(frm, "nature_of_the_taxpayer");
+    build_rif(frm);
+  },
+
+  type_of_person: function (frm) {
+    sync_taxpayer_fields(frm, "type_of_person");
+  },
+
+  tax_id: function (frm) {
+    build_rif(frm);
   },
 });
 

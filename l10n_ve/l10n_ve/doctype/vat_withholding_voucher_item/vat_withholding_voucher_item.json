@@ -24,7 +24,7 @@
   "total",
   "rate",
   "taxes_and_charges_added",
-  "taxes_and_charges_deducted"
+  "tax_amount_vat"
  ],
  "fields": [
   {
@@ -32,14 +32,16 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "No. Factura"
+   "label": "No. Factura",
+   "read_only": 1
   },
   {
    "fieldname": "bill_control",
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "No. Control"
+   "label": "No. Control",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_plby",
@@ -73,6 +75,7 @@
    "in_standard_filter": 1,
    "label": "Factura de Compra",
    "options": "Purchase Invoice",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -81,6 +84,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Fecha Factura",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -88,60 +92,69 @@
    "fieldtype": "Currency",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Total Compras + IVA"
+   "label": "Total Compras + IVA",
+   "read_only": 1
   },
   {
    "fieldname": "total",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Base Imponible"
+   "label": "Base Imponible",
+   "read_only": 1
   },
   {
    "fieldname": "rate",
    "fieldtype": "Float",
-   "label": "% Alicuota"
+   "label": "% Alicuota",
+   "read_only": 1
   },
   {
    "fieldname": "taxes_and_charges_added",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "IVA"
-  },
-  {
-   "fieldname": "taxes_and_charges_deducted",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "IVA Retenido"
+   "label": "IVA",
+   "read_only": 1
   },
   {
    "fieldname": "total_exempt",
    "fieldtype": "Currency",
-   "label": "Compras sin cr\u00e9dito fiscal"
+   "label": "Compras sin cr\u00e9dito fiscal",
+   "read_only": 1
   },
   {
    "fieldname": "debit_note_no",
    "fieldtype": "Data",
-   "label": "N/D"
+   "label": "N/D",
+   "read_only": 1
   },
   {
    "fieldname": "credit_note_no",
    "fieldtype": "Data",
-   "label": "N/C"
+   "label": "N/C",
+   "read_only": 1
   },
   {
    "fieldname": "affected_invoice_number",
    "fieldtype": "Data",
-   "label": "Factura Afectada"
+   "label": "Factura Afectada",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_amount_vat",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "IVA Retenido",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-23 15:10:30.025491",
+ "modified": "2025-10-16 17:38:27.730422",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher Item",

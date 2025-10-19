@@ -22,10 +22,17 @@ frappe.ui.form.on("Sales Invoice", {
     frm.set_df_property("voucher_image_islr", "read_only", true);
 
     // Mover esto a una funcion
-
     toggle_document_number_fields(frm);
     toggle_vat_withholding_fields(frm);
     toggle_islr_withholding_fields(frm);
+
+    // Mover esto a una funcion
+    frm.set_df_property("total_igtf", "hidden", !Boolean(frm.doc.total_igtf));
+    frm.set_df_property(
+      "base_amount_igtf",
+      "hidden",
+      !Boolean(frm.doc.base_amount_igtf)
+    );
   },
 
   refresh: function (frm) {
@@ -35,7 +42,6 @@ frappe.ui.form.on("Sales Invoice", {
     toggle_islr_withholding_fields(frm);
     reorganize_customer_fields(frm);
     print_button_pdf(frm);
-    set_sales_invoice_buttons(frm);
 
     // Mover esto a una funcion
 
@@ -217,11 +223,6 @@ frappe.ui.form.on("Sales Invoice", {
       }
     }
   },
-  before_save: function (frm) {
-    // Itera sobre la tabla hija de ítems
-    frm.doc.items.forEach(function (item) {});
-  },
-  // ---
 
   customer: function (frm) {
     toggle_vat_withholding_fields(frm);
@@ -249,14 +250,6 @@ function toggle_document_number_fields(frm) {
     is_debit_note || is_credit_note
   );
   frm.toggle_display(["bill_control"], true);
-}
-
-function set_sales_invoice_buttons(frm) {
-  if (frm.doc.docstatus == 0) {
-    frm.add_custom_button(__("Agregar concepto de ISLR"), function () {
-      set_islr_concept(frm);
-    });
-  }
 }
 
 function toggle_vat_withholding_fields(frm) {
@@ -308,6 +301,7 @@ function toggle_islr_withholding_fields(frm) {
     frm.toggle_display(fields_to_toggle, true);
   }
 }
+
 function reorganize_customer_fields(frm) {
   let grand_total_wrapper = frm.get_field("grand_total").$wrapper;
 
@@ -326,12 +320,10 @@ function print_button_pdf(frm) {
   const button_group_label =
     frm.doc.docstatus == 0 ? __("Preview") : __("View");
 
-  // Condición para evitar duplicados si la función refresh se llama varias veces
   if (!frm.custom_buttons["Generar PDF de Factura"]) {
     frm.add_custom_button(
       __("Generar PDF de Factura"),
       () => {
-        // Aquí llamamos a la función de generación del preview
         generate_custom_invoice_preview(frm);
       },
       button_group_label
@@ -343,9 +335,11 @@ function print_button_pdf(frm) {
 function format_currency(value, currency) {
   return frappe.format(value, { fieldtype: "Currency", currency: currency });
 }
+
 function formatDate(dateStr) {
   return frappe.datetime.str_to_user(dateStr);
 }
+
 async function get_address_text(address_name) {
   if (!address_name) {
     return "Dirección principal no configurada";
@@ -367,7 +361,7 @@ async function generate_custom_invoice_preview(frm) {
   let control_label = __("Nro. Control:");
   let control_number = doc.bill_control;
   let document_label = __("Nro. Factura:");
-  let document_number = doc.bill_no || doc.name;
+  let document_number = doc.bill_no || __("Nro. Factura no disponible");
 
   if (doc.is_return) {
     document_title = __("NOTA DE CRÉDITO");
@@ -402,10 +396,13 @@ async function generate_custom_invoice_preview(frm) {
         ).then((res) => res.text()),
       ]);
 
-    const customer_address =
+    let customer_address =
       customer_data.primary_address ||
       frm.doc.address_display ||
       "Dirección no disponible";
+
+    customer_address = cleanCountryName(customer_address);
+
     const company_logo_url = company_r.message.company_logo
       ? frappe.urllib.get_full_url(company_r.message.company_logo)
       : null;
@@ -647,4 +644,8 @@ function setup_void_button(frm) {
       __("Acciones")
     );
   }
+}
+
+function cleanCountryName(addressText) {
+  return addressText.replace("Venezuela, Bolivarian Republic of", "Venezuela");
 }

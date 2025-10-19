@@ -13,10 +13,14 @@ class ExcelBuilder:
     """
     Clase para construir el archivo de Excel en memoria con formato profesional.
     """
-    def __init__(self, title, columns, data, summary_data, company_data, from_date, to_date):
+    def __init__(self, title, columns, main_data, adjustment_data, summary_data, company_data, from_date, to_date):
         self.title = title
-        self.data = data
         self.columns = columns
+
+        # Separar los datos para las tablas
+        self.main_data = main_data
+        self.adjustment_data = adjustment_data
+
         self.summary_data = summary_data
         self.company_data = company_data
         self.from_date = from_date
@@ -82,7 +86,7 @@ class ExcelBuilder:
         # Período Fiscal
         self.sheet.cell(row=current_row, column=1, value=_("Período Fiscal:")).font = title_font
         current_row += 1
-        self.sheet.cell(row=current_row, column=1, value=f"{self.from_date.strftime('%d-%m-%Y')} - {self.to_date.strftime('%d-%m-%Y')}")
+        self.sheet.cell(row=current_row, column=1, value=f"{self.from_date.strftime('%d/%m/%Y')} - {self.to_date.strftime('%d/%m/%Y')}")
 
         return current_row + 2
 
@@ -96,8 +100,8 @@ class ExcelBuilder:
         header_levels = [
             # Nivel 2
             [
-                {"text": _("Ventas a Contribuyentes"), "start_col": 17, "span": 6},
-                {"text": _("Ventas a No Contribuyentes"), "start_col": 23, "span": 6},
+                {"text": _("Ventas a No Contribuyentes"), "start_col": 17, "span": 6},
+                {"text": _("Ventas a Contribuyentes"), "start_col": 23, "span": 6},
             ],
             # Nivel 3
             [
@@ -156,7 +160,7 @@ class ExcelBuilder:
         Escribe las filas de datos en la tabla principal y ajusta dinámicamente el ancho de las columnas.
         """
         current_row = start_row
-        column_widths = {get_column_letter(i + 1): self.sheet.column_dimensions[get_column_letter(i + 1)].width for i in range(len(self.columns))}
+        column_widths = {get_column_letter(i + 1): self.sheet.column_dimensions[get_column_letter(i + 1)].width or 10 for i in range(len(self.columns))}
 
         row_index = current_row + 1
         for row_data in self.data:
@@ -202,11 +206,12 @@ class ExcelBuilder:
         """
         Escribe la fila de totales al final de la tabla principal.
         """
+        totals = get_total_row(self.data)
         current_row_for_totals = self.sheet.max_row + 2
 
         for col_index, col in enumerate(self.columns, start=1):
             fieldname = col.get("fieldname")
-            cell_value = self.summary_data.get(fieldname)
+            cell_value = totals.get(fieldname)
 
             cell = self.sheet.cell(row=current_row_for_totals, column=col_index, value=cell_value)
             cell.font = self.header_font
@@ -230,12 +235,32 @@ class ExcelBuilder:
         Construye la tabla principal con todos los datos y encabezados,
         usando anchos compactos y SEPARANDO LA FILA DE TOTALES.
         """
-        # Construye los encabezados de varios niveles
+        self.data = self.main_data
+
         headers_last_row = self._build_multi_level_headers(start_row)
-        # Escribe las filas de datos
         data_last_row = self._write_data_rows(headers_last_row)
-        # Escribe la fila de totales
         self._write_totals_row(data_last_row)
+        return self.sheet.max_row
+
+    def _build_adjustments_table(self, start_row: int) -> int:
+        """Construye una tabla separada para las transacciones de ajuste."""
+        if not self.adjustment_data:
+            return start_row
+
+        current_row = start_row + 2
+
+        title_cell = self.sheet.cell(row=current_row,
+                                     column=1,
+                                     value=_("Ajustes de Períodos Anteriores (Retenciones)"))
+        title_cell.font = Font(size=12, bold=True)
+        current_row += 2
+
+        self.data = self.adjustment_data
+
+        headers_last_row = self._build_multi_level_headers(current_row)
+        data_last_row = self._write_data_rows(headers_last_row)
+        self._write_totals_row(data_last_row)
+
         return self.sheet.max_row
 
     def _build_summary_table(self, start_row):
@@ -322,6 +347,17 @@ class ExcelBuilder:
             "retencion": self.summary_data.get("iva_retained_reduced", 0)}
         ]
 
+        main_period_totals = get_total_row(self.main_data)
+        summary_data_rows[2]["retencion"] = main_period_totals.get("iva_retained_general", 0)
+        summary_data_rows[3]["retencion"] = main_period_totals.get("iva_retained_additional", 0)
+        summary_data_rows[4]["retencion"] = main_period_totals.get("iva_retained_reduced", 0)
+
+        if self.adjustment_data:
+            adjustment_totals = get_total_row(self.adjustment_data)
+            summary_data_rows.append({
+                "concepto": _("Ajuste de Retenciones de Períodos Anteriores"),
+                "base": 0, "iva": 0, "retencion": adjustment_totals.get("iva_retained", 0)})
+
         for i, row_data in enumerate(summary_data_rows):
             is_last_row = (i == len(summary_data_rows) - 1)
             bottom_border_style = thin_border_style if is_last_row else Side(style=None)
@@ -360,7 +396,7 @@ class ExcelBuilder:
 
         total_base = sum(row.get("base") for row in summary_data_rows)
         total_iva = sum(row.get("iva") for row in summary_data_rows)
-        total_retencion = self.summary_data.get("iva_retained", 0)
+        total_retencion = sum(row.get("retencion") for row in summary_data_rows)
 
         # Fila de totales del resumen
         total_cell = self.sheet.cell(row=current_row, column=summary_start_col, value=_("Totales"))
@@ -393,11 +429,16 @@ class ExcelBuilder:
         Construye el libro de Excel orquestando los métodos de construcción.
         """
         try:
+            # Restaurar los totales originales para la tabla de resumen principal
+            original_summary_data = self.summary_data
+
             last_row_header = self._add_report_header()
             last_row_main_table = self._build_main_table(last_row_header)
-            self._build_summary_table(last_row_main_table)
+            last_row_summary = self._build_summary_table(last_row_main_table)
+            self._build_adjustments_table(last_row_summary)
 
             file_stream = BytesIO()
+            self.summary_data = original_summary_data # Restaurar por si acaso
             self.workbook.save(file_stream)
             file_stream.seek(0)
             return file_stream
@@ -417,7 +458,7 @@ def create_excel_file(report_name, filters=None, **kwargs):
 
     try:
         columns = get_columns()
-        data = get_sales_data(filters)
+        main_data, adjustment_data = get_sales_data(filters)
 
         counter_column = {
             "label": "Nr Oper.",
@@ -425,13 +466,17 @@ def create_excel_file(report_name, filters=None, **kwargs):
             "width": 20
         }
         columns.insert(0, counter_column)
-        for i, row in enumerate(data):
+
+        # Numerar ambas listas de datos
+        all_data_for_numbering = main_data + adjustment_data
+        for i, row in enumerate(all_data_for_numbering):
             row["sequence_number"] = i + 1
 
-        if not data:
+        if not main_data and not adjustment_data:
             frappe.throw(_("No se encontraron datos para los filtros seleccionados."))
 
-        summary_data = get_total_row(data)
+        # El resumen principal se basa en la combinación de datos del período y ajustes
+        summary_data = get_total_row(main_data + adjustment_data)
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
         address_name = company_doc.get("custom_company_primary_address")
@@ -452,7 +497,8 @@ def create_excel_file(report_name, filters=None, **kwargs):
         builder = ExcelBuilder(
             title,
             columns,
-            data,
+            main_data,
+            adjustment_data,
             summary_data,
             company_data,
             from_date,
