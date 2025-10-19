@@ -31,11 +31,6 @@ class CustomSalesInvoice(SalesInvoice):
             frappe.throw(_("No se puede eliminar un documento que ha sido anulado."))
 
     def before_submit(self) -> None:
-        """
-        Llamado antes de que el documento sea enviado.
-        Asigna números de control
-        y de factura si no existen.
-        """
         super().before_submit()
         self.set_control_and_invoice_number()
         self.set_title_field()
@@ -44,7 +39,6 @@ class CustomSalesInvoice(SalesInvoice):
         super().validate()
 
         self.validate_withholding_voucher_number()
-        self.set_control_and_invoice_number()
         self.set_affected_invoice_number()
         self.validate_return_in_same_month()
 
@@ -64,10 +58,15 @@ class CustomSalesInvoice(SalesInvoice):
 
     def set_control_and_invoice_number(self) -> None:
 
+        company = frappe.get_doc('Company', self.company)
+
+        self.set_invoice_number(company)
+        self.set_control_number(company)
+
+    def set_invoice_number(self, company: Document) -> None:
+
         if self.bill_no or self.credit_note_no or self.debit_note_no:
             return
-
-        company = frappe.get_doc('Company', self.company)
 
         if self.is_return:
             self.credit_note_no = company.get_credit_note_number()
@@ -75,8 +74,6 @@ class CustomSalesInvoice(SalesInvoice):
             self.debit_note_no = None
             company.increment_credit_note_number()
 
-            self.bill_control = company.get_control_number()
-            company.increment_control_number()
 
         elif self.is_debit_note:
             self.debit_note_no = company.get_debit_note_number()
@@ -84,17 +81,19 @@ class CustomSalesInvoice(SalesInvoice):
             self.credit_note_no = None
             company.increment_debit_note_number()
 
-            self.bill_control = company.get_control_number()
-            company.increment_control_number()
-
         else:
             self.bill_no = company.get_invoice_number()
             self.credit_note_no = None
             self.debit_note_no = None
             company.increment_invoice_number()
 
-            self.bill_control = company.get_control_number()
-            company.increment_control_number()
+    def set_control_number(self, company: Document) -> None:
+
+        if self.bill_control:
+            return
+
+        self.bill_control = company.get_control_number()
+        company.increment_control_number()
 
     def set_affected_invoice_number(self) -> None:
         # Esta función se ejecutará solo para notas de crédito o débito

@@ -16,7 +16,7 @@ def set_l10n_ve_data() -> None:
         create_vat_withholding()
         create_sales_taxes_and_charges_template()
         set_title_field_on_purchase_invoice()
-        set_reference_currency_on_company()
+        set_mode_of_payments()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -270,7 +270,7 @@ def set_chart_of_accounts() -> None:
             },
             {
                 'account_name': 'Cuenta ISLR en ventas',
-                'account_number': '1.2.1.1.05',
+                'account_number': '1.2.1.1.06',
                 'company_field': 'sales_islr_account',
             },
             {
@@ -285,7 +285,7 @@ def set_chart_of_accounts() -> None:
             },
             {
                 'account_name': 'Cuenta IGTF en Compras',
-                'account_number': '2.1.2.2.06',
+                'account_number': '6.1.7.1.04',
                 'company_field': 'purchase_igtf_account',
             },
             {
@@ -494,22 +494,61 @@ def set_title_field_on_purchase_invoice() -> None:
                          'Error Estableciendo campo title_field en Purchase Invoice:')
 
 
-def set_reference_currency_on_company() -> None:
+def set_mode_of_payments() -> None:
 
-    print("Estableciendo campo reference_currency en Purchase Invoice")
+    print('Confgurando modos de pago')
 
     try:
 
-        for company in frappe.get_all('Company', pluck='name'):
+        mode_of_payments = [
+            {
+                'mode_of_payment': 'Tarjetas de credito',
+                'account_number': '2.1.1.2.01',
+            },
+            {
+                'mode_of_payment': 'Transferencia bancaria',
+                'account_number': '1.1.2.1.01',
+            },
+            {
+                'mode_of_payment': 'Giro bancario',
+                'account_number': '1.1.2.1.01',
+            },
+            {
+                'mode_of_payment': 'Efectivo',
+                'account_number': '1.1.1.1.01',
+            },
+            {
+                'mode_of_payment': 'Cheque',
+                'account_number': '1.1.2.1.01',
+            },
+        ]
 
-            frappe.db.set_value('Company',
-                                company,
-                                'reference_currency',
-                                'USD')
+        companies = frappe.db.get_all('Company', pluck='name')
 
-        print("Campo reference_currency establecido en las empresas")
+        for mode in mode_of_payments:
+            mode_of_payment = frappe.get_doc('Mode of Payment', mode['mode_of_payment'])
+
+            mode_of_payment.accounts = []
+
+            for company in companies:
+
+                default_account: str = frappe.db.get_value('Account',
+                                                            {
+                                                            'company': company,
+                                                            'account_number': mode['account_number']
+                                                            },
+                                                            'name')
+
+                print(f'Cuenta {default_account} cargada en el modo de pago {mode["mode_of_payment"]} para la compañía {company}')
+
+                mode_of_payment.append('accounts', {
+                    'company': company,
+                    'default_account': default_account,
+                })
+
+            mode_of_payment.save(ignore_permissions=True)
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error Estableciendo campo reference_currency: {e}")
+        print(f"Failure: Ocurrió un error configurando los modos de pago: {e}")
         frappe.log_error(frappe.get_traceback(),
-                         'Error Estableciendo campo reference_currency')
+                         'Error configurando los modos de pago:')
