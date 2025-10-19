@@ -14,6 +14,13 @@ from erpnext.controllers.accounts_controller import (
     validate_taxes_and_charges,
 )
 
+from erpnext.accounts.general_ledger import (
+    process_gl_map,
+    make_gl_entries,
+)
+
+from erpnext.accounts.utils import cancel_exchange_gain_loss_journal
+
 
 class CustomPaymentEntry(PaymentEntry):
 
@@ -67,6 +74,9 @@ class CustomPaymentEntry(PaymentEntry):
         self.paid_amount_after_tax = self.base_paid_amount
 
     def set_taxes_withholding(self) -> None:
+
+        if self.party_type != 'Supplier':
+            return
 
         documents_map = {}
 
@@ -151,6 +161,9 @@ class CustomPaymentEntry(PaymentEntry):
             total_tax_base = (total_base_for_concept * aliquot_info.percentage_base) / 100
             total_tax_amount = ((total_tax_base * aliquot_info.aliquot) / 100) - aliquot_info.subtracting
 
+            if total_tax_amount <= 0:
+                continue
+
             self.append("taxes", {
                 "charge_type": "ISLR",
                 "code": tabulator.codigo,
@@ -171,6 +184,9 @@ class CustomPaymentEntry(PaymentEntry):
                 individual_base = concept_detail['base_amount']
                 individual_tax_base = (individual_base * aliquot_info.percentage_base) / 100
                 individual_tax_amount = ((individual_tax_base * aliquot_info.aliquot) / 100) - aliquot_info.subtracting
+
+                if individual_tax_amount <= 0:
+                    continue
 
                 reference_doc.islr_amount = individual_tax_amount
                 reference_doc.islr_base_amount = individual_base
@@ -277,8 +293,21 @@ class CustomPaymentEntry(PaymentEntry):
                                     'base_amount_igtf': base_amount_igtf,
                                 })
 
-get_payment_entry_copy = get_payment_entry
+# --------------------------- GESTIÓN DE ASIENTOS --------------------------- #
 
+    def make_gl_entries(self, cancel=0, adv_adj=0) -> None:
+        gl_entries = self.build_gl_map()
+        gl_entries = process_gl_map(gl_entries, merge_entries=False)
+        make_gl_entries(gl_entries, cancel=cancel, adv_adj=adv_adj)
+        if cancel:
+            cancel_exchange_gain_loss_journal(frappe._dict(doctype=self.doctype, name=self.name))
+        else:
+            self.make_exchange_gain_loss_journal()
+
+        self.make_advance_gl_entries(cancel=cancel)
+
+
+get_payment_entry_copy = get_payment_entry
 @frappe.whitelist()
 def get_payment_entry(
     dt,

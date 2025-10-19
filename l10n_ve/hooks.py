@@ -195,9 +195,8 @@ override_doctype_class = {
 
 scheduler_events = {
     "cron": {
-        "03 8 * * *": ["l10n_ve.tasks.create_currency_exchange"],
-        "02 13 * * *": ["l10n_ve.tasks.create_currency_exchange"],
-        "00 18 * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "02 1 * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "18 1 * * *": ["l10n_ve.tasks.create_currency_exchange"],
     }
 
 # 	"all": [

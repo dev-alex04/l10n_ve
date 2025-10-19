@@ -16,7 +16,6 @@ def set_l10n_ve_data() -> None:
         create_vat_withholding()
         create_sales_taxes_and_charges_template()
         set_title_field_on_purchase_invoice()
-        set_reference_currency_on_company()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -270,7 +269,7 @@ def set_chart_of_accounts() -> None:
             },
             {
                 'account_name': 'Cuenta ISLR en ventas',
-                'account_number': '1.2.1.1.05',
+                'account_number': '1.2.1.1.06',
                 'company_field': 'sales_islr_account',
             },
             {
@@ -285,7 +284,7 @@ def set_chart_of_accounts() -> None:
             },
             {
                 'account_name': 'Cuenta IGTF en Compras',
-                'account_number': '2.1.2.2.06',
+                'account_number': '6.1.7.1.04 ',
                 'company_field': 'purchase_igtf_account',
             },
             {
@@ -492,24 +491,3 @@ def set_title_field_on_purchase_invoice() -> None:
         print(f"Failure: Ocurrió un error Estableciendo campo title_field en Purchase Invoice: {e}")
         frappe.log_error(frappe.get_traceback(),
                          'Error Estableciendo campo title_field en Purchase Invoice:')
-
-
-def set_reference_currency_on_company() -> None:
-
-    print("Estableciendo campo reference_currency en Purchase Invoice")
-
-    try:
-
-        for company in frappe.get_all('Company', pluck='name'):
-
-            frappe.db.set_value('Company',
-                                company,
-                                'reference_currency',
-                                'USD')
-
-        print("Campo reference_currency establecido en las empresas")
-
-    except Exception as e:
-        print(f"Failure: Ocurrió un error Estableciendo campo reference_currency: {e}")
-        frappe.log_error(frappe.get_traceback(),
-                         'Error Estableciendo campo reference_currency')
