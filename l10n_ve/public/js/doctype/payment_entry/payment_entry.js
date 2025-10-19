@@ -54,6 +54,10 @@ function reorganize_payment_entry_fields(frm) {
 
   paid_amount.insertAfter(received_amount);
   exchange_rate.insertAfter(paid_amount);
+
+  if (frm.doc.exchange_rate) {
+    frm.set_df_property("exchange_rate", "hidden", false);
+  }
 }
 
 async function set_custom_exchange_rate(frm) {
@@ -68,7 +72,6 @@ async function set_custom_exchange_rate(frm) {
   );
 
   if (frm.doc.default_company_currency != frm.doc.paid_on_currency) {
-    // --- LÓGICA DE MONEDA EXTRANJERA ---
     await set_current_exchange_rate(
       frm,
       "exchange_rate",
