@@ -127,10 +127,9 @@ def get_sales_data(filters):
 		reduced_rate = 8.0
 		additional_rate = 31.0
 
-	try:
+	igtf_rate = 0.0
+	if frappe.db.exists("DocType", "Venezuela Account Settings"):
 		igtf_rate = frappe.db.get_single_value("Venezuela Account Settings", "igtf_rate") or 0.0
-	except Exception:
-		igtf_rate = 0.0
 
 	# La consulta SQL es la parte principal de la optimización
 	query_base = f"""
