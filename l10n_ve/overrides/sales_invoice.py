@@ -405,7 +405,7 @@ class CustomSalesInvoice(SalesInvoice):
             if tax.is_tax_withholding_account
         ])
 
-    def make_tax_gl_entries(self, gl_entries):
+    def make_tax_gl_entries(self, gl_entries: list) -> None:
         enable_discount_accounting = cint(
             frappe.db.get_single_value("Selling Settings", "enable_discount_accounting")
         )
