@@ -1,5 +1,5 @@
 import frappe
-from frappe import _, _dict
+from frappe import _, _dict, cint
 from frappe.utils import flt
 from frappe.model.document import Document
 
@@ -9,6 +9,7 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 
 from l10n_ve.utils.utils import validate_return_in_same_month
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
+from l10n_ve.overrides.company import CustomCompany
 
 
 class CustomSalesInvoice(SalesInvoice):
@@ -63,7 +64,7 @@ class CustomSalesInvoice(SalesInvoice):
         self.set_invoice_number(company)
         self.set_control_number(company)
 
-    def set_invoice_number(self, company: Document) -> None:
+    def set_invoice_number(self, company: CustomCompany) -> None:
 
         if self.bill_no or self.credit_note_no or self.debit_note_no:
             return
@@ -87,7 +88,7 @@ class CustomSalesInvoice(SalesInvoice):
             self.debit_note_no = None
             company.increment_invoice_number()
 
-    def set_control_number(self, company: Document) -> None:
+    def set_control_number(self, company: CustomCompany) -> None:
 
         if self.bill_control:
             return
@@ -404,37 +405,42 @@ class CustomSalesInvoice(SalesInvoice):
             if tax.is_tax_withholding_account
         ])
 
-    def make_tax_gl_entries(self, gl_entries) -> None:
-
-        """
-        Override para solo hacer los asientos que NO sean de retenciones
-        """
+    def make_tax_gl_entries(self, gl_entries):
+        enable_discount_accounting = cint(
+            frappe.db.get_single_value("Selling Settings", "enable_discount_accounting")
+        )
 
         for tax in self.get("taxes"):
+            amount, base_amount = self.get_tax_amounts(tax, enable_discount_accounting)
 
-            if not tax.tax_amount:
-                continue
+            if flt(tax.base_tax_amount_after_discount_amount):
+                account_currency = get_account_currency(tax.account_head)
 
-            account_currency = get_account_currency(tax.account_head)
+                if tax.charge_type == 'VAT':
+                    debit_or_credit = 'credit'
+                else:
+                    debit_or_credit = 'debit'
 
-            if tax.charge_type == 'VAT':
-                debit_or_credit = 'credit'
-            else:
-                debit_or_credit = 'debit'
-
-
-            gl_entries.append(
-                self.get_gl_dict(
-                    {
-                        "against": self.customer,
-                        "account": tax.account_head,
-                        "cost_center": tax.cost_center,
-                        debit_or_credit: flt(tax.tax_amount),
-                        f"{debit_or_credit}_in_account_currency": tax.tax_amount,
-                    },
-                    account_currency,
-                    item=tax,
-                ))
+                gl_entries.append(
+                    self.get_gl_dict(
+                        {
+                            "account": tax.account_head,
+                            "against": self.customer,
+                            debit_or_credit: flt(base_amount, tax.precision("tax_amount_after_discount_amount")),
+                            f"{debit_or_credit}_in_account_currency": (
+                                flt(base_amount, tax.precision("base_tax_amount_after_discount_amount"))
+                                if account_currency == self.company_currency
+                                else flt(amount, tax.precision("tax_amount_after_discount_amount"))
+                            ),
+                            f"{debit_or_credit}_in_transaction_currency": flt(
+                                amount, tax.precision("tax_amount_after_discount_amount")
+                            ),
+                            "cost_center": tax.cost_center,
+                        },
+                        account_currency,
+                        item=tax,
+                    )
+                )
 
     def validate_withholding_voucher_number(self) -> None:
         if self.vat_withholding_voucher_number:
