@@ -315,48 +315,51 @@ class ExcelBuilder:
 
         # Configuración declarativa para las filas del resumen
         summary_data_rows = [
-            {"concepto": _("De las Ventas Internas NO Gravadas"),
-             "base": self.summary_data.get("total_exempt", 0),
-             "iva": 0,
-             "retencion": 0
-             },
-            {"concepto": _("Ventas de exportación"),
-             "base": 0,
-             "iva": 0,
-             "retencion": 0},
-
-            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota General"),
-            "base": self.summary_data.get("base_general_taxpayer", 0)
-            + self.summary_data.get("base_general_non_taxpayer", 0),
-            "iva": self.summary_data.get("iva_general_taxpayer", 0)
-            + self.summary_data.get("iva_general_non_taxpayer", 0),
-            "retencion": self.summary_data.get("iva_retained_general", 0)},
-
-            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota General + Adicional"),
-            "base": self.summary_data.get("base_additional_taxpayer", 0)
-            + self.summary_data.get("base_additional_non_taxpayer", 0),
-            "iva": self.summary_data.get("iva_additional_taxpayer", 0)
-            + self.summary_data.get("iva_additional_non_taxpayer", 0),
-            "retencion": self.summary_data.get("iva_retained_additional", 0)},
-
-            {"concepto": _("De las Ventas Internas Solo Afecta Alicuota Reducida"),
-            "base": self.summary_data.get("base_reduced_taxpayer", 0)
-            + self.summary_data.get("base_reduced_non_taxpayer", 0),
-            "iva": self.summary_data.get("iva_reduced_taxpayer", 0)
-            + self.summary_data.get("iva_reduced_non_taxpayer", 0),
-            "retencion": self.summary_data.get("iva_retained_reduced", 0)}
+            {
+                "concepto": _("De las Ventas Internas NO Gravadas"),
+                "base": self.summary_data.get("total_exempt", 0),
+                "iva": 0,
+                "retencion": 0
+            },
+            {
+                "concepto": _("Ventas de exportación"),
+                "base": 0, "iva": 0, "retencion": 0
+            },
+            {
+                "concepto": _("De las Ventas Internas Solo Afecta Alicuota General"),
+                "base": self.summary_data.get("base_general_taxpayer", 0)
+                + self.summary_data.get("base_general_non_taxpayer", 0),
+                "iva": self.summary_data.get("iva_general_taxpayer", 0) 
+                + self.summary_data.get("iva_general_non_taxpayer", 0),
+                "retencion": self.summary_data.get("iva_retained_general", 0)
+            },
+            {
+                "concepto": _("De las Ventas Internas Solo Afecta Alicuota General + Adicional"),
+                "base": self.summary_data.get("base_additional_taxpayer", 0) 
+                + self.summary_data.get("base_additional_non_taxpayer", 0),
+                "iva": self.summary_data.get("iva_additional_taxpayer", 0) 
+                + self.summary_data.get("iva_additional_non_taxpayer", 0),
+                "retencion": self.summary_data.get("iva_retained_additional", 0)
+            },
+            {
+                "concepto": _("De las Ventas Internas Solo Afecta Alicuota Reducida"),
+                "base": self.summary_data.get("base_reduced_taxpayer", 0) 
+                + self.summary_data.get("base_reduced_non_taxpayer", 0),
+                "iva": self.summary_data.get("iva_reduced_taxpayer", 0) 
+                + self.summary_data.get("iva_reduced_non_taxpayer", 0),
+                "retencion": self.summary_data.get("iva_retained_reduced", 0)
+            }
         ]
-
-        main_period_totals = get_total_row(self.main_data)
-        summary_data_rows[2]["retencion"] = main_period_totals.get("iva_retained_general", 0)
-        summary_data_rows[3]["retencion"] = main_period_totals.get("iva_retained_additional", 0)
-        summary_data_rows[4]["retencion"] = main_period_totals.get("iva_retained_reduced", 0)
 
         if self.adjustment_data:
             adjustment_totals = get_total_row(self.adjustment_data)
             summary_data_rows.append({
                 "concepto": _("Ajuste de Retenciones de Períodos Anteriores"),
-                "base": 0, "iva": 0, "retencion": adjustment_totals.get("iva_retained", 0)})
+                "base": 0, "iva": 0,
+                "retencion": adjustment_totals.get("iva_retained_general", 0) 
+                + adjustment_totals.get("iva_retained_additional", 0) 
+                + adjustment_totals.get("iva_retained_reduced", 0)
+            })
 
         for i, row_data in enumerate(summary_data_rows):
             is_last_row = (i == len(summary_data_rows) - 1)
@@ -365,6 +368,7 @@ class ExcelBuilder:
             concept_cell = self.sheet.cell(row=summary_row_index,
                                            column=summary_start_col,
                                            value=row_data.get("concepto"))
+            
             concept_cell.font = self.default_font
             concept_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             concept_cell.border = Border(left=thin_border_style, bottom=bottom_border_style)
@@ -386,6 +390,7 @@ class ExcelBuilder:
             retention_cell = self.sheet.cell(row=summary_row_index,
                                              column=summary_start_col + 7,
                                              value=row_data.get("retencion"))
+            
             retention_cell.font = self.default_font
             retention_cell.number_format = self.numeric_format
             retention_cell.border = Border(right=thin_border_style, bottom=bottom_border_style)
@@ -475,8 +480,8 @@ def create_excel_file(report_name, filters=None, **kwargs):
         if not main_data and not adjustment_data:
             frappe.throw(_("No se encontraron datos para los filtros seleccionados."))
 
-        # El resumen principal se basa en la combinación de datos del período y ajustes
-        summary_data = get_total_row(main_data + adjustment_data)
+        # El resumen principal se basa ÚNICAMENTE en los datos del período. Los ajustes se manejan por separado.
+        summary_data = get_total_row(main_data)
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
         address_name = company_doc.get("custom_company_primary_address")

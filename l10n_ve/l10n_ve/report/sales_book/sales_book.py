@@ -41,18 +41,29 @@ def execute(filters=None):
     """
     columns = get_columns()
     main_data, adjustment_data = get_sales_data(filters)
-
+ 
     data = main_data + adjustment_data
-    totals = get_total_row(data)
-
+ 
+    # Calcular totales por separado para no contaminar los montos del período actual
+    main_totals = get_total_row(main_data)
+    adjustment_totals = get_total_row(adjustment_data)
+ 
+    # Los totales finales son los del período principal
+    final_totals = main_totals.copy()
+ 
+    # ...más la retención de los ajustes.
+    final_totals["iva_retained"] += adjustment_totals.get("iva_retained", 0)
+    final_totals["iva_retained_general"] += adjustment_totals.get("iva_retained_general", 0)
+    final_totals["iva_retained_reduced"] += adjustment_totals.get("iva_retained_reduced", 0)
+    final_totals["iva_retained_additional"] += adjustment_totals.get("iva_retained_additional", 0)
+ 
     if data:
         for i, row in enumerate(data):
             row["sequence_number"] = i + 1
-
-    total_row_for_report = totals.copy()
-    data.append(total_row_for_report)
-
-    report_summary = get_report_summary(totals)
+ 
+    data.append(final_totals)
+ 
+    report_summary = get_report_summary(final_totals)
     return columns, data, None, None, report_summary
 
 def get_columns():
