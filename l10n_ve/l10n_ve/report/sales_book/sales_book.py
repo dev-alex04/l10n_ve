@@ -53,9 +53,6 @@ def execute(filters=None):
  
     # ...más la retención de los ajustes.
     final_totals["iva_retained"] += adjustment_totals.get("iva_retained", 0)
-    final_totals["iva_retained_general"] += adjustment_totals.get("iva_retained_general", 0)
-    final_totals["iva_retained_reduced"] += adjustment_totals.get("iva_retained_reduced", 0)
-    final_totals["iva_retained_additional"] += adjustment_totals.get("iva_retained_additional", 0)
  
     if data:
         for i, row in enumerate(data):

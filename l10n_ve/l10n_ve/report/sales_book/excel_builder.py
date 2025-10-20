@@ -356,9 +356,7 @@ class ExcelBuilder:
             summary_data_rows.append({
                 "concepto": _("Ajuste de Retenciones de Períodos Anteriores"),
                 "base": 0, "iva": 0,
-                "retencion": adjustment_totals.get("iva_retained_general", 0) 
-                + adjustment_totals.get("iva_retained_additional", 0) 
-                + adjustment_totals.get("iva_retained_reduced", 0)
+                "retencion": adjustment_totals.get("iva_retained", 0)
             })
 
         for i, row_data in enumerate(summary_data_rows):
@@ -372,7 +370,7 @@ class ExcelBuilder:
             concept_cell.font = self.default_font
             concept_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             concept_cell.border = Border(left=thin_border_style, bottom=bottom_border_style)
-            self.sheet.merge_cells(
+            self.sheet.merge_cells( 
                 start_row=summary_row_index, start_column=summary_start_col,
                 end_row=summary_row_index, end_column=summary_start_col + 4
             )
