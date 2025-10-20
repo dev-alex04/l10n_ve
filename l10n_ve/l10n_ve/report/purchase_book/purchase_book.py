@@ -198,20 +198,21 @@ def get_query_data(filters):
             tPI.is_return as tipo,
             tPI.bill_no as bill_no,
             tPI.bill_control as bill_control,
-            (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.grand_total * tPI.conversion_rate ELSE tPI.grand_total END) as grand_total,
-            (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.total_exempt * tPI.conversion_rate ELSE tPI.total_exempt END) as total_exempt,
+            tPI.grand_total * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) as grand_total,
+            tPI.total_exempt * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) as total_exempt,
             tPI.credit_note_no,
             tPI.debit_note_no,
             tPI.affected_invoice_number, tPI.total_igtf,
             DATE_FORMAT(tPI.bill_date, '%%d/%%m/%%Y') AS bill_date,
 
-            (CASE WHEN tPI.currency != %(company_currency)s THEN SUM(CASE WHEN T5.rate = 8 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) * tPI.conversion_rate ELSE SUM(CASE WHEN T5.rate = 8 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) END) as base_reducida,
-            (CASE WHEN tPI.currency != %(company_currency)s THEN SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) * tPI.conversion_rate ELSE SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) END) as impuesto_reducida,
-            (CASE WHEN tPI.currency != %(company_currency)s THEN SUM(CASE WHEN T5.rate = 16 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) * tPI.conversion_rate ELSE SUM(CASE WHEN T5.rate = 16 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) END) as base_general,
-            (CASE WHEN tPI.currency != %(company_currency)s THEN SUM(CASE WHEN T5.rate = 16 THEN T5.tax_amount ELSE 0 END) * tPI.conversion_rate ELSE SUM(CASE WHEN T5.rate = 16 THEN T5.tax_amount ELSE 0 END) END) as impuesto_general,
-            (CASE WHEN tPI.currency != %(company_currency)s THEN SUM(CASE WHEN T5.rate = 31 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) * tPI.conversion_rate ELSE SUM(CASE WHEN T5.rate = 31 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) END) as base_adicional,
-            (CASE WHEN tPI.currency != %(company_currency)s THEN SUM(CASE WHEN T5.rate = 31 THEN T5.tax_amount ELSE 0 END) * tPI.conversion_rate ELSE SUM(CASE WHEN T5.rate = 31 THEN T5.tax_amount ELSE 0 END) END) as impuesto_adicional,
-            (CASE WHEN tPI.currency != %(company_currency)s THEN SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) * tPI.conversion_rate ELSE SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) END) as taxes_and_charges_deducted,
+            SUM(CASE WHEN T5.rate = 8 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) as base_reducida,
+            SUM(CASE WHEN T5.rate = 8 THEN T5.tax_amount ELSE 0 END) * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) as impuesto_reducida,
+            SUM(CASE WHEN T5.rate = 16 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) as base_general,
+            SUM(CASE WHEN T5.rate = 16 THEN T5.tax_amount ELSE 0 END) * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) as impuesto_general,
+            SUM(CASE WHEN T5.rate = 31 THEN (tPI.total-tPI.total_exempt) ELSE 0 END) * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) as base_adicional,
+            SUM(CASE WHEN T5.rate = 31 THEN T5.tax_amount ELSE 0 END) * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) as impuesto_adicional,
+            SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) as taxes_and_charges_deducted,
+            
             MAX(T2.voucher_number) AS nro_comprobante_retencion,
             DATE_FORMAT(MAX(T2.delivery_date), '%%d/%%m/%%Y') AS fecha_entrega,
             MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
@@ -235,7 +236,7 @@ def get_query_data(filters):
                 ELSE 'No'
             END) AS islr_retention_applied,
 
-            (CASE WHEN tPI.currency != %(company_currency)s THEN (tPI.total - tPI.total_exempt) * tPI.conversion_rate ELSE (tPI.total - tPI.total_exempt) END) AS taxable_base
+            (tPI.total - tPI.total_exempt) * (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) AS taxable_base
         FROM
             `tabPurchase Invoice` as tPI
         LEFT JOIN
