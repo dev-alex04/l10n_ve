@@ -1365,5 +1365,53 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Payment Entry",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "apply_tax_withholding_amount",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Payment Entry-apply_tax_withholding_amount-hidden",
+        "property": "hidden",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Payment Entry",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "purchase_taxes_and_charges_template",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Payment Entry-purchase_taxes_and_charges_template-hidden",
+        "property": "hidden",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+    },
+    {
+        "default_value": 1,
+        "doc_type": "Payment Entry",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "sales_taxes_and_charges_template",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Payment Entry-sales_taxes_and_charges_template-hidden",
+        "property": "hidden",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
     }
 ]

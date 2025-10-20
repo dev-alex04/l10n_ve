@@ -6,6 +6,9 @@ frappe.ui.form.on("Payment Entry", {
   },
   onload: function (frm) {
     reorganize_payment_entry_fields(frm);
+    if (frm.is_new()) {
+        set_custom_exchange_rate(frm);
+    }
   },
 
   refresh: function (frm) {
@@ -15,7 +18,6 @@ frappe.ui.form.on("Payment Entry", {
   paid_on_currency: function (frm) {
     set_custom_exchange_rate(frm);
   },
-  paid_currency_amount: function (frm) {},
 
   party_type: function (frm) {
     set_payment_entry_buttons(frm);
@@ -81,18 +83,25 @@ async function set_custom_exchange_rate(frm) {
 
     const paid_currency_amount = outstanding_amount / frm.doc.exchange_rate;
 
-    frm.set_value("paid_currency_amount", paid_currency_amount);
+    if (flt(frm.doc.paid_currency_amount) !== flt(paid_currency_amount)) {
+        frm.set_value("paid_currency_amount", paid_currency_amount);
+    }
 
-    frm.set_df_property("paid_currency_amount", "description", "");
+    frm.set_df_property("paid_currency_amount", "description", "Incluye IGTF");
     frm.set_df_property("exchange_rate", "hidden", false);
 
-    set_igtf(frm);
+    await set_igtf(frm);
   } else {
-    frm.set_value("paid_currency_amount", outstanding_amount);
+
+      if (flt(frm.doc.paid_currency_amount) !== flt(outstanding_amount)) {
+        frm.set_value("paid_currency_amount", outstanding_amount);
+    }
+
     frm.set_df_property("exchange_rate", "hidden", true);
     frm.set_value("exchange_rate", 1);
+    frm.set_df_property("paid_currency_amount", "description", "");
 
-    set_igtf(frm);
+    await set_igtf(frm);
   }
 }
 
