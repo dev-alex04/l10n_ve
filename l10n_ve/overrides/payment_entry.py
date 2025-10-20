@@ -306,6 +306,10 @@ class CustomPaymentEntry(PaymentEntry):
 
         self.make_advance_gl_entries(cancel=cancel)
 
+    def set_transaction_currency_and_rate(self) -> None:
+        self.transaction_currency = self.paid_on_currency
+        self.transaction_exchange_rate = self.exchange_rate
+
 
 get_payment_entry_copy = get_payment_entry
 @frappe.whitelist()
@@ -350,12 +354,14 @@ def get_payment_entry(
       [igtf_account_field, 'default_currency'],
       as_dict=True)
 
+    doc = frappe.get_doc(dt, dn)
+
     payment_entry.paid_currency_amount = payment_entry.paid_amount
 
     payment_entry.igtf_rate = igtf_rate
     payment_entry.igtf_account = company_data.get(igtf_account_field)
 
-    payment_entry.paid_on_currency = company_data.default_currency
+    payment_entry.paid_on_currency = doc.get('currency', company_data.default_currency)
     payment_entry.default_company_currency = company_data.default_currency
 
     return payment_entry
