@@ -52,7 +52,7 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
           })
           .then((r) => {
             if (r.message) {
-              frm.set_value("voucher_number", r.message);
+              frm.set_value("voucher_number", r.message.voucher_number);
             }
           });
       }

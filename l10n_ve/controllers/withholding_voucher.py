@@ -2,8 +2,9 @@ import frappe
 from frappe.utils import nowdate, getdate
 from l10n_ve.utils.utils import get_company_address, get_supplier_address
 
+
 class WithholdingVoucher():
-    def validate_address(self):
+    def validate_address(self) -> None:
         error_messages = []
 
         company_address = get_company_address(self.empresa)
@@ -33,9 +34,10 @@ class WithholdingVoucher():
             frappe.throw(final_error_message)
 
     @frappe.whitelist()
-    def get_withholding_correlative(self, company_name, voucher_type):
+    def get_withholding_correlative(self, company_name, voucher_type) -> dict:
+
         if not company_name:
-            return None
+            return {}
 
         company_doc = frappe.get_doc("Company", company_name)
 
@@ -48,16 +50,18 @@ class WithholdingVoucher():
         final_voucher_number, _, year, month = (
             self._get_and_format_correlatives(
                 correlative_format,
-                current_correlative
-            )
-         )
+                current_correlative))
+
         return {
             "voucher_number": final_voucher_number,
             "year": year,
             "month": month
         }
 
-    def _get_and_format_correlatives(self, correlative_format, current_correlative_value):
+    def _get_and_format_correlatives(self,
+                                     correlative_format: str,
+                                     current_correlative_value):
+
         today = getdate(nowdate())
         current_year = str(today.year)
         current_month = f"{today.month:02d}"

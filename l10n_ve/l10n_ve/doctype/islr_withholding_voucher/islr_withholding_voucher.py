@@ -7,12 +7,13 @@ from frappe.utils import nowdate, getdate
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 from l10n_ve.utils.utils import format_amounts
 
+
 class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
-    def validate(self):
+    def validate(self) -> None:
         self.validate_address()
 
-    def before_print(self, settings):
+    def before_print(self, settings) -> None:
         company_tax_id = frappe.db.get_value("Company", self.empresa, "tax_id")
         supplier_tax_id = frappe.db.get_value("Supplier", self.supplier, "tax_id")
 
@@ -35,20 +36,24 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
         self.supplier_tax_id = supplier_tax_id or "N/A"
         format_amounts(self, main_fields, child_fields, child_table_field="islr_withholding_voucher_item")
 
-    def before_insert(self):
+    def before_insert(self) -> None:
         company_doc = frappe.get_doc("Company", self.empresa)
         correlative_format = company_doc.islr_withholding_format
 
-        final_voucher_number, final_next_correlative_number = \
-            self._get_and_format_correlatives(correlative_format, company_doc.islr_withholding_correlative)
+        final_voucher_number, final_next_correlative_number, \
+            current_year, current_month = \
+            self._get_and_format_correlatives(correlative_format,
+                                              company_doc.islr_withholding_correlative)
 
         self.voucher_number = final_voucher_number
+        final_next_correlative_number = final_next_correlative_number
+
         self.posting_date = nowdate()
 
         company_doc.islr_withholding_correlative = final_next_correlative_number
         company_doc.save(ignore_permissions=True)
 
-    def on_trash(self):
+    def on_trash(self) -> None:
         document_date = self.posting_date
         current_date = getdate(nowdate())
 
