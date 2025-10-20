@@ -526,6 +526,10 @@ def set_mode_of_payments() -> None:
         companies = frappe.db.get_all('Company', pluck='name')
 
         for mode in mode_of_payments:
+
+            if not bool(frappe.db.exists('Mode of Payment', mode['mode_of_payment'])):
+                continue
+
             mode_of_payment = frappe.get_doc('Mode of Payment', mode['mode_of_payment'])
 
             mode_of_payment.accounts = []
@@ -534,8 +538,8 @@ def set_mode_of_payments() -> None:
 
                 default_account: str = frappe.db.get_value('Account',
                                                             {
-                                                            'company': company,
-                                                            'account_number': mode['account_number']
+                                                                'company': company,
+                                                                'account_number': mode['account_number']
                                                             },
                                                             'name')
 
