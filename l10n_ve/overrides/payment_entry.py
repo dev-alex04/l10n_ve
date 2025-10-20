@@ -347,7 +347,7 @@ def get_payment_entry(
     company_data: _dict = frappe.db.get_value(
       "Company",
       payment_entry.company,
-      [igtf_account_field, 'default_currency', 'reference_currency'],
+      [igtf_account_field, 'default_currency'],
       as_dict=True)
 
     payment_entry.paid_currency_amount = payment_entry.paid_amount
@@ -356,7 +356,6 @@ def get_payment_entry(
     payment_entry.igtf_account = company_data.get(igtf_account_field)
 
     payment_entry.paid_on_currency = company_data.default_currency
-    payment_entry.reference_currency = company_data.reference_currency
     payment_entry.default_company_currency = company_data.default_currency
 
     return payment_entry
