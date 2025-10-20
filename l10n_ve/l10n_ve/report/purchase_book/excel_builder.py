@@ -331,6 +331,7 @@ class ExcelBuilder:
                 withholding_voucher['grand_total'] = 0.0
                 withholding_voucher['bill_control'] = ''
                 withholding_voucher['base_general'] = 0.0
+                withholding_voucher['total_exempt'] = 0.0
                 withholding_voucher['base_reducida'] = 0.0
                 withholding_voucher['base_adicional'] = 0.0
                 withholding_voucher['impuesto_general'] = 0.0

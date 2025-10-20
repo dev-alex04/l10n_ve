@@ -121,6 +121,8 @@ def get_sales_data(filters):
 	"""
 	Obtiene los datos del reporte ejecutando una consulta SQL optimizada.
 	"""
+	company_currency = frappe.db.get_value("Company", filters.get("company"), "default_currency")
+
 	try:
 		tax_rates_doc = frappe.get_doc("Taxes Rates", "Taxes Rates")
 		general_rate = tax_rates_doc.get("general_rate") or 16.0
@@ -161,30 +163,30 @@ def get_sales_data(filters):
 				ELSE 'N/A'
 			END AS customer_type,
 
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total END) AS grand_total,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total END) AS total,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_exempt END) AS total_exempt,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.base_amount_igtf END) AS base_amount_igtf,
-            (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf,
+            (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS grand_total,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS total,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_exempt * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS total_exempt,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.base_amount_igtf END) AS base_amount_igtf, 
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf, 
 
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_general_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_general_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_reduced_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_reduced_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_additional_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_additional_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_general_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_general_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_reduced_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_reduced_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_additional_non_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_additional_non_taxpayer,
 
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_general_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_general_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_reduced_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_reduced_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) END) AS base_additional_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) END) AS iva_additional_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_general_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_general_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_reduced_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_reduced_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_additional_taxpayer,
+			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_additional_taxpayer,
 
 			CASE
                 WHEN siv.is_void = 1 THEN 0
                 WHEN siv.vat_withholding_voucher_number IS NOT NULL AND siv.vat_withholding_voucher_number != ''
-                THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END)
+                THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END)
                 ELSE 0
             END AS iva_retained,
             CASE
@@ -252,7 +254,8 @@ def get_sales_data(filters):
 		"to_date": filters.get("to_date"),
 		"general_rate": general_rate,
 		"reduced_rate": reduced_rate,
-		"additional_rate": additional_rate
+		"additional_rate": additional_rate,
+		"company_currency": company_currency
 
 	}
 
