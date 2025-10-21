@@ -1461,5 +1461,20 @@
         "property_type": "Data",
         "row_name": null,
         "value": "Total con Impuestos"
+    },
+    {
+        "doc_type": "UOM",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "field_name": null,
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "UOM-translated_doctype",
+        "property": "translated_doctype",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
     }
 ]

@@ -41,26 +41,17 @@ def execute(filters=None):
     """
     columns = get_columns()
     main_data, adjustment_data = get_sales_data(filters)
- 
+
     data = main_data + adjustment_data
- 
-    # Calcular totales por separado para no contaminar los montos del período actual
-    main_totals = get_total_row(main_data)
-    adjustment_totals = get_total_row(adjustment_data)
- 
-    # Los totales finales son los del período principal
-    final_totals = main_totals.copy()
- 
-    # ...más la retención de los ajustes.
-    final_totals["iva_retained"] += adjustment_totals.get("iva_retained", 0)
- 
+
     if data:
         for i, row in enumerate(data):
             row["sequence_number"] = i + 1
- 
-    data.append(final_totals)
- 
-    report_summary = get_report_summary(final_totals)
+
+    # Calcular totales y resumen usando solo los datos del período principal
+    main_totals = get_total_row(main_data)
+
+    report_summary = get_report_summary(main_totals)
     return columns, data, None, None, report_summary
 
 def get_columns():
@@ -142,7 +133,34 @@ def get_sales_data(filters):
 		igtf_rate = frappe.db.get_single_value("Venezuela Account Settings", "igtf_rate") or 0.0
 
 	# La consulta SQL es la parte principal de la optimización
-	query_base = f"""
+	query_base = """
+        WITH InvoiceData AS (
+            SELECT
+                siv.name,
+                siv.posting_date,
+                siv.customer,
+                siv.customer_name,
+                siv.bill_no,
+                siv.bill_control,
+                siv.credit_note_no,
+                siv.debit_note_no,
+                siv.affected_invoice_number,
+                siv.vat_withholding_voucher_number,
+                siv.withholding_date,
+                siv.is_void,
+                siv.is_return,
+                siv.is_debit_note,
+                (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) AS conversion_rate,
+                (CASE WHEN siv.is_void = 1 THEN 0 ELSE (siv.total - siv.total_exempt) END) as taxable_base,
+                (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total END) AS grand_total,
+                (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_exempt END) AS total_exempt,
+                (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.base_amount_igtf END) AS base_amount_igtf,
+                (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf
+            FROM `tabSales Invoice` siv
+            WHERE siv.company = %(company)s
+              AND (siv.docstatus = 1 OR (siv.docstatus = 2 AND siv.is_void = 1))
+              AND {conditions_placeholder}
+        )
         SELECT
 			DATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,
 			tc.tax_id AS customer_tax_id,
@@ -154,7 +172,6 @@ def get_sales_data(filters):
 			siv.affected_invoice_number,
 			siv.vat_withholding_voucher_number,
 			DATE_FORMAT(siv.withholding_date, '%%d/%%m/%%Y') AS withholding_date,
-
 			CASE
 			    WHEN tc.type_of_person = 'Domiciled legal entity' THEN 'PJD'
                 WHEN tc.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
@@ -162,55 +179,43 @@ def get_sales_data(filters):
                 WHEN tc.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
 				ELSE 'N/A'
 			END AS customer_type,
+            siv.grand_total * siv.conversion_rate AS grand_total,
+			siv.total_exempt * siv.conversion_rate AS total_exempt,
+			siv.base_amount_igtf,
+			siv.total_igtf,
 
-            (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS grand_total,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS total,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_exempt * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS total_exempt,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.base_amount_igtf END) AS base_amount_igtf, 
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf, 
+			SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN siv.taxable_base ELSE 0 END) * siv.conversion_rate AS base_general_non_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) * siv.conversion_rate AS iva_general_non_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN siv.taxable_base ELSE 0 END) * siv.conversion_rate AS base_reduced_non_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) * siv.conversion_rate AS iva_reduced_non_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN siv.taxable_base ELSE 0 END) * siv.conversion_rate AS base_additional_non_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) * siv.conversion_rate AS iva_additional_non_taxpayer,
 
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_general_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_general_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_reduced_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_reduced_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_additional_non_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_additional_non_taxpayer,
-
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_general_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_general_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_reduced_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_reduced_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN (siv.total - siv.total_exempt) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS base_additional_taxpayer,
-			(CASE WHEN siv.is_void = 1 THEN 0 ELSE SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) END) AS iva_additional_taxpayer,
-
+			SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN siv.taxable_base ELSE 0 END) * siv.conversion_rate AS base_general_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) * siv.conversion_rate AS iva_general_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN siv.taxable_base ELSE 0 END) * siv.conversion_rate AS base_reduced_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) * siv.conversion_rate AS iva_reduced_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN siv.taxable_base ELSE 0 END) * siv.conversion_rate AS base_additional_taxpayer,
+			SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) * siv.conversion_rate AS iva_additional_taxpayer,
 			CASE
                 WHEN siv.is_void = 1 THEN 0
-                WHEN siv.vat_withholding_voucher_number IS NOT NULL AND siv.vat_withholding_voucher_number != ''
-                THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END) * (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END)
-                ELSE 0
+                ELSE MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END) * siv.conversion_rate
             END AS iva_retained,
             CASE
                 WHEN siv.is_void = 1 THEN 0
-                WHEN siv.vat_withholding_voucher_number IS NOT NULL AND siv.vat_withholding_voucher_number != ''
-                THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END)
-                ELSE 0
+                ELSE MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END)
             END AS vat_withholding_rate
-
 		FROM
-			`tabSales Invoice` siv
+			InvoiceData siv
 		LEFT JOIN
 			`tabCustomer` tc ON tc.name = siv.customer
 		LEFT JOIN
 			`tabSales Taxes and Charges` tstac ON tstac.parent = siv.name
-		WHERE siv.company = %(company)s
-        AND (siv.docstatus = 1 OR (siv.docstatus = 2 AND siv.is_void = 1))
     """
 
 	# --- Datos del período principal ---
-	main_conditions = "AND siv.posting_date BETWEEN %(from_date)s AND %(to_date)s"
-	main_query = f"""
-        {query_base}
-        {main_conditions}
+	main_conditions = "siv.posting_date BETWEEN %(from_date)s AND %(to_date)s"
+	main_query = query_base.replace("{conditions_placeholder}", main_conditions) + """
         GROUP BY
 			siv.name
 		ORDER BY
@@ -218,7 +223,7 @@ def get_sales_data(filters):
     """
 	# Reemplazar transaction_type en la consulta principal
 	main_query = main_query.replace(
-        "SELECT",
+        "SELECT\n\t\t\tDATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,",
         """SELECT
             CASE
 				WHEN siv.is_void = 1 THEN '03-Anu'
@@ -230,12 +235,10 @@ def get_sales_data(filters):
 
 	# --- Datos de ajuste de períodos anteriores ---
 	adjustment_conditions = """
-        AND siv.posting_date < %(from_date)s
+        siv.posting_date < %(from_date)s
         AND siv.withholding_date BETWEEN %(from_date)s AND %(to_date)s
     """
-	adjustment_query = f"""
-        {query_base}
-        {adjustment_conditions}
+	adjustment_query = query_base.replace("{conditions_placeholder}", adjustment_conditions) + """
         GROUP BY
 			siv.name
 		ORDER BY
@@ -243,7 +246,7 @@ def get_sales_data(filters):
     """
 	# Forzar transaction_type a '04-Ajus' para los ajustes
 	adjustment_query = adjustment_query.replace(
-        "SELECT",
+        "SELECT\n\t\t\tDATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,",
         "SELECT '04-Ajus' AS transaction_type,", 1
     )
 
