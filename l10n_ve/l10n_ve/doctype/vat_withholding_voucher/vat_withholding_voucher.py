@@ -126,19 +126,16 @@ def get_valid_invoices(supplier, start_date, end_date, company):
 
         vat_details = vat_map.get(item.name, {})
         conversion_rate = item.conversion_rate
+        rate = 1
         
-        if default_currency != item.currency:
-            grand_total = item.grand_total * conversion_rate
-            total = item.total * conversion_rate
-            total_exempt = item.total_exempt * conversion_rate
-            taxes_and_charges_added = item.taxes_and_charges_added * conversion_rate
-            tax_amount_vat = item.tax_amount_vat * conversion_rate
-        else:
-            grand_total = item.grand_total
-            total = item.total
-            total_exempt = item.total_exempt
-            taxes_and_charges_added = item.taxes_and_charges_added
-            tax_amount_vat = item.tax_amount_vat
+        if default_currency != item.currency and conversion_rate:
+            rate = conversion_rate
+
+        grand_total = (item.grand_total or 0) * rate
+        total = (item.total or 0) * rate
+        total_exempt = (item.total_exempt or 0) * rate
+        taxes_and_charges_added = (item.taxes_and_charges_added or 0) * rate
+        tax_amount_vat = (item.tax_amount_vat or 0) * rate
 
         invoice_data = {
             "purchase_invoice": item.name,

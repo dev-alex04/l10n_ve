@@ -177,11 +177,12 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         payment_entry_name = islr_details.get("payment_entry_name")
         paid_amount = paid_amount_map.get(payment_entry_name, 0)
         conversion_rate = item.conversion_rate
+        rate = 1
         
-        if default_currency != item.currency:
-            grand_total = item.grand_total * conversion_rate
-        else:
-            grand_total = item.grand_total
+        if default_currency != item.currency and conversion_rate:
+            rate = conversion_rate
+
+        grand_total = (item.grand_total or 0) * rate
 
         invoice_data = {
             "purchase_invoice": item.name,
