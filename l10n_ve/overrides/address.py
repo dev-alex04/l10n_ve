@@ -1,5 +1,4 @@
 import frappe
-from frappe import _
 from frappe.contacts.doctype.address.address import Address
 
 class CustomAddress(Address):
