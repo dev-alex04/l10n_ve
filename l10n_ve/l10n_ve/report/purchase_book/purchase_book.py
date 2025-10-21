@@ -244,8 +244,24 @@ def get_query_data(filters):
 
             MAX(T2.voucher_number) AS nro_comprobante_retencion,
             DATE_FORMAT(MAX(T2.delivery_date), '%%d/%%m/%%Y') AS fecha_entrega,
-            MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
-
+            MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret
+            MAX(CASE
+                WHEN T4.type_of_person = 'Domiciled legal entity' THEN 'PJD'
+                WHEN T4.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
+                WHEN T4.type_of_person = 'Natural person domiciled' THEN 'PND'
+                WHEN T4.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
+                ELSE 'N/A'
+            END) AS supplier_type,
+            MAX(CASE
+                WHEN siv.docstatus = 2 THEN '03-Anu'
+                WHEN siv.is_return = 1 THEN '02-Comp'
+                WHEN siv.is_debit_note = 1 THEN '02-Comp'
+                ELSE '01-Reg'
+            END) AS transaction_type,
+            MAX(CASE
+                WHEN tPER.islr_concept IS NOT NULL AND tPER.islr_concept != '' THEN 'Sí'
+                ELSE 'No'
+            END) AS islr_retention_applied,
             (siv.taxable_base) * siv.conversion_rate AS taxable_base
         FROM
             InvoiceData as siv
@@ -275,35 +291,6 @@ def get_query_data(filters):
     values['year'] = from_date_obj.year
 
     data = frappe.db.sql(query, values, as_dict=True)
-
-    # Post-procesamiento para campos que no se pueden agregar en el GROUP BY principal
-    for row in data:
-        # Obtener datos del proveedor una vez por factura
-        supplier_info = frappe.db.get_value("Supplier", row['supplier_name'], ["type_of_person"], as_dict=True)
-        if supplier_info:
-            person_type = supplier_info.get('type_of_person')
-            if person_type == 'Domiciled legal entity': row['supplier_type'] = 'PJD'
-            elif person_type == 'Non-domiciled legal entity': row['supplier_type'] = 'PJND'
-            elif person_type == 'Natural person domiciled': row['supplier_type'] = 'PND'
-            elif person_type == 'Non-domiciled natural person': row['supplier_type'] = 'PNND'
-            else: row['supplier_type'] = 'N/A'
-        else:
-            row['supplier_type'] = 'N/A'
-
-
-        docstatus = frappe.db.get_value("Purchase Invoice", row['nro_factura'], "docstatus")
-        if docstatus == 2: row['transaction_type'] = '03-Anu'
-        elif row['tipo']: row['transaction_type'] = '02-Comp'
-        elif frappe.db.get_value("Purchase Invoice", row['nro_factura'], "is_debit_note"): row['transaction_type'] = '02-Comp'
-        else: row['transaction_type'] = '01-Reg'
-
-        # Verificar si se aplicó retención de ISLR
-        islr_applied = frappe.db.exists("Payment Entry Reference", {
-            "reference_name": row['nro_factura'],
-            "reference_doctype": "Purchase Invoice",
-            "islr_concept": ["!=", ""]
-        })
-        row['islr_retention_applied'] = 'Sí' if islr_applied else 'No'
 
     return data
 
