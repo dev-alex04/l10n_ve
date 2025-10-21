@@ -70,6 +70,7 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
 @frappe.whitelist()
 def get_valid_invoices(supplier, start_date, end_date, company):
+    default_currency = frappe.db.get_value('Company', company, 'default_currency')
     type_of_person = frappe.db.get_value("Supplier", supplier, "type_of_person")
 
     if not type_of_person:
@@ -94,7 +95,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             {"name": ["not in", all_excluded_invoices]},
         ],
         fields=["name", "bill_no", "bill_control", "posting_date", "grand_total",
-            "total", "affected_invoice_number"
+            "total", "affected_invoice_number", "conversion_rate", "currency"
         ]
     )
 
@@ -175,6 +176,12 @@ def get_valid_invoices(supplier, start_date, end_date, company):
 
         payment_entry_name = islr_details.get("payment_entry_name")
         paid_amount = paid_amount_map.get(payment_entry_name, 0)
+        conversion_rate = item.conversion_rate
+        
+        if default_currency != item.currency:
+            grand_total = item.grand_total * conversion_rate
+        else:
+            grand_total = item.grand_total
 
         invoice_data = {
             "purchase_invoice": item.name,
@@ -187,7 +194,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             "islr_amount": abs(islr_details.get("islr_amount", 0)),
             "code": islr_details.get("code", ""),
             "islr_base_amount": abs(islr_details.get("islr_base_amount", 0)),
-            "grand_total": abs(item.grand_total),
+            "grand_total": abs(grand_total),
             "total": abs(item.total),
             "affected_invoice_number": item.affected_invoice_number,
             "paid_amount": abs(paid_amount),

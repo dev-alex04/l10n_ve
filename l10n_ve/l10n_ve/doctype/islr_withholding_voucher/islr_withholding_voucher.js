@@ -21,9 +21,7 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
             if (r.message) {
               printWindow.document.write(r.message);
               printWindow.document.close();
-              setTimeout(function() {
-                  printWindow.print();
-              }, 100);
+              printWindow.print();
 
               if (printWindow.document.readyState === 'complete') {
                   printWindow.onload();
