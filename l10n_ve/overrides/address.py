@@ -12,9 +12,10 @@ class CustomAddress(Address):
             "Customer": "customer_primary_address",
         }
 
-        if self.links and len(self.links) > 0:
-            link_row = self.links[0]
+        if not self.links:
+            return
 
+        for link_row in self.links:
             try:
                 link_doctype = link_row.link_doctype
                 link_name = link_row.link_name
@@ -22,16 +23,14 @@ class CustomAddress(Address):
                 if link_doctype in primary_address_field and link_name:
                     link_field_name = primary_address_field[link_doctype]
 
-                    company_doc = frappe.get_doc(link_doctype, link_name)
-                    current_primary = company_doc.get(link_field_name)
+                    linked_doc = frappe.get_doc(link_doctype, link_name)
 
-                    if not current_primary or current_primary == self.name:
-                        company_doc.set(link_field_name, self.name)
-                        company_doc.save(ignore_permissions=True, ignore_version=True)
+                    if not linked_doc.get(link_field_name):
+                        linked_doc.set(link_field_name, self.name)
+                        linked_doc.save(ignore_permissions=True, ignore_version=True)
 
-            except AttributeError:
+            except (AttributeError, frappe.DoesNotExistError) as e:
                 frappe.log_error(
-                    f"La fila de vínculo no tiene los atributos link_doctype o link_name. Fila: {link_row.as_dict()}",
+                    message=f"Error al procesar el vínculo de la dirección: {link_row.as_dict()}. Error: {e}",
+                    title="Error al actualizar la dirección principal"
                 )
-        else:
-            frappe.log_error(f"La dirección {self.name} no está vinculada a ninguna entidad.", "Dirección Principal: Sin Vínculos")
