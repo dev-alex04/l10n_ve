@@ -72,6 +72,7 @@ def get_invoiced_purchase_invoices():
 
 @frappe.whitelist()
 def get_valid_invoices(supplier, start_date, end_date, company):
+    default_currency = frappe.db.get_value('Company', company, 'default_currency')
 
     excluded_from_withholding = frappe.get_all(
         "VAT Withholding Voucher Item",
@@ -93,7 +94,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         fields=[
             "name", "bill_no", "bill_control", "posting_date", "grand_total",
             "total_exempt", "is_return", "is_debit_note", "total",
-            "taxes_and_charges_added",
+            "taxes_and_charges_added", "conversion_rate", "currency",
             "credit_note_no", "debit_note_no", "affected_invoice_number",
             "`tabPurchase Taxes and Charges`.rate as tax_rate",
             "`tabPurchase Taxes and Charges`.tax_amount as tax_amount_vat",
@@ -124,23 +125,34 @@ def get_valid_invoices(supplier, start_date, end_date, company):
             continue
 
         vat_details = vat_map.get(item.name, {})
+        conversion_rate = item.conversion_rate
+        rate = 1
+        
+        if default_currency != item.currency and conversion_rate:
+            rate = conversion_rate
+
+        grand_total = (item.grand_total or 0) * rate
+        total = (item.total or 0) * rate
+        total_exempt = (item.total_exempt or 0) * rate
+        taxes_and_charges_added = (item.taxes_and_charges_added or 0) * rate
+        tax_amount_vat = (item.tax_amount_vat or 0) * rate
 
         invoice_data = {
             "purchase_invoice": item.name,
             "bill_no": item.bill_no,
             "bill_control": item.bill_control,
             "posting_date": item.posting_date,
-            "grand_total": abs(item.grand_total),
-            "total": abs(item.total),
-            "total_exempt": abs(item.total_exempt),
-            "taxes_and_charges_added": abs(item.taxes_and_charges_added),
+            "grand_total": abs(grand_total),
+            "total": abs(total),
+            "total_exempt": abs(total_exempt),
+            "taxes_and_charges_added": abs(taxes_and_charges_added),
             "credit_note_no": item.credit_note_no,
             "debit_note_no": item.debit_note_no,
             "affected_invoice_number": item.affected_invoice_number,
             "is_return": item.is_return,
             "is_debit_note": item.is_debit_note,
             "rate": vat_details.get("rate", 0),
-            "tax_amount_vat": abs(item.tax_amount_vat),
+            "tax_amount_vat": abs(tax_amount_vat),
         }
         invoices_with_taxes.append(invoice_data)
         processed_invoices.add(item.name)
