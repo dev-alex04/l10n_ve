@@ -1,0 +1,78 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-10-22 11:57:27.369890",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "country",
+  "capital",
+  "column_break_psqo",
+  "state",
+  "municipaly"
+ ],
+ "fields": [
+  {
+   "fieldname": "country",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Country",
+   "options": "Country",
+   "reqd": 1
+  },
+  {
+   "fieldname": "municipaly",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Municipaly",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_psqo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "State",
+   "options": "VE State",
+   "reqd": 1
+  },
+  {
+   "fieldname": "capital",
+   "fieldtype": "Data",
+   "label": "Capital"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-10-22 17:20:37.921846",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VE Municipaly",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "municipaly",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "municipaly"
+}
