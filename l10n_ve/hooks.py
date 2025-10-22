@@ -72,6 +72,9 @@ doctype_js = {
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/purchase_invoice/purchase_invoice.js",
     ],
+    "Address": [
+        "public/js/doctype/address/address.js",
+    ],
 }
 
 doctype_list_js = {
