@@ -329,35 +329,27 @@ class ExcelBuilder:
                 "concepto": _("De las Ventas Internas Solo Afecta Alicuota General"),
                 "base": self.summary_data.get("base_general_taxpayer", 0)
                 + self.summary_data.get("base_general_non_taxpayer", 0),
-                "iva": self.summary_data.get("iva_general_taxpayer", 0) 
+                "iva": self.summary_data.get("iva_general_taxpayer", 0)
                 + self.summary_data.get("iva_general_non_taxpayer", 0),
                 "retencion": self.summary_data.get("iva_retained_general", 0)
             },
             {
                 "concepto": _("De las Ventas Internas Solo Afecta Alicuota General + Adicional"),
-                "base": self.summary_data.get("base_additional_taxpayer", 0) 
+                "base": self.summary_data.get("base_additional_taxpayer", 0)
                 + self.summary_data.get("base_additional_non_taxpayer", 0),
-                "iva": self.summary_data.get("iva_additional_taxpayer", 0) 
+                "iva": self.summary_data.get("iva_additional_taxpayer", 0)
                 + self.summary_data.get("iva_additional_non_taxpayer", 0),
                 "retencion": self.summary_data.get("iva_retained_additional", 0)
             },
             {
                 "concepto": _("De las Ventas Internas Solo Afecta Alicuota Reducida"),
-                "base": self.summary_data.get("base_reduced_taxpayer", 0) 
+                "base": self.summary_data.get("base_reduced_taxpayer", 0)
                 + self.summary_data.get("base_reduced_non_taxpayer", 0),
-                "iva": self.summary_data.get("iva_reduced_taxpayer", 0) 
+                "iva": self.summary_data.get("iva_reduced_taxpayer", 0)
                 + self.summary_data.get("iva_reduced_non_taxpayer", 0),
                 "retencion": self.summary_data.get("iva_retained_reduced", 0)
             }
         ]
-
-        if self.adjustment_data:
-            adjustment_totals = get_total_row(self.adjustment_data)
-            summary_data_rows.append({
-                "concepto": _("Ajuste de Retenciones de Períodos Anteriores"),
-                "base": 0, "iva": 0,
-                "retencion": adjustment_totals.get("iva_retained", 0)
-            })
 
         for i, row_data in enumerate(summary_data_rows):
             is_last_row = (i == len(summary_data_rows) - 1)
@@ -366,11 +358,11 @@ class ExcelBuilder:
             concept_cell = self.sheet.cell(row=summary_row_index,
                                            column=summary_start_col,
                                            value=row_data.get("concepto"))
-            
+
             concept_cell.font = self.default_font
             concept_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             concept_cell.border = Border(left=thin_border_style, bottom=bottom_border_style)
-            self.sheet.merge_cells( 
+            self.sheet.merge_cells(
                 start_row=summary_row_index, start_column=summary_start_col,
                 end_row=summary_row_index, end_column=summary_start_col + 4
             )
@@ -388,7 +380,7 @@ class ExcelBuilder:
             retention_cell = self.sheet.cell(row=summary_row_index,
                                              column=summary_start_col + 7,
                                              value=row_data.get("retencion"))
-            
+
             retention_cell.font = self.default_font
             retention_cell.number_format = self.numeric_format
             retention_cell.border = Border(right=thin_border_style, bottom=bottom_border_style)
