@@ -58,10 +58,13 @@ def get_columns() -> list[dict]:
 
 def get_query_data(filters: dict) -> list[dict]:
 
-    query: str = get_query(filters)
+    from_date: str
+    to_date:str
+    from_date, to_date = _get_date_range_from_filters(filters)
+    filters["date_from"] = from_date
+    filters["to_date"] = to_date
 
-    to_date: str = filters.get("to_date")
-    from_date: str = filters.get("date_from")
+    query: str = get_query(filters)
 
     # Asegurarse de que from_date sea un objeto de fecha
     from_date_obj = getdate(from_date)
@@ -147,28 +150,28 @@ def get_query(filters: dict) -> str:
             WHERE 1=1 {{conditions}}
         )
         SELECT
-            siv.name as nro_factura,
-            siv.posting_date as posting_date,
+            piv.name as nro_factura,
+            piv.posting_date as posting_date,
             T4.tax_id as tax_id,
-            siv.supplier_name as supplier_name,
-            siv.is_return as tipo,
-            siv.bill_no as bill_no,
-            siv.bill_control as bill_control,
-            siv.grand_total * siv.conversion_rate as grand_total,
-            siv.total_exempt * siv.conversion_rate as total_exempt,
-            siv.credit_note_no,
-            siv.debit_note_no,
-            siv.affected_invoice_number,
-            siv.total_igtf,
-            DATE_FORMAT(siv.bill_date, '%%d/%%m/%%Y') AS bill_date,
+            piv.supplier_name as supplier_name,
+            piv.is_return as tipo,
+            piv.bill_no as bill_no,
+            piv.bill_control as bill_control,
+            piv.grand_total * piv.conversion_rate as grand_total,
+            piv.total_exempt * piv.conversion_rate as total_exempt,
+            piv.credit_note_no,
+            piv.debit_note_no,
+            piv.affected_invoice_number,
+            piv.total_igtf,
+            DATE_FORMAT(piv.bill_date, '%%d/%%m/%%Y') AS bill_date,
 
-            SUM(CASE WHEN T5.rate = {reduced_rate} THEN siv.taxable_base ELSE 0 END) * siv.conversion_rate as base_reducida,
-            SUM(CASE WHEN T5.rate = {reduced_rate} THEN T5.tax_amount ELSE 0 END) * siv.conversion_rate as impuesto_reducida,
-            SUM(CASE WHEN T5.rate = {general_rate} THEN siv.taxable_base ELSE 0 END) * siv.conversion_rate as base_general,
-            SUM(CASE WHEN T5.rate = {general_rate} THEN T5.tax_amount ELSE 0 END) * siv.conversion_rate as impuesto_general,
-            SUM(CASE WHEN T5.rate = {additional_rate} THEN siv.taxable_base ELSE 0 END) * siv.conversion_rate as base_adicional,
-            SUM(CASE WHEN T5.rate = {additional_rate} THEN T5.tax_amount ELSE 0 END) * siv.conversion_rate as impuesto_adicional,
-            SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) * siv.conversion_rate as taxes_and_charges_deducted,
+            SUM(CASE WHEN T5.rate = {reduced_rate} THEN piv.taxable_base ELSE 0 END) * piv.conversion_rate as base_reducida,
+            SUM(CASE WHEN T5.rate = {reduced_rate} THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as impuesto_reducida,
+            SUM(CASE WHEN T5.rate = {general_rate} THEN piv.taxable_base ELSE 0 END) * piv.conversion_rate as base_general,
+            SUM(CASE WHEN T5.rate = {general_rate} THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as impuesto_general,
+            SUM(CASE WHEN T5.rate = {additional_rate} THEN piv.taxable_base ELSE 0 END) * piv.conversion_rate as base_adicional,
+            SUM(CASE WHEN T5.rate = {additional_rate} THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as impuesto_adicional,
+            SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as taxes_and_charges_deducted,
 
             MAX(T2.voucher_number) AS nro_comprobante_retencion,
             DATE_FORMAT(MAX(T2.delivery_date), '%%d/%%m/%%Y') AS fecha_entrega,
@@ -182,36 +185,36 @@ def get_query(filters: dict) -> str:
                 ELSE 'N/A'
             END) AS supplier_type,
             MAX(CASE
-                WHEN siv.docstatus = 2 THEN '03-Anu'
-                WHEN siv.is_return = 1 THEN '02-Comp'
-                WHEN siv.is_debit_note = 1 THEN '02-Comp'
+                WHEN piv.docstatus = 2 THEN '03-Anu'
+                WHEN piv.is_return = 1 THEN '02-Comp'
+                WHEN piv.is_debit_note = 1 THEN '02-Comp'
                 ELSE '01-Reg'
             END) AS transaction_type,
             MAX(CASE
                 WHEN tPER.islr_concept IS NOT NULL AND tPER.islr_concept != '' THEN 'Sí'
                 ELSE 'No'
             END) AS islr_retention_applied,
-            (siv.taxable_base) * siv.conversion_rate AS taxable_base
+            (piv.taxable_base) * piv.conversion_rate AS taxable_base
         FROM
-            InvoiceData as siv
+            InvoiceData as piv
         LEFT JOIN
             `tabPurchase Taxes and Charges` as T5
-            ON T5.parent = siv.name
+            ON T5.parent = piv.name
         LEFT JOIN
             `tabVAT Withholding Voucher Item` as T3
-            ON T3.purchase_invoice = siv.name
+            ON T3.purchase_invoice = piv.name
         LEFT JOIN
             `tabVAT Withholding Voucher` as T2
             ON T3.parent = T2.name
         LEFT JOIN
             `tabSupplier` as T4
-            ON T4.name = siv.supplier
+            ON T4.name = piv.supplier
         LEFT JOIN
             `tabPayment Entry Reference` as tPER
-            ON tPER.reference_name = siv.name AND tPER.reference_doctype = 'Purchase Invoice'
+            ON tPER.reference_name = piv.name AND tPER.reference_doctype = 'Purchase Invoice'
 
-        GROUP BY siv.name
-        ORDER BY siv.bill_date ASC
+        GROUP BY piv.name
+        ORDER BY piv.bill_date ASC
     """
     query = query.replace("{conditions}", conditions)
 

@@ -1461,7 +1461,8 @@
         "property_type": "Data",
         "row_name": null,
         "value": "Total con Impuestos"
-    },{
+    },
+    {
         "default_value": "Descripción de dirección",
         "doc_type": "Address",
         "docstatus": 0,
