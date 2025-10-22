@@ -32,12 +32,12 @@ frappe.ui.form.on("Company", {
 
   nature_of_the_taxpayer: function (frm) {
     set_person_type_filter(frm);
-    sync_taxpayer_fields(frm, "nature_of_the_taxpayer");
+    sync_taxpayer_fields(frm, "nature_of_the_taxpayer", true);
     build_rif(frm);
   },
 
   type_of_person: function (frm) {
-    sync_taxpayer_fields(frm, "type_of_person");
+    sync_taxpayer_fields(frm, "type_of_person", true);
   },
 
   tax_id: function (frm) {

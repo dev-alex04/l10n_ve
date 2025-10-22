@@ -3,13 +3,13 @@ from frappe import _
 
 from erpnext.setup.doctype.company.company import Company
 
-from l10n_ve.utils.utils import validate_rif_format, validate_taxpayer_and_person_type_consistency
+from l10n_ve.utils.utils import validate_tax_id_format, validate_taxpayer_and_person_type_consistency
 
 class CustomCompany(Company):
 
     def validate(self):
         super().validate()
-        validate_rif_format(self)
+        validate_tax_id_format(self)
         validate_taxpayer_and_person_type_consistency(self)
 
     def get_invoice_number(self) -> str:
@@ -78,9 +78,9 @@ class CustomCompany(Company):
         return number_format.replace('#' * num_placeholders, formatted_number)
 
     def before_save(self):
-        
+
         if not self.vat_withholding_format:
-        
+
             self.vat_withholding_format = "##############"
 
         if not self.vat_withholding_correlative:
