@@ -6,7 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "country",
-  "municipaly",
+  "municipality",
   "column_break_gdqp",
   "state",
   "parish"
@@ -18,14 +18,6 @@
    "in_list_view": 1,
    "label": "Country",
    "options": "Country",
-   "reqd": 1
-  },
-  {
-   "fieldname": "municipaly",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Municipaly",
-   "options": "VE Municipaly",
    "reqd": 1
   },
   {
@@ -46,12 +38,20 @@
    "in_list_view": 1,
    "label": "Parish",
    "reqd": 1
+  },
+  {
+   "fieldname": "municipality",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Municipality",
+   "options": "VE Municipality",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-22 16:56:38.777484",
+ "modified": "2025-10-22 17:59:19.339395",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Parish",

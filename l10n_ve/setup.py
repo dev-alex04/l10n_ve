@@ -561,11 +561,11 @@ def set_mode_of_payments() -> None:
 
 def load_venezuela_data():
     STATE_DOCTYPE = "VE State"
-    MUNICIPALY_DOCTYPE = "VE Municipaly"
+    MUNICIPALITY_DOCTYPE = "VE Municipality"
     PARISH_DOCTYPE = "VE Parish"
     CITY_DOCTYPE = "VE City"
 
-    COUNTRY_ID = "Venezuela, Bolivarian Republic of "
+    COUNTRY_ID = "Venezuela, Bolivarian Republic of"
     JSON_FILE_PATH = frappe.get_app_path("l10n_ve", "resources", "venezuela.json")
 
     print("Iniciando la carga de datos regionales de Venezuela...")
@@ -625,40 +625,40 @@ def load_venezuela_data():
                 ve_state_name = state_doc.name
                 print(f"-> Creado Estado: {state_doc.state}")
 
-            frappe.db.commit()
+            # frappe.db.commit()
 
-            for municipaly_data in state_data.get("municipios", []):
-                municipaly_name_from_json = municipaly_data.get("municipio")
-                ve_municipaly_name = None
+            for municipality_data in state_data.get("municipios", []):
+                municipality_name_from_json = municipality_data.get("municipio")
+                ve_municipality_name = None
 
-                municipaly_filters = {
-                    "municipaly": municipaly_name_from_json,
+                municipality_filters = {
+                    "municipality": municipality_name_from_json,
                     "state": ve_state_name,
                     "country": country_name
                 }
 
-                existing_municipaly_name = frappe.db.get_value(
-                    MUNICIPALY_DOCTYPE,
-                    municipaly_filters,
+                existing_municipality_name = frappe.db.get_value(
+                    MUNICIPALITY_DOCTYPE,
+                    municipality_filters,
                     "name"
                 )
 
-                if existing_municipaly_name:
-                    ve_municipaly_name = existing_municipaly_name
+                if existing_municipality_name:
+                    ve_municipality_name = existing_municipality_name
                 else:
-                    municipaly_doc = frappe.new_doc(MUNICIPALY_DOCTYPE)
-                    municipaly_doc.state = ve_state_name
-                    municipaly_doc.country = country_name
-                    municipaly_doc.municipaly = municipaly_name_from_json
-                    municipaly_doc.capital = municipaly_data.get("capital")
-                    municipaly_doc.insert(ignore_permissions=True, ignore_mandatory=True)
-                    ve_municipaly_name = municipaly_doc.name
+                    municipality_doc = frappe.new_doc(MUNICIPALITY_DOCTYPE)
+                    municipality_doc.state = ve_state_name
+                    municipality_doc.country = country_name
+                    municipality_doc.municipality = municipality_name_from_json
+                    municipality_doc.capital = municipality_data.get("capital")
+                    municipality_doc.insert(ignore_permissions=True, ignore_mandatory=True)
+                    ve_municipality_name = municipality_doc.name
 
-                for parish_name in municipaly_data.get("parroquias", []):
+                for parish_name in municipality_data.get("parroquias", []):
 
                     parish_filters = {
                         "parish": parish_name,
-                        "municipaly": ve_municipaly_name,
+                        "municipality": ve_municipality_name,
                         "country": country_name
                     }
 
@@ -666,13 +666,13 @@ def load_venezuela_data():
                         continue
 
                     parish_doc = frappe.new_doc(PARISH_DOCTYPE)
-                    parish_doc.municipaly = ve_municipaly_name
+                    parish_doc.municipality = ve_municipality_name
                     parish_doc.state = ve_state_name
                     parish_doc.country = country_name
                     parish_doc.parish = parish_name
                     parish_doc.insert(ignore_permissions=True, ignore_mandatory=True)
 
-                frappe.db.commit()
+                # frappe.db.commit()
 
             for city_name in state_data.get("ciudades", []):
 
@@ -691,7 +691,7 @@ def load_venezuela_data():
                 city_doc.city = city_name
                 city_doc.insert(ignore_permissions=True, ignore_mandatory=True)
 
-            frappe.db.commit()
+            # frappe.db.commit()
 
         frappe.db.commit()
         print("\nSuccess: Proceso de carga de datos regionales completado.")

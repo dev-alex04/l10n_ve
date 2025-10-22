@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class VEMunicipaly(Document):
+class VEMunicipality(Document):
 	pass

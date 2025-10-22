@@ -11,7 +11,7 @@ frappe.ui.form.on('VE Parish', {
             };
         });
 
-        frm.set_query('municipaly', function() {
+        frm.set_query('municipality', function() {
             return {
                 filters: {
                     'state': frm.doc.state
@@ -22,10 +22,10 @@ frappe.ui.form.on('VE Parish', {
 
     country: function(frm) {
         frm.set_value('state', null);
-        frm.set_value('municipaly', null);
+        frm.set_value('municipality', null);
     },
 
     state: function(frm) {
-        frm.set_value('municipaly', null);
+        frm.set_value('municipality', null);
     }
 });
