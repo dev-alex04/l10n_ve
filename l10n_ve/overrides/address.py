@@ -12,7 +12,7 @@ class CustomAddress(Address):
         super().save(*args, **kwargs)
         self.update_primary_address()
 
-    def update_primary_address(self):
+    def update_primary_address(self) -> None:
         primary_address_field = {
             "Company": "custom_company_primary_address",
             "Supplier": "supplier_primary_address",
@@ -42,7 +42,7 @@ class CustomAddress(Address):
                     title="Error al actualizar la dirección principal"
                 )
 
-    def validate_phone_format(self):
+    def validate_phone_format(self) -> None:
         phone = self.phone
 
         if phone:

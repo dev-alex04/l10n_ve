@@ -1487,7 +1487,7 @@
         "field_name": "address_title",
         "is_system_generated": 0,
         "modified": "2025-09-12 10:00:00",
-        "module": "L10N Ve",
+        "module": "l10n_ve",
         "name": "Address-address_title-reqd",
         "property": "reqd",
         "property_type": "Check",

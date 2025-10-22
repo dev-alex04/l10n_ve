@@ -18,5 +18,33 @@ frappe.ui.form.on('Address', {
                 frm.set_value('phone', clean_phone);
             }
         }
+    },
+
+    before_save: function(frm) {
+        validate_phone(frm);
     }
 });
+
+function validate_phone(frm) {
+    let phone = frm.doc.phone;
+
+    if (phone) {
+        let clean_phone = phone.replace(/[^0-9]/g, '');
+
+        if (clean_phone !== phone) {
+            frappe.throw({
+                message: __("El campo Teléfono solo puede contener números (0-9)."),
+                title: __("Error de Validación de Teléfono"),
+                field: 'phone'
+            });
+        }
+
+        if (clean_phone.length !== 11) {
+            frappe.throw({
+                message: __("El número de teléfono debe tener exactamente 11 dígitos."),
+                title: __("Error de Validación de Teléfono"),
+                field: 'phone'
+            });
+        }
+    }
+}
