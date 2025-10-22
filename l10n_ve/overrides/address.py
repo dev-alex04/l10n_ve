@@ -1,8 +1,15 @@
+import re
 import frappe
+from frappe import _
 from frappe.contacts.doctype.address.address import Address
 
 class CustomAddress(Address):
-    def on_update(self):
+    def validate(self):
+        super().validate()
+        self.validate_phone_format()
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
         self.update_primary_address()
 
     def update_primary_address(self):
@@ -34,3 +41,13 @@ class CustomAddress(Address):
                     message=f"Error al procesar el vínculo de la dirección: {link_row.as_dict()}. Error: {e}",
                     title="Error al actualizar la dirección principal"
                 )
+
+    def validate_phone_format(self):
+        phone = self.phone
+
+        if phone:
+            if not re.match(r'^[0-9]+$', phone):
+                frappe.throw(_("El campo Teléfono solo puede contener números (0-9)."))
+
+            if len(phone) != 11:
+                frappe.throw(_("El número de teléfono debe tener exactamente 11 dígitos."))
