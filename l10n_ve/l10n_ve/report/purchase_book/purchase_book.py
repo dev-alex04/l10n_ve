@@ -5,11 +5,11 @@ from frappe import _
 from frappe.utils import flt, getdate
 
 import calendar
-from datetime import date
 import base64
+from datetime import date
 
-from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
+from xml.etree.ElementTree import Element, SubElement, tostring
 
 
 def execute(filters=None):
@@ -87,10 +87,11 @@ def get_query_data(filters: dict) -> list[dict]:
 
     return data
 
+
 def get_query(filters: dict) -> str:
 
-    from_date = filters.get("date_from")
-    to_date = filters.get("to_date")
+    from_date:str = filters.get("date_from")
+    to_date: str = filters.get("to_date")
 
     if filters.get("fiscal_year") and filters.get("fiscal_month"):
         try:
@@ -216,6 +217,7 @@ def get_query(filters: dict) -> str:
 
     return query
 
+
 def get_totals_from_data(data: list[dict]) -> dict:
     # Inicializar los contadores
     grand_total = 0
@@ -288,6 +290,7 @@ def get_totals_from_data(data: list[dict]) -> dict:
 
     }
 
+
 def get_report_summary(totals: dict) -> dict:
     summary = [
         {
@@ -355,7 +358,7 @@ def get_report_summary(totals: dict) -> dict:
     return summary
 
 
-def _get_date_range_from_filters(filters):
+def _get_date_range_from_filters(filters: dict) -> tuple[str, str]:
     """
     Helper function to determine date range from report filters.
     Handles both direct date ranges and fiscal period selections.
@@ -389,7 +392,7 @@ def _get_date_range_from_filters(filters):
 
 
 @frappe.whitelist()
-def generate_xml_islr_file(filters=None):
+def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
     """
     Generates an XML string for ISLR retentions based on report filters.
     """
@@ -400,14 +403,18 @@ def generate_xml_islr_file(filters=None):
         if isinstance(filters, str):
             filters = frappe.parse_json(filters)
 
+        from_date: str
+        to_date: str
         from_date, to_date = _get_date_range_from_filters(filters)
         filters["date_from"] = from_date
         filters["to_date"] = to_date
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
         company_rif = (company_doc.tax_id or "").replace('-', '')
-        periodo = getdate(from_date).strftime('%Y%m')
+        if not company_rif:
+            frappe.throw(_("El RIF de la compañía es obligatorio para generar el XML de ISLR."))
 
+        periodo = getdate(from_date).strftime("%Y%m")
 
         retentions = frappe.db.sql("""
             SELECT
@@ -416,12 +423,16 @@ def generate_xml_islr_file(filters=None):
                 pi.bill_control,
                 pe.posting_date,
                 ref.islr_concept AS islr_concept,
+                tab.codigo AS codigo_concepto,
+                ali.aliquot AS porcentaje_retencion,
                 ref.islr_base_amount AS monto_operacion,
                 supp.type_of_person
             FROM `tabPayment Entry Reference` AS ref
             JOIN `tabPayment Entry` AS pe ON ref.parent = pe.name
             JOIN `tabPurchase Invoice` AS pi ON ref.reference_name = pi.name
             JOIN `tabSupplier` AS supp ON pi.supplier = supp.name
+            LEFT JOIN `tabTabulator ISLR` AS tab ON ref.islr_concept = tab.name
+            LEFT JOIN `tabTabulator ISLR Aliquots` AS ali ON tab.name = ali.parent AND supp.type_of_person = ali.types_of_person
             WHERE
                 pe.docstatus = 1
                 AND pe.company = %(company)s
@@ -435,54 +446,35 @@ def generate_xml_islr_file(filters=None):
             frappe.msgprint(_("No se encontraron retenciones de ISLR para los filtros seleccionados."))
             return None
 
-        root = Element('RelacionRetencionesISLR', {'RifAgente': company_rif, 'Periodo': periodo})
-
-        tabulator_cache = {}
+        root = Element("RelacionRetencionesISLR", {"RifAgente": company_rif, "Periodo": periodo})
         processing_errors = []
 
         for ret in retentions:
-            try:
-                if ret.islr_concept not in tabulator_cache:
-
-                    tabulator_cache[ret.islr_concept] = frappe.get_doc("Tabulator ISLR",
-                                                                       ret.islr_concept)
-
-                tabulator = tabulator_cache[ret.islr_concept]
-
-                aliquot_row = next((a for a in tabulator.aliquot
-                                    if a.types_of_person == ret.type_of_person), None)
-
-                if not aliquot_row:
-                    error_msg = (f"No se encontró alícuota para '{ret.type_of_person}'"
-                                f"en concepto '{ret.islr_concept}' (Factura: {ret.bill_no or 'N/A'}).")
-
-                    if error_msg not in processing_errors:
-                        processing_errors.append(error_msg)
-
-                    continue
-
-            except frappe.DoesNotExistError:
-
-                tabulator_cache[ret.islr_concept] = None
-                error_msg = ( f"Concepto ISLR '{ret.islr_concept}'"
-                              f"no encontrado (Factura: {ret.bill_no or 'N/A'}).")
+            if not ret.codigo_concepto or ret.porcentaje_retencion is None:
+                error_msg = _("No se encontró configuración de alícuota para el concepto '{0}'" \
+                " y tipo de persona '{1}' (Factura: {2}).").format(ret.islr_concept, ret.type_of_person, ret.bill_no or 'N/A')
 
                 if error_msg not in processing_errors:
-
                     processing_errors.append(error_msg)
                 continue
 
-            detalle = SubElement(root, 'DetalleRetencion')
-            SubElement(detalle, 'RifRetenido').text = ret.supplier_rif or 'N/A'
-            SubElement(detalle, 'NumeroFactura').text = ret.bill_no or 'N/A'
-            SubElement(detalle, 'NumeroControl').text = str(ret.bill_control) if ret.bill_control is not None else 'N/A'
-            SubElement(detalle, 'FechaOperacion').text = getdate(ret.posting_date).strftime('%d/%m/%Y')
-            SubElement(detalle, 'CodigoConcepto').text = tabulator.codigo or 'N/A'
-            SubElement(detalle, 'MontoOperacion').text = f"{flt(ret.monto_operacion):.2f}"
-            SubElement(detalle, 'PorcentajeRetencion').text = f"{flt(aliquot_row.aliquot)}"
+            detalle = SubElement(root, "DetalleRetencion")
+            SubElement(detalle, "RifRetenido").text = ret.supplier_rif or "N/A"
+            SubElement(detalle, "NumeroFactura").text = ret.bill_no or "N/A"
+            SubElement(detalle, "NumeroControl").text = str(ret.bill_control) if ret.bill_control is not None else "N/A"
+            SubElement(detalle, "FechaOperacion").text = getdate(ret.posting_date).strftime("%d/%m/%Y")
+            SubElement(detalle, "CodigoConcepto").text = ret.codigo_concepto
+            SubElement(detalle, "MontoOperacion").text = f"{flt(ret.monto_operacion):.2f}"
+            SubElement(detalle, "PorcentajeRetencion").text = f"{flt(ret.porcentaje_retencion)}"
+
+        if processing_errors:
+            frappe.msgprint(_("Se encontraron errores al procesar algunas retenciones:<br>")
+                            + "<br>".join(processing_errors),
+                            title=_("Errores de Procesamiento"),
+                            indicator="orange")
 
         # Formatear para una salida legible (pretty print)
-        rough_string = tostring(root, 'utf-8')
+        rough_string = tostring(root, "utf-8")
         reparsed = minidom.parseString(rough_string)
         pretty_xml_as_string = reparsed.toprettyxml(indent="  ", encoding="UTF-8").decode()
 
@@ -492,15 +484,15 @@ def generate_xml_islr_file(filters=None):
         frappe.log_error(frappe.get_traceback(), "Error en generate_xml_islr_file")
         frappe.throw(_(f"Ocurrió un error al generar el archivo XML de ISLR: {e}"))
 
-
-
 @frappe.whitelist()
-def generate_txt_file(filters):
+def generate_txt_file(filters: dict | str) -> dict:
 
     try:
         if isinstance(filters, str):
             filters = frappe.parse_json(filters)
 
+        from_date: str
+        to_date: str
         from_date, to_date = _get_date_range_from_filters(filters)
         filters["date_from"] = from_date
         filters["to_date"] = to_date
@@ -513,7 +505,7 @@ def generate_txt_file(filters):
             frappe.throw(_("El RIF de la compañía no está configurado."))
 
         periodo = getdate(from_date).strftime('%Y%m')
-        data = get_query_data(filters)
+        data: list[dict] = get_query_data(filters)
         invoices_with_voucher = [row for row in data if row.get("nro_comprobante_retencion")]
 
         if not invoices_with_voucher:

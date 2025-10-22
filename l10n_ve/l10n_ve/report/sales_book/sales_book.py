@@ -7,41 +7,16 @@ from frappe.utils import getdate, nowdate, add_days
 from frappe.utils.file_manager import save_file
 
 
-def get_report_summary(totals):
-    """
-    Returns the summary data for the top of the report.
-    """
-    summary = [
-        {"value": totals.get("grand_total", 0), "label": "Total Ventas Incl. IVA", "datatype": "Currency"},
-        {"value": totals.get("total_exempt", 0), "label": "Ventas No Gravadas", "datatype": "Currency"},
-        {"value": totals.get("base_general_taxpayer", 0) + totals.get("base_general_non_taxpayer", 0),
-         "label": "Base Imponible General", "datatype": "Currency"},
-        {"value": totals.get("iva_general_taxpayer", 0) + totals.get("iva_general_non_taxpayer", 0),
-         "label": "Impuesto General", "datatype": "Currency"},
-        {"value": totals.get("base_reduced_taxpayer", 0) + totals.get("base_reduced_non_taxpayer", 0),
-         "label": "Base Imponible Reducida", "datatype": "Currency"},
-        {"value": totals.get("iva_reduced_taxpayer", 0) + totals.get("iva_reduced_non_taxpayer", 0),
-         "label": "Impuesto Reducido", "datatype": "Currency"},
-        {"value": totals.get("base_additional_taxpayer", 0) + totals.get("base_additional_non_taxpayer", 0),
-         "label": "Base Imponible Adicional", "datatype": "Currency"},
-        {"value": totals.get("iva_additional_taxpayer", 0) + totals.get("iva_additional_non_taxpayer", 0),
-         "label": "Impuesto Adicional", "datatype": "Currency"},
-        {"value": totals.get("iva_retained", 0), "label": "IVA Retenido", "datatype": "Currency"},
-        {"value": totals.get("base_amount_igtf", 0), "label": "Base IGTF", "datatype": "Currency"},
-        {"value": totals.get("total_igtf", 0), "label": "Monto IGTF", "datatype": "Currency"},
-
-    ]
-
-    return summary
-
 def execute(filters=None):
     """
     Punto de entrada principal para el Reporte de Libro de Ventas.
     Devuelve las columnas y los datos basados en los filtros.
     """
-    columns = get_columns()
-    main_data, adjustment_data = get_sales_data(filters)
+    columns: list[dict] = get_columns()
 
+    main_data: list[dict]
+    adjustment_data: list[dict]
+    main_data, adjustment_data = get_sales_data(filters)
     data = main_data + adjustment_data
 
     if data:
@@ -49,12 +24,13 @@ def execute(filters=None):
             row["sequence_number"] = i + 1
 
     # Calcular totales y resumen usando solo los datos del período principal
-    main_totals = get_total_row(main_data)
+    main_totals: dict = get_total_row(main_data)
 
-    report_summary = get_report_summary(main_totals)
+    report_summary: list[dict] = get_report_summary(main_totals)
+
     return columns, data, None, None, report_summary
 
-def get_columns():
+def get_columns() -> list[dict]:
     """
     Define las columnas de la tabla del reporte. Se han simplificado las etiquetas para evitar errores en el archivo Excel.
     """
@@ -107,12 +83,14 @@ def get_columns():
 
     ]
 
-def get_sales_data(filters):
+def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
 
 	"""
 	Obtiene los datos del reporte ejecutando una consulta SQL optimizada.
 	"""
-	company_currency = frappe.db.get_value("Company", filters.get("company"), "default_currency")
+	company_currency = frappe.db.get_value("Company",
+                                            filters.get("company"),
+                                            "default_currency")
 
 	try:
 		tax_rates_doc = frappe.get_doc("Taxes Rates", "Taxes Rates")
@@ -133,7 +111,71 @@ def get_sales_data(filters):
 		igtf_rate = frappe.db.get_single_value("Venezuela Account Settings", "igtf_rate") or 0.0
 
 	# La consulta SQL es la parte principal de la optimización
-	query_base = """
+	query_base: str = get_query()
+
+	# --- Datos del período principal ---
+	main_conditions = "siv.posting_date BETWEEN %(from_date)s AND %(to_date)s"
+	main_query = query_base.replace("{conditions_placeholder}", main_conditions) + """
+        GROUP BY
+			siv.name
+		ORDER BY
+			siv.posting_date ASC
+    """
+	# Reemplazar transaction_type en la consulta principal
+	main_query = main_query.replace(
+        "SELECT\n\t\t\tDATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,",
+        """SELECT
+            CASE
+				WHEN siv.is_void = 1 THEN '03-Anu'
+				WHEN siv.is_return = 1 THEN '02-Comp'
+				WHEN siv.is_debit_note = 1 THEN '02-Comp'
+				ELSE '01-Reg'
+			END AS transaction_type,""", 1
+    )
+
+	# --- Datos de ajuste de períodos anteriores ---
+	adjustment_conditions = """
+        siv.posting_date < %(from_date)s
+        AND siv.withholding_date BETWEEN %(from_date)s AND %(to_date)s
+    """
+	adjustment_query = query_base.replace("{conditions_placeholder}", adjustment_conditions) + """
+        GROUP BY
+			siv.name
+		ORDER BY
+			siv.withholding_date ASC
+    """
+	# Forzar transaction_type a '04-Ajus' para los ajustes
+	adjustment_query = adjustment_query.replace(
+        "SELECT\n\t\t\tDATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,",
+        "SELECT '04-Ajus' AS transaction_type,", 1
+    )
+
+	sql_params = {
+
+		"company": filters.get("company"),
+		"from_date": filters.get("from_date"),
+		"to_date": filters.get("to_date"),
+		"general_rate": general_rate,
+		"reduced_rate": reduced_rate,
+		"additional_rate": additional_rate,
+		"company_currency": company_currency
+
+	}
+
+	main_data = frappe.db.sql(main_query, sql_params, as_dict=1)
+	adjustment_data = frappe.db.sql(adjustment_query, sql_params, as_dict=1)
+
+	for row in main_data + adjustment_data:
+		if row.get("base_amount_igtf") > 0 or row.get("total_igtf") > 0:
+			row["igtf_rate"] = igtf_rate
+		else:
+			row["igtf_rate"] = 0
+
+	return main_data, adjustment_data
+
+def get_query() -> str:
+
+    query_base = """
         WITH InvoiceData AS (
             SELECT
                 siv.name,
@@ -212,68 +254,9 @@ def get_sales_data(filters):
 		LEFT JOIN
 			`tabSales Taxes and Charges` tstac ON tstac.parent = siv.name
     """
+    return query_base
 
-	# --- Datos del período principal ---
-	main_conditions = "siv.posting_date BETWEEN %(from_date)s AND %(to_date)s"
-	main_query = query_base.replace("{conditions_placeholder}", main_conditions) + """
-        GROUP BY
-			siv.name
-		ORDER BY
-			siv.posting_date ASC
-    """
-	# Reemplazar transaction_type en la consulta principal
-	main_query = main_query.replace(
-        "SELECT\n\t\t\tDATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,",
-        """SELECT
-            CASE
-				WHEN siv.is_void = 1 THEN '03-Anu'
-				WHEN siv.is_return = 1 THEN '02-Comp'
-				WHEN siv.is_debit_note = 1 THEN '02-Comp'
-				ELSE '01-Reg'
-			END AS transaction_type,""", 1
-    )
-
-	# --- Datos de ajuste de períodos anteriores ---
-	adjustment_conditions = """
-        siv.posting_date < %(from_date)s
-        AND siv.withholding_date BETWEEN %(from_date)s AND %(to_date)s
-    """
-	adjustment_query = query_base.replace("{conditions_placeholder}", adjustment_conditions) + """
-        GROUP BY
-			siv.name
-		ORDER BY
-			siv.withholding_date ASC
-    """
-	# Forzar transaction_type a '04-Ajus' para los ajustes
-	adjustment_query = adjustment_query.replace(
-        "SELECT\n\t\t\tDATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,",
-        "SELECT '04-Ajus' AS transaction_type,", 1
-    )
-
-	sql_params = {
-
-		"company": filters.get("company"),
-		"from_date": filters.get("from_date"),
-		"to_date": filters.get("to_date"),
-		"general_rate": general_rate,
-		"reduced_rate": reduced_rate,
-		"additional_rate": additional_rate,
-		"company_currency": company_currency
-
-	}
-
-	main_data = frappe.db.sql(main_query, sql_params, as_dict=1)
-	adjustment_data = frappe.db.sql(adjustment_query, sql_params, as_dict=1)
-
-	for row in main_data + adjustment_data:
-		if row.get("base_amount_igtf") > 0 or row.get("total_igtf") > 0:
-			row["igtf_rate"] = igtf_rate
-		else:
-			row["igtf_rate"] = 0
-
-	return main_data, adjustment_data
-
-def get_total_row(data):
+def get_total_row(data: list[dict]) -> dict:
     """
     Calcula los totales para las columnas relevantes y devuelve un diccionario,
     incluyendo el desglose de IVA retenido por alícuota.
@@ -337,3 +320,84 @@ def get_total_row(data):
 
     totals.bill_no = _("TOTALES")
     return totals
+
+def get_report_summary(totals: dict)-> list[dict]:
+    """
+    Returns the summary data for the top of the report.
+    """
+    summary = [
+        {
+            "value": totals.get("grand_total", 0),
+            "label": "Total Ventas Incl. IVA",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("total_exempt", 0),
+            "label": "Ventas No Gravadas",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("base_general_taxpayer", 0)
+            + totals.get("base_general_non_taxpayer", 0),
+            "label": "Base Imponible General",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("iva_general_taxpayer", 0)
+            + totals.get("iva_general_non_taxpayer", 0),
+            "label": "Impuesto General",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("base_reduced_taxpayer", 0)
+            + totals.get("base_reduced_non_taxpayer", 0),
+            "label": "Base Imponible Reducida",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("iva_reduced_taxpayer", 0)
+            + totals.get("iva_reduced_non_taxpayer", 0),
+            "label": "Impuesto Reducido",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("base_additional_taxpayer", 0)
+            + totals.get("base_additional_non_taxpayer", 0),
+            "label": "Base Imponible Adicional",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("iva_additional_taxpayer", 0)
+            + totals.get("iva_additional_non_taxpayer", 0),
+            "label": "Impuesto Adicional",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("iva_retained", 0),
+            "label": "IVA Retenido",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("base_amount_igtf", 0),
+            "label": "Base IGTF",
+            "datatype": "Currency"
+         },
+
+        {
+            "value": totals.get("total_igtf", 0), "label":
+            "Monto IGTF",
+            "datatype": "Currency"
+          },
+
+    ]
+
+    return summary
