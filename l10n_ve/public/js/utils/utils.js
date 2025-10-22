@@ -1,19 +1,19 @@
 const RIF_LEGAL_NATURES = ["Juridical", "Government", "Communal"];
 const RIF_NATURAL_NATURES = ["Venezuelan", "Extranjero", "Passport"];
 /**
- * 
- * @param {object} frm 
- * @param {string} source_field 
+ *
+ * @param {object} frm
+ * @param {string} source_field
  */
 function sync_taxpayer_fields(frm, source_field) {
 
 	if (!frm.doc[source_field]) {
 		return;
 	}
- 
+
 	const nature = frm.doc.nature_of_the_taxpayer;
 	const person_type = frm.doc.type_of_person;
- 
+
 	if (source_field === 'nature_of_the_taxpayer') {
 		if (RIF_LEGAL_NATURES.includes(nature)) {
 			frm.set_value('type_of_person', 'Domiciled legal entity');
@@ -33,7 +33,7 @@ function sync_taxpayer_fields(frm, source_field) {
 		}
 	}
 }
- 
+
 /**
  *
  * @param {object} frm -
@@ -41,22 +41,27 @@ function sync_taxpayer_fields(frm, source_field) {
 function build_rif(frm) {
 	const nature = frm.doc.nature_of_the_taxpayer;
 	const tax_id_value = frm.doc.tax_id || '';
- 
+
 	if (!nature) {
 		return;
 	}
- 
+
 	const letter = nature.charAt(0).toUpperCase();
-	const number = tax_id_value.replace(/[^0-9]/g, '');
- 
+	let number = tax_id_value.replace(/[^0-9]/g, '');
+
+
+	if (number.length > 9) {
+		number = number.substring(0, 9);
+	}
+
 	const full_rif = letter + number;
- 
+
 	frm.set_value('tax_id', full_rif);
 }
 
 /**
- * 
- * @param {object} frm 
+ *
+ * @param {object} frm
  */
 function set_person_type_filter(frm) {
 	const nature = frm.doc.nature_of_the_taxpayer;
@@ -67,7 +72,7 @@ function set_person_type_filter(frm) {
 		allowed_person_types = ["Domiciled legal entity",
 			 "Non-domiciled legal entity"];
 	} else if (RIF_NATURAL_NATURES.includes(nature)) {
-		allowed_person_types = ["Natural person domiciled", 
+		allowed_person_types = ["Natural person domiciled",
 			"Non-domiciled natural person"];
 	}
 
