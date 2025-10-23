@@ -13,11 +13,162 @@ async function get_currency_symbol(frm, currency) {
       return r.message;
     }
   } catch (e) {
-    console.error("Error al obtener el símbolo de moneda:", e);
     frm.custom.currency_symbol = currency;
     return currency;
   }
 }
+
+erpnext.TransactionController.prototype.company = function () {
+  var me = this;
+  var set_pricing = function () {
+    if (me.frm.doc.company && me.frm.fields_dict.currency) {
+      frappe.run_serially([
+        // Se desactiva esa función para obtener automáticamente
+        // la moneda de la lista de precios
+        // () => get_party_currency()
+        () => me.update_item_tax_map(),
+        () => me.apply_default_taxes(),
+        () => me.apply_pricing_rule(),
+        () => set_terms(),
+        () => set_letter_head(),
+      ]);
+    }
+  };
+
+  var get_party_currency = function () {
+    if (me.is_a_mapped_document()) {
+      return;
+    }
+
+    var party_type = frappe.meta.has_field(me.frm.doc.doctype, "customer")
+      ? "Customer"
+      : "Supplier";
+    var party_name = me.frm.doc[party_type.toLowerCase()];
+    if (party_name) {
+      frappe.call({
+        method: "frappe.client.get_value",
+        args: {
+          doctype: party_type,
+          filters: { name: party_name },
+          fieldname: "default_currency",
+        },
+        callback: function (r) {
+          if (r.message) {
+            set_currency(r.message.default_currency);
+          }
+        },
+      });
+    } else {
+      set_currency();
+    }
+  };
+
+  var set_currency = function (party_default_currency) {
+    var company_currency = me.get_company_currency();
+    var currency = party_default_currency || company_currency;
+    if (me.frm.doc.currency != currency) {
+      me.frm.set_value("currency", currency);
+    }
+
+    if (me.frm.doc.currency == company_currency) {
+      me.frm.set_value("conversion_rate", 1.0);
+    }
+    if (me.frm.doc.price_list_currency == company_currency) {
+      me.frm.set_value("plc_conversion_rate", 1.0);
+    }
+
+    me.frm.script_manager.trigger("currency");
+  };
+
+  var set_terms = function () {
+    if (
+      frappe.meta.has_field(me.frm.doc.doctype, "tc_name") &&
+      !me.frm.doc.tc_name
+    ) {
+      var company_doc = frappe.get_doc(":Company", me.frm.doc.company);
+      var selling_doctypes = [
+        "Quotation",
+        "Sales Order",
+        "Delivery Note",
+        "Sales Invoice",
+      ];
+      var company_terms_fieldname = selling_doctypes.includes(
+        me.frm.doc.doctype
+      )
+        ? "default_selling_terms"
+        : "default_buying_terms";
+      if (company_doc && company_doc[company_terms_fieldname]) {
+        me.frm.set_value("tc_name", company_doc[company_terms_fieldname]);
+      }
+    }
+  };
+
+  var set_letter_head = function () {
+    if (me.frm.fields_dict.letter_head) {
+      var company_doc = frappe.get_doc(":Company", me.frm.doc.company);
+      if (company_doc && company_doc.default_letter_head) {
+        me.frm.set_value("letter_head", company_doc.default_letter_head);
+      }
+    }
+  };
+
+  var set_party_account = function (set_pricing) {
+    if (["Sales Invoice", "Purchase Invoice"].includes(me.frm.doc.doctype)) {
+      if (me.frm.doc.doctype == "Sales Invoice") {
+        var party_type = "Customer";
+        var party_account_field = "debit_to";
+      } else {
+        var party_type = "Supplier";
+        var party_account_field = "credit_to";
+      }
+
+      var party = me.frm.doc[frappe.model.scrub(party_type)];
+      if (party && me.frm.doc.company) {
+        return frappe.call({
+          method: "erpnext.accounts.party.get_party_account",
+          args: {
+            company: me.frm.doc.company,
+            party_type: party_type,
+            party: party,
+          },
+          callback: function (r) {
+            if (!r.exc && r.message) {
+              me.frm.set_value(party_account_field, r.message);
+              set_pricing();
+            }
+          },
+        });
+      } else {
+        set_pricing();
+      }
+    } else {
+      set_pricing();
+    }
+  };
+
+  if (
+    frappe.meta.get_docfield(this.frm.doctype, "shipping_address") &&
+    ["Purchase Order", "Purchase Receipt", "Purchase Invoice"].includes(
+      this.frm.doctype
+    )
+  ) {
+    let is_drop_ship = me.frm.doc.items.some(
+      (item) => item.delivered_by_supplier
+    );
+
+    if (!is_drop_ship) {
+      erpnext.utils.get_shipping_address(this.frm, function () {
+        set_party_account(set_pricing);
+      });
+    }
+  } else {
+    set_party_account(set_pricing);
+  }
+
+  if (this.frm.doc.company) {
+    erpnext.last_selected_company = this.frm.doc.company;
+  }
+};
 
 erpnext.TransactionController.prototype.change_form_labels = async function (
   company_currency
@@ -36,23 +187,23 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
   this.frm.set_currency_labels(
     [
       "base_total",
-      "base_net_total",
-      "base_total_taxes_and_charges",
-      "base_discount_amount",
-      "base_grand_total",
-      "base_rounded_total",
       "base_in_words",
-      "base_taxes_and_charges_added",
-      "base_taxes_and_charges_deducted",
-      "total_amount_to_pay",
-      "base_paid_amount",
-      "base_write_off_amount",
-      "base_change_amount",
-      "base_operating_cost",
-      "base_raw_material_cost",
+      "base_net_total",
       "base_total_cost",
+      "base_grand_total",
+      "base_paid_amount",
+      "base_rounded_total",
+      "base_change_amount",
+      "total_amount_to_pay",
+      "base_operating_cost",
+      "base_discount_amount",
+      "base_write_off_amount",
+      "base_raw_material_cost",
       "base_scrap_material_cost",
       "base_rounding_adjustment",
+      "base_taxes_and_charges_added",
+      "base_total_taxes_and_charges",
+      "base_taxes_and_charges_deducted",
     ],
     company_currency
   );
@@ -60,22 +211,22 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
   this.frm.set_currency_labels(
     [
       "total",
-      "net_total",
-      "total_taxes_and_charges",
-      "discount_amount",
-      "grand_total",
-      "taxes_and_charges_added",
-      "taxes_and_charges_deducted",
-      "tax_withholding_net_total",
-      "rounded_total",
       "in_words",
+      "net_total",
+      "total_cost",
+      "grand_total",
       "paid_amount",
-      "write_off_amount",
+      "rounded_total",
       "operating_cost",
+      "discount_amount",
+      "write_off_amount",
+      "raw_material_cost",
       "scrap_material_cost",
       "rounding_adjustment",
-      "raw_material_cost",
-      "total_cost",
+      "total_taxes_and_charges",
+      "taxes_and_charges_added",
+      "tax_withholding_net_total",
+      "taxes_and_charges_deducted",
     ],
     me.frm.custom.currency_symbol
   );
@@ -105,24 +256,24 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
   // toggle fields
   this.frm.toggle_display(
     [
-      "conversion_rate",
       "base_total",
       "base_net_total",
-      "base_tax_withholding_net_total",
-      "base_total_taxes_and_charges",
-      "base_taxes_and_charges_added",
-      "base_taxes_and_charges_deducted",
-      "base_grand_total",
-      "base_rounded_total",
       "base_in_words",
-      "base_discount_amount",
-      "base_paid_amount",
-      "base_write_off_amount",
-      "base_operating_cost",
-      "base_raw_material_cost",
       "base_total_cost",
+      "conversion_rate",
+      "base_grand_total",
+      "base_paid_amount",
+      "base_rounded_total",
+      "base_operating_cost",
+      "base_discount_amount",
+      "base_write_off_amount",
+      "base_raw_material_cost",
       "base_scrap_material_cost",
       "base_rounding_adjustment",
+      "base_total_taxes_and_charges",
+      "base_taxes_and_charges_added",
+      "base_tax_withholding_net_total",
+      "base_taxes_and_charges_deducted",
     ],
     this.frm.doc.currency != company_currency
   );
