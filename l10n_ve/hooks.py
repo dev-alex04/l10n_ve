@@ -268,6 +268,12 @@ fixtures = [
         "filters": [
             ["name", "=", "purchase_book"]
         ]
+    },
+    {
+        "doctype": "Address Template",
+        "filters": [
+            ["name", "=", "Venezuela, Bolivarian Republic of"]
+        ]
     }
 ]
 
