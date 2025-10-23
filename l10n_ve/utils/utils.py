@@ -22,6 +22,7 @@ def get_company_address(company_name):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error getting company address")
 
+
 @frappe.whitelist()
 def get_supplier_address(supplier_name):
     if not supplier_name:
@@ -61,6 +62,7 @@ def validate_taxpayer_and_person_type_consistency(doc):
     is_natural_person_type = person_type.startswith("Natural person") \
     or person_type.startswith("Non-domiciled natural person")
 
+
     if is_legal_nature and not is_legal_person_type:
         frappe.throw(_("Con la Naturaleza de Contribuyente '{0}'," \
         " el Tipo de Persona debe ser una entidad legal.").format(nature))
@@ -76,25 +78,95 @@ def validate_taxpayer_and_person_type_consistency(doc):
 
     if is_natural_person_type and not is_natural_nature:
         frappe.throw(_("Con el Tipo de Persona '{0}', " \
-        "la Naturaleza del Contribuyente debe ser Venezolano," \
-        " Extranjero o Pasaporte.").format(person_type))
+        "la Naturaleza del Contribuyente debe ser Venezolano, Extranjero o Pasaporte.").format(person_type))
 
-def validate_rif_format(doc):
+def get_tax_id_config(document_type: str, nature: str) -> int:
     """
-    Valida el formato del RIF en el campo tax_id de un documento.
+    Devuelve la longitud máxima de dígitos para un tipo de documento y naturaleza.
+    """
+    config = {
+        'RIF': {'default': 9},
+        'Cedula': {
+            'default': 8
+        },
+        'Passport': {
+            'Extranjero': [8,9],
+        }
+    }
+    doc_config = config.get(document_type, config['RIF'])
+    return doc_config.get(nature, doc_config.get('default'))
+
+def validate_tax_id_format(doc):
+    """
+    Valida el formato del tax_id (RIF, Cédula, Pasaporte) en un documento.
     """
     if not doc.tax_id:
         return
 
-    cleaned_rif = re.sub(r'[^a-zA-Z0-9]', '', doc.tax_id).upper()
-    doc.tax_id = cleaned_rif
+    if not doc.meta.has_field("type_of_document"):
+        cleaned_rif = re.sub(r'[^a-zA-Z0-9]', '', doc.tax_id).upper()
+        doc.tax_id = cleaned_rif
 
-    rif_regex = r"^[VEJGPC]\d{9}$"
+        if not cleaned_rif:
+            return
 
-    if not re.match(rif_regex, cleaned_rif):
-        frappe.throw(_("El RIF/ID de Impuesto '{0}' no es válido. " \
-        "El formato debe ser una letra (V, E, J, G, C, P) " \
-        "seguida de 9 dígitos (ej: J123456789).").format(doc.tax_id))
+        letter = cleaned_rif[0]
+        number = cleaned_rif[1:]
+        valid_letters = "VEJGPC"
+
+        if letter not in valid_letters:
+            frappe.throw(_("El RIF '{0}' debe comenzar con una de las siguientes letras: {1}.").format(doc.tax_id, valid_letters))
+
+        if not number.isdigit() or len(number) != 9:
+            frappe.throw(_("El RIF '{0}' no es válido. El formato debe ser una letra "
+                            "(V, E, J, G, P, C) seguida de 9 dígitos.").format(doc.tax_id))
+
+        return
+
+    is_passport = doc.meta.has_field("type_of_document") and doc.type_of_document == 'Passport'
+
+    if is_passport:
+
+        cleaned_id = re.sub(r'[^a-zA-Z0-9]', '', doc.tax_id).upper()
+        doc.tax_id = cleaned_id
+        number = cleaned_id
+    else:
+
+        cleaned_id = re.sub(r'[^a-zA-Z0-9]', '', doc.tax_id or '').upper()
+        doc.tax_id = cleaned_id
+
+        if not cleaned_id:
+            return
+
+        letter = cleaned_id[0]
+        number = cleaned_id[1:]
+        valid_letters = "VEJGPC"
+
+        if letter not in valid_letters:
+            frappe.throw(_("El ID de Impuesto '{0}' debe comenzar con una de las " \
+            "               siguientes letras: {1}.").format(doc.tax_id, valid_letters))
+
+        if not number.isdigit():
+            frappe.throw(_("La parte numérica del ID de Impuesto '{0}' contiene " \
+                            "caracteres no válidos.").format(doc.tax_id))
+
+    # Validación de longitud
+    length_config = get_tax_id_config(doc.type_of_document, doc.nature_of_the_taxpayer)
+    num_len = len(number)
+
+    if isinstance(length_config, list):
+        min_len, max_len = length_config
+        if not (min_len <= num_len <= max_len):
+            frappe.throw(_("Para el tipo de documento '{0}', el ID de Impuesto '{1}' " \
+            "               debe tener entre {2} y {3} dígitos.").format(
+                doc.type_of_document, doc.tax_id, min_len, max_len
+            ))
+    else:
+        if num_len != length_config:
+            frappe.throw(_("Para el tipo de documento '{0}', " \
+            "               el ID de Impuesto '{1}' debe tener {2} dígitos.").format(
+                                doc.type_of_document, doc.tax_id, length_config
+            ))
 
 def validate_return_in_same_month(self):
     """

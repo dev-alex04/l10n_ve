@@ -123,7 +123,7 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
     """
 	# Reemplazar transaction_type en la consulta principal
 	main_query = main_query.replace(
-        "SELECT\n\t\t\tDATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,",
+        "SELECT",
         """SELECT
             CASE
 				WHEN siv.is_void = 1 THEN '03-Anu'
@@ -146,7 +146,7 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
     """
 	# Forzar transaction_type a '04-Ajus' para los ajustes
 	adjustment_query = adjustment_query.replace(
-        "SELECT\n\t\t\tDATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,",
+        "SELECT",
         "SELECT '04-Ajus' AS transaction_type,", 1
     )
 
