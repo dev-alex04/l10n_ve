@@ -1,7 +1,8 @@
 import os
 import csv
-
+import json
 import frappe
+from frappe import _
 from frappe.utils import getdate
 
 def set_l10n_ve_data() -> None:
@@ -18,6 +19,7 @@ def set_l10n_ve_data() -> None:
         set_mode_of_payments()
         set_reference_currency()
         set_allow_multi_currency_invoices()
+        load_venezuela_data()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -628,3 +630,145 @@ def set_allow_multi_currency_invoices() -> None:
         print(f"Failure: Ocurrió un error estableciendo Multimoneda en facturas: {e}")
         frappe.log_error(title=f'Error estableciendo Multimoneda en facturas:',
                          message=frappe.get_traceback())
+def load_venezuela_data():
+    STATE_DOCTYPE = "VE State"
+    MUNICIPALITY_DOCTYPE = "VE Municipality"
+    PARISH_DOCTYPE = "VE Parish"
+    CITY_DOCTYPE = "VE City"
+
+    COUNTRY_ID = "Venezuela, Bolivarian Republic of"
+    JSON_FILE_PATH = frappe.get_app_path("l10n_ve", "resources", "venezuela.json")
+
+    print("Iniciando la carga de datos regionales de Venezuela...")
+
+    try:
+        frappe.get_doc("Country", COUNTRY_ID.strip())
+    except frappe.DoesNotExistError:
+        try:
+            country_doc = frappe.new_doc("Country")
+            country_doc.country_name = COUNTRY_ID.strip()
+            country_doc.code = "VE"
+            country_doc.insert(ignore_permissions=True, ignore_mandatory=True)
+            frappe.db.commit()
+            print(f"  -> Creado DocType Country: {COUNTRY_ID.strip()}")
+        except Exception as e:
+            frappe.throw(_(f"Fallo al crear el DocType Country '{COUNTRY_ID.strip()}'. Error: {e}"))
+            return
+    except Exception as e:
+        frappe.throw(_(f"Error al obtener el DocType Country: {e}"))
+        return
+
+    try:
+        with open(JSON_FILE_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception as e:
+        frappe.throw(_(f"Error al leer o decodificar el archivo JSON: {e}"))
+        return
+
+    country_name = COUNTRY_ID.strip()
+    frappe.db.begin()
+
+    try:
+        for i, state_data in enumerate(data):
+            state_name_from_json = state_data.get("estado")
+            ve_state_name = None
+
+            state_filters = {
+                "state": state_name_from_json,
+                "country": country_name
+            }
+
+            existing_state_name = frappe.db.get_value(
+                STATE_DOCTYPE,
+                state_filters,
+                "name"
+            )
+
+            if existing_state_name:
+                ve_state_name = existing_state_name
+                print(f"-- Omitiendo Estado (ya existe): {state_name_from_json}")
+            else:
+                state_doc = frappe.new_doc(STATE_DOCTYPE)
+                state_doc.country = country_name
+                state_doc.state = state_name_from_json
+                state_doc.capital = state_data.get("capital")
+                state_doc.insert(ignore_permissions=True, ignore_mandatory=True)
+                ve_state_name = state_doc.name
+                print(f"-> Creado Estado: {state_doc.state}")
+
+            # frappe.db.commit()
+
+            for municipality_data in state_data.get("municipios", []):
+                municipality_name_from_json = municipality_data.get("municipio")
+                ve_municipality_name = None
+
+                municipality_filters = {
+                    "municipality": municipality_name_from_json,
+                    "state": ve_state_name,
+                    "country": country_name
+                }
+
+                existing_municipality_name = frappe.db.get_value(
+                    MUNICIPALITY_DOCTYPE,
+                    municipality_filters,
+                    "name"
+                )
+
+                if existing_municipality_name:
+                    ve_municipality_name = existing_municipality_name
+                else:
+                    municipality_doc = frappe.new_doc(MUNICIPALITY_DOCTYPE)
+                    municipality_doc.state = ve_state_name
+                    municipality_doc.country = country_name
+                    municipality_doc.municipality = municipality_name_from_json
+                    municipality_doc.capital = municipality_data.get("capital")
+                    municipality_doc.insert(ignore_permissions=True, ignore_mandatory=True)
+                    ve_municipality_name = municipality_doc.name
+
+                for parish_name in municipality_data.get("parroquias", []):
+
+                    parish_filters = {
+                        "parish": parish_name,
+                        "municipality": ve_municipality_name,
+                        "country": country_name
+                    }
+
+                    if frappe.db.exists(PARISH_DOCTYPE, parish_filters):
+                        continue
+
+                    parish_doc = frappe.new_doc(PARISH_DOCTYPE)
+                    parish_doc.municipality = ve_municipality_name
+                    parish_doc.state = ve_state_name
+                    parish_doc.country = country_name
+                    parish_doc.parish = parish_name
+                    parish_doc.insert(ignore_permissions=True, ignore_mandatory=True)
+
+                # frappe.db.commit()
+
+            for city_name in state_data.get("ciudades", []):
+
+                city_filters = {
+                    "city": city_name,
+                    "state": ve_state_name,
+                    "country": country_name
+                }
+
+                if frappe.db.exists(CITY_DOCTYPE, city_filters):
+                    continue
+
+                city_doc = frappe.new_doc(CITY_DOCTYPE)
+                city_doc.state = ve_state_name
+                city_doc.country = country_name
+                city_doc.city = city_name
+                city_doc.insert(ignore_permissions=True, ignore_mandatory=True)
+
+            # frappe.db.commit()
+
+        frappe.db.commit()
+        print("\nSuccess: Proceso de carga de datos regionales completado.")
+        frappe.msgprint(_("Datos de Venezuela cargados exitosamente."))
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(message=frappe.get_traceback(), title="Error en load_venezuela_data")
+        frappe.throw(_(f"Fallo la carga de datos. Revierte los cambios. Error: {e}"))

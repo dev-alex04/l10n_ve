@@ -74,6 +74,9 @@ doctype_js = {
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/purchase_invoice/purchase_invoice.js",
     ],
+    "Address": [
+        "public/js/doctype/address/address.js",
+    ],
 }
 
 doctype_list_js = {
@@ -179,6 +182,7 @@ override_doctype_class = {
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
     "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
+    "Address": "l10n_ve.overrides.address.CustomAddress",
 }
 
 
