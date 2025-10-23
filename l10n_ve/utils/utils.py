@@ -4,6 +4,8 @@ import re
 from frappe.utils import getdate
 
 
+import erpnext
+
 @frappe.whitelist()
 def get_company_address(company_name):
     if not company_name:
@@ -262,3 +264,12 @@ def format_amounts(doc, main_fields=[], child_fields=[], child_table_field=None)
                 if item.get(field) is not None:
                     formatted_value = frappe.format(item.get(field), "Currency").replace(currency_symbol, "").strip()
                     item.set(field, formatted_value)
+
+
+def get_reference_currency():
+    """Returns the currency of the default company"""
+    company = erpnext.get_default_company()
+
+    if company:
+
+        return frappe.get_cached_value("Company", company, "reference_currency")

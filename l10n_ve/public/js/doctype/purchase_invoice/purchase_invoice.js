@@ -13,6 +13,7 @@ frappe.ui.form.on("Purchase Invoice", {
   },
   refresh: function (frm) {
     toggle_purchase_type_fields(frm);
+    set_purchase_invoice_fields(frm);
   },
 
   is_debit_note: function (frm) {
@@ -90,6 +91,32 @@ function toggle_purchase_type_fields(frm) {
     "hidden",
     !Boolean(frm.doc.base_amount_igtf)
   );
+}
+
+function set_purchase_invoice_fields(frm) {
+  for (const field of [
+    "base_in_words",
+    "base_total_taxes_and_charges",
+    "totals",
+    "base_rounding_adjustment",
+  ]) {
+    frm.set_df_property(field, "hidden", true);
+  }
+
+  let base_total_taxes_and_charges = frm.get_field(
+    "base_total_taxes_and_charges"
+  ).$wrapper;
+
+  let base_rounding_adjustment = frm.get_field(
+    "base_rounding_adjustment"
+  ).$wrapper;
+
+  let base_rounded_total = frm.get_field("base_rounded_total").$wrapper;
+  let base_in_words = frm.get_field("base_in_words").$wrapper;
+
+  base_rounding_adjustment.insertBefore(base_total_taxes_and_charges);
+  base_rounded_total.insertBefore(base_total_taxes_and_charges);
+  base_in_words.insertBefore(base_total_taxes_and_charges);
 }
 
 frappe.ui.form.on("Purchase Invoice Item", {

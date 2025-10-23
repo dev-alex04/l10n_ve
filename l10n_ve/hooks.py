@@ -64,11 +64,13 @@ doctype_js = {
     ],
     "Sales Invoice": [
         "public/js/utils/utils.js",
+        "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/sales_invoice/sales_invoice.js",
     ],
     "Purchase Invoice": [
         "public/js/utils/utils.js",
+        "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/purchase_invoice/purchase_invoice.js",
     ],
@@ -171,9 +173,11 @@ after_install = [
 # Override standard doctype classes
 
 override_doctype_class = {
-    "Customer": "l10n_ve.overrides.customer.CustomCustomer",
-    "Supplier": "l10n_ve.overrides.supplier.CustomSupplier",
+    "Item": "l10n_ve.overrides.item.CustomItem",
     "Company": "l10n_ve.overrides.company.CustomCompany",
+    "Supplier": "l10n_ve.overrides.supplier.CustomSupplier",
+    "Customer": "l10n_ve.overrides.customer.CustomCustomer",
+    "Item Price": "l10n_ve.overrides.item_price.CustomItemPrice",
     "Payment Entry": "l10n_ve.overrides.payment_entry.CustomPaymentEntry",
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
