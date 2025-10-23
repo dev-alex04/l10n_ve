@@ -304,15 +304,10 @@ Gallon Liquid (US),Galón Líquido (EE.UU.),
 "Pint, Liquid (US)","Pinta, Líquida (EE.UU.),"
 Quart Liquid (US),Cuarto Líquido (EE.UU.),
 Hundredweight (US),Quintal Corto (EE.UU.),
-<<<<<<< HEAD
 "Ells (UK)",Codo",
-Pint, Liquid (US),Pinta, Líquida (EE.UU.),
+"Pint, Liquid (US)","Pintura, Líquida (EE.UU.)",
 Quart Liquid (US),Cuarto Líquido (EE.UU.),
 Hundredweight (US),Quintal Corto (EE.UU.),
-Ells (UK),Ell (codo, unidad de longitud RU),
-=======
-"Ells (UK)","Codo",
->>>>>>> 75f3c93 (Minor fix)
 Millimeter Of Mercury,Milímetro de Mercurio,
 Tonne-Force(Metric),Tonelada-Fuerza (Métrica),
 Bushel (US Dry Level),Bushel (EE.UU. Seco Nivelado),
