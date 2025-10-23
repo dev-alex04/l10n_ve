@@ -7,6 +7,7 @@ class CustomAddress(Address):
     def validate(self):
         super().validate()
         self.validate_phone_format()
+        self.validate_address()
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -51,3 +52,13 @@ class CustomAddress(Address):
 
             if len(phone) != 11:
                 frappe.throw(_("El número de teléfono debe tener exactamente 11 dígitos."))
+
+    def validate_address(self) -> None:
+        links = self.links
+
+        if links and len(links) > 0:
+            self.address_title = links[0].link_name
+        elif self.address_line1:
+            self.address_title = self.address_line1
+        else:
+            self.address_title = "Nueva Dirección"
