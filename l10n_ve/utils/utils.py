@@ -43,7 +43,6 @@ def validate_taxpayer_and_person_type_consistency(doc):
     """
     nature = doc.get("nature_of_the_taxpayer")
     person_type = doc.get("type_of_person")
-    doc_type = doc.get("type_of_document")
 
     if not nature or not person_type:
         return
@@ -85,7 +84,7 @@ def get_tax_id_config(document_type: str, nature: str) -> int:
     """
     config = {
         'RIF': {'default': 9},
-        'ID': {
+        'Cedula': {
             'default': 8
         },
         'Passport': {
@@ -166,25 +165,6 @@ def validate_tax_id_format(doc):
             "               el ID de Impuesto '{1}' debe tener {2} dígitos.").format(
                                 doc.type_of_document, doc.tax_id, length_config
             ))
-
-    # Si el doctype tiene tipo de documento
-    if is_passport:
-        length_config = get_tax_id_config(doc.type_of_document, doc.nature_of_the_taxpayer)
-        num_len = len(number)
-    if isinstance(length_config, list):
-        min_len, max_len = length_config
-        if not (min_len <= num_len <= max_len):
-            frappe.throw(_("Para el tipo de documento '{0}', el ID de Impuesto" \
-                            "'{1}' debe tener entre {2} y {3} caracteres.").format(
-                            doc.type_of_document, doc.tax_id, min_len, max_len
-            ))
-    else:
-        if num_len != length_config:
-            frappe.throw(_("Para el tipo de documento '{0}', el ID de Impuesto" \
-                            " '{1}' debe tener {2} dígitos.").format(
-                            doc.type_of_document, doc.tax_id, length_config
-            ))
-
 
 def validate_return_in_same_month(self):
     """
