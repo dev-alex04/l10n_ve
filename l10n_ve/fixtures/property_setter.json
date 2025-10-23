@@ -2115,7 +2115,8 @@
         "property_type": "Text",
         "row_name": null,
         "value": "Dirección"
-    }
+    },
+    {
         "default_value": "company.reference_currency",
         "doc_type": "Purchase Receipt",
         "docstatus": 0,
