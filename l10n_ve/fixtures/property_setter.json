@@ -1503,22 +1503,6 @@
         "docstatus": 0,
         "doctype": "Property Setter",
         "doctype_or_field": "DocField",
-        "field_name": "base_rounding_adjustment",
-        "is_system_generated": 0,
-        "modified": "2025-09-12 10:00:00",
-        "module": "L10N Ve",
-        "name": "Sales Invoice-base_rounding_adjustment-hidden",
-        "property": "hidden",
-        "property_type": "Check",
-        "row_name": null,
-        "value": "1"
-    },
-    {
-        "default_value": "1",
-        "doc_type": "Sales Invoice",
-        "docstatus": 0,
-        "doctype": "Property Setter",
-        "doctype_or_field": "DocField",
         "field_name": "base_in_words",
         "is_system_generated": 0,
         "modified": "2025-09-12 10:00:00",
@@ -1594,22 +1578,6 @@
         "value": "1"
     },
     {
-        "default_value": "1",
-        "doc_type": "Purchase Invoice",
-        "docstatus": 0,
-        "doctype": "Property Setter",
-        "doctype_or_field": "DocField",
-        "field_name": "base_total_taxes_and_charges",
-        "is_system_generated": 0,
-        "modified": "2025-09-12 10:00:00",
-        "module": "L10N Ve",
-        "name": "Purchase Invoice-base_total_taxes_and_charges-hidden",
-        "property": "hidden",
-        "property_type": "Check",
-        "row_name": null,
-        "value": "1"
-    },
-    { 
         "default_value": "Descripción de dirección",
         "doc_type": "Address",
         "docstatus": 0,
@@ -1656,6 +1624,7 @@
         "row_name": null,
         "value": "1"
     },
+    {
         "default_value": 1,
         "doc_type": "Address",
         "docstatus": 0,
@@ -1719,7 +1688,7 @@
         "row_name": null,
         "value": "1"
     },
-    {      
+    {
         "default_value": "Estado",
         "doc_type": "Address",
         "docstatus": 0,

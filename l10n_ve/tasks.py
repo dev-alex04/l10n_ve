@@ -29,7 +29,7 @@ def create_currency_exchange() -> None:
             to_currency = "VEF"
             currency_data = response.json()
 
-            for from_currency in ('USD', 'EUR'):
+            for from_currency in ['USD']:
 
                 purpose = "Selling-Buying"
                 exchange_rate = currency_data["promedio"]

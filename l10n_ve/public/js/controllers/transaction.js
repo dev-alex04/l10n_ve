@@ -30,7 +30,6 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
 
   if (!me.frm.custom.currency_symbol) {
     const currency = this.frm.doc.currency || company_currency;
-    console.log("Currency:", currency);
     await get_currency_symbol(me.frm, currency);
   }
 

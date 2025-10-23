@@ -55,7 +55,7 @@ class CustomItem(Item):
                     "uom": self.stock_uom,
                     "brand": self.brand,
                     "currency": get_reference_currency(),
-                    "price_list_rate": self.standard_rate,
+                    "price_list_rate": self.standard_purchase_rate,
                 })
 
             item_price.insert()

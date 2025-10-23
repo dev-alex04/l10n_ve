@@ -590,7 +590,7 @@ def set_reference_currency() -> None:
 
     except Exception as e:
         print(f"Failure: Ocurrió un error configurando la moneda de referencia: {e}")
-        frappe.log_error(title='Error configurando los modos de pago:',
+        frappe.log_error(title='Error configurando la moneda de referencia:',
                          message=frappe.get_traceback())
 
 

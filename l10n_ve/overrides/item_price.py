@@ -3,7 +3,6 @@ import frappe
 from erpnext.stock.doctype.item_price.item_price import ItemPrice
 
 
-
 class CustomItemPrice(ItemPrice):
 
     def after_insert(self) -> None:
@@ -11,8 +10,6 @@ class CustomItemPrice(ItemPrice):
 
     def set_price_on_item(self) -> None:
         price_type = 'sales' if self.selling else 'purchase'
-
-        print(price_type)
 
         frappe.db.set_value('Item',
                             self.item_code,
