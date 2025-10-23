@@ -17,6 +17,8 @@ def set_l10n_ve_data() -> None:
         create_sales_taxes_and_charges_template()
         set_title_field_on_purchase_invoice()
         set_mode_of_payments()
+        set_reference_currency()
+        set_allow_multi_currency_invoices()
         load_venezuela_data()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
@@ -559,6 +561,75 @@ def set_mode_of_payments() -> None:
         frappe.log_error(frappe.get_traceback(),
                          'Error configurando los modos de pago:')
 
+
+def set_reference_currency() -> None:
+
+    print(f"Estableciendo moneda de referencia en las empresas")
+
+    try:
+
+        companies: list[str] = frappe.db.get_all('Company', pluck='name')
+
+        for company in companies:
+
+            for currency in ['USD']:
+                frappe.db.set_value('Company',
+                                    company,
+                                    'reference_currency',
+                                    currency)
+
+                print(f"Moneda de referencia {currency} establecida correctamente en las empresas")
+
+                frappe.db.set_value('Currency',
+                                    currency,
+                                    {
+                                        'symbol': 'REF.',
+                                    })
+
+                set_pricelist_on_reference_currency(currency)
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error configurando la moneda de referencia: {e}")
+        frappe.log_error(title='Error configurando la moneda de referencia:',
+                         message=frappe.get_traceback())
+
+
+def set_pricelist_on_reference_currency(currency: str) -> None:
+
+    print(f'Estableciendo moneda {currency} en las listas de precios')
+
+    try:
+        price_lists: list[str] = frappe.db.get_all('Price List', pluck='name')
+
+        for pricelist in price_lists:
+            frappe.db.set_value('Price List', pricelist, 'currency', currency)
+
+
+        print(f'Moneda {currency} establecida correctamente')
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error estableciendo moneda {currency} en las listas de precios: {e}")
+        frappe.log_error(title=f'Error estableciendo moneda {currency} en las listas de precios:',
+                         message=frappe.get_traceback())
+
+
+def set_allow_multi_currency_invoices() -> None:
+    try:
+        print(f'Estableciendo multimoneda en la configuración contable')
+
+        frappe.db.set_value(
+            "Accounts Settings",
+            "Accounts Settings",
+            "allow_multi_currency_invoices_against_single_party_account",
+            1
+        )
+
+        print(f'Multimoneda en facturas establecida correctamente')
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error estableciendo Multimoneda en facturas: {e}")
+        frappe.log_error(title=f'Error estableciendo Multimoneda en facturas:',
+                         message=frappe.get_traceback())
 def load_venezuela_data():
     STATE_DOCTYPE = "VE State"
     MUNICIPALITY_DOCTYPE = "VE Municipality"

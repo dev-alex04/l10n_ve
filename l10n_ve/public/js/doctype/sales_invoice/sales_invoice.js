@@ -40,7 +40,7 @@ frappe.ui.form.on("Sales Invoice", {
 
     toggle_vat_withholding_fields(frm);
     toggle_islr_withholding_fields(frm);
-    reorganize_customer_fields(frm);
+    set_sales_invoice_fields(frm);
     print_button_pdf(frm);
 
     // Mover esto a una funcion
@@ -302,18 +302,30 @@ function toggle_islr_withholding_fields(frm) {
   }
 }
 
-function reorganize_customer_fields(frm) {
-  let grand_total_wrapper = frm.get_field("grand_total").$wrapper;
+function set_sales_invoice_fields(frm) {
+  for (const field of [
+    "base_in_words",
+    "base_total_taxes_and_charges",
+    "section_break_43",
+    "base_rounding_adjustment",
+  ]) {
+    frm.set_df_property(field, "hidden", true);
+  }
 
-  let total_advance_wrapper = frm.get_field("total_advance").$wrapper;
+  let base_total_taxes_and_charges = frm.get_field(
+    "base_total_taxes_and_charges"
+  ).$wrapper;
 
-  let outstanding_amount_wrapper = frm.get_field("outstanding_amount").$wrapper;
+  let base_rounding_adjustment = frm.get_field(
+    "base_rounding_adjustment"
+  ).$wrapper;
 
-  let base_grand_total_wrapper = frm.get_field("base_grand_total").$wrapper;
+  let base_rounded_total = frm.get_field("base_rounded_total").$wrapper;
+  let base_in_words = frm.get_field("base_in_words").$wrapper;
 
-  grand_total_wrapper.insertBefore(base_grand_total_wrapper);
-  total_advance_wrapper.insertBefore(base_grand_total_wrapper);
-  outstanding_amount_wrapper.insertBefore(base_grand_total_wrapper);
+  base_rounding_adjustment.insertBefore(base_total_taxes_and_charges);
+  base_rounded_total.insertBefore(base_total_taxes_and_charges);
+  base_in_words.insertBefore(base_total_taxes_and_charges);
 }
 
 function print_button_pdf(frm) {

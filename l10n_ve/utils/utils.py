@@ -4,6 +4,8 @@ import re
 from frappe.utils import getdate
 
 
+import erpnext
+
 @frappe.whitelist()
 def get_company_address(company_name):
     if not company_name:
@@ -83,12 +85,12 @@ def validate_rif_format(doc):
     """
     if not doc.tax_id:
         return
-   
+
     cleaned_rif = re.sub(r'[^a-zA-Z0-9]', '', doc.tax_id).upper()
     doc.tax_id = cleaned_rif
 
     rif_regex = r"^[VEJGPC]\d{9}$"
-    
+
     if not re.match(rif_regex, cleaned_rif):
         frappe.throw(_("El RIF/ID de Impuesto '{0}' no es válido. " \
         "El formato debe ser una letra (V, E, J, G, C, P) " \
@@ -190,3 +192,12 @@ def format_amounts(doc, main_fields=[], child_fields=[], child_table_field=None)
                 if item.get(field) is not None:
                     formatted_value = frappe.format(item.get(field), "Currency").replace(currency_symbol, "").strip()
                     item.set(field, formatted_value)
+
+
+def get_reference_currency():
+    """Returns the currency of the default company"""
+    company = erpnext.get_default_company()
+
+    if company:
+
+        return frappe.get_cached_value("Company", company, "reference_currency")
