@@ -2,23 +2,18 @@ const RIF_LEGAL_NATURES = ["Juridical", "Government", "Communal"];
 const RIF_NATURAL_NATURES = ["Venezuelan", "Extranjero", "Passport"];
 
 /**
- *
- * @param {string} document_type - RIF, Cédula, Pasaporte
- * @param {string} nature - Naturaleza del contribuyente
- * @returns {number|Array<number>} - Longitud de dígitos
+ * @param {string} document_type
+ * @param {string} nature
+ * @returns {number|Array<number>}
  */
 function get_tax_id_config(document_type, nature) {
 	const config = {
 		'RIF': { default: 9 },
-		'ID': {
-			'Venezolano': 8,
+		'Cedula': {
 			default: 8
 		},
-		'ID_Foreign': { default: [8, 10] },
 		'Passport': {
-			'Extranjero': [8, 12],
-			'Venezolano': 8,
-			default: [8, 12]
+			default: [8, 9]
 		}
 	};
 
@@ -27,42 +22,25 @@ function get_tax_id_config(document_type, nature) {
 }
 
 /**
- *
  * @param {object} frm
- * @param {string} source_field
+ * @param {string} fieldname
  */
-function sync_taxpayer_fields(frm, source_field, is_company = false) {
-
-	if (!frm.doc[source_field]) {
-		return;
+function handle_field_change(frm, fieldname) {
+	// Si cambia el tipo de documento, es el cambio de mayor jerarquía.
+	if (fieldname === 'type_of_document') {
+		frm.set_value('nature_of_the_taxpayer', '');
+		frm.set_value('type_of_person', '');
 	}
 
-	const nature = frm.doc.nature_of_the_taxpayer;
-	const person_type = frm.doc.type_of_person;
+	// Ejecutamos los filtros en cascada.
+	set_nature_filter(frm);
 
-	if (source_field === 'nature_of_the_taxpayer' || source_field === 'type_of_document') {
-		if (RIF_LEGAL_NATURES.includes(nature)) {
-			frm.set_value('type_of_person', 'Domiciled legal entity');
-
-		} else if (RIF_NATURAL_NATURES.includes(nature)) {
-			frm.set_value('type_of_person', 'Natural person domiciled');
-		}
-	} else if (source_field === 'type_of_person') {
-		if (person_type.includes('natural person')) { // Persona Natural
-			if (!RIF_NATURAL_NATURES.includes(nature)) {
-				frm.set_value('nature_of_the_taxpayer', 'Venezuelan');
-			}
-		} else if (person_type.includes('legal entity')) { // Persona Jurídica
-			if (!RIF_LEGAL_NATURES.includes(nature)) {
-				frm.set_value('nature_of_the_taxpayer', 'Juridical');
-			}
-		}
-	}
-
-	if (!is_company) {
-		// Al cambiar la naturaleza, reconstruir el tax_id
+	if (fieldname === 'nature_of_the_taxpayer') {
 		build_tax_id(frm);
 	}
+
+	set_person_type_filter(frm);
+
 }
 
 /**
@@ -78,23 +56,47 @@ function build_tax_id(frm) {
 		return;
 	}
 
-	const letter = nature.charAt(0).toUpperCase();
-	let number = tax_id_value.replace(/[^0-9]/g, '');
-
 	const length_config = get_tax_id_config(document_type, nature);
 	const max_length = Array.isArray(length_config) ? length_config[1] : length_config;
+	let full_tax_id = '';
 
-	if (number.length > max_length) {
-		number = number.substring(0, max_length);
+	if (document_type === 'Passport') {
+		let passport_number = tax_id_value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+		let letter_count = 0;
+		let cleaned_passport = "";
+		for (const char of passport_number) {
+			if (/[A-Z]/.test(char)) {
+				if (letter_count < 3) {
+					cleaned_passport += char;
+					letter_count++;
+				}
+			} else {
+				cleaned_passport += char;
+			}
+		}
+		passport_number = cleaned_passport;
+
+		if (passport_number.length > max_length) {
+			passport_number = passport_number.substring(0, max_length);
+		}
+		full_tax_id = passport_number;
+	} else {
+		// Lógica para Cédula y RIF
+		const letter = nature.charAt(0).toUpperCase();
+		let number_part = tax_id_value.replace(/^[a-zA-Z]*/, '').replace(/\D/g, '');
+
+		if (max_length && number_part.length > max_length) {
+			number_part = number_part.substring(0, max_length);
+		}
+		full_tax_id = letter + number_part;
 	}
-
-	const full_tax_id = letter + number;
 
 	frm.set_value('tax_id', full_tax_id);
 }
 
 /**
- * Construye el RIF para la Compañía (versión simple).
+ * Construye el RIF para la Compañía.
  * @param {object} frm -
  */
 function build_rif(frm) {
@@ -106,13 +108,13 @@ function build_rif(frm) {
 	}
 
 	const letter = nature.charAt(0).toUpperCase();
-	let number = tax_id_value.replace(/[^0-9]/g, '');
+	let number_part = tax_id_value.replace(/^[a-zA-Z]*/, '').replace(/\D/g, '');
 
-	if (number.length > 9) {
-		number = number.substring(0, 9);
+	if (number_part.length > 9) {
+		number_part = number_part.substring(0, 9);
 	}
 
-	frm.set_value('tax_id', letter + number);
+	frm.set_value('tax_id', letter + number_part);
 }
 
 /**
@@ -125,7 +127,7 @@ function set_person_type_filter(frm) {
 
 	let allowed_person_types = [];
 
-	if (doc_type === 'ID' || doc_type === 'Passport') {
+	if (doc_type === 'Cedula' || doc_type === 'Passport') {
 		allowed_person_types = ["Natural person domiciled", "Non-domiciled natural person"];
 	} else if (RIF_LEGAL_NATURES.includes(nature)) {
 		allowed_person_types = ["Domiciled legal entity",
@@ -150,17 +152,16 @@ function set_nature_filter(frm) {
 	const doc_type = frm.doc.type_of_document;
 	let allowed_natures = [];
 
-	if (doc_type === 'ID_Foreign') {
+	if (doc_type === 'Cedula') {
+		allowed_natures = ['Venezuelan', 'Extranjero'];
+	} else if (doc_type === 'Passport') {
 		allowed_natures = ['Extranjero'];
 		frm.set_value('nature_of_the_taxpayer', 'Extranjero');
-	} else if (doc_type === 'ID' || doc_type === 'Passport') {
-		allowed_natures = ['Venezuelan', 'Extranjero'];
 	} else {
 		// Para RIF u otros, permitir todas las opciones
 		allowed_natures = RIF_LEGAL_NATURES.concat(RIF_NATURAL_NATURES);
 	}
 
-	// Si la naturaleza actual no está en las permitidas, limpiarla
 	if (frm.doc.nature_of_the_taxpayer && !allowed_natures.includes(frm.doc.nature_of_the_taxpayer)) {
 		frm.set_value('nature_of_the_taxpayer', '');
 	}

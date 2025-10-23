@@ -15,6 +15,8 @@ frappe.listview_settings["Sales Invoice"] = {
     "is_return",
     "is_debit_note",
     "is_void",
+    "total_withholding",
+    "vat_withholding_voucher_number",
   ],
   get_indicator: function (doc) {
     let status = "";
@@ -48,6 +50,11 @@ frappe.listview_settings["Sales Invoice"] = {
     if (doc.is_void) {
       status = "Anulado";
       indicator = "red";
+    }
+
+    if (doc.total_withholding > 0 && !doc.vat_withholding_voucher_number && doc.docstatus === 1) {
+      status = "Por Cargar Comprobante";
+      indicator = "orange";
     }
 
     return [status, indicator];
