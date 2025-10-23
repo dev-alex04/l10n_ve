@@ -630,7 +630,8 @@ def set_allow_multi_currency_invoices() -> None:
         print(f"Failure: Ocurrió un error estableciendo Multimoneda en facturas: {e}")
         frappe.log_error(title=f'Error estableciendo Multimoneda en facturas:',
                          message=frappe.get_traceback())
-def load_venezuela_data():
+
+def load_venezuela_data() -> None:
     STATE_DOCTYPE = "VE State"
     MUNICIPALITY_DOCTYPE = "VE Municipality"
     PARISH_DOCTYPE = "VE Parish"
@@ -649,7 +650,6 @@ def load_venezuela_data():
             country_doc.country_name = COUNTRY_ID.strip()
             country_doc.code = "VE"
             country_doc.insert(ignore_permissions=True, ignore_mandatory=True)
-            frappe.db.commit()
             print(f"  -> Creado DocType Country: {COUNTRY_ID.strip()}")
         except Exception as e:
             frappe.throw(_(f"Fallo al crear el DocType Country '{COUNTRY_ID.strip()}'. Error: {e}"))
@@ -666,7 +666,6 @@ def load_venezuela_data():
         return
 
     country_name = COUNTRY_ID.strip()
-    frappe.db.begin()
 
     try:
         for i, state_data in enumerate(data):
