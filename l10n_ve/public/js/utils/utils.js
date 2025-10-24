@@ -178,6 +178,15 @@ function get_address_link(frm) {
 
   const fieldname_address_link = field_primary_address[frm.doctype];
 
+  if (!fieldname_address_link) {
+    return;
+  }
+
+  if (frm.is_new()) {
+    frm.toggle_display(fieldname_address_link, false);
+    return;
+  }
+
   const filters = {
 	parenttype: 'Address',
 	link_doctype: frm.doctype,
@@ -185,12 +194,6 @@ function get_address_link(frm) {
   };
 
   frappe.db.count('Dynamic Link', { filters: filters }).then(count => {
-	if (fieldname_address_link) {
-		if (count > 0) {
-			frm.toggle_display(fieldname_address_link, true);
-		} else {
-			frm.toggle_display(fieldname_address_link, false);
-		}
-	}
+	frm.toggle_display(fieldname_address_link, count > 0);
   });
 }
