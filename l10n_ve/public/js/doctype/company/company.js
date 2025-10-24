@@ -1,6 +1,6 @@
 frappe.ui.form.on("Company", {
   refresh: function (frm) {
-
+    get_address_link(frm);
     if (frm.is_new()) {
       frm.set_value('nature_of_the_taxpayer', '');
       frm.set_value('type_of_person', '');

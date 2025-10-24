@@ -1,0 +1,35 @@
+[
+  { "codigo": "0102", "nombre": "BANCO DE VENEZUELA" },
+  { "codigo": "0104", "nombre": "BANCO VENEZOLANO DE CREDITO" },
+  { "codigo": "0105", "nombre": "BANCO MERCANTIL" },
+  { "codigo": "0108", "nombre": "BBVA PROVINCIAL" },
+  { "codigo": "0114", "nombre": "BANCARIBE" },
+  { "codigo": "0115", "nombre": "BANCO EXTERIOR" },
+  { "codigo": "0128", "nombre": "BANCO CARONI" },
+  { "codigo": "0134", "nombre": "BANESCO" },
+  { "codigo": "0137", "nombre": "BANCO SOFITASA" },
+  { "codigo": "0138", "nombre": "BANCO PLAZA" },
+  { "codigo": "0146", "nombre": "BANGENTE" },
+  { "codigo": "0151", "nombre": "BANCO FONDO COMUN" },
+  { "codigo": "0156", "nombre": "100% BANCO" },
+  { "codigo": "0157", "nombre": "DELSUR BANCO UNIVERSAL" },
+  { "codigo": "0163", "nombre": "BANCO DEL TESORO" },
+  { "codigo": "0168", "nombre": "BANCRECER" },
+  { "codigo": "0169", "nombre": "R4 BANCO MICROFINANCIERO C.A." },
+  { "codigo": "0171", "nombre": "BANCO ACTIVO" },
+  { "codigo": "0172", "nombre": "BANCAMIGA BANCO UNIVERSAL, C.A." },
+  { "codigo": "0173",
+    "nombre": "BANCO INTERNACIONAL DE DESARROLLO"
+  },
+  { "codigo": "0174", "nombre": "BANPLUS" },
+  {
+    "codigo": "0175",
+    "nombre": "BANCO DIGITAL DE LOS TRABAJADORES, BANCO UNIVERSAL"
+  },
+  { "codigo": "0177", "nombre": "BANFANB" },
+  {
+    "codigo": "0178",
+    "nombre": "N58 BANCO DIGITAL BANCO MICROFINANCIERO S A"
+  },
+  { "codigo": "0191", "nombre": "BANCO NACIONAL DE CREDITO" }
+]

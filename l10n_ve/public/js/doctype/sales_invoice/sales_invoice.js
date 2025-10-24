@@ -43,6 +43,11 @@ frappe.ui.form.on("Sales Invoice", {
     set_sales_invoice_fields(frm);
     print_button_pdf(frm);
 
+    setTimeout(() => {
+        // Oculta el botón de impresión principal
+        frm.page.wrapper.find(`button[data-original-title="${__("Print")}"]`).hide();
+    }, 100);
+
     // Mover esto a una funcion
 
     let has_islr_withholding = false;
@@ -329,16 +334,12 @@ function set_sales_invoice_fields(frm) {
 }
 
 function print_button_pdf(frm) {
-  const button_group_label =
-    frm.doc.docstatus == 0 ? __("Preview") : __("View");
-
   if (!frm.custom_buttons["Generar PDF de Factura"]) {
     frm.add_custom_button(
       __("Generar PDF de Factura"),
       () => {
         generate_custom_invoice_preview(frm);
-      },
-      button_group_label
+      }
     );
   }
 }
