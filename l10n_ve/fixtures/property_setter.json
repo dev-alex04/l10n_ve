@@ -2307,5 +2307,29 @@
         "property_type": "",
         "row_name": null,
         "value": "Cantidad total de Items"
+    },
+    {
+        "doctype": "Property Setter",
+        "doc_type": "Purchase Taxes and Charges",
+        "doctype_or_field": "DocField",
+        "field_name": "total",
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "PurchaseTaxesAndCharges-total-in_list_view",
+        "property": "in_list_view",
+        "property_type": "Check",
+        "value": "0"
+    },
+    {
+        "doctype": "Property Setter",
+        "doc_type": "Sales Taxes and Charges",
+        "doctype_or_field": "DocField",
+        "field_name": "total",
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "SalesTaxesAndCharges-total-in_list_view",
+        "property": "in_list_view",
+        "property_type": "Check",
+        "value": "0"
     }
 ]
