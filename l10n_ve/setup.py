@@ -774,7 +774,7 @@ def load_venezuela_data() -> None:
         frappe.log_error(message=frappe.get_traceback(), title="Error en load_venezuela_data")
         frappe.throw(_(f"Fallo la carga de datos. Revierte los cambios. Error: {e}"))
 
-def create_bank_venezuelan()->None:
+def create_bank_venezuelan()->str:
     """
     Importa una lista de bancos venezolanos desde un archivo JSON al DocType Bank.
     """
@@ -849,7 +849,7 @@ def create_bank_venezuelan()->None:
     print(f"Success: {mensaje}")
     return mensaje
 
-def create_bank_account_types() -> None:
+def create_bank_account_types() -> str:
     """
     Carga los tipos de cuenta bancaria 'Corriente' y 'Ahorro' en el DocType Bank Account Type.
     """
