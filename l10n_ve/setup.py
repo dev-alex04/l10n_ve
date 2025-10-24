@@ -22,6 +22,7 @@ def set_l10n_ve_data() -> None:
         load_venezuela_data()
         create_bank_venezuelan()
         create_bank_account_types()
+        uncheck_all_prepared_reports()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -883,7 +884,7 @@ def create_bank_account_types() -> str:
     print(f"Success: {mensaje}")
     return mensaje
 
-def uncheck_all_reports_masivo():
+def uncheck_all_prepared_reports() -> None:
     print(f"Estableciendo valor 0 en prepared_report en Report")
     try:
         report_list: list[str] = frappe.db.get_all('Report', pluck='name')
