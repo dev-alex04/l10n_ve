@@ -21,7 +21,7 @@ def custom_execute(filters=None) -> tuple:
 
     for i, column in enumerate(columns):
 
-        # Se elimina la clave del ancho para que el ancho sea
+        # Se elimina la clave del ancho para que el ancho sea automático
         if 'width' in column:
             del column['width']
 
