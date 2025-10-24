@@ -168,3 +168,29 @@ function set_nature_filter(frm) {
 
 	frm.set_df_property('nature_of_the_taxpayer', 'options', allowed_natures.join('\n'));
 }
+
+function get_address_link(frm) {
+  const field_primary_address = {
+	'Company': 'custom_company_primary_address',
+	'Supplier': 'supplier_primary_address',
+	'Customer': 'customer_primary_address'
+  }
+
+  const fieldname_address_link = field_primary_address[frm.doctype];
+
+  const filters = {
+	parenttype: 'Address',
+	link_doctype: frm.doctype,
+	link_name: frm.doc.name
+  };
+
+  frappe.db.count('Dynamic Link', { filters: filters }).then(count => {
+	if (fieldname_address_link) {
+		if (count > 0) {
+			frm.toggle_display(fieldname_address_link, true);
+		} else {
+			frm.toggle_display(fieldname_address_link, false);
+		}
+	}
+  });
+}

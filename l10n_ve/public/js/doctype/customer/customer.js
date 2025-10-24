@@ -1,5 +1,6 @@
 frappe.ui.form.on("Customer", {
   refresh: function (frm) {
+    get_address_link(frm);
     reorganize_customer_fields(frm);
 
     if (frm.is_new()) {
