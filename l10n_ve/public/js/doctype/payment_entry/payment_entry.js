@@ -60,9 +60,15 @@ function reorganize_payment_entry_fields(frm) {
   let paid_amount = frm.get_field("paid_amount").$wrapper;
   let exchange_rate = frm.get_field("exchange_rate").$wrapper;
   let received_amount = frm.get_field("received_amount").$wrapper;
+  let reference_no = frm.get_field("reference_no").$wrapper;
+  let reference_date = frm.get_field("reference_date").$wrapper;
+  let paid_from = frm.get_field("paid_from").$wrapper;
+  let paid_to = frm.get_field("paid_to").$wrapper;
 
   paid_amount.insertAfter(received_amount);
   exchange_rate.insertAfter(paid_amount);
+  reference_no.insertAfter(paid_from);
+  reference_date.insertAfter(paid_to);
 
   if (frm.doc.exchange_rate) {
     frm.set_df_property("exchange_rate", "hidden", false);
