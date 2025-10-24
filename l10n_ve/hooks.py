@@ -5,7 +5,10 @@ app_description = "Localizacion Venezolana"
 app_email = "dominaerp@domina.com.ve"
 app_license = "mit"
 
-app_include_js = "/assets/l10n_ve/js/company.js"
+app_include_js = [
+    "/assets/l10n_ve/js/company.js",
+    "/assets/l10n_ve/js/toolbar/toolbar.js",
+]
 
 # Apps
 # ------------------
