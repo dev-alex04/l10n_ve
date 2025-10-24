@@ -20,6 +20,8 @@ def set_l10n_ve_data() -> None:
         set_reference_currency()
         set_allow_multi_currency_invoices()
         load_venezuela_data()
+        create_bank_venezuelan()
+        create_bank_account_types()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -771,3 +773,112 @@ def load_venezuela_data() -> None:
         frappe.db.rollback()
         frappe.log_error(message=frappe.get_traceback(), title="Error en load_venezuela_data")
         frappe.throw(_(f"Fallo la carga de datos. Revierte los cambios. Error: {e}"))
+
+def create_bank_venezuelan()->str:
+    """
+    Importa una lista de bancos venezolanos desde un archivo JSON al DocType Bank.
+    """
+    print("Iniciando la importación de bancos venezolanos...")
+
+    app_path = frappe.get_app_path('l10n_ve')
+    json_path = os.path.join(app_path, 'resources', 'Bank_venezuelan.json')
+
+    if not os.path.exists(json_path):
+        frappe.throw(f"Archivo no encontrado en la ruta: {json_path}")
+        return
+
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            bancos = json.load(f)
+    except Exception as e:
+        frappe.throw(_(f"Error al leer o decodificar el archivo JSON de bancos: {e}"))
+        return
+
+    bancos_creados = 0
+    bancos_existentes = 0
+    errores = []
+
+    country_name = "Venezuela, Bolivarian Republic of"
+
+    for banco_data in bancos:
+        codigo_banco = banco_data.get('codigo')
+        nombre_banco = banco_data.get('nombre')
+
+        if not codigo_banco or not nombre_banco:
+            frappe.log_message("Entrada de banco inválida, se omite", f"Datos: {banco_data}")
+            errores.append(f"Entrada de banco inválida: {banco_data}")
+            continue
+
+        if frappe.db.exists("Bank", {"swift_number": codigo_banco}):
+            bancos_existentes += 1
+            print(f"  -- Omitiendo (ya existe por código SWIFT): '{nombre_banco}' ({codigo_banco})")
+            continue
+
+        if frappe.db.exists("Bank", {"bank_name": nombre_banco}):
+            bancos_existentes += 1
+            print(f"  -- Omitiendo (ya existe por nombre): '{nombre_banco}' ({codigo_banco})")
+            continue
+
+        try:
+            nuevo_banco = frappe.get_doc({
+                "doctype": "Bank",
+                "bank_name": nombre_banco,
+                "swift_number": codigo_banco,
+                "country": country_name
+            })
+            nuevo_banco.insert(ignore_permissions=True)
+            bancos_creados += 1
+            print(f"  -> Creado Banco: '{nombre_banco}' ({codigo_banco})")
+
+        except Exception as e:
+            error_msg = f"Error al crear el banco '{nombre_banco}' ({codigo_banco}): {e}"
+            frappe.log_error(error_msg, "Error de Importación de Bancos")
+            errores.append(error_msg)
+
+    frappe.db.commit()
+
+    mensaje = f"Importación de bancos venezolanos completada. Bancos creados:"\
+            F"{bancos_creados}. Bancos que ya existían: {bancos_existentes}."
+    if errores:
+        mensaje += f" Errores encontrados: {len(errores)}."
+        frappe.msgprint(mensaje + "\n" + "\n".join(errores),
+                        title="Importación de Bancos con Errores", indicator="red")
+    else:
+        frappe.msgprint(mensaje, title="Importación de Bancos Exitosa", indicator="green")
+
+    print(f"Success: {mensaje}")
+    return mensaje
+
+def create_bank_account_types() -> str:
+    """
+    Carga los tipos de cuenta bancaria 'Corriente' y 'Ahorro' en el DocType Bank Account Type.
+    """
+    print("Iniciando la carga de tipos de cuenta bancaria...")
+
+    account_types = ["Cuenta Corriente", "Cuenta de Ahorro"]
+    created_count = 0
+    existing_count = 0
+
+    for account_type_name in account_types:
+        if frappe.db.exists("Bank Account Type", account_type_name):
+            existing_count += 1
+            print(f"  -- Omitiendo (ya existe): Tipo de cuenta '{account_type_name}'")
+        else:
+            try:
+                doc = frappe.new_doc("Bank Account Type")
+                doc.account_type = account_type_name
+                doc.insert(ignore_permissions=True)
+                created_count += 1
+                print(f"  -> Creado Tipo de cuenta: '{account_type_name}'")
+            except Exception as e:
+                frappe.log_error(f"Error al crear el tipo de cuenta"
+                                 f"'{account_type_name}': {e}", "Error de Importación de Tipos de Cuenta Bancaria")
+
+    frappe.db.commit()
+
+    mensaje = (f"Carga de tipos de cuenta bancaria completada. "
+               f"Tipos creados: {created_count}. "
+               f"Tipos que ya existían: {existing_count}.")
+    frappe.msgprint(mensaje, title="Carga de Tipos de Cuenta Bancaria", indicator="green")
+    print(f"Success: {mensaje}")
+    return mensaje
