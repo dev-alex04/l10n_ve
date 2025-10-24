@@ -882,3 +882,19 @@ def create_bank_account_types() -> str:
     frappe.msgprint(mensaje, title="Carga de Tipos de Cuenta Bancaria", indicator="green")
     print(f"Success: {mensaje}")
     return mensaje
+
+def uncheck_all_reports_masivo():
+    print(f"Estableciendo valor 0 en prepared_report en Report")
+    try:
+        report_list: list[str] = frappe.db.get_all('Report', pluck='name')
+
+        for report in report_list:
+            frappe.db.set_value('Report', report, 'prepared_report', 0)
+
+        frappe.db.commit()
+        print("El campo 'prepared_report' ha sido desmarcado en todos los Reportes.")
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(title="Error al desmarcar reportes", message=str(e))
+        frappe.throw("Ocurrió un error al actualizar los reportes.")
