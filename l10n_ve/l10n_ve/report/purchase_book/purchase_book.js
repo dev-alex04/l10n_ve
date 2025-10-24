@@ -45,15 +45,15 @@ frappe.query_reports["purchase_book"] = {
         // Añade el botón "Excel"
         report.page.add_inner_button(__("Exportar a Excel"), function() {
             frappe.dom.freeze();
-            
+
             const filters = report.get_filter_values();
-            
+           
             if (!filters.company) {
                 frappe.dom.unfreeze();
                 frappe.throw(__("Por favor, selecciona una Compañía para generar el reporte."));
                 return;
             }
-            
+           
             frappe.call({
                 method: "l10n_ve.l10n_ve.report.purchase_book.excel_builder.create_excel_file",
                 args: { report_name: "Libro de Compra", filters: JSON.stringify(filters) },
@@ -61,7 +61,7 @@ frappe.query_reports["purchase_book"] = {
                     if (r.message && r.message.type === 'download') {
                         const filename = r.message.filename;
                         const filecontent = r.message.filecontent;
-                        
+                       
                         const byteCharacters = atob(filecontent);
                         const byteNumbers = new Array(byteCharacters.length);
                         for (let i = 0; i < byteCharacters.length; i++) {
@@ -69,7 +69,7 @@ frappe.query_reports["purchase_book"] = {
                         }
                         const byteArray = new Uint8Array(byteNumbers);
                         const blob = new Blob([byteArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-                        
+                       
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.style.display = 'none';
@@ -79,7 +79,7 @@ frappe.query_reports["purchase_book"] = {
                         a.click();
                         window.URL.revokeObjectURL(url);
                         document.body.removeChild(a);
-                        
+                       
                         frappe.show_alert({
                             message: __("Reporte Excel generado y descargado correctamente."),
                             indicator: 'green'
@@ -99,7 +99,7 @@ frappe.query_reports["purchase_book"] = {
         // Añade el botón para generar el archivo XML de Retenciones de ISLR
         report.page.add_inner_button(__("Generar XML ISLR"), function() {
             const filters = report.get_filter_values();
-            
+
             if (!filters.company) {
                 frappe.throw(__("Por favor, selecciona una Compañía para generar el XML."));
                 return;
@@ -138,9 +138,9 @@ frappe.query_reports["purchase_book"] = {
         report.page.add_inner_button(__("Descargar TXT"), function() {
             // Deshabilitar la UI para evitar clics múltiples y mostrar carga
             frappe.dom.freeze();
-            
+
             const filters = report.get_filter_values();
-            
+           
             frappe.call({
                 method: "l10n_ve.l10n_ve.report.purchase_book.purchase_book.generate_txt_file",
                 args: {
@@ -151,7 +151,7 @@ frappe.query_reports["purchase_book"] = {
                         // Lógica para manejar la descarga directa de un archivo
                         const filename = r.message.filename;
                         const filecontent = r.message.filecontent;
-                        
+                       
                         // Decodificar el contenido base64
                         const byteCharacters = atob(filecontent);
                         const byteNumbers = new Array(byteCharacters.length);
@@ -160,7 +160,7 @@ frappe.query_reports["purchase_book"] = {
                         }
                         const byteArray = new Uint8Array(byteNumbers);
                         const blob = new Blob([byteArray], { type: "text/plain;charset=utf-8" });
-                        
+                       
                         // Crear un enlace temporal para la descarga
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
@@ -171,7 +171,7 @@ frappe.query_reports["purchase_book"] = {
                         a.click();
                         window.URL.revokeObjectURL(url);
                         document.body.removeChild(a);
-                        
+                       
                         frappe.show_alert({
                             message: __("Archivo TXT generado y descargado con éxito."),
                             indicator: "green"

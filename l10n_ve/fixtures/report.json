@@ -13,7 +13,7 @@
     "fieldtype": "Link",
     "label": "Company",
     "mandatory": 0,
-    "options": "",
+    "options": "Company",
     "parent": "purchase_book",
     "parentfield": "filters",
     "parenttype": "Report",
