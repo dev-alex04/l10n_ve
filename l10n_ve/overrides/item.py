@@ -19,6 +19,9 @@ class CustomItem(Item):
     def add_price(self, price_list=None) -> None:
         """Add a new sales price"""
 
+        if not self.is_valid_for_create_price:
+            return
+
         if not price_list:
             price_list = frappe.db.get_single_value(
                 "Selling Settings", "selling_price_list"
@@ -44,6 +47,9 @@ class CustomItem(Item):
     def create_purchase_price(self) -> None:
         """Add a new purchase price"""
 
+        if not self.is_valid_for_create_price:
+            return
+
         price_list = frappe.db.get_value("Price List", _("Standard Buying"))
 
         if price_list:
@@ -61,3 +67,13 @@ class CustomItem(Item):
             item_price.insert()
 
             self.purchase_actual_price = item_price.name
+
+    @property
+    def is_valid_for_create_price(self) -> bool:
+
+        is_valid_for_create_price = not any([
+            bool(self.has_variants),
+            bool(not self.standard_rate and not self.standard_purchase_rate)
+        ])
+
+        return is_valid_for_create_price
