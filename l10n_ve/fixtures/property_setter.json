@@ -2323,6 +2323,8 @@
         "property_type": "",
         "row_name": null,
         "value": "1"
+    },
+    {
         "default_value": null,
         "doc_type": "Purchase Taxes and Charges",
         "docstatus": 0,
