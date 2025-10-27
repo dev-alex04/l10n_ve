@@ -125,13 +125,13 @@ def custom_get_gl_entries(filters, accounting_dimensions):
 
 def custom_set_bill_no(gl_entries):
     """
-    Obtiene el 'bill_no' de las facturas de compra.
-    Esta función es necesaria para complementar los datos que ya vienen en GL Entry.
+    Obtenemos el bill_no en las facturas de compra y venta
+    Por lo tanto descativamos esta funcion
     """
+    return
     inv_details = general_ledger_report.get_supplier_invoice_details()
     for gl in gl_entries:
         gl["bill_no"] = inv_details.get(gl.get("against_voucher"), "")
-
 
 
 # 4. Reemplaza la función original con la tuya
