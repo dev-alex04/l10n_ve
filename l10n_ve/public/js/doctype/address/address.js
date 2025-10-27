@@ -1,5 +1,6 @@
 frappe.ui.form.on('Address', {
     refresh: function(frm) {
+        reorganize_customer_fields(frm);
         filter_data(frm);
         get_address_name(frm);
     },
@@ -118,4 +119,19 @@ function filter_data(frm) {
     frm.set_query('city', function() {
         return get_conditional_filter('state', frm.doc.state);
     });
+}
+
+function reorganize_customer_fields(frm) {
+  let address_line1_field_wrapper = frm.get_field("address_line1").$wrapper;
+  let country_field_wrapper = frm.get_field("country").$wrapper;
+  let state_field_wrapper = frm.get_field("state").$wrapper;
+  let city_field_wrapper = frm.get_field("city").$wrapper;
+  let county_field_wrapper = frm.get_field("county").$wrapper;
+  let parish_field_wrapper = frm.get_field("parish").$wrapper;
+
+  country_field_wrapper.insertAfter(address_line1_field_wrapper);
+  state_field_wrapper.insertAfter(country_field_wrapper);
+  city_field_wrapper.insertAfter(state_field_wrapper);
+  county_field_wrapper.insertAfter(city_field_wrapper);
+  parish_field_wrapper.insertAfter(county_field_wrapper);
 }
