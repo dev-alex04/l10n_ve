@@ -1,12 +1,14 @@
 frappe.ui.form.on("Supplier", {
   refresh: function (frm) {
-    get_address_link(frm);
     reorganize_supplier_fields(frm);
 
     if (frm.is_new()) {
       frm.set_value('type_of_document', '');
       frm.set_value('nature_of_the_taxpayer', '');
       frm.set_value('type_of_person', '');
+      hidden_address_contact(frm);
+    } else {
+      get_address_link(frm);
     }
 
     handle_supplier_field_change(frm, null);

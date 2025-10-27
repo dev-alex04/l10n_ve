@@ -187,13 +187,37 @@ function get_address_link(frm) {
     return;
   }
 
-  const filters = {
-	parenttype: 'Address',
-	link_doctype: frm.doctype,
-	link_name: frm.doc.name
-  };
-
-  frappe.db.count('Dynamic Link', { filters: filters }).then(count => {
-	frm.toggle_display(fieldname_address_link, count > 0);
+  frappe.call({
+    method: 'l10n_ve.overrides.address.get_address_link_count',
+    args: {
+      link_doctype: frm.doctype,
+      link_name: frm.doc.name
+    }
+  }).then(r => {
+    frm.toggle_display(fieldname_address_link, r.message > 0);
   });
+}
+
+function hidden_address_contact(frm) {
+	const field_primary_address = {
+		'Company': 'custom_company_primary_address',
+		'Supplier': 'supplier_primary_address',
+		'Customer': 'customer_primary_address'
+	}
+
+	const field_primary_contact = {
+		'Supplier': 'supplier_primary_contact',
+		'Customer': 'customer_primary_contact'
+	}
+
+	const fieldname_address_link = field_primary_address[frm.doctype];
+	const fieldname_contact_link = field_primary_contact[frm.doctype];
+
+	if (fieldname_address_link) {
+		frm.toggle_display(fieldname_address_link, false);
+	}
+
+	if (fieldname_contact_link) {
+		frm.toggle_display(fieldname_contact_link, false);
+	}
 }

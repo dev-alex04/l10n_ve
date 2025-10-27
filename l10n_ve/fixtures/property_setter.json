@@ -2403,5 +2403,37 @@
         "property_type": "Check",
         "row_name": null,
         "value": "0"
+    },
+    {
+        "default_value": "Estado",
+        "doc_type": "Address",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "state",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Address-state-label",
+        "property": "label",
+        "property_type": "Text",
+        "row_name": null,
+        "value": "Estado"
+    },
+    {
+        "default_value": "Ciudad",
+        "doc_type": "Address",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "city",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Address-city-label",
+        "property": "label",
+        "property_type": "Text",
+        "row_name": null,
+        "value": "Ciudad"
     }
 ]

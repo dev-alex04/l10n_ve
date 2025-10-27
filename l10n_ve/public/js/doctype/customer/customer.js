@@ -1,12 +1,14 @@
 frappe.ui.form.on("Customer", {
   refresh: function (frm) {
-    get_address_link(frm);
     reorganize_customer_fields(frm);
 
     if (frm.is_new()) {
       frm.set_value('type_of_document', '');
       frm.set_value('nature_of_the_taxpayer', '');
       frm.set_value('type_of_person', '');
+      hidden_address_contact(frm);
+    } else {
+      get_address_link(frm);
     }
 
     handle_customer_field_change(frm, null);
