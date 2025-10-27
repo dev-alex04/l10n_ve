@@ -1,11 +1,13 @@
 import copy
-from typing import Literal
 from collections import OrderedDict
 
 import frappe
 from frappe import _, _dict
 
 import erpnext.accounts.report.general_ledger.general_ledger as general_ledger_report
+from erpnext.accounts.report.general_ledger.general_ledger import (
+	group_by_field as original_group_by_field,
+)
 from erpnext.accounts.report.utils import convert_to_presentation_currency, get_currency
 
 
@@ -19,67 +21,47 @@ def custom_execute(filters=None) -> tuple:
 
     columns, res = original_execute(filters)
 
-    for i, column in enumerate(columns):
+    # Eliminar anchos fijos para que sean automáticos
+    for col in columns:
+        if 'width' in col:
+            del col['width']
 
-        # Se elimina la clave del ancho para que el ancho sea automático
-        if 'width' in column:
-            del column['width']
-
-        set_bill_numbers_on_columns(i, column, columns)
+    # Insertar columnas personalizadas en la posición correcta
+    set_bill_numbers_on_columns(columns)
 
     return columns, res
 
 
-def set_bill_numbers_on_columns(i: int, column: dict, columns: list[dict]) -> None:
+def set_bill_numbers_on_columns(columns: list[dict]) -> None:
+    """Inserta las columnas 'bill_no' y 'bill_control' después de 'voucher_subtype'."""
+    try:
+        # Encontrar el índice de la columna 'voucher_subtype'
+        insertion_point = next(i for i, col in enumerate(columns) if col.get("fieldname") == "voucher_subtype")
 
-    if column['fieldname'] != 'voucher_subtype':
-        return
-
-    columns.insert(i + 1,
-        {
-            "label": _("Bill control"),
+        # Insertar las nuevas columnas en la posición encontrada
+        columns.insert(insertion_point + 1, {
+            "label": _("Bill Control"),
             "fieldname": "bill_control",
             "fieldtype": "Data",
-        },
-    )
-
-    columns.insert(i + 1,
-        {
-            "label": _("Bill no"),
+        })
+        columns.insert(insertion_point + 2, {
+            "label": _("Bill No"),
             "fieldname": "bill_no",
             "fieldtype": "Data",
-        },
-    )
-
+        })
+    except StopIteration:
+        # Si no se encuentra 'voucher_subtype', no se hace nada.
+        return
 
 def initialize_gle_map(gl_entries, filters, totals_dict) -> OrderedDict:
-
+    """Inicializa el mapa de asientos contables sin traducciones innecesarias."""
     gle_map = OrderedDict()
-    group_by = group_by_field(filters.get("group_by"))
+    group_by = original_group_by_field(filters.get("group_by"))
 
     for gle in gl_entries:
-
-        # Se agrega la traducción
-        gle.against = _(gle.get('against'), '')
-        gle.voucher_no = _(gle.get('voucher_no'), '')
-        gle.party_type = _(gle.get('party_type'), '')
-        gle.voucher_type = _(gle.get('voucher_type'), '')
-        gle.voucher_subtype = _(gle.get('voucher_subtype'), '')
-        gle.against_voucher_type = _(gle.get('against_voucher_type'), '')
-
         gle_map.setdefault(gle.get(group_by), _dict(totals=copy.deepcopy(totals_dict), entries=[]))
+
     return gle_map
-
-
-def group_by_field(group_by) -> Literal['party'] | Literal['account'] | Literal['voucher_no']:
-
-    if group_by == "Group by Party":
-        return "party"
-    elif group_by in ["Group by Voucher (Consolidated)", "Group by Account"]:
-        return "account"
-    else:
-        return "voucher_no"
-
 
 def custom_get_gl_entries(filters, accounting_dimensions):
     currency_map = get_currency(filters)
@@ -143,11 +125,10 @@ def custom_get_gl_entries(filters, accounting_dimensions):
 
 def custom_set_bill_no(gl_entries):
     """
-    Obtenemos el bill_no en las facturas de compra y venta
-    Por lo tanto descativamos esta funcion
+    Obtiene el 'bill_no' de las facturas de compra.
+    Esta función es necesaria para complementar los datos que ya vienen en GL Entry.
     """
-    return
-    inv_details = get_supplier_invoice_details()
+    inv_details = general_ledger_report.get_supplier_invoice_details()
     for gl in gl_entries:
         gl["bill_no"] = inv_details.get(gl.get("against_voucher"), "")
 
@@ -155,7 +136,6 @@ def custom_set_bill_no(gl_entries):
 
 # 4. Reemplaza la función original con la tuya
 general_ledger_report.execute = custom_execute
-general_ledger_report.group_by_field = group_by_field
 general_ledger_report.get_gl_entries = custom_get_gl_entries
 general_ledger_report.initialize_gle_map = initialize_gle_map
 general_ledger_report.set_bill_no = custom_set_bill_no
