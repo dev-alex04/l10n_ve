@@ -197,3 +197,27 @@ function get_address_link(frm) {
     frm.toggle_display(fieldname_address_link, r.message > 0);
   });
 }
+
+function hidden_address_contact(frm) {
+	const field_primary_address = {
+		'Company': 'custom_company_primary_address',
+		'Supplier': 'supplier_primary_address',
+		'Customer': 'customer_primary_address'
+	}
+
+	const field_primary_contact = {
+		'Supplier': 'supplier_primary_contact',
+		'Customer': 'customer_primary_contact'
+	}
+
+	const fieldname_address_link = field_primary_address[frm.doctype];
+	const fieldname_contact_link = field_primary_contact[frm.doctype];
+
+	if (fieldname_address_link) {
+		frm.toggle_display(fieldname_address_link, false);
+	}
+
+	if (fieldname_contact_link) {
+		frm.toggle_display(fieldname_contact_link, false);
+	}
+}
