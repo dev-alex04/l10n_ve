@@ -187,13 +187,13 @@ function get_address_link(frm) {
     return;
   }
 
-  const filters = {
-	parenttype: 'Address',
-	link_doctype: frm.doctype,
-	link_name: frm.doc.name
-  };
-
-  frappe.db.count('Dynamic Link', { filters: filters }).then(count => {
-	frm.toggle_display(fieldname_address_link, count > 0);
+  frappe.call({
+    method: 'l10n_ve.overrides.address.get_address_link_count',
+    args: {
+      link_doctype: frm.doctype,
+      link_name: frm.doc.name
+    }
+  }).then(r => {
+    frm.toggle_display(fieldname_address_link, r.message > 0);
   });
 }
