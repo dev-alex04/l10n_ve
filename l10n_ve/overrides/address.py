@@ -10,7 +10,6 @@ class CustomAddress(Address):
         self.validate_address()
 
     def save(self, *args, **kwargs):
-        kwargs['ignore_permissions'] = True
         super().save(*args, **kwargs)
         self.update_primary_address()
 
