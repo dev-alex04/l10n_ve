@@ -1,4 +1,4 @@
-// Helper functions
+// Funciones de ayuda
 function format_currency(value, currency) {
   return frappe.format(value, { fieldtype: "Currency", currency: currency });
 }
@@ -19,10 +19,6 @@ async function get_address_text(address_name) {
     console.error("Error al obtener el texto de la dirección:", e);
     return "Error al cargar la dirección";
   }
-}
-
-function cleanCountryName(addressText) {
-  return addressText.replace("Venezuela, Bolivarian Republic of", "Venezuela");
 }
 
 const template_html = `
@@ -72,17 +68,9 @@ const template_html = `
     <div class="totals-row">
         <table class="totals-section">
             <tr><td class="label">Base imponible:</td><td class="value">{{total}}</td></tr>
-            <tr class="igtf-row" {{igtf_display_style}}>
-                <td class="label">Base IGTF:</td>
-                <td class="value">{{base_igtf_formatted}}</td>
-            </tr>
-            <tr class="igtf-row" {{igtf_display_style}}>
-                <td class="label">IGTF:</td>
-                <td class="value">{{total_igtf_formatted}}</td>
-            </tr>
+            {{igtf_html}}
             <tr><td class="label">Total exento:</td><td class="value">{{total_exempt}}</td></tr>
             {{taxes_html}}
-
             <tr class="grand-total">
                 <td class="label">Total a Pagar:</td>
                 <td class="value">{{grand_total}}</td>
@@ -97,7 +85,7 @@ const template_html = `
     </div>
 </div>`;
 
-export async function generate_custom_invoice_preview(frm) {
+async function generate_custom_invoice_preview(frm) {
   const doc = frm.doc;
 
   let document_title = __("FACTURA DE VENTA");
@@ -129,7 +117,7 @@ export async function generate_custom_invoice_preview(frm) {
           "company_logo",
           "tax_id",
           "custom_company_primary_address",
-          "default_currency", // Asegurarse de obtener la moneda por defecto
+          "default_currency",
         ]),
         fetch(
           "/assets/l10n_ve/js/doctype/sales_invoice/invoice_preview.css"
@@ -192,11 +180,30 @@ export async function generate_custom_invoice_preview(frm) {
       )
       .join("");
 
-    // 2.1. Preparar valores y visibilidad para IGTF
-    const base_igtf_val = doc.base_amount_igtf || 0;
-    const total_igtf_val = doc.total_igtf || 0;
+    // 2.1. Construir HTML para IGTF si aplica
+    let igtf_html = "";
+    const base_igtf = doc.base_amount_igtf|| 0;
+    const total_igtf = doc.total_igtf || 0;
 
-    const has_igtf = base_igtf_val > 0 && total_igtf_val > 0;
+    if (base_igtf > 0 && total_igtf > 0) {
+      igtf_html = `
+        <tr>
+            <td class="label">${__("Base IGTF")}:</td>
+            <td class="value">${format_currency(base_igtf, display_currency)}</td>
+        </tr>
+        <tr>
+            <td class="label">${__("IGTF")}:</td>
+            <td class="value">${format_currency(total_igtf, display_currency)}</td>
+        </tr>
+      `;
+    }
+
+    const total_exempt_amount = frm.doc.items.reduce((sum, item) => {
+      if (item.vat_exempt) {
+        return sum + (is_foreign_currency ? item.base_amount : item.amount);
+      }
+      return sum;
+    }, 0);
 
     // 3. Rellenar la plantilla
     const context = {
@@ -216,12 +223,9 @@ export async function generate_custom_invoice_preview(frm) {
       customer_address,
       items_html,
       total: format_currency(is_foreign_currency ? frm.doc.base_total : frm.doc.total, display_currency),
-      total_exempt: format_currency(is_foreign_currency ? 0 : frm.doc.total_exempt, display_currency),
+      total_exempt: format_currency(total_exempt_amount, display_currency),
       taxes_html,
-      // Nuevas variables para IGTF
-      igtf_display_style: has_igtf ? '' : 'style="display: none;"',
-      base_igtf_formatted: format_currency(base_igtf_val, display_currency),
-      total_igtf_formatted: format_currency(total_igtf_val, display_currency),
+      igtf_html,
       grand_total: format_currency(is_foreign_currency ? frm.doc.base_grand_total : frm.doc.grand_total, display_currency),
       in_words: frm.doc[in_words_field] || "Cálculo pendiente",
       remarks: frm.doc.remarks || "Ninguna",
@@ -230,8 +234,7 @@ export async function generate_custom_invoice_preview(frm) {
     let preview_html = template_html.replace(
       /\{\{([^}]+)\}\}/g,
       (match, key) => {
-        const value = context[key.trim()];
-        return value || "";
+        return context[key.trim()] || "";
       }
     );
 
@@ -340,4 +343,8 @@ export async function generate_custom_invoice_preview(frm) {
       )
     );
   }
+}
+
+function cleanCountryName(addressText) {
+  return addressText.replace("Venezuela, Bolivarian Republic of", "Venezuela");
 }

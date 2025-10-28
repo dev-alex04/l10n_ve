@@ -70,6 +70,7 @@ doctype_js = {
         "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/sales_invoice/sales_invoice.js",
+        "public/js/doctype/sales_invoice/sales_invoice_pdf_generator.js",
     ],
     "Purchase Invoice": [
         "public/js/utils/utils.js",
