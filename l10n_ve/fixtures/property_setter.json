@@ -2403,5 +2403,21 @@
         "property_type": "Check",
         "row_name": null,
         "value": "0"
+    },
+    {
+        "default_value": "1",
+        "doc_type": "Supplier",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "tax_withholding_category",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Supplier-tax_withholding_category-reqd",
+        "property": "reqd",
+        "property_type": "",
+        "row_name": null,
+        "value": "0"
     }
 ]

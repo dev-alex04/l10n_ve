@@ -80,6 +80,14 @@ doctype_js = {
     "Address": [
         "public/js/doctype/address/address.js",
     ],
+    "Purchase Order": [
+        "public/js/controllers/taxes_and_totals.js",
+        "public/js/doctype/purchase_order/purchase_order.js",
+    ],
+    "Sales Order": [
+        "public/js/controllers/taxes_and_totals.js",
+        "public/js/doctype/sales_order/sales_order.js",
+    ],
 }
 
 doctype_list_js = {
@@ -186,6 +194,8 @@ override_doctype_class = {
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
     "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
     "Address": "l10n_ve.overrides.address.CustomAddress",
+    "Purchase Order": "l10n_ve.overrides.purchase_order.CustomPurchaseOrder",
+    "Sales Order": "l10n_ve.overrides.sales_order.CustomSalesOrder",
 }
 
 
