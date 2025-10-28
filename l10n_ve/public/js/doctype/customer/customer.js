@@ -1,12 +1,14 @@
 frappe.ui.form.on("Customer", {
   refresh: function (frm) {
-    get_address_link(frm);
     reorganize_customer_fields(frm);
 
     if (frm.is_new()) {
       frm.set_value('type_of_document', '');
       frm.set_value('nature_of_the_taxpayer', '');
       frm.set_value('type_of_person', '');
+      hidden_address_contact(frm);
+    } else {
+      get_address_link(frm);
     }
 
     handle_customer_field_change(frm, null);
@@ -48,13 +50,12 @@ function handle_customer_field_change(frm, fieldname) {
     frm.set_df_property('tax_withholding_category', 'reqd', 0);
     frm.toggle_display('tax_withholding_category', false);
   } else {
-    // Si no es Cédula o Pasaporte, mostrar el campo de Contribuyente Especial
     frm.toggle_display('is_special_taxpayer', true);
 
     // Lógica para Contribuyente Especial
     const is_special = frm.doc.is_special_taxpayer;
-    frm.toggle_display('tax_withholding_category', is_special);
-    frm.set_df_property('tax_withholding_category', 'reqd', is_special);
+    frm.toggle_display('tax_withholding_category', false);
+    frm.set_df_property('tax_withholding_category', 'reqd', 0);
     if (!is_special) {
       frm.set_value('tax_withholding_category', '');
     }
