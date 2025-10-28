@@ -81,6 +81,9 @@ doctype_js = {
     "Address": [
         "public/js/doctype/address/address.js",
     ],
+    "Item": [
+        "public/js/doctype/item/item.js",
+    ],
 }
 
 doctype_list_js = {
