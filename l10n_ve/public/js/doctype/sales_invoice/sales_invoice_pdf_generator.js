@@ -27,7 +27,7 @@ const template_html = `
         <tr>
             <td class="header-main-title">
                 <strong>{{document_title}}</strong>
-                <div class="company-address"> &nbsp;<p><span class="label-bold">Dirección:</span> {{company_primary_address}}</p>
+                   <div class="company-address"><p><span class="label-bold">Dirección:</span> {{company_primary_address}}</p>
                 </div>
             </td>
             <td class="header-logo-container">
@@ -42,7 +42,7 @@ const template_html = `
             <td class="invoice-details-col">
                 <strong>Datos del documento:</strong>
 
-                <p><span class="label-bold">{{control_label}} </span> &nbsp;{{control_number}}</p>
+                 <p><span class="label-bold">{{control_label}} </span> {{control_number}}</p>
                 <p><span class="label-bold">{{document_label}} </span> {{document_number}}</p>
                 <p><span class="label-bold">Fecha emisión: </span> {{posting_date}}</p>
             </td>
@@ -182,8 +182,8 @@ async function generate_custom_invoice_preview(frm) {
 
     // 2.1. Construir HTML para IGTF si aplica
     let igtf_html = "";
-    const base_igtf = doc.base_amount_igtf|| 0;
-    const total_igtf = doc.total_igtf || 0;
+    const base_igtf = doc.base_amount_igtf ?? 0;
+    const total_igtf = doc.total_igtf ?? 0;
 
     if (base_igtf > 0 && total_igtf > 0) {
       igtf_html = `
@@ -346,5 +346,5 @@ async function generate_custom_invoice_preview(frm) {
 }
 
 function cleanCountryName(addressText) {
-  return addressText.replace("Venezuela, Bolivarian Republic of", "Venezuela");
+  return addressText.replace(/Venezuela, Bolivarian Republic of/gi, "Venezuela");
 }
