@@ -38,12 +38,15 @@ function handle_supplier_field_change(frm, fieldname) {
   // Lógica específica para Supplier
   const doc_type = frm.doc.type_of_document;
 
-  if (doc_type === 'Cedula' || doc_type === 'Passport') {
+  if (doc_type === "RIF") {
+    // Para RIF, mostrar el campo y hacerlo requerido
+    frm.toggle_display("tax_withholding_category", true);
+    frm.set_df_property("tax_withholding_category", "reqd", 1);
+  } else {
+    // Para Cédula, Pasaporte u otro, ocultar el campo y no hacerlo requerido
     frm.toggle_display('tax_withholding_category', false);
     frm.set_value('tax_withholding_category', '');
-  } else {
-    // Para RIF u otros, mostrar el campo
-    frm.toggle_display('tax_withholding_category', true);
+    frm.set_df_property("tax_withholding_category", "reqd", 0);
   }
 }
 
