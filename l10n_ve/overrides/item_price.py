@@ -19,7 +19,7 @@ class CustomItemPrice(ItemPrice):
                             f'{price_type}_actual_price',
                             self.name)
 
-        # Añade esta sección para guardar el monto en los campos de moneda
+        # Añade esta sección para guardar el monto en los campos de datos para su visualización
         frappe.db.set_value('Item',
                             self.item_code,
                             f'price_{price_type}',
