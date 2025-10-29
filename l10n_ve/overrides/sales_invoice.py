@@ -1,6 +1,9 @@
 import frappe
+from frappe import _, _dict
+from frappe.utils import flt, get_link_to_form, getdate, cint
 
 from erpnext.utilities.utils import get_link_to_form
+from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 
 from l10n_ve.utils.utils import validate_return_in_same_month
@@ -356,6 +359,49 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
 
         else:
             self.title = self.bill_no
+
+    def make_tax_gl_entries(self, gl_entries) -> None:
+        enable_discount_accounting = cint(
+            frappe.db.get_single_value("Selling Settings", "enable_discount_accounting")
+        )
+
+        for tax in self.get("taxes"):
+            amount, base_amount = self.get_tax_amounts(tax, enable_discount_accounting)
+
+            if flt(tax.base_tax_amount_after_discount_amount):
+                account_currency = get_account_currency(tax.account_head)
+
+                if tax.charge_type == 'VAT':
+                    debit_or_credit = 'credit'
+                else:
+                    debit_or_credit = 'debit'
+
+                gl_entries.append(
+                    self.get_gl_dict(
+                        {
+                            "account": tax.account_head,
+                            "against": self.customer,
+                            debit_or_credit: flt(base_amount, tax.precision("tax_amount_after_discount_amount")),
+                            f"{debit_or_credit}_in_account_currency": (
+                                flt(base_amount, tax.precision("base_tax_amount_after_discount_amount"))
+                                if account_currency == self.company_currency
+                                else flt(amount, tax.precision("tax_amount_after_discount_amount"))
+                            ),
+                            f"{debit_or_credit}_in_transaction_currency": flt(
+                                amount, tax.precision("tax_amount_after_discount_amount")
+                            ),
+                            "cost_center": tax.cost_center,
+                        },
+                        account_currency,
+                        item=tax,
+                    )
+                )
+
+    def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
+        """
+        Se inactiva esta funcion, ya que aqui no se harán los asientos de las retenciones
+        """
+        return
 
 @frappe.whitelist()
 def upload_voucher_data(docname,
