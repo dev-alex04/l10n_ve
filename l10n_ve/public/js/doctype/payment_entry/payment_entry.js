@@ -116,6 +116,7 @@ async function set_custom_exchange_rate(frm) {
     if (flt(frm.doc.paid_currency_amount) !== flt(outstanding_amount)) {
       frm.set_value("paid_currency_amount", outstanding_amount);
     }
+    compute_paid_amount(frm);
   }
 }
 
