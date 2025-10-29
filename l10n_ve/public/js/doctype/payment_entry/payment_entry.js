@@ -28,6 +28,11 @@ frappe.ui.form.on("Payment Entry", {
   },
   party: function (frm) {
     set_payment_entry_buttons(frm);
+    if (frm.doc.party) {
+      frm.toggle_display("get_outstanding_invoices", true);
+    } else {
+      frm.toggle_display("get_outstanding_invoices", false);
+    }
   },
   company: function (frm) {
     set_payment_entry_buttons(frm);
@@ -71,11 +76,16 @@ function reorganize_payment_entry_fields(frm) {
   let reference_date = frm.get_field("reference_date").$wrapper;
   let paid_from = frm.get_field("paid_from").$wrapper;
   let paid_to = frm.get_field("paid_to").$wrapper;
+  let party_field = frm.get_field("party").$wrapper;
+  let get_outstanding_invoices_button = frm.get_field("get_outstanding_invoices").$wrapper;
 
   paid_amount.insertAfter(received_amount);
   exchange_rate.insertAfter(paid_amount);
   reference_no.insertAfter(paid_from);
   reference_date.insertAfter(paid_to);
+  get_outstanding_invoices_button.insertAfter(party_field);
+
+  frm.toggle_display("get_outstanding_invoices", !!frm.doc.party);
 
   if (frm.doc.exchange_rate) {
     frm.set_df_property("exchange_rate", "hidden", false);

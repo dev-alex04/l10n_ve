@@ -2447,5 +2447,49 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "doc_type": "Payment Entry Reference",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "bill_no",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Payment Entry Reference-bill_no-in_list_view",
+        "property": "in_list_view",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+    },
+     {
+
+        "doc_type": "Payment Entry Reference",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "reference_name",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Payment Entry Reference-reference_name-Label",
+        "property": "Label",
+        "value": "Identifier"
+    },
+      {
+        "doc_type": "Payment Entry",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "payment_accounts_section",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Payment Entry-payment_accounts_section-collapsible",
+        "property": "collapsible",
+        "property_type": "Check",
+        "row_name": null,
+        "value": 0
     }
 ]
