@@ -6,4 +6,3 @@ frappe.ui.toolbar.toggle_full_width = function() {
     // Aplicamos el estilo CSS.
     frappe.ui.toolbar.set_fullwidth_if_enabled();
 };
-s

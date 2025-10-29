@@ -12,7 +12,7 @@ frappe.ui.form.on("Payment Entry", {
   },
 
   refresh: function (frm) {
-      set_payment_entry_buttons(frm);
+    set_payment_entry_buttons(frm);
   },
 
   paid_on_currency: function (frm) {
@@ -20,10 +20,7 @@ frappe.ui.form.on("Payment Entry", {
   },
 
   paid_currency_amount: function (frm) {
-    frm.set_value(
-      "paid_amount",
-      frm.doc.paid_currency_amount * frm.doc.exchange_rate
-    );
+    compute_paid_amount(frm);
   },
 
   party_type: function (frm) {
@@ -43,12 +40,22 @@ function set_payment_entry_buttons(frm) {
     frm.doc.party_type &&
     frm.doc.party &&
     frm.doc.company &&
+    !frm.is_new() &&
     ["Supplier", "Customer"].includes(frm.doc.party_type)
   ) {
     frm.add_custom_button(__("Agregar concepto de ISLR"), function () {
       set_islr_concept(frm);
     });
   }
+}
+
+function compute_paid_amount(frm) {
+  frm.set_value(
+    "paid_amount",
+    frm.doc.paid_currency_amount * frm.doc.exchange_rate
+  );
+
+  set_igtf(frm);
 }
 
 /**
@@ -96,24 +103,19 @@ async function set_custom_exchange_rate(frm) {
 
     const paid_currency_amount = outstanding_amount / frm.doc.exchange_rate;
 
+    frm.set_df_property("paid_currency_amount", "description", "Incluye IGTF");
+    frm.set_df_property("exchange_rate", "hidden", false);
     if (flt(frm.doc.paid_currency_amount) !== flt(paid_currency_amount)) {
       frm.set_value("paid_currency_amount", paid_currency_amount);
     }
-
-    frm.set_df_property("paid_currency_amount", "description", "Incluye IGTF");
-    frm.set_df_property("exchange_rate", "hidden", false);
-
-    await set_igtf(frm);
+    compute_paid_amount(frm);
   } else {
-    if (flt(frm.doc.paid_currency_amount) !== flt(outstanding_amount)) {
-      frm.set_value("paid_currency_amount", outstanding_amount);
-    }
-
     frm.set_df_property("exchange_rate", "hidden", true);
     frm.set_value("exchange_rate", 1);
     frm.set_df_property("paid_currency_amount", "description", "");
-
-    await set_igtf(frm);
+    if (flt(frm.doc.paid_currency_amount) !== flt(outstanding_amount)) {
+      frm.set_value("paid_currency_amount", outstanding_amount);
+    }
   }
 }
 
@@ -171,12 +173,32 @@ async function set_igtf(frm) {
     return;
   }
 
+  if (!frm.doc.igtf_account || !frm.doc.igtf_rate) {
+    const igtf_field =
+      frm.doc.payment_type == "Pay"
+        ? "purchase_igtf_account"
+        : "sales_igtf_account";
+
+    await frappe.db
+      .get_value("Company", frm.doc.company, igtf_field)
+      .then((r) => {
+        frm.set_value("igtf_account", r.message[igtf_field]);
+      });
+
+    await frappe.db
+      .get_single_value("Venezuela Account Settings", "igtf_rate")
+      .then((igtf_rate) => {
+        frm.set_value("igtf_rate", igtf_rate);
+      });
+  }
+
   const igtf_amount = (frm.doc.paid_amount * frm.doc.igtf_rate) / 100;
 
   // En caso de que exista el IGTF en los impuestos:
   for (let tax of frm.doc.taxes || []) {
     if (tax.charge_type == "IGTF") {
       tax.tax_amount = igtf_amount;
+      tax.rate = frm.doc.igtf_rate;
       frm.refresh_field("taxes");
       if (frm.cscript.calculate_taxes_and_totals) {
         frm.cscript.calculate_taxes_and_totals();
@@ -187,13 +209,14 @@ async function set_igtf(frm) {
 
   // Si el codigo llega acá, es porque no existe y hay que agregar
   // el IGTF a la tabla de impuestos
+
   frm.add_child("taxes", {
     charge_type: "IGTF",
+    description: "IGTF",
+    add_deduct_tax: "Add",
     rate: frm.doc.igtf_rate,
     tax_amount: igtf_amount,
-    add_deduct_tax: "Add",
     account_head: frm.doc.igtf_account,
-    description: "IGTF",
   });
 
   frm.refresh_field("taxes");
