@@ -2463,8 +2463,7 @@
         "row_name": null,
         "value": "1"
     },
-     {
-
+         {
         "doc_type": "Payment Entry Reference",
         "docstatus": 0,
         "doctype": "Property Setter",
@@ -2474,10 +2473,10 @@
         "modified": "2025-09-12 10:00:00",
         "module": "L10N Ve",
         "name": "Payment Entry Reference-reference_name-Label",
-        "property": "Label",
+        "property": "label",
         "value": "Identifier"
     },
-      {
+    {
         "doc_type": "Payment Entry",
         "docstatus": 0,
         "doctype": "Property Setter",
@@ -2490,6 +2489,6 @@
         "property": "collapsible",
         "property_type": "Check",
         "row_name": null,
-        "value": 0
+        "value": "0"
     }
 ]

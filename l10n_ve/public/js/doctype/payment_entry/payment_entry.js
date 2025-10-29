@@ -28,11 +28,7 @@ frappe.ui.form.on("Payment Entry", {
   },
   party: function (frm) {
     set_payment_entry_buttons(frm);
-    if (frm.doc.party) {
-      frm.toggle_display("get_outstanding_invoices", true);
-    } else {
-      frm.toggle_display("get_outstanding_invoices", false);
-    }
+    frm.toggle_display("get_outstanding_invoices", !!frm.doc.party);
   },
   company: function (frm) {
     set_payment_entry_buttons(frm);
