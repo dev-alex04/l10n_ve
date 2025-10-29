@@ -24,9 +24,14 @@ function format_price_fields(frm) {
 
 	fields_to_format.forEach(fieldname => {
 		if (frm.doc[fieldname]) {
-			let value = parseFloat(frm.doc[fieldname]).toFixed(2);
-			let formatted_value = value.replace('.', ',');
-			frm.set_value(fieldname, formatted_value);
+			// Parsea el valor, que puede venir con punto o coma como separador decimal.
+			const value = parseFloat(String(frm.doc[fieldname]).replace(',', '.'));
+			if (!isNaN(value)) {
+				// Formatea el valor con coma para la visualización.
+				const formatted_value = value.toFixed(2).replace('.', ',');
+				// Actualiza solo la vista del campo para no "ensuciar" el formulario.
+				frm.get_field(fieldname).$wrapper.find('.control-value').text(formatted_value);
+			}
 		}
 	});
 }
