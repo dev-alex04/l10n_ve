@@ -27,6 +27,8 @@ from erpnext.accounts.utils import (
 class CustomPaymentEntry(PaymentEntry):
 
     def on_submit(self) -> None:
+        self.custom_clear_unallocated_reference_document_rows()
+
         super().on_submit()
 
         self.set_igtf_on_invoices()
@@ -268,33 +270,63 @@ class CustomPaymentEntry(PaymentEntry):
         if not igtf:
             return
 
-        reference_map = {}
-
         for reference in self.references or []:
 
-            if reference.reference_doctype not in reference_map:
-                reference_map[reference.reference_doctype] = []
+            if not reference.allocated_amount:
+                continue
 
-            reference_map[reference.reference_doctype].append(reference.reference_name)
+            if is_cancelled:
+                total_igtf = 0
+                base_amount_igtf = 0
+            else:
+                reference_base_amount_igtf = reference.allocated_amount
+                reference_total_igtf = \
+                    (reference.allocated_amount * self.igtf_rate) / 100
 
-        if is_cancelled:
-            total_igtf = 0
-            base_amount_igtf = 0
-        else:
-            total_igtf = igtf.tax_amount
-            base_amount_igtf = self.paid_amount
+                invoice_igtf_data: dict = frappe.db.get_value(
+                    reference.reference_doctype,
+                    reference.reference_name,
+                    [
+                        'total_igtf',
+                        'base_amount_igtf'
+                    ],
+                    as_dict=True)
 
-        for doctype, docnames in list(reference_map.items()):
+                total_igtf = invoice_igtf_data.get('total_igtf', 0) + \
+                    reference_total_igtf
 
-            frappe.db.set_value(doctype,
-                                {
-                                    'name': ['in', docnames],
-                                },
+                base_amount_igtf = \
+                    invoice_igtf_data.get('base_amount_igtf', 0) + \
+                        reference_base_amount_igtf
+
+            frappe.db.set_value(reference.reference_doctype,
+                                reference.reference_name,
                                 {
                                     'total_igtf': total_igtf,
                                     'base_amount_igtf': base_amount_igtf,
                                 })
 
+# ----------------------------- OVERRIDE METHODS ----------------------------- #
+
+    def clear_unallocated_reference_document_rows(self) -> None:
+        """
+        Se desactiva esta funcion en el validate para que no se eliminen las
+        lineas de referencia sin monto aplicado.
+        Esto sucederá sólo en el on_submit en la funcion
+        custom_clear_unallocated_reference_document_rows
+        """
+        return
+
+    def custom_clear_unallocated_reference_document_rows(self) -> None:
+
+        self.set("references",
+        self.get("references", {"allocated_amount": ["not in", [0, None, ""]]}))
+
+        frappe.db.sql(
+            """delete from `tabPayment Entry Reference`
+            where parent = %s and allocated_amount = 0""",
+            self.name,
+        )
 # --------------------------- GESTIÓN DE ASIENTOS --------------------------- #
 
     def make_gl_entries(self, cancel=0, adv_adj=0) -> None:
