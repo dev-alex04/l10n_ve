@@ -1,7 +1,6 @@
 import frappe
-from frappe import _, _dict, cint
-from frappe.utils import flt
-from frappe.model.document import Document
+from frappe import _, _dict
+from frappe.utils import flt, get_link_to_form, getdate, cint
 
 from erpnext.utilities.utils import get_link_to_form
 from erpnext.accounts.utils import get_account_currency
@@ -10,9 +9,9 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 from l10n_ve.utils.utils import validate_return_in_same_month
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 from l10n_ve.overrides.company import CustomCompany
+from l10n_ve.controllers.taxes_mixin import TaxesMixin
 
-
-class CustomSalesInvoice(SalesInvoice):
+class CustomSalesInvoice(TaxesMixin, SalesInvoice):
 
     def calculate_taxes_and_totals(self) -> None:
 
@@ -337,75 +336,31 @@ class CustomSalesInvoice(SalesInvoice):
 
         return True
 
-    # ------------------------------ OVERRIDES ------------------------------ #
+    def validate_withholding_voucher_number(self) -> None:
+        if self.vat_withholding_voucher_number:
 
-    def set_taxes_and_charges(self) -> None:
-        super().set_taxes_and_charges()
+            if not self.vat_withholding_voucher_number.isdigit():
+                frappe.throw("El número de comprobante de retención "
+                "de IVA debe contener solo números.")
 
-        self.set_tax_withholding_ve()
+            if len(self.vat_withholding_voucher_number) != 14:
+                frappe.throw("El número de comprobante de retención "
+                "de IVA debe tener exactamente 14 caracteres.")
 
-    def set_tax_withholding(self) -> None:
-        """
-        Se inactiva la funcion nativa para obtener las retenciones.
-        La funcion set_tax_withholding_ve  se encargara de esto
-        """
-        return
-
-    # TODO: Refactorizar a una sola funcion para usar en ventas y compras
-    def set_tax_withholding_ve(self) -> None:
-
-        if not bool(frappe.db.get_value('Customer',
-                                        self.customer,
-                                        'is_special_taxpayer')):
+    def set_title_field(self) -> None:
+        super().set_title_field()
+        if self.docstatus == 0:
             return
-
-        withholding_category_name: str = frappe.db.get_value(
-            "Company",
-            self.company,
-            "tax_withholding_category")
-
-        if not withholding_category_name:
-            return
-
-        withholding_category: Document = frappe.get_doc(
-            "Tax Withholding Category",
-            withholding_category_name)
-
-        withholding: _dict = withholding_category.get_withholding(self.company,
-                                                                  self.doctype)
         if self.is_return:
-            if not self.return_against:
-                return
-
-            withholding['description'] = \
-                f'{withholding.description} por Nota de Crédito contra factura {self.affected_invoice_number}'
+            self.title = self.credit_note_no
 
         elif self.is_debit_note:
+            self.title = self.debit_note_no
 
-            withholding.description = \
-                f'{withholding["description"]} por Nota de Crédito contra factura {self.affected_invoice_number}'
+        else:
+            self.title = self.bill_no
 
-        # Primero se limpia la tabla de impuestos
-        # Dejando solo los impuestos que no sean retencion de IVA
-        self.taxes = [
-            tax
-            for tax in self.taxes or []
-            if tax.get('charge_type') != withholding.get('charge_type')
-        ]
-
-        self.append("taxes", withholding)
-
-    def calculate_total_withholding(self) -> None:
-
-        self.total_withholding = 0.0
-
-        self.total_withholding = sum([
-            tax.tax_amount
-            for tax in self.taxes or []
-            if tax.is_tax_withholding_account
-        ])
-
-    def make_tax_gl_entries(self, gl_entries: list) -> None:
+    def make_tax_gl_entries(self, gl_entries) -> None:
         enable_discount_accounting = cint(
             frappe.db.get_single_value("Selling Settings", "enable_discount_accounting")
         )
@@ -442,29 +397,11 @@ class CustomSalesInvoice(SalesInvoice):
                     )
                 )
 
-    def validate_withholding_voucher_number(self) -> None:
-        if self.vat_withholding_voucher_number:
-
-            if not self.vat_withholding_voucher_number.isdigit():
-                frappe.throw("El número de comprobante de retención "
-                "de IVA debe contener solo números.")
-
-            if len(self.vat_withholding_voucher_number) != 14:
-                frappe.throw("El número de comprobante de retención "
-                "de IVA debe tener exactamente 14 caracteres.")
-
-    def set_title_field(self) -> None:
-        super().set_title_field()
-        if self.docstatus == 0:
-            return
-        if self.is_return:
-            self.title = self.credit_note_no
-
-        elif self.is_debit_note:
-            self.title = self.debit_note_no
-
-        else:
-            self.title = self.bill_no
+    def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
+        """
+        Se inactiva esta funcion, ya que aqui no se harán los asientos de las retenciones
+        """
+        return
 
 @frappe.whitelist()
 def upload_voucher_data(docname,

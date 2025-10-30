@@ -1,19 +1,19 @@
 import frappe
-from frappe import _, _dict
-from frappe.utils import flt, get_link_to_form, getdate, cint
+from frappe import _
+from frappe.utils import flt, get_link_to_form, getdate
+
 import erpnext
-
 from erpnext.stock import get_warehouse_account_map
-from erpnext.accounts.utils import get_account_currency, get_fiscal_year
 from erpnext.assets.doctype.asset.asset import is_cwip_accounting_enabled
-from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
 from erpnext.assets.doctype.asset_category.asset_category import get_asset_category_account
+from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
+from erpnext.accounts.utils import get_account_currency
+from frappe.utils import getdate
 
+from l10n_ve.controllers.taxes_mixin import TaxesMixin
 from l10n_ve.utils.utils import validate_return_in_same_month
-from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
-
-class CustomPurchaseInvoice(PurchaseInvoice):
+class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
     def on_cancel(self) -> None:
         super().on_cancel()
@@ -81,6 +81,12 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             self.validate_affected_invoice_number()
         elif self.is_return:
             self.validate_credit_note_number()
+
+    def validate_supplier_invoice(self) -> None:
+
+        if self.bill_date:
+            if getdate(self.bill_date) > getdate(self.posting_date):
+                frappe.throw(_("Supplier Invoice Date cannot be greater than Posting Date"))
 
     def validate_affected_invoice_number(self) -> None:
         # Revisa si hace falta validar con is_return
@@ -186,29 +192,18 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                     "bill_no"
                 )
 
-    # TODO: Mover esto a una sola funcion
-    def calculate_total_withholding(self) -> None:
+    def set_title_field(self) -> None:
+        super().set_title_field()
+        if self.docstatus == 0:
+            return
+        if self.is_return:
+            self.title = self.credit_note_no
 
-        self.total_withholding = 0.0
+        elif self.is_debit_note:
+            self.title = self.debit_note_no
 
-        self.total_withholding = sum([
-            tax.tax_amount
-            for tax in self.taxes or []
-            if tax.is_tax_withholding_account
-        ])
-
-    # ------------------------------ OVERRIDES ------------------------------ #
-
-    def set_taxes_and_charges(self) -> None:
-        super().set_taxes_and_charges()
-
-        self.set_tax_withholding_ve()
-
-    def calculate_taxes_and_totals(self) -> None:
-        taxes_and_totals_calculator = TaxesAndTotals(self)
-        taxes_and_totals_calculator.calculate_total_exempt()
-
-        self.calculate_total_withholding()
+        else:
+            self.title = self.bill_no
 
     def set_expense_account(self, for_validate=False) -> None:
         auto_accounting_for_stock = erpnext.is_perpetual_inventory_enabled(self.company)
@@ -365,62 +360,7 @@ class CustomPurchaseInvoice(PurchaseInvoice):
             elif not item.expense_account and for_validate:
                 frappe.throw(_("Expense account is mandatory for item {0}").format(item.item_code or item.item_name))
 
-    def set_tax_withholding(self) -> None:
-        """
-        Se inactiva la funcion nativa para obtener las retenciones.
-        La funcion set_tax_withholding_ve  se encargara de esto
-        """
-        return
-
-    # TODO: Refactorizar a una sola funcion
-    def set_tax_withholding_ve(self) -> None:
-
-        if not bool(frappe.db.get_value('Company',
-                                        self.company,
-                                        'is_special_taxpayer')):
-            return
-
-        withholding_category_name = frappe.db.get_value("Supplier",
-                                                        self.supplier,
-                                                        "tax_withholding_category")
-        if not withholding_category_name:
-            return
-
-        withholding_category = frappe.get_doc("Tax Withholding Category",
-                                              withholding_category_name)
-
-        withholding: _dict = withholding_category.get_withholding(self.company,
-                                                                  self.doctype)
-        if self.is_return:
-            if not self.return_against:
-                return
-
-            withholding['description'] = \
-                f'{withholding.description} por Nota de Crédito contra factura {self.affected_invoice_number}'
-
-        elif self.is_debit_note:
-
-            withholding.description = \
-                f'{withholding["description"]} por Nota de Crédito contra factura {self.affected_invoice_number}'
-
-        # Primero se limpia la tabla de impuestos
-        # Dejando solo los impuestos que no sean retencion de IVA
-        self.taxes = [
-            tax
-            for tax in self.taxes or []
-            if tax.get('charge_type') != withholding.get('charge_type')
-        ]
-
-        self.append("taxes", withholding)
-
-    def validate_supplier_invoice(self) -> None:
-
-        if self.bill_date:
-            if getdate(self.bill_date) > getdate(self.posting_date):
-                frappe.throw(_("Supplier Invoice Date cannot be greater than Posting Date"))
-
     def make_tax_gl_entries(self, gl_entries) -> None:
-
         """
         Override para solo hacer los asientos que NO sean de retenciones
         """
@@ -535,19 +475,6 @@ class CustomPurchaseInvoice(PurchaseInvoice):
                             item=tax,
                         )
                     )
-
-    def set_title_field(self) -> None:
-        super().set_title_field()
-        if self.docstatus == 0:
-            return
-        if self.is_return:
-            self.title = self.credit_note_no
-
-        elif self.is_debit_note:
-            self.title = self.debit_note_no
-
-        else:
-            self.title = self.bill_no
 
     def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
         """
