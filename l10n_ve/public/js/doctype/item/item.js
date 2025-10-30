@@ -24,36 +24,38 @@ frappe.ui.form.on('Item', {
 				});
 		}
 	},
+
 	refresh: function (frm) {
 		const is_saved = !frm.is_new();
-
 		frm.toggle_display('price_sales', is_saved);
 		frm.toggle_display('price_purchase', is_saved);
 
-		if (frm.doc.reference_currency) {
+		if (frm.is_reloading) {
+			frm.is_reloading = false;
+			return;
+		}
 
+		if (is_saved) {
+
+			if (!frm.is_dirty()) {
+				frm.is_reloading = true;
+				frm.reload_doc();
+			} else {
+
+				frappe.db.get_doc(frm.doctype, frm.doc.name).then(server_doc => {
+					if (server_doc.modified > frm.doc.modified) {
+
+						frm.set_value('price_sales', server_doc.price_sales);
+						frm.set_value('price_purchase', server_doc.price_purchase);
+
+					}
+				});
+			}
+		}
+
+		if (frm.doc.reference_currency) {
 			frm.refresh_field("price_sales");
 			frm.refresh_field("price_purchase");
 		}
-	},
-	refresh: function (frm) {
-		const is_saved = !frm.is_new();
-
-		frm.toggle_display('price_sales', is_saved);
-		frm.toggle_display('price_purchase', is_saved);
-
-		if (frm.doc.reference_currency) {
-
-			frm.refresh_field("price_sales");
-			frm.refresh_field("price_purchase");
-		}
-	},
-
-	before_save: function (frm) {
-		frm.was_new = frm.is_new();
-	},
-
-	after_save: function (frm) {
-		if (frm.was_new) frm.reload_doc();
 	}
 });
