@@ -1,13 +1,52 @@
 frappe.ui.form.on('Item', {
+		onload: function(frm) {
+
+		if (frm.is_new() && !frm.doc.reference_currency) {
+
+			frappe.db.get_value("Company", frm.doc.company, "reference_currency")
+				.then(r => {
+					if (r.message && r.message.reference_currency) {
+						frm.set_value("reference_currency", r.message.reference_currency);
+					}
+				});
+		}
+	},
+	company: function(frm) {
+		if (frm.is_new() && frm.doc.company) {
+			frappe.db.get_value("Company", frm.doc.company, "reference_currency")
+				.then(r => {
+					if (r.message && r.message.reference_currency) {
+						frm.set_value("reference_currency", r.message.reference_currency).then(() => {
+							frm.refresh_field("price_sales");
+							frm.refresh_field("price_purchase");
+						});
+					}
+				});
+		}
+	},
 	refresh: function (frm) {
 		const is_saved = !frm.is_new();
 
-		if (is_saved) {
-			format_price_fields(frm);
+		frm.toggle_display('price_sales', is_saved);
+		frm.toggle_display('price_purchase', is_saved);
+
+		if (frm.doc.reference_currency) {
+
+			frm.refresh_field("price_sales");
+			frm.refresh_field("price_purchase");
 		}
+	},
+	refresh: function (frm) {
+		const is_saved = !frm.is_new();
 
 		frm.toggle_display('price_sales', is_saved);
 		frm.toggle_display('price_purchase', is_saved);
+
+		if (frm.doc.reference_currency) {
+
+			frm.refresh_field("price_sales");
+			frm.refresh_field("price_purchase");
+		}
 	},
 
 	before_save: function (frm) {
@@ -18,20 +57,3 @@ frappe.ui.form.on('Item', {
 		if (frm.was_new) frm.reload_doc();
 	}
 });
-
-function format_price_fields(frm) {
-	const fields_to_format = ['price_sales', 'price_purchase'];
-
-	fields_to_format.forEach(fieldname => {
-		if (frm.doc[fieldname]) {
-			// Parsea el valor, que puede venir con punto o coma como separador decimal.
-			const value = parseFloat(String(frm.doc[fieldname]).replace(',', '.'));
-			if (!isNaN(value)) {
-				// Formatea el valor con coma para la visualización.
-				const formatted_value = value.toFixed(2).replace('.', ',');
-				// Actualiza solo la vista del campo para no "ensuciar" el formulario.
-				frm.get_field(fieldname).$wrapper.find('.control-value').text(formatted_value);
-			}
-		}
-	});
-}
