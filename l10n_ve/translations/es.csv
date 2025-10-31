@@ -173,8 +173,6 @@ Set Serial and Batch Bundle Naming Based on Naming Series, Establecer el Nombram
 Stock transactions that are older than the mentioned days cannot be modified, Las transacciones de stock que tienen más días que los mencionados no se pueden modificar,
 Kg,Kg,
 Bar,Bar,
-k, Mil,
-M, Mill,
 Kip,Kip,
 Cup,Taza,
 Pood,Pud,
