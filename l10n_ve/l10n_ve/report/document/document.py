@@ -24,10 +24,11 @@ def check_if_latest(self) -> None:
 
     if cstr(previous.modified) != cstr(self._original_modified):
 
-        custom_message = _("El Documento {0} del módulo {1} fue actualizado por otro usuario " \
-                            "y no se pueden guardar sus cambios actuales. Por favor," \
-                            "refrescar la página y volver a cargar los datos.").format(
-                            frappe.bold(self.name), frappe.bold(_(self.doctype))
+        custom_message = _(
+            "El Documento {0} del módulo {1} fue actualizado por otro usuario " \
+            "y no se pueden guardar sus cambios actuales. Por favor," \
+            "refrescar la página y volver a cargar los datos.").format(
+            frappe.bold(self.name), frappe.bold(_(self.doctype))
                             )
 
         frappe.msgprint(
