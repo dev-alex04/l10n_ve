@@ -32,34 +32,36 @@ frappe.ui.form.on("Item", {
     frm.toggle_display("price_sales", is_saved);
     frm.toggle_display("price_purchase", is_saved);
 
-    if (frm.is_reloading) {
-      frm.is_reloading = false;
-      return;
-    }
-
     if (is_saved) {
-      if (!frm.is_dirty()) {
-        frm.is_reloading = true;
-        frm.reload_doc();
-      } else {
-        frappe.db.get_doc(frm.doctype, frm.doc.name).then((server_doc) => {
-          if (server_doc.modified > frm.doc.modified) {
-            frappe.show_alert({
-              message: __(
-                "El precio del producto ha sido modificado"
-              ),
-              indicator: "orange",
-            });
-            frm.set_value("price_sales", server_doc.price_sales);
-            frm.set_value("price_purchase", server_doc.price_purchase);
+      frappe.db
+        .get_value(frm.doctype, frm.doc.name, [
+          "price_sales",
+          "price_purchase",
+        ])
+        .then((r) => {
+          if (r.message) {
+            frm.set_value("price_sales", r.message.price_sales);
+            frm.set_value("price_purchase", r.message.price_purchase);
           }
         });
-      }
     }
-
     if (frm.doc.reference_currency) {
       frm.refresh_field("price_sales");
       frm.refresh_field("price_purchase");
+    }
+  },
+  price_sales: function (frm) {
+    if (!frm.is_new() && frm.doc.price_sales !== frm.get_doc_before_save().price_sales) {
+      frm.save().then(() => {
+        frm.reload_doc();
+      });
+    }
+  },
+  price_purchase: function (frm) {
+    if (!frm.is_new() && frm.doc.price_purchase !== frm.get_doc_before_save().price_purchase) {
+      frm.save().then(() => {
+        frm.reload_doc();
+      });
     }
   },
 });
