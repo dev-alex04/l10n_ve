@@ -45,13 +45,13 @@ frappe.ui.form.on("Item", {
         frappe.db.get_doc(frm.doctype, frm.doc.name).then((server_doc) => {
           if (server_doc.modified > frm.doc.modified) {
             frappe.show_alert({
-              message: __(
-                "El precio del producto ha sido modificado"
-              ),
+              message: __("El precio del producto ha sido modificado"),
               indicator: "orange",
             });
             frm.set_value("price_sales", server_doc.price_sales);
             frm.set_value("price_purchase", server_doc.price_purchase);
+            // Marcar el formulario como "sucio" para habilitar el guardado
+            frm.dirty();
           }
         });
       }
@@ -62,4 +62,5 @@ frappe.ui.form.on("Item", {
       frm.refresh_field("price_purchase");
     }
   },
+
 });
