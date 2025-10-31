@@ -1,6 +1,4 @@
 import frappe
-
-from erpnext.utilities.utils import get_link_to_form
 from erpnext.selling.doctype.sales_order.sales_order import SalesOrder
 
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals

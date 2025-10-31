@@ -8,6 +8,7 @@ app_license = "mit"
 app_include_js = [
     "/assets/l10n_ve/js/company.js",
     "/assets/l10n_ve/js/toolbar/toolbar.js",
+    "/assets/l10n_ve/js/item_logic/item_logic.js",
 ]
 
 # Apps
@@ -87,10 +88,17 @@ doctype_js = {
     ],
     "Sales Order": [
         "public/js/controllers/taxes_and_totals.js",
-        "public/js/doctype/sales_order/sales_order.js",
     ],
     "Item": [
         "public/js/doctype/item/item.js",
+    ],
+    "Supplier Quotation": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
+    ],
+    "Quotation": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
     ],
 }
 
@@ -200,6 +208,8 @@ override_doctype_class = {
     "Address": "l10n_ve.overrides.address.CustomAddress",
     "Purchase Order": "l10n_ve.overrides.purchase_order.CustomPurchaseOrder",
     "Sales Order": "l10n_ve.overrides.sales_order.CustomSalesOrder",
+    "Supplier Quotation": "l10n_ve.overrides.supplier_quotation.CustomSupplierQuotation",
+    "Quotation": "l10n_ve.overrides.quotation.CustomQuotation",
 }
 
 
