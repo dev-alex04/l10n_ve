@@ -83,10 +83,12 @@ doctype_js = {
         "public/js/doctype/address/address.js",
     ],
     "Purchase Order": [
+        "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
         "public/js/doctype/purchase_order/purchase_order.js",
     ],
     "Sales Order": [
+        "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
     ],
     "Item": [

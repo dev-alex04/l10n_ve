@@ -5,22 +5,15 @@ from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 class TaxesMixin:
     def validate_tax_structure(self) -> None:
-        has_taxable_items = False
-        for item in self.items:
-            if not item.vat_exempt:
-                has_taxable_items = True
-                break
+
+        has_taxable_items = any(not item.vat_exempt for item in self.items)
 
         if not has_taxable_items and self.taxes_and_charges:
             self.taxes_and_charges = None
             self.set("taxes", [])
             self.apply_tds = 0
 
-        has_vat_charge = False
-        for tax in self.taxes:
-            if tax.charge_type == 'VAT':
-                has_vat_charge = True
-                break
+        has_vat_charge = any(tax.charge_type == 'VAT' for tax in self.taxes or [])
 
         if not has_vat_charge and self.apply_tds == 1:
             self.set("taxes", [])
