@@ -262,7 +262,10 @@ def format_amounts(doc, main_fields=[], child_fields=[], child_table_field=None)
         for item in doc.get(child_table_field):
             for field in child_fields:
                 if item.get(field) is not None:
-                    formatted_value = frappe.format(item.get(field), "Currency").replace(currency_symbol, "").strip()
+                    if field == 'rate':
+                        formatted_value = '{:.2f}'.format(item.get(field))
+                    else:
+                        formatted_value = frappe.format(item.get(field), "Currency").replace(currency_symbol, "").strip()
                     item.set(field, formatted_value)
 
 
