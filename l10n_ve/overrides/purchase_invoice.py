@@ -52,29 +52,7 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
         self.set_affected_invoice_number()
         self.validate_return_in_same_month()
 
-        #TODO: Mover a una funcion
-
-        has_taxable_items = False
-        for item in self.items:
-            if not item.vat_exempt:
-                has_taxable_items = True
-                break
-
-        if not has_taxable_items and self.taxes_and_charges:
-            self.taxes_and_charges = None
-            self.set("taxes", [])
-
-            self.apply_tds = 0
-
-        has_vat_charge = False
-        for tax in self.taxes:
-            if tax.charge_type == 'VAT':
-                has_vat_charge = True
-                break
-
-        if not has_vat_charge and self.apply_tds == 1:
-            self.set("taxes", [])
-            self.apply_tds = 0
+        self.validate_tax_structure()
 
         if self.is_debit_note:
             self.validate_debit_note_number()

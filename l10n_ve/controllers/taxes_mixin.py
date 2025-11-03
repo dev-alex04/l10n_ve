@@ -4,6 +4,21 @@ from frappe import _, _dict
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
 class TaxesMixin:
+    def validate_tax_structure(self) -> None:
+
+        has_taxable_items = any(not item.vat_exempt for item in self.items)
+
+        if not has_taxable_items and self.taxes_and_charges:
+            self.taxes_and_charges = None
+            self.set("taxes", [])
+            self.apply_tds = 0
+
+        has_vat_charge = any(tax.charge_type == 'VAT' for tax in self.taxes or [])
+
+        if not has_vat_charge and self.apply_tds == 1:
+            self.set("taxes", [])
+            self.apply_tds = 0
+
     def calculate_total_withholding(self) -> None:
 
         self.total_withholding = 0.0
@@ -35,7 +50,7 @@ class TaxesMixin:
         return
 
     def set_tax_withholding_ve(self) -> None:
-        if self.doctype in ("Purchase Invoice", "Purchase Order"):
+        if self.doctype in ("Purchase Invoice", "Purchase Order", "Supplier Quotation"):
             if not bool(frappe.db.get_value('Company',
                                             self.company,
                                             'is_special_taxpayer')):

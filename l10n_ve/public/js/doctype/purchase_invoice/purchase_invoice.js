@@ -118,22 +118,3 @@ function set_purchase_invoice_fields(frm) {
   base_rounded_total.insertBefore(base_total_taxes_and_charges);
   base_in_words.insertBefore(base_total_taxes_and_charges);
 }
-
-frappe.ui.form.on("Purchase Invoice Item", {
-  item_code: function (frm, cdt, cdn) {
-    var row = frappe.get_doc(cdt, cdn);
-
-    if (row.item_code && !row.vat_exempt) {
-      frappe.db.get_value(
-        "Item",
-        row.item_code,
-        "vat_exempt",
-        function (value) {
-          if (value.vat_exempt) {
-            frappe.model.set_value(cdt, cdn, "vat_exempt", 1);
-          }
-        }
-      );
-    }
-  },
-});

@@ -10,4 +10,5 @@ class DocumentTransactionType:
         'Purchase Order',
         'Purchase Receipt',
         'Purchase Invoice',
+        'Supplier Quotation',
     ]
