@@ -52,8 +52,6 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
         self.set_affected_invoice_number()
         self.validate_return_in_same_month()
 
-        # self.validate_tax_structure()
-
         if self.is_debit_note:
             self.validate_debit_note_number()
             self.validate_affected_invoice_number()
