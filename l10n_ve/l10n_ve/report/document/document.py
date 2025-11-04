@@ -75,16 +75,16 @@ def validate_value(self, fieldname, condition, val2, doc=None, raise_exception=N
                     source_info_msg = _(" proveniente de {0} {1}").format(_(source_doctype), source_link)
 
             msg += _(
-            "El valor del campo '{0}' no coincide con el del documento de origen{1}.<br>" \
-            "<b>Valor esperado:</b> {2}<br>" \
-            "<b>Valor actual:</b> {3}<br>" \
+            "El valor del campo '{0}' no coincide con el del documento de origen{1}.<br>"
+            "<b>Valor esperado:</b> {2}<br>"
+            "<b>Valor actual:</b> {3}<br>"
             "Por favor, corrija para poder continuar."
             ).format(frappe.bold(_(label)),
                      source_info_msg,
                      frappe.bold(val2),
                      frappe.bold(current_value))
         else:
-            msg += _("{0} must be {1} {2}").format(label, condition, val2)
+            msg += _("El campo {0} debe ser {1} {2}").format(label, condition, val2)
 
         msgprint(msg, raise_exception=raise_exception or True, title=_("Error de Validación"))
 
