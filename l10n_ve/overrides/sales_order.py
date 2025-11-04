@@ -17,10 +17,3 @@ class CustomSalesOrder(TaxesMixin, SalesOrder):
 
         taxes_and_totals_calculator.calculate_total_exempt()
         self.calculate_total_withholding()
-
-    def on_trash(self) -> None:
-        """
-        Evita la eliminación de documentos que han sido anulados.
-        """
-        if self.is_void:
-            frappe.throw(_("No se puede eliminar un documento que ha sido anulado."))
