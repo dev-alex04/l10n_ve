@@ -5,5 +5,3 @@ class CustomSupplierQuotation(TaxesMixin, SupplierQuotation):
 
     def validate(self) -> None:
         super().validate()
-
-        self.validate_tax_structure()

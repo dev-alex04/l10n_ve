@@ -5,5 +5,3 @@ class CustomPurchaseOrder(TaxesMixin, PurchaseOrder):
 
     def validate(self) -> None:
         super().validate()
-
-        self.validate_tax_structure()
