@@ -23,6 +23,7 @@ def set_l10n_ve_data() -> None:
         create_bank_venezuelan()
         create_bank_account_types()
         uncheck_all_prepared_reports()
+        disable_rounded_total()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -899,3 +900,16 @@ def uncheck_all_prepared_reports() -> None:
         frappe.db.rollback()
         frappe.log_error(title="Error al desmarcar reportes", message=str(e))
         frappe.throw("Ocurrió un error al actualizar los reportes.")
+
+def disable_rounded_total() -> None:
+    print(f"Estableciendo valor 1 en disable_rounded_total en Global Defaults")
+    try:
+        frappe.db.set_value('Global Defaults', 'Global Defaults', 'disable_rounded_total', 1)
+
+        frappe.db.commit()
+        print("El campo 'disable_rounded_total' ha sido marcado en Global Defaults.")
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(title="Error al establecer valor 1 en disable_rounded_total", message=str(e))
+        frappe.throw("Ocurrió un error al actualizar disable_rounded_total en Global Defaults.")
