@@ -11,6 +11,7 @@ def generate_islr_report(voucher_name):
         frappe.throw(_("Comprobante de Retención no encontrado."))
 
     footer_html = get_footer_html(doc)
+    special_formats = {'rate': '{:.2f}'}
 
     format_amounts(doc, [
 		"totals_islr_base_amount",
@@ -24,7 +25,7 @@ def generate_islr_report(voucher_name):
 		"islr_base_amount",
 		"subtracting",
 		"islr_amount",
-	], "islr_withholding_voucher_item")
+	], "islr_withholding_voucher_item", special_formats)
 
     items_per_page = 13
     total_items = len(doc.islr_withholding_voucher_item)

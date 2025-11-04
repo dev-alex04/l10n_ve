@@ -13,6 +13,7 @@ def generate_vat_report(voucher_name):
 
     header_html = get_header_html(doc)
     footer_html = get_footer_html(doc)
+    special_formats = {'rate': '{:.2f}'}
 
     format_amounts(doc, [
 		"totals_grand_total",
@@ -28,7 +29,7 @@ def generate_vat_report(voucher_name):
 		"taxes_and_charges_added",
 		"tax_amount_vat",
         ''
-	], "vat_withholding_voucher_item")
+	], "vat_withholding_voucher_item", special_formats)
 
     items_per_page = 10
     total_items = len(doc.vat_withholding_voucher_item)
