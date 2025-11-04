@@ -23,6 +23,7 @@ def set_l10n_ve_data() -> None:
         create_bank_venezuelan()
         create_bank_account_types()
         uncheck_all_prepared_reports()
+        disable_rounded_total()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -910,5 +911,5 @@ def disable_rounded_total() -> None:
 
     except Exception as e:
         frappe.db.rollback()
-        frappe.log_error(title="Error al habilitar redondeo total", message=str(e))
-        frappe.throw("Ocurrió un error al actualizar Global Defaults.")
+        frappe.log_error(title="Error al establecer valor 1 en disable_rounded_total", message=str(e))
+        frappe.throw("Ocurrió un error al actualizar disable_rounded_total en Global Defaults.")
