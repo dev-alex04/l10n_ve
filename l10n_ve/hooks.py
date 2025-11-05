@@ -200,18 +200,18 @@ after_install = [
 override_doctype_class = {
     "Item": "l10n_ve.overrides.item.CustomItem",
     "Company": "l10n_ve.overrides.company.CustomCompany",
+    "Address": "l10n_ve.overrides.address.CustomAddress",
     "Supplier": "l10n_ve.overrides.supplier.CustomSupplier",
     "Customer": "l10n_ve.overrides.customer.CustomCustomer",
+    "Quotation": "l10n_ve.overrides.quotation.CustomQuotation",
     "Item Price": "l10n_ve.overrides.item_price.CustomItemPrice",
+    "Sales Order": "l10n_ve.overrides.sales_order.CustomSalesOrder",
     "Payment Entry": "l10n_ve.overrides.payment_entry.CustomPaymentEntry",
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
-    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
-    "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
-    "Address": "l10n_ve.overrides.address.CustomAddress",
     "Purchase Order": "l10n_ve.overrides.purchase_order.CustomPurchaseOrder",
-    "Sales Order": "l10n_ve.overrides.sales_order.CustomSalesOrder",
+    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
     "Supplier Quotation": "l10n_ve.overrides.supplier_quotation.CustomSupplierQuotation",
-    "Quotation": "l10n_ve.overrides.quotation.CustomQuotation",
+    "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
 }
 
 
@@ -263,7 +263,8 @@ scheduler_events = {
 #
 
 override_whitelisted_methods = {
-    "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry": "l10n_ve.overrides.payment_entry.get_payment_entry"
+    "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry": "l10n_ve.overrides.payment_entry.get_payment_entry",
+    "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_charts_for_country": "l10n_ve.whitelisted.chart_of_accounts.get_charts_for_country",
 }
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
