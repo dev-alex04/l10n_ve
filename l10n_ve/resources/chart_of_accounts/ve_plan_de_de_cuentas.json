@@ -72,7 +72,7 @@
                         "COMPRA DE EQUIPOS NACIONALES": { "account_type": "Stock", "account_number": "1.1.5.1.04" },
                         "INVENTARIO FINAL DE EQUIPOS": { "account_type": "Stock", "account_number": "1.1.5.1.05" },
                         "DIFERENCIAL CAMBIARIO": { "account_type": "Stock", "account_number": "1.1.5.1.06" },
-                        "INVENTARIO DE OBRAS ENPROCESO": { "account_type": "Stock", "account_number": "1.1.5.1.07" }
+                        "INVENTARIO DE OBRAS EN PROCESO": { "account_type": "Stock", "account_number": "1.1.5.1.07" }
                     }
                 }
             },
