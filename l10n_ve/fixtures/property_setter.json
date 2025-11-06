@@ -2618,5 +2618,67 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "doc_type": "Account",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "search_fields",
+        "value": "account_name",
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Account-search_fields"
+    },
+    {
+        "doc_type": "Account",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "show_title_field_in_link",
+        "value": "1",
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Account-show_title_field_in_link"
+    },
+    {
+        "doc_type": "Account",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "title_field",
+        "value": "account_name",
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Account-title_field"
+    },
+    {
+        "default_value": "1",
+        "doc_type": "Purchase Taxes and Charges Template",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "tax_category",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Purchase Taxes and Charges Template-tax_category-hidden",
+        "property": "hidden",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
+    },
+    {
+        "default_value": "1",
+        "doc_type": "Sales Taxes and Charges Template",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "tax_category",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Sales Taxes and Charges Template-tax_category-hidden",
+        "property": "hidden",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
     }
 ]

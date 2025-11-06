@@ -102,6 +102,12 @@ doctype_js = {
         "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
     ],
+    "Sales Taxes and Charges Template": [
+        "public/js/doctype/sales_taxes_and_charges/sales_taxes_and_charges.js",
+    ],
+    "Purchase Taxes and Charges Template": [
+        "public/js/doctype/purchase_taxes_and_charges/purchase_taxes_and_charges.js",
+    ],
 }
 
 doctype_list_js = {

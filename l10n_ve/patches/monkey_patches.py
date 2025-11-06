@@ -20,3 +20,9 @@ try:
 except ImportError as e:
     print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.l10n_ve.report.transaction_base.transaction_base. Error: {e}")
     frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.l10n_ve.report.transaction_base.transaction_base')
+
+try:
+    import l10n_ve.patches.accounts.utils
+except ImportError as e:
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.accounts.utils. Error: {e}")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.accounts.utils')

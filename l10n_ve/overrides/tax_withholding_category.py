@@ -1,7 +1,7 @@
 import frappe
 from frappe import _dict
 
-from erpnext.utilities.utils import get_link_to_form
+from l10n_ve.utils.utils import get_link_to_form
 from erpnext.accounts.doctype.tax_withholding_category.tax_withholding_category import TaxWithholdingCategory
 
 from l10n_ve.utils.constants import DocumentTransactionType
