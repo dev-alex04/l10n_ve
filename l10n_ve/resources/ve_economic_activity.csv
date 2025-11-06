@@ -1,0 +1,272 @@
+sector,group,branch,code,is_group,description,parent_code
+PRIMARIO,"PESCA, AGRIC., GANAD.","PESCA, AGRIC., GANAD.",1.01,1,"No tiene",
+PRIMARIO,"PESCA, AGRIC., GANAD.",PESCA Y ACUICULTURA,1.01.100,0,"PESCA Y ACUICULTURA",1.01
+PRIMARIO,"PESCA, AGRIC., GANAD.",AGRICULTURA,1.01.101,0,"AGRICULTURA",1.01
+PRIMARIO,"PESCA, AGRIC., GANAD.",AVICULTURA,1.01.102,0,"AVICULTURA",1.01
+PRIMARIO,"PESCA, AGRIC., GANAD.",GANADERÍA,1.01.103,0,"GANADERÍA",1.01
+PRIMARIO,"PESCA, AGRIC., GANAD.","SELVICULTURA, EXTRACCIÓN DE MADERA Y RECOLECCIÓN DE PRODUCTOS",1.01.104,0,"SELVICULTURA, EXTRACCIÓN DE MADERA Y RECOLECCIÓN DE PRODUCTOS",1.01
+SECUNDARIO,MINERÍA,"EXPLOTACIÓN DE MINAS Y CANTERAS",2.01,1,"No tiene",
+SECUNDARIO,MINERÍA,"EXPLOTACIÓN DE MINAS Y CANTERAS",2.01.100,0,"No tiene",2.01
+SECUNDARIO,MINERÍA,"EXPLOTACIÓN DE MINAS Y CANTERAS",2.01.101,0,"Extracción de Minerales, Piedras, Arcilla, Arena, mármol, granito, carbón de piedra, uranio, torio, aluminio, oro y cualquier otra actividad no especificada en la explotación de minas y canteras",2.01
+SECUNDARIO,MINERÍA,"EXPLOTACIÓN DE MINAS Y CANTERAS",2.01.102,0,"Extracción de minerales para la fabricación de abonos y productos químicos",2.01
+SECUNDARIO,MINERÍA,"EXPLOTACIÓN DE MINAS Y CANTERAS",2.01.103,0,"Extracción de gas natural",2.01
+SECUNDARIO,MINERÍA,"EXPLOTACIÓN DE MINAS Y CANTERAS",2.01.104,0,"Extracción de petróleo crudo",2.01
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.100,1,"No tiene",
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.101,0,"Mataderos y Frigoríficos, establecimientos dedicados a la matanza de ganado, bovino, caprino, porcino y aves etc.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.102,0,"Preparación y elaboración productos a base de carne, aves y otros animales, preparación y envasado de pescado, crustáceos y otros productos marinos, Fabricación de Aceites, Grasas, mantequilla Comestibles de origen animal o vegetal, quesos, helados, productos lácteos y derivados y otros productos lácteos no bien especificados, envasado y preparación de salsas, encurtidos, condimentos, especies, sopas de hortalizas, legumbres, vegetales, mermeladas, jaleas, preparación de frutas secas o en almibar, jugos, concentrados de frutas, legumbres y hortalizas.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.103,0,"Molienda de trigo, maíz, yuca, sucedáneos, preparación de cereales, leguminosas para el consumo humano.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.104,0,"Elaboración de alimentos preparados para animales.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.105,0,"Fabricación de productos de panaderías, galletas, pastelería y repostería, confitería, pastas, casabe y productos alimenticios diversos.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.106,0,"Elaboración de extractos de infusiones y hierbas",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.107,0,"Preparación y refinación de sal",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.108,0,"Molienda y torre facción de café",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.109,0,"Elaboración de almidones y productos derivados del almidón",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.110,0,"Elaboración de panela y papelón",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.111,0,"Elaboración y refinación de azúcar y otros productos de centrales azucareros",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.112,0,"Fabricación del chocolate y derivados del cacao",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.113,0,"Elaboración de bebidas no alcohólicas, gaseosas o saborizadas, tratamiento y embotellado de aguas naturales y minerales",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.114,0,"Elaboración de hielo",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.115,0,"Fabricación de materiales de madera y metal para la construcción de edificaciones, cajas, jaulas, tambores, barriles y otros envases de madera y metal, mangos para herramientas y de artículos menudos de madera y metal, ataúdes, muebles o accesorios de madera y metal, ratán, mimbre y otras fibras.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.116,0,"Fabricación de sustancias químicas industriales básicas, abono y plaguicidas. Fabricación de fibras sintéticas y artificiales, pinturas, barnices y lacas. Fabricación de jabones y preparados de limpieza, perfumes, cosméticos y otros productos de tocador. Fabricación de ceras, abrillantadores, desinfectantes, desodorizantes, pulimentos de muebles y metales, otros productos de limpieza y mantenimiento no especificad1os",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.117,0,"Fabricación de material médico, medicamentos y sustancias químicas medicinales de uso humano y productos botánicos de uso farmacéutico.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.118,0,"Fabricación de juguetes, materiales y artículos de oficina. Fabricación de colchones, almohadas y cojines, maletas, bolsos de mano de cuero y artículos similares",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.119,0,"Fabricación de servicios de mesa, utensilios de cocina y otros artículos de uso doméstico.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.120,0,"Fabricación bolsas, envases, estuches, botellas y sus accesorios, material de embalaje, artículos diversos de material plásticos",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.121,0,"Fabricación de objetos de barro, loza, porcelana, vidrio y fibras de vidrio",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.122,0,"Fabricación de productos de arcilla y cerámica para construcción, cemento, cal, yeso, hormigón y otros productos a base de cemento, mármol, granito y otras piedras naturales",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.123,0,"Fabricación de abrasivos en general",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.124,0,"Fabricación artículos de papel y cartón",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.125,0,"Fabricación de adhesivos, colas, aprestos y colorantes para la industria",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.126,0,"Fabricación de fósforos, explosivos y fuegos artificiales",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.127,0,"Fabricación de productos químicos para fotografía y pelicula",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.128,0,"Fabricación de caucho sintético en formas primarias",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.129,0,"Fabricación de plásticos en formas primarias",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.130,0,"Fabricación de gases industriales o médicos inorgánicos, licuados o comprimidos",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.131,0,"Fabricación de medicamentos de uso veterinario",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.132,0,"Construcción de naves, lanchas, buques y otras estructuras flotantes, incluyendo embarcaciones de recreo y deporte",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.133,0,"Fabricación de bicicletas, motocicletas, sillas de ruedas para inválidos y coches para bebés",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.134,0,"Fabricación de calzados, partes y accesorios para calzados.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.135,0,"Fabricación de artículos confeccionados para el hogar y mobiliario",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.136,0,"Fabricación de productos textiles, hilatura y fibras textiles.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.137,0,"Fabricación de cauchos y llantas para vehículos.",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.138,0,"Fabricación de productos de caucho para uso industrial, mecánica y construcción",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.139,0,"Fabricación de otros productos y artículos no especificados en las anteriores",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.140,0,"Fabricación de escobas y cepillos",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.141,0,"Fabricación de plumas, bolígrafos y lápices",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.142,0,"Fabricación de velas y cirios",2.02.100
+SECUNDARIO,MANUFACTURA,"MANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QUÍMICA, FARMACEUTICA, HOGAR, CEMENTO",2.02.143,0,"Fabricación de maquinaria y equipos diversos n.c.p.",2.02.100
+SECUNDARIO,MANUFACTURA,"TABACO Y DESTILADOS DEL ALCOHOL",2.03.100,1,"No tiene",
+SECUNDARIO,MANUFACTURA,"TABACO Y DESTILADOS DEL ALCOHOL",2.03.101,0,"Manufactura de tabacos, chimó, cigarrillos y derivados.",2.03.100
+SECUNDARIO,MANUFACTURA,"TABACO Y DESTILADOS DEL ALCOHOL",2.03.102,0,"Destilación, y mezcla de bebidas alcohólicas.",2.03.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.100,1,"No tiene",
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.101,0,"Industrias básicas del cobre, plomo, estaño, zinc, bronce, latón, hierro, acero. Fabricación de piezas fundidas, forjadas o estampadas, de hierro o acero, productos con cobre, plomo, estaño, zinc, bronce y latón, estructuras construcciones mayores de hierro, productos estructurales de aluminio.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.102,0,"Fabricación y reparación de máquinas, equipos y accesorios eléctricos y electrónicos. Fabricación de equipo de ventilación, aire acondicionado y refrigeración comercial e Industrial.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.103,0,"Fabricación de equipos profesionales y científicos e Instrumentos de medida y control.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.104,0,"Fabricación de bombillos, tubos eléctricos, lámparas y accesorios de metal para iluminación eléctrica.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.105,0,"Fabricación de instrumentos de óptica, lentes y articulos oftálmicos.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.106,0,"Fabricación de armas y municiones.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.107,0,"Fabricación de clavos y productos de tornilleria.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.108,0,"Fabricación y ensamblaje de vehiculos automotores, fabricación de chasis para vehiculos, carrocerías y aeronaves, fabricación de remolques y semi-remolques.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.109,0,"Fabricación de tanques, depósitos, recipientes y envases de metal, plástico y/o de cualquier otro material.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.110,0,"Fabricación de cojinetes, engranajes, trenes de engranajes y piezas de transmisión.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.111,0,"Fabricación de hornos, hogueras y quemadores.",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.112,0,"Fabricación de maquinaria y equipo de oficina (excepto computadores y equipo periférico)",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.113,0,"Fabricación de computadores y equipo periférico",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.114,0,"Fabricación de grifos y valvulas",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.115,0,"Fabricación de bombas y compresores",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.116,0,"Fabricación de equipo de comunicaciones",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.117,0,"Fabricación de instrumentos musicales",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.118,0,"Fabricación de relojes",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.119,0,"Fabricación de cámaras fotográficas, filmadoras, proyectores y articulos fotográficos",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.120,0,"Fabricación de equipo y prótesis médicas, ortopédicos, odontológicos y similares, excepto electrónicos",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.121,0,"Fabricación de cables de fibra óptica, de otros hilos y cables eléctricos",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.122,0,"Fabricación de motores, generadores y transformadores eléctricos y aparatos de distribución y control de la energia eléctrica",2.04.100
+SECUNDARIO,MANUFACTURA,"FABRICACIÓN Y REPARACIÓN DE MAQUINARIA Y EQUIPO ELÉCTRICOS",2.04.123,0,"Fabricación de acumuladores pilas y baterias para diferentes uso",2.04.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN DE OBRAS",2.05.100,1,"No tiene",
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN DE OBRAS",2.05.101,0,"Construcción de edificios, casas para vivienda, hospitales, edificios para industrias y talleres fabriles.",2.05.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN DE OBRAS",2.05.102,0,"Instalación de pilotes, trabajos de excavación, cimentación, rehabilitación y preparación de tierras para construcciones.",2.05.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN DE OBRAS",2.05.103,0,"Albañilería en construcción de edificios, instalación de plomeria, instalaciones eléctricas, instalación de ascensores, instalación de aire acondicionado y sistemas de ventilación, pintura y decoración de edificios, obras de construcción, reforma, reparación demolición de edificios distintos a aquellos servicios prestados a la Industria Petrolera, petroquimica y similares.",2.05.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, REPARACIÓN Y MANTENIMIENTO",2.06.100,1,"No tiene",
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, REPARACIÓN Y MANTENIMIENTO",2.06.101,0,"Construcción, reparación y mantenimiento de calles, caminos y carreteras, vias de ferrocarril, puentes y túneles. Construcción de cloacas y alcantarillado.",2.06.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, REPARACIÓN Y MANTENIMIENTO",2.06.102,0,"Construcción de aeropuertos con todas sus instalaciones relacionadas.",2.06.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, REPARACIÓN Y MANTENIMIENTO",2.06.103,0,"Construcción de centrales eléctricas de origen térmico, Instalación de líneas y equipos para la transmisión y distribución de electricidad, instalación de centrales y líneas telefónicas y telegráficas.",2.06.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, REPARACIÓN Y MANTENIMIENTO",2.06.104,0,"Construcción de represas, diques y canales. Construcción de puertos y obras relacionadas. Dragado y eliminación de de rocas maritimas y fluviales. Otras construcciones de obras portuarias, n.c.p.",2.06.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, REPARACIÓN Y MANTENIMIENTO",2.06.105,0,"Construcción de incineradores y compactadores de basura y desperdicios, distintos a aquellos servicios prestados a la Industria Petrolera, petroleoquímica y similares.",2.06.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, REPARACIÓN Y MANTENIMIENTO",2.06.106,0,"Construcción, reparación y mantenimiento de instalaciones eléctricas, plomeria, pintura, aires acondicionados y ascensores",2.06.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, REPARACIÓN Y MANTENIMIENTO",2.06.107,0,"Construcción, reparación y mantenimiento de otras obras civiles no contempladas en las anteriores",2.06.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, SERVICIOS Y SUMINISTRO PETROLEROS",2.07.100,1,"No tiene",
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, SERVICIOS Y SUMINISTRO PETROLEROS",2.07.101,0,"Construcción, servicios y suministros relaciones con obras civiles, eléctricas, mecánicas, de instrumentación, exploración, perforación, extracción y procesamiento de crudo o sus derivados, asi como otros servicios o suministros de cualquier indole prestados a la industria petrolera, petroquímica y similar.",2.07.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, SERVICIOS Y SUMINISTRO PETROLEROS",2.07.102,0,"Distribución de combustibles gaseosos por tubería",2.07.100
+SECUNDARIO,CONSTRUCCIÓN,"CONSTRUCCIÓN, SERVICIOS Y SUMINISTRO PETROLEROS",2.07.103,0,"Producción de gas",2.07.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.100,1,"No tiene",
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.101,0,"Venta al mayor de bebidas alcohólicas tapadas y en sus envases originales en licorerías, bodegones, distribuidoras y cualquier tipo de venta al mayor",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.102,0,"Venta al por mayor de bebidas no alcohólicas tales como: refrescos, jugos, maltas, aguas saborizadas, agua mineral, hielo, etc.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.103,0,"Venta al por mayor de materias primas, agrícolas y pecuarias",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.104,0,"Venta al por mayor de grasas, aceites crudos y refinadas comestibles (vegetales y animal)",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.105,0,"Venta al por mayor de productos alimenticios, viveres en general.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.106,0,"Venta al por mayor de leche, queso, mantequilla, embutidos y otros productos lácteos.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.107,0,"Venta al por mayor de frutas, legumbres y hortalizas",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.108,0,"Venta al por mayor de productos de molinería",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.109,0,"Venta al por mayor de bombones, caramelos y confiteria",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.110,0,"Venta al por mayor de combustible (gasolina, gas-oil, kerosén, etc.) para motor, maquinas y automóviles",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.111,0,"Venta al por mayor de aceites, grasas lubricantes, y aditivos especiales para motor, maquinas y automóviles",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.112,0,"Venta al por mayor de minerales y metales ferrosos y no ferrosos, barras, cabillas, perfiles, tubos, vaciados, alambres y otros productos elaborados de minerales y metales ferrosos y no ferrosos",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.113,0,"Venta al por mayor de productos químicos industriales básicos, colorantes industriales, resinas, abono y plaguicidas, detergentes y artículos de limpiezas",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.114,0,"Venta al por mayor de productos farmacéuticos y medicamentos",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.115,0,"Ventas al por mayor de cosméticos, perfumes, artículos de tocador y bisutería",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.116,0,"Ventas al mayor de productos de uso veterinario",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.117,0,"Ventas al por mayor de madera aserrada, cepillada, terciada o contra enchapada",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.118,0,"Ventas al por mayor de materiales de construcción. Incluye la venta de vidrios y cristales usados en la construcción de la vivienda",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.119,0,"Venta al por mayor de automóviles, camiones y autobuses, lanchas, y otras embarcaciones, incluyendo repuestos, accesorios y autoperiquitos, llantas y cámaras de cauchos, acumuladores y baterías.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.120,0,"Venta al por mayor de maquinaria, equipos para la agricultura, así como sus repuestos y accesorios.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.121,0,"Venta al por mayor de motocicletas, moto-netas, bicicletas, repuesto y sus accesorios",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.122,0,"Venta al por mayor de maquinas de escribir, calcular y otras maquinas y artículos de oficinas",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.123,0,"Venta al por mayor de muebles y accesorios para la industria, el comercio y la agricultura",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.124,0,"Venta al por mayor de muebles y accesorios para clínicas y hospitales, equipo profesional y cientifico e instrumentos de medida y de control",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.125,0,"Venta al por mayor de muebles y sus accesorios para el hogar, artefactos de uso domésticos, incluye repuestos y accesorios para artefactos domésticos, de ventilación, aire acondicionado refrigeración y afines, cuchillería y artículos de porcelanas, loza y vidrio para el hogar.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.126,0,"Venta al por mayor de articulos de ferreteria, pinturas, lacas y barnices. Incluye artículos de pesca y materiales eléctricos.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.127,0,"Venta al por mayor de aparatos y sistemas de telecomunicación",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.128,0,"Venta al por mayor de marcos, cuadros, espejos, mercerias, lámparas y similares",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.129,0,"Venta al por mayor de vidrios y espejos",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.130,0,"Venta al, por menor de productos plásticos, vasos, platos, cubiertos y envases plásticos desechables en general",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.131,0,"Venta al por mayor de tela, lenceria, mercería, cortinas, alfombras, tapices y similares, artículos de tapicería para muebles, vehículos y otros usos.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.132,0,"Venta al por mayor de prendas de vestir para caballero, damas y niños, incluido calzados y artículos de zapaterías.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.133,0,"Venta al por mayor artículos de cuero natural o artificial",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.134,0,"Venta y Distribución al mayor de cigarrillos, tabacos y picaduras.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.135,0,"Venta al por mayor de alimentos de animales",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.136,0,"Venta al por mayor de libros, periódicos y revistas, papel, cartón y artículos de papel y cartón",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.137,0,"Venta al por mayor de articulos deportivos, equipos nauticos, pesca y natación",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.138,0,"Venta al por mayor de juguetes, incluyendo ventas al mayor de piñatas.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.139,0,"Venta al por mayor de joyas, prendas de oro, plata y otros metales preciosos, así como artículos de relojería. (monedas, sellos, estampillas, y similares etc.)",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.140,0,"Venta al por mayor de instrumentos musicales y accesorios para instrumentos musicales, discos para fonógrafos, cartuchos, cassettes y similares.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.141,0,"Venta al por mayor de flores y plantas naturales, ornamentales o artificiales",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.142,0,"Venta al por mayor de articulos fotográficos, cinematográficos instrumentos de optica y conexos",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.143,0,"Venta al por mayor de artículos esotéricos, paranormales, incluidos artículos religiosos",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.144,0,"Venta al por mayor de aparatos sexuales, eróticos, juguetes de adultos.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.145,0,"Venta al por mayor de mani y otros frutos secos, condimentos, hierbas y especias",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.146,0,"Venta al por mayor de carnes, huevos, menudencias y chacinados frescos, aves de corral, pescados, mariscos, charcuteria, productos lácteos, fiambres, y embutidos, productos de la granja y de la caza.",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.147,0,"Venta al por mayor de desperdicios, desechos, chatarra (Excepto de automóviles) y otros productos",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.148,0,"Venta al por mayor de materiales plásticos en formas primarias",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.149,0,"Venta al por mayor de madera no trabajada y productos primarios de la madera",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.150,0,"Venta al por mayor de repuestos usados de automóviles (Chiveras)",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.151,0,"Venta al por mayor de vehiculos automotores usados",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.152,0,"Venta al por mayor de equipos de computación, periféricos y programas informáticos",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.153,0,"Venta al por mayor de pieles y cueros de animales",3.01.100
+TERCIARIO,"COMERCIO AL POR MAYOR","COMERCIO AL POR MAYOR",3.01.154,0,"Otros tipos de comercio al por mayor no clasificado previamente, (n.c.p.).",3.01.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.100,1,"No tiene",
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.101,0,"Venta al detal de bebidas alcohólicas tapadas y en sus envases originales en Licorerías, Bodegones, distribuidoras y cualquier tipo de venta al detal",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.102,0,"Venta al por menor de bebidas no alcohólicas tales como: refrescos, jugos, maltas, agua saborizadas, agua mineral, etc.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.103,0,"Venta al por menor de productos alimenticios, viveres en general.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.104,0,"Venta al por menor de carnes, menudencias y chacinados frescos, aves de corral, pescados, mariscos, charcutería, productos lácteos, fiambres, y embutidos, productos de la granja y de la caza.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.105,0,"Venta al por menor de frutas, verduras, legumbres y hortalizas.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.106,0,"Venta al por menor de golosinas, chuchería, delicateses, demás productos de confitería, piñatería, pasapalos",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.107,0,"Venta al por menor de producto de panadería, repostería, dulces, bombones.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.108,0,"Venta al por menor de maní y otros frutos secos, condimentos, hierbas y especias",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.109,0,"Venta al por menor de hielo.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.110,0,"Venta al por menor de medicinas, productos farmacéutico, botica y herbolario.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.111,0,"Venta al por menor de equipos médicos, mobiliarios, para clínicas hospitales y ambulatorios, incluyendo instrumental médico y odontológicos y artículos ortopédicos (Incluye venta de vaporizadores, nebulizadores, masajeadores, termómetros, prótesis, muletas, plantillas, calzado ortopédico y otros artículos similares)",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.112,0,"Venta al por menor de alimentos, accesorios, prendas, aparato y dispositivos para animales y todo lo relacionado con la veterinaria. Así como plantas o especies naturales de la flora (vivero) fertilizantes, floristería, artículos para jardines y otros productos químicos para la agricultura.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.113,0,"Venta al por menor de prendas de vestir para damas, caballero y niños, calzados, así como maletas, carteras, articulo de cuero, prenda de vestir playera, artículos de deportivos",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.114,0,"Venta al por menor de articulos de refrigeración",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.115,0,"Venta al, por menor de productos plásticos, vasos, platos, cubiertos y envases plásticos desechables en general",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.116,0,"Venta al por menor de articulos, indumentaria de trabajo, uniformes en general, prendas y accesorios policiales, militares y de seguridad personal.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.117,0,"Venta al por menor de sistemas de seguridad",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.118,0,"Venta al por menor de telas, mercería, artículos para tapicería, persianas, alfombras, cortinas. Incluida confecciones para el hogar (sábanas, toallas, mantelería, cortinas confeccionadas, colchas, cubrecamas, etc.).",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.119,0,"Venta al por menor de producto y equipos para uso domestico y del hogar, eléctricos y no eléctricos, muebles, colchones, linea blanca, lámparasbombillos, , luces led, incluyendo accesorio y repuestos. Cuchilleria, vajillas, artículos de vidrio, loza o porcelana.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.120,0,"Venta al por menor de cristales, espejos, mamparas y cerramientos, cuadros, cañuelas, aberturas (Incluye puertas, ventanas, cortinas de enrollar de PVC, madera, aluminio, puertas corredizas, frentes de placards, etc.).",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.121,0,"Venta al por menor de articulos de ferreteria, pinturas, lacas, barnices y artículos de pesca.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.122,0,"Venta al por menor de materiales de construcción, maquinaria y equipo especializados.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.123,0,"Venta al por menor de perfumes, cosméticos, artículos de tocador y bisutería.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.124,0,"Venta al por menor de productos de limpieza y detergentes",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.125,0,"Venta al por menor de automóviles, camiones y autobuses, lanchas, y otras embarcaciones, incluyendo repuestos, accesorios y autoperiquitos, llantas y cámaras de cauchos, acumuladores y baterías.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.126,0,"Venta al por menor de motocicleta, motonetas, bicicletas, incluyendo repuestos y accesorios, acumuladores, llantas, cámaras de cauchos,",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.127,0,"Venta al por menor de combustible para vehículos automotores y motocicletas.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.128,0,"Venta al por menor de aceites y lubricantes para maquinarias, equipos y vehículos automotores, refrigerantes, y otros aditivos para vehículos",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.129,0,"Venta al por menor de equipos y aparatos para telecomunicaciones, computación, y transmisión de datos, incluyendo repuestos y accesorios, así como tarjetas magnéticas y no magnéticas para comunicaciones.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.130,0,"Venta al por menor de mobiliarios y equipo de oficina.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.131,0,"Venta al por menor de instrumentos musicales, discos, cartuchos, cassettes, y todo lo relacionado con la música.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.132,0,"Venta al por menor de tabaco, cigarrillos, picaduras.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.133,0,"Venta al por menor de librería, papeleria, revistas, artículos de oficina, incluyendo papel, cartón, materiales de embalaje y artículos relacionados.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.134,0,"Venta al por menor de instrumentos ópticos, fotografia, cinematografia. Así como aparatos y equipos de digitalización, escáneres, fotocopiado.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.135,0,"Venta al por menor de artículos esotéricos, paranormales, incluidos artículos religiosos",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.136,0,"Venta al por menor de aparatos sexuales, eróticos, juguetes de adultos.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.137,0,"Venta al por menor de articulo de artesanía, típicos, folklóricos, artículos de talabarteria y artículos regionales (Incluye venta de artículos regionales de cuero, plata, alpaca y similares)",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.138,0,"Venta al por menor de maderas y artículos de madera y corcho, excepto muebles,",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.139,0,"Venta al por menor de juguetes, articulos de cotillón y juegos de mesa.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.140,0,"Venta al por menor de joyas, prendas de oro, plata y otros metales preciosos, así como artículos de relojería (monedas, sellos, estampillas, y similares etc.).",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.141,0,"Venta al por menor por internet, por correo, televisión y otros medios de comunicación.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.142,0,"Venta al por menor no realizada en establecimientos (Incluye venta mediante máquinas expendedoras, vendedores ambulantes y vendedores a domicilio).",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.143,0,"Venta al por menor de artículos de segunda mano.",3.02.100
+TERCIARIO,"COMERCIO AL POR MENOR","COMERCIO AL POR MENOR",3.02.144,0,"Otras ventas al por menor n.c.p.",3.02.100
+TERCIARIO,SERVICIOS,"SERVICIOS DE COMIDAS, BEBIDAS Y ESPARCIMIENTO",3.03.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"SERVICIOS DE COMIDAS, BEBIDAS Y ESPARCIMIENTO",3.03.101,0,"Restaurantes, bares, cervecerías, tascas, bar-restaurante, cabarets, night club, discotecas, karaokes. Incluye Actividades de servicio móvil de comidas, así como cantinas, cafeterias, heladerías, refresquerías, areperas, fuentes de soda en régimen de concesión, CON expendio de bebidas alcohólicas,",3.03.100
+TERCIARIO,SERVICIOS,"SERVICIOS DE COMIDAS, BEBIDAS Y ESPARCIMIENTO",3.03.102,0,"Restaurantes, Incluye Actividades de servicio móvil de comidas, así como cantinas, cafeterias, heladerias, refresquerías, areperas, fuentes de soda en régimen de concesión, SIN expendio de bebidas alcohólicas.",3.03.100
+TERCIARIO,SERVICIOS,"SERVICIOS DE COMIDAS, BEBIDAS Y ESPARCIMIENTO",3.03.103,0,"Servicios de restaurantes de comida rápida o en puestos ambulantes",3.03.100
+TERCIARIO,SERVICIOS,"SERVICIOS DE COMIDAS, BEBIDAS Y ESPARCIMIENTO",3.03.104,0,"Servicios de comida producidos en forma industrial, servicios de atenciones a embarcaciones y tripulantes.",3.03.100
+TERCIARIO,SERVICIOS,"SERVICIOS DE COMIDAS, BEBIDAS Y ESPARCIMIENTO",3.03.105,0,"Agencias de billetes de loteria, terminales, apuestas hipicas, casas de apuestas, casinos, bingos, maquinas traga niqueles, salas y recintos de juegos.",3.03.100
+TERCIARIO,SERVICIOS,"SERVICIOS DE COMIDAS, BEBIDAS Y ESPARCIMIENTO",3.03.106,0,"Parques, salas de atracción, clubes sociales con o sin fines de lucro, agencias de festejos y otros servicios conexos.",3.03.100
+TERCIARIO,SERVICIOS,"HOTELES, HOSTALES, PENSIONES, POSADAS, CAMPAMENTOS Y HOSPEDAJES",3.04.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"HOTELES, HOSTALES, PENSIONES, POSADAS, CAMPAMENTOS Y HOSPEDAJES",3.04.101,0,"Hoteles, hostales, pensiones, posadas, campamentos y hospedajes.",3.04.100
+TERCIARIO,SERVICIOS,"TRANSPORTE DE PASAJEROS Y DE CARGA, TERRESTRE, MARÍTIMO Y AÉREO",3.05.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"TRANSPORTE DE PASAJEROS Y DE CARGA, TERRESTRE, MARÍTIMO Y AÉREO",3.05.101,0,"Lineas de buses urbanas e interurbanas, transporte de pasajeros por carreteras, taxis para transporte de pasajeros, lineas de carros por puesto para transporte de pasajeros por carretera, transportes especiales para turistas y excursionistas, servicios de transporte a pasajeros ocasionales, transporte de carga terrestre, transporte maritimo de pasajeros, transporte de cabotaje, transportes oceánicos, transporte aéreo de pasajeros, transporte aéreo de carga,, servicios de transportación.",3.05.100
+TERCIARIO,SERVICIOS,"TRANSPORTE DE PASAJEROS Y DE CARGA, TERRESTRE, MARÍTIMO Y AÉREO",3.05.102,0,"Distribución y comercio de bebidas alcohólicas a través de vehículos",3.05.100
+TERCIARIO,SERVICIOS,"TRANSPORTE DE PASAJEROS Y DE CARGA, TERRESTRE, MARÍTIMO Y AÉREO",3.05.103,0,"Alquiler de automóviles o camiones, con o sin conductor; servicio de grúa.",3.05.100
+TERCIARIO,SERVICIOS,"TRANSPORTE DE PASAJEROS Y DE CARGA, TERRESTRE, MARÍTIMO Y AÉREO",3.05.104,0,"Consolidación y desconsolidación de cargas, servicios de mantenimiento de muelles, atracaderos, faros, edificios instalaciones conexas para la navegación, servicio de remolques maritimos, servicio de alquiler de buques, otros medios de transporte, servicios relacionado, con el transporte por agua.",3.05.100
+TERCIARIO,SERVICIOS,"TRANSPORTE DE PASAJEROS Y DE CARGA, TERRESTRE, MARÍTIMO Y AÉREO",3.05.105,0,"Reparación y mantenimiento de embarcaciones, servicio de asistencia a aviones en tierra, remolques, demás servicios a aeronaves y lineas aéreas.",3.05.100
+TERCIARIO,SERVICIOS,"TRANSPORTE DE PASAJEROS Y DE CARGA, TERRESTRE, MARÍTIMO Y AÉREO",3.05.106,0,"Servicios de mudanzas nacionales e internacionales, alquiler de aeronaves con o sin pilotos, servicios de correo, paqueterías, encomiendas, cargas menores, servicios de embalaje y empaque de articulos.",3.05.100
+TERCIARIO,SERVICIOS,"TRANSPORTE DE PASAJEROS Y DE CARGA, TERRESTRE, MARÍTIMO Y AÉREO",3.05.107,0,"Agencias de viajes, transporte multimodal, agentes de aduanas, servicio de transito de mercancias, servicios de depósito o almacenamiento, servicios de estiba, desestiba de cargas, agencias navieras, vapores, alquiler, resguardo, custodia, reparación y mantenimiento de contenedores o furgones, almacén para merc2ancia en general.",3.05.100
+TERCIARIO,SERVICIOS,"SERVICIO DE ESTÉTICA",3.06.010,1,"No tiene",
+TERCIARIO,SERVICIOS,"SERVICIO DE ESTÉTICA",3.06.11,0,"Salones de belleza, barberías, peluquerías, baños turcos, sala de masajes, gimnasios, servicio de pedicuros, manicuros y quiropedia, otros tratamientos de belleza.",3.06.010
+TERCIARIO,SERVICIOS,"SERVICIOS DE SALUD",3.06.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"SERVICIOS DE SALUD",3.06.101,0,"Clinicas, consultorios y otras instituciones similares, laboratorios médicos y dentales, servicios de ambulancia, hospitales, imagenología, geriátricos, y demás servicios conexos a la salud.",3.06.100
+TERCIARIO,SERVICIOS,"SERVICIOS DE SALUD",3.06.102,0,"Servicios veterinarios",3.06.100
+TERCIARIO,SERVICIOS,"SERVICIOS DOMÉSTICOS Y EMPRESARIAL",3.07.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"SERVICIOS DOMÉSTICOS Y EMPRESARIAL",3.07.101,0,"Recolección, reciclaje, destrucción de desperdicios y desechos, limpieza en edificios, casa, exterminio, fumigación, desinfección, servicios de mantenimiento, limpieza de piscinas, drenajes, desagües, bateas, cunetas, ductos, brocales, embaulamiento de quebradas, mantenimiento de áreas verdes ornamentales.",3.07.100
+TERCIARIO,SERVICIOS,"SERVICIOS DOMÉSTICOS Y EMPRESARIAL",3.07.102,0,"Agencias de detectives, de protección personal, resguardo a la propiedad,",3.07.100
+TERCIARIO,SERVICIOS,"SERVICIOS DOMÉSTICOS Y EMPRESARIAL",3.07.103,0,"Agencias funerarias y servicios funerarios.",3.07.100
+TERCIARIO,SERVICIOS,"SERVICIOS DOMÉSTICOS Y EMPRESARIAL",3.07.104,0,"Estacionamiento, autolavados, servicios de mantenimiento de vehiculos",3.07.100
+TERCIARIO,SERVICIOS,"SERVICIOS DOMÉSTICOS Y EMPRESARIAL",3.07.105,0,"Actividades de gestoria de documentos, tramitaciones, agencias de colocaciones, gestoría de cobranzas",3.07.100
+TERCIARIO,SERVICIOS,"SERVICIOS DOMÉSTICOS Y EMPRESARIAL",3.07.106,0,"servicios de reproducción, impresión heliográfica, fotocopia de correspondencia, documentos, taquimecanografia, traducción, y otras actividades especializadas de apoyo de oficina",3.07.100
+TERCIARIO,SERVICIOS,"SERVICIOS DOMÉSTICOS Y EMPRESARIAL",3.07.107,0,"Servicios, Instalación y venta de dispositivos o aparatos para sistemas de seguridad personal, residencial, industrial o comercial.",3.07.100
+TERCIARIO,SERVICIOS,"SERVICIOS DOMÉSTICOS Y EMPRESARIAL",3.07.108,0,"Servicios de transporte de dinero y artículos valiosos",3.07.100
+TERCIARIO,SERVICIOS,TELECOMUNICACIONES,3.08.100,1,"No tiene",
+TERCIARIO,SERVICIOS,TELECOMUNICACIONES,3.08.101,0,"Empresas con concesión o contrato para operar servicios de telecomunicaciones, tales como: telefonia fija, celular, voz y datos sobre IP, internet u otros valores agregados. Servicio de radiodifusión y televisión abierta, por cable, satélite u otro medio tecnológico similar.",3.08.100
+TERCIARIO,SERVICIOS,TELECOMUNICACIONES,3.08.102,0,"Actividades de centros de llamadas",3.08.100
+TERCIARIO,SERVICIOS,RADIODIFUSIÓN,3.09.100,1,"No tiene",
+TERCIARIO,SERVICIOS,RADIODIFUSIÓN,3.09.101,0,"Empresas con concesión o contrato para operar servicios de radiodifusión sonora",3.09.100
+TERCIARIO,SERVICIOS,"TECNOLOGÍA, FORMACIÓN Y MEDIO DE DIFUSIÓN",3.10.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"TECNOLOGÍA, FORMACIÓN Y MEDIO DE DIFUSIÓN",3.10.101,0,"Servicio y programación de sistemas, navegación de internet, cibercafé y realidad virtual.",3.10.100
+TERCIARIO,SERVICIOS,"TECNOLOGÍA, FORMACIÓN Y MEDIO DE DIFUSIÓN",3.10.102,0,"",3.10.100
+TERCIARIO,SERVICIOS,"TECNOLOGÍA, FORMACIÓN Y MEDIO DE DIFUSIÓN",3.10.103,0,"Estudios fotográficos y otros servicios relacionados con la fotografia, laboratorios de revelado y copia de películas, servicios de audio, data y video, arrendamiento y ventas de películas grabadas o filmadas, videos y juegos digitalizados. Otros servicios relacionados con la distribución y exhibición de peliculas, n.c.p.",3.10.100
+TERCIARIO,SERVICIOS,"TECNOLOGÍA, FORMACIÓN Y MEDIO DE DIFUSIÓN",3.10.104,0,"Alquiler de cines y locales para espectáculos públicos, agencias de contratación de actores, obras teatrales, artistas y conciertos, empresas grabadoras de discos, cintas y similares.",3.10.100
+TERCIARIO,SERVICIOS,"TECNOLOGÍA, FORMACIÓN Y MEDIO DE DIFUSIÓN",3.10.105,0,"Servicios de anuncios publicitarios, en todo tipo de medios informativos, carteles, anuncios luminosos, distribución de propagandas, ornamentación de vidrieras.",3.10.100
+TERCIARIO,SERVICIOS,"TECNOLOGÍA, FORMACIÓN Y MEDIO DE DIFUSIÓN",3.10.106,0,"Autoescuelas, academias, colegios e instituciones de educación superior, y otros Institutos Similares.",3.10.100
+TERCIARIO,SERVICIOS,"TECNOLOGÍA, FORMACIÓN Y MEDIO DE DIFUSIÓN",3.10.107,0,"Comercialización en medios digitales, Litografía, tipografias e Imprentas en general, edición de periódicos y revistas, edición de libros, cuadernos y materiales didácticos impresos, y cualquier otro medio de difusión no clasificado previamente.",3.10.100
+TERCIARIO,SERVICIOS,"SERVICIO MECÁNICO, DOMÉSTICOS, GAS Y ELECTRICIDAD",3.11.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"SERVICIO MECÁNICO, DOMÉSTICOS, GAS Y ELECTRICIDAD",3.11.101,0,"Servicios de Instalación, mantenimiento y reparaciones mecánicas, eléctricos y de gas para vehiculos a domicilio o en talleres.",3.11.100
+TERCIARIO,SERVICIOS,"SERVICIO MECÁNICO, DOMÉSTICOS, GAS Y ELECTRICIDAD",3.11.102,0,"Rectificación o reconstrucción de motores para vehículos automotores",3.11.100
+TERCIARIO,SERVICIOS,"SERVICIO MECÁNICO, DOMÉSTICOS, GAS Y ELECTRICIDAD",3.11.103,0,"Rencauchutado y renovación de cubiertas de caucho.",3.11.100
+TERCIARIO,SERVICIOS,"SERVICIO MECÁNICO, DOMÉSTICOS, GAS Y ELECTRICIDAD",3.11.104,0,"Distribución y comercialización de gas domestico, comercial e industrial.",3.11.100
+TERCIARIO,SERVICIOS,"SERVICIO MECÁNICO, DOMÉSTICOS, GAS Y ELECTRICIDAD",3.11.105,0,"Distribución de energía eléctrica, residencial, comercial e industrial",3.11.100
+TERCIARIO,SERVICIOS,"AGENCIAS BANCARIAS, CASAS DE EMPEÑO, SEGUROS",3.12.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"AGENCIAS BANCARIAS, CASAS DE EMPEÑO, SEGUROS",3.12.101,0,"Agencias de bancos comerciales, establecimientos de crédito personal y agentes de préstamo.",3.12.100
+TERCIARIO,SERVICIOS,"AGENCIAS BANCARIAS, CASAS DE EMPEÑO, SEGUROS",3.12.102,0,"Casas de empeño, casas de cambio, otros establecimientos financieros",3.12.100
+TERCIARIO,SERVICIOS,"AGENCIAS BANCARIAS, CASAS DE EMPEÑO, SEGUROS",3.12.103,0,"Empresas de investigación y asesoramiento sobre inversiones, compañías de seguros y reaseguros, agentes y corredores de seguros, agencias de avalúos y servicios para fines de seguros.",3.12.100
+TERCIARIO,SERVICIOS,"SERVICIO INMOBILIARIO, ADMINISTRADORAS, CEMENTERIO",3.13.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"SERVICIO INMOBILIARIO, ADMINISTRADORAS, CEMENTERIO",3.13.101,0,"Servicios inmobiliarios en la compra y venta de bienes inmuebles, oficinas urbanizadoras, arrendamiento y administración de bienes e inmuebles.",3.13.100
+TERCIARIO,SERVICIOS,"SERVICIO INMOBILIARIO, ADMINISTRADORAS, CEMENTERIO",3.13.102,0,"Empresas administradoras de puerto, administración de condominios.",3.13.100
+TERCIARIO,SERVICIOS,"SERVICIO INMOBILIARIO, ADMINISTRADORAS, CEMENTERIO",3.13.103,0,"Servicios de Inhumación, exhumacion, incineración y alquileres de nichos para cenizas",3.13.100
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.101,0,"Aparatos, maquinas y dispositivos para juegos o para actividades y servicios diversos accionados por cualquier medio de funcionamiento.",3.14.100
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.102,0,"Aparatos accionados por medio de moneda, fichas, tarjetas magnéticas, u otra forma; o por cuyo funcionamiento se cobre al público en cualquier forma; musicales, en bares, cantinas, fuentes de soda u otros recintos, cabarets, discotecas y clubes.",3.14.100
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.103,0,"Refrescos y bebidas no alcohólicas, por cada aparato, cigarrillos, por cada aparato, golosinas y otros comestibles listos para el consumo, por cada aparato, billares, pool, por cada mesa, juegos de Bowling, por cada cancha.",3.14.100
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.104,0,"Pesos automáticos que funcionan por medio de monedas, fichas u otro modo.",3.14.100
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.105,0,"Venta de periódicos, revistas y/o golosinas en stands.",3.14.100
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.106,0,"Módulos de venta, alimentos no perecederos, flores, frutas, legumbres, hortalizas, jugos naturales, maquinas de café, chicha, helados, dulces criollos, perros calientes, parrillas, pepitos, cachapas, hamburguesas, arepas, empanadas, refrescos, churros, panecillos, pastelitos",3.14.100
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.107,0,"Módulos de venta para prendas de vestir, zapatos, lenceria, juguetes, prendas, accesorios, productos de playa, perfumes. cosméticos, productos de tocador, arreglos de calzados,",3.14.100
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.108,0,"Alquiler de tarjetas de teléfonos o de teléfonos, reparaciones de relojes o prendas o servicios en general.",3.14.100
+TERCIARIO,SERVICIOS,"APARATOS PARA JUEGOS, DISPENSADORAS, PESOS",3.14.109,0,"Alquiler de sillas toldos y otros objetos para pernoctar en la playa y lugares de esparcimiento.",3.14.100
+TERCIARIO,SERVICIOS,"ALQUILER Y ARRENDAMIENTO DE OTROS TIPOS DE MAQUINARIAS, EQUIPOS Y BIENES TANGIBLES.",3.15.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"ALQUILER Y ARRENDAMIENTO DE OTROS TIPOS DE MAQUINARIAS, EQUIPOS Y BIENES TANGIBLES.",3.15.101,0,"Alquiler y arrendamiento de otros tipos de maquinaria, equipo y bienes tangibles, con o sin operarios.",3.15.100
+TERCIARIO,SERVICIOS,"A.N.C.P.",3.16.100,1,"No tiene",
+TERCIARIO,SERVICIOS,"A.N.C.P.",3.16.101,0,"Cualquier otra actividad que no especifique en el clasificador único de actividades económicas",3.16.100

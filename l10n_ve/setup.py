@@ -22,6 +22,7 @@ def set_l10n_ve_data() -> None:
         load_venezuela_data()
         create_bank_venezuelan()
         create_bank_account_types()
+        create_economic_activities()
         uncheck_all_prepared_reports()
         disable_rounded_total()
 
@@ -884,6 +885,53 @@ def create_bank_account_types() -> str:
     frappe.msgprint(mensaje, title="Carga de Tipos de Cuenta Bancaria", indicator="green")
     print(f"Success: {mensaje}")
     return mensaje
+
+def create_economic_activities() -> None:
+    """
+    Crea los registros de Actividades Económicas a partir de un archivo CSV.
+    """
+    print("Iniciando la creación de Actividades Económicas...")
+
+    csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 've_economic_activity.csv')
+    doctype = "VE Economic Activity"
+
+    try:
+        with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
+            reader = csv.DictReader(file)
+            activities = list(reader)
+
+        for row in activities:
+            if row.get("is_group") == "1":
+                if not frappe.db.exists(doctype, row["code"]):
+                    doc = frappe.new_doc(doctype)
+                    doc.code = row["code"]
+                    doc.description = row["description"]
+                    doc.sector = row["sector"]
+                    doc.group = row["group"]
+                    doc.is_group = 1
+                    doc.save(ignore_permissions=True)
+                    print(f"  -> Creado grupo padre: {doc.code}")
+
+        frappe.db.commit()
+
+        for row in activities:
+            if row.get("is_group") != "1":
+                if not frappe.db.exists(doctype, row["code"]):
+                    doc = frappe.new_doc(doctype)
+                    doc.code = row["code"]
+                    doc.description = row["description"]
+                    doc.sector = row["sector"]
+                    doc.group = row["group"]
+                    doc.branch = row["branch"]
+                    doc.parent_ve_economic_activity = row["parent_code"]
+                    doc.save(ignore_permissions=True)
+                    print(f"  -> Creada actividad hija: {doc.code}")
+
+        frappe.db.commit()
+        print("\nSuccess: Proceso de creación de Actividades Económicas completado.")
+    except Exception as e:
+        print(f"!! FATAL: Ocurrió un error inesperado durante la creación de actividades económicas: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en create_economic_activities')
 
 def uncheck_all_prepared_reports() -> None:
     print(f"Estableciendo valor 0 en prepared_report en Report")
