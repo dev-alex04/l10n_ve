@@ -14,8 +14,6 @@
   "is_group",
   "old_parent",
   "parent_ve_economic_activity",
-  "aliqout",
-  "minimo_tributario",
   "column_break_etgd",
   "sector",
   "group",
@@ -95,25 +93,13 @@
    "fieldtype": "Data",
    "label": "Code",
    "unique": 1
-  },
-  {
-   "fieldname": "aliqout",
-   "fieldtype": "Float",
-   "label": "aliqout",
-   "precision": "2"
-  },
-  {
-   "fieldname": "minimo_tributario",
-   "fieldtype": "Float",
-   "label": "M.T. (TCMMV)",
-   "precision": "2"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2025-11-06 10:56:47.949606",
+ "modified": "2025-11-06 12:40:34.734973",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Economic Activity",
@@ -133,28 +119,16 @@
    "share": 1,
    "write": 1
   },
- {
-   "read": 1,
-   "write": 1,
+  {
    "create": 1,
-   "delete": 0,
+   "read": 1,
    "role": "Purchase User",
-   "share": 0,
-   "report": 0,
-   "print": 0,
-   "email": 0,
-   "export": 0
+   "write": 1
   },
   {
    "create": 1,
-   "delete": 0,
-   "email": 0,
-   "export": 0,
-   "print": 0,
    "read": 1,
-   "report": 0,
    "role": "Sales User",
-   "share": 0,
    "write": 1
   }
  ],
