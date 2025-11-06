@@ -1,10 +1,16 @@
+import re
 import frappe
 from frappe import _
-import re
 from frappe.utils import getdate
 
+from frappe.utils import (
+    getdate,
+    get_url_to_list as url_to_list,
+    get_link_to_form as link_to_form
+)
 
 import erpnext
+
 
 @frappe.whitelist()
 def get_company_address(company_name):
@@ -276,3 +282,25 @@ def get_reference_currency():
     if company:
 
         return frappe.get_cached_value("Company", company, "reference_currency")
+
+def get_link_to_form(doctype: str, document_name: str) -> str:
+
+    title_field = frappe.db.get_value('DocType', doctype, "title_field")
+
+    if not title_field:
+        label = None
+
+    else:
+        label = frappe.db.get_value(doctype, document_name, title_field)
+
+    url = frappe.bold(link_to_form(doctype, document_name, label))
+
+    return url
+
+def get_url_to_list(doctype: str) -> str:
+
+    url = url_to_list(doctype)
+
+    link = f'<a href="{url}" target="_blank"><b>{_(frappe.bold(_(doctype)))}</b></a>'
+
+    return link
