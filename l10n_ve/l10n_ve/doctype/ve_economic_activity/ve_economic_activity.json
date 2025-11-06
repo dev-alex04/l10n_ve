@@ -92,14 +92,15 @@
    "fieldname": "code",
    "fieldtype": "Data",
    "label": "Code",
-   "unique": 1
+   "unique": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2025-11-06 12:40:34.734973",
+ "modified": "2025-11-06 13:57:52.172057",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Economic Activity",
