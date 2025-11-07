@@ -94,19 +94,19 @@ erpnext.company.set_chart_of_accounts_options = function (doc) {
   }
 };
 
-var set_df_company_fields = function (frm, bool = true) {
-  if (!frm.is_new) {
+const set_df_company_fields = function (frm) {
+  if (!frm.is_new()) {
     return;
   }
   frm.set_df_property("create_chart_of_accounts_based_on", "reqd", true);
   frm.set_df_property(
     "chart_of_accounts",
     "reqd",
-    Boolean(frm.doc.create_chart_of_accounts_based_on == "Standard Template")
+    frm.doc.create_chart_of_accounts_based_on === "Standard Template"
   );
   frm.set_df_property(
     "existing_company",
     "reqd",
-    Boolean(frm.doc.create_chart_of_accounts_based_on == "Existing Company")
+    frm.doc.create_chart_of_accounts_based_on === "Existing Company"
   );
 };
