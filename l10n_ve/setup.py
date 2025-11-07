@@ -24,6 +24,9 @@ def set_l10n_ve_data() -> None:
         create_bank_account_types()
         uncheck_all_prepared_reports()
         disable_rounded_total()
+        set_buying_naming_series()
+        set_selling_naming_series()
+        set_stock_naming_series()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -913,3 +916,54 @@ def disable_rounded_total() -> None:
         frappe.db.rollback()
         frappe.log_error(title="Error al establecer valor 1 en disable_rounded_total", message=str(e))
         frappe.throw("Ocurrió un error al actualizar disable_rounded_total en Global Defaults.")
+
+
+def set_buying_naming_series() -> None:
+    print(f"Estableciendo Naming Series en Buying Series")
+    try:
+        frappe.db.set_value('Buying Settings',
+                            'Buying Settings',
+                            'supp_master_name',
+                            'Naming Series')
+
+        frappe.db.commit()
+        print("El campo 'supp_master_name' en Buying Settings establecido como Naming Series")
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(title="Error Estableciendo Naming Series en Buying Serie", message=str(e))
+        frappe.throw("Ocurrió un error Estableciendo Naming Series en Buying Serie")
+
+
+def set_selling_naming_series() -> None:
+    print(f"Estableciendo Naming Series en Selling Series")
+    try:
+        frappe.db.set_value('Selling Settings',
+                            'Selling Settings',
+                            'cust_master_name',
+                            'Naming Series')
+
+        frappe.db.commit()
+        print("El campo 'cust_master_name' en Selling Settings establecido como Naming Series")
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(title="Error Estableciendo Naming Series en Selling Serie", message=str(e))
+        frappe.throw("Ocurrió un error Estableciendo Naming Series en Selling Serie")
+
+
+def set_stock_naming_series() -> None:
+    print(f"Estableciendo Naming Series en Stock Series")
+    try:
+        frappe.db.set_value('Stock Settings',
+                            'Stock Settings',
+                            'item_naming_by',
+                            'Naming Series')
+
+        frappe.db.commit()
+        print("El campo 'item_naming_by' en Stock Settings establecido como Naming Series")
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(title="Error Estableciendo Naming Series en Stock Serie", message=str(e))
+        frappe.throw("Ocurrió un error Estableciendo Naming Series en Stock Serie")

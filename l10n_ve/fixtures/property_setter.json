@@ -2463,7 +2463,7 @@
         "row_name": null,
         "value": "1"
     },
-         {
+    {
         "doc_type": "Payment Entry Reference",
         "docstatus": 0,
         "doctype": "Property Setter",
@@ -2680,5 +2680,31 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "default_value": "1",
+        "doc_type": "Purchase Order Item",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "schedule_date",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Purchase Order Item-schedule_date-Label",
+        "property": "label",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "Requested for the date"
+    },
+    {
+        "doc_type": "Item",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "quick_entry",
+        "value": "0",
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Item-quick_entry"
     }
 ]
