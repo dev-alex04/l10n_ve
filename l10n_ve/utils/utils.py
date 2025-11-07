@@ -296,6 +296,54 @@ def get_link_to_form(doctype: str, document_name: str) -> str:
 
     return url
 
+@frappe.whitelist()
+def create_independent_address(address_values: str) -> str:
+    """
+    Crea un nuevo documento de Address de forma independiente.
+    No lo vincula a ninguna entidad en este paso.
+    """
+    address_values = frappe.parse_json(address_values)
+
+    address_doc = frappe.new_doc("Address")
+    address_doc.update(address_values)
+
+    if not address_doc.address_title:
+        address_doc.address_title = address_doc.address_line1 or _("Nueva Dirección")
+
+    try:
+        address_doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+    except Exception as e:
+        frappe.throw(_("Error al insertar el documento de dirección: {0}").format(str(e)))
+
+    return address_doc.name
+
+def link_address_to_party(address_name: str, party_doctype: str, party_name: str) -> None:
+    """
+    Asegura que un documento de Address esté vinculado a un documento de Parte (Supplier/Customer).
+    """
+    if not frappe.db.exists("Address", address_name):
+        frappe.throw(_("Dirección {0} no encontrada.").format(address_name))
+
+    if not frappe.db.exists(party_doctype, party_name):
+        frappe.throw(_("Documento principal {0} {1} no encontrado.").format(party_doctype, party_name))
+
+    address_doc = frappe.get_doc("Address", address_name)
+
+    link_exists = False
+    for link in address_doc.links:
+        if link.link_doctype == party_doctype and link.link_name == party_name:
+            link_exists = True
+            break
+
+    if not link_exists:
+        address_doc.append("links", {
+            "link_doctype": party_doctype,
+            "link_name": party_name,
+        })
+        address_doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
 def get_url_to_list(doctype: str) -> str:
 
     url = url_to_list(doctype)

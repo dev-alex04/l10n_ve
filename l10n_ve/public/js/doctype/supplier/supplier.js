@@ -1,5 +1,6 @@
 frappe.ui.form.on("Supplier", {
   refresh: function (frm) {
+    add_address_button(frm);
     reorganize_supplier_fields(frm);
 
     if (frm.is_new()) {
