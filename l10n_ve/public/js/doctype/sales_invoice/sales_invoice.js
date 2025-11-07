@@ -22,6 +22,12 @@ frappe.ui.form.on("Sales Invoice", {
     frm.set_df_property("voucher_image_islr", "read_only", true);
 
     // Mover esto a una funcion
+    realtime_numeric_validation(frm, "bill_no");
+    realtime_numeric_validation(frm, "bill_control");
+    realtime_numeric_validation(frm, "credit_note_no");
+    realtime_numeric_validation(frm, "debit_note_no");
+
+    // Mover esto a una funcion
     toggle_document_number_fields(frm);
     toggle_vat_withholding_fields(frm);
     toggle_islr_withholding_fields(frm);

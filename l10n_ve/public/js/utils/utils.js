@@ -221,3 +221,18 @@ function hidden_address_contact(frm) {
 		frm.toggle_display(fieldname_contact_link, false);
 	}
 }
+
+function realtime_numeric_validation(frm, fieldname) {
+  const input = frm.get_field(fieldname).$input;
+  if (!input) return;
+
+  input.on("input", function () {
+    const value = $(this).val();
+    const numeric_value = value.replace(/\D/g, "");
+
+    if (value !== numeric_value) {
+      frm.set_value(fieldname, numeric_value, false);
+      frm.get_field(fieldname).refresh();
+    }
+  });
+}

@@ -4,6 +4,11 @@ frappe.ui.form.on("Purchase Invoice", {
       frm.set_value("bill_control", "");
     }
 
+    realtime_numeric_validation(frm, "bill_no");
+    realtime_numeric_validation(frm, "bill_control");
+    realtime_numeric_validation(frm, "credit_note_no");
+    realtime_numeric_validation(frm, "debit_note_no");
+
     toggle_purchase_type_fields(frm);
 
     const return_against_field = "return_against";
