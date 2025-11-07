@@ -93,7 +93,7 @@ erpnext.company.set_chart_of_accounts_options = function (doc) {
     });
   }
 };
-
+// Se utiliza 'var' para sobreescribir la función existente en ERPNext y evitar su doble ejecución.
 var set_df_company_fields = function (frm) {
   if (!frm.is_new()) {
     return;

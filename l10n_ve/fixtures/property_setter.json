@@ -2707,7 +2707,7 @@
         "module": "l10n_ve",
         "name": "Item-quick_entry"
     },
-     {
+    {
         "default_value": "1",
         "doc_type": "Payment Entry",
         "docstatus": 0,
