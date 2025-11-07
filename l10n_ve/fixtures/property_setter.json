@@ -2277,22 +2277,6 @@
         "value": "0"
     },
     {
-        "default_value": "0",
-        "doc_type": "Supplier",
-        "docstatus": 0,
-        "doctype": "Property Setter",
-        "doctype_or_field": "DocField",
-        "field_name": "tax_withholding_category",
-        "is_system_generated": 0,
-        "modified": "2025-09-12 10:00:00",
-        "module": "L10N Ve",
-        "name": "Supplier-tax_withholding_category-reqd",
-        "property": "reqd",
-        "property_type": "",
-        "row_name": null,
-        "value": "0"
-    },
-    {
         "default_value": "Estado",
         "doc_type": "Address",
         "docstatus": 0,
