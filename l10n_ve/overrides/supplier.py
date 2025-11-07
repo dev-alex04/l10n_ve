@@ -12,8 +12,8 @@ class CustomSupplier(Supplier):
         validate_taxpayer_and_person_type_consistency(self)
 
         if not self.supplier_primary_address:
-            frappe.throw(_("El campo 'Dirección Principal' es obligatorio. " \
-                            "Por favor, ingrese una dirección usando el botón " \
+            frappe.throw(_("El campo 'Dirección Principal' es obligatorio. "
+                            "Por favor, ingrese una dirección usando el botón "
                             "'Agregar Dirección' en la parte superior derecha"))
 
 

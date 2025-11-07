@@ -9,10 +9,11 @@ class CustomCustomer(Customer):
     def validate(self):
         super().validate()
         validate_tax_id_format(self)
+        validate_taxpayer_and_person_type_consistency(self)
 
         if not self.customer_primary_address:
-            frappe.throw(_("El campo 'Dirección Principal' es " \
-                            "obligatorio. Por favor, ingrese una dirección " \
+            frappe.throw(_("El campo 'Dirección Principal' es "
+                            "obligatorio. Por favor, ingrese una dirección "
                             "usando el botón 'Agregar Dirección' en la parte superior derecha"))
 
     def on_update(self):
