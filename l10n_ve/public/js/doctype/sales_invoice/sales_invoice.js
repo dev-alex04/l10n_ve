@@ -254,17 +254,19 @@ function toggle_document_number_fields(frm) {
 
   const is_debit_note = frm.doc.is_debit_note;
 
+  const is_return_doc = is_credit_note || is_debit_note;
+
   frm.toggle_display(["debit_note_no"], is_debit_note);
   frm.toggle_display(["credit_note_no"], is_credit_note);
 
-  frm.toggle_display(["bill_no"], !is_credit_note && !is_debit_note);
-  frm.toggle_display(
-    ["affected_invoice_number"],
-    is_debit_note || is_credit_note
-  );
+  frm.toggle_display(["bill_no"], !is_return_doc);
+  frm.toggle_display(["affected_invoice_number"], is_return_doc);
   frm.toggle_display(["bill_control"], true);
-  if (is_credit_note || is_debit_note) {
+  if (is_return_doc) {
     frm.set_value("bill_no", null);
+  } else {
+    frm.set_value("credit_note_no", null);
+    frm.set_value("debit_note_no", null);
   }
 }
 
