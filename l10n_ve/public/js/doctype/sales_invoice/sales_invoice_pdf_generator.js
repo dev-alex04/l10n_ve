@@ -25,10 +25,9 @@ const template_html = `
 <div class="invoice-box">
     <table class="main-header-with-logo-table">
         <tr>
-            <td class="header-main-title">
-                <strong>{{document_title}}</strong>
-                   <div class="company-address"><p><span class="label-bold">Dirección:</span> {{company_primary_address}}</p>
-                </div>
+            <td class="header-main-title" style="vertical-align: top;">
+                <p><strong>{{document_title}}</strong></p>
+                <p><span class="label-bold">Dirección:</span> {{company_primary_address}}</p>
             </td>
             <td class="header-logo-container">
                 {{company_logo_html}}
