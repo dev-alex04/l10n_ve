@@ -22,6 +22,10 @@ frappe.ui.form.on("Sales Invoice", {
     frm.set_df_property("voucher_image_islr", "read_only", true);
 
     // Mover esto a una funcion
+    realtime_numeric_validation(frm, "bill_no");
+    realtime_numeric_validation(frm, "bill_control");
+
+    // Mover esto a una funcion
     toggle_document_number_fields(frm);
     toggle_vat_withholding_fields(frm);
     toggle_islr_withholding_fields(frm);
@@ -242,6 +246,20 @@ frappe.ui.form.on("Sales Invoice", {
     toggle_document_number_fields(frm);
   },
 });
+
+function realtime_numeric_validation(frm, fieldname) {
+  const input = frm.get_field(fieldname).$input;
+  if (!input) return;
+
+  input.on("input", function () {
+    const value = $(this).val();
+    const numeric_value = value.replace(/\D/g, "");
+
+    if (value !== numeric_value) {
+      frm.set_value(fieldname, numeric_value, false);
+      frm.get_field(fieldname).refresh();    }
+  });
+}
 
 function toggle_document_number_fields(frm) {
   const is_credit_note = frm.doc.is_return;

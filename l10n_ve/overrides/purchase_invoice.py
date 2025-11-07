@@ -135,6 +135,10 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
     def validate_duplicate_invoice_numbers(self) -> None:
         if self.bill_no:
+            if not self.bill_no.isdigit():
+                message = "El número de factura solo debe contener números."
+                frappe.throw(message)
+
             filters_bill_no = {
                 'docstatus': ['!=', 2],
                 'bill_no': self.bill_no,
@@ -147,6 +151,10 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                 frappe.throw(message)
 
         if self.bill_control:
+            if not self.bill_control.isdigit():
+                message = "El número de control solo debe contener números."
+                frappe.throw(message)
+
             filters_bill_control = {
                 'docstatus': ['!=', 2],
                 'name': ['!=', self.name],
