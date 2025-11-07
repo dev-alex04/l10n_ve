@@ -21,6 +21,9 @@ frappe.ui.form.on("VAT Withholding Voucher", {
           },
         });
       });
+
+      const fields = ["start_date", "end_date", "empresa", "supplier", "fiscal_period", "issue_date", "vat_withholding_voucher_item"];
+      fields_read_only(frm, fields);
     }
   },
 
@@ -245,3 +248,9 @@ function calculate_totals(frm) {
       "totals_tax_amount_vat"
   ]);
 };
+
+function fields_read_only(frm, fields_read_only) {
+  fields_read_only.forEach(field_read_only => {
+    frm.set_df_property(field_read_only, 'read_only', true);
+  });
+}

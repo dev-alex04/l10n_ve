@@ -1,6 +1,5 @@
 {
  "actions": [],
- "allow_rename": 1,
  "autoname": "field:voucher_number",
  "creation": "2025-08-26 16:06:42.540261",
  "doctype": "DocType",
@@ -174,7 +173,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-17 09:06:39.063834",
+ "modified": "2025-11-07 09:46:37.875059",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
