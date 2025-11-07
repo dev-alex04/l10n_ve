@@ -908,6 +908,7 @@ def create_economic_activities() -> None:
                     doc.description = row["description"]
                     doc.sector = row["sector"]
                     doc.group = row["group"]
+                    doc.branch = row["branch"]
                     doc.is_group = 1
                     doc.save(ignore_permissions=True)
                     print(f"  -> Creado grupo padre: {doc.code}")
