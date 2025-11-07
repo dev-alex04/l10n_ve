@@ -36,6 +36,14 @@ class CustomPaymentEntry(PaymentEntry):
 
         super().on_submit()
 
+        if flt(self.unallocated_amount) > 0:
+            frappe.msgprint(
+                _("Se ha generado un anticipo a su favor por un monto de {0}.").format(
+                    frappe.utils.fmt_money(self.unallocated_amount, currency=self.paid_from_account_currency
+                                           or self.paid_to_account_currency)
+                )
+            )
+
         self.set_igtf_on_invoices()
 
     def on_cancel(self) -> None:
