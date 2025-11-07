@@ -9,6 +9,8 @@ frappe.ui.form.on("Payment Entry", {
     if (frm.is_new()) {
       set_custom_exchange_rate(frm);
     }
+
+    realtime_numeric_validation(frm, "reference_no");
   },
 
   refresh: function (frm) {

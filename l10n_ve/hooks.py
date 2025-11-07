@@ -65,6 +65,7 @@ doctype_js = {
     ],
     "Payment Entry": [
         "public/js/doctype/payment_entry/payment_entry.js",
+        "public/js/utils/utils.js",
     ],
     "Sales Invoice": [
         "public/js/utils/utils.js",

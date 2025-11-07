@@ -94,7 +94,7 @@ erpnext.company.set_chart_of_accounts_options = function (doc) {
   }
 };
 
-const set_df_company_fields = function (frm) {
+var set_df_company_fields = function (frm) {
   if (!frm.is_new()) {
     return;
   }
