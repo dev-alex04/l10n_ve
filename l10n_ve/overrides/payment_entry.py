@@ -26,6 +26,11 @@ from erpnext.accounts.utils import (
 
 class CustomPaymentEntry(PaymentEntry):
 
+    def validate(self) -> None:
+        super().validate()
+
+        self.validate_reference_no()
+
     def on_submit(self) -> None:
         self.custom_clear_unallocated_reference_document_rows()
 
@@ -305,6 +310,19 @@ class CustomPaymentEntry(PaymentEntry):
                                     'total_igtf': total_igtf,
                                     'base_amount_igtf': base_amount_igtf,
                                 })
+
+    def validate_reference_no(self) -> None:
+        """
+        Valida que el número de referencia tenga al menos 4 dígitos y sea numérico.
+        """
+        if not self.reference_no:
+            return
+
+        if not self.reference_no.isdigit():
+            frappe.throw(_("El número de referencia solo debe contener números."))
+
+        if len(self.reference_no) < 4:
+            frappe.throw(_("El número de referencia debe tener al menos 4 dígitos."))
 
 # ----------------------------- OVERRIDE METHODS ----------------------------- #
 

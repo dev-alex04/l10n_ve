@@ -2706,5 +2706,21 @@
         "modified": "2025-09-12 10:00:00",
         "module": "l10n_ve",
         "name": "Item-quick_entry"
+    },
+     {
+        "default_value": "1",
+        "doc_type": "Payment Entry",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "mode_of_payment",
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Payment Entry-mode_of_payment-reqd",
+        "property": "reqd",
+        "property_type": "",
+        "row_name": null,
+        "value": "1"
     }
 ]
