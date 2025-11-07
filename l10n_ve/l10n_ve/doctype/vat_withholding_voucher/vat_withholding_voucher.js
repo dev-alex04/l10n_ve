@@ -249,8 +249,8 @@ function calculate_totals(frm) {
   ]);
 };
 
-function fields_read_only(frm, fields_read_only) {
-  fields_read_only.forEach(field_read_only => {
-    frm.set_df_property(field_read_only, 'read_only', true);
+function fields_read_only(frm, fields) {
+  fields.forEach(field => {
+    frm.set_df_property(field, 'read_only', true);
   });
 }
