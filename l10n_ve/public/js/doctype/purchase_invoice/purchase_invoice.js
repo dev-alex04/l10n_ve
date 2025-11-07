@@ -4,6 +4,11 @@ frappe.ui.form.on("Purchase Invoice", {
       frm.set_value("bill_control", "");
     }
 
+    realtime_numeric_validation(frm, "bill_no");
+    realtime_numeric_validation(frm, "bill_control");
+    realtime_numeric_validation(frm, "credit_note_no");
+    realtime_numeric_validation(frm, "debit_note_no");
+
     toggle_purchase_type_fields(frm);
 
     const return_against_field = "return_against";
@@ -32,6 +37,21 @@ frappe.ui.form.on("Purchase Invoice", {
     toggle_purchase_type_fields(frm);
   },
 });
+
+function realtime_numeric_validation(frm, fieldname) {
+  const input = frm.get_field(fieldname).$input;
+  if (!input) return;
+
+  input.on("input", function () {
+    const value = $(this).val();
+    const numeric_value = value.replace(/\D/g, "");
+
+    if (value !== numeric_value) {
+      frm.set_value(fieldname, numeric_value, false);
+      frm.get_field(fieldname).refresh();
+    }
+  });
+}
 
 /**
  * Alterna la visibilidad y obligatoriedad de los campos de la factura de compra

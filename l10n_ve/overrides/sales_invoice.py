@@ -124,6 +124,9 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         if not bill_control_to_validate:
             return True
 
+        if not bill_control_to_validate.isdigit():
+            frappe.throw("El número de control solo debe contener números.")
+            return False
 
         draft_submitted_filters = {
             'company': self.company,
@@ -185,6 +188,10 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         if not bill_no_to_validate:
             return True
 
+        if not bill_no_to_validate.isdigit():
+            frappe.throw("El número de factura solo debe contener números.")
+            return False
+
         draft_submitted_filters = {
             'is_return': False,
             'is_debit_note': False,
@@ -243,6 +250,10 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         if not credit_note_to_validate:
             return True
 
+        if not credit_note_to_validate.isdigit():
+            frappe.throw("El número de Nota de Crédito solo debe contener números.")
+            return False
+
         draft_submitted_filters = {
             'is_return': True,
             'company': self.company,
@@ -293,6 +304,10 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         debit_note_to_validate = debit_note_no or self.debit_note_no
         if not debit_note_to_validate:
             return True
+
+        if not debit_note_to_validate.isdigit():
+            frappe.throw("El número de Nota de Débito solo debe contener números.")
+            return False
 
         draft_submitted_filters = {
             'is_debit_note': True,
