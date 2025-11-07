@@ -330,11 +330,10 @@ def link_address_to_party(address_name: str, party_doctype: str, party_name: str
 
     address_doc = frappe.get_doc("Address", address_name)
 
-    link_exists = False
-    for link in address_doc.links:
-        if link.link_doctype == party_doctype and link.link_name == party_name:
-            link_exists = True
-            break
+    link_exists = any(
+        link.link_doctype == party_doctype and link.link_name == party_name
+        for link in address_doc.links
+    )
 
     if not link_exists:
         address_doc.append("links", {
@@ -342,7 +341,6 @@ def link_address_to_party(address_name: str, party_doctype: str, party_name: str
             "link_name": party_name,
         })
         address_doc.save(ignore_permissions=True)
-        frappe.db.commit()
 
 def get_url_to_list(doctype: str) -> str:
 
