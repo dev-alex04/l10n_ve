@@ -22,8 +22,12 @@ def set_l10n_ve_data() -> None:
         load_venezuela_data()
         create_bank_venezuelan()
         create_bank_account_types()
+        create_economic_activities()
         uncheck_all_prepared_reports()
         disable_rounded_total()
+        set_buying_naming_series()
+        set_selling_naming_series()
+        set_stock_naming_series()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -885,6 +889,54 @@ def create_bank_account_types() -> str:
     print(f"Success: {mensaje}")
     return mensaje
 
+def create_economic_activities() -> None:
+    """
+    Crea los registros de Actividades Económicas a partir de un archivo CSV.
+    """
+    print("Iniciando la creación de Actividades Económicas...")
+
+    csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 've_economic_activity.csv')
+    doctype = "VE Economic Activity"
+
+    try:
+        with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
+            reader = csv.DictReader(file)
+            activities = list(reader)
+
+        for row in activities:
+            if row.get("is_group") == "1":
+                if not frappe.db.exists(doctype, row["code"]):
+                    doc = frappe.new_doc(doctype)
+                    doc.code = row["code"]
+                    doc.description = row["description"]
+                    doc.sector = row["sector"]
+                    doc.group = row["group"]
+                    doc.branch = row["branch"]
+                    doc.is_group = 1
+                    doc.save(ignore_permissions=True)
+                    print(f"  -> Creado grupo padre: {doc.code}")
+
+        frappe.db.commit()
+
+        for row in activities:
+            if row.get("is_group") != "1":
+                if not frappe.db.exists(doctype, row["code"]):
+                    doc = frappe.new_doc(doctype)
+                    doc.code = row["code"]
+                    doc.description = row["description"]
+                    doc.sector = row["sector"]
+                    doc.group = row["group"]
+                    doc.branch = row["branch"]
+                    doc.parent_ve_economic_activity = row["parent_code"]
+                    doc.save(ignore_permissions=True)
+                    print(f"  -> Creada actividad hija: {doc.code}")
+
+        frappe.db.commit()
+        print("\nSuccess: Proceso de creación de Actividades Económicas completado.")
+    except Exception as e:
+        print(f"!! FATAL: Ocurrió un error inesperado durante la creación de actividades económicas: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en create_economic_activities')
+
 def uncheck_all_prepared_reports() -> None:
     print(f"Estableciendo valor 0 en prepared_report en Report")
     try:
@@ -913,3 +965,54 @@ def disable_rounded_total() -> None:
         frappe.db.rollback()
         frappe.log_error(title="Error al establecer valor 1 en disable_rounded_total", message=str(e))
         frappe.throw("Ocurrió un error al actualizar disable_rounded_total en Global Defaults.")
+
+
+def set_buying_naming_series() -> None:
+    print(f"Estableciendo Naming Series en Buying Series")
+    try:
+        frappe.db.set_value('Buying Settings',
+                            'Buying Settings',
+                            'supp_master_name',
+                            'Naming Series')
+
+        frappe.db.commit()
+        print("El campo 'supp_master_name' en Buying Settings establecido como Naming Series")
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(title="Error Estableciendo Naming Series en Buying Serie", message=str(e))
+        frappe.throw("Ocurrió un error Estableciendo Naming Series en Buying Serie")
+
+
+def set_selling_naming_series() -> None:
+    print(f"Estableciendo Naming Series en Selling Series")
+    try:
+        frappe.db.set_value('Selling Settings',
+                            'Selling Settings',
+                            'cust_master_name',
+                            'Naming Series')
+
+        frappe.db.commit()
+        print("El campo 'cust_master_name' en Selling Settings establecido como Naming Series")
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(title="Error Estableciendo Naming Series en Selling Serie", message=str(e))
+        frappe.throw("Ocurrió un error Estableciendo Naming Series en Selling Serie")
+
+
+def set_stock_naming_series() -> None:
+    print(f"Estableciendo Naming Series en Stock Series")
+    try:
+        frappe.db.set_value('Stock Settings',
+                            'Stock Settings',
+                            'item_naming_by',
+                            'Naming Series')
+
+        frappe.db.commit()
+        print("El campo 'item_naming_by' en Stock Settings establecido como Naming Series")
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(title="Error Estableciendo Naming Series en Stock Serie", message=str(e))
+        frappe.throw("Ocurrió un error Estableciendo Naming Series en Stock Serie")

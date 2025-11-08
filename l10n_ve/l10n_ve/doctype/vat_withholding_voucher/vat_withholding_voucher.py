@@ -127,7 +127,7 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         vat_details = vat_map.get(item.name, {})
         conversion_rate = item.conversion_rate
         rate = 1
-        
+
         if default_currency != item.currency and conversion_rate:
             rate = conversion_rate
 
