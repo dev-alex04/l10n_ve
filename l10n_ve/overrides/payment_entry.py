@@ -46,25 +46,23 @@ class CustomPaymentEntry(PaymentEntry):
 
     def _show_unallocated_amount_message(self) -> None:
 
-        if not flt(self.unallocated_amount) > 0:
+        if flt(self.unallocated_amount) <= 0:
             return
 
         if self.payment_type == 'Pay':
+            currency = self.paid_from_account_currency
             frappe.msgprint(
                 _("Se ha aprobado un pago que excede el monto de la factura por {0}.").format(
-                    frappe.utils.fmt_money(self.unallocated_amount,
-                                            currency=self.paid_from_account_currency
-                                            or self.paid_to_account_currency)
+                    frappe.utils.fmt_money(self.unallocated_amount, currency=currency)
                 ),
                 title=_("Advertencia de Sobrepago"),
                 indicator='orange'
             )
         elif self.payment_type == 'Receive':
+            currency = self.paid_to_account_currency
             frappe.msgprint(
                 _("Se ha generado un anticipo a su favor por un monto de {0}.").format(
-                    frappe.utils.fmt_money(self.unallocated_amount,
-                                            currency=self.paid_from_account_currency
-                                            or self.paid_to_account_currency)
+                    frappe.utils.fmt_money(self.unallocated_amount, currency=currency)
                 )
             )
 
