@@ -36,20 +36,38 @@ class CustomPaymentEntry(PaymentEntry):
 
         super().on_submit()
 
-        if flt(self.unallocated_amount) > 0:
-            frappe.msgprint(
-                _("Se ha generado un anticipo a su favor por un monto de {0}.").format(
-                    frappe.utils.fmt_money(self.unallocated_amount, currency=self.paid_from_account_currency
-                                           or self.paid_to_account_currency)
-                )
-            )
-
+        self._show_unallocated_amount_message()
         self.set_igtf_on_invoices()
 
     def on_cancel(self) -> None:
         super().on_cancel()
 
         self.set_igtf_on_invoices(is_cancelled=True)
+
+    def _show_unallocated_amount_message(self) -> None:
+
+        if not flt(self.unallocated_amount) > 0:
+            return
+
+        if self.payment_type == 'Pay':
+            frappe.msgprint(
+                _("Se ha aprobado un pago que excede el monto de la factura por {0}.").format(
+                    frappe.utils.fmt_money(self.unallocated_amount,
+                                            currency=self.paid_from_account_currency
+                                            or self.paid_to_account_currency)
+                ),
+                title=_("Advertencia de Sobrepago"),
+                indicator='orange'
+            )
+        elif self.payment_type == 'Receive':
+            frappe.msgprint(
+                _("Se ha generado un anticipo a su favor por un monto de {0}.").format(
+                    frappe.utils.fmt_money(self.unallocated_amount,
+                                            currency=self.paid_from_account_currency
+                                            or self.paid_to_account_currency)
+                )
+            )
+
 
     def apply_taxes(self) -> None:
 

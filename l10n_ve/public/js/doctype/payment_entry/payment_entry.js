@@ -35,6 +35,10 @@ frappe.ui.form.on("Payment Entry", {
   company: function (frm) {
     set_payment_entry_buttons(frm);
   },
+
+  before_submit: function (frm) {
+    confirm_overpayment_on_submit(frm);
+  },
 });
 
 function set_payment_entry_buttons(frm) {
@@ -382,4 +386,39 @@ function get_islr_invoices(frm) {
   }
 
   return islr_invoices;
+}
+
+function confirm_overpayment_on_submit(frm) {
+  // Si la bandera `is_submitting` está activa, permite el envío sin confirmación.
+  if (frm.is_submitting) {
+    frm.is_submitting = false; // Resetea la bandera para futuros envíos.
+    return;
+  }
+
+  if (frm.doc.payment_type !== "Pay" || flt(frm.doc.unallocated_amount) <= 0) {
+    return;
+  }
+  // Si es un pago con monto sin asignar, muestra la confirmación.
+  frappe.validated = false;
+
+  const unallocated_amount_formatted = frappe.format(
+    frm.doc.unallocated_amount,
+    {
+      fieldtype: "Currency",
+      currency:
+        frm.doc.paid_from_account_currency ||
+        frm.doc.paid_to_account_currency,
+    }
+  );
+
+  frappe.confirm(
+    `Está a punto de realizar un pago que excede el monto de la factura 
+      por: <b>${unallocated_amount_formatted}</b>. ¿Desea continuar?`,
+    () => {
+      // Si el usuario confirma, activa la bandera y vuelve a enviar.
+      frm.is_submitting = true;
+      frm.save("Submit");
+    },
+    () => {}
+  );
 }
