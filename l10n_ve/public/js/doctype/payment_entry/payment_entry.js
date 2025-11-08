@@ -39,7 +39,57 @@ frappe.ui.form.on("Payment Entry", {
   before_submit: function (frm) {
     confirm_overpayment_on_submit(frm);
   },
+
+  set_difference_amount: function (frm) {
+    var difference_amount = 0;
+    var base_unallocated_amount =
+      flt(frm.doc.unallocated_amount) *
+      (frm.doc.payment_type == "Receive"
+        ? frm.doc.source_exchange_rate
+        : frm.doc.target_exchange_rate);
+
+    var base_party_amount =
+      flt(frm.doc.base_total_allocated_amount) + base_unallocated_amount;
+
+    const included_taxes = get_included_taxes(frm);
+
+    if (frm.doc.payment_type == "Receive") {
+      difference_amount =
+        base_party_amount - flt(frm.doc.base_received_amount) + included_taxes;
+    } else if (frm.doc.payment_type == "Pay") {
+      difference_amount =
+        flt(frm.doc.base_paid_amount) - base_party_amount - included_taxes;
+    } else {
+      difference_amount =
+        flt(frm.doc.base_paid_amount) -
+        flt(frm.doc.base_received_amount) -
+        included_taxes;
+    }
+
+    var total_deductions = frappe.utils.sum(
+      $.map(frm.doc.deductions || [], function (d) {
+        return flt(d.amount);
+      })
+    );
+
+    frm.set_value("difference_amount", difference_amount - total_deductions);
+    frm.events.hide_unhide_fields(frm);
+  },
 });
+
+function get_included_taxes(frm) {
+  let included_taxes = 0;
+  for (const tax of frm.doc.taxes) {
+    if (!tax.included_in_paid_amount) continue;
+
+    if (tax.add_deduct_tax == "Add") {
+      included_taxes += tax.base_tax_amount;
+    } else {
+      included_taxes -= tax.base_tax_amount;
+    }
+  }
+  return included_taxes;
+}
 
 function set_payment_entry_buttons(frm) {
   if (
@@ -71,15 +121,18 @@ function compute_paid_amount(frm) {
  */
 
 function reorganize_payment_entry_fields(frm) {
-  let paid_amount = frm.get_field("paid_amount").$wrapper;
-  let exchange_rate = frm.get_field("exchange_rate").$wrapper;
-  let received_amount = frm.get_field("received_amount").$wrapper;
-  let reference_no = frm.get_field("reference_no").$wrapper;
-  let reference_date = frm.get_field("reference_date").$wrapper;
-  let paid_from = frm.get_field("paid_from").$wrapper;
   let paid_to = frm.get_field("paid_to").$wrapper;
   let party_field = frm.get_field("party").$wrapper;
-  let get_outstanding_invoices_button = frm.get_field("get_outstanding_invoices").$wrapper;
+  let paid_from = frm.get_field("paid_from").$wrapper;
+  let paid_amount = frm.get_field("paid_amount").$wrapper;
+  let reference_no = frm.get_field("reference_no").$wrapper;
+  let exchange_rate = frm.get_field("exchange_rate").$wrapper;
+  let reference_date = frm.get_field("reference_date").$wrapper;
+  let received_amount = frm.get_field("received_amount").$wrapper;
+
+  let get_outstanding_invoices_button = frm.get_field(
+    "get_outstanding_invoices"
+  ).$wrapper;
 
   paid_amount.insertAfter(received_amount);
   exchange_rate.insertAfter(paid_amount);
@@ -406,13 +459,12 @@ function confirm_overpayment_on_submit(frm) {
     {
       fieldtype: "Currency",
       currency:
-        frm.doc.paid_from_account_currency ||
-        frm.doc.paid_to_account_currency,
+        frm.doc.paid_from_account_currency || frm.doc.paid_to_account_currency,
     }
   );
 
   frappe.confirm(
-    `Está a punto de realizar un pago que excede el monto de la factura 
+    `Está a punto de realizar un pago que excede el monto de la factura
       por: <b>${unallocated_amount_formatted}</b>. ¿Desea continuar?`,
     () => {
       // Si el usuario confirma, activa la bandera y vuelve a enviar.
