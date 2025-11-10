@@ -1,7 +1,7 @@
 
-    // Archivo JS para personalizar la vista de lista de VE Municipal taxes
+    // Archivo JS para personalizar la vista de lista de VE Municipality Taxes
     // Más información: https://frappeframework.com/docs/v15/user/en/desk/views/list-view#listviewsettings
-    frappe.listview_settings['VE Municipal taxes'] = {
+    frappe.listview_settings['VE Municipality Taxes'] = {
     // add fields to fetch
     // add_fields: ['title', 'public'],
     // set default filters
@@ -16,7 +16,7 @@
         // triggers once before the list is loaded
         // Ejemplo: Añadir un botón
         // listview.page.add_inner_button(__("Mi Acción"), function() {
-        // 	frappe.msgprint("Acción para VE Municipal taxes");
+        // 	frappe.msgprint("Acción para VE Municipality Taxes");
         // });
     },
     before_render() {
@@ -37,7 +37,7 @@
     // primary_action() {
         // triggers when the primary action is clicked
         // Ejemplo: Acción por defecto
-        // frappe.new_doc('VE Municipal taxes');
+        // frappe.new_doc('VE Municipality Taxes');
     // },
     // get_form_link(doc) {
         // override the form route for this doc
@@ -64,7 +64,7 @@
     // 	},
     // 	action(doc) {
     // 		// Acción al hacer clic en el botón
-    // 		frappe.set_route('Form', 'VE Municipal taxes', doc.name);
+    // 		frappe.set_route('Form', 'VE Municipality Taxes', doc.name);
     // 	}
     // },
     // format how a field value is shown
