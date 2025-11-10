@@ -3,6 +3,7 @@
  "allow_events_in_timeline": 1,
  "allow_import": 1,
  "allow_rename": 1,
+  "autoname": "code",
  "creation": "2025-11-06 09:07:22.062001",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -98,7 +99,8 @@
    "in_list_view": 1,
    "label": "Code",
    "reqd": 1,
-   "unique": 1
+   "unique": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,

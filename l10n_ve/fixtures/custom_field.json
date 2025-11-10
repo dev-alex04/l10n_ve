@@ -6481,7 +6481,7 @@
     "mandatory_depends_on": null,
     "modified": "2025-09-02 00:00:00.000000",
     "module": "L10N Ve",
-    "name": "Item-Economic activity",
+    "name": "Item-economic_activity",
     "no_copy": 0,
     "non_negative": 0,
     "options": "VE Economic Activity",
