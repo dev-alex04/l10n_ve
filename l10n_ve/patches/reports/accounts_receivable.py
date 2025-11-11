@@ -30,7 +30,7 @@ def get_columns(self) -> None:
             {
                 "label": _("Voucher No."),
                 "fieldname": "ve_voucher_no",
-                "fieldtype": "HMTL",
+                "fieldtype": "HTML",
             })
 
 
@@ -91,8 +91,6 @@ def build_data(self) -> None:
                 row.ve_voucher_no = f'<a href="/app/{doctype}/{row.voucher_no}">{row.bill_no}</a>'
             else:
                 row.ve_voucher_no = f'<a href="/app/{doctype}/{row.voucher_no}">{row.voucher_no}</a>'
-
-            print(row.ve_voucher_no)
 
     if self.filters.get("group_by_party"):
         self.append_subtotal_row(self.previous_party)

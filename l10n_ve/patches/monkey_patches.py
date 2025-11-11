@@ -12,14 +12,14 @@ except ImportError:
 try:
     import l10n_ve.patches.model.document
 except ImportError:
-    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.l10n_ve.report.document.document Revise el log de errores")
-    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.l10n_ve.report.document.document')
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.model.document Revise el log de errores")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.model.document')
 
 try:
     import l10n_ve.patches.utilities.transaction_base
 except ImportError as e:
-    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.l10n_ve.report.transaction_base.transaction_base. Error: {e}")
-    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.l10n_ve.report.transaction_base.transaction_base')
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.utilities.transaction_base. Error: {e}")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.utilities.transaction_base')
 
 try:
     import l10n_ve.patches.accounts.utils
