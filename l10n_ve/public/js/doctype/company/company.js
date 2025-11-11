@@ -113,7 +113,7 @@ var set_df_company_fields = function (frm) {
 };
 
 function reorganize_customer_fields(frm) {
-  let num_license_wrapper = frm.get_field("num_license").$wrapper;
+  let num_license_wrapper = frm.get_field("num_license_economic").$wrapper;
   let is_special_taxpayer_wrapper = frm.get_field("is_special_taxpayer").$wrapper;
 
  num_license_wrapper.insertAfter(is_special_taxpayer_wrapper);
