@@ -11,12 +11,7 @@ from erpnext.accounts.report.utils import convert_to_presentation_currency, get_
 
 original_execute = general_ledger_report.execute
 
-
-
-
 def custom_execute(filters=None) -> tuple:
-
-    print('aki')
 
     if not filters:
         return [], []
