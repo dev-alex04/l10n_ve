@@ -507,4 +507,11 @@ Prepared Report User,Usuario de Informe Preparado,
 Purchase Master Manager,Gerente Maestro de Compras,
 Knowledge Base Editor,Editor de Base de Conocimiento,
 Knowledge Base Contributor,Colaborador de Base de Conocimiento,
-Is Return (Credit Note), Es Nota de Crédito
+Is Return (Credit Note), Es Nota de Crédito,
+Economic Activity License Number, Numero de Licencia de Actividad Economica,
+VE Economic Activity, Actividad Economica,
+Parent VE Economic Activity,Actividad Económica Matriz,
+Economic Activity, Actividad Economica,
+Aliquot, Alicuota,
+VE Municipality Taxes, Impuesto Municipal,
+M.T. (TCMMV). Monto Tributario (TCMMV)

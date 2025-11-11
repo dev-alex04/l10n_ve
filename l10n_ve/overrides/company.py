@@ -85,3 +85,39 @@ class CustomCompany(Company):
 
         if not self.vat_withholding_correlative:
             self.vat_withholding_correlative = 1
+
+        self.set_municipality_from_primary_address()
+
+    def set_municipality_from_primary_address(self):
+        """
+        Establece el campo 'municipality' de la Compañía en función de su
+        'custom_company_primary_address'.
+        """
+        if self.custom_company_primary_address:
+            try:
+                address_doc = frappe.get_doc("Address",
+                                              self.custom_company_primary_address)
+
+                if address_doc.county:
+                    self.municipality = address_doc.county
+                else:
+                    self.municipality = None
+
+            except frappe.DoesNotExistError:
+
+                frappe.log_error(
+                    message=f"La dirección principal '{self.custom_company_primary_address}'"
+                            f" no fue encontrada para la Compañía '{self.name}'.",
+                    title="Error de Vínculo de Dirección en Compañía"
+                )
+                self.municipality = None
+            except Exception as e:
+
+                frappe.log_error(
+                    message=f"Error al obtener el municipio desde la dirección '"
+                    f"{self.custom_company_primary_address}' para la Compañía '{self.name}': {e}",
+                    title="Error de Actualización de Municipio en Compañía"
+                )
+                self.municipality = None
+        else:
+            self.municipality = None
