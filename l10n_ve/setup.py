@@ -28,6 +28,7 @@ def set_l10n_ve_data() -> None:
         set_buying_naming_series()
         set_selling_naming_series()
         set_stock_naming_series()
+        create_municipality_taxes()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1016,3 +1017,83 @@ def set_stock_naming_series() -> None:
         frappe.db.rollback()
         frappe.log_error(title="Error Estableciendo Naming Series en Stock Serie", message=str(e))
         frappe.throw("Ocurrió un error Estableciendo Naming Series en Stock Serie")
+
+def create_municipality_taxes() -> None:
+    """
+    Crea los registros de Impuestos Municipales (VE Municipality Taxes)
+    """
+    print("Iniciando la creación de Impuestos Municipales...")
+    csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 've_municipality_taxes.csv')
+    doctype = "VE Municipality Taxes"
+
+    try:
+        with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
+            reader = csv.DictReader(file)
+            taxes = list(reader)
+
+        states_map = {s.state: s.name for s in
+                      frappe.get_all("VE State", fields=["name", "state"])}
+
+        municipalities_map = {(m.municipality, m.state): m.name for m in
+                               frappe.get_all("VE Municipality", fields=["name","municipality","state"])}
+
+        activities_map = {a.code: a.name for a in
+                          frappe.get_all("VE Economic Activity",fields=["name","code"])}
+
+        existing_taxes = {(t.municipality, t.economic_activity) for t in
+                          frappe.get_all(doctype,fields=["municipality","economic_activity"])}
+
+        created_count = 0
+        skipped_count = 0
+
+        for row in taxes:
+            municipality_name = row.get("municipality")
+            estado_from_csv = row.get("state")
+            economic_activity_code = row.get("economic_activity")
+
+            ve_state_doc_name = states_map.get(estado_from_csv)
+
+            if not ve_state_doc_name:
+                print(f"  -- Omitiendo fila (Estado no encontrado): "
+                      f"El estado '{estado_from_csv}' del CSV no existe en el sistema.")
+                skipped_count += 1
+                continue
+
+            ve_municipality_doc_name = municipalities_map.get((municipality_name, ve_state_doc_name))
+
+            if not ve_municipality_doc_name:
+                print(f"  -- Omitiendo fila (Municipio no encontrado): "
+                      f"'{municipality_name}' no existe en el estado '{estado_from_csv}'.")
+                skipped_count += 1
+                continue
+
+            ve_economic_activity_doc_name = activities_map.get(economic_activity_code)
+
+            if not ve_economic_activity_doc_name:
+                print(f"  -- Omitiendo fila (Actividad Económica no encontrada):"
+                      f" El código '{economic_activity_code}' no existe.")
+                skipped_count += 1
+                continue
+
+            if (ve_municipality_doc_name, ve_economic_activity_doc_name) in existing_taxes:
+                print(f"  -- Omitiendo (ya existe): Impuesto para "
+                      f"{municipality_name} y actividad {economic_activity_code}.")
+                skipped_count += 1
+                continue
+
+            doc = frappe.new_doc(doctype)
+            doc.state = ve_state_doc_name
+            doc.municipality = ve_municipality_doc_name
+            doc.economic_activity = ve_economic_activity_doc_name
+            doc.aliquot = float(row.get("aliquot") or 0)
+            doc.mt_tcmmv = float(row.get("mt_tcmmv") or 0)
+            doc.save(ignore_permissions=True)
+            created_count += 1
+            print(f"  -> Creado impuesto para: {municipality_name} - {economic_activity_code}")
+
+        frappe.db.commit()
+        print(f"\nSuccess: Proceso completado. Creados: {created_count},"
+              f" Omitidos: {skipped_count} (posibles duplicados o errores en los datos).")
+    except Exception as e:
+        print(f"!! FATAL: Ocurrió un error inesperado durante la creación de impuestos municipales: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en create_municipality_taxes')
