@@ -3,7 +3,7 @@
  "allow_events_in_timeline": 1,
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "field:code",
+  "autoname": "code",
  "creation": "2025-11-06 09:07:22.062001",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -66,7 +66,7 @@
    "fieldtype": "Select",
    "label": "Sector",
    "options": "PRIMARIO\nSECUNDARIO\nTERCIARIO",
-    "reqd": 1
+   "reqd": 1
   },
   {
    "fieldname": "group",
@@ -78,9 +78,11 @@
   {
    "fieldname": "branch",
    "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Branch",
    "options": "A.N.C.P.\nAGENCIAS BANCARIAS, CASAS DE EMPE\u00d1O, SEGUROS\nAGRICULTURA\nALQUILER Y ARRENDAMIENTO DE OTROS TIPOS DE MAQUINARIAS, EQUIPOS Y BIENES TANGIBLES.\nAPARATOS PARA JUEGOS, DISPENSADORAS, PESOS\nAVICULTURA\nCOMERCIO AL POR MAYOR\nCOMERCIO AL POR MENOR\nCONSTRUCCI\u00d3N DE OBRAS\nCONSTRUCCI\u00d3N, REPARACI\u00d3N Y MANTENIMIENTO\nCONSTRUCCI\u00d3N, SERVICIOS Y SUMINISTRO PETROLEROS\nEXPLOTACI\u00d3N DE MINAS Y CANTERAS\nFABRICACI\u00d3N Y REPARACI\u00d3N DE MAQUINARIA Y EQUIPO EL\u00c9CTRICOS\nGANADER\u00cdA\nHOTELES, HOSTALES, PENSIONES, POSADAS, CAMPAMENTOS Y HOSPEDAJES\nMANUFACTURA DE ALIMENTOS, BEBIDAS, MADERA, SUSTANCIAS QU\u00cdMICA, FARMACEUTICA, HOGAR, CEMENTO\nPESCA Y ACUICULTURA\nPESCA, AGRIC., GANAD.\nRADIODIFUSI\u00d3N\nSELVICULTURA, EXTRACCI\u00d3N DE MADERA Y RECOLECCI\u00d3N DE PRODUCTOS\nSERVICIO DE EST\u00c9TICA\nSERVICIO INMOBILIARIO, ADMINISTRADORAS, CEMENTERIO\nSERVICIO MEC\u00c1NICO, DOM\u00c9STICOS, GAS Y ELECTRICIDAD\nSERVICIOS DE COMIDAS, BEBIDAS Y ESPARCIMIENTO\nSERVICIOS DE SALUD\nSERVICIOS DOM\u00c9STICOS Y EMPRESARIAL\nTABACO Y DESTILADOS DEL ALCOHOL\nTECNOLOG\u00cdA, FORMACI\u00d3N Y MEDIO DE DIFUSI\u00d3N\nTELECOMUNICACIONES\nTRANSPORTE DE PASAJEROS Y DE CARGA, TERRESTRE, MAR\u00cdTIMO Y A\u00c9REO",
-   "reqd": 1       
+   "reqd": 1
   },
   {
    "fieldname": "description",
@@ -105,7 +107,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2025-11-06 15:40:37.190008",
+ "modified": "2025-11-10 09:52:58.424038",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Economic Activity",
@@ -142,5 +144,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
+ "title_field": "branch",
  "track_changes": 1
 }
