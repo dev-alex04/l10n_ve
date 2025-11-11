@@ -2,7 +2,6 @@
  "actions": [],
  "allow_events_in_timeline": 1,
  "allow_import": 1,
- "autoname": "autoincrement",
  "creation": "2025-11-10 11:08:52.429117",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -20,7 +19,8 @@
    "in_list_view": 1,
    "label": "Municipality",
    "options": "VE Municipality",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "economic_activity",
@@ -28,7 +28,8 @@
    "in_list_view": 1,
    "label": "Economic Activity",
    "options": "VE Economic Activity",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "aliquot",
@@ -52,11 +53,10 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-10 14:01:41.563568",
+ "modified": "2025-11-11 09:12:28.157617",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Municipality Taxes",
- "naming_rule": "Autoincrement",
  "owner": "Administrator",
  "permissions": [
   {
