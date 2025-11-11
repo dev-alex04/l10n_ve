@@ -50,8 +50,10 @@ frappe.ui.form.on("Sales Invoice", {
     print_button_pdf(frm);
 
     setTimeout(() => {
-        // Oculta el botón de impresión principal
-        frm.page.wrapper.find(`button[data-original-title="${__("Print")}"]`).hide();
+      // Oculta el botón de impresión principal
+      frm.page.wrapper
+        .find(`button[data-original-title="${__("Print")}"]`)
+        .hide();
     }, 100);
 
     // Mover esto a una funcion
@@ -262,11 +264,19 @@ function toggle_document_number_fields(frm) {
   frm.toggle_display(["bill_no"], !is_return_doc);
   frm.toggle_display(["affected_invoice_number"], is_return_doc);
   frm.toggle_display(["bill_control"], true);
+
   if (is_return_doc) {
-    frm.set_value("bill_no", null);
+    if (frm.doc.bill_no) {
+      frm.set_value("bill_no", null);
+    }
   } else {
-    frm.set_value("credit_note_no", null);
-    frm.set_value("debit_note_no", null);
+    if (frm.doc.credit_note_no) {
+      frm.set_value("credit_note_no", null);
+    }
+
+    if (frm.doc.debit_note_no) {
+      frm.set_value("debit_note_no", null);
+    }
   }
 }
 
@@ -348,12 +358,9 @@ function set_sales_invoice_fields(frm) {
 
 function print_button_pdf(frm) {
   if (!frm.custom_buttons["Generar PDF de Factura"]) {
-    frm.add_custom_button(
-      __("Generar PDF de Factura"),
-      () => {
-        generate_custom_invoice_preview(frm);
-      }
-    );
+    frm.add_custom_button(__("Generar PDF de Factura"), () => {
+      generate_custom_invoice_preview(frm);
+    });
   }
 }
 
