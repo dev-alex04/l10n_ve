@@ -906,11 +906,11 @@ def create_economic_activities() -> None:
 
         for row in activities:
             if row.get("is_group") == "1":
-                if not frappe.db.exists(doctype, row["code"]):
+                if not frappe.db.exists(doctype, {"code": row["code"]}):
                     doc = frappe.new_doc(doctype)
                     doc.code = row["code"]
                     doc.description = row["description"]
-                    doc.sector = row["sector"]
+                    doc.sector = row.get("sector")
                     doc.group = row["group"]
                     doc.branch = row["branch"]
                     doc.is_group = 1
@@ -921,14 +921,24 @@ def create_economic_activities() -> None:
 
         for row in activities:
             if row.get("is_group") != "1":
-                if not frappe.db.exists(doctype, row["code"]):
+                if not frappe.db.exists(doctype, {"code": row["code"]}):
                     doc = frappe.new_doc(doctype)
                     doc.code = row["code"]
                     doc.description = row["description"]
-                    doc.sector = row["sector"]
-                    doc.group = row["group"]
-                    doc.branch = row["branch"]
-                    doc.parent_ve_economic_activity = row["parent_code"]
+                    doc.sector = row.get("sector")
+                    doc.group = row.get("group")
+                    doc.branch = row.get("branch")
+
+                    parent_code = row["parent_code"]
+                    parent_doc_name = frappe.db.get_value(doctype,
+                                                         {"code": parent_code},
+                                                         "name")
+
+                    if not parent_doc_name:
+                        frappe.throw(f"No se pudo encontrar la Actividad "
+                                     f"Económica VE Padre con el código: {parent_code}")
+
+                    doc.parent_ve_economic_activity = parent_doc_name
                     doc.save(ignore_permissions=True)
                     print(f"  -> Creada actividad hija: {doc.code}")
 
