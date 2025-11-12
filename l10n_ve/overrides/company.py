@@ -93,7 +93,7 @@ class CustomCompany(Company):
         Establece el campo 'municipality' de la Compañía en función de su
         'custom_company_primary_address'.
         """
-        self.municipality = None
+
         if not self.custom_company_primary_address:
             return
 
