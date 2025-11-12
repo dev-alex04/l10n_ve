@@ -49,7 +49,8 @@
    "in_standard_filter": 1,
    "label": "Proveedor",
    "options": "Supplier",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "fiscal_period",
@@ -68,7 +69,8 @@
    "in_standard_filter": 1,
    "label": "Empresa",
    "options": "Company",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "section_break_sanm",
@@ -173,7 +175,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-07 09:46:37.875059",
+ "modified": "2025-11-11 21:04:34.818608",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",

@@ -209,7 +209,7 @@
                         "CUENTAS POR PAGAR SUBCONTRATISTAS INTERNOS": { "account_type": "Payable", "account_number": "2.1.2.1.06" },
                         "CUENTAS POR PAGAR SUBCONTRATISTAS EXTERNOS": { "account_type": "Payable", "account_number": "2.1.2.1.07" },
                         "GASTOS ACUMULADOS POR PAGAR": { "account_type": "Payable", "account_number": "2.1.2.1.08" },
-                        "ANTICIPOS DECLIENTES": { "account_type": "Payable", "account_number": "2.1.2.1.09" },
+                        "ANTICIPOS DE CLIENTES": { "account_type": "Payable", "account_number": "2.1.2.1.09" },
                         "OTRAS CUENTAS POR PAGAR": { "account_type": "Payable", "account_number": "2.1.2.1.1" }
                     },
                     "RETENCIONES DE NÓMINA":{

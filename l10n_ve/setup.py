@@ -339,6 +339,16 @@ def set_chart_of_accounts() -> None:
                 'account_number': '1.3.1.9.03',
                 'company_field': 'capital_work_in_progress_account',
             },
+            {
+                'account_name': 'ANTICIPOS DECLIENTES',
+                'account_number': '2.1.2.1.09',
+                'company_field': 'default_advance_received_account',
+            },
+            {
+                'account_name': 'ANTICIPO A PROVEEDORES NACIONALES',
+                'account_number': '1.1.3.4.01',
+                'company_field': 'default_advance_paid_account',
+            },
         ]
 
         companies = frappe.get_all("Company", fields=["name", "abbr"])
@@ -364,8 +374,12 @@ def set_chart_of_accounts() -> None:
                                     company_field,
                                     account_name)
 
-                print(f"  Cuenta '{account_name}' enlazada satisfactoriamente en el campo '{company_field}'.")
+                print(f" Cuenta '{account_name}' enlazada satisfactoriamente en el campo '{company_field}'.")
 
+            frappe.db.set_value('Company',
+                                company,
+                                'book_advance_payments_in_separate_party_account',
+                                True)
         frappe.db.commit()
 
     except Exception as e:

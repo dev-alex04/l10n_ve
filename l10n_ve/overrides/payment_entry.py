@@ -66,7 +66,6 @@ class CustomPaymentEntry(PaymentEntry):
                 )
             )
 
-
     def apply_taxes(self) -> None:
 
         # Se sobreescribe esta funcion
@@ -422,9 +421,7 @@ class CustomPaymentEntry(PaymentEntry):
                         "post_net_value": True,
                     },
                     account_currency,
-                    item=d,
-                )
-            )
+                    item=d))
 
             if not d.included_in_paid_amount:
                 if get_account_currency(payment_account) != self.company_currency:
@@ -449,10 +446,69 @@ class CustomPaymentEntry(PaymentEntry):
                             "post_net_value": True,
                         },
                         account_currency,
-                        item=d,
-                    )
-                )
+                        item=d))
 
+    def add_advance_gl_entries(self, gl_entries: list, entry: object | dict | None):
+        """
+        If 'entry' is passed, GL entries only for that reference is added.
+        """
+        book_advance_payments_in_separate_party_account: str = \
+            frappe.db.get_value(
+            "Company",
+            self.company,
+            "book_advance_payments_in_separate_party_account"
+        )
+
+        if book_advance_payments_in_separate_party_account:
+            references = [x for x in self.get("references")]
+            if entry:
+                references = [
+                    x
+                    for x in self.get("references")
+                    if x.name == entry.name
+                ]
+
+            for ref in references:
+                if ref.reference_doctype in (
+                    "Sales Invoice",
+                    "Purchase Invoice",
+                    "Journal Entry",
+                    "Payment Entry",
+                ):
+                    self.add_advance_gl_for_reference(gl_entries, ref)
+
+    def get_dr_and_account_for_advances(self, reference) -> None:
+
+        advance_received_account: str = frappe.db.get_value(
+            "Company",
+            self.company,
+            "default_advance_received_account"
+        )
+
+        advance_paid_account: str = frappe.db.get_value(
+            "Company",
+            self.company,
+            "default_advance_paid_account"
+        )
+
+        if reference.reference_doctype == "Sales Invoice":
+            return "credit", advance_received_account
+
+        if reference.reference_doctype == "Purchase Invoice":
+            return "debit", advance_paid_account
+
+        if reference.reference_doctype == "Payment Entry":
+            # reference.account_type and reference.payment_type is only available for Reverse payments
+            if reference.account_type == "Receivable" and reference.payment_type == "Pay":
+                return "credit", self.party_account
+            else:
+                return "debit", self.party_account
+
+        if reference.reference_doctype == "Journal Entry":
+            if self.party_type == "Customer" and self.payment_type == "Receive":
+                return "credit", reference.account
+            else:
+                return "debit", reference.account
 
     def set_transaction_currency_and_rate(self) -> None:
         self.transaction_currency = self.paid_on_currency
