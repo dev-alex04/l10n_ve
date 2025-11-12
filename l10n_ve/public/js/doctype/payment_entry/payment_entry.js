@@ -75,6 +75,66 @@ frappe.ui.form.on("Payment Entry", {
     frm.set_value("difference_amount", difference_amount - total_deductions);
     frm.events.hide_unhide_fields(frm);
   },
+
+  set_current_exchange_rate: function (
+    frm,
+    exchange_rate_field,
+    from_currency,
+    to_currency
+  ) {
+    frappe.call({
+      method: "erpnext.setup.utils.get_exchange_rate",
+      args: {
+        transaction_date: frm.doc.posting_date,
+        from_currency: from_currency || "VEF",
+        to_currency: to_currency,
+      },
+      callback: function (r, rt) {
+        const ex_rate = flt(
+          r.message,
+          frm.get_field(exchange_rate_field).get_precision()
+        );
+        frm.set_value(exchange_rate_field, ex_rate);
+      },
+    });
+  },
+
+  paid_from_account_currency: function (frm) {
+    if (!frm.doc.paid_from_account_currency || !frm.doc.company) return;
+    let company_currency = frappe.get_doc(
+      ":Company",
+      frm.doc.company
+    ).default_currency;
+
+    if (frm.doc.paid_from_account_currency == company_currency) {
+      frm.set_value("source_exchange_rate", 1);
+    } else if (frm.doc.paid_from) {
+      if (["Internal Transfer", "Pay"].includes(frm.doc.payment_type)) {
+        let company_currency = frappe.get_doc(
+          ":Company",
+          frm.doc.company
+        )?.default_currency;
+        frappe.call({
+          method: "erpnext.setup.utils.get_exchange_rate",
+          args: {
+            from_currency: frm.doc.paid_from_account_currency || "VEF",
+            to_currency: company_currency,
+            transaction_date: frm.doc.posting_date,
+          },
+          callback: function (r, rt) {
+            frm.set_value("source_exchange_rate", r.message);
+          },
+        });
+      } else {
+        frm.events.set_current_exchange_rate(
+          frm,
+          "source_exchange_rate",
+          frm.doc.paid_from_account_currency,
+          company_currency
+        );
+      }
+    }
+  },
 });
 
 function get_included_taxes(frm) {
