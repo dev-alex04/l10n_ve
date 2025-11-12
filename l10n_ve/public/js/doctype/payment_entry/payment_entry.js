@@ -11,6 +11,12 @@ frappe.ui.form.on("Payment Entry", {
     }
 
     realtime_numeric_validation(frm, "reference_no");
+
+    if (frm.fields_dict.get_outstanding_invoices) {
+      frm.fields_dict.get_outstanding_invoices.$input.off('click').on('click', function() {
+        frm.events.handle_get_outstanding_invoices(frm);
+      });
+    }
   },
 
   refresh: function (frm) {
@@ -134,6 +140,15 @@ frappe.ui.form.on("Payment Entry", {
         );
       }
     }
+  },
+
+  handle_get_outstanding_invoices: function(frm) {
+    if (!frm.doc.mode_of_payment) {
+      frappe.throw(__('Debe seleccionar un "Modo de pago" para obtener las facturas pendientes de pago.'));
+      return;
+    }
+
+    frm.events.get_outstanding_invoices_or_orders(frm, true, false);
   },
 });
 
