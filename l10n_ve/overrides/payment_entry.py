@@ -1,10 +1,12 @@
 from collections import defaultdict
+import json
 
 import frappe
 from frappe import _, _dict
 from frappe.utils import flt
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
+    get_outstanding_reference_documents as original_get_outstanding_reference_documents,
     PaymentEntry,
     get_payment_entry,
     validate_inclusive_tax,
@@ -569,3 +571,28 @@ def get_payment_entry(
     payment_entry.default_company_currency = company_data.default_currency
 
     return payment_entry
+
+@frappe.whitelist()
+def get_outstanding_reference_documents(args,validate: bool = False) -> list:
+    """
+    Filtra los documentos de referencia pendientes para incluir solo facturas de venta y compra.
+
+    Esta función sobreescribe el método original de ERPNext. Modifica los argumentos
+    de la solicitud para asegurar que se obtengan las facturas pendientes y luego
+    filtra la lista resultante para excluir cualquier tipo de documento que no sea
+    'Sales Invoice' o 'Purchase Invoice'.
+    """
+    if isinstance(args, str):
+        args = json.loads(args)
+
+    args['get_orders_to_be_billed'] = False
+
+    args['get_outstanding_invoices'] = True
+
+    all_outstanding_docs = original_get_outstanding_reference_documents(args, validate)
+
+    ALLOWED_DOCTYPES = ("Sales Invoice", "Purchase Invoice")
+    filtered_docs = [doc for doc in all_outstanding_docs if
+                     doc.get("voucher_type") in ALLOWED_DOCTYPES]
+
+    return filtered_docs
