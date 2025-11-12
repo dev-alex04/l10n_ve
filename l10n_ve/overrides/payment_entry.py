@@ -1,10 +1,12 @@
 from collections import defaultdict
+import json
 
 import frappe
 from frappe import _, _dict
 from frappe.utils import flt
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
+    get_outstanding_reference_documents as original_get_outstanding_reference_documents,
     PaymentEntry,
     get_payment_entry,
     validate_inclusive_tax,
@@ -569,3 +571,24 @@ def get_payment_entry(
     payment_entry.default_company_currency = company_data.default_currency
 
     return payment_entry
+
+@frappe.whitelist()
+def get_outstanding_reference_documents(args, validate=False):
+    """
+    Recibe los argumentos args originales que envia el navegador y los fuerza a
+    estar en false o true para omitir la llamada de documentos que no sean Sales y Purchase
+    """
+    if isinstance(args, str):
+        args = json.loads(args)
+
+    args['get_orders_to_be_billed'] = False
+
+    args['get_outstanding_invoices'] = True
+
+    all_outstanding_docs = original_get_outstanding_reference_documents(args, validate)
+
+    allowed_doctypes = ["Sales Invoice", "Purchase Invoice"]
+    filtered_docs = [doc for doc in all_outstanding_docs if
+                     doc.get("voucher_type") in allowed_doctypes]
+
+    return filtered_docs
