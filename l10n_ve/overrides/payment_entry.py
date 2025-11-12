@@ -573,7 +573,7 @@ def get_payment_entry(
     return payment_entry
 
 @frappe.whitelist()
-def get_outstanding_reference_documents(args, validate=False):
+def get_outstanding_reference_documents(args,validate: bool = False) -> list:
     """
     Filtra los documentos de referencia pendientes para incluir solo facturas de venta y compra.
 
