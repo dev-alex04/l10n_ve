@@ -7,7 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "subtracting_calculation_factor",
-  "municipal_tax_amount",
+  "mt_currency",
   "column_break_xsos",
   "igtf_rate"
  ],
@@ -33,10 +33,10 @@
    "reqd": 1
   },
   {
-   "default": "MT",
-   "fieldname": "municipal_tax_amount",
+   "default": "EUR",
+   "fieldname": "mt_currency",
    "fieldtype": "Link",
-   "label": "Municipal Tax Amount",
+   "label": "Currency M.T",
    "options": "Currency"
   }
  ],
@@ -44,7 +44,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-11-13 10:42:52.271579",
+ "modified": "2025-11-13 11:39:24.636074",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "Venezuela Account Settings",
