@@ -34,6 +34,14 @@ def create_currency_exchange() -> None:
                 exchange_rate = currency_data.get("current", {}).get(from_currency.lower())
                 exchange_date =  getdate(currency_data.get("current", {}).get("date"))
 
+                if not exchange_rate or not exchange_date:
+                    frappe.log_error(
+                        f"Tasa de cambio o fecha no encontrada para {from_currency}"
+                        f" en la respuesta del BCV,"
+                        f"Datos recibidos: {currency_data}"
+                    )
+                    continue
+
                 exchange_name = "{}-{}-{}{}".format(
                     formatdate(get_datetime_str(exchange_date), "yyyy-MM-dd"),
                     from_currency,
