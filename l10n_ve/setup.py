@@ -29,6 +29,7 @@ def set_l10n_ve_data() -> None:
         set_selling_naming_series()
         set_stock_naming_series()
         create_municipality_taxes()
+        set_mt_currency_and_settings()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1018,6 +1019,7 @@ def set_stock_naming_series() -> None:
         frappe.log_error(title="Error Estableciendo Naming Series en Stock Serie", message=str(e))
         frappe.throw("Ocurrió un error Estableciendo Naming Series en Stock Serie")
 
+
 def create_municipality_taxes() -> None:
     """
     Crea los registros de Impuestos Municipales (VE Municipality Taxes)
@@ -1097,3 +1099,61 @@ def create_municipality_taxes() -> None:
     except Exception as e:
         print(f"!! FATAL: Ocurrió un error inesperado durante la creación de impuestos municipales: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_municipality_taxes')
+
+
+def set_mt_currency_and_settings() -> None:
+    """
+    Crea la moneda 'MT' si no existe, la establece como referencia en los ajustes
+    y crea una tasa de cambio inicial 1:1 con EUR.
+    """
+    print("Iniciando configuración de moneda para Impuestos Municipales (MT)...")
+    try:
+
+        if not frappe.db.exists("Currency", "MT"):
+            currency_doc = frappe.new_doc("Currency")
+            currency_doc.currency_name = "MT"
+            currency_doc.symbol = "MT"
+            currency_doc.fraction = "Centimos"
+            currency_doc.fraction_units = 100
+            currency_doc.enabled = 1
+            currency_doc.insert(ignore_permissions=True)
+            print("  -> Moneda 'MT' creada exitosamente.")
+        else:
+            print("  -- Omitiendo creación de moneda 'MT' (ya existe).")
+
+        frappe.db.set_value(
+            "Venezuela Account Settings",
+            "Venezuela Account Settings",
+            "municipal_tax_amount",
+            "MT"
+        )
+        print("  -> Moneda 'MT' establecida como referencia en los ajustes.")
+
+        from_currency = "MT"
+        to_currency = "EUR"
+        exchange_date = getdate()
+
+        if not frappe.db.exists(
+            "Currency Exchange",
+            {
+                "from_currency": from_currency,
+                "to_currency": to_currency,
+                "date": exchange_date
+            }
+        ):
+            exchange_doc = frappe.new_doc("Currency Exchange")
+            exchange_doc.from_currency = from_currency
+            exchange_doc.to_currency = to_currency
+            exchange_doc.exchange_rate = 1.0
+            exchange_doc.date = exchange_date
+            exchange_doc.for_buying = 1
+            exchange_doc.for_selling = 1
+            exchange_doc.insert(ignore_permissions=True)
+            print(f"  -> Tasa de cambio 1:1 de {from_currency} a {to_currency} creada para hoy.")
+        else:
+            print(f"  -- Omitiendo creación de tasa de cambio (ya existe para hoy).")
+
+        frappe.db.commit()
+    except Exception as e:
+        print(f"Failure: Ocurrió un error durante la configuración de la moneda 'MT': {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en setup_mt_currency_and_settings')

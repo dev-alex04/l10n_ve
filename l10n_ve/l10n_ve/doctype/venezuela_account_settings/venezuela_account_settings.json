@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "subtracting_calculation_factor",
+  "municipal_tax_amount",
   "column_break_xsos",
   "igtf_rate"
  ],
@@ -30,13 +31,20 @@
    "fieldtype": "Float",
    "label": "IGTF Rate",
    "reqd": 1
+  },
+  {
+   "default": "MT",
+   "fieldname": "municipal_tax_amount",
+   "fieldtype": "Link",
+   "label": "Municipal Tax Amount",
+   "options": "Currency"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-10-16 23:49:39.243236",
+ "modified": "2025-11-13 10:42:52.271579",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "Venezuela Account Settings",
