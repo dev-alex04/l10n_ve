@@ -114,6 +114,7 @@ doctype_js = {
 doctype_list_js = {
     "Sales Invoice": "public/js/doctype/sales_invoice/sales_invoice_list.js",
     "Purchase Invoice": "public/js/doctype/purchase_invoice/purchase_invoice_list.js",
+    "Currency Exchange": "public/js/doctype/currency_exchange/currency_exchange_list.js",
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}

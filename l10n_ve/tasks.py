@@ -4,6 +4,7 @@ import frappe
 from frappe.utils import getdate, formatdate, get_datetime_str
 
 
+@frappe.whitelist()
 def create_currency_exchange() -> None:
 
     doctype_name_str = "Currency Exchange"
