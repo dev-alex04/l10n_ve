@@ -271,6 +271,7 @@ scheduler_events = {
 
 override_whitelisted_methods = {
     "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry": "l10n_ve.overrides.payment_entry.get_payment_entry",
+    "erpnext.accounts.doctype.payment_entry.payment_entry.get_outstanding_reference_documents": "l10n_ve.overrides.payment_entry.get_outstanding_reference_documents",
     "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_charts_for_country": "l10n_ve.whitelisted.chart_of_accounts.get_charts_for_country",
 }
 # each overriding function accepts a `data` argument;
