@@ -10,12 +10,15 @@ def create_currency_exchange() -> None:
     doctype_name_str = "Currency Exchange"
     response_error_str = "Error obteniendo las tasas de cambio del BCV"
     bcv_endpoint = frappe.get_site_config().bcv_endpoint
+    error_message = frappe._("Ocurrió un error al intentar actualizar las tasas de cambio. " \
+                      "Por favor, contacte al administrador del sistema.")
 
     if not bool(bcv_endpoint):
         frappe.log_error(
         response_error_str,
         f"debe establecer la URL del endpoint al" \
         f"bcv en el site_config.json")
+        frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
         return
 
     try:
@@ -24,6 +27,7 @@ def create_currency_exchange() -> None:
 
         if response.status_code != 200:
             frappe.log_error(response_error_str, f"{response.text}")
+            frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
 
         else:
             to_currency = "VEF"
@@ -41,6 +45,7 @@ def create_currency_exchange() -> None:
                         f" en la respuesta del BCV,"
                         f"Datos recibidos: {currency_data}"
                     )
+                    frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
                     continue
 
                 exchange_name = "{}-{}-{}{}".format(
@@ -69,4 +74,5 @@ def create_currency_exchange() -> None:
                     currency_exchange.insert()
 
     except Exception as e:
-            frappe.log_error(response_error_str, f"{e}")
+        frappe.log_error(response_error_str, f"{e}")
+        frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
