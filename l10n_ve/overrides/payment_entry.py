@@ -450,67 +450,147 @@ class CustomPaymentEntry(PaymentEntry):
                         account_currency,
                         item=d))
 
-    def add_advance_gl_entries(self, gl_entries: list, entry: object | dict | None):
-        """
-        If 'entry' is passed, GL entries only for that reference is added.
-        """
-        book_advance_payments_in_separate_party_account: str = \
-            frappe.db.get_value(
-            "Company",
-            self.company,
-            "book_advance_payments_in_separate_party_account"
+    def add_party_gl_entries(self, gl_entries) -> None:
+        if not self.party_account:
+            return
+
+        advance_payment_doctypes: _dict = frappe.get_hooks("advance_payment_doctypes")
+
+        if self.payment_type == "Receive":
+            against_account = self.paid_to
+        else:
+            against_account = self.paid_from
+
+        party_account_type = \
+            frappe.db.get_value("Party Type", self.party_type, "account_type")
+
+        party_gl_dict: _dict = self.get_gl_dict(
+            {
+                "account": self.party_account,
+                "party_type": self.party_type,
+                "party": self.party,
+                "against": against_account,
+                "account_currency": self.party_account_currency,
+                "cost_center": self.cost_center,
+            },
+            item=self,
         )
 
-        if book_advance_payments_in_separate_party_account:
-            references = [x for x in self.get("references")]
-            if entry:
-                references = [
-                    x
-                    for x in self.get("references")
-                    if x.name == entry.name
-                ]
+        for d in self.get("references"):
+            # re-defining dr_or_cr for every reference in order to avoid the last value affecting calculation of reverse
+            dr_or_cr = \
+                "credit" if self.payment_type == "Receive" else "debit"
 
-            for ref in references:
-                if ref.reference_doctype in (
-                    "Sales Invoice",
-                    "Purchase Invoice",
-                    "Journal Entry",
-                    "Payment Entry",
-                ):
-                    self.add_advance_gl_for_reference(gl_entries, ref)
+            cost_center = self.cost_center
+            if d.reference_doctype == "Sales Invoice" and not cost_center:
+                cost_center = \
+                    frappe.db.get_value(d.reference_doctype,
+                                        d.reference_name,
+                                        "cost_center")
 
-    def get_dr_and_account_for_advances(self, reference) -> None:
+            gle = party_gl_dict.copy()
 
-        advance_received_account: str = frappe.db.get_value(
-            "Company",
-            self.company,
-            "default_advance_received_account"
-        )
+            allocated_amount_in_company_currency: float = \
+                self.calculate_base_allocated_amount_for_reference(d)
 
-        advance_paid_account: str = frappe.db.get_value(
-            "Company",
-            self.company,
-            "default_advance_paid_account"
-        )
+            if (
+                d.reference_doctype in ["Sales Invoice", "Purchase Invoice"]
+                and d.allocated_amount < 0
+                and (
+                    (party_account_type == "Receivable" and self.payment_type == "Pay")
+                    or (party_account_type == "Payable" and self.payment_type == "Receive")
+                )
+            ):
+                # reversing dr_cr because because it will get reversed in gl processing due to negative amount
+                dr_or_cr = \
+                    "debit" if dr_or_cr == "credit" else "credit"
 
-        if reference.reference_doctype == "Sales Invoice":
-            return "credit", advance_received_account
+            gle.update(
+                self.get_gl_dict(
+                    {
+                        "account": self.party_account,
+                        "party_type": self.party_type,
+                        "party": self.party,
+                        "against": against_account,
+                        "account_currency": self.party_account_currency,
+                        "cost_center": cost_center,
+                        dr_or_cr + "_in_account_currency": d.allocated_amount,
+                        dr_or_cr: allocated_amount_in_company_currency,
+                        dr_or_cr + "_in_transaction_currency": d.allocated_amount
+                        if self.transaction_currency == self.party_account_currency
+                        else allocated_amount_in_company_currency / self.transaction_exchange_rate,
+                    },
+                    item=self,
+                )
+            )
 
-        if reference.reference_doctype == "Purchase Invoice":
-            return "debit", advance_paid_account
-
-        if reference.reference_doctype == "Payment Entry":
-            # reference.account_type and reference.payment_type is only available for Reverse payments
-            if reference.account_type == "Receivable" and reference.payment_type == "Pay":
-                return "credit", self.party_account
+            if self.book_advance_payments_in_separate_party_account:
+                if d.reference_doctype in advance_payment_doctypes:
+                    # Upon reconciliation, whole ledger will be reposted. So, reference to SO/PO is fine
+                    gle.update(
+                        {
+                            "against_voucher_type": d.reference_doctype,
+                            "against_voucher": d.reference_name,
+                        }
+                    )
+                else:
+                    # Do not reference Invoices while Advance is in separate party account
+                    gle.update({"against_voucher_type": self.doctype, "against_voucher": self.name})
             else:
-                return "debit", self.party_account
+                gle.update(
+                    {
+                        "against_voucher_type": d.reference_doctype,
+                        "against_voucher": d.reference_name,
+                    }
+                )
 
-        if reference.reference_doctype == "Journal Entry":
-            if self.party_type == "Customer" and self.payment_type == "Receive":
-                return "credit", reference.account
-            else:
-                return "debit", reference.account
+            gl_entries.append(gle)
+
+        if self.unallocated_amount:
+            dr_or_cr \
+                = "credit" if self.payment_type == "Receive" else "debit"
+
+            accountfield: str = \
+                "default_advance_received_account" if self.payment_type == "Receive" \
+                    else "default_advance_paid_account"
+
+            account: str = frappe.db.get_value(
+                "Company",
+                self.company,
+                accountfield
+            )
+
+            exchange_rate = self.get_exchange_rate()
+            base_unallocated_amount = self.unallocated_amount * exchange_rate
+
+            gle: _dict = party_gl_dict.copy()
+
+            gle.update(
+                self.get_gl_dict(
+                    {
+                        "account": account,
+                        "party_type": self.party_type,
+                        "party": self.party,
+                        "against": against_account,
+                        "account_currency": self.party_account_currency,
+                        "cost_center": self.cost_center,
+                        dr_or_cr + "_in_account_currency": self.unallocated_amount,
+                        dr_or_cr + "_in_transaction_currency": self.unallocated_amount
+                        if self.party_account_currency == self.transaction_currency
+                        else base_unallocated_amount / self.transaction_exchange_rate,
+                        dr_or_cr: base_unallocated_amount,
+                    },
+                    item=self,
+                )
+            )
+            if self.book_advance_payments_in_separate_party_account:
+                gle.update(
+                    {
+                        "against_voucher_type": "Payment Entry",
+                        "against_voucher": self.name,
+                    }
+                )
+            gl_entries.append(gle)
 
     def set_transaction_currency_and_rate(self) -> None:
         self.transaction_currency = self.paid_on_currency

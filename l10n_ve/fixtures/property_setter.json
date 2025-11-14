@@ -2437,21 +2437,6 @@
         "docstatus": 0,
         "doctype": "Property Setter",
         "doctype_or_field": "DocField",
-        "field_name": "bill_no",
-        "is_system_generated": 0,
-        "modified": "2025-09-12 10:00:00",
-        "module": "L10N Ve",
-        "name": "Payment Entry Reference-bill_no-in_list_view",
-        "property": "in_list_view",
-        "property_type": "Check",
-        "row_name": null,
-        "value": "1"
-    },
-    {
-        "doc_type": "Payment Entry Reference",
-        "docstatus": 0,
-        "doctype": "Property Setter",
-        "doctype_or_field": "DocField",
         "field_name": "reference_name",
         "is_system_generated": 0,
         "modified": "2025-09-12 10:00:00",
@@ -2783,5 +2768,45 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "doc_type": "Sales Invoice",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "title_field",
+        "value": "bill_no",
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Sales Invoice-title_field"
+    },
+    {
+        "doc_type": "Sales Invoice",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "show_title_field_in_link",
+        "value": "1",
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Sales Invoice-show_title_field_in_link"
+    },
+    {
+        "doc_type": "Purchase Invoice",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "title_field",
+        "value": "bill_no",
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Purchase Invoice-title_field"
+    },
+    {
+        "doc_type": "Purchase Invoice",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "show_title_field_in_link",
+        "value": "1",
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Purchase Invoice-show_title_field_in_link"
     }
 ]
