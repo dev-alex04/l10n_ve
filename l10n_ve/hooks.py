@@ -95,6 +95,9 @@ doctype_js = {
     "Item": [
         "public/js/doctype/item/item.js",
     ],
+    "Material Request": [
+        "public/js/doctype/material_request/material_request.js",
+    ],
     "Supplier Quotation": [
         "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
