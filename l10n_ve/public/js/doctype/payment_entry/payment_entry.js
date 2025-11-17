@@ -13,9 +13,11 @@ frappe.ui.form.on("Payment Entry", {
     realtime_numeric_validation(frm, "reference_no");
 
     if (frm.fields_dict.get_outstanding_invoices) {
-      frm.fields_dict.get_outstanding_invoices.$input.off('click').on('click', function() {
-        frm.events.handle_get_outstanding_invoices(frm);
-      });
+      frm.fields_dict.get_outstanding_invoices.$input
+        .off("click")
+        .on("click", function () {
+          frm.events.handle_get_outstanding_invoices(frm);
+        });
     }
   },
 
@@ -142,13 +144,110 @@ frappe.ui.form.on("Payment Entry", {
     }
   },
 
-  handle_get_outstanding_invoices: function(frm) {
+  handle_get_outstanding_invoices: function (frm) {
     if (!frm.doc.mode_of_payment) {
-      frappe.throw(__('Debe seleccionar un "Modo de pago" para obtener las facturas pendientes de pago.'));
+      frappe.throw(
+        __(
+          'Debe seleccionar un "Modo de pago" para obtener las facturas pendientes de pago.'
+        )
+      );
       return;
     }
 
     frm.events.get_outstanding_invoices_or_orders(frm, true, false);
+  },
+
+  get_outstanding_documents: function (
+    frm,
+    filters,
+    get_outstanding_invoices,
+    get_orders_to_be_billed
+  ) {
+    frm.doc.references = []
+
+    if (!frm.doc.party) {
+      return;
+    }
+
+    frm.events.check_mandatory_to_fetch(frm);
+
+    var args = {
+      posting_date: frm.doc.posting_date,
+      company: frm.doc.company,
+      party_type: frm.doc.party_type,
+      payment_type: frm.doc.payment_type,
+      party: frm.doc.party,
+      party_account:
+        frm.doc.payment_type == "Receive" ? frm.doc.paid_from : frm.doc.paid_to,
+      cost_center: frm.doc.cost_center,
+    };
+
+    for (let key in filters) {
+      args[key] = filters[key];
+    }
+
+    if (get_outstanding_invoices) {
+      args["get_outstanding_invoices"] = true;
+    } else if (get_orders_to_be_billed) {
+      args["get_orders_to_be_billed"] = true;
+    }
+
+    if (frm.doc.book_advance_payments_in_separate_party_account) {
+      args["book_advance_payments_in_separate_party_account"] = true;
+    }
+
+    frappe.flags.allocate_payment_amount = filters["allocate_payment_amount"];
+
+    return frappe.call({
+      method:
+        "erpnext.accounts.doctype.payment_entry.payment_entry.get_outstanding_reference_documents",
+      args: {
+        args: args,
+      },
+      callback: function (r) {
+        if (r.message) {
+          var total_positive_outstanding = 0;
+          var total_negative_outstanding = 0;
+          $.each(r.message, function (i, d) {
+            var c = frm.add_child("references");
+            c.reference_doctype = d.voucher_type;
+            c.reference_name = d.voucher_no;
+            c.due_date = d.due_date;
+            c.total_amount = d.invoice_amount;
+            c.outstanding_amount = d.outstanding_amount;
+            c.bill_no = d.bill_no;
+            c.payment_term = d.payment_term;
+            c.payment_term_outstanding = d.payment_term_outstanding;
+            c.allocated_amount = d.allocated_amount;
+            c.account = d.account;
+
+            if (d.base_total) {
+              c.base_total = d.base_total;
+            }
+
+            if (!in_list(frm.events.get_order_doctypes(frm), d.voucher_type)) {
+              if (flt(d.outstanding_amount) > 0)
+                total_positive_outstanding += flt(d.outstanding_amount);
+              else
+                total_negative_outstanding += Math.abs(
+                  flt(d.outstanding_amount)
+                );
+            }
+          });
+        }
+
+        frm.events.allocate_party_amount_against_ref_docs(
+          frm,
+          frm.doc.payment_type == "Receive"
+            ? frm.doc.paid_amount
+            : frm.doc.received_amount,
+          false
+        );
+
+        frm.refresh_field("references");
+        frm.save()
+      },
+    });
   },
 });
 
@@ -227,11 +326,14 @@ async function set_custom_exchange_rate(frm) {
     return;
   }
 
+  const total_withholdings = get_total_withholdings_base(frm);
+
   // Obtiene el monto pendiente total de todas las facturas
-  const outstanding_amount = (frm.doc.references || []).reduce(
-    (total, ref) => total + flt(ref.outstanding_amount),
-    0
-  );
+  let outstanding_amount =
+    (frm.doc.references || []).reduce(
+      (total, ref) => total + flt(ref.outstanding_amount),
+      0
+    ) - total_withholdings;
 
   if (frm.doc.default_company_currency != frm.doc.paid_on_currency) {
     await set_current_exchange_rate(
@@ -241,7 +343,9 @@ async function set_custom_exchange_rate(frm) {
       frm.doc.default_company_currency
     );
 
-    const paid_currency_amount = outstanding_amount / frm.doc.exchange_rate;
+    const paid_currency_amount = flt(
+      outstanding_amount / frm.doc.exchange_rate
+    );
 
     frm.set_df_property("paid_currency_amount", "description", "Incluye IGTF");
     frm.set_df_property("exchange_rate", "hidden", false);
@@ -254,7 +358,7 @@ async function set_custom_exchange_rate(frm) {
     frm.set_value("exchange_rate", 1);
     frm.set_df_property("paid_currency_amount", "description", "");
     if (flt(frm.doc.paid_currency_amount) !== flt(outstanding_amount)) {
-      frm.set_value("paid_currency_amount", outstanding_amount);
+      frm.set_value("paid_currency_amount", flt(outstanding_amount));
     }
     compute_paid_amount(frm);
   }
@@ -472,6 +576,7 @@ function set_islr_concept(frm) {
               if (frm.is_new()) {
                 frappe.set_route("Form", frm.doc.doctype, r.message);
               }
+              frm.trigger("paid_on_currency");
             })
             .catch((error) => {
               frappe.dom.unfreeze();
@@ -508,8 +613,8 @@ function get_islr_invoices(frm) {
     islr_invoices.push({
       bill_no: reference.bill_no,
       reference_name: reference.reference_name,
-      base_amount: reference.outstanding_amount,
-      base_amount_reference: reference.outstanding_amount,
+      base_amount: reference.base_total,
+      base_amount_reference: reference.base_total,
     });
   }
 
@@ -548,4 +653,22 @@ function confirm_overpayment_on_submit(frm) {
     },
     () => {}
   );
+}
+
+/**
+ * Suma el monto base de todos los impuestos que son retenciones (Deduct)
+ * y que no están marcados como "incluidos en el monto pagado".
+ * @param {object} frm - Instancia del formulario actual
+ * @returns {float} - Total de retenciones
+ */
+function get_total_withholdings_base(frm) {
+  let withholding_amount = 0;
+  for (const tax of frm.doc.taxes || []) {
+    // Solo nos interesan las retenciones (Deduct)
+    if (tax.add_deduct_tax == "Deduct" && !tax.included_in_paid_amount) {
+      // Usamos base_tax_amount para cuadrar con los otros campos base
+      withholding_amount += flt(tax.base_tax_amount);
+    }
+  }
+  return withholding_amount;
 }

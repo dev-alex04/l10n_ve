@@ -1,7 +1,5 @@
 import frappe
 
-
-# Se importa para que se carguen en memoria los patch
 try:
     import l10n_ve.patches.reports.general_ledger
 
@@ -28,7 +26,26 @@ except ImportError as e:
     frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.accounts.utils')
 
 try:
-    import l10n_ve.patches.reports.accounts_receivable
+    import l10n_ve.patches.accounts.chart_of_accounts
+
 except ImportError as e:
-    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.reports.accounts_receivable. Error: {e}")
-    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.reports.accounts_receivable')
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.accounts.chart_of_accounts. Error: {e}")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.accounts.chart_of_accounts')
+
+
+try:
+    import l10n_ve.patches.accounts.general_ledger
+
+except ImportError as e:
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.accounts.general_ledger. Error: {e}")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.accounts.general_ledger')
+
+
+def apply_post_db_patches() -> None:
+    try:
+        import l10n_ve.patches.reports.accounts_receivable
+
+    except ImportError as e:
+        print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.reports.accounts_receivable. Error: {e}")
+        frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.reports.accounts_receivable')
+

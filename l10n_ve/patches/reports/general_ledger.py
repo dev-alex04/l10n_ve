@@ -151,8 +151,6 @@ def custom_set_bill_no(gl_entries):
         gl["bill_no"] = inv_details.get(gl.get("against_voucher"), "")
 
 
-
-# 4. Reemplaza la función original con la tuya
 general_ledger_report.execute = custom_execute
 general_ledger_report.group_by_field = group_by_field
 general_ledger_report.get_gl_entries = custom_get_gl_entries
