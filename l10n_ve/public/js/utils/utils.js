@@ -296,7 +296,7 @@ function _get_address_dialog(frm) {
         reqd: 1,
       },
       {
-        label: __("Estado/Provincia"),
+        label: __("Estado"),
         fieldname: "state",
         fieldtype: "Link",
         options: "VE State",

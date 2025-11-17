@@ -1,16 +1,16 @@
-from collections import defaultdict
 import json
+from collections import defaultdict
 
 import frappe
 from frappe import _, _dict
 from frappe.utils import flt
+from frappe.model.document import Document
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
     get_outstanding_reference_documents as original_get_outstanding_reference_documents,
     PaymentEntry,
     get_payment_entry,
     validate_inclusive_tax,
-
 )
 
 from erpnext.controllers.accounts_controller import validate_taxes_and_charges
@@ -107,12 +107,15 @@ class CustomPaymentEntry(PaymentEntry):
 
         self.paid_amount_after_tax = self.base_paid_amount
 
+    # TODO: Mejorar esta funcion para evitar fors anidados
     def set_taxes_withholding(self) -> None:
 
         if self.party_type != 'Supplier':
             return
 
         documents_map = {}
+
+        taxes2load = _dict()
 
         for reference in self.references or []:
 
@@ -138,21 +141,42 @@ class CustomPaymentEntry(PaymentEntry):
             taxes = frappe.db.get_all(
                 f'{doc_type} Taxes and Charges',
                 filters={
-                    'docstatus': 1,
+                    'docstatus': True,
                     'parent': ['in', docnames],
                     'is_tax_withholding_account': True,
                 },
                 fields=[
                     'rate',
-                    'tax_amount',
+                    'parent',
                     'description',
                     'charge_type',
                     'account_head',
                     'add_deduct_tax',
+                    'base_tax_amount AS tax_amount',
                 ])
 
             for tax in taxes:
-                self.append('taxes', tax)
+
+                if tax.charge_type not in taxes2load:
+                    taxes2load[tax.charge_type] = {
+                        'account_head': tax.account_head,
+                        'description': tax.description,
+                        'tax_amount': 0,
+                        'charge_type': tax.charge_type,
+                        'rate': tax.rate,
+                        'add_deduct_tax': tax.add_deduct_tax,
+                    }
+
+                taxes2load[tax.charge_type]['tax_amount'] += tax.tax_amount
+
+                for reference in self.references:
+                    if tax.parent != reference.reference_name:
+                        continue
+
+                    reference.vat_withholding_amount = tax.tax_amount
+
+        for tax in list(taxes2load.values()):
+            self.append('taxes', tax)
 
     @frappe.whitelist()
     def set_islr_concept(self, islr_concepts: list) -> str:
@@ -387,7 +411,7 @@ class CustomPaymentEntry(PaymentEntry):
 
         for d in self.get("taxes"):
 
-            if not d.tax_amount:
+            if not d.tax_amount or d.charge_type in ["VAT Withholding", "ISLR"]:
                 continue
 
             account_currency = get_account_currency(d.account_head)
@@ -405,6 +429,7 @@ class CustomPaymentEntry(PaymentEntry):
                 against = self.party or self.paid_to
 
             payment_account = self.get_party_account_for_taxes()
+
             tax_amount = d.tax_amount
             base_tax_amount = d.base_tax_amount
 
@@ -433,11 +458,21 @@ class CustomPaymentEntry(PaymentEntry):
                         exchange_rate = self.source_exchange_rate
                     base_tax_amount = flt((tax_amount / exchange_rate), self.precision("paid_amount"))
 
+                if d.add_deduct_tax == 'Deduct':
+                    party = self.party
+                    party_type = self.party_type
+                    payment_account = self.party_account
+                else:
+                    party = None
+                    party_type = None
+
                 gl_entries.append(
                     self.get_gl_dict(
                         {
                             "account": payment_account,
                             "against": against,
+                            "party_type": party_type,
+                            "party": party,
                             rev_dr_or_cr: tax_amount,
                             rev_dr_or_cr + "_in_account_currency": base_tax_amount
                             if account_currency == self.company_currency
@@ -545,6 +580,19 @@ class CustomPaymentEntry(PaymentEntry):
                 )
 
             gl_entries.append(gle)
+            self.add_party_withholding_gl_entries(
+                d,
+                'islr_amount',
+                'ISLR',
+                party_gl_dict,
+                gl_entries)
+
+            self.add_party_withholding_gl_entries(
+                d,
+                'vat_withholding_amount',
+                'VAT Withholding',
+                party_gl_dict,
+                gl_entries)
 
         if self.unallocated_amount:
             dr_or_cr \
@@ -592,6 +640,104 @@ class CustomPaymentEntry(PaymentEntry):
                 )
             gl_entries.append(gle)
 
+    def get_tax_account(self, charge_type) -> str | None:
+
+        tax_account = None
+
+        for tax in self.taxes:
+            if tax.charge_type == charge_type:
+                tax_account = tax.account_head
+                break
+
+        return tax_account
+
+    def add_party_withholding_gl_entries(
+        self,
+        item: Document,
+        amount_fieldname: str,
+        charge_type: str,
+        party_gl_dict: _dict,
+        gl_entries: list
+    ) -> None:
+
+        tax_account = self.get_tax_account(charge_type)
+        tax_amount = item.get(amount_fieldname)
+
+        if not tax_account or not tax_amount:
+            return
+
+        party_account_type = \
+            frappe.db.get_value("Party Type", self.party_type, "account_type")
+
+        # re-defining dr_or_cr for every reference in order to avoid the last value affecting calculation of reverse
+        dr_or_cr = \
+            "credit" if self.payment_type == "Receive" else "debit"
+        tax_dr_or_cr = \
+            "debit" if self.payment_type == "Receive" else "credit"
+
+        cost_center = self.cost_center
+        if item.reference_doctype == "Sales Invoice" and not cost_center:
+            cost_center = \
+                frappe.db.get_value(item.reference_doctype,
+                                    item.reference_name,
+                                    "cost_center")
+
+        gle = party_gl_dict.copy()
+
+        if (
+            item.reference_doctype in ["Sales Invoice", "Purchase Invoice"]
+            and item.allocated_amount < 0
+            and (
+                (party_account_type == "Receivable" and self.payment_type == "Pay")
+                or (party_account_type == "Payable" and self.payment_type == "Receive")
+            )
+        ):
+            # reversing dr_cr because because it will get reversed in gl processing due to negative amount
+            dr_or_cr = \
+                "debit" if dr_or_cr == "credit" else "credit"
+            tax_dr_or_cr = \
+                "credit" if tax_dr_or_cr == "debit" else "debit"
+        # Party GL
+        gle.update(
+            self.get_gl_dict(
+                {
+                    "account": self.party_account,
+                    "party_type": self.party_type,
+                    "party": self.party,
+                    "against_voucher_type": item.reference_doctype,
+                    "against_voucher": item.reference_name,
+                    "against": tax_account,
+                    "account_currency": self.party_account_currency,
+                    "cost_center": cost_center,
+                    dr_or_cr + "_in_account_currency": tax_amount,
+                    dr_or_cr: tax_amount,
+                    dr_or_cr + "_in_transaction_currency": tax_amount
+                    if self.transaction_currency == self.party_account_currency
+                    else tax_amount / self.transaction_exchange_rate,
+                },
+                item=self,
+            )
+        )
+
+        gl_entries.append(
+            self.get_gl_dict(
+                {
+                    "account": tax_account,
+                    "against": self.party_account,
+                    tax_dr_or_cr: tax_amount,
+                    tax_dr_or_cr + "_in_account_currency": tax_amount
+                    if self.party_account_currency == self.company_currency
+                    else item.tax_amount,
+                    tax_dr_or_cr + "_in_transaction_currency": tax_amount
+                    / self.transaction_exchange_rate,
+                    "cost_center": cost_center,
+                    "post_net_value": True,
+                },
+                self.party_account_currency,
+                item=item))
+
+        gl_entries.append(gle)
+
     def set_transaction_currency_and_rate(self) -> None:
         self.transaction_currency = self.paid_on_currency
         self.transaction_exchange_rate = self.exchange_rate
@@ -630,7 +776,7 @@ def get_payment_entry(
       "igtf_rate"
     )
 
-    igtf_account_field = 'sales_igtf_account' \
+    igtf_account_field: str = 'sales_igtf_account' \
         if payment_entry.party_type == "Customer" \
         else "purchase_igtf_account"
 
@@ -647,13 +793,16 @@ def get_payment_entry(
     payment_entry.igtf_rate = igtf_rate
     payment_entry.igtf_account = company_data.get(igtf_account_field)
 
-    payment_entry.paid_on_currency = doc.get('currency', company_data.default_currency)
     payment_entry.default_company_currency = company_data.default_currency
+    payment_entry.paid_on_currency = doc.get('currency', company_data.default_currency)
+
+    payment_entry.references[0].base_total = doc.get("base_total")
 
     return payment_entry
 
+
 @frappe.whitelist()
-def get_outstanding_reference_documents(args,validate: bool = False) -> list:
+def get_outstanding_reference_documents(args, validate: bool = False) -> list:
     """
     Filtra los documentos de referencia pendientes para incluir solo facturas de venta y compra.
 
@@ -674,5 +823,18 @@ def get_outstanding_reference_documents(args,validate: bool = False) -> list:
     ALLOWED_DOCTYPES = ("Sales Invoice", "Purchase Invoice")
     filtered_docs = [doc for doc in all_outstanding_docs if
                      doc.get("voucher_type") in ALLOWED_DOCTYPES]
+
+    for doc in filtered_docs:
+
+        if not doc.get("voucher_no"):
+            continue
+
+        base_total = frappe.db.get_value(
+            doc.get("voucher_type"),
+            doc.get("voucher_no"),
+            "base_total"
+        )
+
+        doc["base_total"] = base_total or 0.0
 
     return filtered_docs

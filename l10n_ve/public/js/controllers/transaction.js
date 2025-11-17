@@ -187,6 +187,7 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
   this.frm.set_currency_labels(
     [
       "base_total",
+      "grand_total",
       "base_in_words",
       "base_net_total",
       "base_total_cost",
@@ -257,8 +258,8 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
   this.frm.toggle_display(
     [
       "base_total",
-      "base_net_total",
       "base_in_words",
+      "base_net_total",
       "base_total_cost",
       "conversion_rate",
       "base_grand_total",
