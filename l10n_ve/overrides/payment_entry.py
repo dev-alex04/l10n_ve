@@ -727,7 +727,7 @@ class CustomPaymentEntry(PaymentEntry):
                     tax_dr_or_cr: tax_amount,
                     tax_dr_or_cr + "_in_account_currency": tax_amount
                     if self.party_account_currency == self.company_currency
-                    else item.tax_amount,
+                    else tax_amount,
                     tax_dr_or_cr + "_in_transaction_currency": tax_amount
                     / self.transaction_exchange_rate,
                     "cost_center": cost_center,

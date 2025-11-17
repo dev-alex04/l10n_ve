@@ -15,3 +15,5 @@ def process_gl_map(gl_map, merge_entries=True, precision=None, from_repost=False
     gl_map = general_ledger.toggle_debit_credit_if_negative(gl_map)
 
     return gl_map
+
+erpnext.accounts.general_ledger.process_gl_map = process_gl_map
