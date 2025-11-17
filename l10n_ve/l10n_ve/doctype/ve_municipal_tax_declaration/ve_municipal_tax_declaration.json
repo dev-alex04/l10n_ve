@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2025-11-17 13:48:59.560477",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_hdjl",
+  "naming_series",
+  "company",
+  "municipality",
+  "accounting_period",
+  "section_break_deau",
+  "municipal_declaration_data"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_hdjl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Autocomplete",
+   "label": "Naming Series",
+   "no_copy": 1,
+   "options": "Declaracion de Impuesto Municipal",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "municipality",
+   "fieldtype": "Link",
+   "label": "Municipality",
+   "options": "VE Municipality"
+  },
+  {
+   "fieldname": "accounting_period",
+   "fieldtype": "Link",
+   "label": "Accounting Period",
+   "no_copy": 1,
+   "options": "Accounting Period",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "section_break_deau",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "municipal_declaration_data",
+   "fieldtype": "Table",
+   "label": "Municipal Declaration Data",
+   "options": "VE Municipal Declaration Data"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-11-17 16:32:08.657034",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VE Municipal tax declaration",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
