@@ -6,9 +6,6 @@ frappe.ui.form.on("Payment Entry", {
   },
   onload: function (frm) {
     reorganize_payment_entry_fields(frm);
-    if (frm.is_new()) {
-      set_custom_exchange_rate(frm);
-    }
 
     realtime_numeric_validation(frm, "reference_no");
 
@@ -18,6 +15,10 @@ frappe.ui.form.on("Payment Entry", {
         .on("click", function () {
           frm.events.handle_get_outstanding_invoices(frm);
         });
+    }
+
+    if (frm.is_new()) {
+      set_custom_exchange_rate(frm);
     }
   },
 
@@ -163,7 +164,7 @@ frappe.ui.form.on("Payment Entry", {
     get_outstanding_invoices,
     get_orders_to_be_billed
   ) {
-    frm.doc.references = []
+    frm.doc.references = [];
 
     if (!frm.doc.party) {
       return;
@@ -245,7 +246,7 @@ frappe.ui.form.on("Payment Entry", {
         );
 
         frm.refresh_field("references");
-        frm.save()
+        frm.save();
       },
     });
   },
@@ -347,14 +348,24 @@ async function set_custom_exchange_rate(frm) {
       outstanding_amount / frm.doc.exchange_rate
     );
 
-    frm.set_df_property("paid_currency_amount", "description", "Incluye IGTF");
+    const igtf_amount = (paid_currency_amount * frm.doc.igtf_rate) / 100;
+    const total_with_igtf = paid_currency_amount + igtf_amount;
+
     frm.set_df_property("exchange_rate", "hidden", false);
+    frm.set_df_property("igtf_amount", "hidden", false);
+    frm.set_df_property("total_with_igtf", "hidden", false);
     if (flt(frm.doc.paid_currency_amount) !== flt(paid_currency_amount)) {
       frm.set_value("paid_currency_amount", paid_currency_amount);
+      frm.set_value("igtf_amount", igtf_amount);
+      frm.set_value("total_with_igtf", total_with_igtf);
     }
     compute_paid_amount(frm);
   } else {
+    frm.set_value("igtf_amount", 0);
+    frm.set_value("total_with_igtf", 0);
     frm.set_df_property("exchange_rate", "hidden", true);
+    frm.set_df_property("igtf_amount", "hidden", true);
+    frm.set_df_property("total_with_igtf", "hidden", true);
     frm.set_value("exchange_rate", 1);
     frm.set_df_property("paid_currency_amount", "description", "");
     if (flt(frm.doc.paid_currency_amount) !== flt(outstanding_amount)) {
@@ -437,7 +448,7 @@ async function set_igtf(frm) {
       });
   }
 
-  const igtf_amount = (frm.doc.paid_amount * frm.doc.igtf_rate) / 100;
+  const igtf_amount = frm.doc.igtf_amount * frm.doc.exchange_rate;
 
   // En caso de que exista el IGTF en los impuestos:
   for (let tax of frm.doc.taxes || []) {

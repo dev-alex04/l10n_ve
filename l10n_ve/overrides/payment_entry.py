@@ -798,6 +798,8 @@ def get_payment_entry(
 
     payment_entry.references[0].base_total = doc.get("base_total")
 
+    payment_entry.apply_taxes()
+
     return payment_entry
 
 
