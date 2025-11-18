@@ -3,7 +3,7 @@
 
 frappe.ui.form.on("VE Municipal Tax Declaration", {
   refresh: function (frm) {
-    // Establecer la fecha actual si es un nuevo documento
+
     if (frm.is_new()) {
       if (!frm.doc.declaration_date) {
         frm.set_value("declaration_date", frappe.datetime.now_date());
@@ -12,9 +12,9 @@ frappe.ui.form.on("VE Municipal Tax Declaration", {
   },
   company: get_company_data,
   declaration_date: get_eur_rate,
-  // Enlazar la función al clic del botón definido en el DocType
+
   obtain_economic_activities: get_invoice_activities,
-  // Disparador para recalcular si la tasa del euro cambia
+
   rate_eur: function(frm) {
     calculate_all_rows_tax(frm);
   }
@@ -94,15 +94,14 @@ function get_invoice_activities(frm) {
           r.message.forEach((activity_data) => {
             let child = frm.add_child("municipal_declaration_data");
 
-            // Asignar valores a los campos de la tabla hija
             child.code = activity_data.name;
             child.economic_sector = activity_data.sector;
             child.branch = activity_data.branch;
-            child.aliquot = activity_data.aliquot; // Corregido a minúsculas
-            child.mt_tcmmv = activity_data.mt_tcmmv; // El Ingreso Bruto es la base imponible calculada
-            child.gross_income = activity_data.taxable_base; // El Ingreso Bruto es la base imponible calculada
+            child.aliquot = activity_data.aliquot;
+            child.mt_tcmmv = activity_data.mt_tcmmv;
+            child.gross_income = activity_data.taxable_base;
           });
-          calculate_all_rows_tax(frm); // Calcular el impuesto para todas las filas nuevas
+          calculate_all_rows_tax(frm);
           frm.refresh_field("municipal_declaration_data");
           frappe.msgprint(__("Actividades cargadas correctamente."));
         } else {
@@ -135,18 +134,15 @@ function calculate_all_rows_tax(frm) {
 function calculate_row_tax(frm, row) {
   let rate_eur = frm.doc.rate_eur || 0;
 
-  // Cálculo basado en la alícuota (asumiendo que la alícuota es un porcentaje)
   let tax_by_aliquot = (row.gross_income || 0) * (row.aliquot || 0) / 100;
 
-  // Cálculo basado en el Mínimo Tributable
   let tax_by_mt = (row.mt_tcmmv || 0) * rate_eur;
 
-  // Se asigna el mayor de los dos cálculos
   row.calculated_tax = Math.max(tax_by_aliquot, tax_by_mt);
   console.log(tax_by_aliquot, tax_by_mt);
 }
 
-// Disparadores para recalcular si un valor en la tabla hija cambia
+
 frappe.ui.form.on('VE Municipal Declaration Data', {
     aliquot: calculate_all_rows_tax,
     mt_tcmmv: calculate_all_rows_tax,
