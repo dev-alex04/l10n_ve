@@ -3,7 +3,7 @@
  "allow_events_in_timeline": 1,
  "allow_import": 1,
  "allow_rename": 1,
-  "autoname": "code",
+ "autoname": "code",
  "creation": "2025-11-06 09:07:22.062001",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -99,15 +99,14 @@
    "in_list_view": 1,
    "label": "Code",
    "reqd": 1,
-   "unique": 1,
-   "search_index": 1
+   "unique": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2025-11-10 09:52:58.424038",
+ "modified": "2025-11-18 10:53:00.369228",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Economic Activity",
@@ -141,9 +140,11 @@
   }
  ],
  "row_format": "Dynamic",
+ "search_fields": "branch, code",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "branch",
+ "title_field": "code",
  "track_changes": 1
 }

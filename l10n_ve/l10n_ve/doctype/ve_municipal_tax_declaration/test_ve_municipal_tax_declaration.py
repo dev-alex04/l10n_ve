@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestVEMunicipaltaxdeclaration(FrappeTestCase):
+class TestVEMunicipalTaxDeclaration(FrappeTestCase):
 	pass

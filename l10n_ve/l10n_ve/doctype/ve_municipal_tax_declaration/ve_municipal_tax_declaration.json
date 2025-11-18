@@ -11,10 +11,24 @@
   "section_break_hdjl",
   "naming_series",
   "company",
+  "tax_id",
+  "state",
   "municipality",
-  "accounting_period",
+  "num_license_economic",
+  "column_break_issh",
+  "declaration_date_from",
+  "declaration_date_until",
+  "obtain_economic_activities",
+  "declaration_date",
   "section_break_deau",
-  "municipal_declaration_data"
+  "rate_eur",
+  "municipal_declaration_data",
+  "section_break_wcah",
+  "column_break_dbfq",
+  "column_break_vedd",
+  "tax_amount",
+  "total_pay",
+  "amended_from"
  ],
  "fields": [
   {
@@ -34,24 +48,16 @@
   {
    "fieldname": "company",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Company",
-   "options": "Company"
+   "options": "Company",
+   "reqd": 1
   },
   {
    "fieldname": "municipality",
    "fieldtype": "Link",
    "label": "Municipality",
    "options": "VE Municipality"
-  },
-  {
-   "fieldname": "accounting_period",
-   "fieldtype": "Link",
-   "label": "Accounting Period",
-   "no_copy": 1,
-   "options": "Accounting Period",
-   "print_hide": 1,
-   "read_only": 1,
-   "search_index": 1
   },
   {
    "fieldname": "section_break_deau",
@@ -62,16 +68,99 @@
    "fieldtype": "Table",
    "label": "Municipal Declaration Data",
    "options": "VE Municipal Declaration Data"
+  },
+  {
+   "fieldname": "column_break_issh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "num_license_economic",
+   "fieldtype": "Data",
+   "label": "Economic Activity License Number"
+  },
+  {
+   "fieldname": "declaration_date_from",
+   "fieldtype": "Date",
+   "label": "Declaration Date (From)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "declaration_date_until",
+   "fieldtype": "Date",
+   "label": "Declaration Date (Until)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tax_id",
+   "fieldtype": "Data",
+   "label": "RIF"
+  },
+  {
+   "fieldname": "declaration_date",
+   "fieldtype": "Date",
+   "label": "Declaration Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rate_eur",
+   "fieldtype": "Float",
+   "label": "Rate BCV EUR/VEF",
+   "precision": "9"
+  },
+  {
+   "fieldname": "section_break_wcah",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "tax_amount",
+   "fieldtype": "Currency",
+   "label": "Tax amount",
+   "precision": "2"
+  },
+  {
+   "fieldname": "total_pay",
+   "fieldtype": "Currency",
+   "label": "Total to pay",
+   "precision": "2"
+  },
+  {
+   "fieldname": "column_break_dbfq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_vedd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Link",
+   "label": "State",
+   "options": "VE State"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "VE Municipal Tax Declaration",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "obtain_economic_activities",
+   "fieldtype": "Button",
+   "label": "Obtain Economic Activities"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-11-17 16:32:08.657034",
+ "modified": "2025-11-18 14:00:36.094958",
  "modified_by": "Administrator",
  "module": "L10N Ve",
- "name": "VE Municipal tax declaration",
+ "name": "VE Municipal Tax Declaration",
  "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
