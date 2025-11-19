@@ -2,72 +2,125 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("VE Municipal Tax Declaration", {
-  refresh: function (frm) {
+  onload: function (frm) {
 
-    if (frm.is_new()) {
-      if (!frm.doc.declaration_date) {
-        frm.set_value("declaration_date", frappe.datetime.now_date());
-      }
-    }
+    currency_data_setting(frm);
   },
   company: get_company_data,
-  declaration_date: get_eur_rate,
-
-  obtain_economic_activities: get_invoice_activities,
-
-  rate_eur: function(frm) {
+  currency: get_exchange_rate_for_declaration,
+  declaration_date: get_exchange_rate_for_declaration,
+  declaration_date_from: function (frm) {
+    validate_date_range(frm, "declaration_date_from");
+    if (frm.doc.declaration_date_from && frm.doc.declaration_date_until) {
+      get_invoice_activities(frm);
+    }
+  },
+  declaration_date_until: function (frm) {
+    validate_date_range(frm, "declaration_date_until");
+    if (frm.doc.declaration_date_from && frm.doc.declaration_date_until) {
+      get_invoice_activities(frm);
+    }
+  },
+  rate: function (frm) {
     calculate_all_rows_tax(frm);
   }
 });
 
-function get_company_data(frm) {
+async function get_company_data(frm) {
   if (frm.doc.company) {
     frappe.call({
-      method: "frappe.client.get",
+      method: "l10n_ve.l10n_ve.doctype.ve_municipal_tax_declaration.ve_municipal_tax_declaration.get_company_details_for_declaration",
       args: {
-        doctype: "Company",
-        name: frm.doc.company,
+        company_name: frm.doc.company
       },
-      callback: function (r) {
+      callback: function(r) {
         if (r.message) {
-          frm.set_value("tax_id", r.message.tax_id);
-          frm.set_value("num_license_economic", r.message.num_license_economic);
-          frm.set_value("municipality", r.message.municipality);
 
-          if (r.message.municipality) {
-            frappe.db
-              .get_value("VE Municipality", r.message.municipality, "state")
-              .then((res) => {
-                if (res && res.message)
-                  frm.set_value("state", res.message.state);
-              });
+          const data = r.message;
+          frm.set_value("tax_id", data.tax_id);
+          frm.set_value("num_license_economic", data.num_license_economic);
+          frm.set_value("legal_representative", data.legal_representative);
+          frm.set_value("legal_representative_id", data.legal_representative_id);
+          frm.set_value("municipality", data.municipality_name);
+          frm.set_value("municipality_id", data.municipality);
+
+          if (data.address_details) {
+            frm.set_value("address_line1", data.address_details.address_line1);
+            frm.set_value("state",  data.address_details.state_name);
+            frm.set_value("parish", data.address_details.parish_name);
+            frm.set_value("phone", data.address_details.phone);
+            frm.set_value("email_id", data.address_details.email_id);
           } else {
-            frm.set_value("state", "");
+            clear_address_fields(frm);
           }
+        } else {
+          clear_all_company_fields(frm);
         }
-      },
+      }
     });
   } else {
-    frm.set_value("tax_id", "");
-    frm.set_value("municipality", "");
-    frm.set_value("num_license_economic", "");
-    frm.set_value("state", "");
+    clear_all_company_fields(frm);
   }
 }
 
-function get_eur_rate(frm) {
-  if (frm.doc.declaration_date) {
+function clear_all_company_fields(frm) {
+  frm.set_value("tax_id", "");
+  frm.set_value("municipality", "");
+  frm.set_value("num_license_economic", "");
+  frm.set_value("legal_representative", "");
+  frm.set_value("legal_representative_id", "");
+  clear_address_fields(frm);
+}
+
+function clear_address_fields(frm) {
+  frm.set_value("state", "");
+  frm.set_value("address_line1", "");
+  frm.set_value("parish", "");
+  frm.set_value("phone", "");
+  frm.set_value("email_id", "");
+  frm.set_value("sector", "");
+}
+
+function get_exchange_rate_for_declaration(frm) {
+  let target_date = frm.doc.declaration_date;
+  let from_currency = frm.doc.currency;
+
+  if (target_date && from_currency) {
     frappe.call({
-      method: "erpnext.setup.utils.get_exchange_rate",
+      method: "l10n_ve.l10n_ve.doctype.ve_municipal_tax_declaration.ve_municipal_tax_declaration.get_exchange_rate",
       args: {
-        from_currency: "EUR",
-        to_currency:
-          frm.doc.currency || frappe.defaults.get_default("currency"),
-        date: frappe.datetime.now_date(),
+        declaration_date: target_date,
+        from_currency: from_currency
       },
-      callback: function (r) {
-        frm.set_value("rate_eur", r.message || 0);
-      },
+      callback: function(r) {
+        if (r.message && r.message > 0) {
+          frm.set_value("rate", r.message);
+          calculate_all_rows_tax(frm);
+        } else {
+          frm.set_value("rate", 0);
+          frappe.msgprint({
+            title: __('Tasa de Cambio no Encontrada'),
+            indicator: 'orange',
+            message: __('No se encontró una tasa para la fecha exacta (' + frappe.datetime.str_to_user(target_date) + '). Por favor, configúrela.')
+          });
+        }
+      }
+    });
+  } else {
+    frm.set_value("rate", 0);
+  }
+}
+
+function validate_date_range(frm, field_changed) {
+  const from_date = frm.doc.declaration_date_from;
+  const to_date = frm.doc.declaration_date_until;
+
+  if (from_date && to_date && from_date > to_date) {
+    frm.set_value(field_changed, null);
+    frappe.throw({
+      title: __("Error en Fechas"),
+      message: __("La 'Fecha Desde' no puede ser posterior a la 'Fecha Hasta'."),
+      indicator: "red"
     });
   }
 }
@@ -86,7 +139,7 @@ function get_invoice_activities(frm) {
         from_date: frm.doc.declaration_date_from,
         to_date: frm.doc.declaration_date_until,
         company: frm.doc.company,
-        municipality: frm.doc.municipality,
+        municipality: frm.doc.municipality_id,
       },
       callback: function (r) {
         if (r.message && r.message.length > 0) {
@@ -124,27 +177,55 @@ function get_invoice_activities(frm) {
 
 function calculate_all_rows_tax(frm) {
   if (frm.doc.municipal_declaration_data && frm.doc.municipal_declaration_data.length > 0) {
+    let total_calculated_tax = 0;
     frm.doc.municipal_declaration_data.forEach(function(row) {
-      calculate_row_tax(frm, row);
+      if (typeof calculate_municipal_declaration_row_tax === 'function') {
+        calculate_municipal_declaration_row_tax(frm, row);
+        total_calculated_tax += row.calculated_tax || 0;
+      }
     });
+    frm.set_value("tax_amount", total_calculated_tax);
+    frm.set_value("total_pay", total_calculated_tax);
     frm.refresh_field("municipal_declaration_data");
+    frm.refresh_field("tax_amount");
+    frm.refresh_field("total_pay");
   }
 }
 
-function calculate_row_tax(frm, row) {
-  let rate_eur = frm.doc.rate_eur || 0;
+async function currency_data_setting(frm) {
+  const mt_currency = await frappe.db.get_single_value("Venezuela Account Settings", "mt_currency");
+
+  if (mt_currency) {
+    await frm.set_value("currency", mt_currency);
+  } else if (frm.is_new()) {
+    frm.set_value("currency", "");
+    frm.set_value("rate", 0);
+    frappe.msgprint({
+      title: __('Configuración Requerida'),
+      indicator: 'orange',
+      message: __('Por favor, configure la <b>Moneda para Impuestos Municipales</b> en la sección de <b>Configuración de Cuentas de Venezuela</b>.')
+    });
+  }
+}
+
+frappe.ui.form.on("VE Municipal Declaration Data", {
+  aliquot: function (frm) {
+    calculate_all_rows_tax(frm);
+  },
+  mt_tcmmv: function (frm) {
+    calculate_all_rows_tax(frm);
+  },
+  gross_income: function (frm) {
+    calculate_all_rows_tax(frm);
+  },
+});
+
+function calculate_municipal_declaration_row_tax(parent_frm, row) {
+  let rate = parent_frm.doc.rate || 0;
 
   let tax_by_aliquot = (row.gross_income || 0) * (row.aliquot || 0) / 100;
 
-  let tax_by_mt = (row.mt_tcmmv || 0) * rate_eur;
+  let tax_by_mt = (row.mt_tcmmv || 0) * rate;
 
   row.calculated_tax = Math.max(tax_by_aliquot, tax_by_mt);
-  console.log(tax_by_aliquot, tax_by_mt);
 }
-
-
-frappe.ui.form.on('VE Municipal Declaration Data', {
-    aliquot: calculate_all_rows_tax,
-    mt_tcmmv: calculate_all_rows_tax,
-    gross_income: calculate_all_rows_tax
-});

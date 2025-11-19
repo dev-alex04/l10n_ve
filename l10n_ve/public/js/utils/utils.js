@@ -169,6 +169,41 @@ function set_nature_filter(frm) {
 	frm.set_df_property('nature_of_the_taxpayer', 'options', allowed_natures.join('\n'));
 }
 
+
+function validate_cedula(frm, fieldname) {
+	const value = frm.doc[fieldname];
+	if (!value) return;
+
+	let cleanedValue = value.toUpperCase().replace(/[^VE\d]/g, '');
+	let firstChar = cleanedValue.charAt(0);
+	let restOfChars = cleanedValue.substring(1).replace(/\D/g, '');
+
+	if (firstChar !== 'V' && firstChar !== 'E') {
+		frm.set_value(fieldname, '');
+		frappe.throw({
+			title: __("Formato de Cédula Inválido"),
+			message: __("El primer carácter de la cédula debe ser 'V' o 'E'."),
+			indicator: "red"
+		});
+		return;
+	}
+
+	const length_config = get_tax_id_config('Cedula');
+	const min_length = length_config[0];
+	const max_length = length_config[1];
+
+	if (restOfChars.length > max_length) {
+		restOfChars = restOfChars.substring(0, max_length);
+	}
+
+	const final_value = firstChar + restOfChars;
+
+	if (frm.doc[fieldname] !== final_value) {
+		frm.set_value(fieldname, final_value);
+	}
+}
+
+
 function get_address_link(frm) {
   const field_primary_address = {
 	'Company': 'custom_company_primary_address',
@@ -294,6 +329,7 @@ function _get_address_dialog(frm) {
         fieldtype: "Link",
         options: "VE Municipality",
         default: null,
+        reqd: 1,
       },
       {
         label: __("Parish"),

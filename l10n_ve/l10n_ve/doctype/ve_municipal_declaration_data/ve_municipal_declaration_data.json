@@ -9,25 +9,28 @@
   "economic_sector",
   "branch",
   "code",
+  "gross_income",
   "aliquot",
   "mt_tcmmv",
-  "calculated_tax",
-  "gross_income"
+  "calculated_tax"
  ],
  "fields": [
   {
+   "columns": 1,
    "fieldname": "economic_sector",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Economic Sector"
   },
   {
+   "columns": 3,
    "fieldname": "branch",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Branch"
   },
   {
+   "columns": 1,
    "fieldname": "code",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -35,6 +38,7 @@
    "options": "VE Economic Activity"
   },
   {
+   "columns": 1,
    "fieldname": "aliquot",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -42,6 +46,7 @@
    "precision": "2"
   },
   {
+   "columns": 1,
    "fieldname": "calculated_tax",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -49,6 +54,7 @@
    "precision": "2"
   },
   {
+   "columns": 2,
    "fieldname": "gross_income",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -56,6 +62,7 @@
    "precision": "2"
   },
   {
+   "columns": 1,
    "fieldname": "mt_tcmmv",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -67,7 +74,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-11-18 16:17:52.540926",
+ "modified": "2025-11-19 09:06:45.116678",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Municipal Declaration Data",
