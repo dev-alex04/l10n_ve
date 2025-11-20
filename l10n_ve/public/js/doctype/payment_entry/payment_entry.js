@@ -281,13 +281,30 @@ function set_payment_entry_buttons(frm) {
   }
 }
 
-function compute_paid_amount(frm) {
+async function compute_paid_amount(frm) {
   frm.set_value(
     "paid_amount",
-    frm.doc.paid_currency_amount * frm.doc.exchange_rate
+    flt(frm.doc.paid_currency_amount) * flt(frm.doc.exchange_rate)
   );
 
-  set_igtf(frm);
+  if (
+    frm.doc.igtf_rate > 0 &&
+    frm.doc.paid_on_currency != frm.doc.default_company_currency
+  ) {
+    const igtf_amount =
+      (flt(frm.doc.paid_currency_amount) * flt(frm.doc.igtf_rate)) / 100;
+    const total_with_igtf = flt(frm.doc.paid_currency_amount) + igtf_amount;
+
+    if (flt(frm.doc.igtf_amount) !== flt(igtf_amount)) {
+      frm.set_value("igtf_amount", igtf_amount);
+    }
+
+    if (flt(frm.doc.total_with_igtf) !== flt(total_with_igtf)) {
+      frm.set_value("total_with_igtf", total_with_igtf);
+    }
+  }
+
+  await set_igtf(frm);
 }
 
 /**
@@ -329,7 +346,6 @@ async function set_custom_exchange_rate(frm) {
 
   const total_withholdings = get_total_withholdings_base(frm);
 
-  // Obtiene el monto pendiente total de todas las facturas
   let outstanding_amount =
     (frm.doc.references || []).reduce(
       (total, ref) => total + flt(ref.outstanding_amount),
@@ -354,24 +370,22 @@ async function set_custom_exchange_rate(frm) {
     frm.set_df_property("exchange_rate", "hidden", false);
     frm.set_df_property("igtf_amount", "hidden", false);
     frm.set_df_property("total_with_igtf", "hidden", false);
+
     if (flt(frm.doc.paid_currency_amount) !== flt(paid_currency_amount)) {
       frm.set_value("paid_currency_amount", paid_currency_amount);
       frm.set_value("igtf_amount", igtf_amount);
       frm.set_value("total_with_igtf", total_with_igtf);
     }
-    compute_paid_amount(frm);
+
+    await compute_paid_amount(frm);
   } else {
     frm.set_value("igtf_amount", 0);
     frm.set_value("total_with_igtf", 0);
-    frm.set_df_property("exchange_rate", "hidden", true);
-    frm.set_df_property("igtf_amount", "hidden", true);
-    frm.set_df_property("total_with_igtf", "hidden", true);
-    frm.set_value("exchange_rate", 1);
-    frm.set_df_property("paid_currency_amount", "description", "");
+    // ...
     if (flt(frm.doc.paid_currency_amount) !== flt(outstanding_amount)) {
       frm.set_value("paid_currency_amount", flt(outstanding_amount));
     }
-    compute_paid_amount(frm);
+    await compute_paid_amount(frm);
   }
 }
 
@@ -426,6 +440,9 @@ async function set_igtf(frm) {
         }
       }
     }
+    frm.set_df_property("exchange_rate", "hidden", true);
+    frm.set_df_property("igtf_amount", "hidden", true);
+    frm.set_df_property("total_with_igtf", "hidden", true);
     return;
   }
 
@@ -580,14 +597,20 @@ function set_islr_concept(frm) {
             })
             .then((r) => {
               frappe.dom.unfreeze();
-              frappe.show_alert({
-                message: "Concepto cargado satisfactoriamente",
-                indicator: "green",
-              });
+
               if (frm.is_new()) {
                 frappe.set_route("Form", frm.doc.doctype, r.message);
+              } else {
+                frm.reload_doc().then(() => {
+                  set_custom_exchange_rate(frm).then(() => {
+                    frappe.show_alert({
+                      message: "Concepto cargado y recalculado",
+                      indicator: "green",
+                    });
+                    frm.save();
+                  });
+                });
               }
-              frm.trigger("paid_on_currency");
             })
             .catch((error) => {
               frappe.dom.unfreeze();

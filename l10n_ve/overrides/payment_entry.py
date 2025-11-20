@@ -232,6 +232,7 @@ class CustomPaymentEntry(PaymentEntry):
                 "is_tax_withholding_account": True,
                 "description": tabulator.descripcion,
                 "subtracting": aliquot_info.subtracting,
+                "base_tax_amount": total_tax_amount,
             })
 
             for concept_detail in concepts_in_group:
@@ -250,7 +251,14 @@ class CustomPaymentEntry(PaymentEntry):
                 reference_doc.islr_base_amount = individual_base
                 reference_doc.islr_concept = tabulator_name
 
+                if flt(reference_doc.allocated_amount) < flt(reference_doc.outstanding_amount):
+                     reference_doc.allocated_amount = reference_doc.outstanding_amount
+                elif flt(reference_doc.allocated_amount) == 0:
+                    reference_doc.allocated_amount = reference_doc.outstanding_amount
+
+        self.total_taxes_and_charges = sum([flt(t.tax_amount) for t in self.taxes])
         self.save()
+
         return self.name
 
     # ------------------------- CALCULO DE IMPUESTOS ------------------------- #
