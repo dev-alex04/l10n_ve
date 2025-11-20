@@ -18,12 +18,12 @@
   "legal_representative",
   "legal_representative_id",
   "column_break_issh",
-  "declaration_date_from",
-  "declaration_date_until",
+  "declaration_year",
+  "declaration_month",
   "declaration_date",
   "section_break_ezhq",
-  "municipality",
   "state",
+  "municipality",
   "parish",
   "sector",
   "column_break_wvbz",
@@ -35,29 +35,23 @@
   "column_break_mofy",
   "currency",
   "section_break_deau",
-  "municipal_declaration_data",
+  "municipality_declaration_data",
   "section_break_wcah",
   "column_break_dbfq",
   "column_break_gtdr",
   "column_break_vedd",
   "tax_amount",
   "total_pay",
-  "amended_from"
+  "amended_from",
+  "tab_break_zkgp",
+  "section_break_rnga",
+  "num_declaration",
+  "declaration_document"
  ],
  "fields": [
   {
    "fieldname": "section_break_hdjl",
    "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "naming_series",
-   "fieldtype": "Autocomplete",
-   "label": "Naming Series",
-   "no_copy": 1,
-   "options": "Declaracion de Impuesto Municipal",
-   "print_hide": 1,
-   "read_only": 1,
-   "search_index": 1
   },
   {
    "fieldname": "company",
@@ -69,20 +63,13 @@
   },
   {
    "fieldname": "municipality",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "label": "Municipality",
-   "options": "VE Municipality",
    "read_only": 1
   },
   {
    "fieldname": "section_break_deau",
    "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "municipal_declaration_data",
-   "fieldtype": "Table",
-   "label": "Municipal Declaration Data",
-   "options": "VE Municipal Declaration Data"
   },
   {
    "fieldname": "column_break_issh",
@@ -93,18 +80,6 @@
    "fieldtype": "Data",
    "label": "Economic Activity License Number",
    "read_only": 1
-  },
-  {
-   "fieldname": "declaration_date_from",
-   "fieldtype": "Date",
-   "label": "Declaration Date (From)",
-   "reqd": 1
-  },
-  {
-   "fieldname": "declaration_date_until",
-   "fieldtype": "Date",
-   "label": "Declaration Date (Until)",
-   "reqd": 1
   },
   {
    "fieldname": "tax_id",
@@ -148,9 +123,8 @@
   },
   {
    "fieldname": "state",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "label": "State",
-   "options": "VE State",
    "read_only": 1
   },
   {
@@ -158,7 +132,7 @@
    "fieldtype": "Link",
    "label": "Amended From",
    "no_copy": 1,
-   "options": "VE Municipal Tax Declaration",
+   "options": "VE Municipality Tax Declaration",
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
@@ -195,7 +169,7 @@
    "collapsible": 1,
    "fieldname": "section_break_ezhq",
    "fieldtype": "Section Break",
-   "label": "Addres"
+   "label": "Address"
   },
   {
    "fieldname": "address_line1",
@@ -209,9 +183,8 @@
   },
   {
    "fieldname": "parish",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "label": "Parish",
-   "options": "VE Parish",
    "read_only": 1
   },
   {
@@ -252,16 +225,60 @@
    "label": "Municipality",
    "options": "VE Municipality",
    "read_only": 1
+  },
+  {
+   "fieldname": "tab_break_zkgp",
+   "fieldtype": "Tab Break",
+   "label": "Declaration"
+  },
+  {
+   "fieldname": "declaration_document",
+   "fieldtype": "Attach",
+   "label": "Declaration Document"
+  },
+  {
+   "fieldname": "num_declaration",
+   "fieldtype": "Data",
+   "label": "N\u00b0 Declaration"
+  },
+  {
+   "fieldname": "section_break_rnga",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "municipality_declaration_data",
+   "fieldtype": "Table",
+   "label": "Municipal Declaration Data",
+   "options": "VE Municipality Declaration Data"
+  },
+  {
+   "fieldname": "declaration_month",
+   "fieldtype": "Select",
+   "label": "Declaration Month",
+   "options": "\nEnero\nFebrero\nMarzo\nAbril\nMayo\nJunio\nJulio\nAgosto\nSeptiembre\nOctubre\nNoviembre\nDiciembre",
+   "reqd": 1
+  },
+  {
+   "fieldname": "declaration_year",
+   "fieldtype": "Int",
+   "label": "Declaration Year",
+   "reqd": 1
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Autocomplete",
+   "hidden": 1,
+   "label": "Naming Series"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-11-19 16:54:25.797903",
+ "modified": "2025-11-20 16:58:57.967798",
  "modified_by": "Administrator",
  "module": "L10N Ve",
- "name": "VE Municipal Tax Declaration",
+ "name": "VE Municipality Tax Declaration",
  "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
