@@ -1028,6 +1028,7 @@ def set_stock_naming_series() -> None:
         frappe.log_error(title="Error Estableciendo Naming Series en Stock Serie", message=str(e))
         frappe.throw("Ocurrió un error Estableciendo Naming Series en Stock Serie")
 
+
 def create_municipality_taxes() -> None:
     """
     Crea los registros de Impuestos Municipales (VE Municipality Taxes)

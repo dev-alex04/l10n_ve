@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "subtracting_calculation_factor",
+  "mt_currency",
   "column_break_xsos",
   "igtf_rate"
  ],
@@ -30,13 +31,20 @@
    "fieldtype": "Float",
    "label": "IGTF Rate",
    "reqd": 1
+  },
+  {
+   "default": "EUR",
+   "fieldname": "mt_currency",
+   "fieldtype": "Link",
+   "label": "Currency M.T",
+   "options": "Currency"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-10-16 23:49:39.243236",
+ "modified": "2025-11-13 11:39:24.636074",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "Venezuela Account Settings",
