@@ -381,9 +381,6 @@ async function set_custom_exchange_rate(frm) {
   } else {
     frm.set_value("igtf_amount", 0);
     frm.set_value("total_with_igtf", 0);
-    frm.set_df_property("exchange_rate", "hidden", true);
-    frm.set_df_property("igtf_amount", "hidden", true);
-    frm.set_df_property("total_with_igtf", "hidden", true);
     frm.set_value("exchange_rate", 1);
     if (flt(frm.doc.paid_currency_amount) !== flt(outstanding_amount)) {
       frm.set_value("paid_currency_amount", flt(outstanding_amount));
