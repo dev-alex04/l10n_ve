@@ -19,7 +19,17 @@ frappe.ui.form.on("VE Municipality Tax Declaration", {
   },
   declaration_month: setup_triggers,
   declaration_year: validate_year,
-  company: (frm) => get_company_data(frm).then(() => setup_triggers(frm)),
+  company: async (frm) => {
+    if (
+      frm.doc.municipality_declaration_data &&
+      frm.doc.municipality_declaration_data.length > 0
+    ) {
+      frm.clear_table("municipality_declaration_data");
+      frm.refresh_field("municipality_declaration_data");
+    }
+    await get_company_data(frm);
+    setup_triggers(frm);
+  },
 });
 
 function validate_year(frm) {
@@ -44,61 +54,64 @@ function validate_year(frm) {
 
 async function get_company_data(frm) {
   if (frm.doc.company) {
-    frappe.call({
-      method:
-        "l10n_ve.l10n_ve.doctype.ve_municipality_tax_declaration.ve_municipality_tax_declaration.get_company_details_for_declaration",
-      args: {
-        company_name: frm.doc.company,
-      },
-      callback: function (r) {
-        if (r.message) {
-          const data = r.message;
-          let missing_fields = [];
-          if (!data.tax_id) missing_fields.push(__("Tax ID"));
-          if (!data.num_license_economic)
-            missing_fields.push(__("Número de Licencia Económica"));
-          if (!data.legal_representative)
-            missing_fields.push(__("Representante Legal"));
-          if (!data.legal_representative_id)
-            missing_fields.push(__("ID del Representante Legal"));
-          if (!data.municipality) missing_fields.push(__("Direccion"));
+    try {
+      const r = await frappe.call({
+        method:
+          "l10n_ve.l10n_ve.doctype.ve_municipality_tax_declaration.ve_municipality_tax_declaration.get_company_details_for_declaration",
+        args: {
+          company_name: frm.doc.company,
+        },
+      });
+      if (r.message) {
+        const data = r.message;
+        let missing_fields = [];
+        if (!data.tax_id) missing_fields.push(__("Tax ID"));
+        if (!data.num_license_economic)
+          missing_fields.push(__("Número de Licencia Económica"));
+        if (!data.legal_representative)
+          missing_fields.push(__("Representante Legal"));
+        if (!data.legal_representative_id)
+          missing_fields.push(__("Identificación del Representante Legal"));
+        if (!data.municipality) missing_fields.push(__("Municipio(en Direccion Principal)"));
 
-          if (missing_fields.length > 0) {
-            frappe.msgprint({
-              title: __("Faltan Datos de la Compañía"),
-              indicator: "orange",
-              message: __(
-                'Por favor, complete los siguientes campos en la ficha de la compañía "{0}":<br><b>{1}</b>',
-                [frm.doc.company, missing_fields.join("<br>")]
-              ),
-            });
-          }
-
-          frm.set_value("tax_id", data.tax_id);
-          frm.set_value("num_license_economic", data.num_license_economic);
-          frm.set_value("legal_representative", data.legal_representative);
-          frm.set_value(
-            "legal_representative_id",
-            data.legal_representative_id
-          );
-          frm.set_value("municipality", data.municipality_name);
-          frm.set_value("municipality_id", data.municipality);
-
-          if (data.address_details) {
-            frm.set_value("address_line1", data.address_details.address_line1);
-            frm.set_value("state", data.address_details.state_name);
-            frm.set_value("parish", data.address_details.parish_name);
-            frm.set_value("phone", data.address_details.phone);
-            frm.set_value("email_id", data.address_details.email_id);
-            frm.set_value("sector", data.address_details.sector);
-          } else {
-            clear_address_fields(frm);
-          }
-        } else {
-          clear_all_company_fields(frm);
+        if (missing_fields.length > 0) {
+          frappe.msgprint({
+            title: __("Faltan Datos de la Compañía"),
+            indicator: "orange",
+            message: __(
+              'Por favor, complete los siguientes campos en la ficha de la compañía "{0}":<br><b>{1}</b>',
+              [frm.doc.company, missing_fields.join("<br>")]
+            ),
+          });
         }
-      },
-    });
+
+        frm.set_value("tax_id", data.tax_id);
+        frm.set_value("num_license_economic", data.num_license_economic);
+        frm.set_value("legal_representative", data.legal_representative);
+        frm.set_value(
+          "legal_representative_id",
+          data.legal_representative_id
+        );
+        frm.set_value("municipality", data.municipality_name);
+        frm.set_value("municipality_id", data.municipality);
+
+        if (data.address_details) {
+          frm.set_value("address_line1", data.address_details.address_line1);
+          frm.set_value("state", data.address_details.state_name);
+          frm.set_value("parish", data.address_details.parish_name);
+          frm.set_value("phone", data.address_details.phone);
+          frm.set_value("email_id", data.address_details.email_id);
+          frm.set_value("sector", data.address_details.sector);
+        } else {
+          clear_address_fields(frm);
+        }
+      } else {
+        clear_all_company_fields(frm);
+      }
+    } catch (e) {
+      frappe.log_error(e);
+      clear_all_company_fields(frm);
+    }
   } else {
     clear_all_company_fields(frm);
   }

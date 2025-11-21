@@ -144,7 +144,7 @@ def get_activities_from_sales_invoices(from_date, to_date, company, municipality
     activity_map = {d.name: d for d in activity_details}
 
     tax_details_map = {}
-    if activity_names:
+    if activity_names and municipality:
         tax_details = frappe.get_all("VE Municipality Taxes",
             filters={
                 "economic_activity": ["in", activity_names],
@@ -153,29 +153,31 @@ def get_activities_from_sales_invoices(from_date, to_date, company, municipality
             fields=["economic_activity", "aliquot", "mt_tcmmv"]
         )
         tax_details_map = {d.economic_activity: d for d in tax_details}
+    
+    missing_tax_activities = []
 
     for item in invoice_items:
 
         details = activity_map.get(item.economic_activity)
+
         if not details:
-            continue  
+            missing_tax_activities.append(item.economic_activity)
+            continue
         item.update(details)
 
         tax_info = tax_details_map.get(item.economic_activity)
+        
         if tax_info:
             item.update(tax_info)
-            continue 
+        else:
+            missing_tax_activities.append(details.code)
 
-        if not frappe.db.exists("VE Municipality Taxes",
-                                 {"economic_activity": item.economic_activity,
-                                  "municipality": municipality}):
-            
-            frappe.throw(
-                    _("No se ha definido el impuesto municipal para la actividad económica "
-                    "{0} en este municipio.").format(item.economic_activity),
-                    title=_("Impuesto Municipal No Definido")
-                )
-            
+    if missing_tax_activities:
+        frappe.throw(
+            _("No se ha definido el impuesto municipal para las siguientes actividades económicas en este " \
+            "municipio: {0}. Por favorr agregarlo en el Doctype de Impuesto Municipal").format(", ".join(missing_tax_activities)),
+            title=_("Impuesto Municipal No Definido")
+        )
     return invoice_items
 
 @frappe.whitelist()
@@ -210,7 +212,7 @@ def get_company_details_for_declaration(company_name: str) -> dict:
     if company.custom_company_primary_address:
         try:
             address = frappe.get_doc("Address", company.custom_company_primary_address, fields=[
-                "address_line1", "state", "parish", "phone", "email_id"
+                "address_line1", "state", "parish", "phone", "email_id", "sector"
             ])
             address_details = address.as_dict()
 
