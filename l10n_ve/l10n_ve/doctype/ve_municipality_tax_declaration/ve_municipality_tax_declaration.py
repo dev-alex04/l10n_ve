@@ -55,25 +55,24 @@ class VEMunicipalityTaxDeclaration(Document):
         """
         self.name = f"Declaración Municipal - {self.company} - {self.declaration_month} - {self.declaration_year}"
 
-    def validate(self):
+    def validate(self) -> None:
         """
         Valida que no exista otra declaración para el mismo período y compañía.
         """
-        if self.is_new() and self.company and self.declaration_month and self.declaration_year:
-            existing_declaration = frappe.db.exists("VE Municipality Tax Declaration", {
-                "company": self.company,
-                "declaration_month": self.declaration_month,
-                "declaration_year": self.declaration_year,
-                "name": ["!=", self.name],
-                "docstatus": 1
-            })
-            if existing_declaration:
-                frappe.throw(
-                    _("Ya existe una declaración para {0} en {1} - {2}.").format(self.company,
-                                                                                 self.declaration_month,
-                                                                                 self.declaration_year),
-                    title=_("Declaración Duplicada")
-                )
+        if not (self.is_new() and self.company and self.declaration_month and self.declaration_year):
+            return
+
+        existing_declaration = frappe.db.exists("VE Municipality Tax Declaration", {
+            "company": self.company,
+            "declaration_month": self.declaration_month,
+            "declaration_year": self.declaration_year,
+            "docstatus": 1
+        })
+        if existing_declaration:
+            frappe.throw(
+                _("Ya existe una declaración para {0} en {1} - {2}.").format(
+                    self.company, self.declaration_month, self.declaration_year),
+                title=_("Declaración Duplicada"))
 
 
 @frappe.whitelist()
@@ -156,27 +155,32 @@ def get_activities_from_sales_invoices(from_date, to_date, company, municipality
         tax_details_map = {d.economic_activity: d for d in tax_details}
 
     for item in invoice_items:
-        details = activity_map.get(item.economic_activity)
-        if details:
-            item.update(details)
-            tax_info = tax_details_map.get(item.economic_activity)
-            if tax_info:
-                item.update(tax_info)
 
-            else:
-                tax_exists = frappe.db.exists("VE Municipality Taxes",
-                                               {"economic_activity": item.economic_activity,
-                                                "municipality": municipality})
-                if not tax_exists:
-                    frappe.throw(
-                        _("No se ha definido el impuesto municipal para la "
-                        "actividad económica {0} en este municipio.").format(item.economic_activity),
-                        title=_("Impuesto Municipal No Definido")
-                    )
+        details = activity_map.get(item.economic_activity)
+        if not details:
+            continue  
+        item.update(details)
+
+        tax_info = tax_details_map.get(item.economic_activity)
+        if tax_info:
+            item.update(tax_info)
+            continue 
+
+        if not frappe.db.exists("VE Municipality Taxes",
+                                 {"economic_activity": item.economic_activity,
+                                  "municipality": municipality}):
+            
+            frappe.throw(
+                    _("No se ha definido el impuesto municipal para la actividad económica "
+                    "{0} en este municipio.").format(item.economic_activity),
+                    title=_("Impuesto Municipal No Definido")
+                )
+            
     return invoice_items
 
 @frappe.whitelist()
-def get_exchange_rate(declaration_date, from_currency)->float:
+def get_exchange_rate(declaration_date, from_currency) -> float:
+
     to_currency = get_defaults().get("currency")
     if not declaration_date or not from_currency or not to_currency:
         return 0
