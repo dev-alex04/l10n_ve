@@ -70,27 +70,18 @@ class CustomPaymentEntry(PaymentEntry):
 
     def apply_taxes(self) -> None:
 
-        # Se sobreescribe esta funcion
-        # Para incrustar self.set_taxes_withholding()
-
         self.initialize_taxes()
-        self.set_taxes_withholding()
         self.determine_exclusive_rate()
         self.calculate_taxes()
 
     def set_tax_withholding(self) -> None:
         """
-        Se inactiva la funcion nativa para obtener las retenciones.
-        La funcion set_taxes_withholding  se encargara de esto
+        Se inactiva la funcion nativa para que no se carguen retenciones
+        que no sean ISLR ni IGTF
         """
         return
 
     def initialize_taxes(self) -> None:
-
-        # Se sobreescribe esta funcion
-        # Para avitar que el campo tax_amonunt se incialice en 0
-        # ya que ese monto ya se carga desde las funciones
-        # self.set_taxes_withholding() y self.set_islr_concept()
 
         for tax in self.get("taxes"):
             validate_taxes_and_charges(tax)
@@ -106,77 +97,6 @@ class CustomPaymentEntry(PaymentEntry):
                 tax.set(fieldname, 0.0)
 
         self.paid_amount_after_tax = self.base_paid_amount
-
-    # TODO: Mejorar esta funcion para evitar fors anidados
-    def set_taxes_withholding(self) -> None:
-
-        if self.party_type != 'Supplier':
-            return
-
-        documents_map = {}
-
-        taxes2load = _dict()
-
-        for reference in self.references or []:
-
-            if reference.reference_doctype not in documents_map:
-                documents_map[reference.reference_doctype] = []
-
-            documents_map[reference.reference_doctype].append(reference.reference_name)
-
-        # Ya que el ISLR se carga desde la funciòn set_islr_concept,
-        # aquí limpiamos la tabla de impuestos, dejando sólo los impuestos
-        # de ISLR
-
-        if bool(documents_map):
-            self.taxes = [
-                tax for tax in self.taxes or []
-                if tax.charge_type in ["ISLR", "IGTF"]
-            ]
-
-        for doctype, docnames in documents_map.items():
-
-            doc_type = doctype.split(' ')[0]
-
-            taxes = frappe.db.get_all(
-                f'{doc_type} Taxes and Charges',
-                filters={
-                    'docstatus': True,
-                    'parent': ['in', docnames],
-                    'is_tax_withholding_account': True,
-                },
-                fields=[
-                    'rate',
-                    'parent',
-                    'description',
-                    'charge_type',
-                    'account_head',
-                    'add_deduct_tax',
-                    'base_tax_amount AS tax_amount',
-                ])
-
-            for tax in taxes:
-
-                if tax.charge_type not in taxes2load:
-                    taxes2load[tax.charge_type] = {
-                        'account_head': tax.account_head,
-                        'description': tax.description,
-                        'tax_amount': 0,
-                        'charge_type': tax.charge_type,
-                        'rate': tax.rate,
-                        'add_deduct_tax': tax.add_deduct_tax,
-                    }
-
-                taxes2load[tax.charge_type]['tax_amount'] += tax.tax_amount
-
-                for reference in self.references:
-                    if tax.parent != reference.reference_name:
-                        continue
-
-                    reference.vat_withholding_amount = tax.tax_amount
-
-        for tax in list(taxes2load.values()):
-            self.append('taxes', tax)
 
     @frappe.whitelist()
     def set_islr_concept(self, islr_concepts: list) -> str:
@@ -805,6 +725,7 @@ def get_payment_entry(
     payment_entry.paid_on_currency = doc.get('currency', company_data.default_currency)
 
     payment_entry.references[0].base_total = doc.get("base_total")
+    payment_entry.references[0].bill_no = doc.get("bill_no") or doc.get("credit_note_no") or doc.get("debit_note_no")
 
     payment_entry.apply_taxes()
 

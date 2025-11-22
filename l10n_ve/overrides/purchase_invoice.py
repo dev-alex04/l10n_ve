@@ -13,12 +13,13 @@ from frappe.utils import getdate
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
 from l10n_ve.utils.utils import validate_return_in_same_month
 
+
 class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
     def on_cancel(self) -> None:
         super().on_cancel()
 
-        #TODO: Mover a una funcion
+        # TODO: Mover a una funcion
 
         has_iva_withholding = frappe.db.exists(
             "VAT Withholding Voucher Item",
@@ -176,6 +177,7 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
     def set_title_field(self) -> None:
         super().set_title_field()
+
         if self.docstatus == 0:
             return
         if self.is_return:
@@ -342,6 +344,53 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
             elif not item.expense_account and for_validate:
                 frappe.throw(_("Expense account is mandatory for item {0}").format(item.item_code or item.item_name))
 
+    def get_gl_entries(self, warehouse_account=None):
+        self.auto_accounting_for_stock = erpnext.is_perpetual_inventory_enabled(self.company)
+
+        if self.auto_accounting_for_stock:
+            self.stock_received_but_not_billed = self.get_company_default("stock_received_but_not_billed")
+        else:
+            self.stock_received_but_not_billed = None
+
+        self.negative_expense_to_be_booked = 0.0
+        gl_entries = []
+
+        self.make_supplier_gl_entry(gl_entries)
+        self.make_item_gl_entries(gl_entries)
+        self.make_precision_loss_gl_entry(gl_entries)
+
+        self.make_tax_gl_entries(gl_entries)
+        self.make_internal_transfer_gl_entries(gl_entries)
+        self.make_gl_entries_for_tax_withholding(gl_entries)
+
+        self.make_payment_gl_entries(gl_entries)
+        self.make_write_off_gl_entry(gl_entries)
+        self.make_gle_for_rounding_adjustment(gl_entries)
+        self.set_transaction_currency_and_rate_in_gl_map(gl_entries)
+
+        for gl in gl_entries:
+            gl.bill_control = self.bill_control
+            gl.bill_no = self.bill_no or self.credit_note_no or self.debit_note_no
+
+        return gl_entries
+
+    def make_supplier_gl_entry(self, gl_entries):
+        # Checked both rounding_adjustment and rounded_total
+        # because rounded_total had value even before introduction of posting GLE based on rounded total
+        grand_total = (
+            self.rounded_total if (self.rounding_adjustment and self.rounded_total) else self.grand_total
+        )
+
+        base_grand_total = flt(
+            self.base_rounded_total
+            if (self.base_rounding_adjustment and self.base_rounded_total)
+            else self.base_grand_total,
+            self.precision("base_grand_total"),
+        )
+
+        if grand_total and not self.is_internal_transfer():
+            self.add_supplier_gl_entry(gl_entries, base_grand_total, grand_total)
+
     def make_tax_gl_entries(self, gl_entries) -> None:
         """
         Override para solo hacer los asientos que NO sean de retenciones
@@ -351,9 +400,6 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
         valuation_tax = {}
 
         for tax in self.get("taxes"):
-
-            if tax.is_tax_withholding_account or not tax.tax_amount:
-                continue
 
             amount, base_amount = self.get_tax_amounts(tax, None)
             if tax.category in ("Total", "Valuation and Total") and flt(base_amount):
@@ -458,8 +504,37 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                         )
                     )
 
-    def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
+    def make_gl_entries_for_tax_withholding(self, gl_entries):
         """
-        Se inactiva esta funcion, ya que aqui no se harán los asientos de las retenciones
+        Tax withholding amount is not part of supplier invoice.
+        Separate supplier GL Entry for correct reporting.
         """
-        return
+
+        for tax in self.get("taxes"):
+            if tax.charge_type != 'VAT Withholding':
+                continue
+
+            base_tds_amount = abs(tax.base_tax_amount_after_discount_amount)
+            tds_amount = abs(tax.tax_amount_after_discount_amount)
+
+            against_voucher = self.name
+            if self.is_return and self.return_against and not self.update_outstanding_for_self:
+                against_voucher = self.return_against
+
+            # Did not use base_grand_total to book rounding loss gle
+            gl = {
+                "account": self.credit_to,
+                "party_type": "Supplier",
+                "party": self.supplier,
+                "due_date": self.due_date,
+                "against": tax.account_head,
+                "debit": base_tds_amount,
+                "debit_in_account_currency": base_tds_amount,
+                "debit_in_transaction_currency": tds_amount,
+                "against_voucher": against_voucher,
+                "against_voucher_type": self.doctype,
+                "project": self.project,
+                "cost_center": self.cost_center,
+            }
+
+            gl_entries.append(self.get_gl_dict(gl, self.party_account_currency, item=self))
