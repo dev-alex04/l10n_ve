@@ -41,6 +41,13 @@ except ImportError as e:
     frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.accounts.general_ledger')
 
 
+try:
+    import l10n_ve.patches.setup.utils
+except ImportError as e:
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.setup.utils. Error: {e}")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.setup.utils')
+
+
 def apply_post_db_patches() -> None:
     try:
         import l10n_ve.patches.reports.accounts_receivable
@@ -48,4 +55,3 @@ def apply_post_db_patches() -> None:
     except ImportError as e:
         print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.reports.accounts_receivable. Error: {e}")
         frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.reports.accounts_receivable')
-
