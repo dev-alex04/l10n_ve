@@ -158,6 +158,26 @@ frappe.ui.form.on("Payment Entry", {
     frm.events.get_outstanding_invoices_or_orders(frm, true, false);
   },
 
+  // handle_get_outstanding_invoices: function (frm) {
+  //   if (!frm.doc.mode_of_payment) {
+  //     frappe.throw(
+  //       __(
+  //         'Debe seleccionar un "Modo de pago" para obtener las facturas pendientes de pago.'
+  //       )
+  //     );
+  //     return;
+  //   }
+
+  //   let allocate_amount = frm.doc.payment_type === "Receive" ? frm.doc.paid_amount : frm.doc.received_amount;
+
+  //   frm.events.get_outstanding_documents(
+  //     frm,
+  //     { allocate_payment_amount: allocate_amount },
+  //     true,
+  //     false
+  //   );
+  // },
+
   get_outstanding_documents: function (
     frm,
     filters,
@@ -206,6 +226,8 @@ frappe.ui.form.on("Payment Entry", {
         args: args,
       },
       callback: function (r) {
+        let total_outstanding_in_currency = 0;
+
         if (r.message) {
           var total_positive_outstanding = 0;
           var total_negative_outstanding = 0;
@@ -227,15 +249,19 @@ frappe.ui.form.on("Payment Entry", {
             }
 
             if (!in_list(frm.events.get_order_doctypes(frm), d.voucher_type)) {
-              if (flt(d.outstanding_amount) > 0)
+              if (flt(d.outstanding_amount) > 0) {
                 total_positive_outstanding += flt(d.outstanding_amount);
-              else
+                total_outstanding_in_currency += flt(d.outstanding_amount);
+              } else {
                 total_negative_outstanding += Math.abs(
                   flt(d.outstanding_amount)
                 );
+              }
             }
           });
         }
+
+        frm.set_value("paid_currency_amount", total_outstanding_in_currency);
 
         frm.events.allocate_party_amount_against_ref_docs(
           frm,
@@ -246,10 +272,24 @@ frappe.ui.form.on("Payment Entry", {
         );
 
         frm.refresh_field("references");
-        frm.save();
       },
     });
   },
+
+  calculate_total_allocated: function (frm) {
+    const total_allocated = frm.doc.references.reduce((total, ref) => {
+      return total + flt(ref.allocated_amount);
+    }, 0);
+
+    frm.set_value("paid_currency_amount", total_allocated);
+    frm.refresh_fields();
+  }
+});
+
+frappe.ui.form.on("Payment Entry Reference", {
+  references_remove: function (frm, cdt, cdn) {
+    frm.events.calculate_total_allocated(frm);
+  }
 });
 
 function get_included_taxes(frm) {
@@ -685,7 +725,7 @@ function confirm_overpayment_on_submit(frm) {
       frm.is_submitting = true;
       frm.save("Submit");
     },
-    () => {}
+    () => { }
   );
 }
 
