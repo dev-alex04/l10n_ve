@@ -393,7 +393,7 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
             if (self.base_rounding_adjustment and self.base_rounded_total)
             else self.base_grand_total,
             self.precision("base_grand_total"),
-        ) + self.total_withholding
+        ) + flt(self.total_withholding * self.conversion_rate, self.precision("base_grand_total"))
 
         if grand_total and not self.is_internal_transfer():
             against_voucher = self.name
