@@ -80,7 +80,7 @@
    "fieldname": "code_name",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Code ",
+   "label": "Code",
    "read_only": 1
   }
  ],
