@@ -153,7 +153,7 @@ def get_activities_from_sales_invoices(from_date, to_date, company, municipality
             fields=["economic_activity", "aliquot", "mt_tcmmv"]
         )
         tax_details_map = {d.economic_activity: d for d in tax_details}
-    
+
     missing_tax_activities = []
 
     for item in invoice_items:
@@ -166,16 +166,20 @@ def get_activities_from_sales_invoices(from_date, to_date, company, municipality
         item.update(details)
 
         tax_info = tax_details_map.get(item.economic_activity)
-        
+
         if tax_info:
             item.update(tax_info)
         else:
             missing_tax_activities.append(details.code)
 
     if missing_tax_activities:
+        link_to_taxes = "<a href='/app/ve-municipality-taxes'>Impuesto Municipal</a>"
+        message = _("No se ha definido el impuesto municipal para las "
+                    "siguientes actividades económicas en este "
+                    "municipio: {0}. Por favor, agréguelo en {1}.").format(
+                        f"<b>{', '.join(missing_tax_activities)}</b>", link_to_taxes)
         frappe.throw(
-            _("No se ha definido el impuesto municipal para las siguientes actividades económicas en este " \
-            "municipio: {0}. Por favorr agregarlo en el Doctype de Impuesto Municipal").format(", ".join(missing_tax_activities)),
+            message,
             title=_("Impuesto Municipal No Definido")
         )
     return invoice_items
@@ -187,10 +191,29 @@ def get_exchange_rate(declaration_date, from_currency) -> float:
     if not declaration_date or not from_currency or not to_currency:
         return 0
 
-    exchange_rate = frappe.db.get_value("Currency Exchange", {
-        "date": declaration_date, "from_currency": from_currency, "to_currency": to_currency
-    }, "exchange_rate")
+    exchange_rate = frappe.db.get_value(
+        "Currency Exchange",
+        filters={
+            "date": [">=", declaration_date],
+            "from_currency": from_currency,
+            "to_currency": to_currency,
 
+        },
+        fieldname="exchange_rate",
+        order_by="date asc",
+    )
+
+    if not exchange_rate:
+        exchange_rate = frappe.db.get_value(
+            "Currency Exchange",
+            filters={
+                "date": ["<=", declaration_date],
+                "from_currency": from_currency,
+                "to_currency": to_currency,
+            },
+            fieldname="exchange_rate",
+            order_by="date desc",
+        )
     return exchange_rate or 0
 
 @frappe.whitelist()

@@ -157,9 +157,9 @@ function get_exchange_rate_for_declaration(frm) {
             title: __("Tasa de Cambio no Encontrada"),
             indicator: "orange",
             message: __(
-              "No se encontró una tasa para la fecha exacta (" +
+              "No se encontró una tasa de cambio ni para fechas posteriores ni anteriores a la fecha (" +
                 frappe.datetime.str_to_user(target_date) +
-                "). Por favor, configúrela en el Doctype de la Tasa de Cambio."
+                "). Por favor, configúrela en el doctype de Tasa de Cambio."
             ),
           });
         }
@@ -198,6 +198,7 @@ function get_invoice_activities(frm) {
     const from_date = frappe.datetime.obj_to_str(firstDayObj);
     const to_date = frappe.datetime.obj_to_str(lastDayObj);
 
+    frappe.dom.freeze(__("Buscando actividades económicas en las facturas..."));
     frappe.call({
       method:
         "l10n_ve.l10n_ve.doctype.ve_municipality_tax_declaration.ve_municipality_tax_declaration.get_activities_from_sales_invoices",
@@ -208,12 +209,13 @@ function get_invoice_activities(frm) {
         municipality: frm.doc.municipality_id,
       },
       callback: function (r) {
+        frappe.dom.unfreeze();
         if (r.message && r.message.length > 0) {
           frm.clear_table("municipality_declaration_data");
           r.message.forEach((activity_data) => {
             let child = frm.add_child("municipality_declaration_data");
-
             child.code = activity_data.name;
+            child.code_name = activity_data.code;
             child.economic_sector = activity_data.sector;
             child.branch = activity_data.branch;
             child.aliquot = activity_data.aliquot;
@@ -231,6 +233,9 @@ function get_invoice_activities(frm) {
           );
         }
       },
+      error: function(r) {
+        frappe.dom.unfreeze();
+      }
     });
   } else {
     frappe.msgprint(
