@@ -53,7 +53,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-11 09:12:28.157617",
+ "modified": "2025-11-18 11:06:22.829209",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Municipality Taxes",
@@ -73,6 +73,8 @@
   }
  ],
  "row_format": "Dynamic",
+ "search_fields": "municipality, state",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
