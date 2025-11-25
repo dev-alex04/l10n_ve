@@ -198,7 +198,7 @@ function get_invoice_activities(frm) {
     const from_date = frappe.datetime.obj_to_str(firstDayObj);
     const to_date = frappe.datetime.obj_to_str(lastDayObj);
 
-    frappe.dom.freeze(__("Buscando actividades económicas de las facturas de venta..."));
+    frappe.dom.freeze(__("Buscando actividades económicas en las facturas..."));
     frappe.call({
       method:
         "l10n_ve.l10n_ve.doctype.ve_municipality_tax_declaration.ve_municipality_tax_declaration.get_activities_from_sales_invoices",
@@ -233,6 +233,9 @@ function get_invoice_activities(frm) {
           );
         }
       },
+      error: function(r) {
+        frappe.dom.unfreeze();
+      }
     });
   } else {
     frappe.msgprint(
