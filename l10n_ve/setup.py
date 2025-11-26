@@ -27,6 +27,7 @@ def set_l10n_ve_data() -> None:
         set_buying_naming_series()
         set_selling_naming_series()
         set_stock_naming_series()
+        set_stock_settings()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -981,3 +982,28 @@ def set_stock_naming_series() -> None:
         frappe.db.rollback()
         frappe.log_error(title="Error Estableciendo Naming Series en Stock Serie", message=str(e))
         frappe.throw("Ocurrió un error Estableciendo Naming Series en Stock Serie")
+
+def set_stock_settings() -> None:
+
+    print(f"Estableciendo valores en Stock Settings")
+    try:
+        settings_to_update = {
+            "auto_indent": 0,
+            "disable_serial_no_and_batch_selector": 0,
+            "do_not_update_serial_batch_on_creation_of_auto_bundle": 0,
+            "auto_create_serial_and_batch_bundle_for_outward": 0,
+            "allow_existing_serial_no": 0,
+            "enable_stock_reservation": 0,
+        }
+
+        frappe.db.set_value('Stock Settings',
+                            'Stock Settings',
+                            settings_to_update)
+
+        frappe.db.commit()
+        print("Varios campos en Stock Settings han sido desactivados.")
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(title="Error estableciendo valores en Stock Settings", message=str(e))
+        frappe.throw("Ocurrió un error al actualizar Stock Settings.")

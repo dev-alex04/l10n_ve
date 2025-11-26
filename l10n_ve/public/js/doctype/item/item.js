@@ -1,13 +1,18 @@
 frappe.ui.form.on("Item", {
   onload: function (frm) {
-    if (frm.is_new() && !frm.doc.reference_currency) {
-      frappe.db
-        .get_value("Company", frm.doc.company, "reference_currency")
-        .then((r) => {
-          if (r.message && r.message.reference_currency) {
-            frm.set_value("reference_currency", r.message.reference_currency);
-          }
-        });
+    if (frm.is_new()) {
+      frm.set_value("has_batch_no", 1);
+      frm.set_value("has_serial_no", 1);
+
+      if (!frm.doc.reference_currency) {
+        frappe.db
+          .get_value("Company", frm.doc.company, "reference_currency")
+          .then((r) => {
+            if (r.message && r.message.reference_currency) {
+              frm.set_value("reference_currency", r.message.reference_currency);
+            }
+          });
+      }
     }
   },
   company: function (frm) {
