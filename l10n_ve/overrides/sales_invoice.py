@@ -3,7 +3,7 @@ from frappe import _
 from frappe.utils import flt, cint
 
 from erpnext.accounts.utils import get_account_currency
-from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
+from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice, make_regional_gl_entries
 
 from l10n_ve.overrides.company import CustomCompany
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
@@ -372,9 +372,29 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
             self.title = self.bill_no
 
     def get_gl_entries(self, warehouse_account=None):
-        gl_entries = super().get_gl_entries(warehouse_account)
+        """
+        Crea y retorna los asientos contables para la factura de venta.
+        Este método sobrescribe el original para permitir un orden personalizado
+        en la generación de los asientos.
+        """
+        from erpnext.accounts.general_ledger import merge_similar_entries
+        gl_entries = []
 
+        gl_entries = merge_similar_entries(gl_entries)
+        self.make_customer_gl_entry(gl_entries)
+        self.make_tax_gl_entries(gl_entries)
+        self.make_item_gl_entries(gl_entries)
         self.make_gl_entries_for_tax_withholding(gl_entries)
+        self.make_discount_gl_entries(gl_entries)
+        self.make_internal_transfer_gl_entries(gl_entries)
+        gl_entries = make_regional_gl_entries(gl_entries, self)
+
+        self.make_loyalty_point_redemption_gle(gl_entries)
+        self.make_pos_gl_entries(gl_entries)
+        self.make_write_off_gl_entry(gl_entries)
+        self.make_gle_for_rounding_adjustment(gl_entries)
+        self.make_precision_loss_gl_entry(gl_entries)
+        self.set_transaction_currency_and_rate_in_gl_map(gl_entries)
 
         for gl in gl_entries:
             gl.bill_control = self.bill_control
@@ -430,6 +450,9 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         )
 
         for tax in self.get("taxes"):
+            if tax.charge_type == 'VAT Withholding':
+                continue
+
             amount, base_amount = self.get_tax_amounts(tax, enable_discount_accounting)
 
             if flt(tax.base_tax_amount_after_discount_amount):
@@ -482,7 +505,7 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
                         "party_type": "Customer",
                         "party": self.customer,
                         "due_date": self.due_date,
-                        "against": self.against_income_account,
+                        "against": tax.account_head,
                         "credit": base_amount,
                         "credit_in_account_currency": base_amount,
                         "credit_in_transaction_currency": amount,
@@ -495,7 +518,27 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
                     item=self,
                 )
             )
-
+                account_currency = get_account_currency(tax.account_head)
+                gl_entries.append(
+                    self.get_gl_dict(
+                        {
+                            "account": tax.account_head,
+                            "against": self.customer,
+                            "debit": flt(base_amount, tax.precision("tax_amount_after_discount_amount")),
+                            "debit_in_account_currency": (
+                                flt(base_amount, tax.precision("base_tax_amount_after_discount_amount"))
+                                if account_currency == self.company_currency
+                                else flt(amount, tax.precision("tax_amount_after_discount_amount"))
+                            ),
+                            "debit_in_transaction_currency": flt(
+                                amount, tax.precision("tax_amount_after_discount_amount")
+                            ),
+                            "cost_center": tax.cost_center,
+                        },
+                        account_currency,
+                        item=tax,
+                    )
+                )
 
 @frappe.whitelist()
 def upload_voucher_data(docname,
