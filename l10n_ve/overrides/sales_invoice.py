@@ -377,10 +377,8 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         Este método sobrescribe el original para permitir un orden personalizado
         en la generación de los asientos.
         """
-        from erpnext.accounts.general_ledger import merge_similar_entries
         gl_entries = []
 
-        gl_entries = merge_similar_entries(gl_entries)
         self.make_customer_gl_entry(gl_entries)
         self.make_tax_gl_entries(gl_entries)
         self.make_item_gl_entries(gl_entries)
@@ -524,7 +522,7 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
                         {
                             "account": tax.account_head,
                             "against": self.customer,
-                            "debit": flt(base_amount, tax.precision("tax_amount_after_discount_amount")),
+                            "debit": flt(base_amount, tax.precision("base_tax_amount_after_discount_amount")),
                             "debit_in_account_currency": (
                                 flt(base_amount, tax.precision("base_tax_amount_after_discount_amount"))
                                 if account_currency == self.company_currency
