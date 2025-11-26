@@ -22,11 +22,13 @@ def set_l10n_ve_data() -> None:
         load_venezuela_data()
         create_bank_venezuelan()
         create_bank_account_types()
+        create_economic_activities()
         uncheck_all_prepared_reports()
         disable_rounded_total()
         set_buying_naming_series()
         set_selling_naming_series()
         set_stock_naming_series()
+        create_municipality_taxes()
         set_stock_settings()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
@@ -903,6 +905,64 @@ def create_bank_account_types() -> str:
     print(f"Success: {mensaje}")
     return mensaje
 
+def create_economic_activities() -> None:
+    """
+    Crea los registros de Actividades Económicas a partir de un archivo CSV.
+    """
+    print("Iniciando la creación de Actividades Económicas...")
+
+    csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 've_economic_activity.csv')
+    doctype = "VE Economic Activity"
+
+    try:
+        with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
+            reader = csv.DictReader(file)
+            activities = list(reader)
+
+        for row in activities:
+            if row.get("is_group") == "1":
+                if not frappe.db.exists(doctype, {"code": row["code"]}):
+                    doc = frappe.new_doc(doctype)
+                    doc.code = row["code"]
+                    doc.description = row["description"]
+                    doc.sector = row.get("sector")
+                    doc.group = row["group"]
+                    doc.branch = row["branch"]
+                    doc.is_group = 1
+                    doc.save(ignore_permissions=True)
+                    print(f"  -> Creado grupo padre: {doc.code}")
+
+        frappe.db.commit()
+
+        for row in activities:
+            if row.get("is_group") != "1":
+                if not frappe.db.exists(doctype, {"code": row["code"]}):
+                    doc = frappe.new_doc(doctype)
+                    doc.code = row["code"]
+                    doc.description = row["description"]
+                    doc.sector = row.get("sector")
+                    doc.group = row.get("group")
+                    doc.branch = row.get("branch")
+
+                    parent_code = row["parent_code"]
+                    parent_doc_name = frappe.db.get_value(doctype,
+                                                         {"code": parent_code},
+                                                         "name")
+
+                    if not parent_doc_name:
+                        frappe.throw(f"No se pudo encontrar la Actividad "
+                                     f"Económica VE Padre con el código: {parent_code}")
+
+                    doc.parent_ve_economic_activity = parent_doc_name
+                    doc.save(ignore_permissions=True)
+                    print(f"  -> Creada actividad hija: {doc.code}")
+
+        frappe.db.commit()
+        print("\nSuccess: Proceso de creación de Actividades Económicas completado.")
+    except Exception as e:
+        print(f"!! FATAL: Ocurrió un error inesperado durante la creación de actividades económicas: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en create_economic_activities')
+
 def uncheck_all_prepared_reports() -> None:
     print(f"Estableciendo valor 0 en prepared_report en Report")
     try:
@@ -983,6 +1043,87 @@ def set_stock_naming_series() -> None:
         frappe.log_error(title="Error Estableciendo Naming Series en Stock Serie", message=str(e))
         frappe.throw("Ocurrió un error Estableciendo Naming Series en Stock Serie")
 
+
+def create_municipality_taxes() -> None:
+    """
+    Crea los registros de Impuestos Municipales (VE Municipality Taxes)
+    """
+    print("Iniciando la creación de Impuestos Municipales...")
+    csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 've_municipality_taxes.csv')
+    doctype = "VE Municipality Taxes"
+
+    try:
+        with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
+            reader = csv.DictReader(file)
+            taxes = list(reader)
+
+        states_map = {s.state: s.name for s in
+                      frappe.get_all("VE State", fields=["name", "state"])}
+
+        municipalities_map = {(m.municipality, m.state): m.name for m in
+                               frappe.get_all("VE Municipality", fields=["name","municipality","state"])}
+
+        activities_map = {a.code: a.name for a in
+                          frappe.get_all("VE Economic Activity",fields=["name","code"])}
+
+        existing_taxes = {(t.municipality, t.economic_activity) for t in
+                          frappe.get_all(doctype,fields=["municipality","economic_activity"])}
+
+        created_count = 0
+        skipped_count = 0
+
+        for row in taxes:
+            municipality_name = row.get("municipality")
+            estado_from_csv = row.get("state")
+            economic_activity_code = row.get("economic_activity")
+
+            ve_state_doc_name = states_map.get(estado_from_csv)
+
+            if not ve_state_doc_name:
+                print(f"  -- Omitiendo fila (Estado no encontrado): "
+                      f"El estado '{estado_from_csv}' del CSV no existe en el sistema.")
+                skipped_count += 1
+                continue
+
+            ve_municipality_doc_name = municipalities_map.get((municipality_name, ve_state_doc_name))
+
+            if not ve_municipality_doc_name:
+                print(f"  -- Omitiendo fila (Municipio no encontrado): "
+                      f"'{municipality_name}' no existe en el estado '{estado_from_csv}'.")
+                skipped_count += 1
+                continue
+
+            ve_economic_activity_doc_name = activities_map.get(economic_activity_code)
+
+            if not ve_economic_activity_doc_name:
+                print(f"  -- Omitiendo fila (Actividad Económica no encontrada):"
+                      f" El código '{economic_activity_code}' no existe.")
+                skipped_count += 1
+                continue
+
+            if (ve_municipality_doc_name, ve_economic_activity_doc_name) in existing_taxes:
+                print(f"  -- Omitiendo (ya existe): Impuesto para "
+                      f"{municipality_name} y actividad {economic_activity_code}.")
+                skipped_count += 1
+                continue
+
+            doc = frappe.new_doc(doctype)
+            doc.state = ve_state_doc_name
+            doc.municipality = ve_municipality_doc_name
+            doc.economic_activity = ve_economic_activity_doc_name
+            doc.aliquot = float(row.get("aliquot") or 0)
+            doc.mt_tcmmv = float(row.get("mt_tcmmv") or 0)
+            doc.save(ignore_permissions=True)
+            created_count += 1
+            print(f"  -> Creado impuesto para: {municipality_name} - {economic_activity_code}")
+
+        frappe.db.commit()
+        print(f"\nSuccess: Proceso completado. Creados: {created_count},"
+              f" Omitidos: {skipped_count} (posibles duplicados o errores en los datos).")
+    except Exception as e:
+        print(f"!! FATAL: Ocurrió un error inesperado durante la creación de impuestos municipales: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en create_municipality_taxes')
+        
 def set_stock_settings() -> None:
 
     print(f"Estableciendo valores en Stock Settings")

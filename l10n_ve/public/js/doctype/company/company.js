@@ -1,6 +1,7 @@
 frappe.ui.form.on("Company", {
   refresh: function (frm) {
     get_address_link(frm);
+    reorganize_customer_fields(frm);
     if (frm.is_new()) {
       frm.set_value("nature_of_the_taxpayer", "");
       frm.set_value("type_of_person", "");
@@ -45,6 +46,10 @@ frappe.ui.form.on("Company", {
 
   tax_id: function (frm) {
     build_rif(frm);
+  },
+
+  legal_representative_id: function (frm) {
+    validate_cedula(frm, 'legal_representative_id');
   },
 
   create_chart_of_accounts_based_on: function (frm) {
@@ -110,3 +115,12 @@ var set_df_company_fields = function (frm) {
     frm.doc.create_chart_of_accounts_based_on === "Existing Company"
   );
 };
+
+function reorganize_customer_fields(frm) {
+  let num_license_wrapper = frm.get_field("num_license_economic").$wrapper;
+  let municipality_wrapper = frm.get_field("municipality").$wrapper;
+  let is_special_taxpayer_wrapper = frm.get_field("is_special_taxpayer").$wrapper;
+
+ num_license_wrapper.insertAfter(is_special_taxpayer_wrapper);
+ municipality_wrapper.insertAfter(num_license_wrapper);
+}

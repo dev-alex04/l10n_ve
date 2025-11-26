@@ -32,19 +32,24 @@ def create_currency_exchange() -> None:
         else:
             to_currency = "VEF"
             currency_data = response.json()
+            current_rates = currency_data.get("current", {})
+            date_str = current_rates.get("date")
+
+            if not date_str:
+                frappe.log_error(f"La fecha no fue encontrada en la respuesta de"
+                                 f" la API del BCV. Datos recibidos: {currency_data}")
+                frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
+                return
+
+            exchange_date = getdate(date_str)
+            purpose = "Selling-Buying"
 
             for from_currency in ['USD', 'EUR']:
+                exchange_rate = current_rates.get(from_currency.lower())
 
-                purpose = "Selling-Buying"
-                exchange_rate = currency_data.get("current", {}).get(from_currency.lower())
-                exchange_date =  getdate(currency_data.get("current", {}).get("date"))
-
-                if not exchange_rate or not exchange_date:
-                    frappe.log_error(
-                        f"Tasa de cambio o fecha no encontrada para {from_currency}"
-                        f" en la respuesta del BCV,"
-                        f"Datos recibidos: {currency_data}"
-                    )
+                if not exchange_rate:
+                    frappe.log_error(f"Tasa de cambio no encontrada para {from_currency} "
+                                     f"en la respuesta del BCV. Datos recibidos: {currency_data}")
                     frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
                     continue
 
@@ -57,9 +62,9 @@ def create_currency_exchange() -> None:
                 if bool(frappe.db.exists(doctype_name_str, exchange_name)):
 
                     frappe.db.set_value(doctype_name_str,
-                                        exchange_name,
-                                        "exchange_rate",
-                                        exchange_rate )
+                                         exchange_name,
+                                         "exchange_rate",
+                                         exchange_rate )
 
                 else:
                     currency_exchange = frappe.new_doc(doctype_name_str)
