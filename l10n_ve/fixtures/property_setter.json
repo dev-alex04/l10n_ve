@@ -2768,6 +2768,7 @@
         "row_name": null,
         "value": "1"
     },
+    {
         "default_value": 1,
         "doc_type": "Company",
         "docstatus": 0,
