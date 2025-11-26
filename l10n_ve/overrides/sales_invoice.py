@@ -3,7 +3,7 @@ from frappe import _
 from frappe.utils import flt, cint
 
 from erpnext.accounts.utils import get_account_currency
-from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
+from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice, make_regional_gl_entries
 
 from l10n_ve.overrides.company import CustomCompany
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
@@ -371,12 +371,86 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         else:
             self.title = self.bill_no
 
+    def get_gl_entries(self, warehouse_account=None):
+        """
+        Crea y retorna los asientos contables para la factura de venta.
+        Este método sobrescribe el original para permitir un orden personalizado
+        en la generación de los asientos.
+        """
+        gl_entries = []
+
+        self.make_customer_gl_entry(gl_entries)
+        self.make_tax_gl_entries(gl_entries)
+        self.make_item_gl_entries(gl_entries)
+        self.make_gl_entries_for_tax_withholding(gl_entries)
+        self.make_discount_gl_entries(gl_entries)
+        self.make_internal_transfer_gl_entries(gl_entries)
+        gl_entries = make_regional_gl_entries(gl_entries, self)
+
+        self.make_loyalty_point_redemption_gle(gl_entries)
+        self.make_pos_gl_entries(gl_entries)
+        self.make_write_off_gl_entry(gl_entries)
+        self.make_gle_for_rounding_adjustment(gl_entries)
+        self.make_precision_loss_gl_entry(gl_entries)
+        self.set_transaction_currency_and_rate_in_gl_map(gl_entries)
+
+        for gl in gl_entries:
+            gl.bill_control = self.bill_control
+            gl.bill_no = self.bill_no or self.credit_note_no or self.debit_note_no
+
+        return gl_entries
+
+    def make_customer_gl_entry(self, gl_entries):
+        # Checked both rounding_adjustment and rounded_total
+        # because rounded_total had value even before introduction of posting GLE based on rounded total
+        grand_total = (
+            self.rounded_total if (self.rounding_adjustment and self.rounded_total) else self.grand_total
+        )
+        base_grand_total = flt(
+            self.base_rounded_total
+            if (self.base_rounding_adjustment and self.base_rounded_total)
+            else self.base_grand_total,
+            self.precision("base_grand_total"),
+        ) + flt(self.total_withholding * self.conversion_rate, self.precision("base_grand_total"))
+
+        if grand_total and not self.is_internal_transfer():
+            against_voucher = self.name
+            if self.is_return and self.return_against and not self.update_outstanding_for_self:
+                against_voucher = self.return_against
+
+            # Did not use base_grand_total to book rounding loss gle
+            gl_entries.append(
+                self.get_gl_dict(
+                    {
+                        "account": self.debit_to,
+                        "party_type": "Customer",
+                        "party": self.customer,
+                        "due_date": self.due_date,
+                        "against": self.against_income_account,
+                        "debit": base_grand_total,
+                        "debit_in_account_currency": base_grand_total
+                        if self.party_account_currency == self.company_currency
+                        else grand_total,
+                        "debit_in_transaction_currency": grand_total,
+                        "against_voucher": against_voucher,
+                        "against_voucher_type": self.doctype,
+                        "cost_center": self.cost_center,
+                        "project": self.project,
+                    },
+                    self.party_account_currency,
+                    item=self,
+                )
+            )
+
     def make_tax_gl_entries(self, gl_entries) -> None:
         enable_discount_accounting = cint(
             frappe.db.get_single_value("Selling Settings", "enable_discount_accounting")
         )
 
         for tax in self.get("taxes"):
+            if tax.charge_type == 'VAT Withholding':
+                continue
+
             amount, base_amount = self.get_tax_amounts(tax, enable_discount_accounting)
 
             if flt(tax.base_tax_amount_after_discount_amount):
@@ -408,11 +482,61 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
                     )
                 )
 
-    def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
-        """
-        Se inactiva esta funcion, ya que aqui no se harán los asientos de las retenciones
-        """
-        return
+    def make_gl_entries_for_tax_withholding(self, gl_entries):
+
+        enable_discount_accounting = cint(
+            frappe.db.get_single_value("Selling Settings", "enable_discount_accounting")
+        )
+
+        for tax in self.get("taxes"):
+            if tax.charge_type != 'VAT Withholding':
+                continue
+
+            amount, base_amount = self.get_tax_amounts(tax, enable_discount_accounting)
+
+            if flt(tax.base_tax_amount_after_discount_amount):
+
+                gl_entries.append(
+                self.get_gl_dict(
+                    {
+                        "account": self.debit_to,
+                        "party_type": "Customer",
+                        "party": self.customer,
+                        "due_date": self.due_date,
+                        "against": tax.account_head,
+                        "credit": base_amount,
+                        "credit_in_account_currency": base_amount,
+                        "credit_in_transaction_currency": amount,
+                        "against_voucher": self.name,
+                        "against_voucher_type": self.doctype,
+                        "cost_center": self.cost_center,
+                        "project": self.project,
+                    },
+                    self.party_account_currency,
+                    item=self,
+                )
+            )
+                account_currency = get_account_currency(tax.account_head)
+                gl_entries.append(
+                    self.get_gl_dict(
+                        {
+                            "account": tax.account_head,
+                            "against": self.customer,
+                            "debit": flt(base_amount, tax.precision("base_tax_amount_after_discount_amount")),
+                            "debit_in_account_currency": (
+                                flt(base_amount, tax.precision("base_tax_amount_after_discount_amount"))
+                                if account_currency == self.company_currency
+                                else flt(amount, tax.precision("tax_amount_after_discount_amount"))
+                            ),
+                            "debit_in_transaction_currency": flt(
+                                amount, tax.precision("tax_amount_after_discount_amount")
+                            ),
+                            "cost_center": tax.cost_center,
+                        },
+                        account_currency,
+                        item=tax,
+                    )
+                )
 
 @frappe.whitelist()
 def upload_voucher_data(docname,

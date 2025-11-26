@@ -95,6 +95,9 @@ doctype_js = {
     "Item": [
         "public/js/doctype/item/item.js",
     ],
+    "Material Request": [
+        "public/js/doctype/material_request/material_request.js",
+    ],
     "Supplier Quotation": [
         "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
@@ -114,6 +117,7 @@ doctype_js = {
 doctype_list_js = {
     "Sales Invoice": "public/js/doctype/sales_invoice/sales_invoice_list.js",
     "Purchase Invoice": "public/js/doctype/purchase_invoice/purchase_invoice_list.js",
+    "Currency Exchange": "public/js/doctype/currency_exchange/currency_exchange_list.js",
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -157,8 +161,11 @@ doctype_list_js = {
 # before_install = "l10n_ve.install.before_install"
 
 after_install = [
+    "l10n_ve.patches.monkey_patches.apply_post_db_patches",
     "l10n_ve.setup.set_l10n_ve_data"
 ]
+
+after_migrate = "l10n_ve.patches.monkey_patches.apply_post_db_patches"
 
 # Uninstallation
 # ------------
@@ -268,9 +275,14 @@ scheduler_events = {
 #
 
 override_whitelisted_methods = {
+    "erpnext.accounts.utils.get_coa": "l10n_ve.whitelisted.account.utils.get_coa",
     "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry": "l10n_ve.overrides.payment_entry.get_payment_entry",
-    "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_charts_for_country": "l10n_ve.whitelisted.chart_of_accounts.get_charts_for_country",
+    "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_chart": "l10n_ve.patches.accounts.chart_of_accounts.get_chart",
+    "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.build_tree_from_json": "l10n_ve.patches.accounts.chart_of_accounts.build_tree_from_json",
+    "erpnext.accounts.doctype.payment_entry.payment_entry.get_outstanding_reference_documents": "l10n_ve.overrides.payment_entry.get_outstanding_reference_documents",
+    "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_charts_for_country": "l10n_ve.whitelisted.account.chart_of_accounts.get_charts_for_country",
 }
+
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
