@@ -112,6 +112,9 @@ doctype_js = {
     "Purchase Taxes and Charges Template": [
         "public/js/doctype/purchase_taxes_and_charges/purchase_taxes_and_charges.js",
     ],
+    "Stock Entry": [
+        "public/js/doctype/stock_entry/stock_entry.js",
+    ],
 }
 
 doctype_list_js = {
