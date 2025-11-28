@@ -2929,50 +2929,5 @@
         "property": "description",
         "property_type": "Text",
         "value": "Si está habilitado, no actualice los valores de serie / lote en las transacciones de stock al crear el Paquete de Serie / Lote automático."
-    },
-    {
-        "doc_type": "Medical Department",
-        "docstatus": 0,
-        "doctype": "Property Setter",
-        "doctype_or_field": "DocType",
-        "field_name": null,
-        "is_system_generated": 0,
-        "modified": "2025-09-12 10:00:00",
-        "module": "l10n_ve",
-        "name": "Medical Department-translated_doctype",
-        "property": "translated_doctype",
-        "property_type": "Check",
-        "row_name": null,
-        "value": "1"
-    },
-    {
-        "doc_type": "Antibiotic",
-        "docstatus": 0,
-        "doctype": "Property Setter",
-        "doctype_or_field": "DocType",
-        "field_name": null,
-        "is_system_generated": 0,
-        "modified": "2025-09-12 10:00:00",
-        "module": "l10n_ve",
-        "name": "Antibiotic-translated_doctype",
-        "property": "translated_doctype",
-        "property_type": "Check",
-        "row_name": null,
-        "value": "1"
-    },
-    {
-        "doc_type": "Patient Care Type",
-        "docstatus": 0,
-        "doctype": "Property Setter",
-        "doctype_or_field": "DocType",
-        "field_name": null,
-        "is_system_generated": 0,
-        "modified": "2025-09-12 10:00:00",
-        "module": "l10n_ve",
-        "name": "Patient Care Type-translated_doctype",
-        "property": "translated_doctype",
-        "property_type": "Check",
-        "row_name": null,
-        "value": "1"
     }
 ]
