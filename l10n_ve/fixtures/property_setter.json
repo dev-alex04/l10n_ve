@@ -2850,7 +2850,7 @@
         "is_system_generated": 0,
         "modified": "2025-11-27 21:33:55.000000",
         "module": "L10N Ve",
-        "name": "Stock Entry-currency-options",
+        "name": "Stock Entry-total_incoming_value-currency-options",
         "property": "options",
         "property_type": "Text",
         "value": "reference_currency"
@@ -2880,7 +2880,7 @@
         "is_system_generated": 0,
         "modified": "2025-11-27 21:33:55.000000",
         "module": "L10N Ve",
-        "name": "Stock Entry-total_outgoing_value-currency-options",
+        "name": "Stock Entry-total_outgoing_value-options",
         "property": "options",
         "property_type": "Text",
         "value": "reference_currency"
@@ -2895,7 +2895,7 @@
         "is_system_generated": 0,
         "modified": "2025-11-27 21:33:55.000000",
         "module": "L10N Ve",
-        "name": "Stock Entry-currency-options",
+        "name": "Stock Entry-value_difference-options",
         "property": "options",
         "property_type": "Text",
         "value": "reference_currency"
@@ -2969,7 +2969,7 @@
         "is_system_generated": 0,
         "modified": "2025-09-12 10:00:00",
         "module": "l10n_ve",
-        "name": "Patient Care Type.translated_doctype",
+        "name": "Patient Care Type-translated_doctype",
         "property": "translated_doctype",
         "property_type": "Check",
         "row_name": null,

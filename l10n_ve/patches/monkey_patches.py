@@ -51,8 +51,8 @@ except ImportError as e:
 try:
     import l10n_ve.patches.stock.utils
 except ImportError as e:
-    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.Stock.utils. Error: {e}")
-    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.Stock.utils')
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.stock.utils. Error: {e}")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.stock.utils')
 
 
 def apply_post_db_patches() -> None:
