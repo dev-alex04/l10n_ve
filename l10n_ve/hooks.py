@@ -1,14 +1,14 @@
 app_name = "l10n_ve"
 app_title = "L10N Ve"
 app_publisher = "DominaERP"
-app_description = "Localizacion Venezolana"
+app_description = "Localizacion Venezolana para ERPNext"
 app_email = "dominaerp@domina.com.ve"
 app_license = "mit"
 
 app_include_js = [
-    "/assets/l10n_ve/js/company.js",
     "/assets/l10n_ve/js/toolbar/toolbar.js",
     "/assets/l10n_ve/js/item_logic/item_logic.js",
+    "/assets/l10n_ve/js/utils/report_view_patch.js",
 ]
 
 # Apps

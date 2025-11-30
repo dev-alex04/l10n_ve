@@ -49,7 +49,7 @@ frappe.ui.form.on("Company", {
   },
 
   legal_representative_id: function (frm) {
-    validate_cedula(frm, 'legal_representative_id');
+    validate_cedula(frm, "legal_representative_id");
   },
 
   create_chart_of_accounts_based_on: function (frm) {
@@ -119,8 +119,10 @@ var set_df_company_fields = function (frm) {
 function reorganize_customer_fields(frm) {
   let num_license_wrapper = frm.get_field("num_license_economic").$wrapper;
   let municipality_wrapper = frm.get_field("municipality").$wrapper;
-  let is_special_taxpayer_wrapper = frm.get_field("is_special_taxpayer").$wrapper;
+  let is_special_taxpayer_wrapper = frm.get_field(
+    "is_special_taxpayer"
+  ).$wrapper;
 
- num_license_wrapper.insertAfter(is_special_taxpayer_wrapper);
- municipality_wrapper.insertAfter(num_license_wrapper);
+  num_license_wrapper.insertAfter(is_special_taxpayer_wrapper);
+  municipality_wrapper.insertAfter(num_license_wrapper);
 }
