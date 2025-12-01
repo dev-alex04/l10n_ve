@@ -1,4 +1,13 @@
 frappe.ui.form.on("Customer", {
+  before_save: function (frm) {
+    if (!frm.doc.customer_primary_address) {
+      frappe.throw(
+        __(
+          "El campo 'Dirección Principal' es obligatorio. Por favor, ingrese una dirección usando el botón 'Agregar Dirección' en la parte superior derecha"
+        )
+      );
+    }
+  },
   onload: function (frm) {
     if (frm.is_new()) {
       frm.set_value("type_of_document", "");
