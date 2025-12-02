@@ -459,7 +459,7 @@ function realtime_numeric_validation(frm, fieldname) {
 
 
 function add_address_button(frm) {
-  if (frm.is_new() && !frm.custom_buttons["Agregar Dirección"]) {
+  if (frm.is_new() && !frm.doc.customer_primary_address || !frm.custom_buttons["Agregar Dirección"]) {
     frm.add_custom_button(__("Agregar Dirección"), () => {
       _get_address_dialog(frm).show();
     });
