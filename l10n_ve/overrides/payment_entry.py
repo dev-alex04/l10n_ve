@@ -292,6 +292,11 @@ class CustomPaymentEntry(PaymentEntry):
         """
         Valida que el número de referencia tenga al menos 4 dígitos y sea numérico.
         """
+
+        if frappe.db.has_column('Payment Entry', 'is_bdv_payment'):
+            if self.is_bdv_payment == True:
+                return
+
         if not self.reference_no:
             return
 
