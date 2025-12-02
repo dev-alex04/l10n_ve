@@ -328,17 +328,6 @@ fixtures = [
     }
 ]
 
-def get_fixtures():
-    import frappe
-    if "healthcare" in frappe.get_installed_apps():
-        return [
-            {
-                "doctype": "Property Setter",
-                "name": "healthcare_property_setter"
-            }
-        ]
-    return []
-
 # exempt linked doctypes from being automatically cancelled
 #
 # auto_cancel_exempted_doctypes = ["Auto Repeat"]
