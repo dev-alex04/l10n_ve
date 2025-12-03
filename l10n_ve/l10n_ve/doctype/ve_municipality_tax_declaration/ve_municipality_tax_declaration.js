@@ -292,7 +292,7 @@ async function currency_data_setting(frm) {
       title: __("Configuración Requerida"),
       indicator: "orange",
       message: __(
-        "Por favor, configure la <b>Moneda para Impuestos Municipales</b> en la sección de <b>Configuración de Cuentas de Venezuela</b>."
+        "Por favor, configure la <b>Moneda para Impuestos Municipales</b> en la sección de <a href='/app/venezuela-account-settings'><b>Configuración Contable Venezolana</b></a>."
       ),
     });
   }
