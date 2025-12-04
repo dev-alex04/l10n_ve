@@ -51,6 +51,9 @@ app_include_js = [
 
 # include js in doctype views
 doctype_js = {
+    "Bank Statement Import": [
+        "public/js/doctype/bank_statement_import/bank_statement_import.js",
+    ],
     "Company": [
         "public/js/utils/utils.js",
         "public/js/doctype/company/company.js",
