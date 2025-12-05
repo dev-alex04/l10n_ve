@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Any
 from frappe.utils import get_link_to_form
 import csv
-import os # Importación del módulo os
-import unicodedata # Importación del módulo unicodedata
+import os
+import unicodedata
 import io
 import openpyxl
 import xlrd
@@ -178,11 +178,45 @@ def start_custom_import(docname: str) -> dict[str, Any]:
 
     transactions_created = 0
     errors = []
+    skipped_rows = []
+
+    EXCLUSION_KEYWORDS = [
+        "total", "saldo", "final", "resumen", "importe", "debito total", "saldo final"
+    ]
+
+    def should_exclude_row(row_data):
+        """Comprueba si una fila contiene alguna palabra clave de exclusión."""
+        normalized_row_values = [
+            "".join(c for c in unicodedata.normalize('NFD', str(x).lower().strip())
+                    if unicodedata.category(c) != 'Mn')
+            for x in row_data
+        ]
+        for val in normalized_row_values:
+            for keyword in EXCLUSION_KEYWORDS:
+                if keyword in val:
+                    return True
+        return False
 
     for i, row in enumerate(transactions_data):
         row_num = header_row_index + 2 + i
         try:
             if not any(row):
+                skipped_rows.append(str(row_num))
+                continue
+
+            if should_exclude_row(row):
+                skipped_rows.append(str(row_num))
+                continue
+
+            is_valid_row = True
+            for col_name in column_to_field_map.keys():
+                idx = header_indexes.get(col_name)
+                if idx is None or idx >= len(row) or not str(row[idx]).strip():
+                    is_valid_row = False
+                    break
+
+            if not is_valid_row:
+                skipped_rows.append(str(row_num))
                 continue
 
             new_transaction = frappe.new_doc("Bank Transaction")
@@ -212,14 +246,12 @@ def start_custom_import(docname: str) -> dict[str, Any]:
                                 "tanto en Débito como en Crédito.").format(row_num))
                 continue
 
-            if flt(new_transaction.withdrawal) > 0:
-                new_transaction.allocated_amount = flt(new_transaction.withdrawal)
-
-            elif flt(new_transaction.deposit) > 0:
-                new_transaction.unallocated_amount = flt(new_transaction.deposit)
-
-            else:
+            if not flt(new_transaction.withdrawal) and not flt(new_transaction.deposit):
+                skipped_rows.append(str(row_num))
                 continue
+
+            new_transaction.allocated_amount = flt(new_transaction.withdrawal)
+            new_transaction.unallocated_amount = flt(new_transaction.deposit)
 
             new_transaction.flags.ignore_permissions = True
             new_transaction.insert()
@@ -240,21 +272,28 @@ def start_custom_import(docname: str) -> dict[str, Any]:
 
     doc.save(ignore_permissions=True)
 
+    final_message = ""
+    if transactions_created > 0:
+        final_message += _("Transacciones creadas: {0}").format(transactions_created)
+
+    if skipped_rows:
+        final_message += "<br>" + _("Filas omitidas (vacías o sin monto): {0}").format(len(skipped_rows))
+
     if errors:
+        final_message += "<br>" + _("Errores: <br>{0}").format("<br>".join(errors))
         frappe.msgprint(
-            _("Proceso completado con errores.<br>Transacciones " \
-              "creadas: {0}<br>Errores: <br>{1}").format(
-                transactions_created, "<br>".join(errors)
-            ),
+            _("Proceso completado con errores.") + "<br>" + final_message,
             title=_("Resultado de la Importación"),
             indicator="orange"
         )
-
+    elif transactions_created > 0:
+        frappe.msgprint(
+            _("¡Importación completada con éxito!") + "<br>" + final_message,
+            title=_("Importación Exitosa"),
+            indicator="green"
+        )
     else:
         frappe.msgprint(
-            _("¡Importación completada con éxito! Se " \
-              "crearon {0} transacciones.").format(transactions_created),
-            title=_("Importación Exitosa")
-        )
+            _("No se importaron transacciones.") + "<br>" + final_message, title=_("Resultado de la Importación"))
 
     return {"status": "success", "created": transactions_created}
