@@ -153,11 +153,11 @@ def start_custom_import(docname: str) -> dict[str, Any]:
         ]
 
         if missing_header_details:
-            frappe.msgprint(
-                _("No se encontraron las siguientes columnas en el archivo y serán"
-                  " ignoradas:<br><b>{0}</b>").format("<br>".join(missing_header_details)),
-                title=_("Columnas Faltantes"),
-                indicator="orange"
+            frappe.throw(
+                _("No se encontraron las siguientes columnas obligatorias en el archivo:"
+                  "<br><b>{0}</b><br><br>Por favor, corrija el nombre de las columnas en el "
+                  "archivo o ajuste el mapeo en la configuración del banco.").format("<br>".join(missing_header_details)),
+                title=_("Columnas Obligatorias Faltantes")
             )
 
         column_to_field_map = {row_normalized[norm_h]: column_to_field_map[orig_h]
@@ -229,7 +229,7 @@ def start_custom_import(docname: str) -> dict[str, Any]:
 
                 if value:
                     if field_name in ["deposit", "withdrawal"]:
-                        new_transaction.set(field_name, flt(value))
+                        new_transaction.set(field_name, abs(flt(value)))
 
                     elif field_name == "date":
                         try:
@@ -250,8 +250,8 @@ def start_custom_import(docname: str) -> dict[str, Any]:
                 skipped_rows.append(str(row_num))
                 continue
 
-            new_transaction.allocated_amount = flt(new_transaction.withdrawal)
-            new_transaction.unallocated_amount = flt(new_transaction.deposit)
+            new_transaction.allocated_amount = new_transaction.withdrawal
+            new_transaction.unallocated_amount = new_transaction.deposit
 
             new_transaction.flags.ignore_permissions = True
             new_transaction.insert()
@@ -277,7 +277,9 @@ def start_custom_import(docname: str) -> dict[str, Any]:
         final_message += _("Transacciones creadas: {0}").format(transactions_created)
 
     if skipped_rows:
-        final_message += "<br>" + _("Filas omitidas (vacías o sin monto): {0}").format(len(skipped_rows))
+        final_message += "<br>" + _("Filas omitidas ({0}): {1}").format(
+            len(skipped_rows), ", ".join(skipped_rows)
+        )
 
     if errors:
         final_message += "<br>" + _("Errores: <br>{0}").format("<br>".join(errors))
