@@ -1,13 +1,15 @@
-import frappe
-from frappe import _
 import json
+import base64
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
-from datetime import datetime
-import base64
+from openpyxl.styles import Font, Border, Side, Alignment
+
+import frappe
+from frappe import _
+
 from l10n_ve.l10n_ve.report.purchase_book.purchase_book import execute, get_totals_from_data
+
 
 class ExcelBuilder:
     """
@@ -184,7 +186,12 @@ class ExcelBuilder:
 
         current_row = start_row + 2
         summary_start_col = 13
-        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
 
         # Configuración de encabezados del resumen
         summary_headers = [

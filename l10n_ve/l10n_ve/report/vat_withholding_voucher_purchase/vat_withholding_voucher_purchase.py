@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
-import json
 from frappe.utils import getdate
+
 from l10n_ve.utils.utils import format_amounts
 
 @frappe.whitelist()
@@ -16,20 +16,20 @@ def generate_vat_report(voucher_name):
     special_formats = {'rate': '{:.2f}'}
 
     format_amounts(doc, [
-		"totals_grand_total",
-		"totals_total_exempt",
-		"totals_total",
-		"totals_taxes_and_charges_added",
+        "totals_grand_total",
+        "totals_total_exempt",
+        "totals_total",
+        "totals_taxes_and_charges_added",
         "totals_tax_amount_vat",
-	], [
-		"grand_total",
-		"rate",
-		"total_exempt",
-		"total",
-		"taxes_and_charges_added",
-		"tax_amount_vat",
+    ], [
+        "grand_total",
+        "rate",
+        "total_exempt",
+        "total",
+        "taxes_and_charges_added",
+        "tax_amount_vat",
         ''
-	], "vat_withholding_voucher_item", special_formats)
+    ], "vat_withholding_voucher_item", special_formats)
 
     items_per_page = 10
     total_items = len(doc.vat_withholding_voucher_item)
@@ -65,33 +65,33 @@ def generate_vat_report(voucher_name):
             /* Estilos para el formato de impresión */
             @page {{
                 size: A4 landscape;
-				margin: 5mm;
+                margin: 5mm;
             }}
 
-			.page-container {{
-				width: 90%;
-				margin: 0 auto;
+            .page-container {{
+                width: 90%;
+                margin: 0 auto;
                 page-break-after: always;
-			}}
+            }}
 
             .page-container:last-child {{
                 page-break-after: avoid;
             }}
 
-			.page-header {{
-				width: 90%;
-				margin: 0 auto 5mm auto;
-			}}
+            .page-header {{
+                width: 90%;
+                margin: 0 auto 5mm auto;
+            }}
 
             .footer {{
-				position: fixed;
-				bottom: 0;
-				left: 0;
-				right: 0;
-				height: 20mm;
-				text-align: right;
-				font-size: 10px;
-			}}
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 20mm;
+                text-align: right;
+                font-size: 10px;
+            }}
 
             .mb-7 {{
                 margin-bottom: 0px !important;
@@ -120,22 +120,22 @@ def generate_vat_report(voucher_name):
                 border-spacing: 0;
             }}
 
-			.withholding-voucher-table h6, .withholding-voucher-table p {{
-				margin: 2px 0;
-			}}
+            .withholding-voucher-table h6, .withholding-voucher-table p {{
+                margin: 2px 0;
+            }}
 
-			.withholding-voucher-table {{
-				width: 100%;
-				margin: 0 auto;
-				border-collapse: separate;
-				border-spacing: 5px;
-			}}
+            .withholding-voucher-table {{
+                width: 100%;
+                margin: 0 auto;
+                border-collapse: separate;
+                border-spacing: 5px;
+            }}
 
-			.withholding-voucher-table td {{
-				padding: 5px;
-				vertical-align: top;
-				border: 1px solid #000;
-			}}
+            .withholding-voucher-table td {{
+                padding: 5px;
+                vertical-align: top;
+                border: 1px solid #000;
+            }}
 
             b, strong, h6 {{
                 font-weight: bold !important;
@@ -145,14 +145,14 @@ def generate_vat_report(voucher_name):
                 border-bottom: 1px solid #000;
             }}
 
-			.withholding-voucher-details-table {{
-				border-collapse: collapse;
+            .withholding-voucher-details-table {{
+                border-collapse: collapse;
                 font-size: 12px;
                 width: 100%;
                 margin: 0 auto;
-			}}
+            }}
 
-			.withholding-voucher-details-table th {{
+            .withholding-voucher-details-table th {{
                 border-top: 1px solid #000;
             }}
 
@@ -172,9 +172,9 @@ def generate_vat_report(voucher_name):
                 page-break-after: avoid;
             }}
 
-			.withholding-voucher-table p {{
-				font-size: 12px;
-			}}
+            .withholding-voucher-table p {{
+                font-size: 12px;
+            }}
         </style>
     </head>
     <body>
