@@ -30,8 +30,8 @@ def set_l10n_ve_data() -> None:
         set_stock_naming_series()
         create_municipality_taxes()
         set_stock_settings()
-
         create_bank_transaction_mappings()
+
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
     except Exception as e:

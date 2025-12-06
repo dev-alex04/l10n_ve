@@ -34,18 +34,17 @@ def start_custom_import(docname: str) -> dict[str, Any]:
                 reader = csv.reader(f)
                 data = list(reader)
 
-        except Exception as e:
+        except (IOError, csv.Error) as e:
             frappe.throw(_("Error al leer el archivo CSV: {0}").format(str(e)))
 
     elif file_extension in ['xlsx']:
         try:
-            with open(file_path, "rb") as f:
-                workbook = openpyxl.load_workbook(io.BytesIO(f.read()))
-                for sheet in workbook:
-                    data.extend(
-                        ([cell if cell is not None else "" for cell in row])
-                        for row in sheet.iter_rows(values_only=True)
-                    )
+            workbook = openpyxl.load_workbook(file_path, read_only=True)
+            for sheet in workbook:
+                data.extend(
+                    ([cell if cell is not None else "" for cell in row])
+                    for row in sheet.iter_rows(values_only=True)
+                )
         except Exception as e:
             frappe.throw(_("Error al leer el archivo XLSX: {0}").format(str(e)))
 
@@ -54,18 +53,19 @@ def start_custom_import(docname: str) -> dict[str, Any]:
             workbook = xlrd.open_workbook(file_path)
             for sheet in workbook.sheets():
                 for row_idx in range(sheet.nrows):
-                    processed_row = [
+                    processed_row = []
+                    for col_idx in range(sheet.ncols):
+                        cell_value = sheet.cell_value(row_idx, col_idx)
+                        if cell_value is None:
+                            processed_row.append("")
+                            continue
 
-                    datetime(*xlrd.xldate_as_tuple(sheet.cell_value(row_idx, col_idx),
-                                                    workbook.datemode)[:3]).strftime("%d/%m/%Y")
-
-                    if sheet.cell_type(row_idx, col_idx) == xlrd.XL_CELL_DATE
-                    else sheet.cell_value(row_idx, col_idx)
-                    if sheet.cell_value(row_idx, col_idx) is not None else ""
-                    for col_idx in range(sheet.ncols)
-
-                    ]
-
+                        if sheet.cell_type(row_idx, col_idx) == xlrd.XL_CELL_DATE:
+                            date_tuple = xlrd.xldate_as_tuple(cell_value, workbook.datemode)
+                            processed_row.append(datetime(*date_tuple[:3]).strftime("%d/%m/%Y"))
+                        else:
+                            processed_row.append(cell_value)
+                            
                     data.append(processed_row)
         except Exception as e:
             frappe.throw(_("Error al leer el archivo XLS: {0}").format(str(e)))
