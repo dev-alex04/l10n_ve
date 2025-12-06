@@ -31,6 +31,7 @@ def set_l10n_ve_data() -> None:
         create_municipality_taxes()
         set_stock_settings()
 
+        create_bank_transaction_mappings()
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
     except Exception as e:
@@ -1148,3 +1149,57 @@ def set_stock_settings() -> None:
         frappe.db.rollback()
         frappe.log_error(title="Error estableciendo valores en Stock Settings", message=str(e))
         frappe.throw("Ocurrió un error al actualizar Stock Settings.")
+
+
+def create_bank_transaction_mappings() -> None:
+    """
+    Actualiza los DocTypes de Banco existentes para añadirles las reglas de mapeo
+    de transacciones bancarias.
+    """
+    print("Iniciando la creación de mapeos de transacciones bancarias...")
+
+    if not frappe.db.has_table("Bank Transaction Mapping"):
+        print("  -- Omitiendo: El DocType 'Bank Transaction Mapping' (tabla hija) no se encuentra en esta versión de ERPNext.")
+        return
+
+    bank_mappings = {
+        "0102": "Banco de Venezuela",
+        "0172": "Bancamiga"
+    }
+
+    bank_mapping_rules = {
+        "0102": [ 
+            {'bank_transaction_field': 'date', 'file_field': 'Fecha'},
+            {'bank_transaction_field': 'deposit', 'file_field': 'Credito'},
+            {'bank_transaction_field': 'withdrawal', 'file_field': 'Debito'},
+            {'bank_transaction_field': 'reference_number', 'file_field': 'Referencia'},
+            {'bank_transaction_field': 'description', 'file_field': 'Descripción'},
+        ],
+        "0172": [ 
+            {'bank_transaction_field': 'date', 'file_field': 'Fecha'},
+            {'bank_transaction_field': 'deposit', 'file_field': 'Credito'},
+            {'bank_transaction_field': 'withdrawal', 'file_field': 'Debito'},
+            {'bank_transaction_field': 'reference_number', 'file_field': 'Referencia'},
+            {'bank_transaction_field': 'description', 'file_field': 'Concepto'},
+        ]
+    }
+
+    for bank_code, bank_name in bank_mappings.items():
+        try:
+            bank_doc = frappe.get_doc("Bank", {"swift_number": bank_code})
+
+            bank_doc.set("bank_transaction_mapping", [])
+
+            for rule in bank_mapping_rules.get(bank_code, []):
+                bank_doc.append("bank_transaction_mapping", rule)
+
+            bank_doc.save(ignore_permissions=True)
+            print(f"  -> Creado mapeo para el banco: '{bank_name}'.")
+
+
+        except Exception as e:
+            print(f"!! FAILURE al crear el mapeo para el banco con código '{bank_code}': {e}")
+            frappe.log_error(frappe.get_traceback(), f'Error en create_bank_transaction_mappings para el banco {bank_code}')
+
+    frappe.db.commit()
+    print("Success: Creación de mapeos de transacciones bancarias completada.")
