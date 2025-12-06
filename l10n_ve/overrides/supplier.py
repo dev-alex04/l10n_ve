@@ -16,7 +16,6 @@ class CustomSupplier(Supplier):
                             "Por favor, ingrese una dirección usando el botón "
                             "'Agregar Dirección' en la parte superior derecha"))
 
-
     def on_update(self):
         super().on_update()
         if self.supplier_primary_address:

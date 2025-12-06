@@ -219,7 +219,7 @@ override_doctype_class = {
     "Company": "l10n_ve.overrides.company.CustomCompany",
     "Address": "l10n_ve.overrides.address.CustomAddress",
     "Supplier": "l10n_ve.overrides.supplier.CustomSupplier",
-    "Customer": "l10n_ve.overrides.customer.CustomCustomer",
+    "Customer": "l10n_ve.overrides.customer.VECustomer",
     "Quotation": "l10n_ve.overrides.quotation.CustomQuotation",
     "Item Price": "l10n_ve.overrides.item_price.CustomItemPrice",
     "Sales Order": "l10n_ve.overrides.sales_order.CustomSalesOrder",

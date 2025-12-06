@@ -257,7 +257,6 @@ def get_totals_from_data(data: list[dict]) -> dict:
             iva_retenido_terceros += row.get("iva_retenido_terceros", 0)
             anticipo_iva_importacion += row.get("anticipo_iva_importacion", 0)
 
-
             bases = {
                 "general": flt(row.get("base_general")),
                 "adicional": flt(row.get("base_adicional")),

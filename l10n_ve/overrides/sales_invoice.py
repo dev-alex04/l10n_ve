@@ -134,7 +134,6 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
             'docstatus': ['in', [0, 1]],
         }
 
-
         void_filters = {
             'company': self.company,
             'name': ['!=', self.name],
@@ -150,7 +149,6 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
                                                  filters=void_filters,
                                                  pluck='name') or [])
-
         if duplicated_docs:
             duplicated_msg = []
             if self.is_return:
@@ -216,7 +214,6 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
                                                  filters=void_filters,
                                                  pluck='name') or [])
-
         if duplicated_docs:
             duplicated_msg = []
             for duplicated in set(duplicated_docs):
@@ -275,7 +272,6 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
                                                  filters=void_filters,
                                                  pluck='name') or [])
-
         if duplicated_docs:
             duplicated_msg = []
             for duplicated in set(duplicated_docs):
@@ -329,7 +325,6 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
         duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
                                                  filters=void_filters,
                                                    pluck='name') or [])
-
         if duplicated_docs:
             duplicated_msg = []
             for duplicated in set(duplicated_docs):
@@ -497,25 +492,25 @@ class CustomSalesInvoice(TaxesMixin, SalesInvoice):
             if flt(tax.base_tax_amount_after_discount_amount):
 
                 gl_entries.append(
-                self.get_gl_dict(
-                    {
-                        "account": self.debit_to,
-                        "party_type": "Customer",
-                        "party": self.customer,
-                        "due_date": self.due_date,
-                        "against": tax.account_head,
-                        "credit": base_amount,
-                        "credit_in_account_currency": base_amount,
-                        "credit_in_transaction_currency": amount,
-                        "against_voucher": self.name,
-                        "against_voucher_type": self.doctype,
-                        "cost_center": self.cost_center,
-                        "project": self.project,
-                    },
-                    self.party_account_currency,
-                    item=self,
+                    self.get_gl_dict(
+                        {
+                            "account": self.debit_to,
+                            "party_type": "Customer",
+                            "party": self.customer,
+                            "due_date": self.due_date,
+                            "against": tax.account_head,
+                            "credit": base_amount,
+                            "credit_in_account_currency": base_amount,
+                            "credit_in_transaction_currency": amount,
+                            "against_voucher": self.name,
+                            "against_voucher_type": self.doctype,
+                            "cost_center": self.cost_center,
+                            "project": self.project,
+                        },
+                        self.party_account_currency,
+                        item=self,
+                    )
                 )
-            )
                 account_currency = get_account_currency(tax.account_head)
                 gl_entries.append(
                     self.get_gl_dict(

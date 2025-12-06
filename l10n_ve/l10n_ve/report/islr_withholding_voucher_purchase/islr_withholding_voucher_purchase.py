@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
-from frappe.utils import getdate, get_url as get_full_url, escape_html
+from frappe.utils import getdate, escape_html
+
 from l10n_ve.utils.utils import format_amounts
 
 @frappe.whitelist()
@@ -13,19 +14,23 @@ def generate_islr_report(voucher_name):
     footer_html = get_footer_html(doc)
     special_formats = {'rate': '{:.2f}'}
 
-    format_amounts(doc, [
-		"totals_islr_base_amount",
-		"totals_islr_amount",
-		"totals_paid_amount",
-		"totals_grand_total",
-	], [
-		"grand_total",
-		"rate",
-		"paid_amount",
-		"islr_base_amount",
-		"subtracting",
-		"islr_amount",
-	], "islr_withholding_voucher_item", special_formats)
+    format_amounts(
+        doc,
+        [
+            "totals_islr_base_amount",
+            "totals_islr_amount",
+            "totals_paid_amount",
+            "totals_grand_total",
+        ],
+        [
+            "grand_total",
+            "rate",
+            "paid_amount",
+            "islr_base_amount",
+            "subtracting",
+            "islr_amount",
+        ],
+        "islr_withholding_voucher_item", special_formats)
 
     items_per_page = 13
     total_items = len(doc.islr_withholding_voucher_item)
@@ -150,11 +155,11 @@ def generate_islr_report(voucher_name):
                 border: 1px solid #000;
             }}
 
-			.withholding-voucher-details-table {{
-				border-collapse: collapse;
+            .withholding-voucher-details-table {{
+                border-collapse: collapse;
                 width: 100%;
                 margin: 0 auto;
-			}}
+            }}
         </style>
     </head>
     <body>

@@ -1,9 +1,7 @@
 import frappe
 from frappe import _
 
-import erpnext
 from erpnext.stock.doctype.item.item import Item
-
 
 from l10n_ve.utils.utils import get_reference_currency
 
