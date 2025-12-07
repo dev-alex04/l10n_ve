@@ -227,7 +227,7 @@ override_doctype_class = {
     "Item Price": "l10n_ve.overrides.item_price.CustomItemPrice",
     "Sales Order": "l10n_ve.overrides.sales_order.CustomSalesOrder",
     "Payment Entry": "l10n_ve.overrides.payment_entry.CustomPaymentEntry",
-    "Sales Invoice": "l10n_ve.overrides.sales_invoice.CustomSalesInvoice",
+    "Sales Invoice": "l10n_ve.overrides.sales_invoice.VESalesInvoice",
     "Purchase Order": "l10n_ve.overrides.purchase_order.CustomPurchaseOrder",
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
     "Supplier Quotation": "l10n_ve.overrides.supplier_quotation.CustomSupplierQuotation",

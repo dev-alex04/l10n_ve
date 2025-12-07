@@ -11,7 +11,7 @@ from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 from l10n_ve.utils.utils import validate_return_in_same_month, get_link_to_form
 
 
-class CustomSalesInvoice(TaxesMixin, SalesInvoice):
+class VESalesInvoice(TaxesMixin, SalesInvoice):
 
     def calculate_taxes_and_totals(self) -> None:
 
