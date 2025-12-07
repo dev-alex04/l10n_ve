@@ -191,40 +191,38 @@ function set_nature_filter(frm) {
   );
 }
 
-
 function validate_cedula(frm, fieldname) {
-	const value = frm.doc[fieldname];
-	if (!value) return;
+  const value = frm.doc[fieldname];
+  if (!value) return;
 
-	let cleanedValue = value.toUpperCase().replace(/[^VE\d]/g, '');
-	let firstChar = cleanedValue.charAt(0);
-	let restOfChars = cleanedValue.substring(1).replace(/\D/g, '');
+  let cleanedValue = value.toUpperCase().replace(/[^VE\d]/g, "");
+  let firstChar = cleanedValue.charAt(0);
+  let restOfChars = cleanedValue.substring(1).replace(/\D/g, "");
 
-	if (firstChar !== 'V' && firstChar !== 'E') {
-		frm.set_value(fieldname, '');
-		frappe.throw({
-			title: __("Formato de Cédula Inválido"),
-			message: __("El primer carácter de la cédula debe ser 'V' o 'E'."),
-			indicator: "red"
-		});
-		return;
-	}
+  if (firstChar !== "V" && firstChar !== "E") {
+    frm.set_value(fieldname, "");
+    frappe.throw({
+      title: __("Formato de Cédula Inválido"),
+      message: __("El primer carácter de la cédula debe ser 'V' o 'E'."),
+      indicator: "red",
+    });
+    return;
+  }
 
-	const length_config = get_tax_id_config('Cedula');
-	const min_length = length_config[0];
-	const max_length = length_config[1];
+  const length_config = get_tax_id_config("Cedula");
+  const min_length = length_config[0];
+  const max_length = length_config[1];
 
-	if (restOfChars.length > max_length) {
-		restOfChars = restOfChars.substring(0, max_length);
-	}
+  if (restOfChars.length > max_length) {
+    restOfChars = restOfChars.substring(0, max_length);
+  }
 
-	const final_value = firstChar + restOfChars;
+  const final_value = firstChar + restOfChars;
 
-	if (frm.doc[fieldname] !== final_value) {
-		frm.set_value(fieldname, final_value);
-	}
+  if (frm.doc[fieldname] !== final_value) {
+    frm.set_value(fieldname, final_value);
+  }
 }
-
 
 function get_address_link(frm) {
   const field_primary_address = {
@@ -312,7 +310,10 @@ function realtime_numeric_validation(frm, fieldname) {
 }
 
 function add_address_button(frm) {
-  if (frm.is_new() && !frm.doc.customer_primary_address || !frm.custom_buttons["Agregar Dirección"]) {
+  if (
+    (frm.is_new() && !frm.doc.customer_primary_address) ||
+    !frm.custom_buttons["Agregar Dirección"]
+  ) {
     frm.add_custom_button(__("Agregar Dirección"), () => {
       _get_address_dialog(frm).show();
     });
@@ -415,10 +416,9 @@ function _get_address_dialog(frm) {
                 : "customer_primary_address";
             frm.set_value(address_field, r.message);
             frm.toggle_display(address_field, true);
+            frm.save();
             frappe.show_alert({
-              message: __(
-                "La nueva dirección ha sido asignada. Se vinculará al guardar el documento."
-              ),
+              message: __("La nueva dirección ha sido asignada"),
               indicator: "green",
             });
           }

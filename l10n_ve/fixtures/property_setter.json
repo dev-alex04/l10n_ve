@@ -1621,7 +1621,7 @@
         "module": "L10N Ve",
         "name": "Purchase Invoice-base_total_taxes_and_charges-hidden",
         "property": "hidden",
-              "property_type": "Check",
+        "property_type": "Check",
         "row_name": null,
         "value": "1"
     },
@@ -2353,7 +2353,7 @@
         "row_name": null,
         "value": "1"
     },
-   {
+    {
         "default_value": "Purchase",
         "doc_type": "Material Request",
         "docstatus": 0,
@@ -2831,6 +2831,16 @@
         "name": "Purchase Invoice-title_field"
     },
     {
+        "doc_type": "Item",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "title_field",
+        "value": "item_name",
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Item-title_field"
+    },
+    {
         "doc_type": "Purchase Invoice",
         "doctype": "Property Setter",
         "doctype_or_field": "DocType",
@@ -2839,6 +2849,16 @@
         "modified": "2025-09-12 10:00:00",
         "module": "L10N Ve",
         "name": "Purchase Invoice-show_title_field_in_link"
+    },
+    {
+        "doc_type": "Item",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "property": "show_title_field_in_link",
+        "value": "1",
+        "modified": "2025-09-12 10:00:00",
+        "module": "L10N Ve",
+        "name": "Item-show_title_field_in_link"
     },
     {
         "default_value": null,

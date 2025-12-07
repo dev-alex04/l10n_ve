@@ -26,7 +26,7 @@ def set_l10n_ve_data() -> None:
         uncheck_all_prepared_reports()
         disable_rounded_total()
         set_buying_naming_series()
-        set_selling_naming_series()
+        set_selling_settings()
         set_stock_naming_series()
         create_municipality_taxes()
         set_stock_settings()
@@ -1011,7 +1011,7 @@ def set_buying_naming_series() -> None:
         frappe.throw("Ocurrió un error Estableciendo Naming Series en Buying Serie")
 
 
-def set_selling_naming_series() -> None:
+def set_selling_settings() -> None:
     print(f"Estableciendo Naming Series en Selling Series")
     try:
         frappe.db.set_value('Selling Settings',
@@ -1022,10 +1022,18 @@ def set_selling_naming_series() -> None:
         frappe.db.commit()
         print("El campo 'cust_master_name' en Selling Settings establecido como Naming Series")
 
+        frappe.db.set_value('Selling Settings',
+                            'Selling Settings',
+                            'allow_multiple_items',
+                            False)
+
+        frappe.db.commit()
+        print("Success: El campo 'allow_multiple_items' en Selling Settings establecido como False")
+
     except Exception as e:
         frappe.db.rollback()
-        frappe.log_error(title="Error Estableciendo Naming Series en Selling Serie", message=str(e))
-        frappe.throw("Ocurrió un error Estableciendo Naming Series en Selling Serie")
+        frappe.log_error(title="Error Estableciendo configuraciones en Selling Settings", message=str(e))
+        frappe.throw("Ocurrió un error Estableciendo configuraciones en Selling Settings")
 
 
 def set_stock_naming_series() -> None:
@@ -1124,7 +1132,7 @@ def create_municipality_taxes() -> None:
     except Exception as e:
         print(f"!! FATAL: Ocurrió un error inesperado durante la creación de impuestos municipales: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_municipality_taxes')
-        
+
 def set_stock_settings() -> None:
 
     print(f"Estableciendo valores en Stock Settings")
@@ -1168,14 +1176,14 @@ def create_bank_transaction_mappings() -> None:
     }
 
     bank_mapping_rules = {
-        "0102": [ 
+        "0102": [
             {'bank_transaction_field': 'date', 'file_field': 'Fecha'},
             {'bank_transaction_field': 'deposit', 'file_field': 'Credito'},
             {'bank_transaction_field': 'withdrawal', 'file_field': 'Debito'},
             {'bank_transaction_field': 'reference_number', 'file_field': 'Referencia'},
             {'bank_transaction_field': 'description', 'file_field': 'Descripción'},
         ],
-        "0172": [ 
+        "0172": [
             {'bank_transaction_field': 'date', 'file_field': 'Fecha'},
             {'bank_transaction_field': 'deposit', 'file_field': 'Credito'},
             {'bank_transaction_field': 'withdrawal', 'file_field': 'Debito'},
