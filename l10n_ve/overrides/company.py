@@ -2,7 +2,13 @@ import frappe
 from frappe import _
 
 from erpnext.setup.doctype.company.company import Company
-
+from l10n_ve.setup import (
+    set_chart_of_accounts,
+    create_vat_withholding,
+    create_sales_taxes_and_charges_template,
+    set_mode_of_payments,
+    set_reference_currency,
+)
 from l10n_ve.utils.utils import validate_tax_id_format, validate_taxpayer_and_person_type_consistency
 
 class CustomCompany(Company):
@@ -11,6 +17,16 @@ class CustomCompany(Company):
         super().validate()
         validate_tax_id_format(self)
         validate_taxpayer_and_person_type_consistency(self)
+
+
+    def on_update(self) -> None:
+        """
+        Sobrescribe el método on_update para ejecutar la configuración de la
+        localización después de que la configuración estándar de la compañía
+        se haya completado.
+        """
+        super().on_update()
+        self.Accounts_setup()
 
     def get_invoice_number(self) -> str:
         invoice_format = self.sales_invoice_number_format or "#####"
@@ -113,3 +129,15 @@ class CustomCompany(Company):
                 f"{self.custom_company_primary_address}' para la Compañía '{self.name}': {e}",
                 title="Error de Actualización de Municipio en Compañía"
             )
+
+    def Accounts_setup(self) -> None:
+        """
+        Ejecuta una serie de funciones de configuración específicas de la
+        localización para la compañía actual.
+
+        """
+        set_chart_of_accounts(company_name=self.name)
+        create_vat_withholding(company_name=self.name)
+        create_sales_taxes_and_charges_template(company_name=self.name)
+        set_mode_of_payments(company_name=self.name)
+        set_reference_currency(company_name=self.name)

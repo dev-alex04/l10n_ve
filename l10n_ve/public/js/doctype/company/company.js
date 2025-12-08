@@ -37,6 +37,34 @@ frappe.ui.form.on("Company", {
     }
   },
 
+  custom_company_primary_address: function (frm) {
+    if (frm.doc.custom_company_primary_address) {
+      frappe.db
+        .get_doc("Address", frm.doc.custom_company_primary_address)
+        .then((address) => {
+          if (address.phone) {
+            frm.set_value("phone_no", address.phone);
+          }
+          if (address.email_id) {
+            frm.set_value("email", address.email_id);
+          }
+        });
+    }
+  },
+
+  before_save: function (frm) {
+    if (frm.doc.custom_company_primary_address && (!frm.doc.phone_no || !frm.doc.email)) {
+      frappe.db.get_doc("Address", frm.doc.custom_company_primary_address).then((address) => {
+        if (!frm.doc.phone_no && address.phone) {
+          frm.set_value("phone_no", address.phone);
+        }
+        if (!frm.doc.email && address.email_id) {
+          frm.set_value("email", address.email_id);
+        }
+      });
+    }
+  },
+
   nature_of_the_taxpayer: function (frm) {
     set_person_type_filter(frm);
     build_rif(frm);

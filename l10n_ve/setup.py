@@ -158,13 +158,15 @@ def create_islr_tabulator() -> None:
         frappe.log_error(frappe.get_traceback(), 'Error en create_islr_tabulator')
 
 
-def set_chart_of_accounts() -> None:
+def set_chart_of_accounts(company_name: str = None) -> None:
     """
     Configura las cuentas contables de impuestos en los campos
     personalizados del Doctype Company para cada compañía existente.
+    Si se proporciona `company_name`, solo se configura esa compañía.
     """
 
-    print("Iniciando la configuración de cuentas contables en las Compañías...")
+    target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
+    print(f"Iniciando la configuración de cuentas contables en {target}...")
 
     try:
         account_map = [
@@ -355,7 +357,14 @@ def set_chart_of_accounts() -> None:
             },
         ]
 
-        companies = frappe.get_all("Company", fields=["name", "abbr"])
+        if company_name:
+            companies = \
+                frappe.get_all("Company",
+                                        filters={"name": company_name},
+                                        fields=["name", "abbr"])
+        else:
+            companies = frappe.get_all("Company", fields=["name", "abbr"])
+
         for company in companies:
             print(f"Configurando cuentas para la compañía: {company.name}")
 
@@ -393,20 +402,25 @@ def set_chart_of_accounts() -> None:
     print("Success: Configuración de cuentas contables en las compañías completada.")
 
 
-def create_vat_withholding() -> None:
-
-    print(f"Configurando retenciones de IVA")
+def create_vat_withholding(company_name: str = None) -> None:
+    """
+    Crea o actualiza las categorías de retención de IVA.
+    Si se proporciona `company_name`, solo se agregan las cuentas de esa compañía.
+    """
+    target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
+    print(f"Configurando retenciones de IVA para {target}...")
 
     try:
-
+        company_filters = {"name": company_name} if company_name else {}
         companies = \
             frappe.db.get_all('Company',
-                              fields=[
-                                'name',
-                                'abbr',
-                                'sales_vat_withholding_account',
-                                'purchase_vat_withholding_account'
-                              ])
+                                      filters=company_filters,
+                                      fields=[
+                                          'name',
+                                          'abbr',
+                                          'sales_vat_withholding_account',
+                                          'purchase_vat_withholding_account'
+                                      ])
 
         to_date = getdate('2025-12-31')
         from_date = getdate('2025-01-01')
@@ -414,14 +428,18 @@ def create_vat_withholding() -> None:
         for aliquot in (100, 75):
 
             withholding = frappe.new_doc('Tax Withholding Category')
-            withholding.name = f'IVA Retencion {aliquot}%'
+            withholding_name = f'IVA Retencion {aliquot}%'
 
-            withholding.append('rates' , {
-                'to_date': to_date,
-                'from_date': from_date,
-                'charge_type': 'VAT Withholding',
-                'tax_withholding_rate': aliquot,
-            })
+            if not frappe.db.exists('Tax Withholding Category', withholding_name):
+                withholding.name = withholding_name
+                withholding.append('rates', {
+                    'to_date': to_date,
+                    'from_date': from_date,
+                    'charge_type': 'VAT Withholding',
+                    'tax_withholding_rate': aliquot,
+                })
+            else:
+                withholding = frappe.get_doc('Tax Withholding Category', withholding_name)
 
             for company in companies:
 
@@ -435,27 +453,35 @@ def create_vat_withholding() -> None:
                     'sales_account': company['sales_vat_withholding_account'],
                 })
 
-            withholding.insert(ignore_permissions=True)
+            withholding.save(ignore_permissions=True)
 
         print(f"Retenciones de IVA configuradas exitosamente")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error durante la creación del retencioes de IVA: {e}")
+        print(f"Failure: Ocurrió un error durante la creación de las retenciones de IVA: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_vat_withholding')
 
 
-def create_sales_taxes_and_charges_template() -> None:
-
-    print("Creando impuesto deIVA")
+def create_sales_taxes_and_charges_template(company_name: str = None) -> None:
+    """
+    Crea las plantillas de impuestos y cargos de IVA para ventas y compras.
+    Si se proporciona `company_name`, solo se crean para esa compañía.
+    """
+    target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
+    print(f"Creando plantillas de impuestos de IVA para {target}...")
 
     try:
-
         template_types = {
             'Sales': 'sales_vat_account',
             'Purchase': 'purchase_vat_account'
         }
 
-        companies = frappe.db.get_all('Company', fields=['name', 'abbr'])
+        if company_name:
+            companies = frappe.get_all("Company",
+                                        filters={"name": company_name},
+                                          fields=["name", "abbr"])
+        else:
+            companies = frappe.get_all('Company', fields=['name', 'abbr'])
 
         for doctype, fieldname in template_types.items():
 
@@ -523,12 +549,15 @@ def set_title_field_on_purchase_invoice() -> None:
                          'Error Estableciendo campo title_field en Purchase Invoice:')
 
 
-def set_mode_of_payments() -> None:
-
-    print('Confgurando modos de pago')
+def set_mode_of_payments(company_name: str = None) -> None:
+    """
+    Configura las cuentas por defecto en los modos de pago.
+    Si se proporciona `company_name`, solo se configuran las cuentas para esa compañía.
+    """
+    target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
+    print(f"Configurando modos de pago para {target}...")
 
     try:
-
         mode_of_payments = [
             {
                 'mode_of_payment': 'Tarjetas de credito',
@@ -552,7 +581,12 @@ def set_mode_of_payments() -> None:
             },
         ]
 
-        companies = frappe.db.get_all('Company', pluck='name')
+        if company_name:
+            companies = frappe.get_all("Company",
+                                        filters={"name": company_name},
+                                          pluck='name')
+        else:
+            companies = frappe.db.get_all('Company', pluck='name')
 
         for mode in mode_of_payments:
 
@@ -561,23 +595,42 @@ def set_mode_of_payments() -> None:
 
             mode_of_payment = frappe.get_doc('Mode of Payment', mode['mode_of_payment'])
 
-            mode_of_payment.accounts = []
-
             for company in companies:
-
-                default_account: str = frappe.db.get_value('Account',
-                                                            {
-                                                                'company': company,
-                                                                'account_number': mode['account_number']
-                                                            },
-                                                            'name')
-
-                print(f'Cuenta {default_account} cargada en el modo de pago {mode["mode_of_payment"]} para la compañía {company}')
-
-                mode_of_payment.append('accounts', {
+                default_account: str = frappe.db.get_value('Account', {
                     'company': company,
-                    'default_account': default_account,
-                })
+                    'account_number': mode['account_number']
+                }, 'name')
+
+                if not default_account:
+                    print(f'  !! ADVERTENCIA: No se encontró la cuenta con número '
+                          f'{mode["account_number"]} para la compañía {company}.')
+                    continue
+
+                existing_account_entry = None
+                for acc_entry in mode_of_payment.accounts:
+                    if acc_entry.company == company:
+                        existing_account_entry = acc_entry
+                        break
+
+                if existing_account_entry:
+
+                    if existing_account_entry.default_account != default_account:
+                        existing_account_entry.default_account = default_account
+
+                        print(f'  -> Actualizando cuenta a {default_account} en el modo de pago '
+                              f'{mode["mode_of_payment"]} para la compañía {company}')
+
+                    else:
+                         print(f'  -- Omitiendo (ya está configurado correctamente): Modo de pago '
+                               f'{mode["mode_of_payment"]} para la compañía {company}.')
+                else:
+                    mode_of_payment.append('accounts', {
+                        'company': company,
+                        'default_account': default_account,
+                    })
+
+                    print(f'  -> Agregando cuenta {default_account} al modo de pago '
+                          f'{mode["mode_of_payment"]} para la compañía {company}')
 
             mode_of_payment.save(ignore_permissions=True)
 
@@ -587,31 +640,41 @@ def set_mode_of_payments() -> None:
                          'Error configurando los modos de pago:')
 
 
-def set_reference_currency() -> None:
+def set_reference_currency(company_name: str = None) -> None:
 
-    print(f"Estableciendo moneda de referencia en las empresas")
+    target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
+    print(f"Estableciendo moneda de referencia en {target}...")
 
     try:
+        if company_name:
+            companies = frappe.get_all("Company",
+                                        filters={"name": company_name},
+                                          pluck='name')
 
-        companies: list[str] = frappe.db.get_all('Company', pluck='name')
+        else:
+            companies: list[str] = frappe.db.get_all('Company', pluck='name')
+
+        if not companies:
+            print(f"  -- Omitiendo: No se encontraron compañías para procesar.")
+            return
 
         for company in companies:
+            currency = 'USD'
+            frappe.db.set_value('Company',
+                                company,
+                                'reference_currency',
+                                currency)
+            print(f"  -> Moneda de referencia {currency} establecida para la compañía {company}")
 
-            for currency in ['USD']:
-                frappe.db.set_value('Company',
-                                    company,
-                                    'reference_currency',
-                                    currency)
+            frappe.db.set_value('Currency',
+                                 currency,
+                                {'symbol': 'REF.'})
 
-                print(f"Moneda de referencia {currency} establecida correctamente en las empresas")
+            print(f"  -> Símbolo 'REF.' establecido para la moneda {currency}")
 
-                frappe.db.set_value('Currency',
-                                    currency,
-                                    {
-                                        'symbol': 'REF.',
-                                    })
+        set_pricelist_on_reference_currency(currency)
 
-                set_pricelist_on_reference_currency(currency)
+        print("Success: Configuración de moneda de referencia completada.")
 
     except Exception as e:
         print(f"Failure: Ocurrió un error configurando la moneda de referencia: {e}")
