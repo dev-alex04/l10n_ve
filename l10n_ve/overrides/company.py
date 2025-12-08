@@ -2,15 +2,38 @@ import frappe
 from frappe import _
 
 from erpnext.setup.doctype.company.company import Company
-
+from l10n_ve.setup import (
+    set_chart_of_accounts,
+    create_vat_withholding,
+    create_sales_taxes_and_charges_template,
+    set_mode_of_payments,
+    set_reference_currency,
+)
 from l10n_ve.utils.utils import validate_tax_id_format, validate_taxpayer_and_person_type_consistency
 
 class CustomCompany(Company):
 
     def validate(self):
         super().validate()
+        if self.is_new():
+            self.flags.is_new_company = True
         validate_tax_id_format(self)
         validate_taxpayer_and_person_type_consistency(self)
+
+
+    def on_update(self) -> None:
+        """
+        Sobrescribe el método on_update para ejecutar la configuración de la
+        localización después de que la configuración estándar de la compañía
+        se haya completado.
+        """
+        super().on_update()
+        if self.flags.get("is_new_company"):
+            set_chart_of_accounts(company_name=self.name)
+            create_vat_withholding(company_name=self.name)
+            create_sales_taxes_and_charges_template(company_name=self.name)
+            set_mode_of_payments(company_name=self.name)
+            set_reference_currency(company_name=self.name)
 
     def get_invoice_number(self) -> str:
         invoice_format = self.sales_invoice_number_format or "#####"
@@ -78,6 +101,22 @@ class CustomCompany(Company):
         return number_format.replace('#' * num_placeholders, formatted_number)
 
     def before_save(self):
+
+        if self.custom_company_primary_address and (not self.phone_no or not self.email):
+            try:
+                address = frappe.get_doc("Address",
+                                          self.custom_company_primary_address)
+
+                if not self.phone_no and address.phone:
+                    self.phone_no = address.phone
+
+                if not self.email and address.email_id:
+                    self.email = address.email_id
+
+            except frappe.DoesNotExistError:
+                frappe.log_error(f"Address {self.custom_company_primary_address}"
+                                 f"not found for Company {self.name}")
+                pass
 
         if not self.vat_withholding_format:
 
