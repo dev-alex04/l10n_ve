@@ -5556,7 +5556,7 @@
     "collapsible": 0,
     "collapsible_depends_on": null,
     "columns": 0,
-    "default": null,
+    "default": "USD",
     "depends_on": null,
     "description": "",
     "docstatus": 0,
