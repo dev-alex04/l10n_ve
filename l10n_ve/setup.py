@@ -360,8 +360,8 @@ def set_chart_of_accounts(company_name: str = None) -> None:
         if company_name:
             companies = \
                 frappe.get_all("Company",
-                                        filters={"name": company_name},
-                                        fields=["name", "abbr"])
+                                filters={"name": company_name},
+                                fields=["name", "abbr"])
         else:
             companies = frappe.get_all("Company", fields=["name", "abbr"])
 
@@ -658,20 +658,20 @@ def set_reference_currency(company_name: str = None) -> None:
             print(f"  -- Omitiendo: No se encontraron compañías para procesar.")
             return
 
+        currency = 'USD'
         for company in companies:
-            currency = 'USD'
             frappe.db.set_value('Company',
                                 company,
                                 'reference_currency',
                                 currency)
+
             print(f"  -> Moneda de referencia {currency} establecida para la compañía {company}")
 
-            frappe.db.set_value('Currency',
-                                 currency,
-                                {'symbol': 'REF.'})
+        frappe.db.set_value('Currency',
+                             currency,
+                            {'symbol': 'REF.'})
 
-            print(f"  -> Símbolo 'REF.' establecido para la moneda {currency}")
-
+        print(f"  -> Símbolo 'REF.' establecido para la moneda {currency}")
         set_pricelist_on_reference_currency(currency)
 
         print("Success: Configuración de moneda de referencia completada.")

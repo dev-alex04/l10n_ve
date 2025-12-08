@@ -102,6 +102,22 @@ class CustomCompany(Company):
 
     def before_save(self):
 
+        if self.custom_company_primary_address and (not self.phone_no or not self.email):
+            try:
+                address = frappe.get_doc("Address",
+                                          self.custom_company_primary_address)
+
+                if not self.phone_no and address.phone:
+                    self.phone_no = address.phone
+
+                if not self.email and address.email_id:
+                    self.email = address.email_id
+
+            except frappe.DoesNotExistError:
+                frappe.log_error(f"Address {self.custom_company_primary_address}"
+                                 f"not found for Company {self.name}")
+                pass
+
         if not self.vat_withholding_format:
 
             self.vat_withholding_format = "##############"
