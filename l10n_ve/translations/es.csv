@@ -548,3 +548,5 @@ Please enter <b>Difference Account</b> or set default <b>Stock Adjustment Accoun
 "Users with this role are allowed to over deliver/receive against orders above the allowance percentage","Los usuarios con este rol pueden entregar o recibir pedidos en exceso del porcentaje permitido.",
 "The percentage you are allowed to pick more items in the pick list than the ordered quantity.","El porcentaje en el que se le permite elegir más artículos en la lista de selección que la cantidad solicitada.",
 "Stock transactions that are older than the mentioned days cannot be modified.","Las transacciones bursátiles con antigüedad superior a los días mencionados no podrán ser modificadas.",
+"Total Contribution Amount Against Orders: {0}","Total de la cantidad de contribución en contra de los pedidos: {0}",
+"Total Contribution Amount Against Invoices: {0}","Total de la cantidad de contribución en contra de las facturas: {0}",
