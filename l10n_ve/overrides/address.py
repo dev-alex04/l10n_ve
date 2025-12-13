@@ -9,10 +9,12 @@ class CustomAddress(Address):
         self.validate_phone_format()
         self.validate_unique_address_link()
         self.validate_address()
+        self.prevent_unlinking()
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         self.update_primary_address()
+        self.update_company_municipality()
 
     def update_primary_address(self) -> None:
         primary_address_field = {
@@ -101,10 +103,60 @@ class CustomAddress(Address):
             if existing_address and existing_address != self.name:
 
                 message = _("El {0} '{1}' ya tiene una dirección principal asignada. Solo se permite una " 
-                            "dirección. Por favor, edite o elimine la dirección " 
+                            "dirección. Por favor, edite la dirección " 
                             "existente si desea cambiarla.").format(doctype, docname)
                 
                 frappe.throw(message, title=_("Dirección Duplicada"))
+
+    def prevent_unlinking(self) -> None:
+        """
+        Evita que un usuario desvincule una dirección de una entidad desde
+        el formulario de Dirección.
+        """
+        if self.is_new():
+            return
+
+        doc_before_save = self.get_doc_before_save()
+        if not doc_before_save:
+            return
+
+        old_links = {(link.link_doctype, link.link_name) for link in doc_before_save.links}
+        current_links = {(link.link_doctype, link.link_name) for link in self.links}
+
+        if current_links < old_links:
+            removed_links = old_links - current_links
+            removed_link_details = ", ".join([f"{doctype} '{docname}'" for doctype, docname in removed_links])
+
+            message = _("No se permite desvincular una dirección de una entidad ({0}). "
+                        "Si la dirección ya no es necesaria, debe eliminar la entidad " \
+                        "principal.").format(removed_link_details)
+            
+            frappe.throw(message, title=_("Acción no permitida"))
+
+    def update_company_municipality(self) -> None:
+        """
+        Si la dirección está vinculada a una Compañía, actualiza el campo
+        'municipality' de la Compañía con el valor del campo 'county' de la dirección.
+        """
+        if not self.links:
+            return
+
+        for link in self.links:
+            if link.link_doctype == "Company":
+                try:
+                    company_doc = frappe.get_doc("Company", link.link_name)
+                    if company_doc.municipality != self.county:
+                        company_doc.municipality = self.county
+                        company_doc.save(ignore_permissions=True, ignore_version=True)
+                        frappe.msgprint(_("El municipio de la compañía {0} ha sido actualizado " \
+                                          "a {1}.").format(frappe.bold(link.link_name), frappe.bold(self.county)))
+                        
+                except frappe.DoesNotExistError:
+                    frappe.log_error(f"Compañía '{link.link_name}' no encontrada" 
+                                     f"al intentar actualizar el municipio desde la dirección '{self.name}'.")
+                    
+                except Exception as e:
+                    frappe.log_error(f"Error actualizando el municipio para la compañía '{link.link_name}': {e}")
 
 
 @frappe.whitelist()

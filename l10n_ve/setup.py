@@ -1186,7 +1186,7 @@ def create_municipality_taxes() -> None:
     Crea los impuestos municipales solo para el municipio Libertador durante la instalación.
     """
     print("Iniciando la creación de Impuestos Municipales para Libertador...")
-    
+
     try:
         libertador_state = frappe.db.get_value("VE State", {"state": "Distrito Capital"}, "name")
         if not libertador_state:
@@ -1204,6 +1204,7 @@ def create_municipality_taxes() -> None:
 
     except Exception as e:
         frappe.db.rollback()
+        
         print(f"!! FATAL: Ocurrió un error inesperado durante la creación de impuestos municipales: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_municipality_taxes')
 
