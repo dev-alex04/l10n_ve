@@ -7,6 +7,7 @@ class CustomAddress(Address):
     def validate(self):
         super().validate()
         self.validate_phone_format()
+        self.validate_unique_address_link()
         self.validate_address()
 
     def save(self, *args, **kwargs):
@@ -31,8 +32,6 @@ class CustomAddress(Address):
                 if link_doctype in primary_address_field and link_name:
                     link_field_name = primary_address_field[link_doctype]
 
-                    # Temporalmente ignorar permisos para obtener y guardar el documento enlazado
-                    # para evitar errores de permiso en Customer/Supplier.
                     old_ignore_permissions_flag = frappe.flags.ignore_permissions
                     frappe.flags.ignore_permissions = True
                     try:
@@ -69,6 +68,44 @@ class CustomAddress(Address):
             self.address_title = self.address_line1
         else:
             self.address_title = "Nueva Dirección"
+
+    def validate_unique_address_link(self) -> None:
+        """
+        Valida que un Cliente, Proveedor o Compañía solo pueda tener una dirección principal.
+        """
+        primary_address_field_map = {
+            "Customer": "customer_primary_address",
+            "Supplier": "supplier_primary_address",
+            "Company": "custom_company_primary_address",
+        }
+
+        if not self.links:
+            return
+
+        for link in self.links:
+            doctype = link.link_doctype
+            docname = link.link_name
+
+            if doctype not in primary_address_field_map:
+                continue
+
+            field = primary_address_field_map[doctype]
+            
+            old_ignore_permissions_flag = frappe.flags.ignore_permissions
+            frappe.flags.ignore_permissions = True
+            try:
+                existing_address = frappe.db.get_value(doctype, docname, field)
+            finally:
+                frappe.flags.ignore_permissions = old_ignore_permissions_flag
+
+            if existing_address and existing_address != self.name:
+
+                message = _("El {0} '{1}' ya tiene una dirección principal asignada. Solo se permite una " 
+                            "dirección. Por favor, edite o elimine la dirección " 
+                            "existente si desea cambiarla.").format(doctype, docname)
+                
+                frappe.throw(message, title=_("Dirección Duplicada"))
+
 
 @frappe.whitelist()
 def get_address_link_count(link_doctype, link_name) -> int:

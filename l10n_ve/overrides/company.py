@@ -8,6 +8,7 @@ from l10n_ve.setup import (
     create_sales_taxes_and_charges_template,
     set_mode_of_payments,
     set_reference_currency,
+    create_municipality_taxes_for_municipality,
 )
 from l10n_ve.utils.utils import validate_tax_id_format, validate_taxpayer_and_person_type_consistency
 
@@ -34,6 +35,9 @@ class CustomCompany(Company):
             create_sales_taxes_and_charges_template(company_name=self.name)
             set_mode_of_payments(company_name=self.name)
             set_reference_currency(company_name=self.name)
+
+        if self.municipality:
+            create_municipality_taxes_for_municipality(self.municipality)
 
     def get_invoice_number(self) -> str:
         invoice_format = self.sales_invoice_number_format or "#####"
