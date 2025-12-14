@@ -1,7 +1,20 @@
 import re
+from contextlib import contextmanager
 import frappe
 from frappe import _
 from frappe.contacts.doctype.address.address import Address
+
+@contextmanager
+def ignore_permissions():
+    """
+    Gestor de contexto para ejecutar un bloque de código ignorando temporalmente los permisos.
+    """
+    old_flag = frappe.flags.ignore_permissions
+    frappe.flags.ignore_permissions = True
+    try:
+        yield
+    finally:
+        frappe.flags.ignore_permissions = old_flag
 
 class CustomAddress(Address):
     def validate(self):
@@ -34,16 +47,12 @@ class CustomAddress(Address):
                 if link_doctype in primary_address_field and link_name:
                     link_field_name = primary_address_field[link_doctype]
 
-                    old_ignore_permissions_flag = frappe.flags.ignore_permissions
-                    frappe.flags.ignore_permissions = True
-                    try:
+                    with ignore_permissions():
                         linked_doc = frappe.get_doc(link_doctype, link_name)
 
                         if not linked_doc.get(link_field_name):
                             linked_doc.set(link_field_name, self.name)
                             linked_doc.save(ignore_permissions=True, ignore_version=True)
-                    finally:
-                        frappe.flags.ignore_permissions = old_ignore_permissions_flag
 
             except (AttributeError, frappe.DoesNotExistError) as e:
                 frappe.log_error(
@@ -93,18 +102,14 @@ class CustomAddress(Address):
 
             field = primary_address_field_map[doctype]
             
-            old_ignore_permissions_flag = frappe.flags.ignore_permissions
-            frappe.flags.ignore_permissions = True
-            try:
+            with ignore_permissions():
                 existing_address = frappe.db.get_value(doctype, docname, field)
-            finally:
-                frappe.flags.ignore_permissions = old_ignore_permissions_flag
 
             if existing_address and existing_address != self.name:
 
                 message = _("El {0} '{1}' ya tiene una dirección principal asignada. Solo se permite una " 
                             "dirección. Por favor, edite la dirección " 
-                            "existente si desea cambiarla.").format(doctype, docname)
+                            "existente si desea cambiarla.").format(_(doctype), docname)
                 
                 frappe.throw(message, title=_("Dirección Duplicada"))
 
@@ -125,7 +130,7 @@ class CustomAddress(Address):
 
         if current_links < old_links:
             removed_links = old_links - current_links
-            removed_link_details = ", ".join([f"{doctype} '{docname}'" for doctype, docname in removed_links])
+            removed_link_details = ", ".join([f"{_(doctype)} '{docname}'" for doctype, docname in removed_links])
 
             message = _("No se permite desvincular una dirección de una entidad ({0}). "
                         "Si la dirección ya no es necesaria, debe eliminar la entidad " \
@@ -152,7 +157,7 @@ class CustomAddress(Address):
                                           "a {1}.").format(frappe.bold(link.link_name), frappe.bold(self.county)))
                         
                 except frappe.DoesNotExistError:
-                    frappe.log_error(f"Compañía '{link.link_name}' no encontrada" 
+                    frappe.log_error(f"Compañía '{link.link_name}' no encontrada " 
                                      f"al intentar actualizar el municipio desde la dirección '{self.name}'.")
                     
                 except Exception as e:
@@ -165,16 +170,11 @@ def get_address_link_count(link_doctype, link_name) -> int:
     Cuenta los enlaces dinámicos para una dirección específica,
     ignorando los permisos para evitar errores.
     """
-    # Temporalmente establecer frappe.flags.ignore_permissions a True
-
-    old_ignore_permissions_flag = frappe.flags.ignore_permissions
-    frappe.flags.ignore_permissions = True
-    try:
+    with ignore_permissions():
         count = frappe.db.get_value('Dynamic Link', {
         'parenttype': 'Address',
         'link_doctype': link_doctype,
         'link_name': link_name
         }, "count(*)")
-    finally:
-        frappe.flags.ignore_permissions = old_ignore_permissions_flag
+
     return count
