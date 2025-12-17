@@ -31,6 +31,7 @@ def set_l10n_ve_data() -> None:
         create_municipality_taxes()
         set_stock_settings()
         create_bank_transaction_mappings()
+        disable_other_currencies()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1286,3 +1287,32 @@ def create_bank_transaction_mappings() -> None:
 
     frappe.db.commit()
     print("Success: Creación de mapeos de transacciones bancarias completada.")
+
+
+def disable_other_currencies() -> None:
+    """
+    Desactiva todas las monedas excepto VEF, USD y EUR.
+    """
+    print("\nDesactivando monedas no utilizadas...")
+
+    allowed_currencies = ["VEF", "USD", "EUR"]
+    disabled_count = 0
+
+    try:
+        currencies_to_disable = frappe.get_all(
+            "Currency",
+            filters={"name": ["not in", allowed_currencies], "enabled": 1},
+            fields=["name"]
+        )
+
+        for currency_doc in currencies_to_disable:
+            frappe.db.set_value("Currency", currency_doc.name, "enabled", 0)
+            print(f"  -> Desactivada moneda: {currency_doc.name}")
+            disabled_count += 1
+
+        frappe.db.commit()
+        print(f"Success: {disabled_count} monedas desactivadas.")
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error al desactivar monedas: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en disable_other_currencies')
