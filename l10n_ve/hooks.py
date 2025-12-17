@@ -46,9 +46,6 @@ app_include_js = [
 # webform_include_css = {"doctype": "public/css/doctype.css"}
 
 # include js in page
-page_js = {
-    "setup-wizard": "public/js/setup_wizard/setup_wizard.js"
-}
 
 # include js in doctype views
 doctype_js = {
