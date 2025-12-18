@@ -69,31 +69,57 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             return
 
         if self.is_return:
-            self.credit_note_no = company.get_credit_note_number()
-            self.bill_no = None
-            self.debit_note_no = None
-            company.increment_credit_note_number()
-
+            while True:
+                credit_note_no = company.get_credit_note_number()
+                if self._validate_credit_note_no(credit_note_no, raise_throw=False):
+                    self.credit_note_no = credit_note_no
+                    self.bill_no = None
+                    self.debit_note_no = None
+                    company.increment_credit_note_number()
+                    break
+                company.increment_credit_note_number()
+                company.sales_credit_note_number_correlative = \
+                    (company.sales_credit_note_number_correlative or 1) + 1
 
         elif self.is_debit_note:
-            self.debit_note_no = company.get_debit_note_number()
-            self.bill_no = None
-            self.credit_note_no = None
-            company.increment_debit_note_number()
-
+            while True:
+                debit_note_no = company.get_debit_note_number()
+                if self._validate_debit_note_no(debit_note_no, raise_throw=False):
+                    self.debit_note_no = debit_note_no
+                    self.bill_no = None
+                    self.credit_note_no = None
+                    company.increment_debit_note_number()
+                    break
+                company.increment_debit_note_number()
+                company.sales_debit_note_number_correlative = \
+                        (company.sales_debit_note_number_correlative or 1) + 1
         else:
-            self.bill_no = company.get_invoice_number()
-            self.credit_note_no = None
-            self.debit_note_no = None
-            company.increment_invoice_number()
+            while True:
+                bill_no = company.get_invoice_number()
+                if self._validate_bill_no(bill_no, raise_throw=False):
+                    self.bill_no = bill_no
+                    self.credit_note_no = None
+                    self.debit_note_no = None
+                    company.increment_invoice_number()
+                    break
+                company.increment_invoice_number()
+                company.sales_invoice_number_correlative = \
+                    (company.sales_invoice_number_correlative or 1) + 1
 
     def set_control_number(self, company: CustomCompany) -> None:
 
         if self.bill_control:
             return
 
-        self.bill_control = company.get_control_number()
-        company.increment_control_number()
+        while True:
+            bill_control = company.get_control_number()
+            if self._validate_bill_control(bill_control, raise_throw=False):
+                self.bill_control = bill_control
+                company.increment_control_number()
+                break
+            company.increment_control_number()
+            company.sales_invoice_control_number_correlative = \
+                (company.sales_invoice_control_number_correlative or 1) + 1
 
     def set_affected_invoice_number(self) -> None:
         # Esta función se ejecutará solo para notas de crédito o débito
@@ -165,7 +191,9 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
                 f"ya está siendo usado en la {doc_type_str} {link}. Corrija e intente nuevamente."
                 duplicated_msg.append(msg)
 
-            frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
+            if raise_throw:
+                frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
+            return False
 
         return True
 
