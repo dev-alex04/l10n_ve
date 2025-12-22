@@ -35,6 +35,8 @@ frappe.ui.form.on("Company", {
         };
       });
     }
+
+    set_df_company_fields(frm);
   },
 
   custom_company_primary_address: function (frm) {
@@ -68,6 +70,10 @@ frappe.ui.form.on("Company", {
   },
 
   create_chart_of_accounts_based_on: function (frm) {
+    set_df_company_fields(frm);
+  },
+
+  parent_company: function (frm) {
     set_df_company_fields(frm);
   },
 });
@@ -118,17 +124,29 @@ var set_df_company_fields = function (frm) {
   if (!frm.is_new()) {
     return;
   }
-  frm.set_df_property("create_chart_of_accounts_based_on", "reqd", true);
+
+  // Si hay empresa padre, el plan de cuentas se hereda y no es requerido
+  const has_parent = !!frm.doc.parent_company;
+  const is_standard_template =
+    frm.doc.create_chart_of_accounts_based_on === "Standard Template";
+  const is_existing_company =
+    frm.doc.create_chart_of_accounts_based_on === "Existing Company";
+
+  frm.set_df_property("create_chart_of_accounts_based_on", "reqd", !has_parent);
+
+  // chart_of_accounts solo es requerido si es "Standard Template" Y no hay empresa padre
   frm.set_df_property(
     "chart_of_accounts",
     "reqd",
-    frm.doc.create_chart_of_accounts_based_on === "Standard Template"
+    is_standard_template && !has_parent
   );
   frm.set_df_property(
-    "existing_company",
-    "reqd",
-    frm.doc.create_chart_of_accounts_based_on === "Existing Company"
+    "chart_of_accounts",
+    "hidden",
+    has_parent || is_existing_company
   );
+
+  frm.set_df_property("existing_company", "reqd", is_existing_company);
 };
 
 function reorganize_customer_fields(frm) {
@@ -141,3 +159,8 @@ function reorganize_customer_fields(frm) {
   num_license_wrapper.insertAfter(is_special_taxpayer_wrapper);
   municipality_wrapper.insertAfter(num_license_wrapper);
 }
+
+// Override de la función de ERPNext - delega a nuestra lógica centralizada
+var disbale_coa_fields = function (frm, bool = true) {
+  set_df_company_fields(frm);
+};

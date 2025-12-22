@@ -384,16 +384,29 @@ function _get_address_dialog(frm) {
         default: null,
       },
       {
+        label: __("Teléfono"),
+        fieldname: "mobile_no",
+        fieldtype: "Data",
+        default: null,
+      },
+      {
+        label: __("Correo Electrónico"),
+        fieldname: "email_id",
+        fieldtype: "Data",
+        default: null,
+        options: "Email",
+      },
+      {
         label: __("Es Dirección Principal"),
         fieldname: "is_primary_address",
         fieldtype: "Check",
-        default: 0,
+        default: 1,
       },
       {
         label: __("Es Dirección de Envío"),
         fieldname: "is_shipping_address",
         fieldtype: "Check",
-        default: 0,
+        default: 1,
       },
     ],
     primary_action_label: __("Guardar"),
@@ -416,6 +429,8 @@ function _get_address_dialog(frm) {
                 : "customer_primary_address";
             frm.set_value(address_field, r.message);
             frm.toggle_display(address_field, true);
+            frm.set_value("mobile_no", values.mobile_no);
+            frm.set_value("email_id", values.email_id);
             frm.save();
             frappe.show_alert({
               message: __("La nueva dirección ha sido asignada"),
