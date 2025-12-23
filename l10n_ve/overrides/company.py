@@ -35,6 +35,7 @@ class CustomCompany(Company):
             create_sales_taxes_and_charges_template(company_name=self.name)
             set_mode_of_payments(company_name=self.name)
             set_reference_currency(company_name=self.name)
+            frappe.msgprint(_("Plan de cuentas Venezolano cargado. Por favor refrescar la vista."))
 
         if self.municipality:
             create_municipality_taxes_for_municipality(self.municipality)

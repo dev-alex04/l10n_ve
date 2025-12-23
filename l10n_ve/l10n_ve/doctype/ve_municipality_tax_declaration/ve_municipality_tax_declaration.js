@@ -99,11 +99,13 @@ async function get_company_data(frm) {
           frm.set_value("address_line1", data.address_details.address_line1);
           frm.set_value("state", data.address_details.state_name);
           frm.set_value("parish", data.address_details.parish_name);
-          frm.set_value("phone", data.address_details.phone);
-          frm.set_value("email_id", data.address_details.email_id);
+          frm.set_value("phone", data.address_details.phone || data.phone_no);
+          frm.set_value("email_id", data.address_details.email_id || data.email);
           frm.set_value("sector", data.address_details.sector);
         } else {
           clear_address_fields(frm);
+          frm.set_value("phone", data.phone_no);
+          frm.set_value("email_id", data.email);
         }
       } else {
         clear_all_company_fields(frm);
