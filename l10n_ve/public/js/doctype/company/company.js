@@ -137,13 +137,10 @@ var set_df_company_fields = function (frm) {
   // chart_of_accounts solo es requerido si es "Standard Template" Y no hay empresa padre
   frm.set_df_property(
     "chart_of_accounts",
-    "reqd",
-    is_standard_template && !has_parent
-  );
-  frm.set_df_property(
-    "chart_of_accounts",
-    "hidden",
-    has_parent || is_existing_company
+    {
+      "reqd": is_standard_template && !has_parent,
+      "hidden": has_parent || is_existing_company
+    }
   );
 
   frm.set_df_property("existing_company", "reqd", is_existing_company);
@@ -161,6 +158,6 @@ function reorganize_customer_fields(frm) {
 }
 
 // Override de la función de ERPNext - delega a nuestra lógica centralizada
-var disbale_coa_fields = function (frm, bool = true) {
+var disable_coa_fields = function (frm, bool = true) {
   set_df_company_fields(frm);
 };
