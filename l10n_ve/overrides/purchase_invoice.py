@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, get_link_to_form, getdate
 
+import erpnext
 from erpnext.stock import get_warehouse_account_map
 from erpnext.accounts.utils import get_account_currency
 from erpnext.assets.doctype.asset.asset import is_cwip_accounting_enabled
