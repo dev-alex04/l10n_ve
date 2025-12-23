@@ -12,6 +12,7 @@ def set_l10n_ve_data() -> None:
 
         create_currency_exchange()
         create_tax_unit()
+        create_islr_tabulator()
         set_chart_of_accounts()
         create_vat_withholding()
         create_sales_taxes_and_charges_template()
@@ -87,38 +88,36 @@ def create_tax_unit() -> None:
 def create_islr_tabulator() -> None:
     """
     Crea los registros del Tabulador de ISLR a partir de un archivo CSV.
-    Valida los valores de 'Tipo de persona' contra las opciones del DocType.
     """
-    return
     print("Iniciando la creación de datos del Tabulador de ISLR...")
 
-    csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 'islr_tabulator.csv')
+    csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 'tabulador_islr.csv')
 
     try:
-        meta = frappe.get_meta("Tabulator ISLR Aliquots")
-        valid_person_types = meta.get_field("types_of_person").options.split("\n")
-        valid_person_types = [opt.strip() for opt in valid_person_types if opt.strip()]
-
         grouped_data = {}
         with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
             reader = csv.DictReader(file)
-            for row_num, row in enumerate(reader, 1):
-                codigo = row.get("Codigo", "").strip()
-                if not codigo:
+            for row in reader:
+                codigo = row.get("Codigo")
+                if not codigo or not codigo.strip():
                     continue
 
-                if int(codigo) >= 10:
-                    codigo = f'0{codigo}'
-                else:
-                    codigo = f'00{codigo}'
+                codigo = codigo.strip().zfill(3)
+
+                descripcion = row.get("Descripción", "").strip()
+
+                original_codigo = codigo
+                suffix = 1
+                while codigo in grouped_data and grouped_data[codigo]["descripcion"] != descripcion:
+                    codigo = f"{original_codigo}-{suffix}"
+                    suffix += 1
 
                 if codigo not in grouped_data:
                     grouped_data[codigo] = {
-                        "descripcion": row.get('Descripcion', '').strip(),
+                        "descripcion": descripcion,
                         "aliquots": []
                     }
 
-                row['original_row_num'] = row_num
                 grouped_data[codigo]["aliquots"].append(row)
 
         for codigo, data in grouped_data.items():
@@ -130,20 +129,25 @@ def create_islr_tabulator() -> None:
             doc.codigo = codigo
             doc.descripcion = data["descripcion"]
 
+            if not doc.descripcion:
+                print(f"!! ADVERTENCIA: Descripción vacía para el código '{codigo}'. Omitiendo registro.")
+                continue
+
             for aliquot_data in data["aliquots"]:
-                types_of_person_from_csv = aliquot_data.get('Tipo de persona', '').strip()
+                def clean_numeric_str(value_str):
+                    if not value_str or not value_str.strip():
+                        return "0"
+                    return value_str.strip().replace(',', '')
 
-                if types_of_person_from_csv not in valid_person_types:
-                    print(f"!! ADVERTENCIA: Valor '{types_of_person_from_csv}' en la fila {aliquot_data['original_row_num']} del CSV no es una opción válida para 'Tipo de persona'. Omitiendo alícuota.")
-                    continue
-
-                doc.append("aliquot", {
-                    "aliquot": aliquot_data.get('Alicuota', '').strip(),
-                    "subtracting": aliquot_data.get('Sustraendo', '').strip(),
-                    "percentage_base": aliquot_data.get('Porcentaje Base', '').strip(),
-                    "types_of_person": types_of_person_from_csv, # Usamos el valor directo del CSV
-                    "payments_greater_than_bs": aliquot_data.get('Pagos mayores a', '').strip()
-                })
+                # Mapeo manual para los campos de la tabla hija desde el nuevo formato CSV
+                aliquot_doc = {
+                    "aliquot": clean_numeric_str(aliquot_data.get("Aliquot (aliquot)")),
+                    "payments_greater_than_bs": clean_numeric_str(aliquot_data.get("Payments greater than bs (aliquot)")),
+                    "percentage_base": clean_numeric_str(aliquot_data.get("Percentage base (aliquot)")),
+                    "subtracting": clean_numeric_str(aliquot_data.get("Subtracting (aliquot)")),
+                    "types_of_person": aliquot_data.get("Types of person (aliquot)", "").strip(),
+                }
+                doc.append("aliquot", aliquot_doc)
 
             try:
                 doc.save(ignore_permissions=True)
@@ -154,6 +158,8 @@ def create_islr_tabulator() -> None:
         frappe.db.commit()
         print("\nSuccess: Proceso de creación del Tabulador de ISLR completado.")
 
+    except FileNotFoundError:
+        print(f"!! FATAL: No se encontró el archivo CSV en la ruta: {csv_file_path}")
     except Exception as e:
         print(f"!! FATAL: Ocurrió un error inesperado: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_islr_tabulator')
