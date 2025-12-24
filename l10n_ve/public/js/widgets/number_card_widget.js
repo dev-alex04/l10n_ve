@@ -3,7 +3,8 @@ frappe.provide("frappe.widget.widget_factory");
 if (frappe.widget.widget_factory.number_card) {
     frappe.widget.widget_factory.number_card.prototype.set_formatted_number = function(df, doc) {
         
-        let number_parts = [this.number.toString(), ""]; 
+        let number = flt(this.number);
+        let number_parts = [number.toString(), ""]; 
 
         if (this.card_doc.currency) {
             this.formatted_number = format_currency(number_parts[0], this.card_doc.currency);
