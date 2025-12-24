@@ -33,6 +33,7 @@ def set_l10n_ve_data() -> None:
         set_stock_settings()
         create_bank_transaction_mappings()
         disable_other_currencies()
+        remove_module_onboarding()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1322,3 +1323,23 @@ def disable_other_currencies() -> None:
     except Exception as e:
         print(f"Failure: Ocurrió un error al desactivar monedas: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en disable_other_currencies')
+
+def remove_module_onboarding() -> None:
+    """
+    Marca como completados los registros de 'Module Onboarding' para ocultar la sección
+    de 'Primeros Pasos' (barra de progreso).
+    """
+    print("Iniciando la actualización de Module Onboarding (Primeros Pasos)...")
+    
+    try:
+        modules_to_clean = frappe.get_all("Module Onboarding", pluck="name")
+
+        for module in modules_to_clean:
+            frappe.db.set_value("Module Onboarding", module, "is_complete", 1)
+            print(f"  -> Onboarding marcado como completo para: {module}")
+
+        frappe.db.commit()
+        print("Success: Onboarding actualizado correctamente.")
+    except Exception as e:
+        print(f"Failure: Error al actualizar onboarding: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en remove_module_onboarding')
