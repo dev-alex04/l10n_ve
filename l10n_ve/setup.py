@@ -1335,11 +1335,11 @@ def remove_module_onboarding() -> None:
         modules_to_clean = frappe.get_all("Module Onboarding", pluck="name")
 
         if modules_to_clean:
-            frappe.db.set_value("Module Onboarding", None, "is_complete", 1)
+            frappe.db.set_value("Module Onboarding", modules_to_clean, "is_complete", 1)
             print(f"  -> Se marcaron como completos {len(modules_to_clean)} módulos de onboarding.")
 
         frappe.db.commit()
         print("Success: Onboarding actualizado correctamente.")
     except Exception as e:
         print(f"Failure: Error al actualizar onboarding: {e}")
-        frappe.log_error(frappe.get_traceback(), 'Error en remove_module_onboarding')
+        frappe.log_error(title='Error en remove_module_onboarding', message=frappe.get_traceback(),)
