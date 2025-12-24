@@ -1330,13 +1330,13 @@ def remove_module_onboarding() -> None:
     de 'Primeros Pasos' (barra de progreso).
     """
     print("Iniciando la actualización de Module Onboarding (Primeros Pasos)...")
-    
+
     try:
         modules_to_clean = frappe.get_all("Module Onboarding", pluck="name")
 
-        for module in modules_to_clean:
-            frappe.db.set_value("Module Onboarding", module, "is_complete", 1)
-            print(f"  -> Onboarding marcado como completo para: {module}")
+        if modules_to_clean:
+            frappe.db.set_value("Module Onboarding", None, "is_complete", 1)
+            print(f"  -> Se marcaron como completos {len(modules_to_clean)} módulos de onboarding.")
 
         frappe.db.commit()
         print("Success: Onboarding actualizado correctamente.")
