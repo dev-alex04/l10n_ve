@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate
 
-def set_l10n_ve_data() -> None:
+def set_data() -> None:
     print("Iniciando la configuración de datos para l10n_ve...")
 
     try:
@@ -568,7 +568,19 @@ def set_mode_of_payments(company_name: str = None) -> None:
     try:
         mode_of_payments = [
             {
+                'mode_of_payment': 'Biopago',
+                'account_number': '2.1.1.2.01',
+            },
+            {
+                'mode_of_payment': 'Pagomóvil',
+                'account_number': '2.1.1.2.01',
+            },
+            {
                 'mode_of_payment': 'Tarjetas de credito',
+                'account_number': '2.1.1.2.01',
+            },
+            {
+                'mode_of_payment': 'Tarjetas de debito',
                 'account_number': '2.1.1.2.01',
             },
             {
@@ -1212,7 +1224,7 @@ def create_municipality_taxes() -> None:
 
     except Exception as e:
         frappe.db.rollback()
-        
+
         print(f"!! FATAL: Ocurrió un error inesperado durante la creación de impuestos municipales: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_municipality_taxes')
 

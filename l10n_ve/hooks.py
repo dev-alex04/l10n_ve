@@ -167,7 +167,7 @@ doctype_list_js = {
 
 after_install = [
     "l10n_ve.patches.monkey_patches.apply_post_db_patches",
-    "l10n_ve.setup.set_l10n_ve_data"
+    "l10n_ve.setup.set_data"
 ]
 
 after_migrate = "l10n_ve.patches.monkey_patches.apply_post_db_patches"
