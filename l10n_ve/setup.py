@@ -1401,62 +1401,37 @@ def create_role_profiles() -> None:
     Crea dos perfiles de roles: Gerente Administrativo y Analista.
     """
     print("Iniciando la creación de perfiles de roles...")
-    
+
+    def _create_profile(profile_name, roles_to_add):
+
+        if frappe.db.exists("Role Profile", profile_name):
+            print(f"  -- Omitiendo (ya existe): Perfil de rol '{profile_name}'.")
+            return
+
+        print(f"  -> Creando perfil de rol: {profile_name}")
+        if not roles_to_add:
+            print(f"  !! ADVERTENCIA: No se encontraron roles para el perfil '{profile_name}'.")
+            return
+
+        role_profile = frappe.new_doc("Role Profile")
+        role_profile.role_profile = profile_name
+        for role_name in roles_to_add:
+            role_profile.append("roles", {"role": role_name})
+        role_profile.insert(ignore_permissions=True)
+        print(f"  -> Perfil '{profile_name}' creado con {len(roles_to_add)} roles.")
+
     try:
         all_roles = frappe.get_all("Role", fields=["name"])
+        all_role_names = {r['name'] for r in all_roles}
 
         profile_name_admin = "Gerente Administrativo"
-        if not frappe.db.exists("Role Profile", profile_name_admin):
-            print(f"  -> Creando perfil de rol: {profile_name_admin}")
-            manager_roles = [
-                role['name'] for role in all_roles
-                if "Manager" in role['name'] and role['name'] not in ["System Manager",
-                                                                      "Workspace Manager",
-                                                                      "Script Manager",
-                                                                      "Website Manager"]
-            ]
-
-            if manager_roles:
-                role_profile_admin = frappe.new_doc("Role Profile")
-                role_profile_admin.role_profile = profile_name_admin
-
-                for role_name in manager_roles:
-
-                    role_profile_admin.append("roles", {"role": role_name})
-
-                role_profile_admin.insert(ignore_permissions=True)
-                print(f"  -> Perfil '{profile_name_admin}' creado con {len(manager_roles)} roles.")
-
-            else:
-                print(f"  !! ADVERTENCIA: No se encontraron roles de"
-                      f"Manager' para el perfil '{profile_name_admin}'.")
-
-        else:
-            print(f"  -- Omitiendo (ya existe): Perfil de rol '{profile_name_admin}'.")
+        excluded_manager_roles = {"System Manager", "Workspace Manager", "Script Manager", "Website Manager"}
+        manager_roles = [name for name in all_role_names if "Manager" in name and name not in excluded_manager_roles]
+        _create_profile(profile_name_admin, manager_roles)
 
         profile_name_analista = "Analista"
-
-        if not frappe.db.exists("Role Profile", profile_name_analista):
-            print(f"  -> Creando perfil de rol: {profile_name_analista}")
-            
-            user_roles = [
-                role['name'] for role in all_roles
-                if "User" in role['name']
-            ]
-
-            if user_roles:
-                role_profile_analista = frappe.new_doc("Role Profile")
-                role_profile_analista.role_profile = profile_name_analista
-
-                for role_name in user_roles:
-                    role_profile_analista.append("roles", {"role": role_name})
-
-                role_profile_analista.insert(ignore_permissions=True)
-                print(f"  -> Perfil '{profile_name_analista}' creado con {len(user_roles)} roles.")
-            else:
-                print(f"  !! ADVERTENCIA: No se encontraron roles de 'User' para el perfil '{profile_name_analista}'.")
-        else:
-            print(f"  -- Omitiendo (ya existe): Perfil de rol '{profile_name_analista}'.")
+        user_roles = [name for name in all_role_names if "User" in name]
+        _create_profile(profile_name_analista, user_roles)
 
         frappe.db.commit()
         print("Success: Creación de perfiles de roles completada.")
@@ -1464,3 +1439,4 @@ def create_role_profiles() -> None:
     except Exception as e:
         print(f"Failure: Ocurrió un error creando perfiles de roles: {e}")
         frappe.log_error(title="Error en create_role_profiles", message=frappe.get_traceback())
+        
