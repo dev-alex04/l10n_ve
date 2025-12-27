@@ -34,6 +34,8 @@ def set_data() -> None:
         create_bank_transaction_mappings()
         disable_other_currencies()
         remove_module_onboarding()
+        create_module_profile()
+        create_role_profiles()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1355,3 +1357,110 @@ def remove_module_onboarding() -> None:
     except Exception as e:
         print(f"Failure: Error al actualizar onboarding: {e}")
         frappe.log_error(title='Error en remove_module_onboarding', message=frappe.get_traceback(),)
+
+def create_module_profile() -> None:
+    """
+    Crea o actualiza un perfil de módulo para Domina Base, mostrando solo los módulos especificados.
+    """
+    profile_name = "Domina Base"
+    print(f"Iniciando la creación/actualización del perfil de módulo '{profile_name}'...")
+
+    try:
+        modules_to_show = {
+            "Stock", "Buying", "Contacts", "Accounts", "Expense Claims",
+            "L10N Ve", "Projects", "Selling"
+        }
+
+        all_modules = frappe.get_all("Module Def", pluck="name")
+
+        if frappe.db.exists("Module Profile", profile_name):
+            module_profile = frappe.get_doc("Module Profile", profile_name)
+            module_profile.set("block_modules", [])
+            print(f"  -> Actualizando perfil de módulo existente: '{profile_name}'.")
+        else:
+            module_profile = frappe.new_doc("Module Profile")
+            module_profile.module_profile_name = profile_name
+            print(f"  -> Creando nuevo perfil de módulo: '{profile_name}'.")
+
+        for module_name in all_modules:
+            if module_name not in modules_to_show:
+                module_profile.append("block_modules", {"module": module_name})
+
+        module_profile.save(ignore_permissions=True)
+        frappe.db.commit()
+        print(f"  -> Perfil de módulo '{profile_name}' guardado"
+              f"con {len(module_profile.block_modules)} módulos bloqueados.")
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error creando el perfil de módulo '{profile_name}': {e}")
+        frappe.log_error(title=f"Error en create_module_profile "
+                               f"para '{profile_name}'", message=frappe.get_traceback())
+
+def create_role_profiles() -> None:
+    """
+    Crea dos perfiles de roles: Gerente Administrativo y Analista.
+    """
+    print("Iniciando la creación de perfiles de roles...")
+    
+    try:
+        all_roles = frappe.get_all("Role", fields=["name"])
+
+        profile_name_admin = "Gerente Administrativo"
+        if not frappe.db.exists("Role Profile", profile_name_admin):
+            print(f"  -> Creando perfil de rol: {profile_name_admin}")
+            manager_roles = [
+                role['name'] for role in all_roles
+                if "Manager" in role['name'] and role['name'] not in ["System Manager",
+                                                                      "Workspace Manager",
+                                                                      "Script Manager",
+                                                                      "Website Manager"]
+            ]
+
+            if manager_roles:
+                role_profile_admin = frappe.new_doc("Role Profile")
+                role_profile_admin.role_profile = profile_name_admin
+
+                for role_name in manager_roles:
+
+                    role_profile_admin.append("roles", {"role": role_name})
+
+                role_profile_admin.insert(ignore_permissions=True)
+                print(f"  -> Perfil '{profile_name_admin}' creado con {len(manager_roles)} roles.")
+
+            else:
+                print(f"  !! ADVERTENCIA: No se encontraron roles de"
+                      f"Manager' para el perfil '{profile_name_admin}'.")
+
+        else:
+            print(f"  -- Omitiendo (ya existe): Perfil de rol '{profile_name_admin}'.")
+
+        profile_name_analista = "Analista"
+
+        if not frappe.db.exists("Role Profile", profile_name_analista):
+            print(f"  -> Creando perfil de rol: {profile_name_analista}")
+            
+            user_roles = [
+                role['name'] for role in all_roles
+                if "User" in role['name']
+            ]
+
+            if user_roles:
+                role_profile_analista = frappe.new_doc("Role Profile")
+                role_profile_analista.role_profile = profile_name_analista
+
+                for role_name in user_roles:
+                    role_profile_analista.append("roles", {"role": role_name})
+
+                role_profile_analista.insert(ignore_permissions=True)
+                print(f"  -> Perfil '{profile_name_analista}' creado con {len(user_roles)} roles.")
+            else:
+                print(f"  !! ADVERTENCIA: No se encontraron roles de 'User' para el perfil '{profile_name_analista}'.")
+        else:
+            print(f"  -- Omitiendo (ya existe): Perfil de rol '{profile_name_analista}'.")
+
+        frappe.db.commit()
+        print("Success: Creación de perfiles de roles completada.")
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error creando perfiles de roles: {e}")
+        frappe.log_error(title="Error en create_role_profiles", message=frappe.get_traceback())
