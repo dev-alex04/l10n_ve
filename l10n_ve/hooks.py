@@ -238,14 +238,23 @@ override_doctype_class = {
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
-
+doc_events = {
+    "Sales Invoice": {
+        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "Purchase Invoice": {
+        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "Payment Entry": {
+        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "Delivery Note": {
+        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "Purchase Receipt": {
+        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+    }
+}
 # Scheduled Tasks
 # ---------------
 
