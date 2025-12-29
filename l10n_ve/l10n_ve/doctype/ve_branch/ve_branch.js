@@ -41,7 +41,9 @@ frappe.ui.form.on("VE Branch", {
       frm.set_df_property("parent_ve_branch", "hidden", 1);
       frm.set_df_property("parent_ve_branch", "reqd", 0);
       frm.set_df_property("is_group", "read_only", 1);
-      frm.set_value("is_group", 1);
+      if (frm.doc.is_group !== 1) {
+        frm.set_value("is_group", 1);
+      }
     }
   },
 });

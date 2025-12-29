@@ -13,8 +13,6 @@ def set_ve_branch(doc, method):
         if doc.branch:
             return
 
-        frappe.session.user
-
         branch = frappe.db.get_value("VE Branch Users", {
             "user": frappe.session.user,
         }, "parent")
@@ -25,4 +23,7 @@ def set_ve_branch(doc, method):
         doc.branch = branch
 
     except Exception as e:
-        frappe.log_error(f"Error al asignar sucursal: {str(e)}")
+        frappe.log_error(
+            title=f"Error al asignar sucursal",
+            message=f"Error al asignar sucursal: {str(e)} \n{frappe.get_traceback()}"
+        )
