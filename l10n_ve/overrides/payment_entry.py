@@ -721,6 +721,7 @@ def get_payment_entry(
 
     doc = frappe.get_doc(dt, dn)
 
+    payment_entry.branch = doc.get("branch")
     payment_entry.paid_currency_amount = payment_entry.paid_amount
 
     payment_entry.igtf_rate = igtf_rate

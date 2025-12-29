@@ -3,6 +3,7 @@ from frappe import _, _dict
 
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
 
+
 class TaxesMixin:
     def validate_tax_structure(self) -> None:
 
