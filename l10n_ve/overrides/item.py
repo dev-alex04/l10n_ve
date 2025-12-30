@@ -11,13 +11,13 @@ class CustomItem(Item):
 
     def validate(self):
         super().validate()
-        company = self.get("company")
-        if not company:
-            company = frappe.db.get_single_value("Global Defaults", "default_company")
-
-        if not self.reference_currency and company:
+        if self.reference_currency:
+            return
+        company = self.get("company") or frappe.db.get_single_value(
+            "Global Defaults", "default_company"
+        )
+        if company:
             self.reference_currency = frappe.db.get_value("Company", company, "reference_currency")
-
         if not self.reference_currency:
             self.reference_currency = "USD"
 
