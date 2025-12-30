@@ -1,4 +1,16 @@
 frappe.ui.form.on("Supplier", {
+  before_save: function (frm) {
+    if (!frm.doc.supplier_primary_address) {
+      frappe.throw(
+        __(
+          "El campo 'Dirección Principal' es obligatorio. Por favor, ingrese una dirección usando el botón 'Agregar Dirección' en la parte superior derecha"
+        )
+      );
+    }
+  },
+  onload: function (frm) {
+    setup_venezuelan_phone_validation(frm, "mobile_no");
+  },
   refresh: function (frm) {
     add_address_button(frm);
     reorganize_supplier_fields(frm);
@@ -10,6 +22,7 @@ frappe.ui.form.on("Supplier", {
       hidden_address_contact(frm);
     } else {
       get_address_link(frm);
+      frm.toggle_display("supplier_primary_contact", false);
     }
 
     handle_supplier_field_change(frm, null);
@@ -29,6 +42,10 @@ frappe.ui.form.on("Supplier", {
 
   tax_id: function (frm) {
     build_tax_id(frm);
+  },
+
+  validate: function (frm) {
+    validate_venezuelan_phone(frm, "mobile_no");
   },
 });
 

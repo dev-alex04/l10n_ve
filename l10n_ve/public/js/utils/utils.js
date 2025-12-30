@@ -294,26 +294,53 @@ function realtime_numeric_validation(frm, fieldname) {
   });
 }
 
-function realtime_numeric_validation(frm, fieldname) {
+function format_phone_input(value) {
+  if (!value) return "";
+  let numeric_value = value.replace(/\D/g, "");
+  if (numeric_value.length > 11) {
+    numeric_value = numeric_value.substring(0, 11);
+  }
+  return numeric_value;
+}
+
+function setup_venezuelan_phone_validation(frm, fieldname) {
   const input = frm.get_field(fieldname).$input;
   if (!input) return;
 
   input.on("input", function () {
-    const value = $(this).val();
-    const numeric_value = value.replace(/\D/g, "");
+    const original_value = $(this).val();
+    const numeric_value = format_phone_input(original_value);
 
-    if (value !== numeric_value) {
+    if (original_value !== numeric_value) {
       frm.set_value(fieldname, numeric_value, false);
       frm.get_field(fieldname).refresh();
     }
   });
 }
 
+const VENEZUELAN_MOBILE_PREFIXES = ["0412", "0414", "0416", "0424", "0426", "0422"];
+
+function is_valid_venezuelan_phone(phone_no) {
+  if (!phone_no) return true; 
+
+  const phone_regex = new RegExp(`^(${VENEZUELAN_MOBILE_PREFIXES.join("|")})\\d{7}$`);
+  return phone_regex.test(phone_no);
+}
+
+
+function validate_venezuelan_phone(frm, fieldname) {
+  const phone_no = frm.doc[fieldname];
+  if (!is_valid_venezuelan_phone(phone_no)) {
+    frappe.throw({
+      title: __("Número de Teléfono Inválido"),
+      message: __("El número de teléfono debe tener 11 dígitos y comenzar con uno de los siguientes prefijos: {0}", [VENEZUELAN_MOBILE_PREFIXES.join(", ")]),
+      indicator: "red",
+    });
+  }
+}
+
 function add_address_button(frm) {
-  if (
-    (frm.is_new() && !frm.doc.customer_primary_address) ||
-    !frm.custom_buttons["Agregar Dirección"]
-  ) {
+  if (frm.is_new() && !frm.custom_buttons["Agregar Dirección"]) {
     frm.add_custom_button(__("Agregar Dirección"), () => {
       _get_address_dialog(frm).show();
     });
@@ -411,6 +438,18 @@ function _get_address_dialog(frm) {
     ],
     primary_action_label: __("Guardar"),
     primary_action: (values) => {
+      if (!is_valid_venezuelan_phone(values.mobile_no)) {
+        frappe.msgprint({
+          title: __("Número de Teléfono Inválido"),
+          message: __(
+            "El número de teléfono debe tener 11 dígitos y comenzar con uno de los siguientes prefijos: {0}",
+            [VENEZUELAN_MOBILE_PREFIXES.join(", ")]
+          ),
+          indicator: "red",
+        });
+        return;
+      }
+
       values.doctype = "Address";
 
       frappe.call({
@@ -445,6 +484,20 @@ function _get_address_dialog(frm) {
       });
     },
   });
+
+  dialog.on_page_show = () => {
+    const phone_field = dialog.get_field("mobile_no");
+    if (phone_field && phone_field.$input) {
+      phone_field.$input.on("input", function () {
+        const original_value = $(this).val();
+        const numeric_value = format_phone_input(original_value);
+
+        if (original_value !== numeric_value) {
+          $(this).val(numeric_value);
+        }
+      });
+    }
+  };
 
   dialog.get_field("state").get_query = function () {
     return {
