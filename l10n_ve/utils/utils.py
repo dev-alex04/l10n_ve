@@ -349,3 +349,36 @@ def get_url_to_list(doctype: str) -> str:
     link = f'<a href="{url}" target="_blank"><b>{_(frappe.bold(_(doctype)))}</b></a>'
 
     return link
+
+
+@frappe.whitelist()
+def get_exchange_rate(date: str, from_currency: str) -> float:
+    """Obtiene la tasa de cambio para una fecha y moneda específica."""
+    to_currency = frappe.defaults.get_defaults().get("currency")
+    if not date or not from_currency or not to_currency:
+        return 0
+
+    exchange_rate = frappe.db.get_value(
+        "Currency Exchange",
+        filters={
+            "date": [">=", date],
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+
+        },
+        fieldname="exchange_rate",
+        order_by="date asc",
+    )
+
+    if not exchange_rate:
+        exchange_rate = frappe.db.get_value(
+            "Currency Exchange",
+            filters={
+                "date": ["<=", date],
+                "from_currency": from_currency,
+                "to_currency": to_currency,
+            },
+            fieldname="exchange_rate",
+            order_by="date desc",
+        )
+    return exchange_rate or 0
