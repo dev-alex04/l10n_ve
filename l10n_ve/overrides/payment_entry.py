@@ -28,6 +28,14 @@ from erpnext.accounts.utils import (
 
 class CustomPaymentEntry(PaymentEntry):
 
+    @frappe.whitelist()
+    def allocate_amount_to_references(self, paid_amount=None, received_amount=None, allocate_payment_amount=None, **kwargs):
+        if paid_amount is None:
+            paid_amount = flt(self.paid_amount)
+        if received_amount is None:
+            received_amount = flt(self.received_amount)
+        return super().allocate_amount_to_references(paid_amount, received_amount, allocate_payment_amount)
+
     def validate(self) -> None:
         super().validate()
 
