@@ -9,6 +9,18 @@ from l10n_ve.utils.utils import get_reference_currency
 class CustomItem(Item):
 
 
+    def validate(self):
+        super().validate()
+        company = self.get("company")
+        if not company:
+            company = frappe.db.get_single_value("Global Defaults", "default_company")
+
+        if not self.reference_currency and company:
+            self.reference_currency = frappe.db.get_value("Company", company, "reference_currency")
+
+        if not self.reference_currency:
+            self.reference_currency = "USD"
+
     def after_insert(self) -> None:
         super().after_insert()
 
