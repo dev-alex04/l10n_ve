@@ -17,7 +17,9 @@
   "column_break_inzw",
   "parent_ve_branch",
   "section_break_ekjt",
-  "users"
+  "users",
+  "section_break_nzdv",
+  "mode_of_payments"
  ],
  "fields": [
   {
@@ -96,6 +98,17 @@
    "fieldname": "users",
    "fieldtype": "Table",
    "options": "VE Branch Users"
+  },
+  {
+   "fieldname": "section_break_nzdv",
+   "fieldtype": "Section Break",
+   "label": "Payment Modes"
+  },
+  {
+   "fieldname": "mode_of_payments",
+   "fieldtype": "Table",
+   "options": "VE Branch Payment Modes",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
@@ -103,7 +116,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2025-12-28 21:07:22.599237",
+ "modified": "2025-12-30 16:09:20.620035",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",
@@ -120,6 +133,42 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "All",
+   "select": 1,
+   "share": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Manager",
+   "select": 1,
    "share": 1,
    "write": 1
   }
