@@ -3,6 +3,66 @@ frappe.ui.form.on("Payment Entry", {
     frm.events.get_current_tax_amount = function (frm, tax) {
       return tax.tax_amount;
     };
+
+    frm.set_query("branch", function () {
+      return {
+        filters: {
+          company: frm.doc.company,
+        },
+      };
+    });
+
+    frm.set_query("mode_of_payment", function () {
+      if (frm.doc.branch) {
+        return {
+          query: "l10n_ve.overrides.payment_entry.get_branch_payment_modes",
+          filters: {
+            branch: frm.doc.branch,
+          },
+        };
+      }
+    });
+
+    if (
+      erpnext.accounts &&
+      erpnext.accounts.pos &&
+      !erpnext.accounts.pos.is_branch_override_applied
+    ) {
+      let original_get_payment_mode_account =
+        erpnext.accounts.pos.get_payment_mode_account;
+
+      erpnext.accounts.pos.get_payment_mode_account = function (
+        frm,
+        mode_of_payment,
+        callback
+      ) {
+        if (frm.doc.branch) {
+          frappe.call({
+            method:
+              "l10n_ve.overrides.payment_entry.get_branch_payment_mode_account",
+            args: {
+              branch: frm.doc.branch,
+              mode_of_payment: mode_of_payment,
+            },
+            callback: function (r) {
+              if (r.message) {
+                callback(r.message);
+              } else {
+                original_get_payment_mode_account(
+                  frm,
+                  mode_of_payment,
+                  callback
+                );
+              }
+            },
+          });
+        } else {
+          original_get_payment_mode_account(frm, mode_of_payment, callback);
+        }
+      };
+
+      erpnext.accounts.pos.is_branch_override_applied = true;
+    }
   },
   onload: function (frm) {
     reorganize_payment_entry_fields(frm);
@@ -285,13 +345,13 @@ frappe.ui.form.on("Payment Entry", {
 
     frm.set_value("paid_currency_amount", total_allocated);
     frm.refresh_fields();
-  }
+  },
 });
 
 frappe.ui.form.on("Payment Entry Reference", {
   references_remove: function (frm, cdt, cdn) {
     frm.events.calculate_total_allocated(frm);
-  }
+  },
 });
 
 function get_included_taxes(frm) {
@@ -727,7 +787,7 @@ function confirm_overpayment_on_submit(frm) {
       frm.is_submitting = true;
       frm.save("Submit");
     },
-    () => { }
+    () => {}
   );
 }
 

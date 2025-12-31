@@ -729,7 +729,8 @@ def get_payment_entry(
 
     doc = frappe.get_doc(dt, dn)
 
-    payment_entry.branch = doc.get("branch")
+    _set_payment_entry_mode_of_payment(doc, payment_entry)
+
     payment_entry.paid_currency_amount = payment_entry.paid_amount
 
     payment_entry.igtf_rate = igtf_rate
@@ -739,11 +740,41 @@ def get_payment_entry(
     payment_entry.paid_on_currency = doc.get('currency', company_data.default_currency)
 
     payment_entry.references[0].base_total = doc.get("base_total")
-    payment_entry.references[0].bill_no = doc.get("bill_no") or doc.get("credit_note_no") or doc.get("debit_note_no")
+    payment_entry.references[0].bill_no = doc.get("bill_no") \
+            or doc.get("credit_note_no") \
+            or doc.get("debit_note_no")
 
     payment_entry.apply_taxes()
 
     return payment_entry
+
+
+def _set_payment_entry_mode_of_payment(doc: Document, payment_entry: PaymentEntry) -> None:
+    """
+    Asigna el modo de pago predeterminado de la sucursal al documento de pago.
+    """
+
+    branch = doc.get("branch")
+
+    if not branch:
+        return
+
+    payment_entry.branch = branch
+
+    branch = frappe.get_cached_doc("VE Branch", payment_entry.branch)
+    default_payment_mode: _dict = branch.get_default_payment_mode()
+
+    if not default_payment_mode:
+        return
+
+    payment_entry.mode_of_payment = default_payment_mode.mode_of_payment
+    if not default_payment_mode.account:
+        return
+
+    if payment_entry.payment_type == "Receive":
+        payment_entry.paid_to = default_payment_mode.account
+    else:
+        payment_entry.paid_from = default_payment_mode.account
 
 
 @frappe.whitelist()
@@ -783,3 +814,51 @@ def get_outstanding_reference_documents(args, validate: bool = False) -> list:
         doc["base_total"] = base_total or 0.0
 
     return filtered_docs
+
+
+@frappe.whitelist()
+def get_branch_payment_mode_account(branch: str, mode_of_payment: str) -> str | None:
+    """Obtiene la cuenta configurada para un modo de pago en una sucursal."""
+    if not branch or not mode_of_payment:
+        return None
+
+    account = frappe.db.get_value("VE Branch Payment Modes", {
+        "parent": branch,
+        "mode_of_payment": mode_of_payment
+    }, "account")
+
+    return account
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters):
+    """Obtiene los modos de pago configurados para una sucursal."""
+    branch = filters.get("branch")
+    if not branch:
+        # Retornar todos los modos de pago si no hay sucursal
+        return frappe.db.sql("""
+            SELECT name FROM `tabMode of Payment`
+            WHERE name LIKE %(txt)s
+            ORDER BY name
+            LIMIT %(start)s, %(page_len)s
+        """, {
+            "txt": f"%{txt}%",
+            "start": int(start),
+            "page_len": int(page_len)
+        })
+
+    # Obtener modos de pago de la tabla hija de la sucursal
+    return frappe.db.sql("""
+        SELECT vbpm.mode_of_payment
+        FROM `tabVE Branch Payment Modes` vbpm
+        WHERE vbpm.parent = %(branch)s
+        AND vbpm.mode_of_payment LIKE %(txt)s
+        ORDER BY vbpm.mode_of_payment
+        LIMIT %(start)s, %(page_len)s
+    """, {
+        "branch": branch,
+        "txt": f"%{txt}%",
+        "start": int(start),
+        "page_len": int(page_len)
+    })
