@@ -102,7 +102,7 @@ def get_modes_of_payment_for_company(doctype, txt, searchfield, start, page_len,
         LIMIT %(start)s, %(page_len)s
     """, {
         "company": company,
-        "txt": f"%{txt}%",
-        "start": int(start),
-        "page_len": int(page_len)
+        "txt": "%" + txt + "%",
+        "start": start,
+        "page_len": page_len
     })

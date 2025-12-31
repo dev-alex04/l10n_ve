@@ -835,7 +835,7 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
             ORDER BY name
             LIMIT %(start)s, %(page_len)s
         """, {
-            "txt": f"%{txt}%",
+            "txt": "%" + txt + "%",
             "start": int(start),
             "page_len": int(page_len)
         })
@@ -850,7 +850,7 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
         LIMIT %(start)s, %(page_len)s
     """, {
         "branch": branch,
-        "txt": f"%{txt}%",
+        "txt": "%" + txt + "%",
         "start": int(start),
         "page_len": int(page_len)
     })
