@@ -41,6 +41,10 @@ class CustomPaymentEntry(PaymentEntry):
 
         self.validate_reference_no()
 
+    def validate_transaction_reference(self) -> None:
+        """Desactivada: no requerimos referencia obligatoria para cuentas bancarias."""
+        return
+
     def on_submit(self) -> None:
         self.custom_clear_unallocated_reference_document_rows()
 

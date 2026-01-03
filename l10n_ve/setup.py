@@ -34,8 +34,8 @@ def set_data() -> None:
         create_bank_transaction_mappings()
         disable_other_currencies()
         remove_module_onboarding()
-        create_module_profile()
-        create_role_profiles()
+        set_profiles()
+        set_roles()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1358,7 +1358,7 @@ def remove_module_onboarding() -> None:
         print(f"Failure: Error al actualizar onboarding: {e}")
         frappe.log_error(title='Error en remove_module_onboarding', message=frappe.get_traceback(),)
 
-def create_module_profile() -> None:
+def set_profiles() -> None:
     """
     Crea o actualiza un perfil de módulo para Domina Base, mostrando solo los módulos especificados.
     """
@@ -1393,10 +1393,10 @@ def create_module_profile() -> None:
 
     except Exception as e:
         print(f"Failure: Ocurrió un error creando el perfil de módulo '{profile_name}': {e}")
-        frappe.log_error(title=f"Error en create_module_profile "
+        frappe.log_error(title=f"Error en set_profiles "
                                f"para '{profile_name}'", message=frappe.get_traceback())
 
-def create_role_profiles() -> None:
+def set_roles() -> None:
     """
     Crea dos perfiles de roles: Gerente Administrativo y Analista.
     """
@@ -1438,5 +1438,4 @@ def create_role_profiles() -> None:
 
     except Exception as e:
         print(f"Failure: Ocurrió un error creando perfiles de roles: {e}")
-        frappe.log_error(title="Error en create_role_profiles", message=frappe.get_traceback())
-        
+        frappe.log_error(title="Error en set_roles", message=frappe.get_traceback())
