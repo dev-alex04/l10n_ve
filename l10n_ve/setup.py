@@ -176,7 +176,7 @@ def set_chart_of_accounts(company_name: str = None) -> None:
     """
 
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Iniciando la configuración de cuentas contables en {target}...")
+    frappe.logger("l10n_ve").info(f"Iniciando la configuración de cuentas contables en {target}...")
 
     try:
         account_map = [
@@ -376,7 +376,7 @@ def set_chart_of_accounts(company_name: str = None) -> None:
             companies = frappe.get_all("Company", fields=["name", "abbr"])
 
         for company in companies:
-            print(f"Configurando cuentas para la compañía: {company.name}")
+            frappe.logger("l10n_ve").info(f"Configurando cuentas para la compañía: {company.name}")
 
             for account_info in account_map:
                 company_field = account_info['company_field']
@@ -389,7 +389,7 @@ def set_chart_of_accounts(company_name: str = None) -> None:
                                                 "name")
 
                 if not account_name:
-                    print(f"  !! ADVERTENCIA: La cuenta {account_info['account_number']} no existe para la compañía {company.name}. Se omitirá.")
+                    frappe.logger("l10n_ve").warning(f"  !! ADVERTENCIA: La cuenta {account_info['account_number']} no existe para la compañía {company.name}. Se omitirá.")
                     continue
 
                 frappe.db.set_value("Company",
@@ -397,7 +397,7 @@ def set_chart_of_accounts(company_name: str = None) -> None:
                                     company_field,
                                     account_name)
 
-                print(f" Cuenta '{account_name}' enlazada satisfactoriamente en el campo '{company_field}'.")
+                frappe.logger("l10n_ve").info(f" Cuenta '{account_name}' enlazada satisfactoriamente en el campo '{company_field}'.")
 
             frappe.db.set_value('Company',
                                 company,
@@ -406,10 +406,10 @@ def set_chart_of_accounts(company_name: str = None) -> None:
         frappe.db.commit()
 
     except Exception as e:
-        print(f" !! ERROR configurando las cuentas contables: {e}")
+        frappe.logger("l10n_ve").error(f" !! ERROR configurando las cuentas contables: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en set_chart_of_accounts')
 
-    print("Success: Configuración de cuentas contables en las compañías completada.")
+    frappe.logger("l10n_ve").info("Success: Configuración de cuentas contables en las compañías completada.")
 
 
 def create_vat_withholding(company_name: str = None) -> None:
@@ -418,7 +418,7 @@ def create_vat_withholding(company_name: str = None) -> None:
     Si se proporciona `company_name`, solo se agregan las cuentas de esa compañía.
     """
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Configurando retenciones de IVA para {target}...")
+    frappe.logger("l10n_ve").info(f"Configurando retenciones de IVA para {target}...")
 
     try:
         company_filters = {"name": company_name} if company_name else {}
@@ -454,7 +454,7 @@ def create_vat_withholding(company_name: str = None) -> None:
             for company in companies:
 
                 if not (company.get('sales_vat_withholding_account') and company.get('purchase_vat_withholding_account')):
-                    print(f"  !! ADVERTENCIA: Cuentas de retención de IVA no configuradas para la compañía '{company.name}'. Se omitirá.")
+                    frappe.logger("l10n_ve").warning(f"  !! ADVERTENCIA: Cuentas de retención de IVA no configuradas para la compañía '{company.name}'. Se omitirá.")
                     continue
 
                 withholding.append('accounts', {
@@ -465,10 +465,10 @@ def create_vat_withholding(company_name: str = None) -> None:
 
             withholding.save(ignore_permissions=True)
 
-        print(f"Retenciones de IVA configuradas exitosamente")
+        frappe.logger("l10n_ve").info(f"Retenciones de IVA configuradas exitosamente")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error durante la creación de las retenciones de IVA: {e}")
+        frappe.logger("l10n_ve").error(f"Failure: Ocurrió un error durante la creación de las retenciones de IVA: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_vat_withholding')
 
 
@@ -478,7 +478,7 @@ def create_sales_taxes_and_charges_template(company_name: str = None) -> None:
     Si se proporciona `company_name`, solo se crean para esa compañía.
     """
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Creando plantillas de impuestos de IVA para {target}...")
+    frappe.logger("l10n_ve").info(f"Creando plantillas de impuestos de IVA para {target}...")
 
     try:
         template_types = {
@@ -527,10 +527,10 @@ def create_sales_taxes_and_charges_template(company_name: str = None) -> None:
 
                     tax_template.insert(ignore_permissions=True)
 
-                    print(f"Success: Impuesto de IVA {aliquot}% para {doctype} creado exitosamente.")
+                    frappe.logger("l10n_ve").info(f"Success: Impuesto de IVA {aliquot}% para {doctype} creado exitosamente.")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error durante la creación del impuesto de IVA: {e}")
+        frappe.logger("l10n_ve").error(f"Failure: Ocurrió un error durante la creación del impuesto de IVA: {e}")
         frappe.log_error(frappe.get_traceback(),
                          'Error en create_sales_taxes_and_charges_template')
 
@@ -565,7 +565,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
     Si se proporciona `company_name`, solo se configuran las cuentas para esa compañía.
     """
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Configurando modos de pago para {target}...")
+    frappe.logger("l10n_ve").info(f"Configurando modos de pago para {target}...")
 
     try:
         mode_of_payments = [
@@ -624,7 +624,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
                 }, 'name')
 
                 if not default_account:
-                    print(f'  !! ADVERTENCIA: No se encontró la cuenta con número '
+                    frappe.logger("l10n_ve").warning(f'  !! ADVERTENCIA: No se encontró la cuenta con número '
                           f'{mode["account_number"]} para la compañía {company}.')
                     continue
 
@@ -639,11 +639,11 @@ def set_mode_of_payments(company_name: str = None) -> None:
                     if existing_account_entry.default_account != default_account:
                         existing_account_entry.default_account = default_account
 
-                        print(f'  -> Actualizando cuenta a {default_account} en el modo de pago '
+                        frappe.logger("l10n_ve").info(f'  -> Actualizando cuenta a {default_account} en el modo de pago '
                               f'{mode["mode_of_payment"]} para la compañía {company}')
 
                     else:
-                         print(f'  -- Omitiendo (ya está configurado correctamente): Modo de pago '
+                         frappe.logger("l10n_ve").info(f'  -- Omitiendo (ya está configurado correctamente): Modo de pago '
                                f'{mode["mode_of_payment"]} para la compañía {company}.')
                 else:
                     mode_of_payment.append('accounts', {
@@ -651,13 +651,13 @@ def set_mode_of_payments(company_name: str = None) -> None:
                         'default_account': default_account,
                     })
 
-                    print(f'  -> Agregando cuenta {default_account} al modo de pago '
+                    frappe.logger("l10n_ve").info(f'  -> Agregando cuenta {default_account} al modo de pago '
                           f'{mode["mode_of_payment"]} para la compañía {company}')
 
             mode_of_payment.save(ignore_permissions=True)
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error configurando los modos de pago: {e}")
+        frappe.logger("l10n_ve").error(f"Failure: Ocurrió un error configurando los modos de pago: {e}")
         frappe.log_error(frappe.get_traceback(),
                          'Error configurando los modos de pago:')
 
@@ -665,7 +665,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
 def set_reference_currency(company_name: str = None) -> None:
 
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Estableciendo moneda de referencia en {target}...")
+    frappe.logger("l10n_ve").info(f"Estableciendo moneda de referencia en {target}...")
 
     try:
         if company_name:
@@ -677,7 +677,7 @@ def set_reference_currency(company_name: str = None) -> None:
             companies: list[str] = frappe.db.get_all('Company', pluck='name')
 
         if not companies:
-            print(f"  -- Omitiendo: No se encontraron compañías para procesar.")
+            frappe.logger("l10n_ve").info(f"  -- Omitiendo: No se encontraron compañías para procesar.")
             return
 
         currency = 'USD'
@@ -687,26 +687,26 @@ def set_reference_currency(company_name: str = None) -> None:
                                 'reference_currency',
                                 currency)
 
-            print(f"  -> Moneda de referencia {currency} establecida para la compañía {company}")
+            frappe.logger("l10n_ve").info(f"  -> Moneda de referencia {currency} establecida para la compañía {company}")
 
         frappe.db.set_value('Currency',
                              currency,
                             {'symbol': 'REF.'})
 
-        print(f"  -> Símbolo 'REF.' establecido para la moneda {currency}")
+        frappe.logger("l10n_ve").info(f"  -> Símbolo 'REF.' establecido para la moneda {currency}")
         set_pricelist_on_reference_currency(currency)
 
-        print("Success: Configuración de moneda de referencia completada.")
+        frappe.logger("l10n_ve").info("Success: Configuración de moneda de referencia completada.")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error configurando la moneda de referencia: {e}")
+        frappe.logger("l10n_ve").error(f"Failure: Ocurrió un error configurando la moneda de referencia: {e}")
         frappe.log_error(title='Error configurando la moneda de referencia:',
                          message=frappe.get_traceback())
 
 
 def set_pricelist_on_reference_currency(currency: str) -> None:
 
-    print(f'Estableciendo moneda {currency} en las listas de precios')
+    frappe.logger("l10n_ve").info(f'Estableciendo moneda {currency} en las listas de precios')
 
     try:
         price_lists: list[str] = frappe.db.get_all('Price List', pluck='name')
@@ -715,10 +715,10 @@ def set_pricelist_on_reference_currency(currency: str) -> None:
             frappe.db.set_value('Price List', pricelist, 'currency', currency)
 
 
-        print(f'Moneda {currency} establecida correctamente')
+        frappe.logger("l10n_ve").info(f'Moneda {currency} establecida correctamente')
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error estableciendo moneda {currency} en las listas de precios: {e}")
+        frappe.logger("l10n_ve").error(f"Failure: Ocurrió un error estableciendo moneda {currency} en las listas de precios: {e}")
         frappe.log_error(title=f'Error estableciendo moneda {currency} en las listas de precios:',
                          message=frappe.get_traceback())
 
