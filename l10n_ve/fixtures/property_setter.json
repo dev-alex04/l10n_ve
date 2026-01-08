@@ -3073,7 +3073,7 @@
         "property": "fieldtype",
         "property_type": "Select",
         "row_name": null,
-        "value": "Data"
+        "value": "Small Text"
     },
     {
         "default_value": null,

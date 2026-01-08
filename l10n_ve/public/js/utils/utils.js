@@ -539,7 +539,14 @@ function validate_multiple_emails(value) {
   if (!value || value.trim() === "") return null;
 
   const emails = value.split(",");
-  const email_regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const email_regex = /^[^s@]+@[^s@]+.[^s@]+$/;
+
+  // Helper to escape HTML
+  const escapeHTML = (str) => {
+      const p = document.createElement("p");
+      p.textContent = str;
+      return p.innerHTML;
+  }
 
   for (let email of emails) {
     const trimmedEmail = email.trim();
@@ -548,23 +555,36 @@ function validate_multiple_emails(value) {
       return __("Se encontró una coma extra o falta un correo entre comas.");
     }
     if (!trimmedEmail.includes("@")) {
-      return __("El correo '{0}' no es válido: falta el arroba (@).", [trimmedEmail]);
+      return __("El correo '{0}' no es válido: falta el arroba (@).", [escapeHTML(trimmedEmail)]);
     }
     const parts = trimmedEmail.split("@");
     if (parts.length > 2) {
-      return __("El correo '{0}' no es válido: contiene múltiples arrobas.", [trimmedEmail]);
+      return __("El correo '{0}' no es válido: contiene múltiples arrobas.", [escapeHTML(trimmedEmail)]);
     }
     if (parts[0].length === 0) {
-      return __("El correo '{0}' no es válido: falta el usuario antes del @.", [trimmedEmail]);
+      return __("El correo '{0}' no es válido: falta el usuario antes del @.", [escapeHTML(trimmedEmail)]);
     }
     if (parts[1].length === 0 || !parts[1].includes(".")) {
-      return __("El correo '{0}' no es válido: falta el dominio o la extensión (ej: .com).", [trimmedEmail]);
+      return __("El correo '{0}' no es válido: falta el dominio o la extensión (ej: .com).", [escapeHTML(trimmedEmail)]);
     }
     if (!email_regex.test(trimmedEmail)) {
-      return __("El correo '{0}' contiene caracteres inválidos o formato incorrecto.", [trimmedEmail]);
+      return __("El correo '{0}' contiene caracteres inválidos o formato incorrecto.", [escapeHTML(trimmedEmail)]);
     }
   }
   return null;
 }
-
 window.validate_multiple_emails = validate_multiple_emails;
+
+function validate_party_emails(frm) {
+  if (frm.doc.email_id && typeof validate_multiple_emails === "function") {
+    const error_message = validate_multiple_emails(frm.doc.email_id);
+    if (error_message) {
+      frappe.throw({
+        title: __("Correo Electrónico Inválido"),
+        message: error_message,
+        indicator: "red"
+      });
+    }
+  }
+}
+window.validate_party_emails = validate_party_emails;

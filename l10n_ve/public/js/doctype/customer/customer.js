@@ -56,7 +56,7 @@ frappe.ui.form.on("Customer", {
 
   validate: function (frm) {
     validate_venezuelan_phone(frm, "mobile_no");
-    validate_customer_emails(frm);
+    validate_party_emails(frm);
   },
 });
 
@@ -111,17 +111,4 @@ function reorganize_customer_fields(frm) {
     nature_of_the_taxpayer_field_wrapper
   );
   tax_id_field_wrapper.insertAfter(type_of_person_field_wrapper);
-}
-
-function validate_customer_emails(frm) {
-  if (frm.doc.email_id && typeof validate_multiple_emails === "function") {
-    const error_message = validate_multiple_emails(frm.doc.email_id);
-    if (error_message) {
-      frappe.throw({
-        title: __("Correo Electrónico Inválido"),
-        message: error_message,
-        indicator: "red"
-      });
-    }
-  }
 }

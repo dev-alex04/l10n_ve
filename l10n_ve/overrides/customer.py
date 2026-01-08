@@ -35,6 +35,4 @@ def get_customer_emails(customer_name):
     if hasattr(doc, "get_email_list"):
         return doc.get_email_list()
     
-    if not doc.email_id:
-        return []
-    return [email.strip() for email in doc.email_id.split(",") if email.strip()]
+    return VECustomer.get_email_list(doc)
