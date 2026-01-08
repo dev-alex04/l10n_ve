@@ -539,7 +539,7 @@ function validate_multiple_emails(value) {
   if (!value || value.trim() === "") return null;
 
   const emails = value.split(",");
-  const email_regex = /^[^s@]+@[^s@]+.[^s@]+$/;
+  const email_regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   // Helper to escape HTML
   const escapeHTML = (str) => {
