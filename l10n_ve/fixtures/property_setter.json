@@ -3041,7 +3041,7 @@
         "property": "fieldtype",
         "property_type": "Select",
         "row_name": null,
-        "value": "Data"
+        "value": "Small Text"
     },
     {
         "default_value": null,
@@ -3153,7 +3153,7 @@
         "property": "options",
         "property_type": "Data",
         "row_name": null,
-        "value": "Email"
+        "value": null
     },
     {
         "default_value": null,
@@ -3169,6 +3169,6 @@
         "property": "options",
         "property_type": "Data",
         "row_name": null,
-        "value": "Email"
+        "value": null
     }
 ]

@@ -46,6 +46,7 @@ frappe.ui.form.on("Supplier", {
 
   validate: function (frm) {
     validate_venezuelan_phone(frm, "mobile_no");
+    validate_supplier_emails(frm);
   },
 });
 
@@ -95,4 +96,17 @@ function reorganize_supplier_fields(frm) {
   tax_withholding_category_field_wrapper.insertAfter(tax_id_field_wrapper);
   country_field_wrapper.insertAfter(supplier_group_field_wrapper);
   is_transporter_field_wrapper.insertAfter(default_price_list_field_wrapper);
+}
+
+function validate_supplier_emails(frm) {
+  if (frm.doc.email_id && typeof validate_multiple_emails === "function") {
+    const error_message = validate_multiple_emails(frm.doc.email_id);
+    if (error_message) {
+      frappe.throw({
+        title: __("Correo Electrónico Inválido"),
+        message: error_message,
+        indicator: "red"
+      });
+    }
+  }
 }

@@ -21,3 +21,20 @@ class VECustomer(Customer):
                                   self.name)
 
         validate_taxpayer_and_person_type_consistency(self)
+
+    def get_email_list(self) -> list[str]:
+        if not self.email_id:
+            return []
+        return [email.strip() for email in self.email_id.split(",") if email.strip()]
+
+def get_customer_emails(customer_name):
+    """
+    Busca un cliente por su ID y devuelve la lista de correos.
+    """
+    doc = frappe.get_doc("Customer", customer_name)
+    if hasattr(doc, "get_email_list"):
+        return doc.get_email_list()
+    
+    if not doc.email_id:
+        return []
+    return [email.strip() for email in doc.email_id.split(",") if email.strip()]
