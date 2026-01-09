@@ -559,7 +559,7 @@ function validate_multiple_emails(value) {
     }
     const parts = trimmedEmail.split("@");
     if (parts.length > 2) {
-      return __("El correo '{0}' no es válido: contiene múltiples arrobas.", [escapeHTML(trimmedEmail)]);
+      return __("El correo '{0}' no es válido: contiene múltiples arrobas. Si intenta ingresar varios correos, sepárelos con comas.", [escapeHTML(trimmedEmail)]);
     }
     if (parts[0].length === 0) {
       return __("El correo '{0}' no es válido: falta el usuario antes del @.", [escapeHTML(trimmedEmail)]);
