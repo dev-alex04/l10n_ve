@@ -75,7 +75,7 @@ class CustomPaymentEntry(PaymentEntry):
         elif self.payment_type == 'Receive':
             currency = self.paid_to_account_currency
             frappe.msgprint(
-                _("Se ha generado un anticipo a su favor por un monto de {0}.").format(
+                _("Se ha generado un anticipo a por un monto de {0}.").format(
                     frappe.utils.fmt_money(self.unallocated_amount, currency=currency)
                 )
             )
