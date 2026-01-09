@@ -419,9 +419,8 @@ function _get_address_dialog(frm) {
       {
         label: __("Correo Electrónico"),
         fieldname: "email_id",
-        fieldtype: "Data",
+        fieldtype: "Small Text",
         default: null,
-        options: "Email",
       },
       {
         label: __("Es Dirección Principal"),
@@ -445,6 +444,16 @@ function _get_address_dialog(frm) {
             "El número de teléfono debe tener 11 dígitos y comenzar con uno de los siguientes prefijos: {0}",
             [VENEZUELAN_MOBILE_PREFIXES.join(", ")]
           ),
+          indicator: "red",
+        });
+        return;
+      }
+
+      const email_error = validate_multiple_emails(values.email_id);
+      if (email_error) {
+        frappe.msgprint({
+          title: __("Correo Electrónico Inválido"),
+          message: email_error,
           indicator: "red",
         });
         return;
@@ -525,3 +534,57 @@ function _get_address_dialog(frm) {
 
   return dialog;
 }
+
+function validate_multiple_emails(value) {
+  if (!value || value.trim() === "") return null;
+
+  const emails = value.split(",");
+  const email_regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // Helper to escape HTML
+  const escapeHTML = (str) => {
+      const p = document.createElement("p");
+      p.textContent = str;
+      return p.innerHTML;
+  }
+
+  for (let email of emails) {
+    const trimmedEmail = email.trim();
+
+    if (trimmedEmail === "") {
+      return __("Se encontró una coma extra o falta un correo entre comas.");
+    }
+    if (!trimmedEmail.includes("@")) {
+      return __("El correo '{0}' no es válido: falta el arroba (@).", [escapeHTML(trimmedEmail)]);
+    }
+    const parts = trimmedEmail.split("@");
+    if (parts.length > 2) {
+      return __("El correo '{0}' no es válido: contiene múltiples arrobas. Si intenta ingresar varios correos, sepárelos con comas.", [escapeHTML(trimmedEmail)]);
+    }
+    if (parts[0].length === 0) {
+      return __("El correo '{0}' no es válido: falta el usuario antes del @.", [escapeHTML(trimmedEmail)]);
+    }
+    if (parts[1].length === 0 || !parts[1].includes(".")) {
+      return __("El correo '{0}' no es válido: falta el dominio o la extensión (ej: .com).", [escapeHTML(trimmedEmail)]);
+    }
+    if (!email_regex.test(trimmedEmail)) {
+      return __("El correo '{0}' contiene caracteres inválidos o formato incorrecto.", [escapeHTML(trimmedEmail)]);
+    }
+  }
+  return null;
+}
+window.validate_multiple_emails = validate_multiple_emails;
+
+function validate_party_emails(frm) {
+  if (frm.doc.email_id && typeof validate_multiple_emails === "function") {
+    const error_message = validate_multiple_emails(frm.doc.email_id);
+    if (error_message) {
+      frappe.throw({
+        title: __("Correo Electrónico Inválido"),
+        message: error_message,
+        indicator: "red"
+      });
+    }
+  }
+}
+window.validate_party_emails = validate_party_emails;

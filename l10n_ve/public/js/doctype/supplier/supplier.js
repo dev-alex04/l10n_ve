@@ -46,6 +46,7 @@ frappe.ui.form.on("Supplier", {
 
   validate: function (frm) {
     validate_venezuelan_phone(frm, "mobile_no");
+    validate_party_emails(frm);
   },
 });
 
