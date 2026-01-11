@@ -92,10 +92,10 @@ def get_tax_id_config(document_type: str, nature: str) -> int:
     config = {
         'RIF': {'default': 9},
         'Cedula': {
-            'default': [7,8]
+            'default': [6,8]
         },
         'Passport': {
-            'Extranjero': [8,9],
+            'Extranjero': [5,12],
         }
     }
     doc_config = config.get(document_type, config['RIF'])
