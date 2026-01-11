@@ -106,8 +106,7 @@ frappe.ui.form.on("Payment Entry", {
       .get_value("Mode of Payment", frm.doc.mode_of_payment, "type")
       .then((r) => {
         const mop_type = r.message?.type;
-        const is_required =
-          frm.doc.payment_type === "Receive" && mop_type !== "Cash";
+        const is_required = mop_type !== "Cash";
         frm.set_df_property("reference_no", "reqd", is_required);
       });
   },
