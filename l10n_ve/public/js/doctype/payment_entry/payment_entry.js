@@ -63,6 +63,8 @@ frappe.ui.form.on("Payment Entry", {
 
       erpnext.accounts.pos.is_branch_override_applied = true;
     }
+
+    frm.events.set_reference_no_required(frm);
   },
   onload: function (frm) {
     reorganize_payment_entry_fields(frm);
@@ -82,10 +84,32 @@ frappe.ui.form.on("Payment Entry", {
     }
 
     realtime_numeric_validation(frm, "reference_no");
+    frm.events.set_reference_no_required(frm);
   },
 
   refresh: function (frm) {
     set_payment_entry_buttons(frm);
+    frm.events.set_reference_no_required(frm);
+  },
+
+  mode_of_payment: function (frm) {
+    frm.events.set_reference_no_required(frm);
+  },
+
+  set_reference_no_required: function (frm) {
+    if (!frm.doc.mode_of_payment) {
+      frm.set_df_property("reference_no", "reqd", false);
+      return;
+    }
+
+    frappe.db
+      .get_value("Mode of Payment", frm.doc.mode_of_payment, "type")
+      .then((r) => {
+        const mop_type = r.message?.type;
+        const is_required =
+          frm.doc.payment_type === "Receive" && mop_type !== "Cash";
+        frm.set_df_property("reference_no", "reqd", is_required);
+      });
   },
 
   paid_on_currency: function (frm) {
