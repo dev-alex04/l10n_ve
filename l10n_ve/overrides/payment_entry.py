@@ -837,6 +837,9 @@ def get_branch_payment_mode_account(branch: str, mode_of_payment: str) -> str | 
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
 def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters):
+    if isinstance(filters, str):
+        filters = json.loads(filters)
+
     """Obtiene los modos de pago configurados para una sucursal."""
     branch = filters.get("branch")
     if not branch:
