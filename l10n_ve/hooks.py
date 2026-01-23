@@ -117,6 +117,13 @@ doctype_js = {
     "Stock Entry": [
         "public/js/doctype/stock_entry/stock_entry.js",
     ],
+    "Project": [
+         "public/js/doctype/project/project.js"
+    ],
+    "Task": [
+         "public/js/doctype/task/task.js"
+    ],
+    
 }
 
 doctype_list_js = {
