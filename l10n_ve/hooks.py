@@ -244,6 +244,8 @@ override_doctype_class = {
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
     "Supplier Quotation": "l10n_ve.overrides.supplier_quotation.CustomSupplierQuotation",
     "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
+    "Project": "l10n_ve.overrides.project.CustomProject",
+    "Task": "l10n_ve.overrides.task.CustomTask",
 }
 
 
@@ -266,6 +268,9 @@ doc_events = {
     },
     "Purchase Receipt": {
         "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "File": {
+        "after_insert": "l10n_ve.overrides.task.sync_attachment_to_project",
     }
 }
 # Scheduled Tasks
