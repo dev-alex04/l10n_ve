@@ -123,6 +123,9 @@ doctype_js = {
     "Task": [
          "public/js/doctype/task/task.js"
     ],
+    "Installation Note": [
+         "public/js/doctype/installation_note/installation_note.js"
+    ],
     
 }
 
