@@ -1,6 +1,7 @@
 import frappe
 from erpnext.projects.doctype.project.project import Project
 from frappe.desk.form.assign_to import add as assign_to_user
+from frappe.share import add as share_doc
 
 class CustomProject(Project):
     def after_insert(self):
@@ -24,36 +25,36 @@ class CustomProject(Project):
         project_tasks = frappe.get_all("Task", filters={"project": self.name}, pluck="name")
 
         for a in assignments:
-            if a.allocated_to:
-                exists = frappe.db.exists("ToDo", {
-                    "reference_type": "Project",
-                    "reference_name": self.name,
-                    "allocated_to": a.allocated_to,
-                    "status": "Open"
-                })
+            if not a.allocated_to:
+                continue
 
-                if not exists:
-                    assign_to_user({
-                        "assign_to": [a.allocated_to],
-                        "doctype": "Project",
-                        "name": self.name,
-                        "description": f"Copiado de Plantilla: {self.project_template}",
-                        "notify": 1 
-                    })
+            self.assign_and_share("Project", self.name, a.allocated_to)
 
-                for task_name in project_tasks:
-                    exists_task = frappe.db.exists("ToDo", {
-                        "reference_type": "Task",
-                        "reference_name": task_name,
-                        "allocated_to": a.allocated_to,
-                        "status": "Open"
-                    })
-                    
-                    if not exists_task:
-                        assign_to_user({
-                            "assign_to": [a.allocated_to],
-                            "doctype": "Task",
-                            "name": task_name,
-                            "description": f"Copiado de Plantilla: {self.project_template}",
-                            "notify": 1
-                        })
+            for task_name in project_tasks:
+                self.assign_and_share("Task", task_name, a.allocated_to)
+
+    def assign_and_share(self, doctype, name, user):
+        exists = frappe.db.exists("ToDo", {
+            "reference_type": doctype,
+            "reference_name": name,
+            "allocated_to": user,
+            "status": "Open"
+        })
+
+        if not exists:
+            assign_to_user({
+                "assign_to": [user],
+                "doctype": doctype,
+                "name": name,
+                "description": f"Copiado de Plantilla: {self.project_template}",
+                "notify": 1
+            })
+
+        share_doc(
+            doctype=doctype,
+            name=name,
+            user=user,
+            read=1,
+            write=1,
+            share=0
+        )
