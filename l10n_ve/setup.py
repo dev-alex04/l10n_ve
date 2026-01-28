@@ -571,7 +571,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
         {
             'mode_of_payment': 'Biopago',
             'account_number': '2.1.1.2.01',
-            'type': 'Ganway',
+            'type': 'Gangway',
             'visibility_type': 'Private'
         },
         {
@@ -632,7 +632,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
             mop_type = mode['type']
             mop_visibility_type = mode['visibility_type']
             
-            if not bool(frappe.db.exists('Mode of Payment', mop_name)):
+            if not frappe.db.exists('Mode of Payment', mop_name):
                 print(f"  + Creando nuevo Modo de Pago: '{mop_name}'")
                 doc = frappe.new_doc('Mode of Payment')
                 doc.mode_of_payment = mop_name
