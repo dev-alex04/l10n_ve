@@ -123,6 +123,9 @@ doctype_js = {
     "Task": [
          "public/js/doctype/task/task.js"
     ],
+    "Installation Note": [
+         "public/js/doctype/installation_note/installation_note.js"
+    ],
     
 }
 
@@ -130,6 +133,7 @@ doctype_list_js = {
     "Sales Invoice": "public/js/doctype/sales_invoice/sales_invoice_list.js",
     "Purchase Invoice": "public/js/doctype/purchase_invoice/purchase_invoice_list.js",
     "Currency Exchange": "public/js/doctype/currency_exchange/currency_exchange_list.js",
+    "Project": "public/js/doctype/project/project_list.js",
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -241,6 +245,8 @@ override_doctype_class = {
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.CustomPurchaseInvoice",
     "Supplier Quotation": "l10n_ve.overrides.supplier_quotation.CustomSupplierQuotation",
     "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
+    "Project": "l10n_ve.overrides.project.CustomProject",
+    "Task": "l10n_ve.overrides.task.CustomTask",
 }
 
 
@@ -263,6 +269,9 @@ doc_events = {
     },
     "Purchase Receipt": {
         "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "File": {
+        "after_insert": "l10n_ve.overrides.task.sync_attachment_to_project",
     }
 }
 # Scheduled Tasks

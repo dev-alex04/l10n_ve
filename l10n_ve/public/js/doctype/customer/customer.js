@@ -29,6 +29,12 @@ frappe.ui.form.on("Customer", {
 
     handle_customer_field_change(frm, null);
     handle_field_change(frm, null);
+
+    // Ocultar campos
+    frm.toggle_display("account_manager", false);
+    frm.toggle_display("lead_name", false);
+    frm.toggle_display("opportunity_name", false);
+    frm.toggle_display("prospect_name", false);
   },
 
   nature_of_the_taxpayer: function (frm) {
