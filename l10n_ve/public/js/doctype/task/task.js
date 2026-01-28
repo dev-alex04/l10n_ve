@@ -4,7 +4,8 @@ frappe.ui.form.on("Task", {
 			const fields_to_hide = [
 				"total_billing_amount",
 				"total_costing_amount",
-				"priority"
+				"priority",
+				"is_template",
 			];
 			fields_to_hide.forEach(field => frm.set_df_property(field, 'hidden', 1));
 		}
@@ -17,6 +18,7 @@ frappe.ui.form.on("Task", {
 		frm.toggle_display("color", false);
 
 		frm.set_df_property("hour", "read_only", 1);
+		frm.set_df_property("completed_by", "reqd", 1);
 		
 	}
 });

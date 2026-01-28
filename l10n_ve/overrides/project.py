@@ -8,6 +8,34 @@ class CustomProject(Project):
         super().after_insert()
         
         self.assign_users_from_template()
+        self.set_dates_from_sales_order()
+
+    def set_dates_from_sales_order(self):
+        if not self.sales_order:
+            return
+
+        try:
+            so_dates = frappe.db.get_value("Sales Order", self.sales_order, 
+                                           ["transaction_date", "delivery_date"], as_dict=True)
+            
+            if not so_dates:
+                return
+
+            updates = {}
+            if so_dates.get("transaction_date") and not self.expected_start_date:
+                updates["expected_start_date"] = so_dates.transaction_date
+            
+            if so_dates.get("delivery_date") and not self.expected_end_date:
+                updates["expected_end_date"] = so_dates.delivery_date
+
+            if updates:
+                frappe.db.set_value(self.doctype, self.name, updates)
+                self.reload()
+        except frappe.DoesNotExistError:
+            frappe.log_error(
+                f"La Orden de Venta {self.sales_order} no fue encontrada para el Proyecto {self.name}",
+                "Sincronización de Fechas de Proyecto"
+            )
 
     def assign_users_from_template(self):
         if not self.project_template:

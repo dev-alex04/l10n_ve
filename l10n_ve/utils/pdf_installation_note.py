@@ -8,11 +8,9 @@ import base64
 def generate_installation_note_pdf(docname):
     doc = frappe.get_doc("Installation Note", docname)
 
-    # Datos del cliente
     customer_phone = frappe.db.get_value("Customer", doc.customer, "mobile_no") if doc.customer else ""
     customer_tax_id = frappe.db.get_value("Customer", doc.customer, "tax_id") if doc.customer else ""
 
-    # Datos de la empresa
     company = frappe.get_doc("Company", doc.company)
     logo = ""
     if company.company_logo:
@@ -27,7 +25,6 @@ def generate_installation_note_pdf(docname):
         except Exception:
             logo = frappe.utils.get_url(company.company_logo)
 
-    # Dirección de la Empresa (Lógica simplificada para la tabla)
     company_addr_str = ""
     if company.custom_company_primary_address:
         c_addr = frappe.get_doc("Address", company.custom_company_primary_address)
@@ -47,7 +44,7 @@ def generate_installation_note_pdf(docname):
     vendedores = frappe.get_all("Sales Team", filters={"parent": doc.customer, "parenttype": "Customer"}, pluck="sales_person") if doc.customer else []
     vendedor_display = ", ".join(vendedores) if vendedores else "N/A"
 
-    # Lógica de Precios
+    # Lógica de Precios y Moneda
     dn_items_map = {}
     delivery_note_name = doc.get("delivery_note")
     if not delivery_note_name:
@@ -56,14 +53,20 @@ def generate_installation_note_pdf(docname):
                 delivery_note_name = item.prevdoc_docname
                 break
 
+    doc_currency = company.default_currency 
     if delivery_note_name:
-        dn_doc = frappe.get_doc("Delivery Note", delivery_note_name)
-        for dn_item in dn_doc.items:
-            dn_items_map[dn_item.item_code] = dn_item.rate
+        try:
+            dn_doc = frappe.get_doc("Delivery Note", delivery_note_name)
+            doc_currency = dn_doc.currency or doc_currency 
+            for dn_item in dn_doc.items:
+                dn_items_map[dn_item.item_code] = dn_item.rate
+        except frappe.DoesNotExistError:
+            pass 
+
+    display_currency = frappe.db.get_value("Currency", doc_currency, "symbol") or doc_currency
 
     items_data = []
     total_installation_amount = 0
-    display_currency = "Bs."
 
     for item in doc.items:
         qty = item.get("qty", 1)
