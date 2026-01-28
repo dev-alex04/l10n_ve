@@ -47,29 +47,57 @@ class CustomProject(Project):
                 "reference_name": self.project_template,
                 "status": "Open"
             }, 
-            fields=["allocated_to", "description"]
+            fields=["allocated_to"]
         )
+
+        users = list(set([a.allocated_to for a in assignments if a.allocated_to]))
+        if not users:
+            return
 
         project_tasks = frappe.get_all("Task", filters={"project": self.name}, pluck="name")
 
-        for a in assignments:
-            if not a.allocated_to:
-                continue
+        all_names = [self.name] + project_tasks
+        
+        existing_todos = set()
+        todos = frappe.get_all("ToDo", filters={
+            "reference_type": ["in", ["Project", "Task"]],
+            "reference_name": ["in", all_names],
+            "allocated_to": ["in", users],
+            "status": "Open"
+        }, fields=["reference_type", "reference_name", "allocated_to"])
+        
+        for t in todos:
+            existing_todos.add((t.reference_type, t.reference_name, t.allocated_to))
 
-            self.assign_and_share("Project", self.name, a.allocated_to)
+        existing_shares = set()
+        shares = frappe.get_all("DocShare", filters={
+            "share_doctype": ["in", ["Project", "Task"]],
+            "share_name": ["in", all_names],
+            "user": ["in", users]
+        }, fields=["share_doctype", "share_name", "user"])
+
+        for s in shares:
+            existing_shares.add((s.share_doctype, s.share_name, s.user))
+
+        for user in users:
+            self.assign_and_share("Project", self.name, user, existing_todos, existing_shares)
 
             for task_name in project_tasks:
-                self.assign_and_share("Task", task_name, a.allocated_to)
+                self.assign_and_share("Task", task_name, user, existing_todos, existing_shares)
 
-    def assign_and_share(self, doctype, name, user):
-        exists = frappe.db.exists("ToDo", {
-            "reference_type": doctype,
-            "reference_name": name,
-            "allocated_to": user,
-            "status": "Open"
-        })
+    def assign_and_share(self, doctype, name, user, existing_todos=None, existing_shares=None):
+        # Check ToDo existence
+        if existing_todos is not None:
+            todo_exists = (doctype, name, user) in existing_todos
+        else:
+            todo_exists = frappe.db.exists("ToDo", {
+                "reference_type": doctype,
+                "reference_name": name,
+                "allocated_to": user,
+                "status": "Open"
+            })
 
-        if not exists:
+        if not todo_exists:
             assign_to_user({
                 "assign_to": [user],
                 "doctype": doctype,
@@ -77,12 +105,22 @@ class CustomProject(Project):
                 "description": f"Copiado de Plantilla: {self.project_template}",
                 "notify": 1
             })
+            if existing_todos is not None:
+                existing_todos.add((doctype, name, user))
 
-        share_doc(
-            doctype=doctype,
-            name=name,
-            user=user,
-            read=1,
-            write=1,
-            share=0
-        )
+        if existing_shares is not None:
+            share_exists = (doctype, name, user) in existing_shares
+        else:
+            share_exists = False
+
+        if not share_exists:
+            share_doc(
+                doctype=doctype,
+                name=name,
+                user=user,
+                read=1,
+                write=1,
+                share=0
+            )
+            if existing_shares is not None:
+                existing_shares.add((doctype, name, user))

@@ -3,13 +3,14 @@ from frappe.utils.pdf import get_pdf
 from frappe.utils import fmt_money
 import os
 import base64
+from frappe.utils.html_utils import escape_html
 
 @frappe.whitelist()
 def generate_installation_note_pdf(docname):
     doc = frappe.get_doc("Installation Note", docname)
 
-    customer_phone = frappe.db.get_value("Customer", doc.customer, "mobile_no") if doc.customer else ""
-    customer_tax_id = frappe.db.get_value("Customer", doc.customer, "tax_id") if doc.customer else ""
+    customer_phone = escape_html(frappe.db.get_value("Customer", doc.customer, "mobile_no") or "") if doc.customer else ""
+    customer_tax_id = escape_html(frappe.db.get_value("Customer", doc.customer, "tax_id") or "") if doc.customer else ""
 
     company = frappe.get_doc("Company", doc.company)
     logo = ""
@@ -22,27 +23,26 @@ def generate_installation_note_pdf(docname):
                 extension = company.company_logo.split(".")[-1].lower()
                 mime_type = f"image/{extension}" if extension != "svg" else "image/svg+xml"
                 logo = f"data:{mime_type};base64,{encoded_string}"
-        except Exception:
+        except Exception as e:
+            frappe.log_error(f"Error al incrustar el logo de la compañía: {e}")
             logo = frappe.utils.get_url(company.company_logo)
 
     company_addr_str = ""
     if company.custom_company_primary_address:
         c_addr = frappe.get_doc("Address", company.custom_company_primary_address)
-        c_city = frappe.db.get_value("VE City", c_addr.city, "city") if c_addr.city and frappe.db.exists("VE City", c_addr.city) else c_addr.city
-        c_state = frappe.db.get_value("VE State", c_addr.state, "state") if c_addr.state and frappe.db.exists("VE State", c_addr.state) else c_addr.state
-        company_addr_str = f"<strong>{c_addr.address_line1 or ''}</strong><br>{c_city}, {c_state}"
+        c_city = escape_html(frappe.db.get_value("VE City", c_addr.city, "city") or c_addr.city or "") if c_addr.city and frappe.db.exists("VE City", c_addr.city) else escape_html(c_addr.city or "")
+        c_state = escape_html(frappe.db.get_value("VE State", c_addr.state, "state") or c_addr.state or "") if c_addr.state and frappe.db.exists("VE State", c_addr.state) else escape_html(c_addr.state or "")
+        company_addr_str = f"<strong>{escape_html(c_addr.address_line1 or '')}</strong><br>{c_city}, {c_state}"
 
-    # Dirección del Cliente
     customer_addr_str = ""
     if doc.get("customer_address"):
         addr = frappe.get_doc("Address", doc.customer_address)
-        city = frappe.db.get_value("VE City", addr.city, "city") if frappe.db.exists("VE City", addr.city) else addr.city
-        state = frappe.db.get_value("VE State", addr.state, "state") if frappe.db.exists("VE State", addr.state) else addr.state
-        customer_addr_str = f"<strong>{addr.address_line1 or ''}</strong><br>{city}, {state}"
+        city = escape_html(frappe.db.get_value("VE City", addr.city, "city") or addr.city or "") if frappe.db.exists("VE City", addr.city) else escape_html(addr.city or "")
+        state = escape_html(frappe.db.get_value("VE State", addr.state, "state") or addr.state or "") if frappe.db.exists("VE State", addr.state) else escape_html(addr.state or "")
+        customer_addr_str = f"<strong>{escape_html(addr.address_line1 or '')}</strong><br>{city}, {state}"
 
-    # Obtener Vendedor
     vendedores = frappe.get_all("Sales Team", filters={"parent": doc.customer, "parenttype": "Customer"}, pluck="sales_person") if doc.customer else []
-    vendedor_display = ", ".join(vendedores) if vendedores else "N/A"
+    vendedor_display = escape_html(", ".join(vendedores)) if vendedores else "N/A"
 
     # Lógica de Precios y Moneda
     dn_items_map = {}
@@ -61,6 +61,7 @@ def generate_installation_note_pdf(docname):
             for dn_item in dn_doc.items:
                 dn_items_map[dn_item.item_code] = dn_item.rate
         except frappe.DoesNotExistError:
+            frappe.log_error(f"Delivery Note {delivery_note_name} not found for Installation Note {doc.name}. Item rates will default to 0.")
             pass 
 
     display_currency = frappe.db.get_value("Currency", doc_currency, "symbol") or doc_currency
@@ -74,8 +75,8 @@ def generate_installation_note_pdf(docname):
         amount = rate * qty
         total_installation_amount += amount
         items_data.append({
-            "equipo": item.item_code,
-            "desc": item.get("item_name") or item.get("description"),
+            "equipo": escape_html(item.item_code),
+            "desc": escape_html(item.get("item_name") or item.get("description") or ""),
             "qty": f"{qty:g}",
             "rate": fmt_money(rate, currency=display_currency),
             "amount": fmt_money(amount, currency=display_currency)
@@ -83,6 +84,9 @@ def generate_installation_note_pdf(docname):
 
     equipos_html = "".join([f"<tr><td style='padding: 10px;'><strong>{e['equipo']}</strong><br><span style='font-size: 9px; color: #666;'>{e['desc']}</span></td><td style='text-align:center;'>{e['qty']}</td><td style='text-align:right;'>{e['rate']}</td><td style='text-align:right;'>{e['amount']}</td></tr>" for e in items_data])
     fecha_doc = doc.get_formatted("inst_date") if doc.get("inst_date") else frappe.utils.formatdate(doc.creation)
+    
+    escaped_customer_name = escape_html(doc.customer_name or "")
+    escaped_remarks = escape_html(doc.remarks or "Sin observaciones adicionales.")
 
     html = f"""
     <html>
@@ -108,14 +112,14 @@ def generate_installation_note_pdf(docname):
             <tr>
                 <td width="50%">
                     {f'<img src="{logo}" class="logo">' if logo else ''}
-                    <div style="font-weight: bold; font-size: 12px; margin-top: 5px;">{company.company_name}</div>
-                    <div style="font-size: 10px; color: #555;">RIF: {company.tax_id or 'N/A'}</div>
+                    <div style="font-weight: bold; font-size: 12px; margin-top: 5px;">{escape_html(company.company_name or "")}</div>
+                    <div style="font-size: 10px; color: #555;">RIF: {escape_html(company.tax_id or 'N/A')}</div>
                 </td>
                 <td class="doc-info" width="50%">
                     <div class="doc-title">NOTA DE INSTALACIÓN</div>
-                    <span style="font-size: 14px; font-weight: bold;">{doc.name}</span><br><br>
+                    <span style="font-size: 14px; font-weight: bold;">{escape_html(doc.name or "")}</span><br><br>
                     <strong>VENDEDOR:</strong> {vendedor_display}<br>
-                    <strong>FECHA:</strong> {fecha_doc}
+                    <strong>FECHA:</strong> {escape_html(fecha_doc or "")}
                 </td>
             </tr>
         </table>
@@ -123,7 +127,7 @@ def generate_installation_note_pdf(docname):
         <div class="section-header">Información de Instalación</div>
         <table class="info-table">
             <tr>
-                <td width="50%"><span class="label">Cliente / Razón Social</span>{doc.customer_name}</td>
+                <td width="50%"><span class="label">Cliente / Razón Social</span>{escaped_customer_name}</td>
                 <td width="25%"><span class="label">RIF / Cédula</span>{customer_tax_id}</td>
                 <td width="25%"><span class="label">Teléfono</span>{customer_phone}</td>
             </tr>
@@ -153,7 +157,7 @@ def generate_installation_note_pdf(docname):
 
         <div style="clear: both; margin-top: 20px;">
             <span class="label">Observaciones</span>
-            <div style="font-size: 10px; border: 1px solid #eee; padding: 10px; min-height: 50px;">{doc.remarks or 'Sin observaciones adicionales.'}</div>
+            <div style="font-size: 10px; border: 1px solid #eee; padding: 10px; min-height: 50px;">{escaped_remarks}</div>
         </div>
     </body>
     </html>

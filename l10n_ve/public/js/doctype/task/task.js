@@ -6,6 +6,8 @@ frappe.ui.form.on("Task", {
 				"total_costing_amount",
 				"priority",
 				"is_template",
+				"type",
+				"is_group",
 			];
 			fields_to_hide.forEach(field => frm.set_df_property(field, 'hidden', 1));
 		}
@@ -13,12 +15,13 @@ frappe.ui.form.on("Task", {
 		frm.toggle_display("actual_time", false);
 		frm.toggle_display("parent_task", false);
 		frm.toggle_display("task_weight", false);
-		frm.toggle_display("type", false);
-		frm.toggle_display("is_group", false);
 		frm.toggle_display("color", false);
 
 		frm.set_df_property("hour", "read_only", 1);
-		frm.set_df_property("completed_by", "reqd", 1);
 		
+		frm.trigger("status");
+	},
+	status: function(frm) {
+		frm.set_df_property("completed_by", "reqd", frm.doc.status === "Completed" ? 1 : 0);
 	}
 });
