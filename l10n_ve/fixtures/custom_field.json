@@ -7498,7 +7498,7 @@
     "is_system_generated": 0,
     "is_virtual": 0,
     "label": "Teléfono del Pagomóvil",
-    "length": 0,
+    "length": 11,
     "link_filters": null,
     "mandatory_depends_on": null,
     "modified": "2026-01-29 09:30:00.000000",
