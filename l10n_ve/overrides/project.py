@@ -2,8 +2,13 @@ import frappe
 from erpnext.projects.doctype.project.project import Project
 from frappe.desk.form.assign_to import add as assign_to_user
 from frappe.share import add as share_doc
+from frappe.utils import now
 
 class CustomProject(Project):
+
+    def before_insert(self):
+        self.hour = frappe.utils.get_time(now()).strftime("%H:%M:%S")
+
     def after_insert(self):
         super().after_insert()
         

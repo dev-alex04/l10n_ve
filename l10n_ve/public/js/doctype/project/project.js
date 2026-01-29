@@ -10,5 +10,8 @@ frappe.ui.form.on("Project", {
 			];
 			fields_to_hide.forEach(field => frm.set_df_property(field, 'hidden', 1));
 		}
+
+		frm.set_df_property("hour", "read_only", 1);
+		frm.toggle_display("hour", !!frm.doc.hour);
 	}
 });
