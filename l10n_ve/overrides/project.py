@@ -138,7 +138,7 @@ def get_events(doctype, start, end, filters=None, field_map=None, add_fields=Non
         SELECT 
             t.reference_name,
             u.user_image as image, 
-            u.full_name as name
+            u.first_name as name
         FROM `tabToDo` t
         JOIN `tabUser` u ON t.allocated_to = u.name
         WHERE t.reference_type = %s 
@@ -162,6 +162,12 @@ def get_events(doctype, start, end, filters=None, field_map=None, add_fields=Non
         if not event.get(end_field):
             event[end_field] = event[start_field]
         
-        event["assigned_users"] = assignments_by_project.get(event.get("name"), [])
+        users = assignments_by_project.get(event.get("name"), [])
+        event["assigned_users"] = users
+
+        if users:
+            user_names = ", ".join([u["name"] for u in users if u.get("name")])
+            if user_names:
+                event["project_name"] = f"{event.get('project_name')} ({user_names})"
                 
     return events
