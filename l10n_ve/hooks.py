@@ -137,7 +137,7 @@ doctype_list_js = {
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
-# doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
+doctype_calendar_js = {"Project": "public/js/doctype/project/project_calendar.js"}
 
 
 # Svg Icons
@@ -308,6 +308,7 @@ scheduler_events = {
 #
 
 override_whitelisted_methods = {
+    "frappe.desk.calendar.get_events": "l10n_ve.overrides.project.get_events",
     "erpnext.accounts.utils.get_coa": "l10n_ve.whitelisted.account.utils.get_coa",
     "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry": "l10n_ve.overrides.payment_entry.get_payment_entry",
     "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_chart": "l10n_ve.patches.accounts.chart_of_accounts.get_chart",
