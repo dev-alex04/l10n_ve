@@ -255,6 +255,9 @@ override_doctype_class = {
 # Hook on document methods and events
 
 doc_events = {
+    "ToDo": {
+        "after_insert": "l10n_ve.overrides.task.auto_share_on_assignment",
+    },
     "Sales Invoice": {
         "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
     },
