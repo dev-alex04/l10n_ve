@@ -137,7 +137,7 @@ doctype_list_js = {
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
-# doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
+doctype_calendar_js = {"Project": "public/js/doctype/project/project_calendar.js"}
 
 
 # Svg Icons
@@ -255,6 +255,9 @@ override_doctype_class = {
 # Hook on document methods and events
 
 doc_events = {
+    "ToDo": {
+        "after_insert": "l10n_ve.overrides.task.auto_share_on_assignment",
+    },
     "Sales Invoice": {
         "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
     },
@@ -308,6 +311,7 @@ scheduler_events = {
 #
 
 override_whitelisted_methods = {
+    "frappe.desk.calendar.get_events": "l10n_ve.overrides.project.get_events",
     "erpnext.accounts.utils.get_coa": "l10n_ve.whitelisted.account.utils.get_coa",
     "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry": "l10n_ve.overrides.payment_entry.get_payment_entry",
     "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_chart": "l10n_ve.patches.accounts.chart_of_accounts.get_chart",

@@ -118,3 +118,25 @@ def sync_attachment_to_project(doc, method):
             new_file.attached_to_doctype = "Project"
             new_file.attached_to_name = project
             new_file.insert(ignore_permissions=True)
+
+def auto_share_on_assignment(doc, method):
+    """
+    Cuando se crea una asignación (ToDo) para una Tarea, 
+    comparte automáticamente el documento con el usuario asignado.
+    """
+    if doc.reference_type == "Task" and doc.allocated_to:
+       
+        if not frappe.db.exists("DocShare", {
+            "share_doctype": "Task",
+            "share_name": doc.reference_name,
+            "user": doc.allocated_to
+        }):
+            share_doc(
+                doctype="Task",
+                name=doc.reference_name,
+                user=doc.allocated_to,
+                read=1,
+                write=1,
+                share=0,
+                notify=0 
+            )
