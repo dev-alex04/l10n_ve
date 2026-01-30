@@ -567,41 +567,58 @@ def set_mode_of_payments(company_name: str = None) -> None:
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
     print(f"Configurando modos de pago para {target}...")
 
+    mode_of_payments = [
+        {
+            'mode_of_payment': 'Biopago',
+            'account_number': '2.1.1.2.01',
+            'type': 'Gangway',
+            'visibility_type': 'Private'
+        },
+        {
+            'mode_of_payment': 'Pagomóvil',
+            'account_number': '2.1.1.2.01',
+            'type': 'Bank',
+            'visibility_type': 'Public'
+        },
+        {
+            'mode_of_payment': 'Tarjetas de crédito',
+            'account_number': '2.1.1.2.01',
+            'type': 'Bank',
+            'visibility_type': 'Public'
+        },
+        {
+            'mode_of_payment': 'Tarjetas de débito',
+            'account_number': '2.1.1.2.01',
+            'type': 'Bank',
+            'visibility_type': 'Public'
+        },
+        {
+            'mode_of_payment': 'Transferencia bancaria',
+            'account_number': '1.1.2.1.01',
+            'type': 'Bank',
+            'visibility_type': 'Public'
+        },
+        {
+            'mode_of_payment': 'Giro bancario',
+            'account_number': '1.1.2.1.01',
+            'type': 'Bank',
+            'visibility_type': 'Public'
+        },
+        {
+            'mode_of_payment': 'Efectivo',
+            'account_number': '1.1.1.1.01',
+            'type': 'Cash',
+            'visibility_type': 'Private'
+        },
+        {
+            'mode_of_payment': 'Cheque',
+            'account_number': '1.1.2.1.01',
+            'type': 'Bank',
+            'visibility_type': 'Public'
+        },
+    ]
+
     try:
-        mode_of_payments = [
-            {
-                'mode_of_payment': 'Biopago',
-                'account_number': '2.1.1.2.01',
-            },
-            {
-                'mode_of_payment': 'Pagomóvil',
-                'account_number': '2.1.1.2.01',
-            },
-            {
-                'mode_of_payment': 'Tarjetas de credito',
-                'account_number': '2.1.1.2.01',
-            },
-            {
-                'mode_of_payment': 'Tarjetas de debito',
-                'account_number': '2.1.1.2.01',
-            },
-            {
-                'mode_of_payment': 'Transferencia bancaria',
-                'account_number': '1.1.2.1.01',
-            },
-            {
-                'mode_of_payment': 'Giro bancario',
-                'account_number': '1.1.2.1.01',
-            },
-            {
-                'mode_of_payment': 'Efectivo',
-                'account_number': '1.1.1.1.01',
-            },
-            {
-                'mode_of_payment': 'Cheque',
-                'account_number': '1.1.2.1.01',
-            },
-        ]
 
         if company_name:
             companies = frappe.get_all("Company",
@@ -611,11 +628,19 @@ def set_mode_of_payments(company_name: str = None) -> None:
             companies = frappe.db.get_all('Company', pluck='name')
 
         for mode in mode_of_payments:
+            mop_name = mode['mode_of_payment']
+            mop_type = mode['type']
+            mop_visibility_type = mode['visibility_type']
+            
+            if not frappe.db.exists('Mode of Payment', mop_name):
+                print(f"  + Creando nuevo Modo de Pago: '{mop_name}'")
+                doc = frappe.new_doc('Mode of Payment')
+                doc.mode_of_payment = mop_name
+                doc.type = mop_type
+                doc.visibility_type = mop_visibility_type
+                doc.insert(ignore_permissions=True)
 
-            if not bool(frappe.db.exists('Mode of Payment', mode['mode_of_payment'])):
-                continue
-
-            mode_of_payment = frappe.get_doc('Mode of Payment', mode['mode_of_payment'])
+            mode_of_payment = frappe.get_doc('Mode of Payment', mop_name)
 
             for company in companies:
                 default_account: str = frappe.db.get_value('Account', {
