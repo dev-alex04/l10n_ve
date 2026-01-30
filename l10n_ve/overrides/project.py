@@ -48,7 +48,6 @@ class CustomProject(Project):
         if not self.project_template:
             return
         
-        # Asignar usuarios de la Plantilla de Proyecto al Proyecto
         assignments = frappe.get_all(
             "ToDo", 
             filters={
@@ -64,7 +63,6 @@ class CustomProject(Project):
                 self.assign_and_share("Project", self.name, a.allocated_to)
 
     def assign_and_share(self, doctype, name, user):
-        # Asignar (Burbuja sidebar)
         if not frappe.db.exists("ToDo", {
             "reference_type": doctype,
             "reference_name": name,
@@ -133,7 +131,6 @@ def get_events(doctype, start, end, filters=None, field_map=None, add_fields=Non
     if not project_names:
         return events
 
-    # Obtiene todos los usuarios asignados en una sola consulta para evitar el problema N+1
     all_assigned_data = frappe.db.sql("""
         SELECT 
             t.reference_name,
@@ -146,7 +143,6 @@ def get_events(doctype, start, end, filters=None, field_map=None, add_fields=Non
         AND t.status = 'Open'
     """, (doctype, tuple(project_names)), as_dict=True)
 
-    # Agrupa las asignaciones por proyecto
     assignments_by_project = defaultdict(list)
     for d in all_assigned_data:
         assignments_by_project[d.reference_name].append({
@@ -155,7 +151,6 @@ def get_events(doctype, start, end, filters=None, field_map=None, add_fields=Non
             "initial": d.name[0].upper() if d.name else "?"
         })
 
-    # Adjunta los usuarios a los eventos y corrige las fechas
     for event in events:
         if not event.get(start_field):
             event[start_field] = frappe.utils.today()
