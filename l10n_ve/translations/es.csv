@@ -564,4 +564,4 @@ Please enter <b>Difference Account</b> or set default <b>Stock Adjustment Accoun
 "Stock transactions that are older than the mentioned days cannot be modified.","Las transacciones bursátiles con antigüedad superior a los días mencionados no podrán ser modificadas.",
 "Total Contribution Amount Against Orders: {0}","Total de la cantidad de contribución en contra de los pedidos: {0}",
 "Total Contribution Amount Against Invoices: {0}","Total de la cantidad de contribución en contra de las facturas: {0}",
-Hour Star, Hora de Inicio,
+Hour Start, Hora de Inicio,
