@@ -77,7 +77,7 @@ def generate_installation_note_pdf(docname):
         total_installation_amount += amount
         items_data.append({
             "equipo": escape_html(item.item_code),
-            "desc": escape_html(item.get("item_name") or item.get("description") or ""),
+            "desc": item.get("item_name") or item.get("description") or "",
             "qty": f"{qty:g}",
             "rate": fmt_money(rate, currency=display_currency),
             "amount": fmt_money(amount, currency=display_currency)
@@ -108,7 +108,15 @@ def generate_installation_note_pdf(docname):
                 child_desc = packed_item.description or frappe.db.get_value("Item", child_item_code, "item_name") or ""
                 uom = packed_item.uom or ""
 
-                bundle_rows_html += f"<tr><td style='padding: 4px 10px;'><strong>{escape_html(child_item_code)}</strong><br><span style='font-size: 9px; color: #666;'>{escape_html(child_desc)}</span><br><span style='font-size: 8px; color: #999;'>Incluido en: {escape_html(bundle_item_code)}</span></td><td style='text-align:center;'>{final_component_qty:g}</td><td style='text-align:center; font-size: 9px;'>{escape_html(uom)}</td></tr>"
+                bundle_rows_html += f"""<tr>
+                    <td style='padding: 4px 10px;'>
+                        <strong>{escape_html(child_item_code)}</strong><br>
+                        <div style='font-size: 9px; color: #666;'>{child_desc}</div>
+                        <span style='font-size: 8px; color: #999;'>Incluido en: {escape_html(bundle_item_code)}</span>
+                    </td>
+                    <td style='text-align:center;'>{final_component_qty:g}</td>
+                    <td style='text-align:center; font-size: 9px;'>{escape_html(uom)}</td>
+                </tr>"""
 
     bundle_section = ""
     if bundle_rows_html:
