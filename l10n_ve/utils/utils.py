@@ -1,7 +1,6 @@
 import re
 import frappe
 from frappe import _
-from frappe.utils import flt
 
 from frappe.utils import (
     getdate,
@@ -382,4 +381,4 @@ def get_exchange_rate(date: str, from_currency: str) -> float:
             fieldname="exchange_rate",
             order_by="date desc",
         )
-    return flt(exchange_rate,2) or 0
+    return exchange_rate or 0
