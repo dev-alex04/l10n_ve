@@ -6,6 +6,18 @@ frappe.ui.form.on("VE Branch", {
     frm.trigger("setup_fields");
   },
 
+  onload(frm) {
+    frm.trigger("setup_fields");
+
+    frm.set_query("parent_ve_branch", function () {
+      return {
+        filters: {
+          "is_group": 1
+        }
+      };
+    });
+  },
+
   setup(frm) {
     frm.trigger("setup_fields");
 
@@ -29,6 +41,18 @@ frappe.ui.form.on("VE Branch", {
     });
   },
 
+  is_group(frm) {
+    let is_group = frm.doc.is_group;
+
+    if (is_group) {
+      frm.set_df_property("parent_ve_branch", "hidden", 1);
+      frm.set_df_property("parent_ve_branch", "reqd", 0);
+    } else {
+      frm.set_df_property("parent_ve_branch", "hidden", 0);
+      frm.set_df_property("parent_ve_branch", "reqd", 1);
+    }
+  },
+
   parent_ve_branch(frm) {
     frm.trigger("setup_fields");
 
@@ -44,23 +68,18 @@ frappe.ui.form.on("VE Branch", {
   },
 
   setup_fields(frm) {
-    const has_parent = !!frm.doc.parent_ve_branch;
+    const has_parent = frm.doc.is_group;
 
     if (has_parent) {
-      frm.set_df_property("company", "reqd", 0);
-      frm.set_df_property("company", "read_only", 1);
-      frm.set_df_property("parent_ve_branch", "hidden", 0);
-      frm.set_df_property("parent_ve_branch", "reqd", 1);
-      frm.set_df_property("is_group", "read_only", 0);
-    } else {
       frm.set_df_property("company", "reqd", 1);
       frm.set_df_property("company", "read_only", 0);
       frm.set_df_property("parent_ve_branch", "hidden", 1);
       frm.set_df_property("parent_ve_branch", "reqd", 0);
-      frm.set_df_property("is_group", "read_only", 1);
-      if (frm.doc.is_group !== 1) {
-        frm.set_value("is_group", 1);
-      }
+    } else {
+      frm.set_df_property("company", "reqd", 0);
+      frm.set_df_property("company", "read_only", 1);
+      frm.set_df_property("parent_ve_branch", "hidden", 0);
+      frm.set_df_property("parent_ve_branch", "reqd", 1);
     }
   },
 });
