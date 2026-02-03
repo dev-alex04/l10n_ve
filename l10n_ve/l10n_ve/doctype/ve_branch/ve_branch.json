@@ -22,7 +22,7 @@
   "mode_of_payments",
   "section_break_ojwg",
   "email_branch",
-  "payment_information_1"
+  "payment_information"
  ],
  "fields": [
   {
@@ -124,9 +124,10 @@
    "options": "Email"
   },
   {
-   "fieldname": "payment_information_1",
-   "fieldtype": "Text Editor",
-   "label": "Payment information 1"
+   "fieldname": "payment_information",
+   "fieldtype": "Table",
+   "label": "payment information",
+   "options": "VE Branch Payment Method"
   }
  ],
  "grid_page_length": 50,
@@ -134,7 +135,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-02-03 12:55:16.059049",
+ "modified": "2026-02-03 17:19:32.434893",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",
@@ -192,7 +193,6 @@
   }
  ],
  "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
  "search_fields": "branch_name,company",
  "show_preview_popup": 1,
  "show_title_field_in_link": 1,
