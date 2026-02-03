@@ -19,7 +19,10 @@
   "section_break_ekjt",
   "users",
   "section_break_nzdv",
-  "mode_of_payments"
+  "mode_of_payments",
+  "section_break_ojwg",
+  "email_branch",
+  "payment_information_1"
  ],
  "fields": [
   {
@@ -109,6 +112,21 @@
    "fieldtype": "Table",
    "options": "VE Branch Payment Modes",
    "reqd": 1
+  },
+  {
+   "fieldname": "section_break_ojwg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "email_branch",
+   "fieldtype": "Data",
+   "label": "Email Branch",
+   "options": "Email"
+  },
+  {
+   "fieldname": "payment_information_1",
+   "fieldtype": "Text Editor",
+   "label": "Payment information 1"
   }
  ],
  "grid_page_length": 50,
@@ -116,7 +134,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2025-12-30 16:09:20.620035",
+ "modified": "2026-02-03 12:55:16.059049",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",
