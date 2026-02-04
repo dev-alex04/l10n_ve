@@ -565,3 +565,5 @@ Please enter <b>Difference Account</b> or set default <b>Stock Adjustment Accoun
 "Total Contribution Amount Against Orders: {0}","Total de la cantidad de contribución en contra de los pedidos: {0}",
 "Total Contribution Amount Against Invoices: {0}","Total de la cantidad de contribución en contra de las facturas: {0}",
 Hour Start, Hora de Inicio,
+Email Branch, Correo de Sucursal,
+Payment Information, Datos De Pagos,

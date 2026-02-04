@@ -11,6 +11,7 @@
   "section_break_dlfm",
   "branch_name",
   "company",
+  "email_branch",
   "lft",
   "rgt",
   "old_parent",
@@ -109,6 +110,12 @@
    "fieldtype": "Table",
    "options": "VE Branch Payment Modes",
    "reqd": 1
+  },
+  {
+   "fieldname": "email_branch",
+   "fieldtype": "Data",
+   "label": "Email Branch",
+   "options": "Email"
   }
  ],
  "grid_page_length": 50,
@@ -116,7 +123,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2025-12-30 16:09:20.620035",
+ "modified": "2026-02-03 20:56:47.772184",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",
@@ -174,7 +181,6 @@
   }
  ],
  "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
  "search_fields": "branch_name,company",
  "show_preview_popup": 1,
  "show_title_field_in_link": 1,
