@@ -65,7 +65,7 @@ def start_custom_import(docname: str) -> dict[str, Any]:
                             processed_row.append(datetime(*date_tuple[:3]).strftime("%d/%m/%Y"))
                         else:
                             processed_row.append(cell_value)
-                            
+
                     data.append(processed_row)
         except Exception as e:
             frappe.throw(_("Error al leer el archivo XLS: {0}").format(str(e)))
@@ -239,6 +239,9 @@ def start_custom_import(docname: str) -> dict[str, Any]:
                         except (ValueError, TypeError):
                             new_transaction.set(field_name, getdate(value))
                     else:
+                        if field_name == "reference_number" and isinstance(value, str):
+                            value = "".join(filter(str.isdigit, value))
+
                         new_transaction.set(field_name, value)
 
             if flt(new_transaction.withdrawal) > 0 and flt(new_transaction.deposit) > 0:
