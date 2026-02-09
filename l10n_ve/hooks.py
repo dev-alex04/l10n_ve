@@ -247,6 +247,7 @@ override_doctype_class = {
     "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
     "Project": "l10n_ve.overrides.project.CustomProject",
     "Task": "l10n_ve.overrides.task.CustomTask",
+    "Bank Statement Import": "l10n_ve.overrides.bank_statement_import.CustomBankStatementImport",
 }
 
 

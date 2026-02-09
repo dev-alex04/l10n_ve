@@ -11,7 +11,19 @@ import unicodedata
 import io
 import openpyxl
 import xlrd
+from bs4 import BeautifulSoup
+from erpnext.accounts.doctype.bank_statement_import.bank_statement_import import BankStatementImport
 
+
+class CustomBankStatementImport(BankStatementImport):
+    def validate(self):
+        try:
+            super().validate()
+        except Exception as e:
+            if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
+                pass
+            else:
+                raise e
 
 @frappe.whitelist()
 def get_preview_from_template(data_import, import_file=None, google_sheets_url=None):
@@ -21,10 +33,23 @@ def get_preview_from_template(data_import, import_file=None, google_sheets_url=N
         )
     except Exception as e:
         if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
-            frappe.throw(_(
-                "El archivo tiene un formato no compatible (es HTML con extensión .xls). "
-                "Por favor, ábralo en Excel y guárdelo como .xlsx o .csv antes de importarlo."
-            ))
+            if import_file:
+                file_path = os.path.join(frappe.get_site_path(), import_file.lstrip('/'))
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+                    soup = BeautifulSoup(content, "html.parser")
+                    table = soup.find("table")
+                    if table:
+                        data = []
+                        rows = table.find_all("tr")
+                        for row in rows:
+                            cols = row.find_all(["td", "th"])
+                            data.append([ele.get_text(strip=True) for ele in cols])
+                        if data:
+                            return {"columns": data[0], "data": data[1:]}
+                except Exception:
+                    pass
         raise e
 
 @frappe.whitelist()
@@ -124,11 +149,20 @@ def _process_import_logic(doc, start_time):
                     
         except Exception as e:
             if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
-                frappe.throw(_(
-                    "El archivo tiene un formato no compatible (es HTML con extensión .xls). "
-                    "Por favor, ábralo en Excel y guárdelo como .xlsx o .csv antes de importarlo."
-                ))
-            frappe.throw(_("Error al leer el archivo XLS: {0}").format(str(e)))
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+                    soup = BeautifulSoup(content, "html.parser")
+                    table = soup.find("table")
+                    if table:
+                        rows = table.find_all("tr")
+                        for row in rows:
+                            cols = row.find_all(["td", "th"])
+                            data.append([ele.get_text(strip=True) for ele in cols])
+                except Exception as html_e:
+                    frappe.throw(_("Error al leer el archivo XLS (HTML): {0}").format(str(html_e)))
+            else:
+                frappe.throw(_("Error al leer el archivo XLS: {0}").format(str(e)))
 
     else:
         frappe.throw(_("Formato de archivo no soportado. Solo se aceptan CSV, XLS y XLSX."))
