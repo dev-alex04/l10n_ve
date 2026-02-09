@@ -247,6 +247,7 @@ override_doctype_class = {
     "Tax Withholding Category": "l10n_ve.overrides.tax_withholding_category.CustomTaxWithholdingCategory",
     "Project": "l10n_ve.overrides.project.CustomProject",
     "Task": "l10n_ve.overrides.task.CustomTask",
+    "Bank Statement Import": "l10n_ve.overrides.bank_statement_import.CustomBankStatementImport",
 }
 
 
@@ -259,19 +260,19 @@ doc_events = {
         "after_insert": "l10n_ve.overrides.task.auto_share_on_assignment",
     },
     "Sales Invoice": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Purchase Invoice": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Payment Entry": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Delivery Note": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Purchase Receipt": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "File": {
         "after_insert": "l10n_ve.overrides.task.sync_attachment_to_project",
@@ -318,6 +319,7 @@ override_whitelisted_methods = {
     "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.build_tree_from_json": "l10n_ve.patches.accounts.chart_of_accounts.build_tree_from_json",
     "erpnext.accounts.doctype.payment_entry.payment_entry.get_outstanding_reference_documents": "l10n_ve.overrides.payment_entry.get_outstanding_reference_documents",
     "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_charts_for_country": "l10n_ve.whitelisted.account.chart_of_accounts.get_charts_for_country",
+    "erpnext.accounts.doctype.bank_statement_import.bank_statement_import.get_preview_from_template": "l10n_ve.overrides.bank_statement_import.get_preview_from_template",
 }
 
 # each overriding function accepts a `data` argument;

@@ -7,11 +7,6 @@ frappe.ui.form.on("Bank Statement Import", {
           args: {
             docname: frm.doc.name,
           },
-          freeze: true,
-          freeze_message: __("Procesando extractos bancarios..."),
-          callback: function (r) {
-            frm.reload_doc();
-          },
         });
       });
     }
