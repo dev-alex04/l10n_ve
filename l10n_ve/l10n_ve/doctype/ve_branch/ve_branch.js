@@ -65,21 +65,12 @@ frappe.ui.form.on("VE Branch", {
           if (r.message) {
             if (r.message.users) {
               frm.clear_table("users");
-              r.message.users.forEach((d) => {
-                let row = frm.add_child("users");
-                row.user = d.user;
-              });
+              r.message.users.forEach(d => frm.add_child("users", d));
               frm.refresh_field("users");
             }
             if (r.message.mode_of_payments) {
               frm.clear_table("mode_of_payments");
-              r.message.mode_of_payments.forEach((d) => {
-                let row = frm.add_child("mode_of_payments");
-                row.mode_of_payment = d.mode_of_payment;
-                row.is_default = d.is_default;
-                row.account = d.account;
-                row.payment_information = d.payment_information;
-              });
+              r.message.mode_of_payments.forEach(d => frm.add_child("mode_of_payments", d));
               frm.refresh_field("mode_of_payments");
             }
           }
