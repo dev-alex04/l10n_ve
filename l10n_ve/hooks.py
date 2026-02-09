@@ -318,6 +318,7 @@ override_whitelisted_methods = {
     "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.build_tree_from_json": "l10n_ve.patches.accounts.chart_of_accounts.build_tree_from_json",
     "erpnext.accounts.doctype.payment_entry.payment_entry.get_outstanding_reference_documents": "l10n_ve.overrides.payment_entry.get_outstanding_reference_documents",
     "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_charts_for_country": "l10n_ve.whitelisted.account.chart_of_accounts.get_charts_for_country",
+    "erpnext.accounts.doctype.bank_statement_import.bank_statement_import.get_preview_from_template": "l10n_ve.overrides.bank_statement_import.get_preview_from_template",
 }
 
 # each overriding function accepts a `data` argument;

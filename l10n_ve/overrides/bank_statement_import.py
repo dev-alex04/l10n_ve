@@ -14,6 +14,20 @@ import xlrd
 
 
 @frappe.whitelist()
+def get_preview_from_template(data_import, import_file=None, google_sheets_url=None):
+    try:
+        return frappe.get_doc("Bank Statement Import", data_import).get_preview_from_template(
+            import_file, google_sheets_url
+        )
+    except Exception as e:
+        if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
+            frappe.throw(_(
+                "El archivo tiene un formato no compatible (es HTML con extensión .xls). "
+                "Por favor, ábralo en Excel y guárdelo como .xlsx o .csv antes de importarlo."
+            ))
+        raise e
+
+@frappe.whitelist()
 def start_custom_import(docname: str) -> dict[str, Any]:
     """
     Inicia el proceso de importación en segundo plano.
@@ -107,7 +121,13 @@ def _process_import_logic(doc, start_time):
                             processed_row.append(cell_value)
 
                     data.append(processed_row)
+                    
         except Exception as e:
+            if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
+                frappe.throw(_(
+                    "El archivo tiene un formato no compatible (es HTML con extensión .xls). "
+                    "Por favor, ábralo en Excel y guárdelo como .xlsx o .csv antes de importarlo."
+                ))
             frappe.throw(_("Error al leer el archivo XLS: {0}").format(str(e)))
 
     else:
