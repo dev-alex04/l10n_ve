@@ -28,10 +28,12 @@ def set_ve_branch(doc, method):
             
             frappe.throw(
                 frappe._("El usuario tiene múltiples sucursales asignadas: {0}. Por favor seleccione una.").format(branches_list),
-                title=frappe._("Selección de Sucursal"),
-                indicator='blue'
+                title=frappe._("Selección de Sucursal")
             )
     except Exception as e:
+        if isinstance(e, frappe.exceptions.ValidationError):
+            raise
+
         frappe.log_error(
             title=f"Error al asignar sucursal",
             message=f"Error al asignar sucursal: {str(e)} \n{frappe.get_traceback()}"
