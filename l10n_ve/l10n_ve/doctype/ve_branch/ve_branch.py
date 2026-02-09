@@ -8,9 +8,67 @@ from frappe.utils.nestedset import NestedSet
 
 class VEBranch(NestedSet):
 
+    def before_validate(self) -> None:
+        """
+        Hereda los datos de la sucursal padre si es aplicable (ej. en creación por API/importación).
+        """
+        self.inherit_from_parent_if_applicable()
+
     def validate(self) -> None:
         self.validate_unique_users()
         self.validate_payment_modes()
+
+    def inherit_from_parent_if_applicable(self) -> None:
+        """
+        Si se ha seleccionado un padre y las tablas hijas están vacías, hereda los datos.
+        """
+        if self.is_group:
+            return
+
+        is_new_with_parent = self.is_new() and self.parent_ve_branch
+        parent_has_changed = False
+        if not self.is_new():
+            doc_before_save = self.get_doc_before_save()
+            if doc_before_save and self.parent_ve_branch != doc_before_save.get("parent_ve_branch"):
+                parent_has_changed = True
+
+        if not (is_new_with_parent or parent_has_changed):
+            return
+
+        if self.users or self.mode_of_payments:
+            return
+
+        if not self.parent_ve_branch:
+            return
+
+        try:
+            parent = frappe.get_doc("VE Branch", self.parent_ve_branch)
+        except frappe.DoesNotExistError:
+            return
+
+        for user_row in parent.get("users", []):
+            self.append("users", {"user": user_row.user})
+
+        for payment_row in parent.get("mode_of_payments", []):
+            self.append("mode_of_payments", {
+                "mode_of_payment": payment_row.mode_of_payment,
+                "is_default": payment_row.is_default,
+                "account": payment_row.account,
+                "payment_information": payment_row.payment_information
+            })
+
+    @frappe.whitelist()
+    def get_details_from_parent(self, parent_branch: str) -> dict:
+        """Obtiene los detalles de la sucursal padre para heredarlos en el cliente."""
+        if not parent_branch:
+            return {}
+
+        parent = frappe.get_doc("VE Branch", parent_branch)
+
+        return {
+            "users": [d.as_dict() for d in parent.users],
+            "mode_of_payments": [d.as_dict() for d in parent.mode_of_payments]
+        }
 
     def validate_payment_modes(self) -> None:
         """Valida la tabla de modos de pago de la sucursal."""
@@ -64,12 +122,33 @@ class VEBranch(NestedSet):
         if not existing_assignments:
             return
 
-        user_to_branch_map = {d["user"]: d["parent"] for d in existing_assignments}
-        for user in users:
-            if user in user_to_branch_map:
+        other_branch_names = list(set(d.parent for d in existing_assignments))
+        other_branches_info = frappe.get_all(
+            "VE Branch",
+            filters={"name": ["in", other_branch_names]},
+            fields=["name", "parent_ve_branch"],
+        )
+        other_branches_parent_map = {b.name: b.parent_ve_branch for b in other_branches_info}
+
+        current_branch_parent = self.parent_ve_branch
+
+        for assignment in existing_assignments:
+            user = assignment.user
+            other_branch = assignment.parent
+
+            is_other_parent = (current_branch_parent and current_branch_parent == other_branch)
+
+            other_branch_parent = other_branches_parent_map.get(other_branch)
+            is_other_child = (other_branch_parent and other_branch_parent == self.name)
+
+            is_sibling = (current_branch_parent and other_branch_parent and current_branch_parent == other_branch_parent)
+
+            if not (is_other_parent or is_other_child or is_sibling):
                 frappe.throw(
-                    _("El usuario {0} ya está asignado a la sucursal {1}").format(
-                        frappe.bold(user), frappe.bold(user_to_branch_map[user])
+                    _("El usuario {0} ya está asignado a la sucursal {1}. " 
+                      "Solo se permite repetir usuarios entre ramas relacionadas "
+                      "(Padre, Hija, Hermana).").format(
+                        frappe.bold(user), frappe.bold(other_branch)
                     )
                 )
 
