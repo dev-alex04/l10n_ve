@@ -54,6 +54,28 @@ frappe.ui.form.on("VE Branch", {
             frm.set_value("company", r.message.company);
           }
         });
+
+      frappe.call({
+        doc: frm.doc,
+        method: "get_details_from_parent",
+        args: {
+          parent_branch: frm.doc.parent_ve_branch,
+        },
+        callback: function (r) {
+          if (r.message) {
+            if (r.message.users) {
+              frm.clear_table("users");
+              r.message.users.forEach(d => frm.add_child("users", d));
+              frm.refresh_field("users");
+            }
+            if (r.message.mode_of_payments) {
+              frm.clear_table("mode_of_payments");
+              r.message.mode_of_payments.forEach(d => frm.add_child("mode_of_payments", d));
+              frm.refresh_field("mode_of_payments");
+            }
+          }
+        },
+      });
     }
   },
 

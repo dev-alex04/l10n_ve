@@ -108,8 +108,7 @@
   {
    "fieldname": "mode_of_payments",
    "fieldtype": "Table",
-   "options": "VE Branch Payment Modes",
-   "reqd": 1
+   "options": "VE Branch Payment Modes"
   },
   {
    "fieldname": "email_branch",
@@ -123,7 +122,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-02-03 20:56:47.772184",
+ "modified": "2026-02-09 07:53:54.900941",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",

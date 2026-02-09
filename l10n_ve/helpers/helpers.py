@@ -13,14 +13,21 @@ def set_ve_branch(doc, method):
         if doc.branch:
             return
 
-        branch = frappe.db.get_value("VE Branch Users", {
+        branches = frappe.get_all("VE Branch Users", filters={
             "user": frappe.session.user,
-        }, "parent")
+            "parenttype": "VE Branch"
+        }, fields=["parent"])
 
-        if not branch:
-            return
+        unique_branches = list(set([b.parent for b in branches if b.parent]))
 
-        doc.branch = branch
+        if len(unique_branches) == 1:
+            doc.branch = unique_branches[0]
+
+        elif len(unique_branches) > 1:
+            branches_list = ", ".join([frappe.bold(frappe.utils.escape_html(b)) for b in unique_branches])
+            
+            frappe.throw(frappe._("El usuario tiene múltiples sucursales asignadas: {0}." 
+                                  " Por favor seleccione una.").format(branches_list))
 
     except Exception as e:
         frappe.log_error(
