@@ -259,19 +259,19 @@ doc_events = {
         "after_insert": "l10n_ve.overrides.task.auto_share_on_assignment",
     },
     "Sales Invoice": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Purchase Invoice": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Payment Entry": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Delivery Note": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Purchase Receipt": {
-        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "File": {
         "after_insert": "l10n_ve.overrides.task.sync_attachment_to_project",

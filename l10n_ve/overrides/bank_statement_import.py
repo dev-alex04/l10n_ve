@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate
 from datetime import datetime
+import time
 from typing import Any
 from frappe.utils import get_link_to_form
 import csv
@@ -15,14 +16,53 @@ import xlrd
 @frappe.whitelist()
 def start_custom_import(docname: str) -> dict[str, Any]:
     """
-    Método de importación personalizado y simplificado para extractos bancarios.
-    Lee un archivo CSV o Excel y crea documentos de Bank Transaction.
+    Inicia el proceso de importación en segundo plano.
     """
 
     doc = frappe.get_doc("Bank Statement Import", docname)
     if not doc.import_file:
         frappe.throw(_("Por favor, adjunte el archivo del extracto bancario primero."))
 
+    frappe.enqueue(
+        "l10n_ve.overrides.bank_statement_import.process_custom_import",
+        queue="long",
+        timeout=3600,
+        docname=docname
+    )
+
+    frappe.msgprint(_("La importación se está procesando en segundo plano." \
+                      " Recibirá una notificación al finalizar."))
+
+    return {"status": "queued"}
+
+
+def process_custom_import(docname: str) -> None:
+    start_time = time.time()
+    frappe.log_error(
+        title=_("Inicio de importación de extracto"),
+        message=f"Procesando documento: {docname}"
+    )
+    try:
+        doc = frappe.get_doc("Bank Statement Import", docname)
+        _process_import_logic(doc, start_time)
+    except Exception:
+
+        frappe.db.rollback()
+        doc = frappe.get_doc("Bank Statement Import", docname)
+        doc.status = "Error"
+        doc.save(ignore_permissions=True)
+        
+        frappe.db.commit()
+        frappe.log_error(frappe.get_traceback(), _("Error crítico en importación de extracto bancario"))
+        frappe.publish_realtime(
+            "msgprint",
+            {"message": _("Ocurrió un error crítico durante la importación. Revise los logs."),
+             "title": _("Error de Importación"), "indicator": "red"},
+            user=frappe.session.user
+        )
+
+
+def _process_import_logic(doc, start_time):
     file_path = os.path.join(frappe.get_site_path(), doc.import_file.lstrip('/'))
 
     file_extension = os.path.splitext(doc.import_file)[1].lstrip('.')
@@ -179,6 +219,7 @@ def start_custom_import(docname: str) -> dict[str, Any]:
     transactions_created = 0
     errors = []
     skipped_rows = []
+    BATCH_SIZE = 500
 
     EXCLUSION_KEYWORDS = [
         "total", "saldo", "final", "resumen", "importe", "debito total", "saldo final"
@@ -262,9 +303,35 @@ def start_custom_import(docname: str) -> dict[str, Any]:
 
             transactions_created += 1
 
+            if transactions_created % BATCH_SIZE == 0:
+                frappe.db.commit()
+                
+                msg = _("Procesando... {0} transacciones creadas.").format(transactions_created)
+                if skipped_rows:
+                    msg += "<br>" + _("Últimas omitidas: {0}").format(", ".join(skipped_rows[-5:]))
+
+                frappe.log_error(
+                    title=_("Progreso de Importación {0}").format(doc.name),
+                    message=msg.replace("<br>", "\n")
+                )
+
+                frappe.publish_realtime(
+                    "msgprint",
+                    {
+                        "message": msg,
+                        "title": _("Progreso"),
+                        "indicator": "blue",
+                        "alert": True
+                    },
+                    user=frappe.session.user
+                )
+
         except Exception as e:
             errors.append(_("Error en la fila {0}: {1}").format(row_num, str(e)))
             frappe.log_error(frappe.get_traceback(), _("Error en importación de extracto bancario"))
+
+    end_time = time.time()
+    duration = round(end_time - start_time, 2)
 
     if not errors and transactions_created > 0:
         doc.status = "Success"
@@ -274,31 +341,88 @@ def start_custom_import(docname: str) -> dict[str, Any]:
         doc.status = "Error"
 
     doc.save(ignore_permissions=True)
+    frappe.db.commit()
 
-    final_message = ""
-    if transactions_created > 0:
-        final_message += _("Transacciones creadas: {0}").format(transactions_created)
+    log_summary_parts = [
+        f"Importación finalizada para {doc.name}.",
+        f"Transacciones creadas: {transactions_created}",
+        f"Filas omitidas: {len(skipped_rows)}"
+    ]
 
     if skipped_rows:
-        final_message += "<br>" + _("Filas omitidas ({0}): {1}").format(
-            len(skipped_rows), ", ".join(skipped_rows)
-        )
+        log_summary_parts.append(f"Detalle Omitidas: {', '.join(skipped_rows)}")
+
+    log_summary_parts.append(f"Errores: {len(errors)}")
+    log_summary_parts.append(f"Duración: {duration} segundos")
+
+    log_summary = "\n".join(log_summary_parts)
+    log_title = f"Fin de importación de extracto: {doc.status}"
+    frappe.log_error(title=log_title, message=log_summary)
+
+    summary_parts = []
+    if transactions_created > 0:
+        summary_parts.append(_("Transacciones creadas: {0}").format(transactions_created))
+
+    if skipped_rows:
+        max_display = 20
+        skipped_str = ", ".join(skipped_rows[:max_display])
+        if len(skipped_rows) > max_display:
+            skipped_str += _("... y {0} más (ver Log de Errores)").format(len(skipped_rows) - max_display)
+
+        summary_parts.append(_("Filas omitidas ({0}): {1}").format(
+            len(skipped_rows), skipped_str
+        ))
 
     if errors:
-        final_message += "<br>" + _("Errores: <br>{0}").format("<br>".join(errors))
-        frappe.msgprint(
-            _("Proceso completado con errores.") + "<br>" + final_message,
-            title=_("Resultado de la Importación"),
-            indicator="orange"
+        summary_parts.append(_("Errores: <br>{0}").format("<br>".join(errors)))
+
+    summary_parts.append(_("Duración: {0} segundos").format(duration))
+
+    final_message = "<br>".join(summary_parts)
+
+    notification_subject = _("Importación Finalizada: {0}").format(doc.status)
+    subject_details = []
+    if transactions_created > 0:
+        subject_details.append(_("Creadas: {0}").format(transactions_created))
+    if skipped_rows:
+        subject_details.append(_("Omitidas: {0}").format(len(skipped_rows)))
+    if errors:
+        subject_details.append(_("Errores: {0}").format(len(errors)))
+
+    if subject_details:
+        notification_subject += " (" + ", ".join(subject_details) + ")"
+
+    frappe.get_doc({
+        "doctype": "Notification Log",
+        "subject": notification_subject,
+        "email_content": final_message,
+        "for_user": doc.owner,
+        "type": "Alert",
+        "document_type": "Bank Statement Import",
+        "document_name": doc.name,
+        "attached_file": doc.import_file
+    }).insert(ignore_permissions=True)
+
+    frappe.publish_realtime("notification_priv", user=doc.owner)
+
+    if errors:
+        frappe.publish_realtime(
+            "msgprint",
+            {"message": _("Proceso completado con errores.") + "<br>" + final_message, "title": _("Resultado de la Importación"), "indicator": "orange"},
+            user=frappe.session.user
         )
     elif transactions_created > 0:
-        frappe.msgprint(
-            _("¡Importación completada con éxito!") + "<br>" + final_message,
-            title=_("Importación Exitosa"),
-            indicator="green"
+        frappe.publish_realtime(
+            "msgprint",
+            {"message": _("¡Importación completada con éxito!") + "<br>" + final_message, "title": _("Importación Exitosa"), "indicator": "green"},
+            user=frappe.session.user
         )
     else:
-        frappe.msgprint(
-            _("No se importaron transacciones.") + "<br>" + final_message, title=_("Resultado de la Importación"))
-
-    return {"status": "success", "created": transactions_created}
+        message = _("No se importaron transacciones.")
+        if final_message:
+            message += "<br>" + final_message
+        frappe.publish_realtime(
+            "msgprint",
+            {"message": message, "title": _("Resultado de la Importación")},
+            user=frappe.session.user
+        )
