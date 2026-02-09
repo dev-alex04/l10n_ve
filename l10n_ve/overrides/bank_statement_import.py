@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate
+from frappe.utils import flt, getdate, escape_html
 from datetime import datetime
 import time
 from typing import Any
@@ -28,13 +28,18 @@ class CustomBankStatementImport(BankStatementImport):
 @frappe.whitelist()
 def get_preview_from_template(data_import, import_file=None, google_sheets_url=None):
     try:
-        return frappe.get_doc("Bank Statement Import", data_import).get_preview_from_template(
+        doc = frappe.get_doc("Bank Statement Import", data_import)
+        doc.check_permission("read")
+        return doc.get_preview_from_template(
             import_file, google_sheets_url
         )
     except Exception as e:
         if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
             if import_file:
                 file_path = os.path.join(frappe.get_site_path(), import_file.lstrip('/'))
+                if not os.path.abspath(file_path).startswith(os.path.abspath(frappe.get_site_path())):
+                    frappe.throw(_("Ruta de archivo inválida"))
+
                 try:
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         content = f.read()
@@ -48,8 +53,8 @@ def get_preview_from_template(data_import, import_file=None, google_sheets_url=N
                             data.append([ele.get_text(strip=True) for ele in cols])
                         if data:
                             return {"columns": data[0], "data": data[1:]}
-                except Exception:
-                    pass
+                except Exception as html_e:
+                    frappe.log_error(title=_("Error parsing HTML in XLS preview"), message=frappe.get_traceback())
         raise e
 
 @frappe.whitelist()
@@ -59,6 +64,7 @@ def start_custom_import(docname: str) -> dict[str, Any]:
     """
 
     doc = frappe.get_doc("Bank Statement Import", docname)
+    doc.check_permission("write")
     if not doc.import_file:
         frappe.throw(_("Por favor, adjunte el archivo del extracto bancario primero."))
 
@@ -84,8 +90,20 @@ def process_custom_import(docname: str) -> None:
     try:
         doc = frappe.get_doc("Bank Statement Import", docname)
         _process_import_logic(doc, start_time)
+    except frappe.exceptions.ValidationError:
+        frappe.db.rollback()
+        doc = frappe.get_doc("Bank Statement Import", docname)
+        doc.status = "Error"
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+        frappe.log_error(frappe.get_traceback(), _("Error de validación en importación"))
+        frappe.publish_realtime(
+            "msgprint",
+            {"message": _("Error de validación durante la importación. Revise los logs."),
+             "title": _("Error de Importación"), "indicator": "red"},
+            user=frappe.session.user
+        )
     except Exception:
-
         frappe.db.rollback()
         doc = frappe.get_doc("Bank Statement Import", docname)
         doc.status = "Error"
@@ -103,6 +121,8 @@ def process_custom_import(docname: str) -> None:
 
 def _process_import_logic(doc, start_time):
     file_path = os.path.join(frappe.get_site_path(), doc.import_file.lstrip('/'))
+    if not os.path.abspath(file_path).startswith(os.path.abspath(frappe.get_site_path())):
+        frappe.throw(_("Ruta de archivo inválida"))
 
     file_extension = os.path.splitext(doc.import_file)[1].lstrip('.')
     data = []
@@ -114,7 +134,7 @@ def _process_import_logic(doc, start_time):
                 data = list(reader)
 
         except (IOError, csv.Error) as e:
-            frappe.throw(_("Error al leer el archivo CSV: {0}").format(str(e)))
+            frappe.throw(_("Error al leer el archivo CSV: {0}").format(escape_html(str(e))))
 
     elif file_extension in ['xlsx']:
         try:
@@ -125,7 +145,7 @@ def _process_import_logic(doc, start_time):
                     for row in sheet.iter_rows(values_only=True)
                 )
         except Exception as e:
-            frappe.throw(_("Error al leer el archivo XLSX: {0}").format(str(e)))
+            frappe.throw(_("Error al leer el archivo XLSX: {0}").format(escape_html(str(e))))
 
     elif file_extension in ['xls']:
         try:
@@ -160,9 +180,9 @@ def _process_import_logic(doc, start_time):
                             cols = row.find_all(["td", "th"])
                             data.append([ele.get_text(strip=True) for ele in cols])
                 except Exception as html_e:
-                    frappe.throw(_("Error al leer el archivo XLS (HTML): {0}").format(str(html_e)))
+                    frappe.throw(_("Error al leer el archivo XLS (HTML): {0}").format(escape_html(str(html_e))))
             else:
-                frappe.throw(_("Error al leer el archivo XLS: {0}").format(str(e)))
+                frappe.throw(_("Error al leer el archivo XLS: {0}").format(escape_html(str(e))))
 
     else:
         frappe.throw(_("Formato de archivo no soportado. Solo se aceptan CSV, XLS y XLSX."))
@@ -201,7 +221,7 @@ def _process_import_logic(doc, start_time):
                                                        "banco '{0}'").format(doc.bank))
 
             frappe.throw(_("Ocurrió un error al cargar la configuración " \
-                           "del banco: {0}").format(str(e)))
+                           "del banco: {0}").format(escape_html(str(e))))
     else:
         frappe.throw(_("Por favor, seleccione un banco para la importación."))
 
@@ -381,7 +401,7 @@ def _process_import_logic(doc, start_time):
                 )
 
         except Exception as e:
-            errors.append(_("Error en la fila {0}: {1}").format(row_num, str(e)))
+            errors.append(_("Error en la fila {0}: {1}").format(row_num, escape_html(str(e))))
             frappe.log_error(frappe.get_traceback(), _("Error en importación de extracto bancario"))
 
     end_time = time.time()

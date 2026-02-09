@@ -26,7 +26,7 @@ def set_ve_branch(doc, method):
         elif len(unique_branches) > 1:
             branches_list = ", ".join([frappe.bold(frappe.utils.escape_html(b)) for b in unique_branches])
             
-            frappe.msgprint(
+            frappe.throw(
                 frappe._("El usuario tiene múltiples sucursales asignadas: {0}. Por favor seleccione una.").format(branches_list),
                 title=frappe._("Selección de Sucursal"),
                 indicator='blue'
