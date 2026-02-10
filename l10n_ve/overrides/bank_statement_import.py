@@ -62,16 +62,24 @@ def start_custom_import(docname: str) -> dict[str, Any]:
     """
     Inicia el proceso de importación en segundo plano.
     """
+    from frappe.utils.background_jobs import is_job_enqueued
 
     doc = frappe.get_doc("Bank Statement Import", docname)
     doc.check_permission("write")
     if not doc.import_file:
         frappe.throw(_("Por favor, adjunte el archivo del extracto bancario primero."))
 
+    job_id = f"bank_statement_import::{docname}"
+
+    if is_job_enqueued(job_id):
+        frappe.throw(_("Ya hay un proceso de importación en curso para este documento." 
+                       " Por favor, espere a que termine."))
+
     frappe.enqueue(
         "l10n_ve.overrides.bank_statement_import.process_custom_import",
         queue="long",
         timeout=3600,
+        job_id=job_id,
         docname=docname
     )
 
