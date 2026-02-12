@@ -262,6 +262,12 @@ doc_events = {
     "Sales Invoice": {
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
+    "Expense": {
+        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "Expense Report": {
+        "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
     "Purchase Invoice": {
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
