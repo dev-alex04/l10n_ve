@@ -261,7 +261,7 @@ class CustomPaymentEntry(PaymentEntry):
         igtf = next((tax for tax in self.taxes or []
                      if tax.charge_type == 'IGTF'), None)
 
-        if not igtf:
+        if not igtf or flt(igtf.tax_amount) <= 0:
             return
 
         for reference in self.references or []:
@@ -269,29 +269,28 @@ class CustomPaymentEntry(PaymentEntry):
             if not reference.allocated_amount:
                 continue
 
+            reference_base_amount_igtf = flt(reference.allocated_amount)
+            reference_total_igtf = \
+                (reference_base_amount_igtf * self.igtf_rate) / 100
+
+            invoice_igtf_data: dict = frappe.db.get_value(
+                reference.reference_doctype,
+                reference.reference_name,
+                [
+                    'total_igtf',
+                    'base_amount_igtf'
+                ],
+                as_dict=True) or {}
+
+            current_total_igtf = flt(invoice_igtf_data.get('total_igtf'))
+            current_base_amount_igtf = flt(invoice_igtf_data.get('base_amount_igtf'))
+
             if is_cancelled:
-                total_igtf = 0
-                base_amount_igtf = 0
+                total_igtf = current_total_igtf - reference_total_igtf
+                base_amount_igtf = current_base_amount_igtf - reference_base_amount_igtf
             else:
-                reference_base_amount_igtf = reference.allocated_amount
-                reference_total_igtf = \
-                    (reference.allocated_amount * self.igtf_rate) / 100
-
-                invoice_igtf_data: dict = frappe.db.get_value(
-                    reference.reference_doctype,
-                    reference.reference_name,
-                    [
-                        'total_igtf',
-                        'base_amount_igtf'
-                    ],
-                    as_dict=True)
-
-                total_igtf = invoice_igtf_data.get('total_igtf', 0) + \
-                    reference_total_igtf
-
-                base_amount_igtf = \
-                    invoice_igtf_data.get('base_amount_igtf', 0) + \
-                        reference_base_amount_igtf
+                total_igtf = current_total_igtf + reference_total_igtf
+                base_amount_igtf = current_base_amount_igtf + reference_base_amount_igtf
 
             frappe.db.set_value(reference.reference_doctype,
                                 reference.reference_name,
