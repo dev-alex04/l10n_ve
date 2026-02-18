@@ -11,6 +11,26 @@ from l10n_ve.l10n_ve.report.igtf_received.igtf_received import get_data
 from frappe.utils import fmt_money, formatdate, nowdate
 from frappe.utils.pdf import get_pdf
 
+def _get_company_details(company_name):
+	"""
+	Obtiene los detalles de la compañía (nombre, RIF, dirección) desde la cache.
+	"""
+	if not company_name:
+		return {"name": "EMPRESA", "rif": "", "address": ""}
+
+	company_doc = frappe.get_cached_doc("Company", company_name)
+	company_rif = company_doc.get("tax_id") or ""
+	company_address = ""
+
+	if company_doc.get("custom_company_primary_address"):
+		try:
+			address_doc = frappe.get_cached_doc("Address", company_doc.get("custom_company_primary_address"))
+			company_address = address_doc.address_line1
+		except frappe.DoesNotExistError:
+				pass
+
+	return {"name": company_name, "rif": company_rif, "address": company_address}
+
 @frappe.whitelist()
 def download_custom_excel(filters=None):
 	if isinstance(filters, str):
@@ -28,24 +48,12 @@ def download_custom_excel(filters=None):
 	thin_border = Border(left=Side(style='thin'), right=Side(style='thin'),
 						top=Side(style='thin'), bottom=Side(style='thin'))
 
-	company_name = filters.get("company")
-	company_rif = ""
-	company_address = ""
-	if company_name:
-		company_doc = frappe.get_cached_doc("Company", company_name)
-		company_rif = company_doc.get("tax_id") or ""
+	company_details = _get_company_details(filters.get("company"))
 
-		if company_doc.get("custom_company_primary_address"):
-			try:
-				address_doc = frappe.get_cached_doc("Address", company_doc.get("custom_company_primary_address"))
-				company_address = address_doc.address_line1
-			except Exception:
-				pass
-
-	ws["A1"] = company_name or "EMPRESA"
+	ws["A1"] = company_details.get("name")
 	ws["A1"].font = Font(bold=True, size=12)
-	ws["A2"] = f"R.I.F.: {company_rif}"
-	ws["A3"] = f"Dirección: {company_address}"
+	ws["A2"] = f"R.I.F.: {company_details.get('rif')}"
+	ws["A3"] = f"Dirección: {company_details.get('address')}"
 	ws["A4"] = f"Fecha de Emisión: {formatdate(nowdate())}"
 
 	ws.merge_cells('A5:G5')
@@ -66,9 +74,9 @@ def download_custom_excel(filters=None):
 		cell.fill = green_fill
 
 	row_num = 7
-	total_base = 0
-	total_base_igtf = 0
-	total_igtf = 0
+	total_base = sum(d.total or 0 for d in data)
+	total_base_igtf = sum(d.base_igtf or 0 for d in data)
+	total_igtf = sum(d.igtf_amount or 0 for d in data)
 
 	for d in data:
 		ws.cell(row=row_num, column=1, value=d.date)
@@ -78,10 +86,6 @@ def download_custom_excel(filters=None):
 		ws.cell(row=row_num, column=5, value=d.total)
 		ws.cell(row=row_num, column=6, value=d.base_igtf)
 		ws.cell(row=row_num, column=7, value=d.igtf_amount)
-
-		total_base += d.total or 0
-		total_base_igtf += d.base_igtf or 0
-		total_igtf += d.igtf_amount or 0
 
 		row_num += 1
 
@@ -101,7 +105,6 @@ def download_custom_excel(filters=None):
 
 		ws.column_dimensions[get_column_letter(col_idx)].width = max_length + 3
 
-	# Guardar en memoria y enviar
 	output = io.BytesIO()
 	wb.save(output)
 	output.seek(0)
@@ -119,20 +122,8 @@ def download_custom_pdf(filters=None):
 	data = get_data(filters)
 
 	company_name = filters.get("company")
-	company_rif = ""
-	company_address = ""
-	currency = frappe.get_cached_value('Company', company_name, 'default_currency')
-
-	if company_name:
-		company_doc = frappe.get_cached_doc("Company", company_name)
-		company_rif = company_doc.get("tax_id") or ""
-
-		if company_doc.get("custom_company_primary_address"):
-			try:
-				address_doc = frappe.get_cached_doc("Address", company_doc.get("custom_company_primary_address"))
-				company_address = address_doc.address_line1
-			except Exception:
-				pass
+	company_details = _get_company_details(company_name)
+	currency = frappe.get_cached_value('Company', company_name, 'default_currency') if company_name else None
 
 	total_base = sum(d.total or 0 for d in data)
 	total_base_igtf = sum(d.base_igtf or 0 for d in data)
@@ -212,9 +203,9 @@ def download_custom_pdf(filters=None):
 	"""
 
 	context = {
-		"company_name": company_name or "EMPRESA",
-		"company_rif": company_rif,
-		"company_address": company_address,
+		"company_name": company_details.get("name"),
+		"company_rif": company_details.get("rif"),
+		"company_address": company_details.get("address"),
 		"print_date": formatdate(nowdate()),
 		"data": data,
 		"total_base": fmt_money(total_base, currency=currency),

@@ -50,10 +50,13 @@
    "role": "ISP Finance"
   },
   {
-   "role": "ISP Sales"
+   "role": "Accounts Manager"
   },
   {
-   "role": "Customer"
+   "role": "Accounts User"
+  },
+  {
+   "role": "System Manager"
   }
  ],
  "timeout": 0
