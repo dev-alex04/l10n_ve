@@ -58,12 +58,7 @@ frappe.ui.form.on("Sales Invoice", {
 
     // Mover esto a una funcion
 
-    let has_islr_withholding = false;
-    if (frm.doc.taxes && frm.doc.taxes.length) {
-      has_islr_withholding = frm.doc.taxes.some(
-        (tax_row) => tax_row.charge_type && tax_row.charge_type === "ISLR"
-      );
-    }
+    let has_islr_withholding = true;
 
     // Mover esto a una funcion
     let has_vat_withholding = false;
