@@ -27,6 +27,20 @@ frappe.query_reports["IGTF received"] = {
 		}
 	],
 	"onload": function(report) {
+		report.page.add_inner_button(__("Mes Actual"), function() {
+			report.set_filter_value("from_date", frappe.datetime.month_start());
+			report.set_filter_value("to_date", frappe.datetime.month_end());
+			report.refresh();
+		});
+
+		report.page.add_inner_button(__("Mes Anterior"), function() {
+			var from_date = moment().subtract(1, "months").startOf("month").format("YYYY-MM-DD");
+			var to_date = moment().subtract(1, "months").endOf("month").format("YYYY-MM-DD");
+			report.set_filter_value("from_date", from_date);
+			report.set_filter_value("to_date", to_date);
+			report.refresh();
+		});
+
     const add_download_button = (label, method) => {
         report.page.add_inner_button(__(label), function() {
             const filters = report.get_values();

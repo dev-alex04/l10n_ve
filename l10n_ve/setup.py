@@ -36,6 +36,7 @@ def set_data() -> None:
         remove_module_onboarding()
         set_profiles()
         set_roles()
+        add_reports_to_accounts_workspace()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1464,3 +1465,132 @@ def set_roles() -> None:
     except Exception as e:
         print(f"Failure: Ocurrió un error creando perfiles de roles: {e}")
         frappe.log_error(title="Error en set_roles", message=frappe.get_traceback())
+
+def add_reports_to_accounts_workspace() -> None:
+    """
+    Agrega los reportes 'Customer Retention', 'IGTF received', 'sales_book' y 'purchase_book'
+    al Workspace 'Financial Reports' (o 'Accounting').
+    Actualiza tanto la tabla 'links' como el JSON 'content'.
+    """
+    print("Agregando reportes al Workspace...")
+    try:
+        workspace_name = "Financial Reports"
+        if not frappe.db.exists("Workspace", workspace_name):
+            if frappe.db.exists("Workspace", "Accounting"):
+                workspace_name = "Accounting"
+            elif frappe.db.exists("Workspace", "Accounts"):
+                workspace_name = "Accounts"
+            else:
+                print("  !! No se encontró ningún Workspace compatible (Financial Reports, Accounting, Accounts).")
+                return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+        print(f"  -> Workspace encontrado: {workspace_name}")
+
+        reports_to_add = [
+            {
+                "type": "Link",
+                "label": _("Retención de Clientes"),
+                "link_to": "Customer Retention",
+                "link_type": "Report",
+                "is_query_report": 1
+            },
+            {
+                "type": "Link",
+                "label": _("IGTF Recibido"),
+                "link_to": "IGTF received",
+                "link_type": "Report",
+                "is_query_report": 1
+            },
+            {
+                "type": "Link",
+                "label": _("Libro de Ventas"),
+                "link_to": "Sales Book",
+                "link_type": "Report",
+                "is_query_report": 1
+            },
+            {
+                "type": "Link",
+                "label": _("Libro de Compras"),
+                "link_to": "purchase_book",
+                "link_type": "Report",
+                "is_query_report": 1
+            }
+        ]
+
+        modified = False
+
+        current_links = [l.link_to for l in workspace.links]
+
+        # Agregar Salto de Tarjeta (Card Break)
+        card_break_label = "Reportes Venezuela"
+        card_break_exists = any(l.label == card_break_label and l.type == 'Card Break' for l in workspace.links)
+
+        if not card_break_exists:
+            workspace.append("links", {
+                "type": "Card Break",
+                "label": card_break_label
+            })
+            modified = True
+            print(f"  -> Agregado salto de tarjeta: {card_break_label}")
+
+        for report in reports_to_add:
+            if report["link_to"] not in current_links:
+                workspace.append("links", {
+                    "label": report["label"],
+                    "type": "Link",
+                    "link_type": "Report",
+                    "link_to": report["link_to"],
+                    "is_query_report": 1
+                })
+                modified = True
+                print(f"  -> Agregado a tabla links: {report['label']}")
+
+        if workspace.content:
+            content = json.loads(workspace.content)
+            custom_card_name = "Reportes Venezuela"
+            card_found = False
+
+            for block in content:
+                if block.get("type") == "card" and block.get("data", {}).get("card_name") == custom_card_name:
+                    card_found = True
+                    links = block["data"].get("links", [])
+                    existing_links = [l.get("link_to") for l in links]
+
+                    for report in reports_to_add:
+                        if report["link_to"] not in existing_links:
+                            links.append(report)
+                            modified = True
+                            print(f"  -> Agregado a tarjeta visual: {report['label']}")
+                    
+                    if modified:
+                        block["data"]["links"] = links
+                    break
+            
+            if not card_found:
+                print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
+                new_card = {
+                    "type": "card",
+                    "data": {
+                        "card_name": custom_card_name,
+                        "col": 4,
+                        "links": reports_to_add
+                    }
+                }
+                content.append(new_card)
+                modified = True
+            
+            if modified:
+                workspace.content = json.dumps(content)
+
+        if modified:
+            workspace.content = json.dumps(content)
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Workspace '{workspace_name}' actualizado con nuevos reportes.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya estaba actualizado.")
+
+    except Exception as e:
+        print(f"Failure: Error actualizando Workspace Accounts: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_reports_to_accounts_workspace')
