@@ -65,23 +65,34 @@ def get_customer_retention_excel(filters=None):
 	ws["A5"].alignment = center_align
 	ws["A5"].fill = header_fill
 	
+	col_widths = [0] * len(columns)
 	row_num = 7
 	for col_idx, col_def in enumerate(columns, 1):
-		cell = ws.cell(row=row_num, column=col_idx, value=col_def.get('label'))
+		label = col_def.get('label')
+		cell = ws.cell(row=row_num, column=col_idx, value=label)
 		cell.font = header_font
 		cell.fill = header_fill
 		cell.border = thin_border
+		if label:
+			col_widths[col_idx-1] = max(col_widths[col_idx-1], len(str(label)))
 
 	for row_data_dict in data:
 		row_num += 1
 		for col_idx, col_def in enumerate(columns, 1):
 			cell_value = row_data_dict.get(col_def.get('fieldname'), '')
 			ws.cell(row=row_num, column=col_idx, value=cell_value)
+			if cell_value:
+				col_widths[col_idx-1] = max(col_widths[col_idx-1], len(str(cell_value)))
 
 	row_num += 2 
-	total_base = sum(flt(d.get('base_total')) for d in data)
-	total_grand = sum(flt(d.get('grand_total')) for d in data)
-	total_withheld = sum(flt(d.get('withholding_amount')) for d in data)
+	
+	total_base = 0
+	total_grand = 0
+	total_withheld = 0
+	for d in data:
+		total_base += flt(d.get('base_total'))
+		total_grand += flt(d.get('grand_total'))
+		total_withheld += flt(d.get('withholding_amount'))
 
 	base_idx = next((i for i, c in enumerate(columns) if c.get('fieldname') == 'base_total'), -1) + 1
 	grand_idx = next((i for i, c in enumerate(columns) if c.get('fieldname') == 'grand_total'), -1) + 1
@@ -90,22 +101,19 @@ def get_customer_retention_excel(filters=None):
 	if base_idx > 1:
 		ws.cell(row=row_num, column=base_idx - 1, value="TOTALES:").font = Font(bold=True)
 		ws.cell(row=row_num, column=base_idx - 1).alignment = Alignment(horizontal="right")
+		if base_idx - 2 >= 0:
+			col_widths[base_idx - 2] = max(col_widths[base_idx - 2], len("TOTALES:"))
 
 	for idx, val in [(base_idx, total_base), (grand_idx, total_grand), (withheld_idx, total_withheld)]:
 		if idx > 0:
 			c = ws.cell(row=row_num, column=idx, value=val)
 			c.font = Font(bold=True)
 			c.number_format = '#,##0.00'
+			if val:
+				col_widths[idx-1] = max(col_widths[idx-1], len(str(val)))
 
-	# Ajustar ancho de columnas automáticamente
-	for col_idx in range(1, len(columns) + 1):
-		max_length = 0
-		for r in range(7, ws.max_row + 1):
-			cell_value = ws.cell(row=r, column=col_idx).value
-			if cell_value:
-				max_length = max(max_length, len(str(cell_value)))
-		adjusted_width = (max_length + 2)
-		ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = adjusted_width
+	for i, width in enumerate(col_widths, 1):
+		ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width + 2
 
 	xlsx_file = io.BytesIO()
 	wb.save(xlsx_file)

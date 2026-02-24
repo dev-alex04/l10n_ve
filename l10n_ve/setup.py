@@ -1546,8 +1546,8 @@ def add_reports_to_accounts_workspace() -> None:
                 modified = True
                 print(f"  -> Agregado a tabla links: {report['label']}")
 
+        content = json.loads(workspace.content) if workspace.content else []
         if workspace.content:
-            content = json.loads(workspace.content)
             custom_card_name = "Reportes Venezuela"
             card_found = False
 
@@ -1579,12 +1579,10 @@ def add_reports_to_accounts_workspace() -> None:
                 }
                 content.append(new_card)
                 modified = True
-            
-            if modified:
-                workspace.content = json.dumps(content)
 
         if modified:
-            workspace.content = json.dumps(content)
+            if workspace.content:
+                workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
             print(f"Success: Workspace '{workspace_name}' actualizado con nuevos reportes.")

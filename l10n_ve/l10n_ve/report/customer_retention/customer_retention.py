@@ -117,6 +117,8 @@ def get_data(filters):
 		conditions += " AND si.posting_date >= %(from_date)s"
 	if filters.get("to_date"):
 		conditions += " AND si.posting_date <= %(to_date)s"
+	if filters.get("customer"):
+		conditions += " AND si.customer = %(customer)s"
 
 	iva_query = f"""
 		SELECT
