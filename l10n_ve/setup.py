@@ -1517,14 +1517,14 @@ def add_reports_to_accounts_workspace() -> None:
                 "link_type": "Report",
                 "is_query_report": 1
             },
-              {
+            {
                 "type": "Link",
                 "label": _("Retención de ISLR"),
                 "link_to": " ISLR Withholding",
                 "link_type": "Report",
                 "is_query_report": 1
             },
-                        {
+            {
                 "type": "Link",
                 "label": _("Retención de IVA"),
                 "link_to": " VAT Withholding",
@@ -1550,6 +1550,10 @@ def add_reports_to_accounts_workspace() -> None:
             print(f"  -> Agregado salto de tarjeta: {card_break_label}")
 
         for report in reports_to_add:
+            if not frappe.db.exists("Report", report["link_to"]):
+                print(f"  -- Omitiendo reporte no encontrado: {report['link_to']}")
+                continue
+
             if report["link_to"] not in current_links:
                 workspace.append("links", {
                     "label": report["label"],
@@ -1573,6 +1577,9 @@ def add_reports_to_accounts_workspace() -> None:
                     existing_links = [l.get("link_to") for l in links]
 
                     for report in reports_to_add:
+                        if not frappe.db.exists("Report", report["link_to"]):
+                            continue
+
                         if report["link_to"] not in existing_links:
                             links.append(report)
                             modified = True
@@ -1595,6 +1602,7 @@ def add_reports_to_accounts_workspace() -> None:
                 content.append(new_card)
                 modified = True
 
+        if modified:
             if workspace.content:
                 workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
