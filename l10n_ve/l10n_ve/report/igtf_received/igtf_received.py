@@ -115,12 +115,14 @@ def get_data(filters):
 			si.name as invoice,
 			si.bill_no as bill_no,
 			si.customer_name as customer,
-			si.tax_id as tax_id,
+			COALESCE(NULLIF(si.tax_id, ''), c.tax_id) as tax_id,
 			si.base_grand_total as total,
 			si.base_amount_igtf as base_igtf,
 			si.total_igtf as igtf_amount
 		FROM
 			`tabSales Invoice` si
+		LEFT JOIN
+			`tabCustomer` c ON si.customer = c.name
 		WHERE
 			si.docstatus = 1
 			AND si.total_igtf > 0
