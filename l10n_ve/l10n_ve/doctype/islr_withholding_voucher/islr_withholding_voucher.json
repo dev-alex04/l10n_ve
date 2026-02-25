@@ -26,7 +26,8 @@
   "totals_grand_total",
   "totals_paid_amount",
   "totals_islr_base_amount",
-  "totals_islr_amount"
+  "totals_islr_amount",
+  "amended_from"
  ],
  "fields": [
   {
@@ -141,12 +142,23 @@
    "fieldtype": "Currency",
    "label": "Total Abonado",
    "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "ISLR Withholding Voucher",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2025-11-07 09:47:01.154680",
+ "modified": "2026-02-24 16:07:42.813048",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "ISLR Withholding Voucher",

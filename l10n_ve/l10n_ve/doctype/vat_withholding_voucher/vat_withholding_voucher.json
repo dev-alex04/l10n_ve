@@ -28,7 +28,8 @@
   "totals_total_exempt",
   "totals_total",
   "totals_taxes_and_charges_added",
-  "totals_tax_amount_vat"
+  "totals_tax_amount_vat",
+  "amended_from"
  ],
  "fields": [
   {
@@ -170,12 +171,23 @@
    "fieldtype": "Currency",
    "label": "Total IVA Retenido",
    "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "VAT Withholding Voucher",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2025-11-11 21:04:34.818608",
+ "modified": "2026-02-19 11:35:22.005630",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
@@ -224,5 +236,6 @@
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }

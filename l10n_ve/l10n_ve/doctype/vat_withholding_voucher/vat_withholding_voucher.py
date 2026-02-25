@@ -74,11 +74,19 @@ def get_invoiced_purchase_invoices():
 def get_valid_invoices(supplier, start_date, end_date, company):
     default_currency = frappe.db.get_value('Company', company, 'default_currency')
 
-    excluded_from_withholding = frappe.get_all(
-        "VAT Withholding Voucher Item",
-        filters={"purchase_invoice": ["!=", ""]},
-        fields=["purchase_invoice"]
-    )
+    excluded_from_withholding = frappe.db.sql("""
+        SELECT 
+            child.purchase_invoice 
+        FROM 
+            `tabVAT Withholding Voucher Item` child
+        INNER JOIN 
+            `tabVAT Withholding Voucher` parent ON child.parent = parent.name
+        WHERE 
+            parent.docstatus != 2
+            AND child.purchase_invoice IS NOT NULL 
+            AND child.purchase_invoice != ''
+    """, as_dict=True)
+
     all_excluded_invoices = [d.purchase_invoice for d in excluded_from_withholding]
 
     valid_invoices = frappe.get_all(
