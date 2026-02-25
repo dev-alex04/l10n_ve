@@ -37,6 +37,7 @@ def set_data() -> None:
         set_profiles()
         set_roles()
         add_reports_to_accounts_workspace()
+        add_doctypes_to_accounting_workspace()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1515,6 +1516,20 @@ def add_reports_to_accounts_workspace() -> None:
                 "link_to": "purchase_book",
                 "link_type": "Report",
                 "is_query_report": 1
+            },
+              {
+                "type": "Link",
+                "label": _("Retención de ISLR"),
+                "link_to": " ISLR Withholding",
+                "link_type": "Report",
+                "is_query_report": 1
+            },
+                        {
+                "type": "Link",
+                "label": _("Retención de IVA"),
+                "link_to": " VAT Withholding",
+                "link_type": "Report",
+                "is_query_report": 1
             }
         ]
 
@@ -1580,7 +1595,6 @@ def add_reports_to_accounts_workspace() -> None:
                 content.append(new_card)
                 modified = True
 
-        if modified:
             if workspace.content:
                 workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
@@ -1592,3 +1606,111 @@ def add_reports_to_accounts_workspace() -> None:
     except Exception as e:
         print(f"Failure: Error actualizando Workspace Accounts: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_reports_to_accounts_workspace')
+
+def add_doctypes_to_accounting_workspace() -> None:
+    """
+    Agrega los DocTypes de configuración de l10n_ve al Workspace 'Accounting'.
+    """
+    print("Agregando DocTypes de l10n_ve al Workspace de Contabilidad...")
+    try:
+        workspace_name = "Accounting"
+        if not frappe.db.exists("Workspace", workspace_name):
+            if frappe.db.exists("Workspace", "Accounts"):
+                workspace_name = "Accounts"
+            elif frappe.db.exists("Workspace", "Financial Reports"):
+                workspace_name = "Financial Reports"
+            else:
+                print("  !! No se encontró ningún Workspace compatible (Accounting, Accounts, Financial Reports).")
+                return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+        print(f"  -> Workspace encontrado: {workspace_name}")
+
+        doctypes_to_add_config = [
+            {"link_to": "Tax Unit", "label": _("Unidad Tributaria")},
+            {"link_to": "Tabulator ISLR", "label": _("Tabulador de ISLR")},
+            {"link_to": "VE Economic Activity", "label": _("Actividades Económicas")},
+            {"link_to": "VE Municipality", "label": _("Municipios")},
+            {"link_to": "VE Municipality Taxes", "label": _("Impuestos Municipales")},
+            {"link_to": "Ve Branch", "label": _("Sucursales")},
+            {"link_to": "Venezuela Account Settings", "label": _("Configuración")},
+        ]
+
+        links_to_add = []
+        for dt in doctypes_to_add_config:
+            links_to_add.append({
+                "type": "Link",
+                "label": dt["label"],
+                "link_to": dt["link_to"],
+                "link_type": "DocType",
+            })
+
+        modified = False
+        current_links = {l.link_to for l in workspace.links}
+
+        card_break_label = "Configuración Venezuela"
+        card_break_exists = any(l.label == card_break_label and l.type == 'Card Break' for l in workspace.links)
+
+        if not card_break_exists:
+            workspace.append("links", {
+                "type": "Card Break",
+                "label": card_break_label
+            })
+            modified = True
+            print(f"  -> Agregado salto de tarjeta: {card_break_label}")
+
+        for link in links_to_add:
+            if link["link_to"] not in current_links:
+                workspace.append("links", {
+                    "label": link["label"],
+                    "type": "Link",
+                    "link_type": "DocType",
+                    "link_to": link["link_to"],
+                })
+                modified = True
+                print(f"  -> Agregado a tabla links: {link['label']}")
+
+        content = json.loads(workspace.content) if workspace.content else []
+        custom_card_name = "Configuración Venezuela"
+        card_found = False
+
+        for block in content:
+            if block.get("type") == "card" and block.get("data", {}).get("card_name") == custom_card_name:
+                card_found = True
+                card_links = block["data"].get("links", [])
+                existing_links_in_card = {l.get("link_to") for l in card_links}
+
+                for link in links_to_add:
+                    if link["link_to"] not in existing_links_in_card:
+                        card_links.append(link)
+                        modified = True
+                        print(f"  -> Agregado a tarjeta visual: {link['label']}")
+                
+                if modified:
+                    block["data"]["links"] = card_links
+                break
+        
+        if not card_found:
+            print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
+            new_card = {
+                "type": "card",
+                "data": {
+                    "card_name": custom_card_name,
+                    "col": 4,
+                    "links": links_to_add
+                }
+            }
+            content.append(new_card)
+            modified = True
+        
+        if modified:
+            workspace.content = json.dumps(content)
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Workspace '{workspace_name}' actualizado con DocTypes de l10n_ve.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya estaba actualizado.")
+
+    except Exception as e:
+        print(f"Failure: Error actualizando Workspace de Contabilidad: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_doctypes_to_accounting_workspace')

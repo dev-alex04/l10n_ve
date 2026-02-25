@@ -127,7 +127,7 @@ def get_data(filters):
 			si.bill_no,
 			si.bill_control,
 			si.customer_name,
-			si.tax_id,
+			COALESCE(NULLIF(si.tax_id, ''), c.tax_id) as tax_id,
 			si.base_total,
 			si.base_grand_total AS grand_total,
 			'IVA' as retention_type,
@@ -139,6 +139,8 @@ def get_data(filters):
 			stc.description
 		FROM
 			`tabSales Invoice` AS si
+		LEFT JOIN
+			`tabCustomer` AS c ON si.customer = c.name
 		JOIN
 			`tabSales Taxes and Charges` AS stc ON si.name = stc.parent
 		WHERE
@@ -155,7 +157,7 @@ def get_data(filters):
 			si.bill_no,
 			si.bill_control,
 			si.customer_name,
-			si.tax_id,
+			COALESCE(NULLIF(si.tax_id, ''), c.tax_id) as tax_id,
 			si.base_total,
 			si.base_grand_total AS grand_total,
 			'ISLR' as retention_type,
@@ -169,6 +171,7 @@ def get_data(filters):
 			`tabPayment Entry` pe
 		JOIN `tabPayment Entry Reference` per ON pe.name = per.parent
 		JOIN `tabSales Invoice` si ON si.name = per.reference_name
+		LEFT JOIN `tabCustomer` AS c ON si.customer = c.name
 		JOIN `tabAdvance Taxes and Charges` atc ON pe.name = atc.parent
 		WHERE
 			pe.docstatus = 1
