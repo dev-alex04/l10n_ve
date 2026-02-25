@@ -60,5 +60,14 @@ frappe.query_reports["Customer Retention"] = {
 				frappe.msgprint(__("Por favor genere el reporte primero."));
 			}
 		});
+
+		report.page.add_inner_button(__("Exportar PDF"), function() {
+			var filters = report.get_values();
+			if(filters) {
+				window.open('/api/method/l10n_ve.l10n_ve.report.customer_retention.customer_retention_impression.get_customer_retention_pdf?filters=' + encodeURIComponent(JSON.stringify(filters)));
+			} else {
+				frappe.msgprint(__("Por favor genere el reporte primero."));
+			}
+		});
 	}
 };

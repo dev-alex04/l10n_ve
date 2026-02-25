@@ -1,10 +1,12 @@
 
 import frappe
+from frappe import _
 import json
 import io
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from frappe.utils import formatdate, nowdate, flt
+from frappe.utils.pdf import get_pdf
 
 from l10n_ve.l10n_ve.report.customer_retention.customer_retention import get_columns, get_data
 
@@ -123,3 +125,111 @@ def get_customer_retention_excel(filters=None):
 	frappe.response['filecontent'] = xlsx_file.getvalue()
 
 	frappe.response['type'] = 'binary'
+
+
+@frappe.whitelist()
+def get_customer_retention_pdf(filters=None):
+    if isinstance(filters, str):
+        filters = json.loads(filters)
+
+    data = get_data(filters)
+    columns = get_columns()
+
+    # Filtrar columnas no deseadas
+    columns_to_remove = ["name", "retention_type", "voucher_image"]
+    columns = [c for c in columns if c.get("fieldname") not in columns_to_remove]
+
+    company_details = _get_company_details(filters.get("company"))
+
+    # Calculate totals
+    total_base = sum(flt(d.get('base_total')) for d in data)
+    total_grand = sum(flt(d.get('grand_total')) for d in data)
+    total_withheld = sum(flt(d.get('withholding_amount')) for d in data)
+
+    rows_html = []
+    for d in data:
+        cells_html = []
+        for col in columns:
+            fieldtype = col.get("fieldtype")
+            fieldname = col.get("fieldname")
+            value = d.get(fieldname, "")
+
+            if fieldtype in ["Currency", "Percent"]:
+                css_class = f" class='{fieldtype.lower()}'"
+                display_value = flt(value, 2)
+            else:
+                css_class = ""
+                display_value = value
+
+            cells_html.append(f"<td{css_class}>{display_value}</td>")
+        rows_html.append(f"<tr>{''.join(cells_html)}</tr>")
+    tbody_html = "".join(rows_html)
+
+    # HTML generation
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: 'Helvetica', Arial, sans-serif; font-size: 8px; margin: 15mm; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }}
+            th, td {{ border: 1px solid #ddd; padding: 2px; text-align: left; word-wrap: break-word; }}
+            th {{ background-color: #f2f2f2; font-weight: bold; }}
+            .header {{ margin-bottom: 10px; }}
+            .header p {{ margin: 1px 0; }}
+            .report-title {{ text-align: center; font-size: 12px; font-weight: bold; margin-bottom: 10px; background-color: #D8E4BC; padding: 4px; border: 1px solid #c0c0c0; }}
+            .totals-section {{ margin-top: 15px; overflow: hidden; }}
+            .totals-table {{ width: auto; float: right; border-collapse: collapse; }}
+            .totals-table td {{ border: none; padding: 2px 5px; }}
+            .totals-table .label {{ font-weight: bold; text-align: right; }}
+            .totals-table .value {{ text-align: right; }}
+            .text-right {{ text-align: right; }}
+            .currency, .percent {{ text-align: right; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <p><strong>{company_details.get("name")}</strong></p>
+            <p>R.I.F.: {company_details.get("rif")}</p>
+            <p>Dirección: {company_details.get("address")}</p>
+            <p>Fecha de Emisión: {formatdate(nowdate())}</p>
+        </div>
+
+        <div class="report-title">RETENCIONES DE CLIENTES</div>
+
+        <table>
+            <thead>
+                <tr>
+                    {"".join([f"<th>{col.get('label')}</th>" for col in columns])}
+                </tr>
+            </thead>
+            <tbody>
+                {tbody_html}
+            </tbody>
+        </table>
+
+        <div class="totals-section">
+            <table class="totals-table">
+                <tr>
+                    <td class="label">TOTAL BASE IMPONIBLE:</td>
+                    <td class="value currency">{flt(total_base, 2)}</td>
+                </tr>
+                <tr>
+                    <td class="label">TOTAL FACTURADO:</td>
+                    <td class="value currency">{flt(total_grand, 2)}</td>
+                </tr>
+                <tr>
+                    <td class="label">TOTAL RETENIDO:</td>
+                    <td class="value currency">{flt(total_withheld, 2)}</td>
+                </tr>
+            </table>
+        </div>
+    </body>
+    </html>
+    """
+
+    pdf = get_pdf(html_content)
+
+    frappe.response['filename'] = 'Retencion_Clientes.pdf'
+    frappe.response['filecontent'] = pdf
+    frappe.response['type'] = 'binary'
