@@ -14,12 +14,13 @@ def _scrape_bcv_rates():
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     try:
-        response = requests.get(url, headers=headers, verify=False, timeout=15)
+        response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.text, 'html.parser')
         tasas = {}
-
+        # ADVERTENCIA: Esta lógica de scraping es frágil y depende de la estructura HTML
+        # específica del sitio web del BCV. Puede romperse si el sitio se actualiza.
         dolar_div = soup.find('div', id='dolar')
         if dolar_div and dolar_div.find('strong'):
             tasas['USD'] = dolar_div.find('strong').text.strip().replace(',', '.')
@@ -29,7 +30,7 @@ def _scrape_bcv_rates():
             tasas['EUR'] = euro_div.find('strong').text.strip().replace(',', '.')
 
         if 'USD' in tasas and 'EUR' in tasas:
-            frappe.log_error("BCV Scraper Success", "Tasas obtenidas por web scraping exitosamente.")
+            frappe.log_message("BCV Scraper Success", "Tasas obtenidas por web scraping exitosamente.")
             return tasas
         else:
             frappe.log_error("BCV Scraper Error", f"No se encontraron los elementos de tasa en la página. Tasas parciales: {tasas}")
