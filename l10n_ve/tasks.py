@@ -14,8 +14,6 @@ def _scrape_bcv_rates():
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     try:
-        # Se usa verify=False como en el ejemplo, pero es inseguro para producción.
-        # Es mejor manejar los certificados del servidor correctamente.
         response = requests.get(url, headers=headers, verify=False, timeout=15)
         response.raise_for_status()
 
@@ -76,7 +74,6 @@ def create_currency_exchange() -> None:
     error_message = frappe._("Ocurrió un error al intentar actualizar las tasas de cambio. " \
                       "Por favor, contacte al administrador del sistema.")
 
-    # --- Intento 1: API Oficial ---
     bcv_endpoint = frappe.get_site_config().bcv_endpoint
     bcv_api_key = frappe.get_site_config().bcv_api_key
     
@@ -116,7 +113,6 @@ def create_currency_exchange() -> None:
     else:
         frappe.log_error("BCV API Info", "bcv_endpoint no configurado, saltando a web scraping.")
 
-    # --- Intento 2: Web Scraping (Fallback) ---
     frappe.log_error("BCV Fallback", "Iniciando fallback a web scraping.")
     
     scraped_rates = _scrape_bcv_rates()
@@ -128,5 +124,4 @@ def create_currency_exchange() -> None:
         _process_rates(rates_data)
         return
 
-    # --- Si ambos métodos fallan ---
     frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
