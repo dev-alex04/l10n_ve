@@ -57,7 +57,7 @@ def download_custom_excel(filters=None):
 	ws["A4"] = f"Fecha de Emisión: {formatdate(nowdate())}"
 
 	ws.merge_cells('A5:G5')
-	ws["A5"] = "IGTF PERCIBIDo"
+	ws["A5"] = "IGTF PERCIBIDO"
 	ws["A5"].font = bold_font
 	ws["A5"].alignment = center_align
 	ws["A5"].fill = green_fill
