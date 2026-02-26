@@ -1520,14 +1520,14 @@ def add_reports_to_accounts_workspace() -> None:
             {
                 "type": "Link",
                 "label": _("Retención de ISLR"),
-                "link_to": " ISLR Withholding",
+                "link_to": "ISLR Withholding",
                 "link_type": "Report",
                 "is_query_report": 1
             },
             {
                 "type": "Link",
                 "label": _("Retención de IVA"),
-                "link_to": " VAT Withholding",
+                "link_to": "VAT Withholding",
                 "link_type": "Report",
                 "is_query_report": 1
             }
