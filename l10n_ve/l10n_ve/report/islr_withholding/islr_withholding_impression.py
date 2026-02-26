@@ -6,8 +6,6 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from frappe.utils import fmt_money, formatdate, nowdate
 from frappe.utils.pdf import get_pdf
-
-# Asegúrate de que la ruta de importación coincida con tu carpeta de reporte ISLR
 from l10n_ve.l10n_ve.report.islr_withholding.islr_withholding import get_data
 
 def _get_company_details(company_name):
@@ -50,7 +48,7 @@ def download_custom_excel(filters=None):
     ws["A3"] = f"Dirección: {company_details.get('address')}"
     ws["A4"] = f"Fecha de Emisión: {formatdate(nowdate())}"
 
-    ws.merge_cells('A5:L5')
+    ws.merge_cells('A5:M5')
     ws["A5"] = "REPORTE DETALLADO DE RETENCIONES ISLR"
     ws["A5"].font = bold_font
     ws["A5"].alignment = center_align
@@ -59,7 +57,7 @@ def download_custom_excel(filters=None):
     headers = [
         "RIF Proveedor", "Nombre Proveedor", "Nro. Factura", "Nro. Control", "Fecha Factura", 
         "Impuesto", "Fecha Emisión", "Nro. Retención", "Factura Compra",
-        "Base Imponible Bs", "Monto Retenido Bs", "Estatus"
+        "Base Imponible Bs", "Monto Retenido Bs", "Estado del Documento", "Estado del Comprobantes"
     ]
 
     for col_num, header in enumerate(headers, 1):
@@ -96,6 +94,8 @@ def download_custom_excel(filters=None):
         cell_ret.number_format = '#,##0.00'
         
         ws.cell(row=row_num, column=12, value=d.status)
+        ws.cell(row=row_num, column=13, value=d.declared_status)
+
         
         total_base += (d.islr_base_amount or 0)
         total_ret += (d.islr_amount or 0)
@@ -181,7 +181,8 @@ def download_custom_pdf(filters=None):
                     <th style="width: 10%;">Nro. Retención</th>
                     <th style="width: 10%;">Base Imp. Bs</th>
                     <th style="width: 10%;">Monto Ret. Bs</th>
-                    <th style="width: 8%;">Estatus</th>
+                    <th style="width: 8%;">Estado del Documento</th>
+                    <th style="width: 8%;">Estado del Comprobante</th>
                 </tr>
             </thead>
             <tbody>
@@ -198,13 +199,14 @@ def download_custom_pdf(filters=None):
                     <td class="text-right">{{ row.base_f }}</td>
                     <td class="text-right">{{ row.ret_f }}</td>
                     <td class="text-center">{{ row.status }}</td>
+                    <td class="text-center">{{ row.declared_status }}</td>
                 </tr>
                 {% endfor %}
                 <tr style="font-weight: bold; background-color: #f2f2f2;">
                     <td colspan="8" class="text-right">TOTALES</td>
                     <td class="text-right">{{ total_base_f }}</td>
                     <td class="text-right">{{ total_ret_f }}</td>
-                    <td></td>
+                    <td colspan="2"></td>
                 </tr>
             </tbody>
         </table>

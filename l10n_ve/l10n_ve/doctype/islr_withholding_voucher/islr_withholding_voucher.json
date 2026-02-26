@@ -12,6 +12,7 @@
   "column_break_lzyc",
   "end_date",
   "posting_date",
+  "is_declared",
   "section_break_vaxc",
   "empresa",
   "company_address",
@@ -152,13 +153,22 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_declared",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Declarado",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-24 16:07:42.813048",
+ "modified": "2026-02-26 09:20:58.278041",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "ISLR Withholding Voucher",

@@ -6,7 +6,6 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from frappe.utils import fmt_money, formatdate, nowdate
 from frappe.utils.pdf import get_pdf
-
 from l10n_ve.l10n_ve.report.vat_withholding.vat_withholding import get_data
 
 def _get_company_details(company_name):
@@ -49,7 +48,7 @@ def download_custom_excel(filters=None):
     ws["A3"] = f"Dirección: {company_details.get('address')}"
     ws["A4"] = f"Fecha de Emisión: {formatdate(nowdate())}"
 
-    ws.merge_cells('A5:K5')
+    ws.merge_cells('A5:L5')
     ws["A5"] = "REPORTE DETALLADO DE RETENCIONES IVA"
     ws["A5"].font = bold_font
     ws["A5"].alignment = center_align
@@ -58,7 +57,7 @@ def download_custom_excel(filters=None):
     headers = [
         "RIF Proveedor", "Nombre del Proveedor", "Número de Factura", "Número de Control", "Fecha Factura", 
         "Impuesto", "Fecha Emisión", "Documento Retención", 
-        "Base Imponible Bs", "Monto Retención Bs", "Estatus"
+        "Base Imponible Bs", "Monto Retención Bs", "Estado del Documento", "Estado del Comprobante"
     ]
 
     for col_num, header in enumerate(headers, 1):
@@ -89,6 +88,7 @@ def download_custom_excel(filters=None):
         cell_ret = ws.cell(row=row_num, column=10, value=d.tax_amount_vat)
         cell_ret.number_format = '#,##0.00'
         ws.cell(row=row_num, column=11, value=d.status)
+        ws.cell(row=row_num, column=12, value=d.declared_status)
         
         total_base += (d.total or 0)
         total_ret += (d.tax_amount_vat or 0)
@@ -178,7 +178,8 @@ def download_custom_pdf(filters=None):
                     <th style="width: 12%;">Documento Retención</th>
                     <th style="width: 11%;">Base Imponible Bs</th>
                     <th style="width: 11%;">Monto Retención Bs</th>
-                    <th style="width: 5%;">Estatus</th>
+                    <th style="width: 5%;">Estado del Documento</th>
+                    <th style="width: 5%;">Estado del Comprobante</th>
                 </tr>
             </thead>
             <tbody>
@@ -195,13 +196,14 @@ def download_custom_pdf(filters=None):
                     <td class="text-right">{{ row.total_f }}</td>
                     <td class="text-right">{{ row.ret_f }}</td>
                     <td class="text-center">{{ row.status }}</td>
+                    <td class="text-center">{{ row.declared_status }}</td>
                 </tr>
                 {% endfor %}
                 <tr style="font-weight: bold; background-color: #f2f2f2;">
                     <td colspan="8" class="text-right">TOTALES</td>
                     <td class="text-right">{{ total_base_f }}</td>
                     <td class="text-right">{{ total_ret_f }}</td>
-                    <td></td>
+                    <td colspan="2"></td>
                 </tr>
             </tbody>
         </table>

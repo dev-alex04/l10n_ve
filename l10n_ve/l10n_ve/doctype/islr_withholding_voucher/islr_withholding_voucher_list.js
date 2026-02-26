@@ -1,7 +1,7 @@
 
-    // Archivo JS para personalizar la vista de lista de ISLR Withholding Voucher
-    // Más información: https://frappeframework.com/docs/v15/user/en/desk/views/list-view#listviewsettings
-    frappe.listview_settings['ISLR Withholding Voucher'] = {
+// Archivo JS para personalizar la vista de lista de ISLR Withholding Voucher
+// Más información: https://frappeframework.com/docs/v15/user/en/desk/views/list-view#listviewsettings
+frappe.listview_settings['ISLR Withholding Voucher'] = {
     // add fields to fetch
     // add_fields: ['title', 'public'],
     // set default filters
@@ -24,29 +24,29 @@
     },
 
     // get_indicator(doc) {
-        // customize indicator color
-        // Ejemplo: Indicador basado en un campo 'status'
-        // if (doc.status === "Approved") {
-        // 	return [__("Approved"), "green", "status,=,Approved"];
-        // } else if (doc.status === "Pending") {
-        // 	return [__("Pending"), "orange", "status,=,Pending"];
-        // } else {
-        // 	return [__(doc.status), "darkgrey", `status,=,${doc.status}`];
-        // }
+    // customize indicator color
+    // Ejemplo: Indicador basado en un campo 'status'
+    // if (doc.status === "Approved") {
+    // 	return [__("Approved"), "green", "status,=,Approved"];
+    // } else if (doc.status === "Pending") {
+    // 	return [__("Pending"), "orange", "status,=,Pending"];
+    // } else {
+    // 	return [__(doc.status), "darkgrey", `status,=,${doc.status}`];
+    // }
     // },
     // primary_action() {
-        // triggers when the primary action is clicked
-        // Ejemplo: Acción por defecto
-        // frappe.new_doc('ISLR Withholding Voucher');
+    // triggers when the primary action is clicked
+    // Ejemplo: Acción por defecto
+    // frappe.new_doc('ISLR Withholding Voucher');
     // },
     // get_form_link(doc) {
-        // override the form route for this doc
-        // Ejemplo: Ir a una ruta diferente si se cumple una condición
-        // if (doc.custom_condition) {
-        // 	return `/app/custom-route/${doc.name}`;
-        // }
-        // Si retorna null o undefined, usa la ruta estándar
-        // return null;
+    // override the form route for this doc
+    // Ejemplo: Ir a una ruta diferente si se cumple una condición
+    // if (doc.custom_condition) {
+    // 	return `/app/custom-route/${doc.name}`;
+    // }
+    // Si retorna null o undefined, usa la ruta estándar
+    // return null;
     // },
     // add a custom button for each row
     // button: {
@@ -82,4 +82,14 @@
     // 		}
     // 	}
     // }
+
+    get_indicator: function (doc) {
+        if (doc.docstatus === 0) {
+            return [__("Borrador"), "grey", "docstatus,=,0"];
+        } else if (doc.docstatus === 1) {
+            return [__("Validado"), "blue", "docstatus,=,1"];
+        } else if (doc.docstatus === 2) {
+            return [__("Cancelado"), "red", "docstatus,=,2"];
+        }
+    }
 };

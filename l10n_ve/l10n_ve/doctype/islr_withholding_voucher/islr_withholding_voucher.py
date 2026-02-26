@@ -213,3 +213,13 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         invoices_with_taxes.append(invoice_data)
 
     return invoices_with_taxes
+
+@frappe.whitelist()
+def mark_as_declared(docname):
+    doc = frappe.get_doc("ISLR Withholding Voucher", docname)
+    
+    if doc.docstatus != 1:
+        frappe.throw(_("Solo se pueden marcar como declarados los comprobantes que estén en estado Aprobado."))
+    
+    doc.db_set("is_declared", 1)
+    return True

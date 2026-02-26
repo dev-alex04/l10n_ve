@@ -26,7 +26,8 @@ def get_columns():
         {"fieldname": "islr_base_amount", "label": _("Monto Objeto Retención"), "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "parent", "label": _("URL Retención"), "fieldtype": "Link", "options": "ISLR Withholding Voucher", "width": "auto"},
-		{"fieldname": "status", "label": _("Estatus"), "fieldtype": "Data", "width": "auto"}
+		{"fieldname": "status", "label": _("Estado del Documento"), "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "declared_status", "label": _("Estado del Comprobante"), "fieldtype": "Data", "width": "auto"}
     ]
 
 def get_data(filters):
@@ -52,6 +53,11 @@ def get_data(filters):
             child.islr_base_amount,
             child.islr_amount,
             child.parent,
+            parent.is_declared,
+            CASE 
+                WHEN parent.is_declared = 1 THEN '{_("Declarado")}'
+                ELSE '{_("Pendiente")}'
+            END as declared_status,
 			CASE 
                 WHEN parent.docstatus = 0 THEN '{_("Borrador")}'
                 WHEN parent.docstatus = 1 THEN '{_("Aprobado")}'
