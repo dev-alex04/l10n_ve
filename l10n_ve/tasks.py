@@ -1,88 +1,132 @@
 import requests
+from bs4 import BeautifulSoup
 
 import frappe
-from frappe.utils import getdate, formatdate, get_datetime_str
+from frappe.utils import getdate, formatdate, get_datetime_str, today
+
+
+def _scrape_bcv_rates():
+    """
+    Método de respaldo para obtener tasas haciendo web scraping a la página del BCV.
+    """
+    url = "https://www.bcv.org.ve/"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    try:
+        # Se usa verify=False como en el ejemplo, pero es inseguro para producción.
+        # Es mejor manejar los certificados del servidor correctamente.
+        response = requests.get(url, headers=headers, verify=False, timeout=15)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        tasas = {}
+
+        dolar_div = soup.find('div', id='dolar')
+        if dolar_div and dolar_div.find('strong'):
+            tasas['USD'] = dolar_div.find('strong').text.strip().replace(',', '.')
+
+        euro_div = soup.find('div', id='euro')
+        if euro_div and euro_div.find('strong'):
+            tasas['EUR'] = euro_div.find('strong').text.strip().replace(',', '.')
+
+        if 'USD' in tasas and 'EUR' in tasas:
+            frappe.log_error("BCV Scraper Success", "Tasas obtenidas por web scraping exitosamente.")
+            return tasas
+        else:
+            frappe.log_error("BCV Scraper Error", f"No se encontraron los elementos de tasa en la página. Tasas parciales: {tasas}")
+            return None
+
+    except Exception as e:
+        frappe.log_error("BCV Scraper Error", f"Error al conectar o procesar la página del BCV: {e}")
+        return None
+
+
+def _process_rates(rates_data):
+    """
+    Procesa un diccionario de tasas y crea/actualiza los documentos de Currency Exchange.
+    """
+    doctype_name_str = "Currency Exchange"
+    to_currency = "VEF"
+    exchange_date = getdate(rates_data.get("date"))
+    purpose = "Selling-Buying"
+
+    for from_currency, exchange_rate in rates_data.get("rates", {}).items():
+        if not exchange_rate:
+            continue
+
+        exchange_name = f"{formatdate(get_datetime_str(exchange_date), 'yyyy-MM-dd')}-{from_currency}-{to_currency}-{purpose}"
+
+        if frappe.db.exists(doctype_name_str, exchange_name):
+            frappe.db.set_value(doctype_name_str, exchange_name, "exchange_rate", exchange_rate)
+        else:
+            currency_exchange = frappe.new_doc(doctype_name_str)
+            currency_exchange.for_buying = True
+            currency_exchange.for_selling = True
+            currency_exchange.date = exchange_date
+            currency_exchange.to_currency = to_currency
+            currency_exchange.from_currency = from_currency
+            currency_exchange.exchange_rate = exchange_rate
+            currency_exchange.insert(ignore_permissions=True)
 
 
 @frappe.whitelist()
 def create_currency_exchange() -> None:
-
-    doctype_name_str = "Currency Exchange"
     response_error_str = "Error obteniendo las tasas de cambio del BCV"
-    bcv_endpoint = frappe.get_site_config().bcv_endpoint
-    bcv_api_key = frappe.get_site_config().bcv_api_key
     error_message = frappe._("Ocurrió un error al intentar actualizar las tasas de cambio. " \
                       "Por favor, contacte al administrador del sistema.")
 
-    if not bool(bcv_endpoint):
-        frappe.log_error(
-        response_error_str,
-        f"debe establecer la URL del endpoint al" \
-        f"bcv en el site_config.json")
-        frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
+    # --- Intento 1: API Oficial ---
+    bcv_endpoint = frappe.get_site_config().bcv_endpoint
+    bcv_api_key = frappe.get_site_config().bcv_api_key
+    
+    if bcv_endpoint:
+        try:
+            headers = {}
+            if bcv_api_key:
+                headers["x-dolarvzla-key"] = bcv_api_key
+
+            response = requests.get(bcv_endpoint, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                json_data = response.json()
+                current_rates = json_data.get("current", {})
+                date_str = current_rates.get("date")
+                usd_rate = current_rates.get("usd")
+                eur_rate = current_rates.get("eur")
+
+                if date_str and usd_rate and eur_rate:
+                    api_rates_data = {
+                        "date": date_str,
+                        "rates": {
+                            "USD": usd_rate,
+                            "EUR": eur_rate
+                        }
+                    }
+                    frappe.log_error("BCV API Success", "Tasas obtenidas por API exitosamente.")
+                    _process_rates(api_rates_data)
+                    return
+                else:
+                    frappe.log_error("BCV API Error", f"Respuesta de API incompleta. Datos: {json_data}")
+            else:
+                frappe.log_error(response_error_str, f"API Status {response.status_code}: {response.text}")
+
+        except Exception as e:
+            frappe.log_error(response_error_str, f"Error con API: {e}")
+    else:
+        frappe.log_error("BCV API Info", "bcv_endpoint no configurado, saltando a web scraping.")
+
+    # --- Intento 2: Web Scraping (Fallback) ---
+    frappe.log_error("BCV Fallback", "Iniciando fallback a web scraping.")
+    
+    scraped_rates = _scrape_bcv_rates()
+    if scraped_rates:
+        rates_data = {
+            "date": today(),
+            "rates": scraped_rates
+        }
+        _process_rates(rates_data)
         return
 
-    try:
-
-        headers = {}
-        if bcv_api_key:
-            headers["x-dolarvzla-key"] = bcv_api_key
-
-        response = requests.get(bcv_endpoint, headers=headers)
-
-        if response.status_code != 200:
-            frappe.log_error(response_error_str, f"{response.text}")
-            frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
-
-        else:
-            to_currency = "VEF"
-            currency_data = response.json()
-            current_rates = currency_data.get("current", {})
-            date_str = current_rates.get("date")
-
-            if not date_str:
-                frappe.log_error(f"La fecha no fue encontrada en la respuesta de"
-                                 f" la API del BCV. Datos recibidos: {currency_data}")
-                frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
-                return
-
-            exchange_date = getdate(date_str)
-            purpose = "Selling-Buying"
-
-            for from_currency in ['USD', 'EUR']:
-                exchange_rate = current_rates.get(from_currency.lower())
-
-                if not exchange_rate:
-                    frappe.log_error(f"Tasa de cambio no encontrada para {from_currency} "
-                                     f"en la respuesta del BCV. Datos recibidos: {currency_data}")
-                    frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
-                    continue
-
-                exchange_name = "{}-{}-{}{}".format(
-                    formatdate(get_datetime_str(exchange_date), "yyyy-MM-dd"),
-                    from_currency,
-                    to_currency,
-                    ("-" + purpose) if purpose else "")
-
-                if bool(frappe.db.exists(doctype_name_str, exchange_name)):
-
-                    frappe.db.set_value(doctype_name_str,
-                                         exchange_name,
-                                         "exchange_rate",
-                                         exchange_rate )
-
-                else:
-                    currency_exchange = frappe.new_doc(doctype_name_str)
-
-                    currency_exchange.for_buying = True
-                    currency_exchange.for_selling = True
-                    currency_exchange.date =  exchange_date
-                    currency_exchange.to_currency = to_currency
-                    currency_exchange.from_currency = from_currency
-                    currency_exchange.exchange_rate = exchange_rate
-
-                    currency_exchange.insert()
-
-    except Exception as e:
-        frappe.log_error(response_error_str, f"{e}")
-        frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
+    # --- Si ambos métodos fallan ---
+    frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
