@@ -6,7 +6,7 @@ from frappe import _
 from frappe.utils import getdate
 
 def set_data() -> None:
-    print("Iniciando la configuración de datos para l10n_ve...")
+    frappe.log_message("Iniciando la configuración de datos para l10n_ve...", "l10n_ve Setup")
 
     try:
 
@@ -39,15 +39,15 @@ def set_data() -> None:
         add_reports_to_accounts_workspace()
         add_doctypes_to_accounting_workspace()
 
-        print("Success: Configuración de datos para l10n_ve completada exitosamente.")
+        frappe.log_message("Success: Configuración de datos para l10n_ve completada exitosamente.", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error durante la configuración de l10n_ve_data: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error durante la configuración de l10n_ve_data: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en set_l10n_ve_data')
 
 
 def create_currency_exchange() -> None:
-    print("Creando tasa de cambio...")
+    frappe.log_message("Creando tasa de cambio...", "l10n_ve Setup")
     try:
 
         from l10n_ve.tasks import create_currency_exchange
@@ -55,7 +55,7 @@ def create_currency_exchange() -> None:
         print("Success: Tasa de cambio creada exitosamente.")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error al crear la tasa de cambio: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error al crear la tasa de cambio: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(),
                          'Error en create_currency_exchange')
 
@@ -64,7 +64,7 @@ def create_tax_unit() -> None:
     """
     Crea el registro inicial para la Unidad Tributaria.
     """
-    print("Iniciando la creación de la Unidad Tributaria...")
+    frappe.log_message("Iniciando la creación de la Unidad Tributaria...", "l10n_ve Setup")
 
     try:
         tax_unit_value = 43
@@ -78,15 +78,15 @@ def create_tax_unit() -> None:
 
             tax_unit.insert(ignore_permissions=True)
 
-            print(f"  -> Unidad Tributaria con valor {tax_unit_value} creada exitosamente.")
+            frappe.log_message(f"Unidad Tributaria con valor {tax_unit_value} creada exitosamente.", "l10n_ve Setup")
         else:
-            print(f"  -- Omitiendo (ya existe): Unidad Tributaria para la fecha {effective_date}.")
+            frappe.log_message(f"Omitiendo (ya existe): Unidad Tributaria para la fecha {effective_date}.", "l10n_ve Setup")
 
         frappe.db.commit()
-        print("Success: Creación de Unidad Tributaria completada.")
+        frappe.log_message("Success: Creación de Unidad Tributaria completada.", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error durante la creación de la Unidad Tributaria: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error durante la creación de la Unidad Tributaria: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en create_tax_unit')
 
 
@@ -94,7 +94,7 @@ def create_islr_tabulator() -> None:
     """
     Crea los registros del Tabulador de ISLR a partir de un archivo CSV.
     """
-    print("Iniciando la creación de datos del Tabulador de ISLR...")
+    frappe.log_message("Iniciando la creación de datos del Tabulador de ISLR...", "l10n_ve Setup")
 
     csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 'tabulador_islr.csv')
 
@@ -127,7 +127,7 @@ def create_islr_tabulator() -> None:
 
         for codigo, data in grouped_data.items():
             if frappe.db.exists("Tabulator ISLR", {"codigo": codigo}):
-                print(f"  -- Omitiendo (ya existe concepto padre): {codigo}")
+                frappe.log_message(f"Omitiendo (ya existe concepto padre): {codigo}", "l10n_ve Setup")
                 continue
 
             doc = frappe.new_doc("Tabulator ISLR")
@@ -135,7 +135,7 @@ def create_islr_tabulator() -> None:
             doc.descripcion = data["descripcion"]
 
             if not doc.descripcion:
-                print(f"!! ADVERTENCIA: Descripción vacía para el código '{codigo}'. Omitiendo registro.")
+                frappe.log_message(f"ADVERTENCIA: Descripción vacía para el código '{codigo}'. Omitiendo registro.", "l10n_ve Setup")
                 continue
 
             for aliquot_data in data["aliquots"]:
@@ -156,17 +156,17 @@ def create_islr_tabulator() -> None:
 
             try:
                 doc.save(ignore_permissions=True)
-                print(f"  -> Creado concepto: {codigo} - {doc.descripcion} con {len(doc.aliquot)} alícuotas.")
+                frappe.log_message(f"Creado concepto: {codigo} - {doc.descripcion} con {len(doc.aliquot)} alícuotas.", "l10n_ve Setup")
             except frappe.ValidationError as e:
-                print(f"!! FAILURE al guardar el código '{codigo}': {e}")
+                frappe.log_message(f"FAILURE al guardar el código '{codigo}': {e}", "l10n_ve Setup")
 
         frappe.db.commit()
-        print("\nSuccess: Proceso de creación del Tabulador de ISLR completado.")
+        frappe.log_message("Success: Proceso de creación del Tabulador de ISLR completado.", "l10n_ve Setup")
 
     except FileNotFoundError:
-        print(f"!! FATAL: No se encontró el archivo CSV en la ruta: {csv_file_path}")
+        frappe.log_message(f"FATAL: No se encontró el archivo CSV en la ruta: {csv_file_path}", "l10n_ve Setup")
     except Exception as e:
-        print(f"!! FATAL: Ocurrió un error inesperado: {e}")
+        frappe.log_message(f"FATAL: Ocurrió un error inesperado: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en create_islr_tabulator')
 
 
@@ -178,7 +178,7 @@ def set_chart_of_accounts(company_name: str = None) -> None:
     """
 
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Iniciando la configuración de cuentas contables en {target}...")
+    frappe.log_message(f"Iniciando la configuración de cuentas contables en {target}...", "l10n_ve Setup")
 
     try:
         account_map = [
@@ -378,7 +378,7 @@ def set_chart_of_accounts(company_name: str = None) -> None:
             companies = frappe.get_all("Company", fields=["name", "abbr"])
 
         for company in companies:
-            print(f"Configurando cuentas para la compañía: {company.name}")
+            frappe.log_message(f"Configurando cuentas para la compañía: {company.name}", "l10n_ve Setup")
 
             for account_info in account_map:
                 company_field = account_info['company_field']
@@ -391,7 +391,7 @@ def set_chart_of_accounts(company_name: str = None) -> None:
                                                 "name")
 
                 if not account_name:
-                    print(f"  !! ADVERTENCIA: La cuenta {account_info['account_number']} no existe para la compañía {company.name}. Se omitirá.")
+                    frappe.log_message(f"ADVERTENCIA: La cuenta {account_info['account_number']} no existe para la compañía {company.name}. Se omitirá.", "l10n_ve Setup")
                     continue
 
                 frappe.db.set_value("Company",
@@ -399,7 +399,7 @@ def set_chart_of_accounts(company_name: str = None) -> None:
                                     company_field,
                                     account_name)
 
-                print(f" Cuenta '{account_name}' enlazada satisfactoriamente en el campo '{company_field}'.")
+                frappe.log_message(f"Cuenta '{account_name}' enlazada satisfactoriamente en el campo '{company_field}'.", "l10n_ve Setup")
 
             frappe.db.set_value('Company',
                                 company,
@@ -408,10 +408,10 @@ def set_chart_of_accounts(company_name: str = None) -> None:
         frappe.db.commit()
 
     except Exception as e:
-        print(f" !! ERROR configurando las cuentas contables: {e}")
+        frappe.log_message(f"ERROR configurando las cuentas contables: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en set_chart_of_accounts')
 
-    print("Success: Configuración de cuentas contables en las compañías completada.")
+    frappe.log_message("Success: Configuración de cuentas contables en las compañías completada.", "l10n_ve Setup")
 
 
 def create_vat_withholding(company_name: str = None) -> None:
@@ -420,7 +420,7 @@ def create_vat_withholding(company_name: str = None) -> None:
     Si se proporciona `company_name`, solo se agregan las cuentas de esa compañía.
     """
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Configurando retenciones de IVA para {target}...")
+    frappe.log_message(f"Configurando retenciones de IVA para {target}...", "l10n_ve Setup")
 
     try:
         company_filters = {"name": company_name} if company_name else {}
@@ -456,7 +456,7 @@ def create_vat_withholding(company_name: str = None) -> None:
             for company in companies:
 
                 if not (company.get('sales_vat_withholding_account') and company.get('purchase_vat_withholding_account')):
-                    print(f"  !! ADVERTENCIA: Cuentas de retención de IVA no configuradas para la compañía '{company.name}'. Se omitirá.")
+                    frappe.log_message(f"ADVERTENCIA: Cuentas de retención de IVA no configuradas para la compañía '{company.name}'. Se omitirá.", "l10n_ve Setup")
                     continue
 
                 withholding.append('accounts', {
@@ -467,10 +467,10 @@ def create_vat_withholding(company_name: str = None) -> None:
 
             withholding.save(ignore_permissions=True)
 
-        print(f"Retenciones de IVA configuradas exitosamente")
+        frappe.log_message("Retenciones de IVA configuradas exitosamente", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error durante la creación de las retenciones de IVA: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error durante la creación de las retenciones de IVA: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en create_vat_withholding')
 
 
@@ -480,7 +480,7 @@ def create_sales_taxes_and_charges_template(company_name: str = None) -> None:
     Si se proporciona `company_name`, solo se crean para esa compañía.
     """
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Creando plantillas de impuestos de IVA para {target}...")
+    frappe.log_message(f"Creando plantillas de impuestos de IVA para {target}...", "l10n_ve Setup")
 
     try:
         template_types = {
@@ -529,17 +529,17 @@ def create_sales_taxes_and_charges_template(company_name: str = None) -> None:
 
                     tax_template.insert(ignore_permissions=True)
 
-                    print(f"Success: Impuesto de IVA {aliquot}% para {doctype} creado exitosamente.")
+                    frappe.log_message(f"Success: Impuesto de IVA {aliquot}% para {doctype} creado exitosamente.", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error durante la creación del impuesto de IVA: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error durante la creación del impuesto de IVA: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(),
                          'Error en create_sales_taxes_and_charges_template')
 
 
 def set_title_field_on_purchase_invoice() -> None:
 
-    print("Estableciendo campo title_field en Purchase Invoice")
+    frappe.log_message("Estableciendo campo title_field en Purchase Invoice", "l10n_ve Setup")
 
     try:
 
@@ -553,10 +553,10 @@ def set_title_field_on_purchase_invoice() -> None:
                             'show_title_field_in_link',
                             True)
 
-        print("Campo bill_no establecido como campo Titulo en Purchase Invoice")
+        frappe.log_message("Campo bill_no establecido como campo Titulo en Purchase Invoice", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error Estableciendo campo title_field en Purchase Invoice: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error Estableciendo campo title_field en Purchase Invoice: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(),
                          'Error Estableciendo campo title_field en Purchase Invoice:')
 
@@ -567,7 +567,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
     Si se proporciona `company_name`, solo se configuran las cuentas para esa compañía.
     """
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Configurando modos de pago para {target}...")
+    frappe.log_message(f"Configurando modos de pago para {target}...", "l10n_ve Setup")
 
     mode_of_payments = [
         {
@@ -635,7 +635,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
             mop_visibility_type = mode['visibility_type']
             
             if not frappe.db.exists('Mode of Payment', mop_name):
-                print(f"  + Creando nuevo Modo de Pago: '{mop_name}'")
+                frappe.log_message(f"Creando nuevo Modo de Pago: '{mop_name}'", "l10n_ve Setup")
                 doc = frappe.new_doc('Mode of Payment')
                 doc.mode_of_payment = mop_name
                 doc.type = mop_type
@@ -651,8 +651,8 @@ def set_mode_of_payments(company_name: str = None) -> None:
                 }, 'name')
 
                 if not default_account:
-                    print(f'  !! ADVERTENCIA: No se encontró la cuenta con número '
-                          f'{mode["account_number"]} para la compañía {company}.')
+                    frappe.log_message(f'ADVERTENCIA: No se encontró la cuenta con número '
+                          f'{mode["account_number"]} para la compañía {company}.', "l10n_ve Setup")
                     continue
 
                 existing_account_entry = None
@@ -666,25 +666,25 @@ def set_mode_of_payments(company_name: str = None) -> None:
                     if existing_account_entry.default_account != default_account:
                         existing_account_entry.default_account = default_account
 
-                        print(f'  -> Actualizando cuenta a {default_account} en el modo de pago '
-                              f'{mode["mode_of_payment"]} para la compañía {company}')
+                        frappe.log_message(f'Actualizando cuenta a {default_account} en el modo de pago '
+                              f'{mode["mode_of_payment"]} para la compañía {company}', "l10n_ve Setup")
 
                     else:
-                         print(f'  -- Omitiendo (ya está configurado correctamente): Modo de pago '
-                               f'{mode["mode_of_payment"]} para la compañía {company}.')
+                         frappe.log_message(f'Omitiendo (ya está configurado correctamente): Modo de pago '
+                               f'{mode["mode_of_payment"]} para la compañía {company}.', "l10n_ve Setup")
                 else:
                     mode_of_payment.append('accounts', {
                         'company': company,
                         'default_account': default_account,
                     })
 
-                    print(f'  -> Agregando cuenta {default_account} al modo de pago '
-                          f'{mode["mode_of_payment"]} para la compañía {company}')
+                    frappe.log_message(f'Agregando cuenta {default_account} al modo de pago '
+                          f'{mode["mode_of_payment"]} para la compañía {company}', "l10n_ve Setup")
 
             mode_of_payment.save(ignore_permissions=True)
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error configurando los modos de pago: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error configurando los modos de pago: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(),
                          'Error configurando los modos de pago:')
 
@@ -692,7 +692,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
 def set_reference_currency(company_name: str = None) -> None:
 
     target = f"la compañía '{company_name}'" if company_name else "todas las Compañías"
-    print(f"Estableciendo moneda de referencia en {target}...")
+    frappe.log_message(f"Estableciendo moneda de referencia en {target}...", "l10n_ve Setup")
 
     try:
         if company_name:
@@ -704,7 +704,7 @@ def set_reference_currency(company_name: str = None) -> None:
             companies: list[str] = frappe.db.get_all('Company', pluck='name')
 
         if not companies:
-            print(f"  -- Omitiendo: No se encontraron compañías para procesar.")
+            frappe.log_message("Omitiendo: No se encontraron compañías para procesar.", "l10n_ve Setup")
             return
 
         currency = 'USD'
@@ -714,26 +714,26 @@ def set_reference_currency(company_name: str = None) -> None:
                                 'reference_currency',
                                 currency)
 
-            print(f"  -> Moneda de referencia {currency} establecida para la compañía {company}")
+            frappe.log_message(f"Moneda de referencia {currency} establecida para la compañía {company}", "l10n_ve Setup")
 
         frappe.db.set_value('Currency',
                              currency,
                             {'symbol': 'REF.'})
 
-        print(f"  -> Símbolo 'REF.' establecido para la moneda {currency}")
+        frappe.log_message(f"Símbolo 'REF.' establecido para la moneda {currency}", "l10n_ve Setup")
         set_pricelist_on_reference_currency(currency)
 
-        print("Success: Configuración de moneda de referencia completada.")
+        frappe.log_message("Success: Configuración de moneda de referencia completada.", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error configurando la moneda de referencia: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error configurando la moneda de referencia: {e}", "l10n_ve Setup")
         frappe.log_error(title='Error configurando la moneda de referencia:',
                          message=frappe.get_traceback())
 
 
 def set_pricelist_on_reference_currency(currency: str) -> None:
 
-    print(f'Estableciendo moneda {currency} en las listas de precios')
+    frappe.log_message(f'Estableciendo moneda {currency} en las listas de precios', "l10n_ve Setup")
 
     try:
         price_lists: list[str] = frappe.db.get_all('Price List', pluck='name')
@@ -742,17 +742,17 @@ def set_pricelist_on_reference_currency(currency: str) -> None:
             frappe.db.set_value('Price List', pricelist, 'currency', currency)
 
 
-        print(f'Moneda {currency} establecida correctamente')
+        frappe.log_message(f'Moneda {currency} establecida correctamente', "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error estableciendo moneda {currency} en las listas de precios: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error estableciendo moneda {currency} en las listas de precios: {e}", "l10n_ve Setup")
         frappe.log_error(title=f'Error estableciendo moneda {currency} en las listas de precios:',
                          message=frappe.get_traceback())
 
 
 def set_allow_multi_currency_invoices() -> None:
     try:
-        print(f'Estableciendo multimoneda en la configuración contable')
+        frappe.log_message('Estableciendo multimoneda en la configuración contable', "l10n_ve Setup")
 
         frappe.db.set_value(
             "Accounts Settings",
@@ -761,10 +761,10 @@ def set_allow_multi_currency_invoices() -> None:
             1
         )
 
-        print(f'Multimoneda en facturas establecida correctamente')
+        frappe.log_message('Multimoneda en facturas establecida correctamente', "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error estableciendo Multimoneda en facturas: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error estableciendo Multimoneda en facturas: {e}", "l10n_ve Setup")
         frappe.log_error(title=f'Error estableciendo Multimoneda en facturas:',
                          message=frappe.get_traceback())
 
@@ -777,7 +777,7 @@ def load_venezuela_data() -> None:
     COUNTRY_ID = "Venezuela, Bolivarian Republic of"
     JSON_FILE_PATH = frappe.get_app_path("l10n_ve", "resources", "venezuela.json")
 
-    print("Iniciando la carga de datos regionales de Venezuela...")
+    frappe.log_message("Iniciando la carga de datos regionales de Venezuela...", "l10n_ve Setup")
 
     try:
         frappe.get_doc("Country", COUNTRY_ID.strip())
@@ -787,7 +787,7 @@ def load_venezuela_data() -> None:
             country_doc.country_name = COUNTRY_ID.strip()
             country_doc.code = "VE"
             country_doc.insert(ignore_permissions=True, ignore_mandatory=True)
-            print(f"  -> Creado DocType Country: {COUNTRY_ID.strip()}")
+            frappe.log_message(f"Creado DocType Country: {COUNTRY_ID.strip()}", "l10n_ve Setup")
         except Exception as e:
             frappe.throw(_(f"Fallo al crear el DocType Country '{COUNTRY_ID.strip()}'. Error: {e}"))
             return
@@ -822,7 +822,7 @@ def load_venezuela_data() -> None:
 
             if existing_state_name:
                 ve_state_name = existing_state_name
-                print(f"-- Omitiendo Estado (ya existe): {state_name_from_json}")
+                frappe.log_message(f"Omitiendo Estado (ya existe): {state_name_from_json}", "l10n_ve Setup")
             else:
                 state_doc = frappe.new_doc(STATE_DOCTYPE)
                 state_doc.country = country_name
@@ -830,7 +830,7 @@ def load_venezuela_data() -> None:
                 state_doc.capital = state_data.get("capital")
                 state_doc.insert(ignore_permissions=True, ignore_mandatory=True)
                 ve_state_name = state_doc.name
-                print(f"-> Creado Estado: {state_doc.state}")
+                frappe.log_message(f"Creado Estado: {state_doc.state}", "l10n_ve Setup")
 
             # frappe.db.commit()
 
@@ -901,7 +901,7 @@ def load_venezuela_data() -> None:
             # frappe.db.commit()
 
         frappe.db.commit()
-        print("\nSuccess: Proceso de carga de datos regionales completado.")
+        frappe.log_message("Success: Proceso de carga de datos regionales completado.", "l10n_ve Setup")
         frappe.msgprint(_("Datos de Venezuela cargados exitosamente."))
 
     except Exception as e:
@@ -913,7 +913,7 @@ def create_bank_venezuelan()->str:
     """
     Importa una lista de bancos venezolanos desde un archivo JSON al DocType Bank.
     """
-    print("Iniciando la importación de bancos venezolanos...")
+    frappe.log_message("Iniciando la importación de bancos venezolanos...", "l10n_ve Setup")
 
     app_path = frappe.get_app_path('l10n_ve')
     json_path = os.path.join(app_path, 'resources', 'Bank_venezuelan.json')
@@ -946,12 +946,12 @@ def create_bank_venezuelan()->str:
 
         if frappe.db.exists("Bank", {"swift_number": codigo_banco}):
             bancos_existentes += 1
-            print(f"  -- Omitiendo (ya existe por código SWIFT): '{nombre_banco}' ({codigo_banco})")
+            frappe.log_message(f"Omitiendo (ya existe por código SWIFT): '{nombre_banco}' ({codigo_banco})", "l10n_ve Setup")
             continue
 
         if frappe.db.exists("Bank", {"bank_name": nombre_banco}):
             bancos_existentes += 1
-            print(f"  -- Omitiendo (ya existe por nombre): '{nombre_banco}' ({codigo_banco})")
+            frappe.log_message(f"Omitiendo (ya existe por nombre): '{nombre_banco}' ({codigo_banco})", "l10n_ve Setup")
             continue
 
         try:
@@ -963,7 +963,7 @@ def create_bank_venezuelan()->str:
             })
             nuevo_banco.insert(ignore_permissions=True)
             bancos_creados += 1
-            print(f"  -> Creado Banco: '{nombre_banco}' ({codigo_banco})")
+            frappe.log_message(f"Creado Banco: '{nombre_banco}' ({codigo_banco})", "l10n_ve Setup")
 
         except Exception as e:
             error_msg = f"Error al crear el banco '{nombre_banco}' ({codigo_banco}): {e}"
@@ -981,14 +981,14 @@ def create_bank_venezuelan()->str:
     else:
         frappe.msgprint(mensaje, title="Importación de Bancos Exitosa", indicator="green")
 
-    print(f"Success: {mensaje}")
+    frappe.log_message(f"Success: {mensaje}", "l10n_ve Setup")
     return mensaje
 
 def create_bank_account_types() -> str:
     """
     Carga los tipos de cuenta bancaria 'Corriente' y 'Ahorro' en el DocType Bank Account Type.
     """
-    print("Iniciando la carga de tipos de cuenta bancaria...")
+    frappe.log_message("Iniciando la carga de tipos de cuenta bancaria...", "l10n_ve Setup")
 
     account_types = ["Cuenta Corriente", "Cuenta de Ahorro"]
     created_count = 0
@@ -997,14 +997,14 @@ def create_bank_account_types() -> str:
     for account_type_name in account_types:
         if frappe.db.exists("Bank Account Type", account_type_name):
             existing_count += 1
-            print(f"  -- Omitiendo (ya existe): Tipo de cuenta '{account_type_name}'")
+            frappe.log_message(f"Omitiendo (ya existe): Tipo de cuenta '{account_type_name}'", "l10n_ve Setup")
         else:
             try:
                 doc = frappe.new_doc("Bank Account Type")
                 doc.account_type = account_type_name
                 doc.insert(ignore_permissions=True)
                 created_count += 1
-                print(f"  -> Creado Tipo de cuenta: '{account_type_name}'")
+                frappe.log_message(f"Creado Tipo de cuenta: '{account_type_name}'", "l10n_ve Setup")
             except Exception as e:
                 frappe.log_error(f"Error al crear el tipo de cuenta"
                                  f"'{account_type_name}': {e}", "Error de Importación de Tipos de Cuenta Bancaria")
@@ -1015,14 +1015,14 @@ def create_bank_account_types() -> str:
                f"Tipos creados: {created_count}. "
                f"Tipos que ya existían: {existing_count}.")
     frappe.msgprint(mensaje, title="Carga de Tipos de Cuenta Bancaria", indicator="green")
-    print(f"Success: {mensaje}")
+    frappe.log_message(f"Success: {mensaje}", "l10n_ve Setup")
     return mensaje
 
 def create_economic_activities() -> None:
     """
     Crea los registros de Actividades Económicas a partir de un archivo CSV.
     """
-    print("Iniciando la creación de Actividades Económicas...")
+    frappe.log_message("Iniciando la creación de Actividades Económicas...", "l10n_ve Setup")
 
     csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 've_economic_activity.csv')
     doctype = "VE Economic Activity"
@@ -1043,7 +1043,7 @@ def create_economic_activities() -> None:
                     doc.branch = row["branch"]
                     doc.is_group = 1
                     doc.save(ignore_permissions=True)
-                    print(f"  -> Creado grupo padre: {doc.code}")
+                    frappe.log_message(f"Creado grupo padre: {doc.code}", "l10n_ve Setup")
 
         frappe.db.commit()
 
@@ -1068,16 +1068,16 @@ def create_economic_activities() -> None:
 
                     doc.parent_ve_economic_activity = parent_doc_name
                     doc.save(ignore_permissions=True)
-                    print(f"  -> Creada actividad hija: {doc.code}")
+                    frappe.log_message(f"Creada actividad hija: {doc.code}", "l10n_ve Setup")
 
         frappe.db.commit()
-        print("\nSuccess: Proceso de creación de Actividades Económicas completado.")
+        frappe.log_message("Success: Proceso de creación de Actividades Económicas completado.", "l10n_ve Setup")
     except Exception as e:
-        print(f"!! FATAL: Ocurrió un error inesperado durante la creación de actividades económicas: {e}")
+        frappe.log_message(f"FATAL: Ocurrió un error inesperado durante la creación de actividades económicas: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en create_economic_activities')
 
 def uncheck_all_prepared_reports() -> None:
-    print(f"Estableciendo valor 0 en prepared_report en Report")
+    frappe.log_message("Estableciendo valor 0 en prepared_report en Report", "l10n_ve Setup")
     try:
         report_list: list[str] = frappe.db.get_all('Report', pluck='name')
 
@@ -1085,7 +1085,7 @@ def uncheck_all_prepared_reports() -> None:
             frappe.db.set_value('Report', report, 'prepared_report', 0)
 
         frappe.db.commit()
-        print("El campo 'prepared_report' ha sido desmarcado en todos los Reportes.")
+        frappe.log_message("El campo 'prepared_report' ha sido desmarcado en todos los Reportes.", "l10n_ve Setup")
 
     except Exception as e:
         frappe.db.rollback()
@@ -1093,12 +1093,12 @@ def uncheck_all_prepared_reports() -> None:
         frappe.throw("Ocurrió un error al actualizar los reportes.")
 
 def disable_rounded_total() -> None:
-    print(f"Estableciendo valor 1 en disable_rounded_total en Global Defaults")
+    frappe.log_message("Estableciendo valor 1 en disable_rounded_total en Global Defaults", "l10n_ve Setup")
     try:
         frappe.db.set_value('Global Defaults', 'Global Defaults', 'disable_rounded_total', 1)
 
         frappe.db.commit()
-        print("El campo 'disable_rounded_total' ha sido marcado en Global Defaults.")
+        frappe.log_message("El campo 'disable_rounded_total' ha sido marcado en Global Defaults.", "l10n_ve Setup")
 
     except Exception as e:
         frappe.db.rollback()
@@ -1107,7 +1107,7 @@ def disable_rounded_total() -> None:
 
 
 def set_buying_naming_series() -> None:
-    print(f"Estableciendo Naming Series en Buying Series")
+    frappe.log_message("Estableciendo Naming Series en Buying Series", "l10n_ve Setup")
     try:
         frappe.db.set_value('Buying Settings',
                             'Buying Settings',
@@ -1115,7 +1115,7 @@ def set_buying_naming_series() -> None:
                             'Naming Series')
 
         frappe.db.commit()
-        print("El campo 'supp_master_name' en Buying Settings establecido como Naming Series")
+        frappe.log_message("El campo 'supp_master_name' en Buying Settings establecido como Naming Series", "l10n_ve Setup")
 
     except Exception as e:
         frappe.db.rollback()
@@ -1124,7 +1124,7 @@ def set_buying_naming_series() -> None:
 
 
 def set_selling_settings() -> None:
-    print(f"Estableciendo Naming Series en Selling Series")
+    frappe.log_message("Estableciendo Naming Series en Selling Series", "l10n_ve Setup")
     try:
         frappe.db.set_value('Selling Settings',
                             'Selling Settings',
@@ -1132,7 +1132,7 @@ def set_selling_settings() -> None:
                             'Naming Series')
 
         frappe.db.commit()
-        print("El campo 'cust_master_name' en Selling Settings establecido como Naming Series")
+        frappe.log_message("El campo 'cust_master_name' en Selling Settings establecido como Naming Series", "l10n_ve Setup")
 
         frappe.db.set_value('Selling Settings',
                             'Selling Settings',
@@ -1140,7 +1140,7 @@ def set_selling_settings() -> None:
                             False)
 
         frappe.db.commit()
-        print("Success: El campo 'allow_multiple_items' en Selling Settings establecido como False")
+        frappe.log_message("Success: El campo 'allow_multiple_items' en Selling Settings establecido como False", "l10n_ve Setup")
 
     except Exception as e:
         frappe.db.rollback()
@@ -1149,7 +1149,7 @@ def set_selling_settings() -> None:
 
 
 def set_stock_naming_series() -> None:
-    print(f"Estableciendo Naming Series en Stock Series")
+    frappe.log_message("Estableciendo Naming Series en Stock Series", "l10n_ve Setup")
     try:
         frappe.db.set_value('Stock Settings',
                             'Stock Settings',
@@ -1157,7 +1157,7 @@ def set_stock_naming_series() -> None:
                             'Naming Series')
 
         frappe.db.commit()
-        print("El campo 'item_naming_by' en Stock Settings establecido como Naming Series")
+        frappe.log_message("El campo 'item_naming_by' en Stock Settings establecido como Naming Series", "l10n_ve Setup")
 
     except Exception as e:
         frappe.db.rollback()
@@ -1173,11 +1173,11 @@ def create_municipality_taxes_for_municipality(municipality_doc_name: str) -> No
     doctype = "VE Municipality Taxes"
 
     if frappe.db.exists(doctype, {"municipality": municipality_doc_name}):
-        print(f"  -- Omitiendo (ya existen): Impuestos para el municipio {municipality_doc_name}.")
+        frappe.log_message(f"Omitiendo (ya existen): Impuestos para el municipio {municipality_doc_name}.", "l10n_ve Setup")
         return
 
     municipality_info = frappe.get_doc("VE Municipality", municipality_doc_name)
-    print(f"-> Creando impuestos bajo demanda para el municipio: {municipality_info.municipality}")
+    frappe.log_message(f"Creando impuestos bajo demanda para el municipio: {municipality_info.municipality}", "l10n_ve Setup")
 
     csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 've_municipality_taxes.csv')
     try:
@@ -1228,25 +1228,25 @@ def create_municipality_taxes_for_municipality(municipality_doc_name: str) -> No
         )
         if not frappe.flags.in_install:
             frappe.msgprint(message, title=_("Impuestos Municipales Creados"), indicator="green")
-        print(f"Success: {created_count} impuestos creados para {municipality_info.municipality}.")
+        frappe.log_message(f"Success: {created_count} impuestos creados para {municipality_info.municipality}.", "l10n_ve Setup")
 
 def create_municipality_taxes() -> None:
     """
     Crea los impuestos municipales solo para el municipio Libertador durante la instalación.
     """
-    print("Iniciando la creación de Impuestos Municipales para Libertador...")
+    frappe.log_message("Iniciando la creación de Impuestos Municipales para Libertador...", "l10n_ve Setup")
 
     try:
         libertador_state = frappe.db.get_value("VE State", {"state": "Distrito Capital"}, "name")
         if not libertador_state:
-            print("  -- Omitiendo: No se encontró el estado 'Distrito Capital'.")
+            frappe.log_message("Omitiendo: No se encontró el estado 'Distrito Capital'.", "l10n_ve Setup")
             return
 
         libertador_municipality_name = frappe.db.get_value("VE Municipality",
                                                           {"municipality": "Libertador",
                                                            "state": libertador_state})
         if not libertador_municipality_name:
-            print("  -- Omitiendo: No se encontró el municipio 'Libertador' en 'Distrito Capital'.")
+            frappe.log_message("Omitiendo: No se encontró el municipio 'Libertador' en 'Distrito Capital'.", "l10n_ve Setup")
             return
 
         create_municipality_taxes_for_municipality(libertador_municipality_name)
@@ -1254,12 +1254,11 @@ def create_municipality_taxes() -> None:
     except Exception as e:
         frappe.db.rollback()
 
-        print(f"!! FATAL: Ocurrió un error inesperado durante la creación de impuestos municipales: {e}")
+        frappe.log_message(f"FATAL: Ocurrió un error inesperado durante la creación de impuestos municipales: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en create_municipality_taxes')
 
 def set_stock_settings() -> None:
-
-    print(f"Estableciendo valores en Stock Settings")
+    frappe.log_message("Estableciendo valores en Stock Settings", "l10n_ve Setup")
     try:
         settings_to_update = {
             "auto_indent": 0,
@@ -1275,7 +1274,7 @@ def set_stock_settings() -> None:
                             settings_to_update)
 
         frappe.db.commit()
-        print("Varios campos en Stock Settings han sido desactivados.")
+        frappe.log_message("Varios campos en Stock Settings han sido desactivados.", "l10n_ve Setup")
 
     except Exception as e:
         frappe.db.rollback()
@@ -1288,10 +1287,10 @@ def create_bank_transaction_mappings() -> None:
     Actualiza los DocTypes de Banco existentes para añadirles las reglas de mapeo
     de transacciones bancarias.
     """
-    print("Iniciando la creación de mapeos de transacciones bancarias...")
+    frappe.log_message("Iniciando la creación de mapeos de transacciones bancarias...", "l10n_ve Setup")
 
     if not frappe.db.has_table("Bank Transaction Mapping"):
-        print("  -- Omitiendo: El DocType 'Bank Transaction Mapping' (tabla hija) no se encuentra en esta versión de ERPNext.")
+        frappe.log_message("Omitiendo: El DocType 'Bank Transaction Mapping' (tabla hija) no se encuentra en esta versión de ERPNext.", "l10n_ve Setup")
         return
 
     bank_mappings = {
@@ -1326,24 +1325,24 @@ def create_bank_transaction_mappings() -> None:
                 bank_doc.append("bank_transaction_mapping", rule)
 
             bank_doc.save(ignore_permissions=True)
-            print(f"  -> Creado mapeo para el banco: '{bank_name}'.")
+            frappe.log_message(f"Creado mapeo para el banco: '{bank_name}'.", "l10n_ve Setup")
 
 
         except Exception as e:
-            print(f"!! FAILURE al crear el mapeo para el banco con código '{bank_code}': {e}")
+            frappe.log_message(f"FAILURE al crear el mapeo para el banco con código '{bank_code}': {e}", "l10n_ve Setup")
             frappe.log_error(frappe.get_traceback(), f'Error en create_bank_transaction_mappings para el banco {bank_code}')
 
     frappe.db.commit()
-    print("Success: Creación de mapeos de transacciones bancarias completada.")
+    frappe.log_message("Success: Creación de mapeos de transacciones bancarias completada.", "l10n_ve Setup")
 
 
 def disable_other_currencies() -> None:
     """
     Desactiva todas las monedas excepto VEF, USD y EUR.
     """
-    print("\nDesactivando monedas no utilizadas...")
+    frappe.log_message("Desactivando monedas no utilizadas...", "l10n_ve Setup")
 
-    allowed_currencies = ["VEF", "USD", "EUR"]
+    allowed_currencies = ["VEF", "USD", "EUR", "COP"]
     disabled_count = 0
 
     try:
@@ -1355,14 +1354,14 @@ def disable_other_currencies() -> None:
 
         for currency_doc in currencies_to_disable:
             frappe.db.set_value("Currency", currency_doc.name, "enabled", 0)
-            print(f"  -> Desactivada moneda: {currency_doc.name}")
+            frappe.log_message(f"Desactivada moneda: {currency_doc.name}", "l10n_ve Setup")
             disabled_count += 1
 
         frappe.db.commit()
-        print(f"Success: {disabled_count} monedas desactivadas.")
+        frappe.log_message(f"Success: {disabled_count} monedas desactivadas.", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error al desactivar monedas: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error al desactivar monedas: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en disable_other_currencies')
 
 def remove_module_onboarding() -> None:
@@ -1370,14 +1369,14 @@ def remove_module_onboarding() -> None:
     Marca como completados los registros de 'Module Onboarding' para ocultar la sección
     de 'Primeros Pasos' (barra de progreso).
     """
-    print("Iniciando la actualización de Module Onboarding (Primeros Pasos)...")
+    frappe.log_message("Iniciando la actualización de Module Onboarding (Primeros Pasos)...", "l10n_ve Setup")
 
     try:
         modules_to_clean = frappe.get_all("Module Onboarding", pluck="name")
 
         if modules_to_clean:
             frappe.db.set_value("Module Onboarding", modules_to_clean, "is_complete", 1)
-            print(f"  -> Se marcaron como completos {len(modules_to_clean)} módulos de onboarding.")
+            frappe.log_message(f"Se marcaron como completos {len(modules_to_clean)} módulos de onboarding.", "l10n_ve Setup")
 
         frappe.db.commit()
         print("Success: Onboarding actualizado correctamente.")
@@ -1390,7 +1389,7 @@ def set_profiles() -> None:
     Crea o actualiza un perfil de módulo para Domina Base, mostrando solo los módulos especificados.
     """
     profile_name = "Domina Base"
-    print(f"Iniciando la creación/actualización del perfil de módulo '{profile_name}'...")
+    frappe.log_message(f"Iniciando la creación/actualización del perfil de módulo '{profile_name}'...", "l10n_ve Setup")
 
     try:
         modules_to_show = {
@@ -1403,11 +1402,11 @@ def set_profiles() -> None:
         if frappe.db.exists("Module Profile", profile_name):
             module_profile = frappe.get_doc("Module Profile", profile_name)
             module_profile.set("block_modules", [])
-            print(f"  -> Actualizando perfil de módulo existente: '{profile_name}'.")
+            frappe.log_message(f"Actualizando perfil de módulo existente: '{profile_name}'.", "l10n_ve Setup")
         else:
             module_profile = frappe.new_doc("Module Profile")
             module_profile.module_profile_name = profile_name
-            print(f"  -> Creando nuevo perfil de módulo: '{profile_name}'.")
+            frappe.log_message(f"Creando nuevo perfil de módulo: '{profile_name}'.", "l10n_ve Setup")
 
         for module_name in all_modules:
             if module_name not in modules_to_show:
@@ -1415,11 +1414,11 @@ def set_profiles() -> None:
 
         module_profile.save(ignore_permissions=True)
         frappe.db.commit()
-        print(f"  -> Perfil de módulo '{profile_name}' guardado"
-              f"con {len(module_profile.block_modules)} módulos bloqueados.")
+        frappe.log_message(f"Perfil de módulo '{profile_name}' guardado"
+              f"con {len(module_profile.block_modules)} módulos bloqueados.", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error creando el perfil de módulo '{profile_name}': {e}")
+        frappe.log_message(f"Failure: Ocurrió un error creando el perfil de módulo '{profile_name}': {e}", "l10n_ve Setup")
         frappe.log_error(title=f"Error en set_profiles "
                                f"para '{profile_name}'", message=frappe.get_traceback())
 
@@ -1427,17 +1426,17 @@ def set_roles() -> None:
     """
     Crea dos perfiles de roles: Gerente Administrativo y Analista.
     """
-    print("Iniciando la creación de perfiles de roles...")
+    frappe.log_message("Iniciando la creación de perfiles de roles...", "l10n_ve Setup")
 
     def _create_profile(profile_name, roles_to_add):
 
         if frappe.db.exists("Role Profile", profile_name):
-            print(f"  -- Omitiendo (ya existe): Perfil de rol '{profile_name}'.")
+            frappe.log_message(f"Omitiendo (ya existe): Perfil de rol '{profile_name}'.", "l10n_ve Setup")
             return
 
-        print(f"  -> Creando perfil de rol: {profile_name}")
+        frappe.log_message(f"Creando perfil de rol: {profile_name}", "l10n_ve Setup")
         if not roles_to_add:
-            print(f"  !! ADVERTENCIA: No se encontraron roles para el perfil '{profile_name}'.")
+            frappe.log_message(f"ADVERTENCIA: No se encontraron roles para el perfil '{profile_name}'.", "l10n_ve Setup")
             return
 
         role_profile = frappe.new_doc("Role Profile")
@@ -1445,7 +1444,7 @@ def set_roles() -> None:
         for role_name in roles_to_add:
             role_profile.append("roles", {"role": role_name})
         role_profile.insert(ignore_permissions=True)
-        print(f"  -> Perfil '{profile_name}' creado con {len(roles_to_add)} roles.")
+        frappe.log_message(f"Perfil '{profile_name}' creado con {len(roles_to_add)} roles.", "l10n_ve Setup")
 
     try:
         all_roles = frappe.get_all("Role", fields=["name"])
@@ -1461,10 +1460,10 @@ def set_roles() -> None:
         _create_profile(profile_name_analista, user_roles)
 
         frappe.db.commit()
-        print("Success: Creación de perfiles de roles completada.")
+        frappe.log_message("Success: Creación de perfiles de roles completada.", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Ocurrió un error creando perfiles de roles: {e}")
+        frappe.log_message(f"Failure: Ocurrió un error creando perfiles de roles: {e}", "l10n_ve Setup")
         frappe.log_error(title="Error en set_roles", message=frappe.get_traceback())
 
 def add_reports_to_accounts_workspace() -> None:
@@ -1473,7 +1472,7 @@ def add_reports_to_accounts_workspace() -> None:
     al Workspace 'Financial Reports' (o 'Accounting').
     Actualiza tanto la tabla 'links' como el JSON 'content'.
     """
-    print("Agregando reportes al Workspace...")
+    frappe.log_message("Agregando reportes al Workspace...", "l10n_ve Setup")
     try:
         workspace_name = "Financial Reports"
         if not frappe.db.exists("Workspace", workspace_name):
@@ -1482,11 +1481,11 @@ def add_reports_to_accounts_workspace() -> None:
             elif frappe.db.exists("Workspace", "Accounts"):
                 workspace_name = "Accounts"
             else:
-                print("  !! No se encontró ningún Workspace compatible (Financial Reports, Accounting, Accounts).")
+                frappe.log_message("No se encontró ningún Workspace compatible (Financial Reports, Accounting, Accounts).", "l10n_ve Setup")
                 return
 
         workspace = frappe.get_doc("Workspace", workspace_name)
-        print(f"  -> Workspace encontrado: {workspace_name}")
+        frappe.log_message(f"Workspace encontrado: {workspace_name}", "l10n_ve Setup")
 
         reports_to_add = [
             {
@@ -1547,11 +1546,11 @@ def add_reports_to_accounts_workspace() -> None:
                 "label": card_break_label
             })
             modified = True
-            print(f"  -> Agregado salto de tarjeta: {card_break_label}")
+            frappe.log_message(f"Agregado salto de tarjeta: {card_break_label}", "l10n_ve Setup")
 
         for report in reports_to_add:
             if not frappe.db.exists("Report", report["link_to"]):
-                print(f"  -- Omitiendo reporte no encontrado: {report['link_to']}")
+                frappe.log_message(f"Omitiendo reporte no encontrado: {report['link_to']}", "l10n_ve Setup")
                 continue
 
             if report["link_to"] not in current_links:
@@ -1563,7 +1562,7 @@ def add_reports_to_accounts_workspace() -> None:
                     "is_query_report": 1
                 })
                 modified = True
-                print(f"  -> Agregado a tabla links: {report['label']}")
+                frappe.log_message(f"Agregado a tabla links: {report['label']}", "l10n_ve Setup")
 
         content = json.loads(workspace.content) if workspace.content else []
         if workspace.content:
@@ -1583,14 +1582,14 @@ def add_reports_to_accounts_workspace() -> None:
                         if report["link_to"] not in existing_links:
                             links.append(report)
                             modified = True
-                            print(f"  -> Agregado a tarjeta visual: {report['label']}")
+                            frappe.log_message(f"Agregado a tarjeta visual: {report['label']}", "l10n_ve Setup")
                     
                     if modified:
                         block["data"]["links"] = links
                     break
             
             if not card_found:
-                print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
+                frappe.log_message(f"Creando nueva tarjeta visual '{custom_card_name}'...", "l10n_ve Setup")
                 new_card = {
                     "type": "card",
                     "data": {
@@ -1607,19 +1606,19 @@ def add_reports_to_accounts_workspace() -> None:
                 workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
-            print(f"Success: Workspace '{workspace_name}' actualizado con nuevos reportes.")
+            frappe.log_message(f"Success: Workspace '{workspace_name}' actualizado con nuevos reportes.", "l10n_ve Setup")
         else:
-            print(f"  -- Workspace '{workspace_name}' ya estaba actualizado.")
+            frappe.log_message(f"Workspace '{workspace_name}' ya estaba actualizado.", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Error actualizando Workspace Accounts: {e}")
+        frappe.log_message(f"Failure: Error actualizando Workspace Accounts: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en add_reports_to_accounts_workspace')
 
 def add_doctypes_to_accounting_workspace() -> None:
     """
     Agrega los DocTypes de configuración de l10n_ve al Workspace 'Accounting'.
     """
-    print("Agregando DocTypes de l10n_ve al Workspace de Contabilidad...")
+    frappe.log_message("Agregando DocTypes de l10n_ve al Workspace de Contabilidad...", "l10n_ve Setup")
     try:
         workspace_name = "Accounting"
         if not frappe.db.exists("Workspace", workspace_name):
@@ -1628,11 +1627,11 @@ def add_doctypes_to_accounting_workspace() -> None:
             elif frappe.db.exists("Workspace", "Financial Reports"):
                 workspace_name = "Financial Reports"
             else:
-                print("  !! No se encontró ningún Workspace compatible (Accounting, Accounts, Financial Reports).")
+                frappe.log_message("No se encontró ningún Workspace compatible (Accounting, Accounts, Financial Reports).", "l10n_ve Setup")
                 return
 
         workspace = frappe.get_doc("Workspace", workspace_name)
-        print(f"  -> Workspace encontrado: {workspace_name}")
+        frappe.log_message(f"Workspace encontrado: {workspace_name}", "l10n_ve Setup")
 
         doctypes_to_add_config = [
             {"link_to": "Tax Unit", "label": _("Unidad Tributaria")},
@@ -1665,7 +1664,7 @@ def add_doctypes_to_accounting_workspace() -> None:
                 "label": card_break_label
             })
             modified = True
-            print(f"  -> Agregado salto de tarjeta: {card_break_label}")
+            frappe.log_message(f"Agregado salto de tarjeta: {card_break_label}", "l10n_ve Setup")
 
         for link in links_to_add:
             if link["link_to"] not in current_links:
@@ -1676,7 +1675,7 @@ def add_doctypes_to_accounting_workspace() -> None:
                     "link_to": link["link_to"],
                 })
                 modified = True
-                print(f"  -> Agregado a tabla links: {link['label']}")
+                frappe.log_message(f"Agregado a tabla links: {link['label']}", "l10n_ve Setup")
 
         content = json.loads(workspace.content) if workspace.content else []
         custom_card_name = "Configuración Venezuela"
@@ -1692,14 +1691,14 @@ def add_doctypes_to_accounting_workspace() -> None:
                     if link["link_to"] not in existing_links_in_card:
                         card_links.append(link)
                         modified = True
-                        print(f"  -> Agregado a tarjeta visual: {link['label']}")
+                        frappe.log_message(f"Agregado a tarjeta visual: {link['label']}", "l10n_ve Setup")
                 
                 if modified:
                     block["data"]["links"] = card_links
                 break
         
         if not card_found:
-            print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
+            frappe.log_message(f"Creando nueva tarjeta visual '{custom_card_name}'...", "l10n_ve Setup")
             new_card = {
                 "type": "card",
                 "data": {
@@ -1715,10 +1714,10 @@ def add_doctypes_to_accounting_workspace() -> None:
             workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
-            print(f"Success: Workspace '{workspace_name}' actualizado con DocTypes de l10n_ve.")
+            frappe.log_message(f"Success: Workspace '{workspace_name}' actualizado con DocTypes de l10n_ve.", "l10n_ve Setup")
         else:
-            print(f"  -- Workspace '{workspace_name}' ya estaba actualizado.")
+            frappe.log_message(f"Workspace '{workspace_name}' ya estaba actualizado.", "l10n_ve Setup")
 
     except Exception as e:
-        print(f"Failure: Error actualizando Workspace de Contabilidad: {e}")
+        frappe.log_message(f"Failure: Error actualizando Workspace de Contabilidad: {e}", "l10n_ve Setup")
         frappe.log_error(frappe.get_traceback(), 'Error en add_doctypes_to_accounting_workspace')
