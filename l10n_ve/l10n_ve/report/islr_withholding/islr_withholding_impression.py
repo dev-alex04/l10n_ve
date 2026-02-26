@@ -18,7 +18,9 @@ def _get_company_details(company_name):
         try:
             address_doc = frappe.get_cached_doc("Address", company_doc.get("custom_company_primary_address"))
             company_address = address_doc.address_line1
-        except: pass
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Error al obtener la dirección de la empresa para el reporte de ISLR")
+            pass
     return {"name": company_name, "rif": company_rif, "address": company_address}
 
 @frappe.whitelist()

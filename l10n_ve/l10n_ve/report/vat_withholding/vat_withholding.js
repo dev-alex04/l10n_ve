@@ -48,7 +48,6 @@ frappe.query_reports["VAT Withholding"] = {
 		}
 
 		if (column.fieldname == "declared_status" && data) {
-			console.log(data)
 			let color = data.is_declared ? "green" : "red";
 			value = `<span class="indicator-pill ${color}" style="display: inline-flex; align-items: center;">
                         ${__(value)}

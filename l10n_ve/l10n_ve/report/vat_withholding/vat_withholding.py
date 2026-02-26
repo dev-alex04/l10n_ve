@@ -27,12 +27,20 @@ def get_columns():
     ]
 
 def get_data(filters):
+    query_params = {
+        "from_date": filters.get('from_date'),
+        "to_date": filters.get('to_date')
+    }
+
     conditions = ""
+
     if filters.get("company"):
-        conditions += f" AND parent.empresa = '{filters.get('company')}'"
-    
+        conditions += " AND parent.empresa = %(company)s"
+        query_params["company"] = filters.get("company")
+        
     if filters.get("supplier"):
-        conditions += f" AND parent.supplier = '{filters.get('supplier')}'"
+        conditions += " AND parent.proveedor = %(supplier)s"
+        query_params["supplier"] = filters.get("supplier")
     
     query = f"""
         SELECT
@@ -73,4 +81,4 @@ def get_data(filters):
             child.posting_date DESC, child.bill_no ASC
     """
     
-    return frappe.db.sql(query, as_dict=True)
+    return frappe.db.sql(query, query_params, as_dict=True)
