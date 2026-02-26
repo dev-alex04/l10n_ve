@@ -25,6 +25,28 @@ frappe.ui.form.on("VAT Withholding Voucher", {
       const fields = ["start_date", "end_date", "empresa", "supplier", "fiscal_period", "issue_date", "vat_withholding_voucher_item"];
       fields_read_only(frm, fields);
     }
+
+    if (frm.doc.docstatus === 1 && !frm.doc.is_declared) {
+      frm.add_custom_button(__('Marcar como Declarado'), function () {
+        frappe.confirm(__('¿Estás seguro de marcar este comprobante como declarado? Esta acción no se puede deshacer.'), () => {
+          frappe.call({
+            method: "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.mark_as_declared",
+            args: {
+              docname: frm.doc.name,
+              doctype: frm.doc.doctype
+            },
+            callback: function (r) {
+              frm.reload_doc();
+              frappe.msgprint({
+                title: __('Éxito'),
+                indicator: 'green',
+                message: __('Comprobante actualizado correctamente')
+              });
+            }
+          });
+        });
+      }).addClass('btn-primary');
+    }
   },
 
   onload: function (frm) {
@@ -99,10 +121,10 @@ frappe.ui.form.on("VAT Withholding Voucher", {
 });
 
 frappe.ui.form.on('VAT Withholding Voucher Item', {
-    vat_withholding_voucher_item_remove(frm, cdt, cdn) {
-      console.log("Hola");
-        calculate_totals(frm);
-    }
+  vat_withholding_voucher_item_remove(frm, cdt, cdn) {
+    console.log("Hola");
+    calculate_totals(frm);
+  }
 });
 
 function validar_fechas(frm, campo) {
@@ -241,11 +263,11 @@ function calculate_totals(frm) {
   frm.doc.totals_tax_amount_vat = total_tax_amount_vat;
 
   frm.refresh_fields([
-      "totals_grand_total",
-      "totals_total_exempt",
-      "totals_total",
-      "totals_taxes_and_charges_added",
-      "totals_tax_amount_vat"
+    "totals_grand_total",
+    "totals_total_exempt",
+    "totals_total",
+    "totals_taxes_and_charges_added",
+    "totals_tax_amount_vat"
   ]);
 };
 

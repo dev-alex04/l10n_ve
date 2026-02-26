@@ -11,6 +11,7 @@
   "column_break_flvf",
   "empresa",
   "supplier",
+  "is_declared",
   "column_break_fjrk",
   "fiscal_period",
   "issue_date",
@@ -28,7 +29,8 @@
   "totals_total_exempt",
   "totals_total",
   "totals_taxes_and_charges_added",
-  "totals_tax_amount_vat"
+  "totals_tax_amount_vat",
+  "amended_from"
  ],
  "fields": [
   {
@@ -170,12 +172,32 @@
    "fieldtype": "Currency",
    "label": "Total IVA Retenido",
    "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "VAT Withholding Voucher",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_declared",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Declarado",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2025-11-11 21:04:34.818608",
+ "modified": "2026-02-26 09:17:15.301109",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
@@ -224,5 +246,6 @@
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }

@@ -76,11 +76,19 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     if not type_of_person:
         frappe.throw(_("El Proveedor debe tener un 'Tipo de Persona' definido para procesar retenciones ISLR."))
 
-    excluded_from_withholding = frappe.get_all(
-        "ISLR Withholding Voucher Item",
-        filters={"purchase_invoice": ["!=", ""]},
-        fields=["purchase_invoice"]
-    )
+    excluded_from_withholding = frappe.db.sql("""
+        SELECT 
+            child.purchase_invoice 
+        FROM 
+            `tabISLR Withholding Voucher Item` child
+        INNER JOIN 
+            `tabISLR Withholding Voucher` parent ON child.parent = parent.name
+        WHERE 
+            parent.docstatus != 2 
+            AND child.purchase_invoice IS NOT NULL 
+            AND child.purchase_invoice != ''
+    """, as_dict=True)
+
     all_excluded_invoices = [d.purchase_invoice for d in excluded_from_withholding]
 
     valid_invoices = frappe.get_all(
@@ -205,3 +213,13 @@ def get_valid_invoices(supplier, start_date, end_date, company):
         invoices_with_taxes.append(invoice_data)
 
     return invoices_with_taxes
+
+@frappe.whitelist()
+def mark_as_declared(docname):
+    doc = frappe.get_doc("ISLR Withholding Voucher", docname)
+    
+    if doc.docstatus != 1:
+        frappe.throw(_("Solo se pueden marcar como declarados los comprobantes que estén en estado Aprobado."))
+    
+    doc.db_set("is_declared", 1)
+    return True
