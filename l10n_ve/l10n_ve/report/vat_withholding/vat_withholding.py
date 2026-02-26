@@ -39,7 +39,7 @@ def get_data(filters):
         query_params["company"] = filters.get("company")
         
     if filters.get("supplier"):
-        conditions += " AND parent.proveedor = %(supplier)s"
+        conditions += " AND parent.supplier = %(supplier)s"
         query_params["supplier"] = filters.get("supplier")
     
     query = f"""
@@ -75,7 +75,7 @@ def get_data(filters):
             `tabPurchase Invoice` inv ON child.bill_no = inv.bill_no 
             AND parent.supplier = inv.supplier
         WHERE
-            child.posting_date BETWEEN '{filters.get('from_date')}' AND '{filters.get('to_date')}'
+            child.posting_date BETWEEN %(from_date)s AND %(to_date)s
             {conditions}
         ORDER BY
             child.posting_date DESC, child.bill_no ASC
