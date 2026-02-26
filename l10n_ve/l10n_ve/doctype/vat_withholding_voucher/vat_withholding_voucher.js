@@ -122,7 +122,6 @@ frappe.ui.form.on("VAT Withholding Voucher", {
 
 frappe.ui.form.on('VAT Withholding Voucher Item', {
   vat_withholding_voucher_item_remove(frm, cdt, cdn) {
-    console.log("Hola");
     calculate_totals(frm);
   }
 });
