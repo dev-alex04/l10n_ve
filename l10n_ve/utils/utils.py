@@ -342,9 +342,62 @@ def create_independent_address(address_values: str) -> str:
 
     try:
         address_doc.insert(ignore_permissions=True)
-        frappe.db.commit()
     except Exception as e:
         frappe.throw(_("Error al insertar el documento de dirección: {0}").format(str(e)))
+
+    return address_doc.name
+
+
+@frappe.whitelist()
+def get_address_data(address_name: str) -> dict:
+    """Obtiene los datos de una dirección existente para edición."""
+    if not frappe.db.exists("Address", address_name):
+        frappe.throw(_("Dirección {0} no encontrada.").format(address_name))
+
+    address_doc = frappe.get_cached_doc("Address", address_name)
+
+    return {
+        "address_line1": address_doc.address_line1,
+        "address_type": address_doc.address_type,
+        "country": address_doc.country,
+        "state": address_doc.state,
+        "city": address_doc.city,
+        "county": address_doc.county,
+        "parish": address_doc.parish,
+        "pincode": address_doc.pincode,
+        "phone": address_doc.phone,
+        "email_id": address_doc.email_id,
+        "is_primary_address": address_doc.is_primary_address,
+        "is_shipping_address": address_doc.is_shipping_address,
+    }
+
+
+@frappe.whitelist()
+def update_independent_address(address_name: str, address_values: str) -> str:
+    """Actualiza un documento de Address existente."""
+    if not frappe.db.exists("Address", address_name):
+        frappe.throw(_("Dirección {0} no encontrada.").format(address_name))
+
+    address_values = frappe.parse_json(address_values)
+    address_doc = frappe.get_doc("Address", address_name)
+
+    updatable_fields: list[str] = [
+        "address_line1", "address_type", "country", "state",
+        "city", "county", "parish", "pincode", "phone",
+        "email_id", "is_primary_address", "is_shipping_address",
+    ]
+
+    for field in updatable_fields:
+        if field in address_values:
+            address_doc.set(field, address_values[field])
+
+    if not address_doc.address_title:
+        address_doc.address_title = address_doc.address_line1 or _("Nueva Dirección")
+
+    try:
+        address_doc.save(ignore_permissions=True)
+    except Exception as e:
+        frappe.throw(_("Error al actualizar la dirección: {0}").format(str(e)))
 
     return address_doc.name
 

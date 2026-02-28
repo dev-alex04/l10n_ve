@@ -3,8 +3,8 @@ frappe.ui.form.on("Customer", {
     if (!frm.doc.customer_primary_address) {
       frappe.throw(
         __(
-          "El campo 'Dirección Principal' es obligatorio. Por favor, ingrese una dirección usando el botón 'Agregar Dirección' en la parte superior derecha"
-        )
+          "El campo 'Dirección Principal' es obligatorio. Por favor, ingrese una dirección usando el botón 'Agregar Dirección' en la parte superior derecha",
+        ),
       );
     }
   },
@@ -35,6 +35,12 @@ frappe.ui.form.on("Customer", {
     frm.toggle_display("lead_name", false);
     frm.toggle_display("opportunity_name", false);
     frm.toggle_display("prospect_name", false);
+
+    const is_system_manager = frappe.user_roles.includes("System Manager");
+    frm.toggle_display("contact_html", is_system_manager);
+    if (!is_system_manager) {
+      frm.fields_dict.contact_html.$wrapper.find("a").hide();
+    }
   },
 
   nature_of_the_taxpayer: function (frm) {
@@ -96,25 +102,25 @@ function reorganize_customer_fields(frm) {
   let type_of_document_field_wrapper =
     frm.get_field("type_of_document").$wrapper;
   let nature_of_the_taxpayer_field_wrapper = frm.get_field(
-    "nature_of_the_taxpayer"
+    "nature_of_the_taxpayer",
   ).$wrapper;
   let tax_withholding_category_field_wrapper = frm.get_field(
-    "tax_withholding_category"
+    "tax_withholding_category",
   ).$wrapper;
   let is_special_taxpayer_field_wrapper = frm.get_field(
-    "is_special_taxpayer"
+    "is_special_taxpayer",
   ).$wrapper;
 
   tax_withholding_category_field_wrapper.insertAfter(
-    is_special_taxpayer_field_wrapper
+    is_special_taxpayer_field_wrapper,
   );
   customer_type_field_wrapper.insertAfter(customer_name_field_wrapper);
   type_of_document_field_wrapper.insertAfter(customer_type_field_wrapper);
   nature_of_the_taxpayer_field_wrapper.insertAfter(
-    type_of_document_field_wrapper
+    type_of_document_field_wrapper,
   );
   type_of_person_field_wrapper.insertAfter(
-    nature_of_the_taxpayer_field_wrapper
+    nature_of_the_taxpayer_field_wrapper,
   );
   tax_id_field_wrapper.insertAfter(type_of_person_field_wrapper);
 }

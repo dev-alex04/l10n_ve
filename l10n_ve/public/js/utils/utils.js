@@ -155,7 +155,7 @@ function set_person_type_filter(frm) {
   frm.set_df_property(
     "type_of_person",
     "options",
-    allowed_person_types.join("\n")
+    allowed_person_types.join("\n"),
   );
 }
 
@@ -187,7 +187,7 @@ function set_nature_filter(frm) {
   frm.set_df_property(
     "nature_of_the_taxpayer",
     "options",
-    allowed_natures.join("\n")
+    allowed_natures.join("\n"),
   );
 }
 
@@ -318,38 +318,93 @@ function setup_venezuelan_phone_validation(frm, fieldname) {
   });
 }
 
-const VENEZUELAN_MOBILE_PREFIXES = ["0412", "0414", "0416", "0424", "0426", "0422"];
+const VENEZUELAN_MOBILE_PREFIXES = [
+  "0412",
+  "0414",
+  "0416",
+  "0424",
+  "0426",
+  "0422",
+];
 
 function is_valid_venezuelan_phone(phone_no) {
-  if (!phone_no) return true; 
+  if (!phone_no) return true;
 
-  const phone_regex = new RegExp(`^(${VENEZUELAN_MOBILE_PREFIXES.join("|")})\\d{7}$`);
+  const phone_regex = new RegExp(
+    `^(${VENEZUELAN_MOBILE_PREFIXES.join("|")})\\d{7}$`,
+  );
   return phone_regex.test(phone_no);
 }
-
 
 function validate_venezuelan_phone(frm, fieldname) {
   const phone_no = frm.doc[fieldname];
   if (!is_valid_venezuelan_phone(phone_no)) {
     frappe.throw({
       title: __("Número de Teléfono Inválido"),
-      message: __("El número de teléfono debe tener 11 dígitos y comenzar con uno de los siguientes prefijos: {0}", [VENEZUELAN_MOBILE_PREFIXES.join(", ")]),
+      message: __(
+        "El número de teléfono debe tener 11 dígitos y comenzar con uno de los siguientes prefijos: {0}",
+        [VENEZUELAN_MOBILE_PREFIXES.join(", ")],
+      ),
       indicator: "red",
     });
   }
 }
 
 function add_address_button(frm) {
-  if (frm.is_new() && !frm.custom_buttons["Agregar Dirección"]) {
-    frm.add_custom_button(__("Agregar Dirección"), () => {
-      _get_address_dialog(frm).show();
-    });
+  if (frm.is_new()) {
+    if (!frm.custom_buttons[__("Agregar Dirección")]) {
+      frm.add_custom_button(__("Agregar Dirección"), () => {
+        const dialog = _get_address_dialog(frm, null);
+        dialog.set_value("email_id", frm.doc.email_id || "");
+        dialog.show();
+      });
+    }
+  } else {
+    const address_field =
+      frm.doctype === "Supplier"
+        ? "supplier_primary_address"
+        : "customer_primary_address";
+    const address_name = frm.doc[address_field];
+
+    if (address_name && !frm.custom_buttons[__("Editar Dirección")]) {
+      frm.add_custom_button(__("Editar Dirección"), () => {
+        frappe.call({
+          method: "l10n_ve.utils.utils.get_address_data",
+          args: { address_name: address_name },
+          callback: (r) => {
+            if (r.message) {
+              const dialog = _get_address_dialog(frm, address_name);
+              const data = r.message;
+              dialog.set_values({
+                address_line1: data.address_line1 || "",
+                address_type: data.address_type || "Billing",
+                country: data.country || "",
+                state: data.state || "",
+                city: data.city || "",
+                county: data.county || "",
+                parish: data.parish || "",
+                pincode: data.pincode || "",
+                phone: data.phone || "",
+                email_id: frm.doc.email_id || "",
+                is_primary_address: data.is_primary_address || 0,
+                is_shipping_address: data.is_shipping_address || 0,
+              });
+              dialog.show();
+            }
+          },
+        });
+      });
+    }
   }
 }
 
-function _get_address_dialog(frm) {
+function _get_address_dialog(frm, existing_address_name) {
+  const is_edit = !!existing_address_name;
+  const dialog_title = is_edit ? __("Editar Dirección") : __("Nueva Dirección");
+  const action_label = is_edit ? __("Actualizar") : __("Guardar");
+
   const dialog = new frappe.ui.Dialog({
-    title: __("Nueva Dirección"),
+    title: dialog_title,
     fields: [
       {
         label: __("Dirección Línea 1"),
@@ -398,7 +453,7 @@ function _get_address_dialog(frm) {
         reqd: 1,
       },
       {
-        label: __("Parish"),
+        label: __("Parroquia"),
         fieldname: "parish",
         fieldtype: "Link",
         options: "VE Parish",
@@ -412,7 +467,7 @@ function _get_address_dialog(frm) {
       },
       {
         label: __("Teléfono"),
-        fieldname: "mobile_no",
+        fieldname: "phone",
         fieldtype: "Data",
         default: null,
       },
@@ -421,6 +476,7 @@ function _get_address_dialog(frm) {
         fieldname: "email_id",
         fieldtype: "Small Text",
         default: null,
+        reqd: 1,
       },
       {
         label: __("Es Dirección Principal"),
@@ -435,14 +491,14 @@ function _get_address_dialog(frm) {
         default: 1,
       },
     ],
-    primary_action_label: __("Guardar"),
+    primary_action_label: action_label,
     primary_action: (values) => {
-      if (!is_valid_venezuelan_phone(values.mobile_no)) {
+      if (!is_valid_venezuelan_phone(values.phone)) {
         frappe.msgprint({
           title: __("Número de Teléfono Inválido"),
           message: __(
             "El número de teléfono debe tener 11 dígitos y comenzar con uno de los siguientes prefijos: {0}",
-            [VENEZUELAN_MOBILE_PREFIXES.join(", ")]
+            [VENEZUELAN_MOBILE_PREFIXES.join(", ")],
           ),
           indicator: "red",
         });
@@ -459,43 +515,69 @@ function _get_address_dialog(frm) {
         return;
       }
 
-      values.doctype = "Address";
+      if (is_edit) {
+        frappe.call({
+          method: "l10n_ve.utils.utils.update_independent_address",
+          args: {
+            address_name: existing_address_name,
+            address_values: values,
+          },
+          callback: (r) => {
+            if (!r.exc) {
+              dialog.hide();
+              frm.set_value("mobile_no", values.phone);
+              frm.set_value("email_id", values.email_id);
+              frm.save();
+              frappe.show_alert({
+                message: __("Dirección actualizada exitosamente"),
+                indicator: "green",
+              });
+            }
+          },
+          error: (err) => {
+            frappe.msgprint(__("Ocurrió un error al actualizar la dirección."));
+            console.error(err);
+          },
+        });
+      } else {
+        values.doctype = "Address";
 
-      frappe.call({
-        method: "l10n_ve.utils.utils.create_independent_address",
-        args: {
-          address_values: values,
-        },
-        callback: (r) => {
-          if (!r.exc && r.message) {
-            frappe.msgprint(__("Dirección creada exitosamente."));
-            dialog.hide();
+        frappe.call({
+          method: "l10n_ve.utils.utils.create_independent_address",
+          args: {
+            address_values: values,
+          },
+          callback: (r) => {
+            if (!r.exc && r.message) {
+              frappe.msgprint(__("Dirección creada exitosamente."));
+              dialog.hide();
 
-            const address_field =
-              frm.doctype === "Supplier"
-                ? "supplier_primary_address"
-                : "customer_primary_address";
-            frm.set_value(address_field, r.message);
-            frm.toggle_display(address_field, true);
-            frm.set_value("mobile_no", values.mobile_no);
-            frm.set_value("email_id", values.email_id);
-            frm.save();
-            frappe.show_alert({
-              message: __("La nueva dirección ha sido asignada"),
-              indicator: "green",
-            });
-          }
-        },
-        error: (err) => {
-          frappe.msgprint(__("Ocurrió un error al crear la dirección."));
-          console.error(err);
-        },
-      });
+              const address_field =
+                frm.doctype === "Supplier"
+                  ? "supplier_primary_address"
+                  : "customer_primary_address";
+              frm.set_value(address_field, r.message);
+              frm.toggle_display(address_field, true);
+              frm.set_value("mobile_no", values.phone);
+              frm.set_value("email_id", values.email_id);
+              frm.save();
+              frappe.show_alert({
+                message: __("La nueva dirección ha sido asignada"),
+                indicator: "green",
+              });
+            }
+          },
+          error: (err) => {
+            frappe.msgprint(__("Ocurrió un error al crear la dirección."));
+            console.error(err);
+          },
+        });
+      }
     },
   });
 
   dialog.on_page_show = () => {
-    const phone_field = dialog.get_field("mobile_no");
+    const phone_field = dialog.get_field("phone");
     if (phone_field && phone_field.$input) {
       phone_field.$input.on("input", function () {
         const original_value = $(this).val();
@@ -543,10 +625,10 @@ function validate_multiple_emails(value) {
 
   // Helper to escape HTML
   const escapeHTML = (str) => {
-      const p = document.createElement("p");
-      p.textContent = str;
-      return p.innerHTML;
-  }
+    const p = document.createElement("p");
+    p.textContent = str;
+    return p.innerHTML;
+  };
 
   for (let email of emails) {
     const trimmedEmail = email.trim();
@@ -555,20 +637,33 @@ function validate_multiple_emails(value) {
       return __("Se encontró una coma extra o falta un correo entre comas.");
     }
     if (!trimmedEmail.includes("@")) {
-      return __("El correo '{0}' no es válido: falta el arroba (@).", [escapeHTML(trimmedEmail)]);
+      return __("El correo '{0}' no es válido: falta el arroba (@).", [
+        escapeHTML(trimmedEmail),
+      ]);
     }
     const parts = trimmedEmail.split("@");
     if (parts.length > 2) {
-      return __("El correo '{0}' no es válido: contiene múltiples arrobas. Si intenta ingresar varios correos, sepárelos con comas.", [escapeHTML(trimmedEmail)]);
+      return __(
+        "El correo '{0}' no es válido: contiene múltiples arrobas. Si intenta ingresar varios correos, sepárelos con comas.",
+        [escapeHTML(trimmedEmail)],
+      );
     }
     if (parts[0].length === 0) {
-      return __("El correo '{0}' no es válido: falta el usuario antes del @.", [escapeHTML(trimmedEmail)]);
+      return __("El correo '{0}' no es válido: falta el usuario antes del @.", [
+        escapeHTML(trimmedEmail),
+      ]);
     }
     if (parts[1].length === 0 || !parts[1].includes(".")) {
-      return __("El correo '{0}' no es válido: falta el dominio o la extensión (ej: .com).", [escapeHTML(trimmedEmail)]);
+      return __(
+        "El correo '{0}' no es válido: falta el dominio o la extensión (ej: .com).",
+        [escapeHTML(trimmedEmail)],
+      );
     }
     if (!email_regex.test(trimmedEmail)) {
-      return __("El correo '{0}' contiene caracteres inválidos o formato incorrecto.", [escapeHTML(trimmedEmail)]);
+      return __(
+        "El correo '{0}' contiene caracteres inválidos o formato incorrecto.",
+        [escapeHTML(trimmedEmail)],
+      );
     }
   }
   return null;
@@ -582,7 +677,7 @@ function validate_party_emails(frm) {
       frappe.throw({
         title: __("Correo Electrónico Inválido"),
         message: error_message,
-        indicator: "red"
+        indicator: "red",
       });
     }
   }
