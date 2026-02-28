@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 from erpnext.selling.doctype.customer.customer import Customer
-from l10n_ve.utils.utils import validate_tax_id_format, validate_taxpayer_and_person_type_consistency
+from l10n_ve.utils.utils import validate_tax_id_format, validate_unique_tax_id, validate_taxpayer_and_person_type_consistency
 from l10n_ve.utils.utils import link_address_to_party
 
 
@@ -10,6 +10,7 @@ class VECustomer(Customer):
         super().validate()
 
         validate_tax_id_format(self)
+        validate_unique_tax_id(self)
         validate_taxpayer_and_person_type_consistency(self)
 
     def on_update(self):
@@ -34,5 +35,5 @@ def get_customer_emails(customer_name):
     doc = frappe.get_doc("Customer", customer_name)
     if hasattr(doc, "get_email_list"):
         return doc.get_email_list()
-    
+
     return VECustomer.get_email_list(doc)

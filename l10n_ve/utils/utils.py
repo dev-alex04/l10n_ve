@@ -101,6 +101,36 @@ def get_tax_id_config(document_type: str, nature: str) -> int:
     doc_config = config.get(document_type, config['RIF'])
     return doc_config.get(nature, doc_config.get('default'))
 
+def validate_unique_tax_id(doc) -> None:
+    """
+    Valida que no exista otro registro del mismo doctype con el mismo tax_id.
+    """
+    if not doc.tax_id:
+        return
+
+    title_field: str = "customer_name" if doc.doctype == "Customer" else "supplier_name"
+
+    filters: dict = {
+        "tax_id": doc.tax_id,
+        "name": ["!=", doc.name]
+    }
+
+    existing: dict | None = frappe.db.get_value(
+        doc.doctype, filters, ["name", title_field], as_dict=True
+    )
+
+    if existing:
+        doc_type_label: str = _(doc.get("type_of_document")) or _("ID de Impuesto")
+        existing_link: str = frappe.bold(
+            link_to_form(doc.doctype, existing.name, existing.get(title_field))
+        )
+        frappe.throw(
+            _("Ya existe un {0} con la {1} <b>{2}</b>: {3}").format(
+                _(doc.doctype), doc_type_label, doc.tax_id, existing_link
+            ),
+            title=_("{0} Duplicado/a").format(doc_type_label)
+        )
+
 def validate_tax_id_format(doc):
     """
     Valida el formato del tax_id (RIF, Cédula, Pasaporte) en un documento.
