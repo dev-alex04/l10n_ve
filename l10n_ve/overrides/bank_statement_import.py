@@ -20,7 +20,13 @@ class CustomBankStatementImport(BankStatementImport):
         try:
             super().validate()
         except Exception as e:
-            if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
+            error_msg = str(e)
+            html_like_xls_errors = (
+                "Expected BOF record; found b'\u003ctable",
+                "found b'\u003chtml",
+                "startswith first arg must be str",
+            )
+            if any(err in error_msg for err in html_like_xls_errors):
                 pass
             else:
                 raise e
@@ -34,7 +40,13 @@ def get_preview_from_template(data_import, import_file=None, google_sheets_url=N
             import_file, google_sheets_url
         )
     except Exception as e:
-        if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
+        error_msg = str(e)
+        html_like_xls_errors = (
+            "Expected BOF record; found b'\u003ctable",
+            "found b'\u003chtml",
+            "startswith first arg must be str",
+        )
+        if any(err in error_msg for err in html_like_xls_errors):
             if import_file:
                 file_path = os.path.join(frappe.get_site_path(), import_file.lstrip('/'))
                 if not os.path.abspath(file_path).startswith(os.path.abspath(frappe.get_site_path())):
@@ -375,6 +387,22 @@ def _process_import_logic(doc, start_time):
             if not flt(new_transaction.withdrawal) and not flt(new_transaction.deposit):
                 skipped_rows.append(str(row_num))
                 continue
+
+            if new_transaction.reference_number:
+                duplicate_filters = {
+                    "bank_account": new_transaction.bank_account,
+                    "reference_number": new_transaction.reference_number,
+                    "docstatus": ["!=", 2],
+                    "date": new_transaction.date
+                }
+                if flt(new_transaction.withdrawal) > 0:
+                    duplicate_filters["withdrawal"] = new_transaction.withdrawal
+                elif flt(new_transaction.deposit) > 0:
+                    duplicate_filters["deposit"] = new_transaction.deposit
+
+                if frappe.db.exists("Bank Transaction", duplicate_filters):
+                    skipped_rows.append(f"{row_num} ({_('Ref. Duplicada')}: {new_transaction.reference_number})")
+                    continue
 
             new_transaction.allocated_amount = new_transaction.withdrawal
             new_transaction.unallocated_amount = new_transaction.deposit
