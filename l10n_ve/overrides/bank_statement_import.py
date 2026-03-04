@@ -21,7 +21,12 @@ class CustomBankStatementImport(BankStatementImport):
             super().validate()
         except Exception as e:
             error_msg = str(e)
-            if "Expected BOF record; found b'<table" in error_msg or "found b'<html" in error_msg or "startswith first arg must be str" in error_msg:
+            html_like_xls_errors = (
+                "Expected BOF record; found b'\u003ctable",
+                "found b'\u003chtml",
+                "startswith first arg must be str",
+            )
+            if any(err in error_msg for err in html_like_xls_errors):
                 pass
             else:
                 raise e
