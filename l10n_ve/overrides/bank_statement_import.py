@@ -20,7 +20,8 @@ class CustomBankStatementImport(BankStatementImport):
         try:
             super().validate()
         except Exception as e:
-            if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
+            error_msg = str(e)
+            if "Expected BOF record; found b'<table" in error_msg or "found b'<html" in error_msg or "startswith first arg must be str" in error_msg:
                 pass
             else:
                 raise e
@@ -34,7 +35,8 @@ def get_preview_from_template(data_import, import_file=None, google_sheets_url=N
             import_file, google_sheets_url
         )
     except Exception as e:
-        if "Expected BOF record; found b'<table" in str(e) or "found b'<html" in str(e):
+        error_msg = str(e)
+        if "Expected BOF record; found b'<table" in error_msg or "found b'<html" in error_msg or "startswith first arg must be str" in error_msg:
             if import_file:
                 file_path = os.path.join(frappe.get_site_path(), import_file.lstrip('/'))
                 if not os.path.abspath(file_path).startswith(os.path.abspath(frappe.get_site_path())):
@@ -375,6 +377,15 @@ def _process_import_logic(doc, start_time):
             if not flt(new_transaction.withdrawal) and not flt(new_transaction.deposit):
                 skipped_rows.append(str(row_num))
                 continue
+
+            if new_transaction.reference_number:
+                if frappe.db.exists("Bank Transaction", {
+                    "bank_account": new_transaction.bank_account,
+                    "reference_number": new_transaction.reference_number,
+                    "docstatus": ["!=", 2]
+                }):
+                    skipped_rows.append(f"{row_num} ({_('Ref. Duplicada')}: {new_transaction.reference_number})")
+                    continue
 
             new_transaction.allocated_amount = new_transaction.withdrawal
             new_transaction.unallocated_amount = new_transaction.deposit
