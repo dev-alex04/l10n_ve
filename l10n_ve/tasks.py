@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import frappe
-from frappe.utils import getdate, formatdate, get_datetime_str, today
+from frappe.utils import getdate, formatdate, get_datetime_str, today, nowdate, flt
 
 
 def _scrape_bcv_rates():
@@ -115,14 +115,67 @@ def create_currency_exchange() -> None:
         frappe.log_error("BCV API Info", "bcv_endpoint no configurado, saltando a web scraping.")
 
     frappe.log_error("BCV Fallback", "Iniciando fallback a web scraping.")
-    
-    scraped_rates = _scrape_bcv_rates()
+
+    scraped_rates = _scrape_bcv_rates_new()
     if scraped_rates:
-        rates_data = {
-            "date": today(),
-            "rates": scraped_rates
-        }
-        _process_rates(rates_data)
+        print(scraped_rates)
+        _process_rates(scraped_rates)
         return
 
     frappe.msgprint(error_message, title=frappe._("Error"), indicator="red")
+
+
+def _scrape_bcv_rates_new():
+    url = "https://www.bcv.org.ve/"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+
+    try:        
+        response = requests.get(url, headers=headers, verify=False, timeout=15)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        rates = {}
+        monedas = {'dolar': 'USD', 'euro': 'EUR'}
+
+        for id_html, iso in monedas.items():
+            div = soup.find('div', id=id_html)
+            if div and div.find('strong'):
+                valor_raw = div.find('strong').text.strip()
+                valor_limpio = valor_raw.replace('.', '').replace(',', '.')
+                rates[iso] = "{:.8f}".format(flt(valor_limpio))
+
+        fecha_container = soup.find('span', class_='date-display-single') or \
+                          soup.find('div', class_='pull-right dinamyc-date')
+        
+        date_val = nowdate()
+        
+        if fecha_container:
+            fecha_raw = fecha_container.text.strip()
+            
+            meses = {
+                "Enero": "01", "Febrero": "02", "Marzo": "03", "Abril": "04",
+                "Mayo": "05", "Junio": "06", "Julio": "07", "Agosto": "08",
+                "Septiembre": "09", "Octubre": "10", "Noviembre": "11", "Diciembre": "12"
+            }
+            
+            try:
+                partes = fecha_raw.replace(',', '').split()
+                dia = partes[1].zfill(2)
+                mes = meses.get(partes[2].capitalize(), "01")
+                anio = partes[3]
+                date_val = f"{anio}-{mes}-{dia}"
+            except Exception as e:
+                print(f"    [!] Error parseando fecha: {e}. Usando fecha actual.")
+
+        resultado = {
+            'date': date_val,
+            'rates': rates
+        }
+        
+        return resultado
+
+    except Exception as e:
+        print(f"\n[X] ERROR CRÍTICO: {str(e)}")
+        return None
