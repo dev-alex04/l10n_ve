@@ -707,3 +707,67 @@ def void_document(doctype, name):
 
     frappe.clear_document_cache(doctype, name)
     doc.reload()
+
+
+@frappe.whitelist()
+def create_exchange_difference_entry(docname: str) -> dict:
+    """
+    Crea un Journal Entry para liquidar el diferencial cambiario
+    de una factura de venta con saldo pendiente en moneda base.
+    """
+    sales_invoice = frappe.get_doc("Sales Invoice", docname)
+
+    if sales_invoice.docstatus != 1:
+        frappe.throw("La factura debe estar enviada para registrar diferencial cambiario")
+
+    outstanding = flt(sales_invoice.outstanding_amount, 2)
+
+    if outstanding == 0:
+        frappe.throw("La factura no tiene saldo pendiente")
+
+    exchange_gain_loss_account = frappe.get_cached_value(
+        'Company',
+        sales_invoice.company,
+        'exchange_gain_loss_account'
+    )
+
+    if not exchange_gain_loss_account:
+        frappe.throw(
+            f"Configure la cuenta de Ganancia/Pérdida por Diferencial Cambiario "
+            f"en la Compañía {sales_invoice.company}"
+        )
+
+    journal_entry = frappe.new_doc("Journal Entry")
+    journal_entry.voucher_type = "Exchange Gain Or Loss"
+    journal_entry.posting_date = sales_invoice.posting_date
+    journal_entry.company = sales_invoice.company
+
+    journal_entry.append("accounts", {
+        "account": exchange_gain_loss_account,
+        "debit_in_account_currency": outstanding if outstanding > 0 else 0,
+        "credit_in_account_currency": abs(outstanding) if outstanding < 0 else 0,
+        "cost_center": sales_invoice.cost_center,
+    })
+
+    journal_entry.append("accounts", {
+        "account": sales_invoice.debit_to,
+        "party_type": "Customer",
+        "party": sales_invoice.customer,
+        "credit_in_account_currency": outstanding if outstanding > 0 else 0,
+        "debit_in_account_currency": abs(outstanding) if outstanding < 0 else 0,
+        "reference_type": "Sales Invoice",
+        "reference_name": sales_invoice.name,
+        "cost_center": sales_invoice.cost_center,
+    })
+
+    journal_entry.remark = (
+        f"Diferencial cambiario por factura {sales_invoice.name}"
+    )
+    journal_entry.insert(ignore_permissions=True)
+    journal_entry.submit()
+
+    return {
+        "status": "success",
+        "journal_entry": journal_entry.name,
+        "amount": outstanding,
+    }
