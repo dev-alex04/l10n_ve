@@ -48,6 +48,9 @@ def get_preview_from_template(data_import, import_file=None, google_sheets_url=N
         )
         if any(err in error_msg for err in html_like_xls_errors):
             if import_file:
+                if import_file != doc.import_file:
+                    frappe.throw(_("No tiene permiso para previsualizar este archivo."))
+
                 file_path = os.path.join(frappe.get_site_path(), import_file.lstrip('/'))
                 if not os.path.abspath(file_path).startswith(os.path.abspath(frappe.get_site_path())):
                     frappe.throw(_("Ruta de archivo inválida"))

@@ -27,28 +27,25 @@ class VEBranch(NestedSet):
         """Sincroniza (crea y elimina) permisos de usuario para esta sucursal."""
         current_users = set(row.user for row in self.get("users", []) if row.user)
 
-        # 1. Crear permisos para usuarios en la lista actual
-        for user in current_users:
-            if not frappe.db.exists("User Permission", {
-                "user": user,
-                "allow": "VE Branch",
-                "for_value": self.name
-            }):
-                perm = frappe.new_doc("User Permission")
-                perm.user = user
-                perm.allow = "VE Branch"
-                perm.for_value = self.name
-                perm.insert(ignore_permissions=True)
-
-        # 2. Eliminar permisos de usuarios que fueron removidos de la lista
         existing_permissions = frappe.get_all("User Permission", filters={
             "allow": "VE Branch",
             "for_value": self.name
         }, fields=["name", "user"])
 
-        for perm in existing_permissions:
-            if perm.user not in current_users:
-                frappe.delete_doc("User Permission", perm.name, ignore_permissions=True)
+        existing_user_map = {perm.user: perm.name for perm in existing_permissions}
+        existing_user_names = set(existing_user_map.keys())
+
+        users_to_add = current_users - existing_user_names
+        for user in users_to_add:
+            perm = frappe.new_doc("User Permission")
+            perm.user = user
+            perm.allow = "VE Branch"
+            perm.for_value = self.name
+            perm.insert(ignore_permissions=True)
+
+        users_to_remove = existing_user_names - current_users
+        for user in users_to_remove:
+            frappe.delete_doc("User Permission", existing_user_map[user], ignore_permissions=True)
 
     def propagate_users_to_children(self) -> None:
         """Propaga adiciones y eliminaciones de usuarios a las sucursales hijas."""
