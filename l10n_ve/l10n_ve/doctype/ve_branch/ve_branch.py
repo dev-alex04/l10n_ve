@@ -18,6 +18,78 @@ class VEBranch(NestedSet):
         self.validate_unique_users()
         self.validate_payment_modes()
 
+    def on_update(self) -> None:
+        super().on_update()
+        self.sync_user_permissions()
+        self.propagate_users_to_children()
+
+    def sync_user_permissions(self) -> None:
+        """Sincroniza (crea y elimina) permisos de usuario para esta sucursal."""
+        current_users = set(row.user for row in self.get("users", []) if row.user)
+
+        # 1. Crear permisos para usuarios en la lista actual
+        for user in current_users:
+            if not frappe.db.exists("User Permission", {
+                "user": user,
+                "allow": "VE Branch",
+                "for_value": self.name
+            }):
+                perm = frappe.new_doc("User Permission")
+                perm.user = user
+                perm.allow = "VE Branch"
+                perm.for_value = self.name
+                perm.insert(ignore_permissions=True)
+
+        # 2. Eliminar permisos de usuarios que fueron removidos de la lista
+        existing_permissions = frappe.get_all("User Permission", filters={
+            "allow": "VE Branch",
+            "for_value": self.name
+        }, fields=["name", "user"])
+
+        for perm in existing_permissions:
+            if perm.user not in current_users:
+                frappe.delete_doc("User Permission", perm.name, ignore_permissions=True)
+
+    def propagate_users_to_children(self) -> None:
+        """Propaga adiciones y eliminaciones de usuarios a las sucursales hijas."""
+        # Detectar cambios comparando con la versión anterior
+        old_doc = self.get_doc_before_save()
+        old_users = set()
+        if old_doc:
+            old_users = {row.user for row in old_doc.get("users", []) if row.user}
+        
+        new_users = {row.user for row in self.get("users", []) if row.user}
+
+        users_to_add = new_users - old_users
+        users_to_remove = old_users - new_users
+
+        if not users_to_add and not users_to_remove:
+            return
+
+        children = frappe.get_all("VE Branch", filters={"parent_ve_branch": self.name}, pluck="name")
+        if not children:
+            return
+
+        for child_name in children:
+            child_doc = frappe.get_doc("VE Branch", child_name)
+            child_users = {row.user for row in child_doc.get("users", []) if row.user}
+            dirty = False
+
+            for user in users_to_add:
+                if user not in child_users:
+                    child_doc.append("users", {"user": user})
+                    dirty = True
+            
+            if users_to_remove:
+                original_count = len(child_doc.users)
+                child_doc.users = [row for row in child_doc.users if row.user not in users_to_remove]
+                
+                if len(child_doc.users) != original_count:
+                    dirty = True
+
+            if dirty:
+                child_doc.save(ignore_permissions=True)
+
     def inherit_from_parent_if_applicable(self) -> None:
         """
         Si se ha seleccionado un padre y las tablas hijas están vacías, hereda los datos.
