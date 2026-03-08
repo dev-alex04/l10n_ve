@@ -43,29 +43,50 @@ def _scrape_bcv_rates():
 
 def _process_rates(rates_data):
     """
-    Procesa un diccionario de tasas y crea/actualiza los documentos de Currency Exchange.
+    Procesa tasas y crea/actualiza documentos de Currency Exchange.
+    Incluye protección contra fechas futuras (fines de semana/feriados).
     """
     doctype_name_str = "Currency Exchange"
     to_currency = "VEF"
-    exchange_date = getdate(rates_data.get("date"))
     purpose = "Selling-Buying"
+
+    api_date = getdate(rates_data.get("date"))
+    today_date = getdate(nowdate())
 
     for from_currency, exchange_rate in rates_data.get("rates", {}).items():
         if not exchange_rate:
             continue
 
-        exchange_name = f"{formatdate(get_datetime_str(exchange_date), 'yyyy-MM-dd')}-{from_currency}-{to_currency}-{purpose}"
+        target_date = api_date
+        target_rate = exchange_rate
+
+        if api_date > today_date:
+            last_rate_val = frappe.db.get_value(doctype_name_str, 
+                {
+                    "from_currency": from_currency, 
+                    "to_currency": to_currency,
+                    "date": ["<", today_date],
+                    "for_selling": 1
+                }, 
+                "exchange_rate", order_by="date desc")
+            
+            if last_rate_val:
+                target_date = today_date
+                target_rate = last_rate_val
+                frappe.log_error("BCV Protection", f"Fecha futura detectada ({api_date}). Usando tasa previa ({last_rate_val}) para la fecha de hoy ({today_date}).")
+
+        exchange_name = f"{formatdate(get_datetime_str(target_date), 'yyyy-MM-dd')}-{from_currency}-{to_currency}-{purpose}"
 
         if frappe.db.exists(doctype_name_str, exchange_name):
-            frappe.db.set_value(doctype_name_str, exchange_name, "exchange_rate", exchange_rate)
+            frappe.db.set_value(doctype_name_str, exchange_name, "exchange_rate", target_rate)
         else:
             currency_exchange = frappe.new_doc(doctype_name_str)
             currency_exchange.for_buying = True
             currency_exchange.for_selling = True
-            currency_exchange.date = exchange_date
+            currency_exchange.date = target_date
             currency_exchange.to_currency = to_currency
             currency_exchange.from_currency = from_currency
-            currency_exchange.exchange_rate = exchange_rate
+            currency_exchange.exchange_rate = target_rate
             currency_exchange.insert(ignore_permissions=True)
 
 
@@ -118,7 +139,6 @@ def create_currency_exchange() -> None:
 
     scraped_rates = _scrape_bcv_rates_new()
     if scraped_rates:
-        print(scraped_rates)
         _process_rates(scraped_rates)
         return
 
@@ -132,50 +152,40 @@ def _scrape_bcv_rates_new():
     }
 
     try:        
-        response = requests.get(url, headers=headers, verify=False, timeout=15)
+        response = requests.get(url, headers=headers, verify=False, timeout=60)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
         rates = {}
-        monedas = {'dolar': 'USD', 'euro': 'EUR'}
+        currencies = {'dolar': 'USD', 'euro': 'EUR'}
 
-        for id_html, iso in monedas.items():
-            div = soup.find('div', id=id_html)
+        for html_id, iso in currencies.items():
+            div = soup.find('div', id=html_id)
             if div and div.find('strong'):
-                valor_raw = div.find('strong').text.strip()
-                valor_limpio = valor_raw.replace('.', '').replace(',', '.')
-                rates[iso] = "{:.8f}".format(flt(valor_limpio))
+                raw_value = div.find('strong').text.strip()
+                clean_value = raw_value.replace('.', '').replace(',', '.')
+                rates[iso] = "{:.8f}".format(flt(clean_value))
 
-        fecha_container = soup.find('span', class_='date-display-single') or \
-                          soup.find('div', class_='pull-right dinamyc-date')
-        
-        date_val = nowdate()
-        
-        if fecha_container:
-            fecha_raw = fecha_container.text.strip()
-            
-            meses = {
-                "Enero": "01", "Febrero": "02", "Marzo": "03", "Abril": "04",
-                "Mayo": "05", "Junio": "06", "Julio": "07", "Agosto": "08",
-                "Septiembre": "09", "Octubre": "10", "Noviembre": "11", "Diciembre": "12"
-            }
-            
-            try:
-                partes = fecha_raw.replace(',', '').split()
-                dia = partes[1].zfill(2)
-                mes = meses.get(partes[2].capitalize(), "01")
-                anio = partes[3]
-                date_val = f"{anio}-{mes}-{dia}"
-            except Exception as e:
-                print(f"    [!] Error parseando fecha: {e}. Usando fecha actual.")
+        date_container = soup.find('div', class_='views-field-field-fecha-del-indicador')
+        time_tag = date_container.find('time') if date_container else None
 
-        resultado = {
+        date_val = None
+        
+        if time_tag and time_tag.get('datetime'):
+            raw_datetime = time_tag.get('datetime')
+            date_val = raw_datetime[:10]
+
+        if not date_val or not rates:
+            frappe.log_error("BCV Scrape Error", "No se pudo obtener la fecha o las tasas.")
+            return None
+
+        result = {
             'date': date_val,
             'rates': rates
         }
-        
-        return resultado
+
+        return result
 
     except Exception as e:
-        print(f"\n[X] ERROR CRÍTICO: {str(e)}")
+        frappe.log_error("BCV Scrape Error", str(e))
         return None
