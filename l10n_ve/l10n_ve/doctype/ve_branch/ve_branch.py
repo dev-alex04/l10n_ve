@@ -201,25 +201,46 @@ class VEBranch(NestedSet):
 
         current_branch_parent = self.parent_ve_branch
 
+        # Get all ancestors of current branch for relationship check
+        my_ancestors = set()
+        curr = self.parent_ve_branch
+        while curr:
+            my_ancestors.add(curr)
+            curr = frappe.get_cached_value("VE Branch", curr, "parent_ve_branch")
+
         for assignment in existing_assignments:
             user = assignment.user
             other_branch = assignment.parent
 
-            is_other_parent = (current_branch_parent and current_branch_parent == other_branch)
+            # Check if the other branch is an ancestor
+            if other_branch in my_ancestors:
+                continue
 
+            # Check if current branch is an ancestor of the other branch (i.e., other is a descendant)
+            is_descendant = False
+            curr_other = other_branches_parent_map.get(other_branch)
+            while curr_other:
+                if curr_other == self.name:
+                    is_descendant = True
+                    break
+                curr_other = frappe.get_cached_value("VE Branch", curr_other, "parent_ve_branch")
+
+            if is_descendant:
+                continue
+
+            # Check if they are siblings (share the same immediate parent)
             other_branch_parent = other_branches_parent_map.get(other_branch)
-            is_other_child = (other_branch_parent and other_branch_parent == self.name)
+            if current_branch_parent and other_branch_parent == current_branch_parent:
+                continue
 
-            is_sibling = (current_branch_parent and other_branch_parent and current_branch_parent == other_branch_parent)
-
-            if not (is_other_parent or is_other_child or is_sibling):
-                frappe.throw(
-                    _("El usuario {0} ya está asignado a la sucursal {1}. " 
-                      "Solo se permite repetir usuarios entre ramas relacionadas "
-                      "(Padre, Hija, Hermana).").format(
-                        frappe.bold(user), frappe.bold(other_branch)
-                    )
+            # If none of the above relationships exist, it's an invalid duplicate assignment
+            frappe.throw(
+                _("El usuario {0} ya está asignado a la sucursal {1}. " 
+                  "Solo se permite repetir usuarios entre ramas relacionadas "
+                  "(Ancestros, Descendientes o Hermanas).").format(
+                    frappe.bold(user), frappe.bold(other_branch)
                 )
+            )
 
     def get_default_payment_mode(self) -> _dict:
         """Obtiene el modo de pago predeterminado de la sucursal."""
