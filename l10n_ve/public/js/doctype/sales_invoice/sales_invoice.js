@@ -37,7 +37,7 @@ frappe.ui.form.on("Sales Invoice", {
     frm.set_df_property(
       "base_amount_igtf",
       "hidden",
-      !Boolean(frm.doc.base_amount_igtf)
+      !Boolean(frm.doc.base_amount_igtf),
     );
   },
 
@@ -66,7 +66,7 @@ frappe.ui.form.on("Sales Invoice", {
       has_vat_withholding = frm.doc.taxes.some(
         (tax_row) =>
           tax_row.charge_type &&
-          tax_row.charge_type.toLowerCase().includes("withholding")
+          tax_row.charge_type.toLowerCase().includes("withholding"),
       );
     }
 
@@ -113,7 +113,7 @@ frappe.ui.form.on("Sales Invoice", {
                     title: __("Error de Validación"),
                     indicator: "red",
                     message: __(
-                      "Debe ingresar el Número y la Fecha del Comprobante."
+                      "Debe ingresar el Número y la Fecha del Comprobante.",
                     ),
                   });
                   return;
@@ -124,7 +124,7 @@ frappe.ui.form.on("Sales Invoice", {
                     title: __("Error de Formato"),
                     indicator: "red",
                     message: __(
-                      "El Número de Comprobante debe tener exactamente 14 caracteres y solo puede contener números."
+                      "El Número de Comprobante debe tener exactamente 14 caracteres y solo puede contener números.",
                     ),
                   });
                   return;
@@ -140,14 +140,14 @@ frappe.ui.form.on("Sales Invoice", {
                   callback: function (r) {
                     if (r.message && r.message.status === "success") {
                       frappe.msgprint(
-                        __("Comprobante de IVA cargado exitosamente.")
+                        __("Comprobante de IVA cargado exitosamente."),
                       );
                       frm.reload_doc();
                       dialog.hide();
                     } else if (r.message && r.message.status === "error") {
                       frappe.msgprint(
                         __("Error al guardar: " + r.message.msg),
-                        "Error"
+                        "Error",
                       );
                     }
                   },
@@ -156,7 +156,7 @@ frappe.ui.form.on("Sales Invoice", {
             });
             dialog.show();
           },
-          button_group
+          button_group,
         );
       }
       // Mover esto a una funcion
@@ -193,7 +193,7 @@ frappe.ui.form.on("Sales Invoice", {
                     title: __("Error de Validación"),
                     indicator: "red",
                     message: __(
-                      "Debe ingresar la Fecha y adjuntar el archivo del Comprobante de ISLR."
+                      "Debe ingresar la Fecha y adjuntar el archivo del Comprobante de ISLR.",
                     ),
                   });
                   return;
@@ -210,14 +210,14 @@ frappe.ui.form.on("Sales Invoice", {
                   callback: function (r) {
                     if (r.message && r.message.status === "success") {
                       frappe.msgprint(
-                        __("Comprobante de ISLR cargado exitosamente.")
+                        __("Comprobante de ISLR cargado exitosamente."),
                       );
                       frm.reload_doc();
                       dialog.hide();
                     } else if (r.message && r.message.status === "error") {
                       frappe.msgprint(
                         __("Error al guardar: " + r.message.msg),
-                        "Error"
+                        "Error",
                       );
                     }
                   },
@@ -226,10 +226,12 @@ frappe.ui.form.on("Sales Invoice", {
             });
             dialog.show();
           },
-          button_group
+          button_group,
         );
       }
     }
+
+    setup_exchange_difference_button(frm);
   },
 
   customer: function (frm) {
@@ -318,7 +320,7 @@ function toggle_islr_withholding_fields(frm) {
   }
 
   const has_islr_tax = (frm.doc.taxes || []).some(
-    (tax) => tax.charge_type === "ISLR"
+    (tax) => tax.charge_type === "ISLR",
   );
   if (has_islr_tax) {
     frm.toggle_display(fields_to_toggle, true);
@@ -336,11 +338,11 @@ function set_sales_invoice_fields(frm) {
   }
 
   let base_total_taxes_and_charges = frm.get_field(
-    "base_total_taxes_and_charges"
+    "base_total_taxes_and_charges",
   ).$wrapper;
 
   let base_rounding_adjustment = frm.get_field(
-    "base_rounding_adjustment"
+    "base_rounding_adjustment",
   ).$wrapper;
 
   let base_rounded_total = frm.get_field("base_rounded_total").$wrapper;
@@ -392,10 +394,60 @@ function setup_void_button(frm) {
                 });
               },
             });
-          }
+          },
         );
       },
-      __("Acciones")
+      __("Acciones"),
+    );
+  }
+}
+
+/**
+ * Botón para registrar diferencial cambiario
+ * cuando la factura tiene saldo pendiente por diferencia de tasas.
+ * @param {object} frm
+ */
+function setup_exchange_difference_button(frm) {
+  if (
+    frm.doc.docstatus === 1 &&
+    frm.doc.outstanding_amount &&
+    flt(frm.doc.outstanding_amount) !== 0 &&
+    frm.doc.currency !== frm.doc.party_account_currency
+  ) {
+    frm.add_custom_button(
+      __("Generar Diferencial Cambiario"),
+      function () {
+        const outstanding = flt(frm.doc.outstanding_amount);
+        const tipo = outstanding > 0 ? "Pérdida" : "Ganancia";
+
+        frappe.confirm(
+          `¿Desea registrar un diferencial cambiario (${tipo}) por <b>${frappe.format(
+            Math.abs(outstanding),
+            { fieldtype: "Currency", currency: frm.doc.party_account_currency },
+          )}</b>?<br><br>Se creará y enviará un Asiento Contable automáticamente.`,
+          () => {
+            frappe.call({
+              method:
+                "l10n_ve.overrides.sales_invoice.create_exchange_difference_entry",
+              args: { docname: frm.doc.name },
+              freeze: true,
+              freeze_message: "Registrando diferencial cambiario...",
+              callback: function (r) {
+                if (r.message && r.message.status === "success") {
+                  frappe.show_alert({
+                    message: __(
+                      `Diferencial cambiario registrado: ${r.message.journal_entry}`,
+                    ),
+                    indicator: "green",
+                  });
+                  frm.reload_doc();
+                }
+              },
+            });
+          },
+        );
+      },
+      __("Acciones"),
     );
   }
 }
