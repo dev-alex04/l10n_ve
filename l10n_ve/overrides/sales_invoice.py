@@ -725,11 +725,25 @@ def create_exchange_difference_entry(docname: str) -> dict:
     if outstanding == 0:
         frappe.throw("La factura no tiene saldo pendiente")
 
-    exchange_gain_loss_account = frappe.get_cached_value(
-        'Company',
-        sales_invoice.company,
-        'exchange_gain_loss_account'
-    )
+    if outstanding > 0:
+        exchange_gain_loss_account = frappe.get_cached_value(
+            'Company',
+            sales_invoice.company,
+            'unrealized_profit_loss_account'
+        )
+    else:
+        exchange_gain_loss_account = frappe.get_cached_value(
+            'Company',
+            sales_invoice.company,
+            'unrealized_exchange_gain_loss_account'
+        )
+
+    if not exchange_gain_loss_account:
+        exchange_gain_loss_account = frappe.get_cached_value(
+            'Company',
+            sales_invoice.company,
+            'exchange_gain_loss_account'
+        )
 
     if not exchange_gain_loss_account:
         frappe.throw(
