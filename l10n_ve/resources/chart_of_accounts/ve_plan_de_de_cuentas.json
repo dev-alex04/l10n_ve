@@ -567,17 +567,26 @@
                 }
             }
         },
-        "GARANTIAS RECIBIDAS": {
-            "root_type": "Asset",
-            "account_number": "8.1.3",
-            "GARANTIA DE TÍTULOS VALORES": {
-                "account_number": "8.1.3.1"
-            },
-            "GARANTÍAS HIPOTECARIAS": {
-                "account_number": "8.1.3.2",
-                "PERDIDA CAMBIARIA": {
-                    "account_type": "Expense Account",
-                    "account_number": "8.1.3.3.01"
+        "CUENTAS DE ORDEN": {
+            "root_type": "Expense",
+            "account_number": "8",
+            "CUENTAS DE ORDEN DEUDORAS": {
+                "account_number": "8.1",
+                "CUENTAS DE ORDEN POR CONTRA": {
+                    "account_number": "8.1.3",
+                    "GARANTIA DE TÍTULOS VALORES": {
+                        "account_number": "8.1.3.1"
+                    },
+                    "GARANTÍAS HIPOTECARIAS": {
+                        "account_number": "8.1.3.2"
+                    },
+                    "DIFERENCIAL CAMBIARIO": {
+                        "account_number": "8.1.3.3",
+                        "PERDIDA CAMBIARIA": {
+                            "account_type": "Expense Account",
+                            "account_number": "8.1.3.3.01"
+                        }
+                    }
                 }
             }
         }
