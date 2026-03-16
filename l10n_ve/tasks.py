@@ -1,8 +1,11 @@
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 
 import frappe
 from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 BCV_URL = "https://www.bcv.org.ve/"
@@ -43,8 +46,6 @@ def _fetch_rates_from_bcv_seniat() -> dict | None:
     bcv_seniat_endpoint = frappe.get_site_config().get("bcv_seniat_endpoint") \
         or "https://tcseniat.extra.bcv.org.ve/tcseniat/resources/TipoCambio/fechaOperacion"
 
-    if not bcv_seniat_endpoint:
-        return None
 
     try:
         response = requests.get(
@@ -59,7 +60,7 @@ def _fetch_rates_from_bcv_seniat() -> dict | None:
         response.raise_for_status()
 
         data = response.json()
-        mercado = data.get("MERCADO", [{}])[0]
+        mercado = next(iter(data.get("MERCADO", [])), {})
         fecha_valor = mercado.get("FECHAVALOR")
         monedas = mercado.get("MONEDA", [])
 
