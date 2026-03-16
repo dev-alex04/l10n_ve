@@ -1,3 +1,5 @@
+import os
+import json
 import frappe
 from frappe import _
 
@@ -10,7 +12,28 @@ from l10n_ve.setup import (
     set_reference_currency,
     create_municipality_taxes_for_municipality,
 )
+from l10n_ve.whitelisted.account.chart_of_accounts import get_app_charts_path
 from l10n_ve.utils.utils import validate_tax_id_format, validate_taxpayer_and_person_type_consistency
+
+
+def is_allied_chart(chart_name: str) -> bool:
+    """Verifica si el plan de cuentas seleccionado es de un cliente aliado
+    leyendo el flag 'is_allied_client_chart' del JSON correspondiente."""
+    charts_path = get_app_charts_path()
+    if not os.path.exists(charts_path):
+        return False
+
+    for fname in os.listdir(charts_path):
+        if not fname.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(charts_path, fname), "r", encoding="utf-8") as f:
+                content = json.load(f)
+                if content.get("name") == chart_name:
+                    return bool(content.get("is_allied_client_chart"))
+        except (IOError, json.JSONDecodeError, KeyError):
+            continue
+    return False
 
 class CustomCompany(Company):
 
@@ -30,12 +53,15 @@ class CustomCompany(Company):
         """
         super().on_update()
         if self.flags.get("is_new_company"):
-            set_chart_of_accounts(company_name=self.name)
-            create_vat_withholding(company_name=self.name)
-            create_sales_taxes_and_charges_template(company_name=self.name)
-            set_mode_of_payments(company_name=self.name)
-            set_reference_currency(company_name=self.name)
-            frappe.msgprint(_("Plan de cuentas Venezolano cargado. Por favor refrescar la vista."))
+            if is_allied_chart(self.chart_of_accounts):
+                frappe.msgprint(_("Plan de cuentas de cliente aliado cargado. Las configuraciones de impuestos automáticas fueron omitidas."))
+            else:
+                set_chart_of_accounts(company_name=self.name)
+                create_vat_withholding(company_name=self.name)
+                create_sales_taxes_and_charges_template(company_name=self.name)
+                set_mode_of_payments(company_name=self.name)
+                set_reference_currency(company_name=self.name)
+                frappe.msgprint(_("Plan de cuentas Venezolano cargado. Por favor refrescar la vista."))
 
         if self.municipality:
             create_municipality_taxes_for_municipality(self.municipality)
