@@ -710,7 +710,7 @@ def void_document(doctype, name):
 
 
 @frappe.whitelist()
-def create_exchange_difference_entry(docname: str) -> dict:
+def create_exchange_difference_entry(docname: str, account: str = None) -> dict:
     """
     Crea un Journal Entry para liquidar el diferencial cambiario
     de una factura de venta con saldo pendiente en moneda base.
@@ -725,11 +725,28 @@ def create_exchange_difference_entry(docname: str) -> dict:
     if outstanding == 0:
         frappe.throw("La factura no tiene saldo pendiente")
 
-    exchange_gain_loss_account = frappe.get_cached_value(
-        'Company',
-        sales_invoice.company,
-        'exchange_gain_loss_account'
-    )
+    # Si se pasa un cuenta, se usa esa. Si no, se busca la predeterminada.
+    exchange_gain_loss_account = account
+
+    if not exchange_gain_loss_account:
+        accounts = frappe.get_cached_value(
+            "Company",
+            sales_invoice.company,
+            [
+                "unrealized_profit_loss_account",
+                "unrealized_exchange_gain_loss_account",
+                "exchange_gain_loss_account",
+            ],
+            as_dict=True,
+        )
+
+        primary_account = (
+            accounts.unrealized_profit_loss_account
+            if outstanding > 0
+            else accounts.unrealized_exchange_gain_loss_account
+        )
+
+        exchange_gain_loss_account = primary_account or accounts.exchange_gain_loss_account
 
     if not exchange_gain_loss_account:
         frappe.throw(
