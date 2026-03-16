@@ -168,7 +168,8 @@ def validate_tax_id_format(doc):
         doc.tax_id = cleaned_id
         number = cleaned_id
     elif is_dea:
-        cleaned_id = re.sub(r'[^a-zA-Z0-9]', '', doc.tax_id or '').upper()
+        original_tax_id = doc.tax_id
+        cleaned_id = re.sub(r'[^a-zA-Z0-9]', '', original_tax_id or '').upper()
         doc.tax_id = cleaned_id
 
         if not cleaned_id:
@@ -177,7 +178,7 @@ def validate_tax_id_format(doc):
         # Match formats like OD12345678, DEAOD12345678, O12345678, etc.
         match = re.match(r'^(DEA)?(OD|OC|PD|PC|O|P|D)?(\d+)$', cleaned_id)
         if not match:
-             frappe.throw(_("El Código DEA '{0}' no es válido. Debe contener números y puede incluir prefijos como OD, OC, PD, PC, O o DEA.").format(doc.tax_id))
+             frappe.throw(_("El Código DEA '{0}' no es válido. Debe contener números y puede incluir prefijos como OD, OC, PD, PC, O o DEA.").format(original_tax_id))
 
         number = match.group(3)
 

@@ -89,7 +89,14 @@ function build_tax_id(frm) {
     }
     full_tax_id = passport_number;
   } else if (document_type === "DEA") {
-    full_tax_id = tax_id_value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const cleaned_id = tax_id_value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const match = cleaned_id.match(/^(DEA)?(OD|OC|PD|PC|O|P|D)?/);
+    const prefix = match ? match[0] : "";
+    let number_part = cleaned_id.substring(prefix.length).replace(/\D/g, "");
+    if (max_length && number_part.length > max_length) {
+      number_part = number_part.substring(0, max_length);
+    }
+    full_tax_id = prefix + number_part;
   } else {
     // Lógica para Cédula y RIF
     const letter = nature.charAt(0).toUpperCase();
