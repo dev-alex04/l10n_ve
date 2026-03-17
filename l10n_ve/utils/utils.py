@@ -54,7 +54,7 @@ def validate_taxpayer_and_person_type_consistency(doc):
     if not nature or not person_type:
         return
 
-    legal_entities_nature = ["Juridical", "Government", "Communal"]
+    legal_entities_nature = ["Juridical", "Government", "Communal", "Educational"]
     natural_persons_nature = ["Venezuelan", "Extranjero", "Passport"]
 
     is_legal_nature = nature in legal_entities_nature
@@ -79,7 +79,7 @@ def validate_taxpayer_and_person_type_consistency(doc):
     if is_legal_person_type and not is_legal_nature:
         frappe.throw(_("Con el Tipo de Persona '{0}'," \
         " la Naturaleza del Contribuyente debe ser Jurídico," \
-        " Gubernamental o Comunal.").format(person_type))
+        " Gubernamental, Comunal o Educativo.").format(person_type))
 
     if is_natural_person_type and not is_natural_nature:
         frappe.throw(_("Con el Tipo de Persona '{0}', " \
@@ -96,7 +96,8 @@ def get_tax_id_config(document_type: str, nature: str) -> int:
         },
         'Passport': {
             'Extranjero': [5,12],
-        }
+        },
+        'DEA': {'default': 8}
     }
     doc_config = config.get(document_type, config['RIF'])
     return doc_config.get(nature, doc_config.get('default'))
@@ -159,12 +160,28 @@ def validate_tax_id_format(doc):
         return
 
     is_passport = doc.meta.has_field("type_of_document") and doc.type_of_document == 'Passport'
+    is_dea = doc.meta.has_field("type_of_document") and doc.type_of_document == 'DEA'
 
     if is_passport:
 
         cleaned_id = re.sub(r'[^a-zA-Z0-9]', '', doc.tax_id).upper()
         doc.tax_id = cleaned_id
         number = cleaned_id
+    elif is_dea:
+        original_tax_id = doc.tax_id
+        cleaned_id = re.sub(r'[^a-zA-Z0-9]', '', original_tax_id or '').upper()
+        doc.tax_id = cleaned_id
+
+        if not cleaned_id:
+            return
+
+        # Match formats like OD12345678, DEAOD12345678, O12345678, etc.
+        match = re.match(r'^(DEA)?(OD|OC|PD|PC|O|P|D)?(\d+)$', cleaned_id)
+        if not match:
+             frappe.throw(_("El Código DEA '{0}' no es válido. Debe contener números y puede incluir prefijos como OD, OC, PD, PC, O o DEA.").format(original_tax_id))
+
+        number = match.group(3)
+
     else:
 
         cleaned_id = re.sub(r'[^a-zA-Z0-9]', '', doc.tax_id or '').upper()

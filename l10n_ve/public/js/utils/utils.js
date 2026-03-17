@@ -1,4 +1,4 @@
-const RIF_LEGAL_NATURES = ["Juridical", "Government", "Communal"];
+const RIF_LEGAL_NATURES = ["Juridical", "Government", "Communal", "Educational"];
 const RIF_NATURAL_NATURES = ["Venezuelan", "Extranjero", "Passport"];
 
 /**
@@ -15,6 +15,7 @@ function get_tax_id_config(document_type, nature) {
     Passport: {
       default: [8, 9],
     },
+    DEA: { default: 8 },
   };
 
   const doc_config = config[document_type] || config["RIF"];
@@ -29,6 +30,11 @@ function handle_field_change(frm, fieldname) {
   if (fieldname === "type_of_document") {
     frm.set_value("nature_of_the_taxpayer", "");
     frm.set_value("type_of_person", "");
+
+    if (frm.doc.type_of_document === "DEA") {
+      frm.set_value("nature_of_the_taxpayer", "Educational");
+      frm.set_value("type_of_person", "Domiciled legal entity");
+    }
   }
 
   set_nature_filter(frm);
@@ -82,6 +88,15 @@ function build_tax_id(frm) {
       passport_number = passport_number.substring(0, max_length);
     }
     full_tax_id = passport_number;
+  } else if (document_type === "DEA") {
+    const cleaned_id = tax_id_value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const match = cleaned_id.match(/^(DEA)?(OD|OC|PD|PC|O|P|D)?/);
+    const prefix = match ? match[0] : "";
+    let number_part = cleaned_id.substring(prefix.length).replace(/\D/g, "");
+    if (max_length && number_part.length > max_length) {
+      number_part = number_part.substring(0, max_length);
+    }
+    full_tax_id = prefix + number_part;
   } else {
     // Lógica para Cédula y RIF
     const letter = nature.charAt(0).toUpperCase();
@@ -133,6 +148,8 @@ function set_person_type_filter(frm) {
       "Natural person domiciled",
       "Non-domiciled natural person",
     ];
+  } else if (doc_type === "DEA") {
+    allowed_person_types = ["Domiciled legal entity"];
   } else if (RIF_LEGAL_NATURES.includes(nature)) {
     allowed_person_types = [
       "Domiciled legal entity",
@@ -172,6 +189,9 @@ function set_nature_filter(frm) {
   } else if (doc_type === "Passport") {
     allowed_natures = ["Extranjero"];
     frm.set_value("nature_of_the_taxpayer", "Extranjero");
+  } else if (doc_type === "DEA") {
+    allowed_natures = ["Educational"];
+    frm.set_value("nature_of_the_taxpayer", "Educational");
   } else {
     // Para RIF u otros, permitir todas las opciones
     allowed_natures = RIF_LEGAL_NATURES.concat(RIF_NATURAL_NATURES);

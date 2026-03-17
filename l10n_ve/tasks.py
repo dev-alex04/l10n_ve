@@ -17,9 +17,13 @@ BCV_USER_AGENT = (
 def create_currency_exchange() -> None:
     """
     Obtiene las tasas de cambio del BCV y crea/actualiza Currency Exchange.
-    Estrategia: API externa → web scraping → error.
+    Estrategia: BCV/SENIAT → API externa → web scraping → error.
     """
-    rates_data = _fetch_rates_from_api() or _fetch_rates_from_scraping()
+    rates_data = (
+        _fetch_rates_from_bcv_seniat()
+        or _fetch_rates_from_api()
+        or _fetch_rates_from_scraping()
+    )
 
     if not rates_data:
         frappe.log_error(
@@ -29,6 +33,65 @@ def create_currency_exchange() -> None:
         return
 
     _process_rates(rates_data)
+
+
+CURRENCY_SWIFT_CODES = ("USD", "EUR")
+
+
+def _fetch_rates_from_bcv_seniat() -> dict | None:
+    """Obtiene las tasas de cambio desde la API oficial del BCV/SENIAT."""
+    bcv_seniat_endpoint = (
+        frappe.get_site_config().get("bcv_seniat_endpoint")
+        or "https://tcseniat.extra.bcv.org.ve/tcseniat/resources/TipoCambio/fechaOperacion"
+    )
+
+    try:
+        response = requests.get(
+            bcv_seniat_endpoint,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": BCV_USER_AGENT,
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        mercado = next(iter(data.get("MERCADO", [])), {})
+        fecha_valor = mercado.get("FECHAVALOR")
+        monedas = mercado.get("MONEDA", [])
+
+        if not fecha_valor or not monedas:
+            frappe.log_error(
+                "BCV SENIAT Error",
+                f"Respuesta incompleta del BCV/SENIAT. Datos: {data}"
+            )
+            return None
+
+        rates = {}
+        for moneda in monedas:
+            swift = moneda.get("SWIFT")
+            if swift in CURRENCY_SWIFT_CODES:
+                rates[swift] = "{:.8f}".format(flt(moneda.get("BDVENTAASK", 0)))
+
+        if not rates:
+            frappe.log_error(
+                "BCV SENIAT Error",
+                f"No se encontraron tasas para {CURRENCY_SWIFT_CODES}."
+            )
+            return None
+
+        return {
+            "date": fecha_valor[:10],
+            "rates": rates,
+        }
+
+    except requests.exceptions.RequestException as e:
+        frappe.log_error(
+            "BCV SENIAT Error",
+            f"Error al obtener tasas del BCV/SENIAT: {e}"
+        )
+        return None
 
 
 def _fetch_rates_from_api() -> dict | None:
