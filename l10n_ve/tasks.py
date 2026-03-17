@@ -1,11 +1,8 @@
 import requests
-import urllib3
 from bs4 import BeautifulSoup
 
 import frappe
 from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 BCV_URL = "https://www.bcv.org.ve/"
@@ -43,9 +40,10 @@ CURRENCY_SWIFT_CODES = ("USD", "EUR")
 
 def _fetch_rates_from_bcv_seniat() -> dict | None:
     """Obtiene las tasas de cambio desde la API oficial del BCV/SENIAT."""
-    bcv_seniat_endpoint = frappe.get_site_config().get("bcv_seniat_endpoint") \
+    bcv_seniat_endpoint = (
+        frappe.get_site_config().get("bcv_seniat_endpoint")
         or "https://tcseniat.extra.bcv.org.ve/tcseniat/resources/TipoCambio/fechaOperacion"
-
+    )
 
     try:
         response = requests.get(
@@ -54,7 +52,6 @@ def _fetch_rates_from_bcv_seniat() -> dict | None:
                 "Accept": "application/json",
                 "User-Agent": BCV_USER_AGENT,
             },
-            verify=False,
             timeout=15,
         )
         response.raise_for_status()
@@ -89,7 +86,7 @@ def _fetch_rates_from_bcv_seniat() -> dict | None:
             "rates": rates,
         }
 
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         frappe.log_error(
             "BCV SENIAT Error",
             f"Error al obtener tasas del BCV/SENIAT: {e}"
