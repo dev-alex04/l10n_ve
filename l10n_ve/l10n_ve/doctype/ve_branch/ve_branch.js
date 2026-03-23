@@ -46,10 +46,25 @@ frappe.ui.form.on("VE Branch", {
         }
       };
     });
+
+    frm.set_query("municipality", function () {
+      if (!frm.doc.state) {
+        frappe.msgprint(__("Por favor, seleccione un Estado primero"));
+      }
+      return {
+        filters: {
+          "state": frm.doc.state
+        }
+      };
+    });
   },
 
   is_group(frm) {
     frm.trigger("setup_fields");
+  },
+
+  state: function (frm) {
+    frm.set_value("municipality", "");
   },
 
   parent_ve_branch(frm) {

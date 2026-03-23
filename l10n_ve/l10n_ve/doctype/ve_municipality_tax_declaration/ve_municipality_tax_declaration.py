@@ -263,3 +263,18 @@ def get_company_details_for_declaration(company_name: str) -> dict:
                                                             "municipality")
 
     return details
+
+
+@frappe.whitelist()
+def get_branch_details(branch_name):
+    data = frappe.db.sql("""
+        SELECT 
+            m.municipality as municipality, 
+            s.state as state
+        FROM `tabVE Branch` b
+        JOIN `tabVE Municipality` m ON b.municipality = m.name
+        JOIN `tabVE State` s ON b.state = s.name
+        WHERE b.branch_name = %s
+    """, (branch_name,), as_dict=1)
+
+    return data[0] if data else {}
