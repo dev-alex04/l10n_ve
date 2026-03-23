@@ -269,7 +269,8 @@ def get_company_details_for_declaration(company_name: str) -> dict:
 def get_branch_details(branch_name):
     data = frappe.db.sql("""
         SELECT 
-            m.municipality as municipality, 
+            m.municipality as municipality,
+            m.name as municipality_id,
             s.state as state
         FROM `tabVE Branch` b
         JOIN `tabVE Municipality` m ON b.municipality = m.name
