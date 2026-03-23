@@ -3240,5 +3240,20 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "doc_type": "Party Type",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocType",
+        "field_name": null,
+        "is_system_generated": 0,
+        "modified": "2025-09-12 10:00:00",
+        "module": "l10n_ve",
+        "name": "Party Type-translated_doctype",
+        "property": "translated_doctype",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
     }
 ]

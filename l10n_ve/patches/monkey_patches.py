@@ -78,6 +78,23 @@ except ImportError as e:
     print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.reports.address_and_contacts. Error: {e}")
     frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.reports.address_and_contacts')
 
+try:
+    import l10n_ve.patches.reports.balance_sheet
+except ImportError as e:
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.reports.balance_sheet. Error: {e}")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.reports.balance_sheet')
+
+try:
+    import l10n_ve.patches.reports.party_ledger_summary
+except ImportError as e:
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.reports.party_ledger_summary. Error: {e}")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.reports.party_ledger_summary')
+
+try:
+    import l10n_ve.patches.reports.receivable_payable
+except ImportError as e:
+    print(f"FAILURE!!!: Ocurrió cargando el parche l10n_ve.patches.reports.receivable_payable. Error: {e}")
+    frappe.log_error(frappe.get_traceback(), 'cargando l10n_ve.patches.reports.receivable_payable')
 
 def apply_post_db_patches() -> None:
     try:
