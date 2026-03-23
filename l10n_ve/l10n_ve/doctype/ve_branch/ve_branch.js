@@ -37,6 +37,15 @@ frappe.ui.form.on("VE Branch", {
         },
       };
     });
+
+    frm.set_query("cost_center", function () {
+      return {
+        filters: {
+          "is_group": 0,
+          "company": frm.doc.company
+        }
+      };
+    });
   },
 
   is_group(frm) {
