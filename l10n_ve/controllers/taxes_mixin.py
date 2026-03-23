@@ -2,6 +2,7 @@ import frappe
 from frappe import _, _dict
 
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
+from frappe.utils import flt
 
 
 class TaxesMixin:
@@ -36,6 +37,7 @@ class TaxesMixin:
         super().set_taxes_and_charges()
 
         self.set_tax_withholding_ve()
+        self.set_islr_withholding_ve()
 
     def calculate_taxes_and_totals(self) -> None:
         taxes_and_totals_calculator = TaxesAndTotals(self)
@@ -102,3 +104,57 @@ class TaxesMixin:
         ]
 
         self.append("taxes", withholding)
+
+    def set_islr_withholding_ve(self) -> None:
+        """Agrega retención ISLR a la tabla de impuestos para Sales Invoice."""
+        if self.doctype not in ("Sales Invoice",):
+            return
+
+        tabulator_name: str = frappe.db.get_value(
+            "Customer", self.customer, "tabulator_islr"
+        ) or ""
+        if not tabulator_name:
+            return
+
+        islr_account: str = frappe.get_cached_value(
+            "Company", self.company, "sales_islr_account"
+        ) or ""
+        if not islr_account:
+            return
+
+        tabulator = frappe.get_cached_doc("Tabulator ISLR", tabulator_name)
+        if not tabulator.aliquot:
+            return
+        aliquot_info = tabulator.aliquot[0]
+
+        if not aliquot_info:
+            return
+
+        base_amount: float = flt(self.total)
+        tax_base: float = flt(base_amount * flt(aliquot_info.percentage_base) / 100, 2)
+        islr_amount: float = flt(
+            (tax_base * flt(aliquot_info.aliquot) / 100) - flt(aliquot_info.subtracting), 2
+        )
+
+        if islr_amount <= 0:
+            return
+
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if tax.get("charge_type") != "ISLR"
+        ]
+
+        description: str = f"ISLR {tabulator_name} {tabulator.description} ({flt(aliquot_info.aliquot)}%)"
+        if self.doctype == "Sales Invoice" and self.is_return and self.return_against:
+            description += f" por Nota de Crédito contra factura {self.affected_invoice_number}"
+
+        self.append("taxes", _dict({
+            "charge_type": "ISLR",
+            "category": "Total",
+            "add_deduct_tax": "Deduct",
+            "description": description,
+            "is_tax_withholding_account": True,
+            "account_head": islr_account,
+            "tax_amount": islr_amount,
+            "base_tax_amount": islr_amount,
+        }))
