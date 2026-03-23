@@ -67,15 +67,15 @@ class TaxesMixin:
                 return
 
             withholding_category_name: str = frappe.db.get_value(
-                "Company",
-                self.company,
+                "Customer",
+                self.customer,
                 "tax_withholding_category")
 
         if not withholding_category_name:
             return
 
-        withholding_category = frappe.get_doc("Tax Withholding Category",
-                                              withholding_category_name)
+        withholding_category = frappe.get_cached_doc("Tax Withholding Category",
+                                                      withholding_category_name)
 
         withholding: _dict = withholding_category.get_withholding(self.company,
                                                                   self.doctype)
