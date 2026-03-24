@@ -1,75 +1,64 @@
 frappe.ui.form.on('Address', {
-    refresh: function(frm) {
+    refresh: function (frm) {
         reorganize_address_fields(frm);
         filter_data(frm);
         get_address_name(frm);
     },
 
-    phone: function(frm) {
+    phone: function (frm) {
         let phone_value = frm.doc.phone;
 
         if (phone_value) {
-            let clean_phone = phone_value.replace(/[^0-9]/g, '');
+            let formatted_value = phone_value.replace(/[^\d+]/g, "");
 
-            if (clean_phone.length > 11) {
-                clean_phone = clean_phone.substring(0, 11);
-
-                frappe.show_alert({
-                    message: __("El número de teléfono debe tener un máximo de 11 dígitos."),
-                    indicator: 'orange'
-                }, 3);
+            if (formatted_value.lastIndexOf("+") > 0) {
+                formatted_value = formatted_value[0] + formatted_value.substring(1).replace(/\+/g, "");
             }
 
-            if (frm.doc.phone !== clean_phone) {
-                frm.set_value('phone', clean_phone);
+            if (formatted_value.length > 25) {
+                formatted_value = formatted_value.substring(0, 25);
+            }
+
+            if (frm.doc.phone !== formatted_value) {
+                frm.set_value('phone', formatted_value);
             }
         }
     },
 
-    before_save: function(frm) {
+    before_save: function (frm) {
         validate_phone(frm);
         get_address_name(frm);
     },
 
-    country: function(frm) {
+    country: function (frm) {
         frm.set_value('state', null);
         frm.set_value('city', null);
         frm.set_value('county', null);
         frm.set_value('parish', null);
     },
 
-    state: function(frm) {
+    state: function (frm) {
         frm.set_value('city', null);
         frm.set_value('county', null);
         frm.set_value('parish', null);
     },
 
-    county: function(frm) {
+    county: function (frm) {
         frm.set_value('parish', null);
     },
 });
 
 function validate_phone(frm) {
-    let phone = frm.doc.phone;
+    const phone = frm.doc.phone;
+    if (!phone) return;
 
-    if (phone) {
-        let clean_phone = phone.replace(/[^0-9]/g, '');
-
-        if (clean_phone !== phone) {
-            frappe.throw({
-                message: __("El campo Teléfono solo puede contener números (0-9)."),
-                title: __("Error de Validación de Teléfono"),
-                field: 'phone'
-            });
-        }
-
-        if (clean_phone.length !== 11) {
-            frappe.throw({
-                message: __("El número de teléfono debe tener exactamente 11 dígitos."),
-                title: __("Error de Validación de Teléfono"),
-                field: 'phone'
-            });
-        }
+    const phone_regex = /^\+?\d{7,20}$/;
+    if (!phone_regex.test(phone)) {
+        frappe.throw({
+            message: __("El número de teléfono debe contener entre 7 y 20 dígitos.\nSolo puede incluir números y el signo '+' al principio."),
+            title: __("Error de Validación de Teléfono"),
+            field: 'phone'
+        });
     }
 }
 
@@ -104,34 +93,34 @@ function get_conditional_filter(filter_key, selected_value) {
 }
 
 function filter_data(frm) {
-    frm.set_query('state', function() {
+    frm.set_query('state', function () {
         return get_conditional_filter('country', frm.doc.country);
     });
 
-    frm.set_query('county', function() {
+    frm.set_query('county', function () {
         return get_conditional_filter('state', frm.doc.state);
     });
 
-    frm.set_query('parish', function() {
+    frm.set_query('parish', function () {
         return get_conditional_filter('municipality', frm.doc.county);
     });
 
-    frm.set_query('city', function() {
+    frm.set_query('city', function () {
         return get_conditional_filter('state', frm.doc.state);
     });
 }
 
 function reorganize_address_fields(frm) {
-  const address_line1_field_wrapper = frm.get_field("address_line1").$wrapper;
-  const country_field_wrapper = frm.get_field("country").$wrapper;
-  const state_field_wrapper = frm.get_field("state").$wrapper;
-  const city_field_wrapper = frm.get_field("city").$wrapper;
-  const county_field_wrapper = frm.get_field("county").$wrapper;
-  const parish_field_wrapper = frm.get_field("parish").$wrapper;
+    const address_line1_field_wrapper = frm.get_field("address_line1").$wrapper;
+    const country_field_wrapper = frm.get_field("country").$wrapper;
+    const state_field_wrapper = frm.get_field("state").$wrapper;
+    const city_field_wrapper = frm.get_field("city").$wrapper;
+    const county_field_wrapper = frm.get_field("county").$wrapper;
+    const parish_field_wrapper = frm.get_field("parish").$wrapper;
 
-  country_field_wrapper.insertAfter(address_line1_field_wrapper);
-  state_field_wrapper.insertAfter(country_field_wrapper);
-  city_field_wrapper.insertAfter(state_field_wrapper);
-  county_field_wrapper.insertAfter(city_field_wrapper);
-  parish_field_wrapper.insertAfter(county_field_wrapper);
+    country_field_wrapper.insertAfter(address_line1_field_wrapper);
+    state_field_wrapper.insertAfter(country_field_wrapper);
+    city_field_wrapper.insertAfter(state_field_wrapper);
+    county_field_wrapper.insertAfter(city_field_wrapper);
+    parish_field_wrapper.insertAfter(county_field_wrapper);
 }

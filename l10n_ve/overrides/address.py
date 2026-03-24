@@ -64,11 +64,8 @@ class CustomAddress(Address):
         phone = self.phone
 
         if phone:
-            if not re.match(r'^[0-9]+$', phone):
-                frappe.throw(_("El campo Teléfono solo puede contener números (0-9)."))
-
-            if len(phone) != 11:
-                frappe.throw(_("El número de teléfono debe tener exactamente 11 dígitos."))
+            if not re.match(r'^\+?\d{7,20}$', phone):
+                frappe.throw(_("El número de teléfono debe contener entre 7 y 20 dígitos.\nSolo puede incluir números y el signo '+' al principio."))
 
     def validate_address(self) -> None:
         links = self.links
