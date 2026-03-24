@@ -9,7 +9,7 @@ frappe.ui.form.on('Address', {
         let phone_value = frm.doc.phone;
 
         if (phone_value) {
-            let formatted_value = phone_value.replace(/[^\d+\s\-()]/g, "");
+            let formatted_value = phone_value.replace(/[^\d+]/g, "");
 
             if (formatted_value.lastIndexOf("+") > 0) {
                 formatted_value = formatted_value[0] + formatted_value.substring(1).replace(/\+/g, "");
@@ -52,47 +52,10 @@ function validate_phone(frm) {
     const phone = frm.doc.phone;
     if (!phone) return;
 
-    let clean_phone = phone.replace(/[\s\-()]/g, "");
-
-    if (!/^\+?\d{10,15}$/.test(clean_phone)) {
+    const phone_regex = /^\+?\d{7,20}$/;
+    if (!phone_regex.test(phone)) {
         frappe.throw({
-            message: __("El número de teléfono debe contener entre 10 y 15 dígitos. Puede incluir símbolos como (), -, espacios y el prefijo internacional (+)."),
-            title: __("Error de Validación de Teléfono"),
-            field: 'phone'
-        });
-    }
-
-    let normalized = clean_phone;
-    if (normalized.startsWith("+58")) {
-        normalized = "0" + normalized.substring(3);
-    } else if (normalized.startsWith("58") && normalized.length > 10) {
-        normalized = "0" + normalized.substring(2);
-    }
-
-    if (normalized.startsWith("04")) {
-        const VENEZUELAN_MOBILE_PREFIXES = ["0412", "0414", "0416", "0424", "0426", "0422"];
-        const mobile_regex = new RegExp(`^(${VENEZUELAN_MOBILE_PREFIXES.join("|")})\\d{7}$`);
-        if (!mobile_regex.test(normalized)) {
-            frappe.throw({
-                message: __("Los números de celular venezolanos (04xx) deben tener exactamente 11 dígitos y un prefijo válido."),
-                title: __("Error de Validación de Teléfono"),
-                field: 'phone'
-            });
-        }
-    }
-
-    // Validar prefijos locales venezolanos (02...)
-    if (normalized.startsWith("02")) {
-        if (normalized.length < 10) {
-            frappe.throw({
-                message: __("Los números locales (02xx) deben tener al menos 10 dígitos."),
-                title: __("Error de Validación de Teléfono"),
-                field: 'phone'
-            });
-        }
-    } else if (normalized.startsWith("0")) {
-        frappe.throw({
-            message: __("El número de teléfono no es un formato venezolano (02xx, 04xx) ni internacional válido."),
+            message: __("El número de teléfono debe contener entre 7 y 20 dígitos.\nSolo puede incluir números y el signo '+' al principio."),
             title: __("Error de Validación de Teléfono"),
             field: 'phone'
         });
