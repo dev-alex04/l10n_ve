@@ -33,6 +33,14 @@ frappe.ui.form.on("Item", {
   },
 
   refresh: function (frm) {
+    frm.set_query("economic_activity", function () {
+      return {
+        filters: {
+          "is_group": 0
+        }
+      };
+    });
+
     const is_saved = !frm.is_new();
     frm.toggle_display("price_sales", is_saved);
     frm.toggle_display("price_purchase", is_saved);
