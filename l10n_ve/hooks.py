@@ -126,14 +126,15 @@ doctype_js = {
     "Installation Note": [
          "public/js/doctype/installation_note/installation_note.js"
     ],
-    
+
 }
 
 doctype_list_js = {
+    "Project": "public/js/doctype/project/project_list.js",
     "Sales Invoice": "public/js/doctype/sales_invoice/sales_invoice_list.js",
+    "Journal Entry": "public/js/doctype/journal_entry/journal_entry_list.js",
     "Purchase Invoice": "public/js/doctype/purchase_invoice/purchase_invoice_list.js",
     "Currency Exchange": "public/js/doctype/currency_exchange/currency_exchange_list.js",
-    "Project": "public/js/doctype/project/project_list.js",
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
