@@ -64,13 +64,11 @@ class CustomAddress(Address):
         phone = self.phone
 
         if phone:
-            # Limpiar símbolos decorativos para la validación
             clean_phone = re.sub(r'[\s\-()]', '', phone)
 
             if not re.match(r'^\+?\d{10,15}$', clean_phone):
                 frappe.throw(_("El número de teléfono debe contener entre 10 y 15 dígitos y solo puede incluir símbolos como (), -, espacios o el signo '+' al principio."))
 
-            # Normalizar para prefijos venezolanos (convertir +58 o 58 a 0)
             normalized = clean_phone
             if normalized.startswith("+58"):
                 normalized = "0" + normalized[3:]
