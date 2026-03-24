@@ -316,11 +316,18 @@ function realtime_numeric_validation(frm, fieldname) {
 
 function format_phone_input(value) {
   if (!value) return "";
-  let numeric_value = value.replace(/\D/g, "");
-  if (numeric_value.length > 11) {
-    numeric_value = numeric_value.substring(0, 11);
+  let formatted_value = value.replace(/[^\d+\s\-()]/g, "");
+
+  if (formatted_value.lastIndexOf("+") > 0) {
+    formatted_value =
+      formatted_value[0] +
+      formatted_value.substring(1).replace(/\+/g, "");
   }
-  return numeric_value;
+
+  if (formatted_value.length > 25) {
+    formatted_value = formatted_value.substring(0, 25);
+  }
+  return formatted_value;
 }
 
 function setup_venezuelan_phone_validation(frm, fieldname) {
@@ -350,9 +357,7 @@ const VENEZUELAN_MOBILE_PREFIXES = [
 function is_valid_venezuelan_phone(phone_no) {
   if (!phone_no) return true;
 
-  const phone_regex = new RegExp(
-    `^(${VENEZUELAN_MOBILE_PREFIXES.join("|")})\\d{7}$`,
-  );
+  const phone_regex = /^\+?[\d\s\-()]{7,25}$/;
   return phone_regex.test(phone_no);
 }
 
@@ -362,8 +367,7 @@ function validate_venezuelan_phone(frm, fieldname) {
     frappe.throw({
       title: __("Número de Teléfono Inválido"),
       message: __(
-        "El número de teléfono debe tener 11 dígitos y comenzar con uno de los siguientes prefijos: {0}",
-        [VENEZUELAN_MOBILE_PREFIXES.join(", ")],
+        "El número de teléfono debe contener entre 7 y 25 caracteres.\nPuede incluir números, espacios, guiones, paréntesis y el signo '+' al principio.",
       ),
       indicator: "red",
     });
@@ -517,8 +521,7 @@ function _get_address_dialog(frm, existing_address_name) {
         frappe.msgprint({
           title: __("Número de Teléfono Inválido"),
           message: __(
-            "El número de teléfono debe tener 11 dígitos y comenzar con uno de los siguientes prefijos: {0}",
-            [VENEZUELAN_MOBILE_PREFIXES.join(", ")],
+            "El número de teléfono debe contener entre 7 y 25 caracteres.\nPuede incluir números, espacios, guiones, paréntesis y el signo '+' al principio.",
           ),
           indicator: "red",
         });
