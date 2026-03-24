@@ -1,18 +1,16 @@
 frappe.ui.form.on('Address', {
-    refresh: function(frm) {
+    refresh: function (frm) {
         reorganize_address_fields(frm);
         filter_data(frm);
         get_address_name(frm);
     },
 
-    phone: function(frm) {
+    phone: function (frm) {
         let phone_value = frm.doc.phone;
 
         if (phone_value) {
-            // Permitir símbolos de formato e internacional
             let formatted_value = phone_value.replace(/[^\d+\s\-()]/g, "");
 
-            // Asegurar que el signo + solo esté al principio
             if (formatted_value.indexOf("+") > 0) {
                 formatted_value = formatted_value[0] + formatted_value.substring(1).replace(/\+/g, "");
             }
@@ -27,25 +25,25 @@ frappe.ui.form.on('Address', {
         }
     },
 
-    before_save: function(frm) {
+    before_save: function (frm) {
         validate_phone(frm);
         get_address_name(frm);
     },
 
-    country: function(frm) {
+    country: function (frm) {
         frm.set_value('state', null);
         frm.set_value('city', null);
         frm.set_value('county', null);
         frm.set_value('parish', null);
     },
 
-    state: function(frm) {
+    state: function (frm) {
         frm.set_value('city', null);
         frm.set_value('county', null);
         frm.set_value('parish', null);
     },
 
-    county: function(frm) {
+    county: function (frm) {
         frm.set_value('parish', null);
     },
 });
@@ -54,10 +52,8 @@ function validate_phone(frm) {
     const phone = frm.doc.phone;
     if (!phone) return;
 
-    // Limpiar símbolos decorativos para la validación
     let clean_phone = phone.replace(/[\s\-()]/g, "");
 
-    // Validar formato base (10-15 dígitos, opcional + al inicio)
     if (!/^\+?\d{10,15}$/.test(clean_phone)) {
         frappe.throw({
             message: __("El número de teléfono debe contener entre 10 y 15 dígitos. Puede incluir símbolos como (), -, espacios y el prefijo internacional (+)."),
@@ -66,7 +62,6 @@ function validate_phone(frm) {
         });
     }
 
-    // Normalizar para prefijos venezolanos (convertir +58 o 58 a 0)
     let normalized = clean_phone;
     if (normalized.startsWith("+58")) {
         normalized = "0" + normalized.substring(3);
@@ -74,7 +69,6 @@ function validate_phone(frm) {
         normalized = "0" + normalized.substring(2);
     }
 
-    // Validar prefijos de celular venezolanos (04...)
     if (normalized.startsWith("04")) {
         const VENEZUELAN_MOBILE_PREFIXES = ["0412", "0414", "0416", "0424", "0426", "0422"];
         const mobile_regex = new RegExp(`^(${VENEZUELAN_MOBILE_PREFIXES.join("|")})\\d{7}$`);
@@ -88,9 +82,17 @@ function validate_phone(frm) {
     }
 
     // Validar prefijos locales venezolanos (02...)
-    if (normalized.startsWith("02") && normalized.length < 10) {
+    if (normalized.startsWith("02")) {
+        if (normalized.length < 10) {
+            frappe.throw({
+                message: __("Los números locales (02xx) deben tener al menos 10 dígitos."),
+                title: __("Error de Validación de Teléfono"),
+                field: 'phone'
+            });
+        }
+    } else if (normalized.startsWith("0")) {
         frappe.throw({
-            message: __("Los números locales (02xx) deben tener al menos 10 dígitos."),
+            message: __("El número de teléfono no es un formato venezolano (02xx, 04xx) ni internacional válido."),
             title: __("Error de Validación de Teléfono"),
             field: 'phone'
         });
@@ -128,34 +130,34 @@ function get_conditional_filter(filter_key, selected_value) {
 }
 
 function filter_data(frm) {
-    frm.set_query('state', function() {
+    frm.set_query('state', function () {
         return get_conditional_filter('country', frm.doc.country);
     });
 
-    frm.set_query('county', function() {
+    frm.set_query('county', function () {
         return get_conditional_filter('state', frm.doc.state);
     });
 
-    frm.set_query('parish', function() {
+    frm.set_query('parish', function () {
         return get_conditional_filter('municipality', frm.doc.county);
     });
 
-    frm.set_query('city', function() {
+    frm.set_query('city', function () {
         return get_conditional_filter('state', frm.doc.state);
     });
 }
 
 function reorganize_address_fields(frm) {
-  const address_line1_field_wrapper = frm.get_field("address_line1").$wrapper;
-  const country_field_wrapper = frm.get_field("country").$wrapper;
-  const state_field_wrapper = frm.get_field("state").$wrapper;
-  const city_field_wrapper = frm.get_field("city").$wrapper;
-  const county_field_wrapper = frm.get_field("county").$wrapper;
-  const parish_field_wrapper = frm.get_field("parish").$wrapper;
+    const address_line1_field_wrapper = frm.get_field("address_line1").$wrapper;
+    const country_field_wrapper = frm.get_field("country").$wrapper;
+    const state_field_wrapper = frm.get_field("state").$wrapper;
+    const city_field_wrapper = frm.get_field("city").$wrapper;
+    const county_field_wrapper = frm.get_field("county").$wrapper;
+    const parish_field_wrapper = frm.get_field("parish").$wrapper;
 
-  country_field_wrapper.insertAfter(address_line1_field_wrapper);
-  state_field_wrapper.insertAfter(country_field_wrapper);
-  city_field_wrapper.insertAfter(state_field_wrapper);
-  county_field_wrapper.insertAfter(city_field_wrapper);
-  parish_field_wrapper.insertAfter(county_field_wrapper);
+    country_field_wrapper.insertAfter(address_line1_field_wrapper);
+    state_field_wrapper.insertAfter(country_field_wrapper);
+    city_field_wrapper.insertAfter(state_field_wrapper);
+    county_field_wrapper.insertAfter(city_field_wrapper);
+    parish_field_wrapper.insertAfter(county_field_wrapper);
 }
