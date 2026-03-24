@@ -39,6 +39,9 @@ class TaxesMixin:
         self.set_tax_withholding_ve()
         self.set_islr_withholding_ve()
 
+        for i, tax in enumerate(self.taxes or [], start=1):
+            tax.idx = i
+
     def calculate_taxes_and_totals(self) -> None:
         taxes_and_totals_calculator = TaxesAndTotals(self)
         taxes_and_totals_calculator.calculate_total_exempt()
@@ -144,7 +147,7 @@ class TaxesMixin:
             if tax.get("charge_type") != "ISLR"
         ]
 
-        description: str = f"ISLR {tabulator_name} {tabulator.description} ({flt(aliquot_info.aliquot)}%)"
+        description: str = f"ISLR {tabulator_name} {tabulator.descripcion} ({flt(aliquot_info.aliquot)}%)"
         if self.doctype == "Sales Invoice" and self.is_return and self.return_against:
             description += f" por Nota de Crédito contra factura {self.affected_invoice_number}"
 
@@ -157,4 +160,7 @@ class TaxesMixin:
             "account_head": islr_account,
             "tax_amount": islr_amount,
             "base_tax_amount": islr_amount,
+            "rate": flt(aliquot_info.aliquot),
+            "percentage_base": flt(aliquot_info.percentage_base),
+            "subtracting": flt(aliquot_info.subtracting),
         }))

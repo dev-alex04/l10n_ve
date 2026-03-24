@@ -7602,7 +7602,8 @@
     "label": "Aplica IVA",
     "module": "Domina ISP",
     "name": "Customer-applies_vat",
-    "default": 1
+    "default": 1,
+    "hidden": 1
   },
   {
     "doctype": "Custom Field",

@@ -107,7 +107,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         if tax.is_tax_withholding_account:
 
             # Solo en ventas, se resta la retenciòn de IVA
-            if tax.charge_type == "VAT Withholding" \
+            if tax.charge_type in ("VAT Withholding", "ISLR") \
                     and self.doc.doctype in __SALES_DOCTYPES__:
 
                 # Se multiplica por -1 para forzar la resta
