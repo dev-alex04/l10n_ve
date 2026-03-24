@@ -316,7 +316,7 @@ function realtime_numeric_validation(frm, fieldname) {
 
 function format_phone_input(value) {
   if (!value) return "";
-  let formatted_value = value.replace(/[^\d+\s\-()]/g, "");
+  let formatted_value = value.replace(/[^\d+]/g, "");
 
   if (formatted_value.lastIndexOf("+") > 0) {
     formatted_value =
@@ -357,7 +357,7 @@ const VENEZUELAN_MOBILE_PREFIXES = [
 function is_valid_venezuelan_phone(phone_no) {
   if (!phone_no) return true;
 
-  const phone_regex = /^\+?[\d\s\-()]{7,25}$/;
+  const phone_regex = /^\+?\d{7,25}$/;
   return phone_regex.test(phone_no);
 }
 
@@ -367,7 +367,7 @@ function validate_venezuelan_phone(frm, fieldname) {
     frappe.throw({
       title: __("Número de Teléfono Inválido"),
       message: __(
-        "El número de teléfono debe contener entre 7 y 25 caracteres.\nPuede incluir números, espacios, guiones, paréntesis y el signo '+' al principio.",
+        "El número de teléfono debe contener entre 7 y 25 caracteres.\nSolo puede incluir números y el signo '+' al principio.",
       ),
       indicator: "red",
     });
@@ -521,7 +521,7 @@ function _get_address_dialog(frm, existing_address_name) {
         frappe.msgprint({
           title: __("Número de Teléfono Inválido"),
           message: __(
-            "El número de teléfono debe contener entre 7 y 25 caracteres.\nPuede incluir números, espacios, guiones, paréntesis y el signo '+' al principio.",
+            "El número de teléfono debe contener entre 7 y 25 caracteres.\nSolo puede incluir números y el signo '+' al principio.",
           ),
           indicator: "red",
         });
