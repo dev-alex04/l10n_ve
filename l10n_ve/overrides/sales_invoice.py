@@ -471,7 +471,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         )
 
         for tax in self.get("taxes"):
-            if tax.is_tax_withholding_account:
+            if tax.charge_type == 'VAT Withholding':
                 continue
 
             amount, base_amount = self.get_tax_amounts(tax, enable_discount_accounting)
@@ -512,7 +512,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         )
 
         for tax in self.get("taxes"):
-            if not tax.is_tax_withholding_account:
+            if tax.charge_type != 'VAT Withholding':
                 continue
 
             amount, base_amount = self.get_tax_amounts(tax, enable_discount_accounting)
