@@ -256,7 +256,7 @@ class VEBranch(NestedSet):
         return _dict(default_payment_mode.as_dict())
 
     def check_municipality_taxes(self):
-        exists = frappe.db.exists("Municipality Tax", {"municipality": self.municipality})
+        exists = frappe.db.exists("VE Municipality Taxes", {"municipality": self.municipality})
 
         if not exists:
             frappe.enqueue(

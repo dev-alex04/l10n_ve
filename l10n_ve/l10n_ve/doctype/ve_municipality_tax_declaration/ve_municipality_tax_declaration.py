@@ -53,14 +53,13 @@ class VEMunicipalityTaxDeclaration(Document):
         """
         Genera el nombre del documento basado en el mes y el año.
         """
-        company = self.company
-        month = self.declaration_month
-        year = self.declaration_year
-    
+        name_parts = ["Declaración Municipal"]
         if self.branch:
-            self.name = f"Declaración Municipal - {self.branch} - {company} - {month} - {year}"
-        else:
-            self.name = f"Declaración Municipal - {company} - {month} - {year}"
+            name_parts.append(self.branch)
+        
+        name_parts.extend([self.company, self.declaration_month, self.declaration_year])
+        
+        self.name = " - ".join(str(p) for p in name_parts if p)
 
     def validate(self) -> None:
         """
@@ -73,7 +72,8 @@ class VEMunicipalityTaxDeclaration(Document):
             "company": self.company,
             "declaration_month": self.declaration_month,
             "declaration_year": self.declaration_year,
-            "docstatus": 1
+            "branch": self.branch,
+            "docstatus": 1,
         })
         if existing_declaration:
             frappe.throw(
@@ -88,7 +88,8 @@ class VEMunicipalityTaxDeclaration(Document):
             "declaration_month": self.declaration_month,
             "declaration_year": self.declaration_year,
             "branch": self.branch,
-            "name": ["!=", self.name]
+            "name": ["!=", self.name],
+            "docstatus": ["!=", 2]
         })
 
         if duplicate_branch:
