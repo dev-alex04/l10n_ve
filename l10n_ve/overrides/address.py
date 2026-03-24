@@ -67,7 +67,8 @@ class CustomAddress(Address):
             clean_phone = re.sub(r'[\s\-()]', '', phone)
 
             if not re.match(r'^\+?\d{10,15}$', clean_phone):
-                frappe.throw(_("El número de teléfono debe contener entre 10 y 15 dígitos y solo puede incluir símbolos como (), -, espacios o el signo '+' al principio."))
+                frappe.throw(_("El número de teléfono debe contener entre 10 y"
+                "15 dígitos y solo puede incluir símbolos como (), -, espacios o el signo '+' al principio."))
 
             normalized = clean_phone
             if normalized.startswith("+58"):
@@ -76,7 +77,10 @@ class CustomAddress(Address):
                 normalized = "0" + normalized[2:]
 
             if normalized.startswith("04") and len(normalized) != 11:
-                frappe.throw(_("Los números de celular venezolanos (04xx) deben tener exactamente 11 dígitos (ej. 04141234567 o +58 414 123 45 67)."))
+                
+                frappe.throw(_("Los números de celular venezolanos (04xx) deben tener exactamente 11 dígitos (ej."
+                " 04141234567 o +58 414 123 45 67)."))
+                
             if normalized.startswith("04") and not re.match(r"^(0412|0414|0416|0424|0426|0422)\d{7}$", normalized):
                 frappe.throw(_("Los números de celular venezolanos (04xx) deben tener exactamente 11 dígitos y un prefijo válido."))
 
