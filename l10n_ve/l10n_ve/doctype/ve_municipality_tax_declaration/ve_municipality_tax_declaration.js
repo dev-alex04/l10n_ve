@@ -2,6 +2,11 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("VE Municipality Tax Declaration", {
+  validate: function (frm) {
+    if (frm.doc.is_branch_required && !frm.doc.branch) {
+      frappe.throw(__("Debe seleccionar una sucursal."));
+    }
+  },
   onload: function (frm) {
     currency_data_setting(frm);
     if (frm.is_new()) {
@@ -11,6 +16,7 @@ frappe.ui.form.on("VE Municipality Tax Declaration", {
   },
   refresh: function (frm) {
     add_declaration_upload_button(frm);
+    check_branch_required(frm);
   },
   currency: get_exchange_rate_for_declaration,
   declaration_date: get_exchange_rate_for_declaration,
@@ -39,6 +45,7 @@ frappe.ui.form.on("VE Municipality Tax Declaration", {
     }
     await get_company_data(frm);
     setup_triggers(frm);
+    check_branch_required(frm);
   },
   branch: function (frm) {
     frm.clear_table("municipality_declaration_data");
@@ -242,6 +249,7 @@ function get_invoice_activities(frm) {
         to_date: to_date,
         company: frm.doc.company,
         municipality: frm.doc.municipality_id,
+        branch: frm.doc.branch
       },
       callback: function (r) {
         frappe.dom.unfreeze();
@@ -409,4 +417,22 @@ function calculate_municipal_declaration_row_tax(parent_frm, row) {
   let tax_by_mt = (row.mt_tcmmv || 0) * rate;
 
   row.calculated_tax = Math.max(tax_by_aliquot, tax_by_mt);
+}
+
+function check_branch_required(frm) {
+  if (frm.doc.company) {
+    frappe.call({
+      method: "frappe.client.get_list",
+      args: {
+        doctype: "VE Branch",
+        filters: { "company": frm.doc.company },
+        limit: 1
+      },
+      callback: function (r) {
+        let has_branches = (r.message && r.message.length > 0);
+        frm.set_df_property('branch', 'reqd', has_branches ? 1 : 0);
+        frm.doc.is_branch_required = has_branches;
+      }
+    });
+  }
 }
