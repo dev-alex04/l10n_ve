@@ -17,6 +17,13 @@
   "old_parent",
   "column_break_inzw",
   "parent_ve_branch",
+  "cost_center",
+  "impuestos_section",
+  "num_license_economic",
+  "column_break_ixms",
+  "state",
+  "column_break_wqrp",
+  "municipality",
   "section_break_ekjt",
   "users",
   "section_break_nzdv",
@@ -114,6 +121,42 @@
    "fieldtype": "Data",
    "label": "Email Branch",
    "options": "Email"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Centro de costos",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "impuestos_section",
+   "fieldtype": "Section Break",
+   "label": "Impuestos"
+  },
+  {
+   "fieldname": "num_license_economic",
+   "fieldtype": "Data",
+   "label": "Economic Activity License Number"
+  },
+  {
+   "fieldname": "column_break_wqrp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "municipality",
+   "fieldtype": "Link",
+   "label": "Municipality",
+   "options": "VE Municipality"
+  },
+  {
+   "fieldname": "column_break_ixms",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Link",
+   "label": "State",
+   "options": "VE State"
   }
  ],
  "grid_page_length": 50,
@@ -121,7 +164,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-03-18 18:49:59.386577",
+ "modified": "2026-03-23 15:27:58.696371",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",

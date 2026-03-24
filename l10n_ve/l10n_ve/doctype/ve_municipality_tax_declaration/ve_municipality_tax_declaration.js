@@ -19,6 +19,16 @@ frappe.ui.form.on("VE Municipality Tax Declaration", {
   },
   declaration_month: setup_triggers,
   declaration_year: validate_year,
+  setup: function (frm) {
+    frm.set_query("branch", function () {
+      return {
+        filters: {
+          "company": frm.doc.company,
+          "is_group": 0
+        }
+      };
+    });
+  },
   company: async (frm) => {
     if (
       frm.doc.municipality_declaration_data &&
@@ -30,6 +40,28 @@ frappe.ui.form.on("VE Municipality Tax Declaration", {
     await get_company_data(frm);
     setup_triggers(frm);
   },
+  branch: function (frm) {
+    frm.clear_table("municipality_declaration_data");
+    frm.refresh_field("municipality_declaration_data");
+
+    if (frm.doc.branch) {
+      frappe.call({
+        method: "l10n_ve.l10n_ve.doctype.ve_municipality_tax_declaration.ve_municipality_tax_declaration.get_branch_details",
+        args: { branch_name: frm.doc.branch },
+        callback: function (r) {
+          if (r.message) {
+            frm.set_value('municipality', r.message.municipality);
+            frm.set_value('municipality_id', r.message.municipality_id);
+            frm.set_value('state', r.message.state);
+
+            setup_triggers(frm);
+          }
+        }
+      });
+    } else {
+      get_company_data(frm);
+    }
+  }
 });
 
 function validate_year(frm) {
@@ -125,6 +157,7 @@ function clear_all_company_fields(frm) {
   frm.set_value("num_license_economic", "");
   frm.set_value("legal_representative", "");
   frm.set_value("legal_representative_id", "");
+  frm.set_value("branch", "");
   clear_address_fields(frm);
 }
 
@@ -160,8 +193,8 @@ function get_exchange_rate_for_declaration(frm) {
             indicator: "orange",
             message: __(
               "No se encontró una tasa de cambio ni para fechas posteriores ni anteriores a la fecha (" +
-                frappe.datetime.str_to_user(target_date) +
-                "). Por favor, configúrela en el doctype de Tasa de Cambio."
+              frappe.datetime.str_to_user(target_date) +
+              "). Por favor, configúrela en el doctype de Tasa de Cambio."
             ),
           });
         }
@@ -235,7 +268,7 @@ function get_invoice_activities(frm) {
           );
         }
       },
-      error: function(r) {
+      error: function (r) {
         frappe.dom.unfreeze();
       }
     });
