@@ -7589,7 +7589,7 @@
     "insert_after": "applies_vat",
     "label": "Concepto ISLR",
     "module": "Domina ISP",
-    "name": "Cutomer-tabulator_islr",
+    "name": "Customer-tabulator_islr",
     "options": "Tabulator ISLR",
     "reqd": 0
   },
