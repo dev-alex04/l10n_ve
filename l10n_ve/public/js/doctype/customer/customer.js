@@ -84,10 +84,9 @@ function handle_customer_field_change(frm, fieldname) {
   } else {
     frm.toggle_display("is_special_taxpayer", true);
 
-    // Lógica para Contribuyente Especial
     const is_special = frm.doc.is_special_taxpayer;
-    frm.toggle_display("tax_withholding_category", false);
-    frm.set_df_property("tax_withholding_category", "reqd", 0);
+    frm.toggle_display("tax_withholding_category", is_special);
+    frm.set_df_property("tax_withholding_category", "reqd", is_special ? 1 : 0);
     if (!is_special) {
       frm.set_value("tax_withholding_category", "");
     }
@@ -96,6 +95,7 @@ function handle_customer_field_change(frm, fieldname) {
 
 function reorganize_customer_fields(frm) {
   let tax_id_field_wrapper = frm.get_field("tax_id").$wrapper;
+  let tabulator_islr = frm.get_field("tabulator_islr").$wrapper;
   let type_of_person_field_wrapper = frm.get_field("type_of_person").$wrapper;
   let customer_type_field_wrapper = frm.get_field("customer_type").$wrapper;
   let customer_name_field_wrapper = frm.get_field("customer_name").$wrapper;
@@ -123,4 +123,5 @@ function reorganize_customer_fields(frm) {
     nature_of_the_taxpayer_field_wrapper,
   );
   tax_id_field_wrapper.insertAfter(type_of_person_field_wrapper);
+  tabulator_islr.insertAfter(tax_withholding_category_field_wrapper);
 }

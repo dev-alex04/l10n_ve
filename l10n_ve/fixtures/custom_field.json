@@ -7580,5 +7580,40 @@
     "translatable": 0,
     "unique": 0,
     "width": null
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Customer",
+    "fieldname": "tabulator_islr",
+    "fieldtype": "Link",
+    "insert_after": "applies_vat",
+    "label": "Concepto ISLR",
+    "module": "Domina ISP",
+    "name": "Customer-tabulator_islr",
+    "options": "Tabulator ISLR",
+    "reqd": 0
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Customer",
+    "fieldname": "applies_vat",
+    "fieldtype": "Check",
+    "insert_after": "vat_account_column",
+    "label": "Aplica IVA",
+    "module": "Domina ISP",
+    "name": "Customer-applies_vat",
+    "default": 1,
+    "hidden": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Customer",
+    "fetch_from": null,
+    "fetch_if_empty": 0,
+    "fieldname": "vat_account_column",
+    "fieldtype": "Column Break",
+    "insert_after": "is_special_taxpayer",
+    "module": "L10N Ve",
+    "name": "Customer-vat_account_column"
   }
 ]
