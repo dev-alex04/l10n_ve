@@ -9,19 +9,20 @@ frappe.ui.form.on('Address', {
         let phone_value = frm.doc.phone;
 
         if (phone_value) {
-            let clean_phone = phone_value.replace(/[^0-9]/g, '');
+            // Permitir símbolos de formato e internacional
+            let formatted_value = phone_value.replace(/[^\d+\s\-()]/g, "");
 
-            if (clean_phone.length > 11) {
-                clean_phone = clean_phone.substring(0, 11);
-
-                frappe.show_alert({
-                    message: __("El número de teléfono debe tener un máximo de 11 dígitos."),
-                    indicator: 'orange'
-                }, 3);
+            // Asegurar que el signo + solo esté al principio
+            if (formatted_value.indexOf("+") > 0) {
+                formatted_value = formatted_value[0] + formatted_value.substring(1).replace(/\+/g, "");
             }
 
-            if (frm.doc.phone !== clean_phone) {
-                frm.set_value('phone', clean_phone);
+            if (formatted_value.length > 25) {
+                formatted_value = formatted_value.substring(0, 25);
+            }
+
+            if (frm.doc.phone !== formatted_value) {
+                frm.set_value('phone', formatted_value);
             }
         }
     },
@@ -50,26 +51,49 @@ frappe.ui.form.on('Address', {
 });
 
 function validate_phone(frm) {
-    let phone = frm.doc.phone;
+    const phone = frm.doc.phone;
+    if (!phone) return;
 
-    if (phone) {
-        let clean_phone = phone.replace(/[^0-9]/g, '');
+    // Limpiar símbolos decorativos para la validación
+    let clean_phone = phone.replace(/[\s\-()]/g, "");
 
-        if (clean_phone !== phone) {
+    // Validar formato base (10-15 dígitos, opcional + al inicio)
+    if (!/^\+?\d{10,15}$/.test(clean_phone)) {
+        frappe.throw({
+            message: __("El número de teléfono debe contener entre 10 y 15 dígitos. Puede incluir símbolos como (), -, espacios y el prefijo internacional (+)."),
+            title: __("Error de Validación de Teléfono"),
+            field: 'phone'
+        });
+    }
+
+    // Normalizar para prefijos venezolanos (convertir +58 o 58 a 0)
+    let normalized = clean_phone;
+    if (normalized.startsWith("+58")) {
+        normalized = "0" + normalized.substring(3);
+    } else if (normalized.startsWith("58") && normalized.length > 10) {
+        normalized = "0" + normalized.substring(2);
+    }
+
+    // Validar prefijos de celular venezolanos (04...)
+    if (normalized.startsWith("04")) {
+        const VENEZUELAN_MOBILE_PREFIXES = ["0412", "0414", "0416", "0424", "0426", "0422"];
+        const mobile_regex = new RegExp(`^(${VENEZUELAN_MOBILE_PREFIXES.join("|")})\\d{7}$`);
+        if (!mobile_regex.test(normalized)) {
             frappe.throw({
-                message: __("El campo Teléfono solo puede contener números (0-9)."),
+                message: __("Los números de celular venezolanos (04xx) deben tener exactamente 11 dígitos y un prefijo válido."),
                 title: __("Error de Validación de Teléfono"),
                 field: 'phone'
             });
         }
+    }
 
-        if (clean_phone.length !== 11) {
-            frappe.throw({
-                message: __("El número de teléfono debe tener exactamente 11 dígitos."),
-                title: __("Error de Validación de Teléfono"),
-                field: 'phone'
-            });
-        }
+    // Validar prefijos locales venezolanos (02...)
+    if (normalized.startsWith("02") && normalized.length < 10) {
+        frappe.throw({
+            message: __("Los números locales (02xx) deben tener al menos 10 dígitos."),
+            title: __("Error de Validación de Teléfono"),
+            field: 'phone'
+        });
     }
 }
 

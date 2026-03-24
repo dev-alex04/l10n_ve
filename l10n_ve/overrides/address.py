@@ -64,11 +64,24 @@ class CustomAddress(Address):
         phone = self.phone
 
         if phone:
-            if not re.match(r'^[0-9]+$', phone):
-                frappe.throw(_("El campo Teléfono solo puede contener números (0-9)."))
+            # Limpiar símbolos decorativos para la validación
+            clean_phone = re.sub(r'[\s\-()]', '', phone)
 
-            if len(phone) != 11:
-                frappe.throw(_("El número de teléfono debe tener exactamente 11 dígitos."))
+            if not re.match(r'^\+?\d{10,15}$', clean_phone):
+                frappe.throw(_("El número de teléfono debe contener entre 10 y 15 dígitos y solo puede incluir símbolos como (), -, espacios o el signo '+' al principio."))
+
+            # Normalizar para prefijos venezolanos (convertir +58 o 58 a 0)
+            normalized = clean_phone
+            if normalized.startswith("+58"):
+                normalized = "0" + normalized[3:]
+            elif normalized.startswith("58") and len(normalized) > 10:
+                normalized = "0" + normalized[2:]
+
+            if normalized.startswith("04") and len(normalized) != 11:
+                frappe.throw(_("Los números de celular venezolanos (04xx) deben tener exactamente 11 dígitos (ej. 04141234567 o +58 414 123 45 67)."))
+
+            if normalized.startswith("02") and len(normalized) < 10:
+                frappe.throw(_("Los números locales (02xx) deben tener al menos 10 dígitos."))
 
     def validate_address(self) -> None:
         links = self.links
