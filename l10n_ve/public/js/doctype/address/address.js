@@ -15,8 +15,8 @@ frappe.ui.form.on('Address', {
                 formatted_value = formatted_value[0] + formatted_value.substring(1).replace(/\+/g, "");
             }
 
-            if (formatted_value.length > 25) {
-                formatted_value = formatted_value.substring(0, 25);
+            if (formatted_value.length > 20) {
+                formatted_value = formatted_value.substring(0, 20);
             }
 
             if (frm.doc.phone !== formatted_value) {
