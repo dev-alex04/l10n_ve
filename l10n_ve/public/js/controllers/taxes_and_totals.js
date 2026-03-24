@@ -93,10 +93,10 @@ erpnext.taxes_and_totals.prototype.set_cumulative_total = function (
   }
 
   if (tax.is_tax_withholding_account) {
-    //  Solo en ventas, se resta la retenciòn de IVA
+    //  Solo en ventas, se resta la retenciòn de IVA e ISLR
 
     if (
-      tax.charge_type == "VAT Withholding" &&
+      ["VAT Withholding", "ISLR"].includes(tax.charge_type) &&
       ["Quotation", "Sales Order", "Sales Invoice", "Delivery Note"].includes(
         this.frm.doc.doctype
       )

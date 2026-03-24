@@ -3,7 +3,7 @@
  "allow_rename": 1,
  "autoname": "field:branch_name",
  "creation": "2025-12-28 18:40:55.061056",
- "default_view": "List",
+ "default_view": "Tree",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
