@@ -148,7 +148,7 @@ class TaxesMixin:
         ]
 
         description: str = f"ISLR {tabulator_name} {tabulator.descripcion} ({flt(aliquot_info.aliquot)}%)"
-        if self.doctype == "Sales Invoice" and self.is_return and self.return_against:
+        if self.is_return and self.return_against:
             description += f" por Nota de Crédito contra factura {self.affected_invoice_number}"
 
         self.append("taxes", _dict({
