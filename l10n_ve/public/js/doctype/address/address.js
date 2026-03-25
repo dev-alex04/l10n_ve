@@ -15,8 +15,8 @@ frappe.ui.form.on('Address', {
                 formatted_value = formatted_value[0] + formatted_value.substring(1).replace(/\+/g, "");
             }
 
-            if (formatted_value.length > 20) {
-                formatted_value = formatted_value.substring(0, 20);
+            if (formatted_value.length > 25) {
+                formatted_value = formatted_value.substring(0, 25);
             }
 
             if (frm.doc.phone !== formatted_value) {
@@ -52,10 +52,9 @@ function validate_phone(frm) {
     const phone = frm.doc.phone;
     if (!phone) return;
 
-    const phone_regex = /^\+?\d{7,20}$/;
-    if (!phone_regex.test(phone)) {
+    if (!is_valid_phone_format(phone)) {
         frappe.throw({
-            message: __("El número de teléfono debe contener entre 7 y 20 dígitos.\nSolo puede incluir números y el signo '+' al principio."),
+            message: __("El número de teléfono debe contener entre 7 y 25 caracteres.\nSolo puede incluir números y el signo '+' al principio."),
             title: __("Error de Validación de Teléfono"),
             field: 'phone'
         });
