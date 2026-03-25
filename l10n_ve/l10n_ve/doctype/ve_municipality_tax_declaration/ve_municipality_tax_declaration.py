@@ -53,7 +53,13 @@ class VEMunicipalityTaxDeclaration(Document):
         """
         Genera el nombre del documento basado en el mes y el año.
         """
-        self.name = f"Declaración Municipal - {self.company} - {self.declaration_month} - {self.declaration_year}"
+        name_parts = ["Declaración Municipal"]
+        if self.branch:
+            name_parts.append(self.branch)
+        
+        name_parts.extend([self.company, self.declaration_month, self.declaration_year])
+        
+        self.name = " - ".join(str(p) for p in name_parts if p)
 
     def validate(self) -> None:
         """
@@ -66,13 +72,36 @@ class VEMunicipalityTaxDeclaration(Document):
             "company": self.company,
             "declaration_month": self.declaration_month,
             "declaration_year": self.declaration_year,
-            "docstatus": 1
+            "branch": self.branch,
+            "docstatus": 1,
         })
         if existing_declaration:
             frappe.throw(
                 _("Ya existe una declaración para {0} en {1} - {2}.").format(
                     self.company, self.declaration_month, self.declaration_year),
                 title=_("Declaración Duplicada"))
+
+        self.validate_branch()
+
+        duplicate_branch = frappe.db.exists("VE Municipality Tax Declaration", {
+            "company": self.company,
+            "declaration_month": self.declaration_month,
+            "declaration_year": self.declaration_year,
+            "branch": self.branch,
+            "name": ["!=", self.name],
+            "docstatus": ["!=", 2]
+        })
+
+        if duplicate_branch:
+            frappe.throw(
+                f"Ya existe una declaración registrada para la sucursal <b>{self.branch}</b> "
+                f"en el periodo {self.declaration_month} {self.declaration_year}."
+            )
+
+    def validate_branch(self) -> None:
+        if frappe.db.exists("VE Branch", {"company": self.company}):
+            if not self.branch:
+                frappe.throw(_("El campo Sucursal es obligatorio para esta empresa."))
 
 
 @frappe.whitelist()
@@ -90,41 +119,41 @@ def upload_declaration_data(docname, num_declaration, declaration_document) -> d
 
 
 @frappe.whitelist()
-def get_activities_from_sales_invoices(from_date, to_date, company, municipality)-> list:
+def get_activities_from_sales_invoices(from_date, to_date, company, municipality, branch=None) -> list:
     """
-    Busca en las Facturas de Venta, agrupa por actividad económica y devuelve
-    una lista de diccionarios con todos los datos necesarios para la tabla hija.
+    Busca en las Facturas de Venta, pero obtiene la actividad económica 
+    directamente desde el Item (Producto) y no de la línea de la factura.
     """
     if not from_date or not to_date or not company or not municipality:
         return []
 
+    branch_filter = ""
+    query_args = {
+        "from_date": from_date,
+        "to_date": to_date,
+        "company": company
+    }
 
-    valid_invoices = frappe.get_all(
-        "Sales Invoice",
-        filters={
-            "docstatus": 1,
-            "posting_date": ["between", [from_date, to_date]],
-            "company": company,
-        },
-        pluck="name"
-    )
+    if branch:
+        branch_filter = " AND si.branch = %(branch)s"
+        query_args["branch"] = branch
 
-    if not valid_invoices:
-        return []
-
-
-    invoice_items = frappe.get_all(
-        "Sales Invoice Item",
-        filters={
-            "parent": ["in", valid_invoices],
-            "economic_activity": ["is", "set"],
-        },
-        fields=[
-            "economic_activity",
-            "SUM(base_amount) as taxable_base"
-        ],
-        group_by="economic_activity",
-    )
+    invoice_items = frappe.db.sql(f"""
+        SELECT 
+            it.economic_activity as economic_activity,
+            SUM(sii.base_amount) as taxable_base
+        FROM `tabSales Invoice Item` sii
+        INNER JOIN `tabSales Invoice` si ON sii.parent = si.name
+        INNER JOIN `tabItem` it ON sii.item_code = it.name
+        WHERE 
+            si.docstatus = 1 
+            AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+            AND si.company = %(company)s
+            {branch_filter}
+            AND it.economic_activity IS NOT NULL
+            AND it.economic_activity != ''
+        GROUP BY it.economic_activity
+    """, query_args, as_dict=True)
 
     if not invoice_items:
         return []
@@ -133,42 +162,36 @@ def get_activities_from_sales_invoices(from_date, to_date, company, municipality
 
     activity_details = frappe.get_all("VE Economic Activity",
         filters={"name": ["in", activity_names]},
-        fields=[
-            "name",
-            "code",
-            "sector",
-            "branch"
-        ]
+        fields=["name", "code", "sector", "branch"]
     )
-
     activity_map = {d.name: d for d in activity_details}
 
-    tax_details_map = {}
-    if activity_names and municipality:
-        tax_details = frappe.get_all("VE Municipality Taxes",
-            filters={
-                "economic_activity": ["in", activity_names],
-                "municipality": municipality
-            },
-            fields=["economic_activity", "aliquot", "mt_tcmmv"]
-        )
-        tax_details_map = {d.economic_activity: d for d in tax_details}
+    tax_details = frappe.get_all("VE Municipality Taxes",
+        filters={
+            "economic_activity": ["in", activity_names],
+            "municipality": municipality
+        },
+        fields=["economic_activity", "aliquot", "mt_tcmmv"]
+    )
+    tax_details_map = {d.economic_activity: d for d in tax_details}
 
     missing_tax_activities = []
+    final_list = []
 
     for item in invoice_items:
-
         details = activity_map.get(item.economic_activity)
-
+        
         if not details:
             missing_tax_activities.append(item.economic_activity)
             continue
+            
         item.update(details)
-
+        
         tax_info = tax_details_map.get(item.economic_activity)
 
         if tax_info:
             item.update(tax_info)
+            final_list.append(item)
         else:
             missing_tax_activities.append(details.code)
 
@@ -178,11 +201,9 @@ def get_activities_from_sales_invoices(from_date, to_date, company, municipality
                     "siguientes actividades económicas en este "
                     "municipio: {0}. Por favor, agréguelo en {1}.").format(
                         f"<b>{', '.join(missing_tax_activities)}</b>", link_to_taxes)
-        frappe.throw(
-            message,
-            title=_("Impuesto Municipal No Definido")
-        )
-    return invoice_items
+        frappe.throw(message, title=_("Impuesto Municipal No Definido"))
+
+    return final_list
 
 @frappe.whitelist()
 def get_exchange_rate(declaration_date, from_currency) -> float:

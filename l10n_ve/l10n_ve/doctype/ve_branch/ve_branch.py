@@ -23,6 +23,9 @@ class VEBranch(NestedSet):
         self.sync_user_permissions()
         self.propagate_users_to_children()
 
+        if self.municipality:
+            self.check_municipality_taxes()
+
     def sync_user_permissions(self) -> None:
         """Sincroniza (crea y elimina) permisos de usuario para esta sucursal."""
         current_users = set(row.user for row in self.get("users", []) if row.user)
@@ -251,6 +254,17 @@ class VEBranch(NestedSet):
         )
 
         return _dict(default_payment_mode.as_dict())
+
+    def check_municipality_taxes(self):
+        exists = frappe.db.exists("VE Municipality Taxes", {"municipality": self.municipality})
+
+        if not exists:
+            frappe.enqueue(
+                method='l10n_ve.setup.create_municipality_taxes_for_municipality',
+                queue='long',
+                timeout=600,
+                municipality_doc_name=self.municipality
+            )
 
 
 @frappe.whitelist()
