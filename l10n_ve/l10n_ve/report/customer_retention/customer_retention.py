@@ -161,23 +161,22 @@ def get_data(filters):
 			si.base_total,
 			si.base_grand_total AS grand_total,
 			'ISLR' as retention_type,
-			atc.tax_amount AS withholding_amount,
+			stc.base_tax_amount AS withholding_amount,
 			si.islr_receipt_number as voucher_number,
 			si.islr_date as withholding_date,
 			si.voucher_image_islr as voucher_image,
-			atc.rate as retention_percentage,
-			atc.description
+			stc.rate AS retention_percentage,
+			stc.description
 		FROM
-			`tabPayment Entry` pe
-		JOIN `tabPayment Entry Reference` per ON pe.name = per.parent
-		JOIN `tabSales Invoice` si ON si.name = per.reference_name
-		LEFT JOIN `tabCustomer` AS c ON si.customer = c.name
-		JOIN `tabAdvance Taxes and Charges` atc ON pe.name = atc.parent
+			`tabSales Invoice` AS si
+		LEFT JOIN
+			`tabCustomer` AS c ON si.customer = c.name
+		JOIN
+			`tabSales Taxes and Charges` AS stc ON si.name = stc.parent
 		WHERE
-			pe.docstatus = 1
-			AND per.reference_doctype = 'Sales Invoice'
-			AND atc.charge_type = 'ISLR'
-			AND atc.tax_amount != 0
+			si.docstatus = 1
+			AND stc.charge_type = 'ISLR'
+			AND stc.tax_amount != 0
 			{conditions}
 	"""
 
