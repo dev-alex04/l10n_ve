@@ -11,19 +11,28 @@ original_execute = ac.execute
 def custom_execute(filters=None):
     columns, data = original_execute(filters)
     
-    if len(columns) > 6:
-        columns[4] = "City"
-        columns.insert(5, "Municipio")
-        columns[6] = "State"
-        columns[7] = "Postal Code"
-
+    if len(columns) > 8:
+        new_columns = [
+            columns[0],
+            columns[1], 
+            columns[2],
+            columns[3], 
+            _("City"),      
+            _("Municipio"),
+            _("State"),     
+            _("Postal Code"),
+            _("Country"),   
+        ]
+        new_columns.extend(columns[9:])
+        columns[:] = new_columns
+    
+    # Translate labels correctly
     for i in range(len(columns)):
         col = columns[i]
         if isinstance(col, str):
             parts = col.split(":")
             label = parts[0]
-            translated_label = _(label)
-            parts[0] = str(translated_label)
+            parts[0] = str(_(label))
             columns[i] = ":".join(parts)
         elif isinstance(col, dict):
             col["label"] = str(_(col.get("label", "")))
@@ -34,19 +43,16 @@ def custom_execute(filters=None):
     
     for row in data:
         if len(row) > 7:
-            c = row[5]
-            m = row[6]
-            s = row[7]
-            if c: city_ids.add(c)
-            if m: county_ids.add(m)
-            if s: state_ids.add(s)
+            # Original structure: 5:City, 6:County, 7:State, 8:Postal
+            if row[5]: city_ids.add(row[5])
+            if row[6]: county_ids.add(row[6])
+            if row[7]: state_ids.add(row[7])
 
     city_map = {}
     if city_ids:
         try:
             cities = frappe.get_all("VE City", filters={"name": ("in", list(city_ids))}, fields=["name", "city"])
-            for c in cities:
-                city_map[c.name] = c.city
+            for c in cities: city_map[c.name] = c.city
         except Exception:
             frappe.log_error(frappe.get_traceback(), _("Error fetching VE City names"))
 
@@ -54,8 +60,7 @@ def custom_execute(filters=None):
     if county_ids:
         try:
             counties = frappe.get_all("VE Municipality", filters={"name": ("in", list(county_ids))}, fields=["name", "municipality"])
-            for m in counties:
-                county_map[m.name] = m.municipality
+            for m in counties: county_map[m.name] = m.municipality
         except Exception:
             frappe.log_error(frappe.get_traceback(), _("Error fetching VE Municipality names"))
             
@@ -63,31 +68,26 @@ def custom_execute(filters=None):
     if state_ids:
         try:
             states = frappe.get_all("VE State", filters={"name": ("in", list(state_ids))}, fields=["name", "state"])
-            for s in states:
-                state_map[s.name] = s.state
+            for s in states: state_map[s.name] = s.state
         except Exception:
             frappe.log_error(frappe.get_traceback(), _("Error fetching VE State names"))
             
-    for row in data:
-        if len(row) > 6:
-            c = row[4]
-            m = row[5]
-            s = row[6]
-            if c and c in city_map:
-                row[4] = city_map[c]
-            if m and m in county_map:
-                row[5] = county_map[m]
-            if s and s in state_map:
-                row[6] = state_map[s]
-
-            if len(row) > 7 and row[7]:
-                row[7] = _(row[7])
-
-    if len(columns) > 3:
-        columns.pop(3)
-        for row in data:
-            if len(row) > 3 and isinstance(row, list):
-                row.pop(3)
+    for i, row in enumerate(data):
+        if isinstance(row, list) and len(row) > 9:
+            # Rebuild row to match new_columns exactly
+            new_row = [
+                row[0], # Customer
+                row[1], # Group
+                row[2], # Address ID (Hidden)
+                row[3], # Address Line 1 (Dirección Principal)
+                city_map.get(row[5], row[5]),    # index 4: City
+                county_map.get(row[6], row[6]),  # index 5: Municipio
+                state_map.get(row[7], row[7]),    # index 6: State
+                row[8], # index 7: Postal Code
+                row[9], # index 8: Country
+            ]
+            new_row.extend(row[10:]) # Append Contact columns
+            data[i] = new_row
 
     return columns, data
 
