@@ -330,7 +330,7 @@ function format_phone_input(value) {
   return formatted_value;
 }
 
-function setup_venezuelan_phone_validation(frm, fieldname) {
+function setup_phone_validation(frm, fieldname) {
   const input = frm.get_field(fieldname).$input;
   if (!input) return;
 
@@ -345,25 +345,16 @@ function setup_venezuelan_phone_validation(frm, fieldname) {
   });
 }
 
-const VENEZUELAN_MOBILE_PREFIXES = [
-  "0412",
-  "0414",
-  "0416",
-  "0424",
-  "0426",
-  "0422",
-];
+const PHONE_FORMAT_REGEX = /^\+?\d{7,25}$/;
 
-function is_valid_venezuelan_phone(phone_no) {
+function is_valid_phone_format(phone_no) {
   if (!phone_no) return true;
-
-  const phone_regex = /^\+?\d{7,25}$/;
-  return phone_regex.test(phone_no);
+  return PHONE_FORMAT_REGEX.test(phone_no);
 }
 
-function validate_venezuelan_phone(frm, fieldname) {
+function validate_phone_format(frm, fieldname) {
   const phone_no = frm.doc[fieldname];
-  if (!is_valid_venezuelan_phone(phone_no)) {
+  if (!is_valid_phone_format(phone_no)) {
     frappe.throw({
       title: __("Número de Teléfono Inválido"),
       message: __(
@@ -517,7 +508,7 @@ function _get_address_dialog(frm, existing_address_name) {
     ],
     primary_action_label: action_label,
     primary_action: (values) => {
-      if (!is_valid_venezuelan_phone(values.phone)) {
+      if (!is_valid_phone_format(values.phone)) {
         frappe.msgprint({
           title: __("Número de Teléfono Inválido"),
           message: __(

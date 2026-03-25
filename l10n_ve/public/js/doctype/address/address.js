@@ -52,8 +52,7 @@ function validate_phone(frm) {
     const phone = frm.doc.phone;
     if (!phone) return;
 
-    const phone_regex = /^\+?\d{7,25}$/;
-    if (!phone_regex.test(phone)) {
+    if (!is_valid_phone_format(phone)) {
         frappe.throw({
             message: __("El número de teléfono debe contener entre 7 y 25 caracteres.\nSolo puede incluir números y el signo '+' al principio."),
             title: __("Error de Validación de Teléfono"),
