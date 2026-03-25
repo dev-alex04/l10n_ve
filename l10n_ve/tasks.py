@@ -2,7 +2,6 @@ import requests
 from bs4 import BeautifulSoup
 import urllib3
 import frappe
-from frappe.utils import flt
 
 from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt
 
@@ -53,7 +52,7 @@ def _fetch_rates_from_bcv_seniat() -> dict | None:
             bcv_seniat_endpoint,
             headers={
                 "Accept": "application/json",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", # Asegúrate de que BCV_USER_AGENT esté definido si usas tu constante
+                "User-Agent": BCV_USER_AGENT,
             },
             timeout=15,
             verify=False  # <-- El bypass del certificado
@@ -82,7 +81,7 @@ def _fetch_rates_from_bcv_seniat() -> dict | None:
         if not rates:
             frappe.log_error(
                 "BCV SENIAT Error",
-                f"No se encontraron tasas requeridas."
+                f"No se encontraron tasas para {CURRENCY_SWIFT_CODES}."
             )
             return None
 
