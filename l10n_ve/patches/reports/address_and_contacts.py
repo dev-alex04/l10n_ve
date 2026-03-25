@@ -33,10 +33,10 @@ def custom_execute(filters=None):
     state_ids = set()
     
     for row in data:
-        if len(row) > 6:
-            c = row[4]
-            m = row[5]
-            s = row[6]
+        if len(row) > 7:
+            c = row[5]
+            m = row[6]
+            s = row[7]
             if c: city_ids.add(c)
             if m: county_ids.add(m)
             if s: state_ids.add(s)
@@ -48,7 +48,7 @@ def custom_execute(filters=None):
             for c in cities:
                 city_map[c.name] = c.city
         except Exception:
-            pass
+            frappe.log_error(frappe.get_traceback(), _("Error fetching VE City names"))
 
     county_map = {}
     if county_ids:
@@ -57,7 +57,7 @@ def custom_execute(filters=None):
             for m in counties:
                 county_map[m.name] = m.municipality
         except Exception:
-            pass
+            frappe.log_error(frappe.get_traceback(), _("Error fetching VE Municipality names"))
             
     state_map = {}
     if state_ids:
@@ -66,7 +66,7 @@ def custom_execute(filters=None):
             for s in states:
                 state_map[s.name] = s.state
         except Exception:
-            pass
+            frappe.log_error(frappe.get_traceback(), _("Error fetching VE State names"))
             
     for row in data:
         if len(row) > 6:

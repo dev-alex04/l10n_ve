@@ -103,10 +103,19 @@ def custom_execute(filters=None):
 
             cc_map_exact = {}
             cc_map_parent = {}
+            cc_parent_groups = {}
             for item in si_items + dn_items:
                 if item.cost_center:
                     cc_map_exact[(item.parent, item.item_code)] = item.cost_center
-                    cc_map_parent[item.parent] = item.cost_center
+                    if item.parent not in cc_parent_groups:
+                        cc_parent_groups[item.parent] = set()
+                    cc_parent_groups[item.parent].add(item.cost_center)
+            
+            for parent, cc_set in cc_parent_groups.items():
+                if len(cc_set) > 1:
+                    cc_map_parent[parent] = _("Varios")
+                else:
+                    cc_map_parent[parent] = list(cc_set)[0]
 
             for row in data:
                 if isinstance(row, dict):

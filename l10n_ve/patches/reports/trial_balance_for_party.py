@@ -56,7 +56,7 @@ def custom_execute(filters=None):
         "width": 130
     })
 
-    total_marker = "'" + _("Totals") + "'"
+    total_marker = _("Totals")
     for row in data:
         if isinstance(row, dict):
             party_name = row.get("party", "")
