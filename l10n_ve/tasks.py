@@ -1,7 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
-
+import urllib3
 import frappe
+
 from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt
 
 
@@ -39,13 +40,14 @@ CURRENCY_SWIFT_CODES = ("USD", "EUR")
 
 
 def _fetch_rates_from_bcv_seniat() -> dict | None:
-    """Obtiene las tasas de cambio desde la API oficial del BCV/SENIAT."""
+    """Obtiene las tasas de cambio desde la API oficial del BCV/SENIAT ignorando SSL."""
     bcv_seniat_endpoint = (
         frappe.get_site_config().get("bcv_seniat_endpoint")
         or "https://tcseniat.extra.bcv.org.ve/tcseniat/resources/TipoCambio/fechaOperacion"
     )
 
     try:
+        # 2. Agregar verify=False a la petición
         response = requests.get(
             bcv_seniat_endpoint,
             headers={
@@ -53,6 +55,7 @@ def _fetch_rates_from_bcv_seniat() -> dict | None:
                 "User-Agent": BCV_USER_AGENT,
             },
             timeout=15,
+            verify=False  # <-- El bypass del certificado
         )
         response.raise_for_status()
 
@@ -69,9 +72,10 @@ def _fetch_rates_from_bcv_seniat() -> dict | None:
             return None
 
         rates = {}
+        # Asumo que CURRENCY_SWIFT_CODES está definido arriba (ej. ['USD', 'EUR'])
         for moneda in monedas:
             swift = moneda.get("SWIFT")
-            if swift in CURRENCY_SWIFT_CODES:
+            if swift in CURRENCY_SWIFT_CODES: # type: ignore
                 rates[swift] = "{:.8f}".format(flt(moneda.get("BDVENTAASK", 0)))
 
         if not rates:
@@ -82,7 +86,7 @@ def _fetch_rates_from_bcv_seniat() -> dict | None:
             return None
 
         return {
-            "date": fecha_valor[:10],
+            "date": fecha_valor[:10], # Extrae YYYY-MM-DD
             "rates": rates,
         }
 
