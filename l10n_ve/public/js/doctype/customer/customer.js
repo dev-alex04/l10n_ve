@@ -14,7 +14,7 @@ frappe.ui.form.on("Customer", {
       frm.set_value("nature_of_the_taxpayer", "");
       frm.set_value("type_of_person", "");
     }
-    setup_venezuelan_phone_validation(frm, "mobile_no");
+    setup_phone_validation(frm, "mobile_no");
   },
   refresh: function (frm) {
     add_address_button(frm);
@@ -67,7 +67,7 @@ frappe.ui.form.on("Customer", {
   },
 
   validate: function (frm) {
-    // validate_venezuelan_phone(frm, "mobile_no");
+    // validate_phone_format(frm, "mobile_no");
     validate_party_emails(frm);
   },
 });
