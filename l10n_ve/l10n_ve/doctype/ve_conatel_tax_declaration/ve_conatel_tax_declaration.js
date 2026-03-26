@@ -59,6 +59,24 @@ frappe.ui.form.on("VE Conatel Tax Declaration", {
             };
         });
 
+        frm.set_query("tax_payable_account", function () {
+            return {
+                filters: {
+                    company: frm.doc.company,
+                    is_group: 0
+                }
+            };
+        });
+
+        frm.set_query("tax_expense_account", function () {
+            return {
+                filters: {
+                    company: frm.doc.company,
+                    is_group: 0
+                }
+            };
+        });
+
         if (frm.doc.docstatus === 0) {
             frm.add_custom_button(__("Obtener Datos de Ingresos"), function () {
                 if (!frm.doc.company || !frm.doc.from_date || !frm.doc.to_date) {
@@ -161,8 +179,9 @@ frappe.ui.form.on("VE Conatel Tax Declaration Tax", {
                 if (r && r.aliquot !== undefined) {
                     frappe.model.set_value(cdt, cdn, "aliquot", r.aliquot);
 
-                    let amount = flt(frm.doc.total_taxable_base) * (flt(r.aliquot) / 100);
-                    frappe.model.set_value(cdt, cdn, "amount", amount);
+                    let base = flt(frm.doc.total_taxable_base);
+                    let amount = base * (flt(r.aliquot) / 100);
+                    frappe.model.set_value(cdt, cdn, "amount", flt(amount, 2));
                 }
             });
         }
@@ -183,7 +202,7 @@ function calculate_total_to_pay(frm) {
     (frm.doc.taxes || []).forEach(row => {
         total += flt(row.amount);
     });
-    frm.set_value("total_to_pay", total);
+    frm.set_value("total_to_pay", flt(total, 2));
     check_declared_status(frm);
 }
 

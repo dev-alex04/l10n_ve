@@ -1731,11 +1731,11 @@ def create_conatel_tax_types() -> None:
     print("Iniciando la creación de tipos de tributos CONATEL...")
 
     tax_types = [
-        {"tax_name": "CONATEL (Contribución)", "aliquot": 2.3},
-        {"tax_name": "FSU (Servicio Universal)", "aliquot": 1.0},
-        {"tax_name": "FRS (Responsabilidad Social)", "aliquot": 0.25},
-        {"tax_name": "FIDETEL", "aliquot": 0.5},
-        {"tax_name": "TACER / TASAS", "aliquot": 0.5}
+        {"tax_name": "CONATEL Art. 146", "aliquot": 2.30},
+        {"tax_name": "FSU Art. 147", "aliquot": 0.50},
+        {"tax_name": "FIDETEL Art. 150", "aliquot": 1.00},
+        {"tax_name": "Administración Art. 151", "aliquot": 0.50},
+        {"tax_name": "Espectro Art. 148", "aliquot": 0.50}
     ]
 
     try:

@@ -39,23 +39,21 @@ class VEConatelTaxDeclaration(Document):
         je.posting_date = self.declaration_date
         je.user_remark = _("Declaración CONATEL {0} al {1}").format(self.from_date, self.to_date)
         
-        for tax in self.taxes:
-            tax_type_doc = frappe.get_doc("VE Conatel Tax Type", tax.tax_type)
-            if not tax_type_doc.tax_payable_account or not tax_type_doc.tax_expense_account:
-                frappe.throw(_("Debe configurar la Cuenta de Pasivo y Gasto para el tributo {0}").format(tax.tax_type))
+        if not self.tax_payable_account or not self.tax_expense_account:
+            frappe.throw(_("Debe configurar la Cuenta de Pasivo y "
+                           "Gasto en la sección de Integración Contable."))
             
-            je.append("accounts", {
-                "account": tax_type_doc.tax_expense_account,
-                "debit_in_account_currency": tax.amount,
-                "cost_center": frappe.get_cached_value("Company", self.company, "cost_center")
-            })
+        je.append("accounts", {
+            "account": self.tax_expense_account,
+            "debit_in_account_currency": self.total_to_pay,
+            "cost_center": frappe.get_cached_value("Company", self.company, "cost_center")
+        })
+        
+        je.append("accounts", {
+            "account": self.tax_payable_account,
+            "credit_in_account_currency": self.total_to_pay,
+        })
             
-            je.append("accounts", {
-                "account": tax_type_doc.tax_payable_account,
-                "credit_in_account_currency": tax.amount,
-            })
-            
-        je.flags.ignore_permissions = True
         je.insert()
         je.submit()
         
@@ -84,11 +82,9 @@ class VEConatelTaxDeclaration(Document):
         if self.from_date > self.to_date:
             frappe.throw(_("La fecha 'Desde' no puede ser mayor a la fecha 'Hasta'"))
 
-        # Recalcular Totales
-        self.total_taxable_base = sum(flt(item.taxable_base) for item in self.items)
-        self.total_to_pay = sum(flt(tax.amount) for tax in self.taxes)
+        self.total_taxable_base = flt(sum(flt(item.taxable_base) for item in self.items), 2)
+        self.total_to_pay = flt(sum(flt(tax.amount) for tax in self.taxes), 2)
 
-        # Determinar Estado
         if self.num_declaration and self.declaration_document:
             self.status = "Declarado"
         elif self.total_taxable_base > 0:

@@ -33,13 +33,16 @@
         "total_taxable_base",
         "total_to_pay",
         "currency",
+        "tab_break_accounting",
+        "section_break_accounting",
+        "tax_payable_account",
+        "tax_expense_account",
+        "journal_entry",
         "tab_break_portal",
         "section_break_portal",
         "num_declaration",
         "declaration_document",
         "payment_receipt",
-        "section_break_accounting",
-        "journal_entry",
         "tab_break_info",
         "section_break_info",
         "amended_from",
@@ -215,9 +218,25 @@
             "label": "Comprobante de Pago"
         },
         {
+            "fieldname": "tab_break_accounting",
+            "fieldtype": "Tab Break",
+            "label": "Integración Contable"
+        },
+        {
             "fieldname": "section_break_accounting",
-            "fieldtype": "Section Break",
-            "label": "Integraci\u00f3n Contable"
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "tax_payable_account",
+            "fieldtype": "Link",
+            "label": "Cuenta por Pagar (Pasivo)",
+            "options": "Account"
+        },
+        {
+            "fieldname": "tax_expense_account",
+            "fieldtype": "Link",
+            "label": "Cuenta de Gasto",
+            "options": "Account"
         },
         {
             "allow_on_submit": 1,
@@ -289,6 +308,17 @@
             "role": "System Manager",
             "share": 1,
             "submit": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Accounts User",
+            "share": 1,
             "write": 1
         }
     ],
