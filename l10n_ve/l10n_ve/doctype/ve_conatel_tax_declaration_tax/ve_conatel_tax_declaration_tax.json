@@ -1,0 +1,47 @@
+{
+    "actions": [],
+    "allow_events_in_timeline": 1,
+    "creation": "2026-03-25 12:35:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "tax_type",
+        "aliquot",
+        "amount"
+    ],
+    "fields": [
+        {
+            "fieldname": "tax_type",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Tipo de Tributo",
+            "options": "VE Conatel Tax Type"
+        },
+        {
+            "fieldname": "aliquot",
+            "fieldtype": "Percent",
+            "in_list_view": 1,
+            "label": "Alícuota (%)",
+            "read_only": 1
+        },
+        {
+            "fieldname": "amount",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Monto",
+            "read_only": 1
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "istable": 1,
+    "links": [],
+    "modified": "2026-03-26 06:50:00.000000",
+    "modified_by": "Administrator",
+    "module": "L10N Ve",
+    "name": "VE Conatel Tax Declaration Tax",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
+}

@@ -1,0 +1,57 @@
+{
+    "actions": [],
+    "allow_events_in_timeline": 1,
+    "creation": "2026-03-25 11:15:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "item_code",
+        "item_name",
+        "invoice_count",
+        "taxable_base"
+    ],
+    "fields": [
+        {
+            "fieldname": "item_code",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Item Code",
+            "options": "Item",
+            "reqd": 1
+        },
+        {
+            "fieldname": "item_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Item Name",
+            "read_only": 1
+        },
+        {
+            "fieldname": "invoice_count",
+            "fieldtype": "Int",
+            "in_list_view": 1,
+            "label": "Cant. Facturas",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "taxable_base",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Taxable Base",
+            "precision": "2"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "istable": 1,
+    "links": [],
+    "modified": "2026-03-25 11:15:00.000000",
+    "modified_by": "Administrator",
+    "module": "L10N Ve",
+    "name": "VE Conatel Tax Declaration Item",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
+}
