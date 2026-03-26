@@ -30,6 +30,7 @@ def set_data() -> None:
         set_selling_settings()
         set_stock_naming_series()
         create_municipality_taxes()
+        create_conatel_tax_types()
         set_stock_settings()
         create_bank_transaction_mappings()
         disable_other_currencies()
@@ -1722,3 +1723,35 @@ def add_doctypes_to_accounting_workspace() -> None:
     except Exception as e:
         print(f"Failure: Error actualizando Workspace de Contabilidad: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_doctypes_to_accounting_workspace')
+
+def create_conatel_tax_types() -> None:
+    """
+    Crea los tipos de tributos para la declaración de CONATEL.
+    """
+    print("Iniciando la creación de tipos de tributos CONATEL...")
+
+    tax_types = [
+        {"tax_name": "CONATEL (Contribución)", "aliquot": 2.3},
+        {"tax_name": "FSU (Servicio Universal)", "aliquot": 1.0},
+        {"tax_name": "FRS (Responsabilidad Social)", "aliquot": 0.25},
+        {"tax_name": "FIDETEL", "aliquot": 0.5},
+        {"tax_name": "TACER / TASAS", "aliquot": 0.5}
+    ]
+
+    try:
+        for t in tax_types:
+            if not frappe.db.exists("VE Conatel Tax Type", t["tax_name"]):
+                doc = frappe.new_doc("VE Conatel Tax Type")
+                doc.tax_name = t["tax_name"]
+                doc.aliquot = t["aliquot"]
+                doc.insert(ignore_permissions=True)
+                print(f"  -> Creado tipo de tributo: {t['tax_name']}")
+            else:
+                print(f"  -- Omitiendo (ya existe): {t['tax_name']}")
+
+        frappe.db.commit()
+        print("Success: Creación de tipos de tributos CONATEL completada.")
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error creando los tipos de tributos CONATEL: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en create_conatel_tax_types')
