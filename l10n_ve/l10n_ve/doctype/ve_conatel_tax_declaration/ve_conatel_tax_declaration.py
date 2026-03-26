@@ -40,19 +40,16 @@ class VEConatelTaxDeclaration(Document):
         je.user_remark = _("Declaración CONATEL {0} al {1}").format(self.from_date, self.to_date)
         
         for tax in self.taxes:
-            # Obtener cuentas desde el tipo de tributo
             tax_type_doc = frappe.get_doc("VE Conatel Tax Type", tax.tax_type)
             if not tax_type_doc.tax_payable_account or not tax_type_doc.tax_expense_account:
                 frappe.throw(_("Debe configurar la Cuenta de Pasivo y Gasto para el tributo {0}").format(tax.tax_type))
             
-            # Línea de Gasto (Debe)
             je.append("accounts", {
                 "account": tax_type_doc.tax_expense_account,
                 "debit_in_account_currency": tax.amount,
                 "cost_center": frappe.get_cached_value("Company", self.company, "cost_center")
             })
             
-            # Línea de Pasivo (Haber)
             je.append("accounts", {
                 "account": tax_type_doc.tax_payable_account,
                 "credit_in_account_currency": tax.amount,
@@ -99,7 +96,6 @@ class VEConatelTaxDeclaration(Document):
         else:
             self.status = "Por Procesar"
 
-        # Traer info de la empresa si falta (RIF, Rep. Legal, Dirección, Moneda)
         if self.company:
             comp = frappe.get_doc("Company", self.company)
             if not self.tax_id:
@@ -111,11 +107,9 @@ class VEConatelTaxDeclaration(Document):
             if not getattr(self, "fiscal_address", None) and getattr(comp, "custom_company_primary_address", None):
                 self.fiscal_address = frappe.db.get_value("Address", comp.custom_company_primary_address, "address_line1")
 
-        # Validar solapamiento de periodos
         if self.is_new():
             self.tax_id = frappe.db.get_value("Company", self.company, "tax_id")
             
-            # Validar solapamiento de periodos
             overlap = frappe.db.sql("""
                 SELECT name FROM `tabVE Conatel Tax Declaration`
                 WHERE 
@@ -135,7 +129,6 @@ class VEConatelTaxDeclaration(Document):
 def get_conatel_data(company, from_date, to_date, branch=None):
     """Obtiene los datos de ingresos y calcula tributos dinámicamente usando un rango de fechas."""
     
-    # 1. Obtener base imponible por Item (filtrado por el check is_conatel_service)
     field_name = "is_conatel_service"
     if not frappe.db.has_column("Item", field_name):
         field_name = f"custom_{field_name}"
@@ -170,14 +163,11 @@ def get_conatel_data(company, from_date, to_date, branch=None):
         GROUP BY sii.item_code, sii.item_name
     """, tuple(query_filters), as_dict=True)
     
-    # 2. Calcular Base Imponible Total
     total_taxable_base = sum(flt(item.taxable_base) for item in items)
     
-    # 3. Obtener todos los tributos de CONATEL configurados
     tax_types = frappe.get_all("VE Conatel Tax Type", 
                                fields=["name", "aliquot"])
     
-    # 4. Calcular tabla de impuestos
     calculated_taxes = []
     for t in tax_types:
         aliquot = flt(t.aliquot)
