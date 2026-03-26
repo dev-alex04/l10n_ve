@@ -12,6 +12,7 @@
         "section_break_header",
         "naming_series",
         "company",
+        "branch",
         "tax_id",
         "legal_representative",
         "fiscal_address",
@@ -57,10 +58,18 @@
         {
             "fieldname": "company",
             "fieldtype": "Link",
+            "get_query": "function() { return { filters: { is_group: 0 } }; }",
             "in_list_view": 1,
             "label": "Company",
             "options": "Company",
             "reqd": 1
+        },
+        {
+            "fieldname": "branch",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Sucursal",
+            "options": "VE Branch"
         },
         {
             "fieldname": "tax_id",

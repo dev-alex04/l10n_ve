@@ -132,7 +132,7 @@ class VEConatelTaxDeclaration(Document):
                 frappe.msgprint(_("⚠️ **Advertencia**: El periodo seleccionado se solapa con una declaración existente: {0}. Verifica que no estés duplicando información.").format(overlap[0][0]), indicator='orange')
 
 @frappe.whitelist()
-def get_conatel_data(company, from_date, to_date):
+def get_conatel_data(company, from_date, to_date, branch=None):
     """Obtiene los datos de ingresos y calcula tributos dinámicamente usando un rango de fechas."""
     
     # 1. Obtener base imponible por Item (filtrado por el check is_conatel_service)
@@ -140,6 +140,18 @@ def get_conatel_data(company, from_date, to_date):
     if not frappe.db.has_column("Item", field_name):
         field_name = f"custom_{field_name}"
         
+    query_filters = [company, from_date, to_date]
+    branch_filter = ""
+    if branch:
+        if frappe.db.has_column("VE Branch", "lft") and frappe.db.has_column("VE Branch", "rgt"):
+            b_info = frappe.db.get_value("VE Branch", branch, ["lft", "rgt"], as_dict=True)
+            if b_info:
+                branch_filter = "AND si.branch IN (SELECT name FROM `tabVE Branch` WHERE lft >= %s AND rgt <= %s)"
+                query_filters.extend([b_info.lft, b_info.rgt])
+        else:
+            branch_filter = "AND si.branch = %s"
+            query_filters.append(branch)
+
     items = frappe.db.sql(f"""
         SELECT 
             sii.item_code,
@@ -154,8 +166,9 @@ def get_conatel_data(company, from_date, to_date):
             AND si.company = %s
             AND si.posting_date BETWEEN %s AND %s
             AND it.{field_name} = 1
+            {branch_filter}
         GROUP BY sii.item_code, sii.item_name
-    """, (company, from_date, to_date), as_dict=True)
+    """, tuple(query_filters), as_dict=True)
     
     # 2. Calcular Base Imponible Total
     total_taxable_base = sum(flt(item.taxable_base) for item in items)

@@ -51,6 +51,14 @@ frappe.ui.form.on("VE Conatel Tax Declaration", {
             };
         });
 
+        frm.set_query("branch", function () {
+            return {
+                filters: {
+                    company: frm.doc.company
+                }
+            };
+        });
+
         if (frm.doc.docstatus === 0) {
             frm.add_custom_button(__("Obtener Datos de Ingresos"), function () {
                 if (!frm.doc.company || !frm.doc.from_date || !frm.doc.to_date) {
@@ -63,7 +71,8 @@ frappe.ui.form.on("VE Conatel Tax Declaration", {
                     args: {
                         company: frm.doc.company,
                         from_date: frm.doc.from_date,
-                        to_date: frm.doc.to_date
+                        to_date: frm.doc.to_date,
+                        branch: frm.doc.branch
                     },
                     callback: function (r) {
                         if (r.message) {
