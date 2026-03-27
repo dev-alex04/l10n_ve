@@ -56,6 +56,12 @@ class TaxesMixin:
         return
 
     def set_tax_withholding_ve(self) -> None:
+        # Primero limpiamos cualquier retención (que no sea ISLR) antes de validar
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if not tax.get('is_tax_withholding_account') or tax.get('charge_type') == 'ISLR'
+        ]
+
         if self.doctype in ("Purchase Invoice", "Purchase Order", "Supplier Quotation"):
             if not bool(frappe.db.get_value('Company',
                                             self.company,
@@ -113,6 +119,12 @@ class TaxesMixin:
         if self.doctype not in ("Sales Invoice",):
             return
 
+        # Primero limpiamos cualquier retención ISLR previa
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if tax.get("charge_type") != "ISLR"
+        ]
+
         tabulator_name: str = frappe.db.get_value(
             "Customer", self.customer, "tabulator_islr"
         ) or ""
@@ -141,11 +153,6 @@ class TaxesMixin:
 
         if islr_amount <= 0:
             return
-
-        self.taxes = [
-            tax for tax in self.taxes or []
-            if tax.get("charge_type") != "ISLR"
-        ]
 
         description: str = f"ISLR {tabulator_name} {tabulator.descripcion} ({flt(aliquot_info.aliquot)}%)"
         if self.is_return and self.return_against:
