@@ -56,7 +56,6 @@ class TaxesMixin:
         return
 
     def set_tax_withholding_ve(self) -> None:
-        # Primero limpiamos cualquier retención (que no sea ISLR) antes de validar
         self.taxes = [
             tax for tax in self.taxes or []
             if not tax.get('is_tax_withholding_account') or tax.get('charge_type') == 'ISLR'
@@ -104,13 +103,6 @@ class TaxesMixin:
                 withholding.description = \
                     f'{withholding["description"]} por Nota de Crédito contra factura {self.affected_invoice_number}'
 
-        # Primero se limpia la tabla de impuestos
-        # Dejando solo los impuestos que no sean retencion de IVA
-        self.taxes = [
-            tax
-            for tax in self.taxes or []
-            if tax.get('charge_type') != withholding.get('charge_type')
-        ]
 
         self.append("taxes", withholding)
 
@@ -119,7 +111,6 @@ class TaxesMixin:
         if self.doctype not in ("Sales Invoice",):
             return
 
-        # Primero limpiamos cualquier retención ISLR previa
         self.taxes = [
             tax for tax in self.taxes or []
             if tax.get("charge_type") != "ISLR"
