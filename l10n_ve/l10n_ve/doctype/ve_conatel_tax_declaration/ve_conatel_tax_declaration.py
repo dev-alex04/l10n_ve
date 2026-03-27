@@ -125,10 +125,6 @@ class VEConatelTaxDeclaration(Document):
 def get_conatel_data(company, from_date, to_date, branch=None):
     """Obtiene los datos de ingresos y calcula tributos dinámicamente usando un rango de fechas."""
     
-    field_name = "is_conatel_service"
-    if not frappe.db.has_column("Item", field_name):
-        field_name = f"custom_{field_name}"
-        
     query_filters = [company, from_date, to_date]
     branch_filter = ""
     if branch:
@@ -143,21 +139,21 @@ def get_conatel_data(company, from_date, to_date, branch=None):
 
     items = frappe.db.sql(f"""
         SELECT 
-            sii.item_code,
-            sii.item_name,
+            'Total Facturado' as item_code,
+            'Resumen de Ventas del Periodo' as item_name,
             COUNT(DISTINCT si.name) as invoice_count,
             SUM(CASE WHEN si.is_return = 1 THEN -sii.base_amount ELSE sii.base_amount END) as taxable_base
         FROM `tabSales Invoice Item` sii
         INNER JOIN `tabSales Invoice` si ON sii.parent = si.name
-        INNER JOIN `tabItem` it ON sii.item_code = it.name
         WHERE 
             si.docstatus = 1 
             AND si.company = %s
             AND si.posting_date BETWEEN %s AND %s
-            AND it.{field_name} = 1
             {branch_filter}
-        GROUP BY sii.item_code, sii.item_name
     """, tuple(query_filters), as_dict=True)
+    
+    if items and not items[0].get('invoice_count'):
+        items = []
     
     total_taxable_base = sum(flt(item.taxable_base) for item in items)
     

@@ -43,14 +43,6 @@ frappe.ui.form.on("VE Conatel Tax Declaration", {
         }
     },
     refresh: function (frm) {
-        frm.set_query("item_code", "items", function () {
-            return {
-                filters: [
-                    ["Item", "is_conatel_service", "=", 1]
-                ]
-            };
-        });
-
         frm.set_query("branch", function () {
             return {
                 filters: {

@@ -13,17 +13,17 @@
     "fields": [
         {
             "fieldname": "item_code",
-            "fieldtype": "Link",
+            "fieldtype": "Data",
             "in_list_view": 1,
-            "label": "Item Code",
-            "options": "Item",
+            "label": "Concepto",
+            "read_only": 1,
             "reqd": 1
         },
         {
             "fieldname": "item_name",
             "fieldtype": "Data",
             "in_list_view": 1,
-            "label": "Item Name",
+            "label": "Descripción",
             "read_only": 1
         },
         {
@@ -38,8 +38,9 @@
             "fieldname": "taxable_base",
             "fieldtype": "Currency",
             "in_list_view": 1,
-            "label": "Taxable Base",
-            "precision": "2"
+            "label": "Base Imponible",
+            "precision": "2",
+            "read_only": 1
         }
     ],
     "index_web_pages_for_search": 1,
