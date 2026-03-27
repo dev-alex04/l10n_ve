@@ -111,12 +111,9 @@ class VEConatelTaxDeclaration(Document):
                 WHERE 
                     company = %s 
                     AND docstatus != 2
-                    AND (
-                        (from_date <= %s AND to_date >= %s) OR
-                        (from_date <= %s AND to_date >= %s) OR
-                        (%s <= from_date AND %s >= to_date)
-                    )
-            """, (self.company, self.from_date, self.from_date, self.to_date, self.to_date, self.from_date, self.to_date))
+                    AND to_date >= %s
+                    AND from_date <= %s
+            """, (self.company, self.from_date, self.to_date))
             
             if overlap:
                 frappe.msgprint(_("⚠️ **Advertencia**: El periodo seleccionado se solapa con una declaración existente: {0}. Verifica que no estés duplicando información.").format(overlap[0][0]), indicator='orange')
