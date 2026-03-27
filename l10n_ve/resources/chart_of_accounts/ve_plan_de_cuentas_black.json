@@ -1,0 +1,1249 @@
+{
+    "country_code": "ve",
+    "name": "Plan de Cuentas Domina Black",
+    "tree": {
+        "ACTIVO": {
+            "root_type": "Asset",
+            "account_number": "1",
+            "ACTIVOS CORRIENTES": {
+                "account_number": "11",
+                "CAJAS": {
+                    "account_number": "1101",
+                    "Caja Tesoeria dolares": {
+                        "account_type": "Cash",
+                        "account_number": "1101001"
+                    }
+                },
+                "BANCOS NACIONALES": {
+                    "account_number": "1102",
+                    "Bancamiga Bs. Cte  9752 ANZ-01": {
+                        "account_type": "Bank",
+                        "account_number": "1102001"
+                    },
+                    "Bancamiga Bs. Cte  9737 ARA-01": {
+                        "account_type": "Bank",
+                        "account_number": "1102002"
+                    },
+                    "Bancamiga Bs. Cte  9828 ARA-02": {
+                        "account_type": "Bank",
+                        "account_number": "1102003"
+                    },
+                    "Bancamiga Bs. Cte  2855 DC-01": {
+                        "account_type": "Bank",
+                        "account_number": "1102004"
+                    },
+                    "Bancamiga Bs. Cte  0802 DC-03": {
+                        "account_type": "Bank",
+                        "account_number": "1102005"
+                    },
+                    "Bancamiga Bs. Cte  9844 LAR-01": {
+                        "account_type": "Bank",
+                        "account_number": "1102006"
+                    },
+                    "Bancamiga Bs. Cte  0794 LAR-04": {
+                        "account_type": "Bank",
+                        "account_number": "1102007"
+                    },
+                    "Bancamiga Bs. Cte  0760 LAR-05": {
+                        "account_type": "Bank",
+                        "account_number": "1102008"
+                    },
+                    "Bancamiga Bs. Cte  3431 LAR-06": {
+                        "account_type": "Bank",
+                        "account_number": "1102009"
+                    },
+                    "Bancamiga Bs. Cte  3423 LAR-07": {
+                        "account_type": "Bank",
+                        "account_number": "1102010"
+                    },
+                    "Bancamiga Bs. Cte  3423 LAR-08": {
+                        "account_type": "Bank",
+                        "account_number": "1102011"
+                    },
+                    "Bancamiga Bs. Cte  9851 LAR-09": {
+                        "account_type": "Bank",
+                        "account_number": "1102012"
+                    },
+                    "Bancamiga Bs. Cte  7059 MER-01": {
+                        "account_type": "Bank",
+                        "account_number": "1102013"
+                    },
+                    "Bancamiga Bs. Cte  9794 NUE-01": {
+                        "account_type": "Bank",
+                        "account_number": "1102014"
+                    },
+                    "Bancamiga Bs. Cte  9869 TRU-01": {
+                        "account_type": "Bank",
+                        "account_number": "1102015"
+                    },
+                    "Bancamiga Bs. Cte  7059 TRU-04": {
+                        "account_type": "Bank",
+                        "account_number": "1102016"
+                    },
+                    "Bancamiga Bs. Cte  7067 TRU-05": {
+                        "account_type": "Bank",
+                        "account_number": "1102017"
+                    },
+                    "Bancamiga Bs. Cte  7042 TRU-06": {
+                        "account_type": "Bank",
+                        "account_number": "1102018"
+                    }
+                },
+                "EFECTOS POR COBRAR": {
+                    "account_number": "1104",
+                    "Efectos Por Cobrar": {
+                        "account_type": "Receivable",
+                        "account_number": "1104001"
+                    }
+                },
+                "CUENTAS POR COBRAR": {
+                    "account_number": "1105",
+                    "Cuentas por Cobrar Clientes": {
+                        "account_type": "Receivable",
+                        "account_number": "1105001"
+                    },
+                    "Cuentas Por Cobrar Aliados": {
+                        "account_type": "Receivable",
+                        "account_number": "1105002"
+                    },
+                    "Cuentas por Cobrar Empleados": {
+                        "account_type": "Receivable",
+                        "account_number": "1105003"
+                    },
+                    "Cuentas por Cobrar Accionistas": {
+                        "account_type": "Receivable",
+                        "account_number": "1105004"
+                    },
+                    "Seguro HCM por Cobrar Empleados": {
+                        "account_type": "Receivable",
+                        "account_number": "1105005"
+                    },
+                    "Cuentas Por Cobrar Directores": {
+                        "account_type": "Receivable",
+                        "account_number": "1105006"
+                    },
+                    "Cuentas por cobrar Manuel San Martin": {
+                        "account_type": "Receivable",
+                        "account_number": "1105007"
+                    },
+                    "Cuentas por Cobrar Intercompañia": {
+                        "account_type": "Receivable",
+                        "account_number": "1105008"
+                    },
+                    "Otras Cuentas por Cobrar": {
+                        "account_type": "Receivable",
+                        "account_number": "1105009"
+                    },
+                    "Cuentas por cobrar clientes LAR-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105010"
+                    },
+                    "Cuentas por cobrar clientes ARA-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105011"
+                    },
+                    "Cuentas por cobrar clientes ARA-02": {
+                        "account_type": "Receivable",
+                        "account_number": "1105012"
+                    },
+                    "Cuentas por cobrar clientes TRU-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105013"
+                    },
+                    "Cuentas por cobrar clientes MIR-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105014"
+                    },
+                    "Cuentas por cobrar clientes MIR-02": {
+                        "account_type": "Receivable",
+                        "account_number": "1105015"
+                    },
+                    "Cuentas por cobrar clientes NUE-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105016"
+                    },
+                    "Cuentas por cobrar clientes ANZ-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105017"
+                    },
+                    "Cuentas en Participación Anzoategui ANZ-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105018"
+                    },
+                    "Cuenta en Participacion Aragua ARA-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105019"
+                    },
+                    "Cuenta en Participacion Aragua ARA-02": {
+                        "account_type": "Receivable",
+                        "account_number": "1105020"
+                    },
+                    "Cuenta en Participacion Distrito Capital DC-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105021"
+                    },
+                    "Cuenta en Participacion Lara LAR-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105022"
+                    },
+                    "Cuenta en Participacion Miranda MIR-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105023"
+                    },
+                    "Cuenta en Participacion Miranda MIR-02": {
+                        "account_type": "Receivable",
+                        "account_number": "1105024"
+                    },
+                    "Cuenta en Participacion Nueva Esparta NUE-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105025"
+                    },
+                    "Cuenta en Participacion Trujillo TRU-01": {
+                        "account_type": "Receivable",
+                        "account_number": "1105026"
+                    },
+                    "Cuenta en Participacion Tecno Forza": {
+                        "account_type": "Receivable",
+                        "account_number": "1105027"
+                    },
+                    "Cuentas en Participacion Bolivar": {
+                        "account_type": "Receivable",
+                        "account_number": "1105028"
+                    },
+                    "Cuentas en Participación Pronet DC-03": {
+                        "account_type": "Receivable",
+                        "account_number": "1105029"
+                    }
+                },
+                "PROVISION CUENTAS INCOBRABLES": {
+                    "account_number": "1106",
+                    "Provisión Cuentas Incobrables Nacionales": {
+                        "account_type": "Receivable",
+                        "account_number": "1106001"
+                    }
+                },
+                "ADELANTOS A PROVEEDORES": {
+                    "account_number": "1107",
+                    "Anticipo Proveedores": {
+                        "account_type": "Receivable",
+                        "account_number": "1107001"
+                    }
+                },
+                "IMPUESTOS PAGADOS POR ANTICIPADO": {
+                    "account_number": "1110",
+                    "Anticipo de ISLR": {
+                        "account_type": "Tax",
+                        "account_number": "1110001"
+                    },
+                    "Retenciones ISLR Clientes": {
+                        "account_type": "Tax",
+                        "account_number": "1110002"
+                    },
+                    "Retencion de IVA Clientes": {
+                        "account_type": "Tax",
+                        "account_number": "1110003"
+                    },
+                    "Iva Credito Fiscal": {
+                        "account_type": "Tax",
+                        "account_number": "1110004"
+                    },
+                    "Excedente Credito Fiscal": {
+                        "account_type": "Tax",
+                        "account_number": "1110005"
+                    }
+                },
+                "GASTOS PREPAGADOS": {
+                    "account_number": "1111",
+                    "Seguro HCM Pagados Por Anticipado": {
+                        "account_type": "Current Asset",
+                        "account_number": "1111001"
+                    },
+                    "Anticipo Prestaciones Sociales": {
+                        "account_type": "Current Asset",
+                        "account_number": "1111002"
+                    },
+                    "Otros Gastos Prepagados": {
+                        "account_type": "Current Asset",
+                        "account_number": "1111003"
+                    }
+                }
+            },
+            "ACTIVOS NO CORRIENTES": {
+                "account_number": "12",
+                "INVERSIONES A LARGO PLAZO": {
+                    "account_number": "1201",
+                    "Inversiones Financieras": {
+                        "account_type": "Current Asset",
+                        "account_number": "1201001"
+                    },
+                    "Anticipo de Inversiones ": {
+                        "account_type": "Current Asset",
+                        "account_number": "1201002"
+                    }
+                },
+                "ACTIVOS TANGIBLES": {
+                    "account_number": "1202",
+                    "Muebles y Enseres": {
+                        "account_type": "Fixed Asset",
+                        "account_number": "1202001"
+                    },
+                    "Depreciación Acum. Muebles y Enseres": {
+                        "account_type": "Accumulated Depreciation",
+                        "account_number": "1202002"
+                    },
+                    "Equipo de Oficina": {
+                        "account_type": "Fixed Asset",
+                        "account_number": "1202003"
+                    },
+                    "Depreciación Acum. Equipo de Oficina": {
+                        "account_type": "Accumulated Depreciation",
+                        "account_number": "1202004"
+                    },
+                    "Equipos de Computación": {
+                        "account_type": "Fixed Asset",
+                        "account_number": "1202005"
+                    },
+                    "Depreciación Acum. Equipos de Computación": {
+                        "account_type": "Accumulated Depreciation",
+                        "account_number": "1202006"
+                    },
+                    "Licencia y Software": {
+                        "account_type": "Fixed Asset",
+                        "account_number": "1202007"
+                    },
+                    "Amortizacion Acum. Licencia y Software": {
+                        "account_type": "Accumulated Depreciation",
+                        "account_number": "1202008"
+                    }
+                }
+            }
+        },
+        "PASIVO": {
+            "root_type": "Liability",
+            "account_number": "2",
+            "CORRIENTE": {
+                "account_number": "21",
+                "EFECTOS A PAGAR": {
+                    "account_number": "2101",
+                    "account_type": "Payable"
+                },
+                "PRESTAMOS BANCARIO CORTO PLAZO": {
+                    "account_number": "2102",
+                    "Prestamos Bancario Banco de Venezuela Bs. Cte. 1347": {
+                        "account_type": "Payable",
+                        "account_number": "2102001"
+                    }
+                },
+                "CUENTAS POR PAGAR": {
+                    "account_number": "2103",
+                    "Cuentas Por Pagar Proveedores": {
+                        "account_type": "Payable",
+                        "account_number": "2103001"
+                    },
+                    "Cuentas Por Pagar Accionistas": {
+                        "account_type": "Payable",
+                        "account_number": "2103002"
+                    },
+                    "Cuentas Por Pagar Intercompañias": {
+                        "account_type": "Payable",
+                        "account_number": "2103003"
+                    },
+                    "Otras Cuentas por Pagar": {
+                        "account_type": "Payable",
+                        "account_number": "2103004"
+                    }
+                },
+                "ANTICIPOS DE CLIENTES": {
+                    "account_number": "2104",
+                    "Anticipo de Clientes": {
+                        "account_type": "Payable",
+                        "account_number": "2104001"
+                    }
+                },
+                "IMPUESTOS POR PAGAR": {
+                    "account_number": "2105",
+                    "IVA Debito Fiscal": {
+                        "account_type": "Tax",
+                        "account_number": "2105001"
+                    },
+                    "Retenciones de IVA Proveedores": {
+                        "account_type": "Tax",
+                        "account_number": "2105002"
+                    },
+                    "Retenciones de ISLR Proveedores": {
+                        "account_type": "Tax",
+                        "account_number": "2105003"
+                    },
+                    "Proteccion a Pensiones por Pagar": {
+                        "account_type": "Tax",
+                        "account_number": "2105004"
+                    },
+                    "IGTF por Pagar": {
+                        "account_type": "Tax",
+                        "account_number": "2105005"
+                    },
+                    "ISLR Por Pagar": {
+                        "account_type": "Tax",
+                        "account_number": "2105006"
+                    },
+                    "Impuesto Grandes Patrimonio": {
+                        "account_type": "Tax",
+                        "account_number": "2105007"
+                    },
+                    "Fondo Nacional Antidrogas (FONA)": {
+                        "account_type": "Tax",
+                        "account_number": "2105008"
+                    },
+                    "FONACIT": {
+                        "account_type": "Tax",
+                        "account_number": "2105009"
+                    },
+                    "Fondo Nacional del Deporte": {
+                        "account_type": "Tax",
+                        "account_number": "2105010"
+                    },
+                    "Patente Municipal por pagar": {
+                        "account_type": "Tax",
+                        "account_number": "2105011"
+                    },
+                    "Fidetel Art. 151 0.5%": {
+                        "account_type": "Tax",
+                        "account_number": "2105012"
+                    },
+                    "Tacer 0.5% Anual": {
+                        "account_type": "Tax",
+                        "account_number": "2105013"
+                    },
+                    "Conatel RF - 005 0.5%": {
+                        "account_type": "Tax",
+                        "account_number": "2105014"
+                    },
+                    "Conatel RF - 007 1%": {
+                        "account_type": "Tax",
+                        "account_number": "2105015"
+                    },
+                    "Conatel RF - 006 2.3%": {
+                        "account_type": "Tax",
+                        "account_number": "2105016"
+                    }
+                },
+                "GASTOS ACUMULADOS POR PAGAR": {
+                    "account_number": "2106",
+                    "Nómina Por Pagar": {
+                        "account_type": "Payable",
+                        "account_number": "2106001"
+                    },
+                    "Prestaciones Sociales": {
+                        "account_type": "Payable",
+                        "account_number": "2106002"
+                    },
+                    "Intereses de Prestaciones Sociales": {
+                        "account_type": "Payable",
+                        "account_number": "2106003"
+                    },
+                    "Vacaciones": {
+                        "account_type": "Payable",
+                        "account_number": "2106004"
+                    },
+                    "Utilidades": {
+                        "account_type": "Payable",
+                        "account_number": "2106005"
+                    },
+                    "Bono Vacacional": {
+                        "account_type": "Payable",
+                        "account_number": "2106006"
+                    },
+                    "Seguro Social Obligatorio (SSO)": {
+                        "account_type": "Payable",
+                        "account_number": "2106007"
+                    },
+                    "Ley de Politica Habitacional (FAOV)": {
+                        "account_type": "Payable",
+                        "account_number": "2106008"
+                    },
+                    "INCES": {
+                        "account_type": "Payable",
+                        "account_number": "2106009"
+                    },
+                    "Cuentas por Pagar Seguros": {
+                        "account_type": "Payable",
+                        "account_number": "2106010"
+                    }
+                }
+            },
+            "PRESTACIONES SOCIALES": {
+                "account_number": "2204",
+                "Prestaciones Sociales LOTTT Lit. C.": {
+                    "account_type": "Payable",
+                    "account_number": "2204001"
+                }
+            },
+            "OTROS PASIVOS": {
+                "account_number": "2206",
+                "Cuentas en Participación Anzoategui ANZ-01": {
+                    "account_type": "Liability",
+                    "account_number": "2206001"
+                },
+                "Cuenta en Participacion Aragua ARA-01": {
+                    "account_type": "Liability",
+                    "account_number": "2206002"
+                },
+                "Cuenta en Participacion Aragua ARA-02": {
+                    "account_type": "Liability",
+                    "account_number": "2206003"
+                },
+                "Cuenta en Participacion Distrito Capital DC-01": {
+                    "account_type": "Liability",
+                    "account_number": "2206004"
+                },
+                "Cuenta en Participacion Lara LAR-01": {
+                    "account_type": "Liability",
+                    "account_number": "2206005"
+                },
+                "Cuenta en Participacion Miranda MIR-01": {
+                    "account_type": "Liability",
+                    "account_number": "2206006"
+                },
+                "Cuenta en Participacion Miranda MIR-02": {
+                    "account_type": "Liability",
+                    "account_number": "2206007"
+                },
+                "Cuenta en Participacion Nueva Esparta NUE-01": {
+                    "account_type": "Liability",
+                    "account_number": "2206008"
+                },
+                "Cuenta en Participacion Trujillo TRU-01": {
+                    "account_type": "Liability",
+                    "account_number": "2206009"
+                },
+                "Cuenta en Participacion Tecno Forza": {
+                    "account_type": "Liability",
+                    "account_number": "2206010"
+                },
+                "Cuentas en Participacion Bolivar": {
+                    "account_type": "Liability",
+                    "account_number": "2206011"
+                },
+                "Cuentas en Participación Pronet DC-03": {
+                    "account_type": "Liability",
+                    "account_number": "2206012"
+                }
+            }
+        },
+        "PATRIMONIO": {
+            "root_type": "Equity",
+            "account_number": "3",
+            "CAPITAL": {
+                "account_number": "31",
+                "UTILIDADES NO DISTRIBUIDAS": {
+                    "account_number": "3101",
+                    "Capital Social": {
+                        "account_type": "Equity",
+                        "account_number": "3101001"
+                    },
+                    "Resultados de Ejercicios Anteriores": {
+                        "account_type": "Equity",
+                        "account_number": "3101002"
+                    },
+                    "Resultados del Ejercicio": {
+                        "account_type": "Equity",
+                        "account_number": "3101003"
+                    }
+                },
+                "RESERVAS": {
+                    "account_number": "3102",
+                    "Reserva Legal": {
+                        "account_type": "Equity",
+                        "account_number": "3102001"
+                    },
+                    "Aporte Futuras Capitalizaciones": {
+                        "account_type": "Equity",
+                        "account_number": "3102002"
+                    }
+                }
+            }
+        },
+        "INGRESOS": {
+            "root_type": "Income",
+            "account_number": "4",
+            "INGRESOS OPERACIONALES": {
+                "account_number": "41",
+                "INGRESOS POR VENTAS": {
+                    "account_number": "4101",
+                    "Ingresos Servicios de Internet": {
+                        "account_type": "Income Account",
+                        "account_number": "4101001"
+                    }
+                }
+            }
+        },
+        "COSTOS DE VENTAS": {
+            "root_type": "Expense",
+            "account_number": "5",
+            "COSTOS DE VENTAS": {
+                "account_number": "51",
+                "COSTOS DE VENTAS": {
+                    "account_number": "5101",
+                    "Compras de Materiales Clientes": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5101004"
+                    },
+                    "Devoluciones y Ajustes en Compras": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5101005"
+                    },
+                    "Acceso a Internet Proveedor Nacional": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5101010"
+                    },
+                    "Mantenimiento de Red": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5101017"
+                    }
+                },
+                "COSTOS LABORALES": {
+                    "account_number": "5102",
+                    "Sueldos y Salarios": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102001"
+                    },
+                    "Comisiones en Ventas": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102002"
+                    },
+                    "Bonificación por Producción": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102003"
+                    },
+                    "Bono Complementario Cestatickets": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102004"
+                    },
+                    "Prestaciones Sociales": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102005"
+                    },
+                    "Intereses de Prestaciones Sociales": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102006"
+                    },
+                    "Bono Vacacional": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102007"
+                    },
+                    "Utilidades": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102008"
+                    },
+                    "Vacaciones": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102009"
+                    },
+                    "Bono Nocturno": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102012"
+                    },
+                    "Bono Unico": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102011"
+                    },
+                    "Horas Extras": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102013"
+                    },
+                    "Dias Feriados": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102014"
+                    },
+                    "Uniformes Personal": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102015"
+                    },
+                    "Selección de Personal": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102016"
+                    },
+                    "Guarderia Infantil": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102017"
+                    },
+                    "Gastos Medicos de Personal": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102018"
+                    },
+                    "Formacion Profesional": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102019"
+                    },
+                    "Gastos Reembolsables": {
+                        "account_type": "Cost of Goods Sold",
+                        "account_number": "5102020"
+                    }
+                }
+            }
+        },
+        "GASTOS": {
+            "root_type": "Expense",
+            "account_number": "6",
+            "GASTOS DE VENTAS": {
+                "account_number": "61",
+                "GASTOS DE PERSONAL": {
+                    "account_number": "6101",
+                    "Sueldos y Salarios": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101001"
+                    },
+                    "Sueldos y Salarios Directivos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101002"
+                    },
+                    "Bonificación por Producción": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101003"
+                    },
+                    "Bonificacion Directivos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101004"
+                    },
+                    "Bono Complementario Cestatickets": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101005"
+                    },
+                    "Prestaciones Sociales": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101006"
+                    },
+                    "Intereses de Prestaciones Sociales": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101007"
+                    },
+                    "Intereses Prestaciones Sociales Directivos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101008"
+                    },
+                    "Bono Vacacional": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101009"
+                    },
+                    "Bono Vacacional Directivos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101010"
+                    },
+                    "Utilidades": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101011"
+                    },
+                    "Utilidades  Directivos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101012"
+                    },
+                    "Vacaciones": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101013"
+                    },
+                    "Vacaciones Directivos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101014"
+                    },
+                    "Bono Nocturno": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101017"
+                    },
+                    "Bono Unico": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101016"
+                    },
+                    "Horas Extras": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101018"
+                    },
+                    "Dias Feriados": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101019"
+                    },
+                    "Uniformes Personal": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101020"
+                    },
+                    "Selección de Personal": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101021"
+                    },
+                    "Guarderia Infantil": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101022"
+                    },
+                    "Gastos Medicos de Personal": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101023"
+                    },
+                    "Entretenimiento al Personal": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101024"
+                    },
+                    "Obsequios al Personal": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101027"
+                    },
+                    "Seguro Social Obligatorio ( S.S.O.)": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101028"
+                    },
+                    "Paro Forzoso (P.F.)": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101029"
+                    },
+                    "Ley de política Habitacional (FAOV)": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101030"
+                    },
+                    "INCES": {
+                        "account_type": "Expense Account",
+                        "account_number": "6101031"
+                    }
+                }
+            },
+            "GASTOS DE ADMINISTRACION": {
+                "account_number": "62",
+                "GASTOS OPERACIONALES": {
+                    "account_number": "6201",
+                    "Servicios publicos ": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201001"
+                    },
+                    "Electricidad": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201002"
+                    },
+                    "Telefonia Fija": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201003"
+                    },
+                    "Asesoria Financiera": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201004"
+                    },
+                    "Asesoria Tecnica": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201005"
+                    },
+                    "Servicios Contratados": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201006"
+                    },
+                    "Refrigerios y comidas al Personal": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201007"
+                    },
+                    "Encomiendas": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201008"
+                    },
+                    "Agua Potable": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201009"
+                    },
+                    "Alquiler de Oficina": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201010"
+                    },
+                    "Alquiler de Equipos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201011"
+                    },
+                    "Alquiler Espacio Fibra": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201012"
+                    },
+                    "Boletos Aereos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201013"
+                    },
+                    "Taxi y/ó Traslado": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201014"
+                    },
+                    "Reparacion y Mantenimiento Equipos de Oficina": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201015"
+                    },
+                    "Viaticos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201016"
+                    },
+                    "Timbres fiscales ": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201017"
+                    },
+                    "Aseo Urbano": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201018"
+                    },
+                    "Papeleria": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201019"
+                    },
+                    "Internet": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201020"
+                    },
+                    "Gastos de Viajes": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201021"
+                    },
+                    "Gastos de Representacion": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201022"
+                    },
+                    "Articulos de Oficina": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201023"
+                    },
+                    "Articulos de Limpieza": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201024"
+                    },
+                    "Seguro HCM": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201025"
+                    },
+                    "Seguro de Vehiculos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201026"
+                    },
+                    "Formacion Profesional": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201027"
+                    },
+                    "Limpieza y Aseo de Oficina": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201028"
+                    },
+                    "Estacionamiento": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201029"
+                    },
+                    "Gastos Varios": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201030"
+                    },
+                    "Asesoria Constitución": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201031"
+                    },
+                    "Seguro Funerario": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201032"
+                    },
+                    "Sistemas": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201033"
+                    },
+                    "Gastos de Notaria y Registro": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201034"
+                    },
+                    "Mobiliario y Equipo de Oficina": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201035"
+                    },
+                    "Seguros varios": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201036"
+                    },
+                    "Patente Municipal": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201037"
+                    },
+                    "Condominio": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201038"
+                    },
+                    "Equipos Menores de Computacion": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201039"
+                    },
+                    "Transporte de Mercancia": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201040"
+                    },
+                    "Mantenimiento de Vehiculos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201042"
+                    },
+                    "Egresos servicios gerenciales": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201043"
+                    },
+                    "Asesoria Jurídica": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201044"
+                    },
+                    "Publicidad y Propaganda": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201045"
+                    },
+                    "Gastos de personal temporal": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201046"
+                    },
+                    "Perdida por Cuentas Incobrables": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201047"
+                    },
+                    "Gasolina": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201048"
+                    },
+                    "Amortizacion Seguro HCM": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201049"
+                    },
+                    "Asistencia Tecnica": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201050"
+                    },
+                    "Amortizaciones": {
+                        "account_type": "Depreciation",
+                        "account_number": "6201051"
+                    }
+                },
+                "HONORARIOS PROFESIONALES": {
+                    "account_number": "6202",
+                    "Honorarios Profesionales": {
+                        "account_type": "Expense Account",
+                        "account_number": "6202001"
+                    }
+                },
+                "IMPUESTOS Y CONTRIBUCIONES": {
+                    "account_number": "6203",
+                    "FideteL Art. 151 0,5%": {
+                        "account_type": "Tax",
+                        "account_number": "6203001"
+                    },
+                    "Tacer 0.5% Anual": {
+                        "account_type": "Tax",
+                        "account_number": "6203002"
+                    },
+                    "Conatel RF - 005 0,5%": {
+                        "account_type": "Tax",
+                        "account_number": "6203003"
+                    },
+                    "Conatel RF - 007 1%": {
+                        "account_type": "Tax",
+                        "account_number": "6203004"
+                    },
+                    "Conatel RF - 006 2,3%": {
+                        "account_type": "Tax",
+                        "account_number": "6203005"
+                    },
+                    "Fondo Nacional del Deporte": {
+                        "account_type": "Tax",
+                        "account_number": "6203006"
+                    },
+                    "Fonacit": {
+                        "account_type": "Tax",
+                        "account_number": "6203007"
+                    },
+                    "Impuesto Sobre La Renta": {
+                        "account_type": "Tax",
+                        "account_number": "6203008"
+                    },
+                    "Retenciones Gubernamentales": {
+                        "account_type": "Tax",
+                        "account_number": "6203009"
+                    },
+                    "Fondo Nacional Antidrogas": {
+                        "account_type": "Tax",
+                        "account_number": "6203010"
+                    },
+                    "Multas y Recargos": {
+                        "account_type": "Expense Account",
+                        "account_number": "6203011"
+                    },
+                    "Impuesto a los Grandes Patrimonios": {
+                        "account_type": "Tax",
+                        "account_number": "6203012"
+                    },
+                    "Proteccion a  Pensiones": {
+                        "account_type": "Tax",
+                        "account_number": "6203013"
+                    },
+                    "Gasto Impuesto 1*1000": {
+                        "account_type": "Tax",
+                        "account_number": "6203014"
+                    },
+                    "Servicio Nacional de Contratistas": {
+                        "account_type": "Expense Account",
+                        "account_number": "6203015"
+                    }
+                },
+                "DEPRECIACIONES": {
+                    "account_number": "6204",
+                    "Depreciacion Vehículos": {
+                        "account_type": "Depreciation",
+                        "account_number": "6204001"
+                    },
+                    "Depreciacion Muebles y Enseres": {
+                        "account_type": "Depreciation",
+                        "account_number": "6204002"
+                    },
+                    "Depreciacion Equipo de Oficina": {
+                        "account_type": "Depreciation",
+                        "account_number": "6204003"
+                    },
+                    "Depreciacion Equipos de Computacion": {
+                        "account_type": "Depreciation",
+                        "account_number": "6204004"
+                    },
+                    "Amortización Licencia y Software": {
+                        "account_type": "Depreciation",
+                        "account_number": "6204005"
+                    }
+                },
+                "PROVISIONES": {
+                    "account_number": "6205",
+                    "Provisión Cuentas Incobrables": {
+                        "account_type": "Expense Account",
+                        "account_number": "6205001"
+                    },
+                    "Provision Otras Contingencias": {
+                        "account_type": "Expense Account",
+                        "account_number": "6205002"
+                    },
+                    "Provision Gastos No Deducibles": {
+                        "account_type": "Expense Account",
+                        "account_number": "6205003"
+                    }
+                },
+                "GASTOS NO DEDUCIBLES": {
+                    "account_number": "6206",
+                    "Gastos No Deducibles": {
+                        "account_type": "Expense Account",
+                        "account_number": "6206001"
+                    },
+                    "Seguro HCM No Deducible": {
+                        "account_type": "Expense Account",
+                        "account_number": "6206002"
+                    },
+                    "Boletos Aereos No Deducible": {
+                        "account_type": "Expense Account",
+                        "account_number": "6206003"
+                    }
+                }
+            }
+        },
+        "OTROS INGRESOS": {
+            "root_type": "Income",
+            "account_number": "7",
+            "OTROS INGRESOS": {
+                "account_number": "71",
+                "INGRESOS NO OPERACIONALES": {
+                    "account_number": "7101",
+                    "Ingresos Financieros": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101001"
+                    },
+                    "Otros ingresos asistencia tecnica equipos": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101002"
+                    },
+                    "Alquileres Ganados": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101003"
+                    },
+                    "Ganancia en Venta de Activos Fijos": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101004"
+                    },
+                    "Ganancia en Cambio": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101005"
+                    },
+                    "Otros Ingresos Extraordinarios": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101006"
+                    },
+                    "Impuesto Diferido": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101007"
+                    },
+                    "Fee administrativo internet": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101008"
+                    },
+                    "Ingresos servicios gerenciales": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101009"
+                    },
+                    "Otros Ingresos asistencia tecnica de RED Data": {
+                        "account_type": "Direct Income",
+                        "account_number": "7101010"
+                    }
+                }
+            }
+        },
+        "OTROS EGRESOS": {
+            "root_type": "Expense",
+            "account_number": "8",
+            "OTROS EGRESOS": {
+                "account_number": "81",
+                "EGRESOS NO OPERACIONALES": {
+                    "account_number": "8101",
+                    "Egresos Financieros": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101001"
+                    },
+                    "Impuesto Diferido": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101002"
+                    },
+                    "Gastos de Intereses": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101003"
+                    },
+                    "Egresos Fee administrativo internet data": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101004"
+                    },
+                    "Comision por Inversiones": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101005"
+                    },
+                    "Comisiones Bancarias": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101006"
+                    },
+                    "Perdida en Venta de Activo Fijos": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101007"
+                    },
+                    "Perdida en Robos y Accidentes": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101008"
+                    },
+                    "Desincorporacion de Activos Obsoletos": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101009"
+                    },
+                    "Intereses Bancarios Pagados": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101010"
+                    },
+                    "Perdida en Cambio": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101011"
+                    },
+                    "Otros Egresos": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101012"
+                    },
+                    "Diferencia por Reconversion Monetaria": {
+                        "account_type": "Expense Account",
+                        "account_number": "8101013"
+                    }
+                }
+            }
+        }
+    }
+}
