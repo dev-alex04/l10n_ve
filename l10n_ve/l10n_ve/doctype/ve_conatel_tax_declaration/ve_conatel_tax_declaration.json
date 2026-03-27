@@ -169,13 +169,14 @@
         {
             "fieldname": "section_break_items",
             "fieldtype": "Section Break",
-            "label": "Detalles por Producto"
+            "label": "Resumen de Facturación"
         },
         {
             "fieldname": "items",
             "fieldtype": "Table",
-            "label": "Productos / Servicios",
-            "options": "VE Conatel Tax Declaration Item"
+            "label": "Resumen de Ingresos",
+            "options": "VE Conatel Tax Declaration Item",
+            "read_only": 1
         },
         {
             "fieldname": "section_break_taxes",
@@ -227,12 +228,14 @@
             "fieldtype": "Section Break"
         },
         {
+            "allow_on_submit": 1,
             "fieldname": "tax_payable_account",
             "fieldtype": "Link",
             "label": "Cuenta por Pagar (Pasivo)",
             "options": "Account"
         },
         {
+            "allow_on_submit": 1,
             "fieldname": "tax_expense_account",
             "fieldtype": "Link",
             "label": "Cuenta de Gasto",
