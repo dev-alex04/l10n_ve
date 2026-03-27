@@ -77,12 +77,15 @@ function handle_customer_field_change(frm, fieldname) {
 
   if (doc_type === "Cedula" || doc_type === "Passport") {
     frm.toggle_display("is_special_taxpayer", false);
+    frm.toggle_display("tabulator_islr", false);
     frm.set_value("is_special_taxpayer", 0);
+    frm.set_value("tabulator_islr", "");
     frm.set_value("tax_withholding_category", "");
     frm.set_df_property("tax_withholding_category", "reqd", 0);
     frm.toggle_display("tax_withholding_category", false);
   } else {
     frm.toggle_display("is_special_taxpayer", true);
+    frm.toggle_display("tabulator_islr", true);
 
     const is_special = frm.doc.is_special_taxpayer;
     frm.toggle_display("tax_withholding_category", is_special);
