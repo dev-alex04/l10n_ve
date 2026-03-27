@@ -967,6 +967,10 @@
                         "account_type": "Expense Account",
                         "account_number": "6201040"
                     },
+                    "Seguro de Vehiculo": {
+                        "account_type": "Expense Account",
+                        "account_number": "6201041"
+                    },
                     "Mantenimiento de Vehiculos": {
                         "account_type": "Expense Account",
                         "account_number": "6201042"
