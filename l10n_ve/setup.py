@@ -1467,6 +1467,19 @@ def set_roles() -> None:
         print(f"Failure: Ocurrió un error creando perfiles de roles: {e}")
         frappe.log_error(title="Error en set_roles", message=frappe.get_traceback())
 
+def get_compatible_workspace_name() -> str:
+    """
+    Busca un nombre de Workspace compatible en el sistema.
+    Prioriza Accounting, luego Accounts, y finalmente Financial Reports.
+    """
+    priorities = ["Accounting", "Accounts", "Financial Reports"]
+    for name in priorities:
+        if frappe.db.exists("Workspace", name):
+            return name
+    
+    print(f"  !! No se encontró ningún Workspace compatible ({', '.join(priorities)}).")
+    return None
+
 def add_reports_to_accounts_workspace() -> None:
     """
     Agrega los reportes 'Customer Retention', 'IGTF received', 'sales_book' y 'purchase_book'
@@ -1475,15 +1488,9 @@ def add_reports_to_accounts_workspace() -> None:
     """
     print("Agregando reportes al Workspace...")
     try:
-        workspace_name = "Financial Reports"
-        if not frappe.db.exists("Workspace", workspace_name):
-            if frappe.db.exists("Workspace", "Accounting"):
-                workspace_name = "Accounting"
-            elif frappe.db.exists("Workspace", "Accounts"):
-                workspace_name = "Accounts"
-            else:
-                print("  !! No se encontró ningún Workspace compatible (Financial Reports, Accounting, Accounts).")
-                return
+        workspace_name = get_compatible_workspace_name()
+        if not workspace_name:
+            return
 
         workspace = frappe.get_doc("Workspace", workspace_name)
         print(f"  -> Workspace encontrado: {workspace_name}")
@@ -1533,11 +1540,14 @@ def add_reports_to_accounts_workspace() -> None:
             }
         ]
 
-        modified = False
+        links_to_move = [r["link_to"] for r in reports_to_add]
+        
+        initial_links_count = len(workspace.links)
+        workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
+        modified = len(workspace.links) != initial_links_count
+        
+        current_links = {l.link_to for l in workspace.links}
 
-        current_links = [l.link_to for l in workspace.links]
-
-        # Agregar Salto de Tarjeta (Card Break)
         card_break_label = "Reportes Venezuela"
         card_break_exists = any(l.label == card_break_label and l.type == 'Card Break' for l in workspace.links)
 
@@ -1573,8 +1583,7 @@ def add_reports_to_accounts_workspace() -> None:
             for block in content:
                 if block.get("type") == "card" and block.get("data", {}).get("card_name") == custom_card_name:
                     card_found = True
-                    links = block["data"].get("links", [])
-                    block["data"]["links"] = reports_to_add
+                    block["data"]["links"] = [r for r in reports_to_add if frappe.db.exists("Report", r["link_to"])]
                     modified = True
                     break
             
@@ -1585,7 +1594,7 @@ def add_reports_to_accounts_workspace() -> None:
                     "data": {
                         "card_name": custom_card_name,
                         "col": 4,
-                        "links": reports_to_add
+                        "links": [r for r in reports_to_add if frappe.db.exists("Report", r["link_to"])]
                     }
                 }
                 content.append(new_card)
@@ -1610,15 +1619,9 @@ def add_doctypes_to_accounting_workspace() -> None:
     """
     print("Agregando DocTypes de l10n_ve al Workspace de Contabilidad...")
     try:
-        workspace_name = "Accounting"
-        if not frappe.db.exists("Workspace", workspace_name):
-            if frappe.db.exists("Workspace", "Accounts"):
-                workspace_name = "Accounts"
-            elif frappe.db.exists("Workspace", "Financial Reports"):
-                workspace_name = "Financial Reports"
-            else:
-                print("  !! No se encontró ningún Workspace compatible (Accounting, Accounts, Financial Reports).")
-                return
+        workspace_name = get_compatible_workspace_name()
+        if not workspace_name:
+            return
 
         workspace = frappe.get_doc("Workspace", workspace_name)
         print(f"  -> Workspace encontrado: {workspace_name}")
@@ -1643,7 +1646,12 @@ def add_doctypes_to_accounting_workspace() -> None:
                 "link_type": "DocType",
             })
 
-        modified = False
+        links_to_move = [l["link_to"] for l in links_to_add]
+        
+        initial_links_count = len(workspace.links)
+        workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
+        modified = len(workspace.links) != initial_links_count
+        
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = "Configuración Venezuela"
@@ -1675,8 +1683,7 @@ def add_doctypes_to_accounting_workspace() -> None:
         for block in content:
             if block.get("type") == "card" and block.get("data", {}).get("card_name") == custom_card_name:
                 card_found = True
-                # Sincronizar links en la tarjeta (Sobrescribir para evitar duplicados)
-                block["data"]["links"] = links_to_add
+                block["data"]["links"] = [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 modified = True
                 break
         
@@ -1687,7 +1694,7 @@ def add_doctypes_to_accounting_workspace() -> None:
                 "data": {
                     "card_name": custom_card_name,
                     "col": 4,
-                    "links": links_to_add
+                    "links": [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 }
             }
             content.append(new_card)
@@ -1750,17 +1757,11 @@ def add_vouchers_to_accounts_workspace() -> None:
     """
     Agrega los DocTypes de comprobantes de retención al Workspace 'Accounting'.
     """
-    print("Agregando Comprobantes al Workspace de Contabilidad...")
+    print("Agregando sección Tributos al Workspace de Contabilidad...")
     try:
-        workspace_name = "Accounting"
-        if not frappe.db.exists("Workspace", workspace_name):
-            if frappe.db.exists("Workspace", "Accounts"):
-                workspace_name = "Accounts"
-            elif frappe.db.exists("Workspace", "Financial Reports"):
-                workspace_name = "Financial Reports"
-            else:
-                print("  !! No se encontró ningún Workspace compatible (Accounting, Accounts, Financial Reports).")
-                return
+        workspace_name = get_compatible_workspace_name()
+        if not workspace_name:
+            return
 
         workspace = frappe.get_doc("Workspace", workspace_name)
         print(f"  -> Workspace encontrado: {workspace_name}")
@@ -1793,9 +1794,11 @@ def add_vouchers_to_accounts_workspace() -> None:
         ]
 
         links_to_move = [l["link_to"] for l in links_to_add]
-        workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         
-        modified = True
+        initial_links_count = len(workspace.links)
+        workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
+        modified = len(workspace.links) != initial_links_count
+        
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = _("Tributos")
@@ -1829,7 +1832,7 @@ def add_vouchers_to_accounts_workspace() -> None:
         for block in content:
             if block.get("type") == "card" and block.get("data", {}).get("card_name") == custom_card_name:
                 card_found = True
-                block["data"]["links"] = links_to_add
+                block["data"]["links"] = [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 modified = True
                 break
         
@@ -1840,7 +1843,7 @@ def add_vouchers_to_accounts_workspace() -> None:
                 "data": {
                     "card_name": custom_card_name,
                     "col": 4,
-                    "links": links_to_add
+                    "links": [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 }
             }
             content.append(new_card)
