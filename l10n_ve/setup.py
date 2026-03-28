@@ -1467,12 +1467,13 @@ def set_roles() -> None:
         print(f"Failure: Ocurrió un error creando perfiles de roles: {e}")
         frappe.log_error(title="Error en set_roles", message=frappe.get_traceback())
 
-def get_compatible_workspace_name() -> str:
+def get_compatible_workspace_name(priorities=None) -> str:
     """
     Busca un nombre de Workspace compatible en el sistema.
-    Prioriza Accounting, luego Accounts, y finalmente Financial Reports.
     """
-    priorities = ["Accounting", "Accounts", "Financial Reports"]
+    if not priorities:
+        priorities = ["Accounting", "Accounts", "Financial Reports"]
+        
     for name in priorities:
         if frappe.db.exists("Workspace", name):
             return name
@@ -1488,7 +1489,7 @@ def add_reports_to_accounts_workspace() -> None:
     """
     print("Agregando reportes al Workspace...")
     try:
-        workspace_name = get_compatible_workspace_name()
+        workspace_name = get_compatible_workspace_name(["Financial Reports", "Accounting", "Accounts"])
         if not workspace_name:
             return
 
