@@ -185,8 +185,7 @@ after_install = [
 after_migrate = [
     "l10n_ve.patches.monkey_patches.apply_post_db_patches",
     "l10n_ve.setup.create_currency_exchange",
-    "l10n_ve.setup.add_reports_to_accounts_workspace",
-    "l10n_ve.setup.add_doctypes_to_accounting_workspace",
+    "l10n_ve.setup.setup_workspaces",
 ]
 
 # Uninstallation

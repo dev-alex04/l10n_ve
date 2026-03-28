@@ -37,8 +37,7 @@ def set_data() -> None:
         remove_module_onboarding()
         set_profiles()
         set_roles()
-        add_reports_to_accounts_workspace()
-        add_doctypes_to_accounting_workspace()
+        setup_workspaces()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1575,19 +1574,8 @@ def add_reports_to_accounts_workspace() -> None:
                 if block.get("type") == "card" and block.get("data", {}).get("card_name") == custom_card_name:
                     card_found = True
                     links = block["data"].get("links", [])
-                    existing_links = [l.get("link_to") for l in links]
-
-                    for report in reports_to_add:
-                        if not frappe.db.exists("Report", report["link_to"]):
-                            continue
-
-                        if report["link_to"] not in existing_links:
-                            links.append(report)
-                            modified = True
-                            print(f"  -> Agregado a tarjeta visual: {report['label']}")
-                    
-                    if modified:
-                        block["data"]["links"] = links
+                    block["data"]["links"] = reports_to_add
+                    modified = True
                     break
             
             if not card_found:
@@ -1641,6 +1629,7 @@ def add_doctypes_to_accounting_workspace() -> None:
             {"link_to": "VE Economic Activity", "label": _("Actividades Económicas")},
             {"link_to": "VE Municipality", "label": _("Municipios")},
             {"link_to": "VE Municipality Taxes", "label": _("Impuestos Municipales")},
+            {"link_to": "VE Conatel Tax Type", "label": _("Impuestos CONATEL")},
             {"link_to": "Ve Branch", "label": _("Sucursales")},
             {"link_to": "Venezuela Account Settings", "label": _("Configuración")},
         ]
@@ -1686,17 +1675,9 @@ def add_doctypes_to_accounting_workspace() -> None:
         for block in content:
             if block.get("type") == "card" and block.get("data", {}).get("card_name") == custom_card_name:
                 card_found = True
-                card_links = block["data"].get("links", [])
-                existing_links_in_card = {l.get("link_to") for l in card_links}
-
-                for link in links_to_add:
-                    if link["link_to"] not in existing_links_in_card:
-                        card_links.append(link)
-                        modified = True
-                        print(f"  -> Agregado a tarjeta visual: {link['label']}")
-                
-                if modified:
-                    block["data"]["links"] = card_links
+                # Sincronizar links en la tarjeta (Sobrescribir para evitar duplicados)
+                block["data"]["links"] = links_to_add
+                modified = True
                 break
         
         if not card_found:
@@ -1755,3 +1736,124 @@ def create_conatel_tax_types() -> None:
     except Exception as e:
         print(f"Failure: Ocurrió un error creando los tipos de tributos CONATEL: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_conatel_tax_types')
+
+def setup_workspaces() -> None:
+    """
+    Ejecuta todas las configuraciones de Workspaces para l10n_ve.
+    """
+    print("Iniciando configuración de Workspaces...")
+    add_reports_to_accounts_workspace()
+    add_doctypes_to_accounting_workspace()
+    add_vouchers_to_accounts_workspace()
+
+def add_vouchers_to_accounts_workspace() -> None:
+    """
+    Agrega los DocTypes de comprobantes de retención al Workspace 'Accounting'.
+    """
+    print("Agregando Comprobantes al Workspace de Contabilidad...")
+    try:
+        workspace_name = "Accounting"
+        if not frappe.db.exists("Workspace", workspace_name):
+            if frappe.db.exists("Workspace", "Accounts"):
+                workspace_name = "Accounts"
+            elif frappe.db.exists("Workspace", "Financial Reports"):
+                workspace_name = "Financial Reports"
+            else:
+                print("  !! No se encontró ningún Workspace compatible (Accounting, Accounts, Financial Reports).")
+                return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+        print(f"  -> Workspace encontrado: {workspace_name}")
+
+        links_to_add = [
+            {
+                "label": _("Retención de IVA"),
+                "link_to": "VAT Withholding Voucher",
+                "type": "Link",
+                "link_type": "DocType"
+            },
+            {
+                "label": _("Retención de ISLR"),
+                "link_to": "ISLR Withholding Voucher",
+                "type": "Link",
+                "link_type": "DocType"
+            },
+            {
+                "label": _("Declaración de Municipales"),
+                "link_to": "VE Municipality Tax Declaration",
+                "type": "Link",
+                "link_type": "DocType"
+            },
+            {
+                "label": _("Declaración de CONATEL"),
+                "link_to": "VE Conatel Tax Declaration",
+                "type": "Link",
+                "link_type": "DocType"
+            },
+        ]
+
+        links_to_move = [l["link_to"] for l in links_to_add]
+        workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
+        
+        modified = True
+        current_links = {l.link_to for l in workspace.links}
+
+        card_break_label = _("Tributos")
+        card_break_exists = any(l.label == card_break_label and l.type == 'Card Break' for l in workspace.links)
+
+        if not card_break_exists:
+            workspace.append("links", {
+                "type": "Card Break",
+                "label": card_break_label
+            })
+            modified = True
+            print(f"  -> Agregado salto de tarjeta: {card_break_label}")
+
+        for link in links_to_add:
+            if link["link_to"] not in current_links:
+                workspace.append("links", {
+                    "label": link["label"],
+                    "type": "Link",
+                    "link_type": "DocType",
+                    "link_to": link["link_to"],
+                })
+                modified = True
+                print(f"  -> Agregado a tabla links: {link['label']}")
+
+        content = json.loads(workspace.content) if workspace.content else []
+        custom_card_name = "Tributos"
+        card_found = False
+
+        content = [block for block in content if block.get("data", {}).get("card_name") != "Comprobantes"]
+
+        for block in content:
+            if block.get("type") == "card" and block.get("data", {}).get("card_name") == custom_card_name:
+                card_found = True
+                block["data"]["links"] = links_to_add
+                modified = True
+                break
+        
+        if not card_found:
+            print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
+            new_card = {
+                "type": "card",
+                "data": {
+                    "card_name": custom_card_name,
+                    "col": 4,
+                    "links": links_to_add
+                }
+            }
+            content.append(new_card)
+            modified = True
+        
+        if modified:
+            workspace.content = json.dumps(content)
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Workspace '{workspace_name}' actualizado con sección '{custom_card_name}'.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya estaba actualizado.")
+
+    except Exception as e:
+        print(f"Failure: Error actualizando Comprobantes en Workspace: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_vouchers_to_accounts_workspace')
