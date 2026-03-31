@@ -1,18 +1,11 @@
+import json
 from typing import Optional
 
 import frappe
-from frappe import _
-from frappe.utils import getdate
+from frappe.utils import today
 
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
-
-
-def _get_cutoff_date():
-    """Retorna la fecha de corte configurada en TFHKA Settings."""
-    return getdate(
-        frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "cutoff_date")
-    )
 
 
 def get_active_billing_series(company: str, branch: str = "") -> Optional[object]:
@@ -71,8 +64,13 @@ def process_invoice(invoice_name: str) -> bool:
     try:
         doc = frappe.get_doc("Sales Invoice", invoice_name)
 
-        if doc.digital_billing_status == "Sent":
-            return True
+        # Establecer posting_date y due_date a la fecha actual
+        # para que coincidan con la Fecha de Asignación de HKA
+        fecha_actual: str = today()
+        if str(doc.posting_date) != fecha_actual or str(doc.due_date) != fecha_actual:
+            doc.db_set("posting_date", fecha_actual, update_modified=False)
+            doc.db_set("due_date", fecha_actual, update_modified=False)
+            doc.reload()
 
         branch = doc.get("branch") or ""
         series_doc = get_active_billing_series(company=doc.company, branch=branch)
@@ -90,7 +88,6 @@ def process_invoice(invoice_name: str) -> bool:
                 f"No se pudo resolver: {', '.join(missing)}. "
                 f"Cliente: {doc.customer}, Suscripción: {doc.get('subscription') or 'N/A'}"
             )
-            doc.db_set("digital_billing_status", "Error", update_modified=False)
             _log_request("Emision", doc.name, payload, {"error": True, "message": notes}, "Error", notes=notes)
             frappe.db.commit()
             return False
@@ -113,7 +110,12 @@ def process_invoice(invoice_name: str) -> bool:
                 if series_doc:
                     update_billing_series_after_response(series_doc, control)
 
-            doc.db_set("digital_billing_status", "Sent", update_modified=False)
+            # Guardar la respuesta JSON en el campo remarks
+            doc.db_set("remarks", json.dumps(response, indent=2, ensure_ascii=False), update_modified=False)
+
+            # Actualizar GL Entries para que reflejen la fecha actual
+            _sync_gl_entries_date(doc.name, fecha_actual)
+
             _log_request("Emision", doc.name, payload, response, "Success")
             frappe.db.commit()
             return True
@@ -125,7 +127,6 @@ def process_invoice(invoice_name: str) -> bool:
                 notes_parts.append(f"Mensaje: {mensaje}")
             if validaciones:
                 notes_parts.append("Validaciones: " + "; ".join(str(v) for v in validaciones))
-            doc.db_set("digital_billing_status", "Error", update_modified=False)
             _log_request("Emision", doc.name, payload, response, "Error",
                          notes="\n".join(notes_parts))
             frappe.db.commit()
@@ -134,11 +135,6 @@ def process_invoice(invoice_name: str) -> bool:
     except Exception as e:
         tb: str = frappe.get_traceback(with_context=True) or str(e)
         frappe.logger("l10n_ve").error(f"Error procesando FT Digital {invoice_name}: {tb}")
-        frappe.db.set_value(
-            "Sales Invoice", invoice_name,
-            "digital_billing_status", "Error",
-            update_modified=False
-        )
         _log_request(
             "Emision",
             invoice_name,
@@ -151,6 +147,35 @@ def process_invoice(invoice_name: str) -> bool:
         return False
 
 
+def _sync_gl_entries_date(voucher_no: str, new_date: str) -> None:
+    """Actualiza las fechas de GL Entries, Payment Schedule y Payment Ledger Entry."""
+    try:
+        frappe.db.sql("""
+            UPDATE `tabGL Entry`
+            SET posting_date = %s
+            WHERE voucher_type = 'Sales Invoice'
+            AND voucher_no = %s
+        """, (new_date, voucher_no))
+
+        frappe.db.sql("""
+            UPDATE `tabPayment Schedule`
+            SET due_date = %s
+            WHERE parent = %s
+            AND parenttype = 'Sales Invoice'
+        """, (new_date, voucher_no))
+
+        frappe.db.sql("""
+            UPDATE `tabPayment Ledger Entry`
+            SET posting_date = %s, due_date = %s
+            WHERE voucher_type = 'Sales Invoice'
+            AND voucher_no = %s
+        """, (new_date, new_date, voucher_no))
+    except Exception as e:
+        frappe.logger("l10n_ve").error(
+            f"Error actualizando registros contables para {voucher_no}: {str(e)}"
+        )
+
+
 def _log_request(
     endpoint: str,
     invoice_name: str,
@@ -160,7 +185,6 @@ def _log_request(
     notes: str = ""
 ) -> None:
     """Registra el log de la solicitud."""
-    import json
     log_data: dict = {
         "endpoint": endpoint,
         "sales_invoice": invoice_name,
@@ -186,55 +210,6 @@ def _create_log_entry(log_data: dict) -> None:
 def send_invoice_manually(invoice_name: str) -> str:
     """Método invocado mediante botón JS para reenvío manual."""
     frappe.has_permission("Sales Invoice", "submit", doc=invoice_name, throw=True)
-    process_invoice(invoice_name)
-    status = frappe.db.get_value("Sales Invoice", invoice_name, "digital_billing_status")
-    return status
+    success = process_invoice(invoice_name)
+    return "Sent" if success else "Error"
 
-
-def retry_pending_digital_invoices() -> None:
-    """
-    Task programado (cada 5 min) que procesa facturas digitales
-    pendientes o con error de forma síncrona y secuencial.
-    STOP on error: si una factura falla, detiene el procesamiento.
-    """
-    try:
-        if not frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "enabled"):
-            return
-    except Exception:
-        return
-
-    cutoff_date = _get_cutoff_date()
-    if not cutoff_date:
-        return
-
-    invoices: list[dict] = frappe.get_all(
-        "Sales Invoice",
-        filters={
-            "docstatus": 1,
-            "digital_billing_status": ["in", ["Pending", "Error"]],
-            "posting_date": [">=", cutoff_date],
-        },
-        fields=["name"],
-        order_by="posting_date asc, creation asc",
-        limit=50,
-    )
-
-    if not invoices:
-        return
-
-    processed: int = 0
-    for inv in invoices:
-        success: bool = process_invoice(inv.name)
-        if success:
-            processed += 1
-        else:
-            frappe.logger("l10n_ve").warning(
-                f"TFHKA batch: STOP en factura {inv.name}. "
-                f"{processed} facturas enviadas exitosamente antes del error."
-            )
-            return
-
-    if processed:
-        frappe.logger("l10n_ve").info(
-            f"TFHKA batch: {processed} facturas enviadas exitosamente"
-        )

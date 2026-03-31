@@ -4,7 +4,7 @@ app_publisher = "DominaERP"
 app_description = "Localizacion Venezolana para ERPNext"
 app_email = "dominaerp@domina.com.ve"
 app_license = "mit"
-
+extend_bootinfo = "l10n_ve.boot.get_boot_info"
 app_include_js = [
     "/assets/l10n_ve/js/toolbar/toolbar.js",
     "/assets/l10n_ve/js/item_logic/item_logic.js",

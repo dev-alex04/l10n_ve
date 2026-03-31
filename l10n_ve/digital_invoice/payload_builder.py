@@ -3,7 +3,7 @@ import json
 from typing import Optional
 
 import frappe
-from frappe.utils import getdate, format_time, flt, cint
+from frappe.utils import getdate, flt, cint
 from frappe.utils.data import money_in_words
 
 
@@ -14,6 +14,24 @@ def strip_html(html: str) -> str:
     text = re.sub(r",\s*,", ",", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip().strip(",").strip()
+
+
+def clean_address(html: str) -> str:
+    """Extrae solo la primera línea de la dirección para HKA.
+
+    Frappe construye address_display como HTML con <br> separando:
+    línea1<br>Ciudad<br>Estado<br>Municipio<br>Ciudad<br>CP<br>País<br>...
+    Solo necesitamos la primera línea (dirección física real).
+    """
+    if not html:
+        return ""
+    # Tomar solo el segmento antes del primer <br>
+    first_line = re.split(r"<br\s*/?>", html, maxsplit=1)[0]
+    # Limpiar tags HTML residuales y espacios
+    first_line = re.sub(r"<[^>]+>", "", first_line)
+    first_line = re.sub(r"\s+", " ", first_line)
+    # Eliminar punto o coma sobrante al final
+    return first_line.strip().rstrip(".,").strip()
 
 
 def to_camel_case(key: str) -> str:
@@ -96,7 +114,7 @@ class TFHKAPayloadBuilder:
     def _build_identificacion_documento(self) -> dict:
         tipo_doc = self._get_tipo_documento()
         posting_date = getdate(self.doc.posting_date).strftime("%d/%m/%Y")
-        due_date = getdate(self.doc.due_date or self.doc.posting_date).strftime("%d/%m/%Y")
+        due_date = posting_date
 
         raw_time = self.doc.posting_time or "12:00:00"
         try:
@@ -162,7 +180,7 @@ class TFHKAPayloadBuilder:
         tax_id = customer.tax_id or "V-000000000"
         tipo_id, num_id = self._parse_tax_id(tax_id)
 
-        direccion = strip_html(self.doc.address_display) if self.doc.address_display else "NO INFO"
+        direccion = clean_address(self.doc.address_display) if self.doc.address_display else "NO INFO"
 
         return {
             "TipoIdentificacion": tipo_id,
@@ -423,6 +441,21 @@ class TFHKAPayloadBuilder:
             "MontoTotalIVAyOTI": None
         }
 
+    def _resolve_tfhka_code(self, item_code: str) -> str:
+        """Busca el codigo TFHKA del Subscription Plan asociado al item.
+
+        Lanza frappe.throw si no existe el código asignado.
+        """
+        code: Optional[str] = frappe.get_cached_value(
+            "Subscription Plan", {"item": item_code}, "code"
+        )
+        if not code:
+            frappe.throw(
+                f"El artículo '{item_code}' no tiene un código TFHKA asignado en su Plan de Suscripción. "
+                "Asigne el código antes de enviar la factura a la imprenta digital."
+            )
+        return code[:20]
+
     def _build_items(self) -> list:
         def fmt(val): return "{:.2f}".format(flt(val))
         detalles = []
@@ -444,12 +477,16 @@ class TFHKAPayloadBuilder:
 
             cantidad = str(cint(item.qty)) if item.qty == cint(item.qty) else str(item.qty)
 
+            descripcion_item = item.item_name or ""
+            # SENIAT prohíbe la palabra "Total" en la descripción de los ítems
+            descripcion_item = re.sub(r'(?i)\btotal\b', '', descripcion_item).strip()
+
             detalles.append({
                 "NumeroLinea": str(idx),
                 "CodigoCIIU": "0198",
-                "CodigoPLU": item.item_code[:20],
+                "CodigoPLU": self._resolve_tfhka_code(item.item_code),
                 "IndicadorBienoServicio": "2" if "servicio" in str(item.item_group).lower() else "1",
-                "Descripcion": item.item_name[:250],
+                "Descripcion": descripcion_item[:250],
                 "Cantidad": cantidad,
                 "UnidadMedida": "94",
                 "PrecioUnitario": fmt(item_rate),
@@ -508,27 +545,20 @@ class TFHKAPayloadBuilder:
         return zona, nodo
 
     def _build_info_adicional(self) -> list:
-        """Construye el nodo InfoAdicional con datos del servicio ISP."""
+        """Construye el nodo InfoAdicional con un objeto por cada dato.
+
+        La API de HKA exige:
+        - Cada entrada es un objeto {"Campo": campo, "Valor": valor}.
+        - El valor debe ser texto plano alfanumérico (sin {}, '' ni JSON).
+        - Máximo 255 caracteres por campo y por valor.
+        """
         doc = self.doc
         subscription_name: str = doc.get("subscription") or ""
-        contrato: str = ""
-        id_servicio: str = ""
 
-        if subscription_name:
-            try:
-                customer_doc = frappe.get_cached_doc("Customer", doc.customer)
-                service_row = next(
-                    (row for row in (customer_doc.get("internet_services") or [])
-                     if row.subscription == subscription_name),
-                    None
-                )
-                if service_row:
-                    contrato = service_row.name or ""
-                    id_servicio = service_row.parent or ""
-            except Exception:
-                pass
+        # RIF del cliente como identificador del servicio (ej. J304858906)
+        id_servicio: str = doc.get("tax_id") or ""
 
-        direccion_servicio = strip_html(doc.address_display) if doc.address_display else ""
+        direccion_servicio = clean_address(doc.address_display) if doc.address_display else ""
 
         tasa_bcv: str = ""
         if flt(doc.conversion_rate) > 0:
@@ -538,8 +568,12 @@ class TFHKAPayloadBuilder:
                 f"por 1,00 USD de fecha valor {posting_date_str}."
             )
 
+        # Generar periodo en "Nota" basado en posting_date
+        meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
+        fecha_contab = getdate(doc.posting_date)
+        nota_periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+
         periodo: str = ""
-        nota_periodo: str = ""
         if subscription_name:
             try:
                 sub = frappe.get_cached_doc("Subscription", subscription_name)
@@ -550,19 +584,51 @@ class TFHKAPayloadBuilder:
             except Exception:
                 pass
 
-        valor_dict = {
-            "Contrato": contrato,
-            "DireccionServicio": direccion_servicio[:200] if direccion_servicio else "",
-            "TasaCambio": tasa_bcv,
-            "Periodo": periodo,
-            "Zona": self.zona or "",
-            "Nodo": self.nodo or "",
-            "IdServicio": id_servicio,
-            "Nota": nota_periodo,
-        }
-        valor_dict = {k: v for k, v in valor_dict.items() if v}
+        coletilla_a: str = (
+            "En los casos en que la base imponible de la venta o prestacion de servicio "
+            "estuviere expresada en moneda extranjera, se establecera la equivalencia en "
+            "moneda nacional, al tipo de cambio corriente en el mercado que ocurra el "
+            "hecho imponible, salvo "
+        )
+        coletilla_b: str = (
+            "que este ocurra en un dia no habil para el sector financiero, en cuyo caso "
+            "se aplicara el vigente en el dia habil inmediatamente siguiente al de la "
+            "operacion. ART. 25 Ley de I.V.A. G.O Nro 6.152 de fecha 18/11/2014"
+        )
 
-        # Serialize to valid JSON string
-        json_str = json.dumps(valor_dict, ensure_ascii=False)
+        # Validaciones de campos que no pueden estar vacíos
+        if not direccion_servicio:
+            frappe.throw("La dirección de facturación del cliente está vacía y es obligatoria para la facturación electrónica.")
 
-        return [{"Campo": "PDF", "Valor": json_str}]
+        if not id_servicio:
+            frappe.throw("El ID de Servicio (RIF/Cédula) del cliente es obligatorio.")
+
+        if not self.zona:
+            frappe.throw("El cliente no tiene asignada una 'Zona', campo requerido para HKA.")
+
+        if not self.nodo:
+            frappe.throw("El cliente no tiene asignado un 'Nodo', campo requerido para HKA.")
+
+        # Construir y retornar el string de diccionario único (modo "PDF")
+        # ya que la plantilla de impresión de TFHKA evalúa este string internamente.
+        dict_pdf = {}
+        if direccion_servicio:
+            dict_pdf["DireccionServicio"] = direccion_servicio
+
+        dict_pdf["TasaCambio"] = tasa_bcv
+        dict_pdf["Periodo"] = periodo if periodo else f"Desde {nota_periodo}"
+
+        # Insertar Zona / Nodo / IdServicio "desinfectados" y fallbacks si proceden
+        dict_pdf["Zona"] = self.zona if self.zona else "NO INFO"
+        dict_pdf["Nodo"] = self.nodo if self.nodo else "NO INFO"
+        dict_pdf["IdServicio"] = id_servicio if id_servicio else "NO APLICA"
+        dict_pdf["Nota"] = nota_periodo
+        dict_pdf["coletilla2"] = f"{coletilla_a} {coletilla_b}"
+
+        # Convertir a string de python-like dict (con comillas simples) para que el parser
+        # de The Factory HKA no falle en su plantilla
+        json_str = json.dumps(dict_pdf, ensure_ascii=False).replace('"', "'")
+
+        return [
+            {"Campo": "PDF", "Valor": json_str}
+        ]

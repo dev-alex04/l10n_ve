@@ -232,6 +232,10 @@ frappe.ui.form.on("Sales Invoice", {
     }
 
     setup_exchange_difference_button(frm);
+
+    if (frappe.boot.tfhka_enabled) {
+      setup_digital_invoice_button(frm);
+    }
   },
 
   customer: function (frm) {
@@ -450,4 +454,58 @@ function setup_exchange_difference_button(frm) {
       __("Acciones"),
     );
   }
+}
+
+/**
+ * Botón para enviar manualmente la factura a Facturación Digital (TFHKA).
+ * Solo visible si la factura está enviada y el status NO es "Sent".
+ * @param {object} frm
+ */
+function setup_digital_invoice_button(frm) {
+  // Solo visible si la factura está enviada (1) 
+  // y si NO existe ya el JSON de HKA en remarks (evita re-envíos)
+  if (frm.doc.docstatus !== 1 || (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))) {
+    return;
+  }
+
+  frm.add_custom_button(
+    __("Enviar Facturación Digital"),
+    function () {
+      frappe.confirm(
+        __(
+          "¿Estás seguro de enviar esta factura a Facturación Digital (TFHKA)?<br><br>" +
+            "<b>Esta acción no se puede deshacer.</b>",
+        ),
+        () => {
+          frappe.call({
+            method:
+              "l10n_ve.digital_invoice.tfhka_integration.send_invoice_manually",
+            args: { invoice_name: frm.doc.name },
+            freeze: true,
+            freeze_message: __("Enviando a TFHKA..."),
+            callback: function (r) {
+              if (!r.exc) {
+                const status = r.message;
+                if (status === "Sent") {
+                  frappe.show_alert({
+                    message: __("Enviado exitosamente a TFHKA."),
+                    indicator: "green",
+                  });
+                } else {
+                  frappe.show_alert({
+                    message: __(
+                      "Hubo un error al enviar. Revisa el Log de Facturación Digital.",
+                    ),
+                    indicator: "red",
+                  });
+                }
+                frm.reload_doc();
+              }
+            },
+          });
+        },
+      );
+    },
+    __("Acciones"),
+  );
 }
