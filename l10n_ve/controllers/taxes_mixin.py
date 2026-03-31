@@ -56,6 +56,11 @@ class TaxesMixin:
         return
 
     def set_tax_withholding_ve(self) -> None:
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if not tax.get('is_tax_withholding_account') or tax.get('charge_type') == 'ISLR'
+        ]
+
         if self.doctype in ("Purchase Invoice", "Purchase Order", "Supplier Quotation"):
             if not bool(frappe.db.get_value('Company',
                                             self.company,
@@ -98,13 +103,6 @@ class TaxesMixin:
                 withholding.description = \
                     f'{withholding["description"]} por Nota de Crédito contra factura {self.affected_invoice_number}'
 
-        # Primero se limpia la tabla de impuestos
-        # Dejando solo los impuestos que no sean retencion de IVA
-        self.taxes = [
-            tax
-            for tax in self.taxes or []
-            if tax.get('charge_type') != withholding.get('charge_type')
-        ]
 
         self.append("taxes", withholding)
 
@@ -112,6 +110,11 @@ class TaxesMixin:
         """Agrega retención ISLR a la tabla de impuestos para Sales Invoice."""
         if self.doctype not in ("Sales Invoice",):
             return
+
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if tax.get("charge_type") != "ISLR"
+        ]
 
         tabulator_name: str = frappe.db.get_value(
             "Customer", self.customer, "tabulator_islr"
@@ -141,11 +144,6 @@ class TaxesMixin:
 
         if islr_amount <= 0:
             return
-
-        self.taxes = [
-            tax for tax in self.taxes or []
-            if tax.get("charge_type") != "ISLR"
-        ]
 
         description: str = f"ISLR {tabulator_name} {tabulator.descripcion} ({flt(aliquot_info.aliquot)}%)"
         if self.is_return and self.return_against:
