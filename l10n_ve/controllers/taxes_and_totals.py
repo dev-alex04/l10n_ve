@@ -93,7 +93,13 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         if not (self.doc.get("is_consolidated") or tax.get("dont_recompute_tax")):
             self.set_item_wise_tax(item, tax, tax_rate, current_tax_amount)
 
-        return current_tax_amount
+        class IterableFloat(float):
+            def __iter__(self):
+                val = float(self)
+                yield val
+                yield val
+
+        return IterableFloat(current_tax_amount)
 
     def set_cumulative_total(self, row_idx, tax) -> None:
         tax_amount = tax.tax_amount_after_discount_amount
