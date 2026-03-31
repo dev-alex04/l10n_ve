@@ -18,6 +18,8 @@
   "column_break_inzw",
   "parent_ve_branch",
   "cost_center",
+  "column_break_kaul",
+  "branch_code",
   "impuestos_section",
   "num_license_economic",
   "column_break_ixms",
@@ -157,14 +159,24 @@
    "fieldtype": "Link",
    "label": "State",
    "options": "VE State"
+  },
+  {
+   "fieldname": "column_break_kaul",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Se utiliza para le facturaicon Digital. No puede ser mayor a 6 ",
+   "fieldname": "branch_code",
+   "fieldtype": "Data",
+   "label": "Codigo",
+   "length": 6
   }
  ],
  "grid_page_length": 50,
- "hide_toolbar": 1,
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-03-23 15:27:58.696371",
+ "modified": "2026-03-25 11:49:08.807100",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",

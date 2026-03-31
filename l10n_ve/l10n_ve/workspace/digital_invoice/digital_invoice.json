@@ -1,0 +1,98 @@
+{
+    "charts": [],
+    "content": "[{\"id\":\"dig_inv_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Facturación Digital</b></span>\",\"col\":12}},{\"id\":\"dig_inv_shortcut_settings\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"TFHKA Settings\",\"col\":3}},{\"id\":\"dig_inv_shortcut_series\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"VE Digital Billing Series\",\"col\":3}},{\"id\":\"dig_inv_shortcut_log\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"VE Digital Invoice Log\",\"col\":3}},{\"id\":\"dig_inv_shortcut_si\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sales Invoice\",\"col\":3}},{\"id\":\"dig_inv_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dig_inv_docs_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Configuración</b></span>\",\"col\":12}},{\"id\":\"dig_inv_card1\",\"type\":\"card\",\"data\":{\"card_name\":\"Facturación Digital\",\"col\":4}}]",
+    "creation": "2026-03-24 14:00:00.000000",
+    "custom_blocks": [],
+    "docstatus": 0,
+    "doctype": "Workspace",
+    "for_user": "",
+    "hide_custom": 0,
+    "icon": "invoice",
+    "idx": 0,
+    "is_hidden": 0,
+    "label": "Facturación Digital",
+    "links": [
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Facturación Digital",
+            "link_count": 3,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "TFHKA Settings",
+            "link_count": 0,
+            "link_to": "TFHKA Settings",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "VE Digital Billing Series",
+            "link_count": 0,
+            "link_to": "VE Digital Billing Series",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "VE Digital Invoice Log",
+            "link_count": 0,
+            "link_to": "VE Digital Invoice Log",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        }
+    ],
+    "modified": "2026-03-24 15:54:00.000000",
+    "modified_by": "Administrator",
+    "name": "Facturación Digital",
+    "number_cards": [],
+    "owner": "Administrator",
+    "parent_page": "Selling",
+    "public": 1,
+    "quick_lists": [],
+    "restrict_to_domain": "",
+    "roles": [],
+    "sequence_id": 999.0,
+    "shortcuts": [
+        {
+            "color": "Green",
+            "format": "{:}",
+            "label": "TFHKA Settings",
+            "link_to": "TFHKA Settings",
+            "type": "DocType"
+        },
+        {
+            "color": "Orange",
+            "format": "{:}",
+            "label": "VE Digital Billing Series",
+            "link_to": "VE Digital Billing Series",
+            "type": "DocType"
+        },
+        {
+            "color": "Blue",
+            "format": "{:}",
+            "label": "VE Digital Invoice Log",
+            "link_to": "VE Digital Invoice Log",
+            "type": "DocType"
+        },
+        {
+            "label": "Sales Invoice",
+            "link_to": "Sales Invoice",
+            "type": "DocType"
+        }
+    ],
+    "title": "Facturación Digital",
+    "type": "Workspace"
+}

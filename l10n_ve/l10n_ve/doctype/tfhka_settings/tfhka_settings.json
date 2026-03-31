@@ -1,0 +1,72 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-03-24 13:06:29.458648",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "column_break_1",
+  "environment",
+  "section_break_billing",
+  "cutoff_date"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Demo",
+   "fieldname": "environment",
+   "fieldtype": "Select",
+   "label": "Environment",
+   "options": "Demo\nProduction",
+   "description": "Indicativo del ambiente activo. Las credenciales y URLs se configuran en site_config.json."
+  },
+  {
+   "fieldname": "section_break_billing",
+   "fieldtype": "Section Break",
+   "label": "Configuración de Facturación"
+  },
+  {
+   "default": "2026-04-01",
+   "description": "Las facturas con fecha de emisión igual o posterior a esta fecha serán procesadas por la facturación digital.",
+   "fieldname": "cutoff_date",
+   "fieldtype": "Date",
+   "label": "Fecha de corte",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-31 07:27:00.000000",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "TFHKA Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
