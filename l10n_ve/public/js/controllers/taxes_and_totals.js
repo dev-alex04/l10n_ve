@@ -76,11 +76,10 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
   }
 
   // ERPNext v15 destructures this as an Array `[current_tax_amount, item_tax_amount]`
-  // but older versions expect a primitive number. This hybrid object satisfies both!
   let res = new Number(current_tax_amount);
   res[Symbol.iterator] = function* () {
     yield current_tax_amount;
-    yield 0; // item_wise_tax_amount (fallback)
+    yield current_tax_amount; // item_tax_amount
   };
 
   return res;
