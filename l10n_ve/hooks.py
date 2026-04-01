@@ -31,8 +31,9 @@ app_include_js = [
 # Includes in <head>
 # ------------------
 
-# include js, css files in header of desk.html
-# app_include_css = "/assets/l10n_ve/css/l10n_ve.css"
+app_include_css = [
+    "/assets/l10n_ve/css/digital_invoice_preview.css",
+]
 
 
 # include js, css files in header of web template

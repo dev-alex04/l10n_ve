@@ -1,7 +1,7 @@
 import json
 
 import frappe
-from frappe.utils import today
+from frappe.utils import today, flt, getdate, cint
 
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
@@ -312,3 +312,163 @@ def send_invoice_manually(invoice_name: str) -> str:
     frappe.has_permission("Sales Invoice", "submit", doc=invoice_name, throw=True)
     success = process_invoice(invoice_name)
     return "Sent" if success else "Error"
+
+
+@frappe.whitelist()
+def get_invoice_preview_data(invoice_name: str) -> dict:
+    """
+    Devuelve todos los datos para la vista previa del modal de facturación digital.
+    Es 100% read-only: no asigna números, no modifica la DB, no envía a HKA.
+    Los números de documento y control son proyectados (último + 1).
+    """
+    from frappe.utils import now_datetime
+    from l10n_ve.digital_invoice.payload_builder import clean_address as _clean_address
+
+    frappe.has_permission("Sales Invoice", "submit", doc=invoice_name, throw=True)
+
+    doc = frappe.get_doc("Sales Invoice", invoice_name)
+    branch: str = doc.get("branch") or ""
+    series_doc, branch_code = get_active_billing_series(
+        company=doc.company, branch=branch
+    )
+
+    company = frappe.get_cached_doc("Company", doc.company)
+    customer = frappe.get_cached_doc("Customer", doc.customer)
+
+    bill_no_preview: int = series_doc.invoice_number_correlative or 1
+    last_ctrl: int = series_doc.last_control_number or (series_doc.range_from - 1)
+    prefix: str = series_doc.prefix or "00"
+    control_no_preview: str = f"{prefix}-{str(last_ctrl + 1).zfill(8)}"
+    range_from_str: str = f"{prefix}-{str(series_doc.range_from).zfill(8)}"
+    range_to_str: str = f"{prefix}-{str(series_doc.range_to).zfill(8)}"
+
+    now = now_datetime()
+    fecha_emision: str = now.strftime("%d/%m/%Y")
+    hora_emision: str = now.strftime("%I:%M:%S %p").lower()
+
+    company_address: str = ""
+    try:
+        address_name = frappe.db.get_value(
+            "Dynamic Link",
+            {"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"},
+            "parent"
+        )
+        if address_name:
+            addr = frappe.get_cached_doc("Address", address_name)
+            company_address = _clean_address(addr.address_display or "")
+    except Exception:
+        pass
+
+    customer_address: str = _clean_address(doc.address_display) if doc.address_display else ""
+
+    tc: float = flt(doc.conversion_rate) if doc.conversion_rate else 1.0
+    nature: str = frappe.get_cached_value("Customer", doc.customer, "nature_of_the_taxpayer") or ""
+    if nature in ("Juridical", "Government", "Communal", "Educational"):
+        fecha_bcv = getdate(doc.posting_date)
+    else:
+        fecha_bcv = getdate(doc.posting_date).replace(day=1)
+
+    zona: str = customer.territory or ""
+    nodo: str = ""
+    subscription_name: str = doc.get("subscription") or ""
+    if subscription_name:
+        service_row = next(
+            (r for r in (customer.get("internet_services") or [])
+             if r.subscription == subscription_name),
+            None
+        )
+        if service_row and service_row.router:
+            nodo = frappe.db.get_value(
+                "ISP Node Routers", {"router": service_row.router}, "parent"
+            ) or ""
+
+    meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
+             "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
+    fecha_contab = getdate(doc.posting_date)
+    periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+    if subscription_name:
+        try:
+            sub = frappe.get_cached_doc("Subscription", subscription_name)
+            if sub.current_invoice_start and sub.current_invoice_end:
+                inicio = getdate(sub.current_invoice_start).strftime("%d/%m/%Y")
+                fin = getdate(sub.current_invoice_end).strftime("%d/%m/%Y")
+                periodo = f"Desde {inicio} hasta {fin}"
+        except Exception:
+            pass
+
+    iva_rate: float = 16.0
+    has_iva: bool = flt(doc.base_total_taxes_and_charges) > 0
+    for tax in doc.get("taxes", []):
+        al = (tax.get("account_head") or "").lower()
+        dl = (tax.get("description") or "").lower()
+        if ("iva" in al or "iva" in dl) and flt(tax.rate) > 0:
+            iva_rate = flt(tax.rate)
+            break
+
+    items_data = []
+    for item in doc.items:
+        is_exempt = bool(item.get("is_exempt", 0) or item.get("vat_exempt", 0) or not has_iva)
+        item_amount = flt(item.amount)
+        valor_iva = 0.0 if is_exempt else round(item_amount * (iva_rate / 100), 2)
+        items_data.append({
+            "code": item.item_code or "",
+            "description": item.item_name or "",
+            "qty": str(cint(item.qty)) if item.qty == cint(item.qty) else str(item.qty),
+            "rate_usd": "{:.2f}".format(flt(item.rate)),
+            "iva_rate": "{:.0f}".format(0.0 if is_exempt else iva_rate),
+            "is_exempt": is_exempt,
+            "valor_iva_usd": "{:.2f}".format(valor_iva),
+            "total_item_usd": "{:.2f}".format(item_amount + valor_iva),
+        })
+
+    def fmt(v: float) -> str:
+        return "{:,.2f}".format(v)
+
+    # Totales fiscales para HKA (igual que payload_builder):
+    # IVA bruto completo, sin descontar retenciones de IVA ni ISLR.
+    subtotal_usd: float = flt(doc.total)
+    iva_usd: float = 0.0
+    if has_iva:
+        for item in doc.items:
+            is_exempt_item = bool(item.get("is_exempt", 0) or item.get("vat_exempt", 0))
+            if not is_exempt_item:
+                iva_usd += round(flt(item.amount) * (iva_rate / 100), 2)
+    total_usd: float = subtotal_usd + iva_usd
+
+    return {
+        "total_usd": fmt(total_usd),
+        "total_bs": fmt(round(total_usd * tc, 2)),
+        "currency": doc.currency,
+        "bill_no_preview": str(bill_no_preview),
+        "control_no_preview": control_no_preview,
+        "fecha_emision": fecha_emision,
+        "hora_emision": hora_emision,
+        "fecha_vencimiento": fecha_emision,
+        "fecha_asignacion": fecha_emision,
+        "serie_tfhka": series_doc.tfhka_serie or "",
+        "branch_code": branch_code,
+        "range_from": range_from_str,
+        "range_to": range_to_str,
+        "company_name": company.company_name,
+        "company_tax_id": company.tax_id or "",
+        "company_address": company_address,
+        "company_phone": company.phone_no or "",
+        "company_website": company.website or "",
+        "customer_name": customer.customer_name,
+        "customer_tax_id": customer.tax_id or "",
+        "customer_address": customer_address,
+        "customer_phone": doc.contact_mobile or "",
+        "customer_email": doc.contact_email or "",
+        "id_servicio": customer.tax_id or "",
+        "zona": zona,
+        "nodo": nodo,
+        "periodo": periodo,
+        "tasa_bcv": "{:.4f}".format(tc),
+        "tasa_fecha": fecha_bcv.strftime("%d/%m/%Y"),
+        "items": items_data,
+        "subtotal_usd": fmt(subtotal_usd),
+        "iva_usd": fmt(iva_usd),
+        "subtotal_bs": fmt(round(subtotal_usd * tc, 2)),
+        "iva_bs": fmt(round(iva_usd * tc, 2)),
+        "invoice_name": invoice_name,
+    }
