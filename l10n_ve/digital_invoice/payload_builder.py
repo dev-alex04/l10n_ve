@@ -59,9 +59,18 @@ def clean_payload(d):
 
 
 class TFHKAPayloadBuilder:
-    def __init__(self, doc, series_doc=None) -> None:
+    def __init__(self, doc, series_doc=None, branch_code: str = "") -> None:
+        """
+        Inicializa el payload builder.
+
+        Args:
+            doc: Documento de la factura.
+            series_doc: Documento de la serie.
+            branch_code: Código de la sucursal.
+        """
         self.doc = doc
         self.series_doc = series_doc
+        self.branch_code = branch_code
         self.company_currency: str = frappe.get_cached_value(
             "Company", doc.company, "default_currency"
         ) or "VEF"
@@ -170,17 +179,40 @@ class TFHKAPayloadBuilder:
             "Anulado": False,
             "TipoDePago": "Contado" if self.doc.is_pos else "Credito",
             "Serie": self.series_doc.tfhka_serie if self.series_doc and self.series_doc.tfhka_serie else "",
-            "Sucursal": (self.series_doc.branch_code or self.series_doc.branch or "")[:6] if self.series_doc else "",
+            "Sucursal": self._resolve_branch_code(),
             "TipoDeVenta": "Interna",
             "Moneda": self.doc.currency
         }
 
+    def _resolve_branch_code(self) -> str:
+        """Retorna el branch_code ya resuelto desde la tabla hija (máximo 6 car.)"""
+        return str(self.branch_code)[:6] if self.branch_code else ""
+
     def _build_comprador(self) -> dict:
         customer = frappe.get_cached_doc("Customer", self.doc.customer)
-        tax_id = customer.tax_id or "V-000000000"
-        tipo_id, num_id = self._parse_tax_id(tax_id)
 
-        direccion = clean_address(self.doc.address_display) if self.doc.address_display else "NO INFO"
+        if not customer.tax_id:
+            frappe.throw(
+                f"El cliente '{customer.customer_name}' no tiene RIF/Cédula (Tax ID) configurado. "
+                "Es obligatorio para la facturación electrónica.",
+                title="RIF del Cliente Requerido"
+            )
+        tipo_id, num_id = self._parse_tax_id(customer.tax_id)
+
+        if not self.doc.address_display:
+            frappe.throw(
+                f"El cliente '{customer.customer_name}' no tiene dirección de facturación. "
+                "Es obligatoria para la facturación electrónica.",
+                title="Dirección del Cliente Requerida"
+            )
+        direccion = clean_address(self.doc.address_display)
+
+        if not self.doc.contact_mobile:
+            frappe.throw(
+                f"El cliente '{customer.customer_name}' no tiene teléfono de contacto. "
+                "Es obligatorio para la facturación electrónica.",
+                title="Teléfono del Cliente Requerido"
+            )
 
         return {
             "TipoIdentificacion": tipo_id,
@@ -190,7 +222,7 @@ class TFHKAPayloadBuilder:
             "Ubigeo": None,
             "Pais": "VE",
             "Notificar": None,
-            "Telefono": [self.doc.contact_mobile or "0000-0000000"],
+            "Telefono": [self.doc.contact_mobile],
             "Correo": [self.doc.contact_email] if self.doc.contact_email else [],
             "OtrosEnvios": None
         }
@@ -562,10 +594,20 @@ class TFHKAPayloadBuilder:
 
         tasa_bcv: str = ""
         if flt(doc.conversion_rate) > 0:
-            posting_date_str = getdate(doc.posting_date).strftime("%d/%m/%Y")
+            # Jurídicos: fecha valor = fecha de emisión
+            # Naturales: fecha valor = 1er día del mes
+            nature: str = frappe.get_cached_value(
+                "Customer", doc.customer, "nature_of_the_taxpayer"
+            ) or ""
+            if nature in ("Juridical", "Government", "Communal", "Educational"):
+                fecha_valor = getdate(doc.posting_date)
+            else:
+                fecha_valor = getdate(doc.posting_date).replace(day=1)
+
+            fecha_valor_str = fecha_valor.strftime("%d/%m/%Y")
             tasa_bcv = (
                 f"Tasa de cambio publicado por el BCV Bs {flt(doc.conversion_rate, 4)} "
-                f"por 1,00 USD de fecha valor {posting_date_str}."
+                f"por 1,00 USD de fecha valor {fecha_valor_str}."
             )
 
         # Generar periodo en "Nota" basado en posting_date
@@ -611,17 +653,13 @@ class TFHKAPayloadBuilder:
 
         # Construir y retornar el string de diccionario único (modo "PDF")
         # ya que la plantilla de impresión de TFHKA evalúa este string internamente.
-        dict_pdf = {}
-        if direccion_servicio:
-            dict_pdf["DireccionServicio"] = direccion_servicio
-
+        dict_pdf = {"DireccionServicio": direccion_servicio}
         dict_pdf["TasaCambio"] = tasa_bcv
         dict_pdf["Periodo"] = periodo if periodo else f"Desde {nota_periodo}"
 
-        # Insertar Zona / Nodo / IdServicio "desinfectados" y fallbacks si proceden
-        dict_pdf["Zona"] = self.zona if self.zona else "NO INFO"
-        dict_pdf["Nodo"] = self.nodo if self.nodo else "NO INFO"
-        dict_pdf["IdServicio"] = id_servicio if id_servicio else "NO APLICA"
+        dict_pdf["Zona"] = self.zona
+        dict_pdf["Nodo"] = self.nodo
+        dict_pdf["IdServicio"] = id_servicio
         dict_pdf["Nota"] = nota_periodo
         dict_pdf["coletilla2"] = f"{coletilla_a} {coletilla_b}"
 

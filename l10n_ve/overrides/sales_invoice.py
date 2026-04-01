@@ -72,10 +72,11 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
     def _get_active_digital_series(self) -> 'frappe.Document | None':
         """
-        Retorna el documento VE Digital Billing Series activo para la empresa
-        y sucursal de esta factura. Primero intenta con la sucursal exacta;
-        si no existe, busca una serie sin sucursal asignada (aplicable a toda
-        la empresa). Retorna None si TFHKA no está habilitado o no hay serie.
+        Retorna el documento VE Digital Billing Series activo para la sucursal
+        de esta factura, buscando en la tabla hija 'VE Digital Billing Series Branch'.
+
+        Retorna None si TFHKA no está habilitado o si la sucursal no está
+        configurada en ninguna serie activa (el sistema cae al flujo legacy).
         """
         try:
             tfhka_enabled = frappe.get_cached_value(
@@ -87,29 +88,24 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         if not tfhka_enabled:
             return None
 
-        filters_branch = {
-            "company": self.company,
-            "branch": self.branch or "",
-            "status": "Active",
-        }
-        series_name = frappe.db.get_value(
-            "VE Digital Billing Series", filters_branch, "name"
-        )
-
-        if not series_name and self.branch:
-            filters_global = {
-                "company": self.company,
-                "branch": "",
-                "status": "Active",
-            }
-            series_name = frappe.db.get_value(
-                "VE Digital Billing Series", filters_global, "name"
-            )
-
-        if not series_name:
+        if not self.branch:
             return None
 
-        return frappe.get_doc("VE Digital Billing Series", series_name)
+        row = frappe.db.sql("""
+            SELECT child.parent AS series_name
+            FROM `tabVE Digital Billing Series Branch` child
+            INNER JOIN `tabVE Digital Billing Series` serie
+                ON serie.name = child.parent
+            WHERE child.branch  = %s
+              AND serie.company = %s
+              AND serie.status  = 'Active'
+            LIMIT 1
+        """, (self.branch, self.company), as_dict=True)
+
+        if not row:
+            return None
+
+        return frappe.get_doc("VE Digital Billing Series", row[0]["series_name"])
 
     def set_invoice_number(self, company: CustomCompany) -> None:
 
