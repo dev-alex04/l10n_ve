@@ -11,10 +11,14 @@
   "branch",
   "column_break_gfhb",
   "status",
+  "column_break_uyre",
+  "start_operations",
   "section_break_ydbu",
   "branch_code",
   "column_break_1",
   "tfhka_serie",
+  "correlativo_de_n\u00f9mero_de_facturas_section",
+  "invoice_number_correlative",
   "section_break_range",
   "range_from",
   "prefix",
@@ -122,10 +126,32 @@
   {
    "fieldname": "section_break_ydbu",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_uyre",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "correlativo_de_n\u00f9mero_de_facturas_section",
+   "fieldtype": "Section Break",
+   "label": "Correlativo de N\u00f9mero de Facturas"
+  },
+  {
+   "default": "1",
+   "fieldname": "invoice_number_correlative",
+   "fieldtype": "Int",
+   "label": "Siguiente Correlativo",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_operations",
+   "fieldtype": "Date",
+   "label": "Inicio de Operaciones",
+   "reqd": 1
   }
  ],
  "links": [],
- "modified": "2026-03-31 06:58:12.492290",
+ "modified": "2026-03-31 18:05:57.858502",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Digital Billing Series",

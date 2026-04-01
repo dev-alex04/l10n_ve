@@ -56,6 +56,43 @@ def update_billing_series_after_response(series_doc: object, control_number_str:
         frappe.logger("l10n_ve").error(f"Error actualizando serie TFHKA: {str(e)}")
 
 
+def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
+    """
+    Asigna el número de factura (bill_no) al documento desde el correlativo
+    de la VE Digital Billing Series. Se invoca exclusivamente desde el botón
+    de envío a HKA, garantizando el orden secuencial de emisiones.
+
+    Incrementa el correlativo directamente en base de datos.
+    Si el rango está agotado, lanza un error bloqueante.
+    """
+    correlative: int = series.invoice_number_correlative or 1
+    range_to: int = series.range_to or 0
+    prefix: str = series.prefix or ""
+
+    if range_to and correlative > range_to:
+        frappe.throw(
+            f"La serie de facturación digital '{series.name}' ha agotado su rango "
+            f"({series.range_from} - {range_to}). Por favor configure una nueva serie.",
+            title="Serie de Facturación Agotada"
+        )
+
+    num_digits = len(str(range_to)) if range_to else 5
+    bill_no = f"{prefix}{str(correlative).zfill(num_digits)}"
+
+    doc.db_set("bill_no", bill_no, update_modified=False)
+
+    frappe.db.set_value(
+        "VE Digital Billing Series",
+        series.name,
+        "invoice_number_correlative",
+        correlative + 1
+    )
+
+    frappe.logger("l10n_ve").info(
+        f"Factura {doc.name}: bill_no asignado '{bill_no}' desde serie '{series.name}'."
+    )
+
+
 def process_invoice(invoice_name: str) -> bool:
     """
     Envía una factura a TFHKA de forma síncrona.
@@ -74,6 +111,11 @@ def process_invoice(invoice_name: str) -> bool:
 
         branch = doc.get("branch") or ""
         series_doc = get_active_billing_series(company=doc.company, branch=branch)
+
+        # Si hay serie activa y la factura aún no tiene número asignado, asignarlo ahora.
+        if series_doc and not doc.bill_no:
+            assign_bill_no_from_digital_series(doc, series_doc)
+            doc.reload()
 
         builder = TFHKAPayloadBuilder(doc, series_doc=series_doc)
         payload = builder.build_payload()
@@ -104,11 +146,22 @@ def process_invoice(invoice_name: str) -> bool:
         if is_success:
             resultado = response.get("resultado") or {}
             control = resultado.get("numeroControl")
+            numero_documento = resultado.get("numeroDocumento")
 
             if control:
                 doc.db_set("bill_control", control, update_modified=False)
                 if series_doc:
                     update_billing_series_after_response(series_doc, control)
+
+            # Red de seguridad: si por alguna razón el bill_no quedó vacío,
+            # lo tomamos del numeroDocumento confirmado por HKA.
+            if numero_documento and not frappe.db.get_value(
+                "Sales Invoice", doc.name, "bill_no"
+            ):
+                doc.db_set("bill_no", numero_documento, update_modified=False)
+                frappe.logger("l10n_ve").warning(
+                    f"Factura {doc.name}: bill_no asignado desde respuesta HKA '{numero_documento}'."
+                )
 
             # Guardar la respuesta JSON en el campo remarks
             doc.db_set("remarks", json.dumps(response, indent=2, ensure_ascii=False), update_modified=False)
