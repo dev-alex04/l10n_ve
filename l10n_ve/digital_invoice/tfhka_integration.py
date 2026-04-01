@@ -5,6 +5,7 @@ from frappe.utils import today, flt, getdate, cint
 
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
+from l10n_ve.utils.utils import is_juridical_customer
 
 
 def get_active_billing_series(
@@ -377,8 +378,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     customer_address: str = _clean_address(doc.address_display) if doc.address_display else ""
 
     tc: float = flt(doc.conversion_rate) if doc.conversion_rate else 1.0
-    nature: str = frappe.get_cached_value("Customer", doc.customer, "nature_of_the_taxpayer") or ""
-    if nature in ("Juridical", "Government", "Communal", "Educational"):
+    if is_juridical_customer(doc.customer):
         fecha_bcv = getdate(doc.posting_date)
     else:
         fecha_bcv = getdate(doc.posting_date).replace(day=1)

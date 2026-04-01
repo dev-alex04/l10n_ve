@@ -5,6 +5,7 @@ from typing import Optional
 import frappe
 from frappe.utils import getdate, flt, cint
 from frappe.utils.data import money_in_words
+from l10n_ve.utils.utils import is_juridical_customer
 
 
 def strip_html(html: str) -> str:
@@ -603,12 +604,7 @@ class TFHKAPayloadBuilder:
 
         tasa_bcv: str = ""
         if flt(doc.conversion_rate) > 0:
-            # Jurídicos: fecha valor = fecha de emisión
-            # Naturales: fecha valor = 1er día del mes
-            nature: str = frappe.get_cached_value(
-                "Customer", doc.customer, "nature_of_the_taxpayer"
-            ) or ""
-            if nature in ("Juridical", "Government", "Communal", "Educational"):
+            if is_juridical_customer(doc.customer):
                 fecha_valor = getdate(doc.posting_date)
             else:
                 fecha_valor = getdate(doc.posting_date).replace(day=1)
