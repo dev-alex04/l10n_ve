@@ -9,7 +9,7 @@ frappe.ui.form.on("Supplier", {
     }
   },
   onload: function (frm) {
-    setup_venezuelan_phone_validation(frm, "mobile_no");
+    setup_phone_validation(frm, "mobile_no");
   },
   refresh: function (frm) {
     add_address_button(frm);
@@ -45,7 +45,7 @@ frappe.ui.form.on("Supplier", {
   },
 
   validate: function (frm) {
-    validate_venezuelan_phone(frm, "mobile_no");
+    validate_phone_format(frm, "mobile_no");
     validate_party_emails(frm);
   },
 });

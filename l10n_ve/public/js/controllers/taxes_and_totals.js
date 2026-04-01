@@ -75,7 +75,14 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
     this.set_item_wise_tax(item, tax, tax_rate, current_tax_amount);
   }
 
-  return current_tax_amount;
+  // ERPNext v15 destructures this as an Array `[current_tax_amount, item_tax_amount]`
+  let res = new Number(current_tax_amount);
+  res[Symbol.iterator] = function* () {
+    yield current_tax_amount;
+    yield current_tax_amount; // item_tax_amount
+  };
+
+  return res;
 };
 
 erpnext.taxes_and_totals.prototype.set_cumulative_total = function (
