@@ -58,12 +58,18 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
     def set_control_and_invoice_number(self) -> None:
         """
-        Si TFHKA está activo, la asignación de número de factura y control
-        se realiza exclusivamente desde el botón de envío a HKA,
-        para garantizar que los números se envíen en orden secuencial.
+        Si TFHKA está activo globalmente, los números de factura y control
+        son asignados exclusivamente por HKA (ya sea en modo Interno o Tercero).
+        El ERP nunca debe asignar correlativos propios mientras HKA esté habilitado.
         """
-        digital_series = self._get_active_digital_series()
-        if digital_series:
+        try:
+            tfhka_enabled = frappe.get_cached_value(
+                "TFHKA Settings", "TFHKA Settings", "enabled"
+            )
+        except Exception:
+            tfhka_enabled = False
+
+        if tfhka_enabled:
             return
 
         company = frappe.get_doc('Company', self.company)
@@ -106,6 +112,41 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             return None
 
         return frappe.get_doc("VE Digital Billing Series", row[0]["series_name"])
+
+    def _get_hka_cutoff_date(self) -> 'date | None':
+        """
+        Retorna la fecha de corte a partir de la cual se inicia la numeración HKA.
+        Se usa para ignorar duplicados del sistema legacy al validar bill_no y bill_control.
+
+        Orden de prioridad:
+        1. start_operations de la VE Digital Billing Series activa para la sucursal.
+        2. start_operations global de TFHKA Settings (fallback cuando branch está vacío).
+        3. None si TFHKA no está activo.
+        """
+        try:
+            tfhka_enabled = frappe.get_cached_value(
+                "TFHKA Settings", "TFHKA Settings", "enabled"
+            )
+        except Exception:
+            return None
+
+        if not tfhka_enabled:
+            return None
+
+        digital_series = self._get_active_digital_series()
+        if digital_series and digital_series.start_operations:
+            return getdate(digital_series.start_operations)
+
+        try:
+            cutoff_raw = frappe.get_cached_value(
+                "TFHKA Settings", "TFHKA Settings", "start_operations"
+            )
+            if cutoff_raw:
+                return getdate(cutoff_raw)
+        except Exception:
+            pass
+
+        return None
 
     def set_invoice_number(self, company: CustomCompany) -> None:
 
@@ -225,12 +266,11 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         if not duplicated_docs:
             return True
 
-        digital_series = self._get_active_digital_series()
-        if digital_series and digital_series.start_operations:
-            start_ops = getdate(digital_series.start_operations)
+        cutoff = self._get_hka_cutoff_date()
+        if cutoff:
             duplicated_docs = [
                 d for d in duplicated_docs
-                if not (d.posting_date and getdate(d.posting_date) < start_ops)
+                if not (d.posting_date and getdate(d.posting_date) < cutoff)
             ]
 
         if not duplicated_docs:
@@ -308,12 +348,11 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         if not duplicated_docs:
             return True
 
-        digital_series = self._get_active_digital_series()
-        if digital_series and digital_series.start_operations:
-            start_ops = getdate(digital_series.start_operations)
+        cutoff = self._get_hka_cutoff_date()
+        if cutoff:
             duplicated_docs = [
                 d for d in duplicated_docs
-                if not (d.posting_date and getdate(d.posting_date) < start_ops)
+                if not (d.posting_date and getdate(d.posting_date) < cutoff)
             ]
 
         if not duplicated_docs:

@@ -13,14 +13,15 @@
   "column_break_gfhb",
   "start_operations",
   "section_break_ydbu",
-  "tfhka_serie",
+  "operation_mode",
   "column_break_1",
   "invoice_number_correlative",
   "section_break_range",
-  "range_from",
+  "serie",
   "prefix",
   "column_break_2",
   "range_to",
+  "range_from",
   "last_control_number",
   "sucursales_section",
   "table_vhfo"
@@ -45,15 +46,18 @@
    "search_index": 1
   },
   {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
+   "default": "Internal",
+   "description": "Intero: El sistema genera el numero de factura. Tercer: La imprenta genera el n\u00famero de factura",
+   "fieldname": "operation_mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Modo de Operaci\u00f3n",
+   "options": "\nInternal\nThird Party",
+   "reqd": 1
   },
   {
-   "description": "Serie asignada por TFHKA (ej: ARA-02). Dejar vac\u00edo si la empresa no usa series.",
-   "fieldname": "tfhka_serie",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "TFHKA Serie"
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
   },
   {
    "default": "Active",
@@ -75,7 +79,7 @@
    "description": "Prefijo del n\u00famero de control (ej: 00)",
    "fieldname": "prefix",
    "fieldtype": "Data",
-   "label": "Prefix"
+   "label": "Prefijo"
   },
   {
    "description": "N\u00famero de control inicial del bloque asignado por TFHKA",
@@ -112,7 +116,8 @@
   },
   {
    "fieldname": "section_break_ydbu",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Facturas de Venta"
   },
   {
    "default": "1",
@@ -136,14 +141,21 @@
    "fieldname": "table_vhfo",
    "fieldtype": "Table",
    "options": "VE Digital Billing Series Branch"
+  },
+  {
+   "description": "Serie asignada por TFHKA (ej: ARA-02). Dejar vac\u00edo si la empresa no usa series.",
+   "fieldname": "serie",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Serie"
   }
  ],
  "links": [],
- "modified": "2026-04-01 05:44:53.678196",
+ "modified": "2026-04-01 10:13:30.896030",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Digital Billing Series",
- "naming_rule": "By Naming Series",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {

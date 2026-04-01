@@ -140,6 +140,9 @@ class TFHKAPayloadBuilder:
             numero_documento = self.doc.debit_note_no
         else:
             numero_documento = self.doc.bill_no
+
+        if self.series_doc and getattr(self.series_doc, "operation_mode", "Internal") == "Third Party":
+            numero_documento = ""
         is_nc_or_nd = tipo_doc in ("02", "03")
 
         fecha_afectada = None
@@ -160,9 +163,13 @@ class TFHKAPayloadBuilder:
         if is_nc_or_nd:
             comentario_afectada = "devolucion" if tipo_doc == "02" else "incremento"
 
+        is_third_party: bool = (
+            getattr(self.series_doc, "operation_mode", "Internal") == "Third Party"
+        )
+
         return {
             "TipoDocumento": tipo_doc,
-            "NumeroDocumento": numero_documento,
+            "NumeroDocumento": "" if is_third_party else numero_documento,
             "TipoProveedor": None,
             "TipoTransaccion": None,
             "NumeroPlanillaImportacion": None,
@@ -178,11 +185,13 @@ class TFHKAPayloadBuilder:
             "HoraEmision": time_obj,
             "Anulado": False,
             "TipoDePago": "Contado" if self.doc.is_pos else "Credito",
-            "Serie": self.series_doc.tfhka_serie if self.series_doc and self.series_doc.tfhka_serie else "",
+            "Serie": getattr(self.series_doc, "serie", "") or "",
             "Sucursal": self._resolve_branch_code(),
             "TipoDeVenta": "Interna",
-            "Moneda": self.doc.currency
+            "Moneda": self.doc.currency,
+            "TransaccionId": "".join(filter(str.isalnum, self.doc.name)) if is_third_party else None,
         }
+
 
     def _resolve_branch_code(self) -> str:
         """Retorna el branch_code ya resuelto desde la tabla hija (máximo 6 car.)"""

@@ -86,6 +86,12 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     - bill_control se limpia para que HKA asigne el número de control correcto.
     - El invoice_number_correlative es independiente del número de control HKA.
     """
+    if getattr(series, "operation_mode", "Internal") == "Third Party":
+        doc.db_set("bill_control", "", update_modified=False)
+        doc.db_set("bill_no", "", update_modified=False)
+        frappe.logger("l10n_ve").info(f"Factura {doc.name}: Esperando asignación de HKA (Modo Tercero).")
+        return
+
     bill_no: int = series.invoice_number_correlative or 1
     bill_no_str: str = str(bill_no)
 
@@ -153,6 +159,10 @@ def _handle_hka_response(
         resultado = response.get("resultado") or {}
         control = resultado.get("numeroControl")
         numero_documento = resultado.get("numeroDocumento")
+
+        if getattr(series_doc, "operation_mode", "Internal") == "Third Party":
+            if numero_documento:
+                doc.db_set("bill_no", numero_documento, update_modified=False)
 
         if control:
             doc.db_set("bill_control", control, update_modified=False)
@@ -335,10 +345,15 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     company = frappe.get_cached_doc("Company", doc.company)
     customer = frappe.get_cached_doc("Customer", doc.customer)
 
-    bill_no_preview: int = series_doc.invoice_number_correlative or 1
+    if getattr(series_doc, "operation_mode", "Internal") == "Third Party":
+        bill_no_preview = "Asignado por HKA"
+    else:
+        bill_no_preview = str(series_doc.invoice_number_correlative or 1)
+
     last_ctrl: int = series_doc.last_control_number or (series_doc.range_from - 1)
     prefix: str = series_doc.prefix or "00"
     control_no_preview: str = f"{prefix}-{str(last_ctrl + 1).zfill(8)}"
+
     range_from_str: str = f"{prefix}-{str(series_doc.range_from).zfill(8)}"
     range_to_str: str = f"{prefix}-{str(series_doc.range_to).zfill(8)}"
 
@@ -439,13 +454,13 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "total_usd": fmt(total_usd),
         "total_bs": fmt(round(total_usd * tc, 2)),
         "currency": doc.currency,
-        "bill_no_preview": str(bill_no_preview),
+        "bill_no_preview": bill_no_preview,
         "control_no_preview": control_no_preview,
         "fecha_emision": fecha_emision,
         "hora_emision": hora_emision,
         "fecha_vencimiento": fecha_emision,
         "fecha_asignacion": fecha_emision,
-        "serie_tfhka": series_doc.tfhka_serie or "",
+        "serie_tfhka": getattr(series_doc, "serie", ""),
         "branch_code": branch_code,
         "range_from": range_from_str,
         "range_to": range_to_str,
