@@ -308,14 +308,11 @@ class CustomPaymentEntry(PaymentEntry):
             if self.is_bdv_payment == True:
                 return
 
-        if not self.reference_no:
-            return
+        if self.reference_no and not self.reference_no.isalnum():
+            frappe.throw(_("El número de referencia debe contener solo letras y números."))
 
-        if not self.reference_no.isdigit():
-            frappe.throw(_("El número de referencia solo debe contener números."))
-
-        if len(self.reference_no) < 4:
-            frappe.throw(_("El número de referencia debe tener al menos 4 dígitos."))
+        if self.reference_no and len(self.reference_no) < 4:
+            frappe.throw(_("El número de referencia debe tener al menos 4 caracteres."))
 
 # ----------------------------- OVERRIDE METHODS ----------------------------- #
 
