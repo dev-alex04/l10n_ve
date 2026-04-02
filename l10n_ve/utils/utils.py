@@ -11,6 +11,29 @@ from frappe.utils import (
 import erpnext
 
 
+_JURIDICAL_NATURES: tuple[str, ...] = ("Juridical", "Government", "Communal", "Educational")
+_NATURAL_NATURES: tuple[str, ...] = ("Venezuelan", "Extranjero", "Passport")
+
+
+def is_juridical_customer(customer_name: str) -> bool:
+    """Retorna True si el cliente es una persona jurídica.
+
+    Determina el tipo de persona a partir del campo 'nature_of_the_taxpayer'
+    del Customer. Las naturalezas jurídicas son: Juridical, Government,
+    Communal y Educational.
+
+    Args:
+        customer_name: Nombre (ID) del Customer en Frappe.
+
+    Returns:
+        True si es persona jurídica, False si es persona natural.
+    """
+    nature: str = frappe.get_cached_value(
+        "Customer", customer_name, "nature_of_the_taxpayer"
+    ) or ""
+    return nature in _JURIDICAL_NATURES
+
+
 @frappe.whitelist()
 def get_company_address(company_name):
     if not company_name:
@@ -54,11 +77,8 @@ def validate_taxpayer_and_person_type_consistency(doc):
     if not nature or not person_type:
         return
 
-    legal_entities_nature = ["Juridical", "Government", "Communal", "Educational"]
-    natural_persons_nature = ["Venezuelan", "Extranjero", "Passport"]
-
-    is_legal_nature = nature in legal_entities_nature
-    is_natural_nature = nature in natural_persons_nature
+    is_legal_nature = nature in _JURIDICAL_NATURES
+    is_natural_nature = nature in _NATURAL_NATURES
 
     is_legal_person_type = \
     person_type.startswith("Domiciled legal entity") \
@@ -297,7 +317,8 @@ def check_gl_entries(gl_entries: list=[], do_exit: bool = True) -> None:
         )
 
     if do_exit:
-        exit()
+        # exit()  # Comentado: solo para debug local, no usar en producción
+        pass
 
 def format_amounts(doc, main_fields=[], child_fields=[], child_table_field=None, special_formats={}):
     company_name = doc.get("empresa")

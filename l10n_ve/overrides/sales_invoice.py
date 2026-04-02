@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import flt, cint
+from frappe.utils import flt, cint, getdate
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice, make_regional_gl_entries
@@ -57,11 +57,96 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         validate_return_in_same_month(self)
 
     def set_control_and_invoice_number(self) -> None:
+        """
+        Si TFHKA está activo globalmente, los números de factura y control
+        son asignados exclusivamente por HKA (ya sea en modo Interno o Tercero).
+        El ERP nunca debe asignar correlativos propios mientras HKA esté habilitado.
+        """
+        try:
+            tfhka_enabled = frappe.get_cached_value(
+                "TFHKA Settings", "TFHKA Settings", "enabled"
+            )
+        except Exception:
+            tfhka_enabled = False
+
+        if tfhka_enabled:
+            return
 
         company = frappe.get_doc('Company', self.company)
-
         self.set_invoice_number(company)
         self.set_control_number(company)
+
+    def _get_active_digital_series(self) -> 'frappe.Document | None':
+        """
+        Retorna el documento VE Digital Billing Series activo para la sucursal
+        de esta factura, buscando en la tabla hija 'VE Digital Billing Series Branch'.
+
+        Retorna None si TFHKA no está habilitado o si la sucursal no está
+        configurada en ninguna serie activa (el sistema cae al flujo legacy).
+        """
+        try:
+            tfhka_enabled = frappe.get_cached_value(
+                "TFHKA Settings", "TFHKA Settings", "enabled"
+            )
+        except Exception:
+            return None
+
+        if not tfhka_enabled:
+            return None
+
+        if not self.branch:
+            return None
+
+        row = frappe.db.sql("""
+            SELECT child.parent AS series_name
+            FROM `tabVE Digital Billing Series Branch` child
+            INNER JOIN `tabVE Digital Billing Series` serie
+                ON serie.name = child.parent
+            WHERE child.branch  = %s
+              AND serie.company = %s
+              AND serie.status  = 'Active'
+            LIMIT 1
+        """, (self.branch, self.company), as_dict=True)
+
+        if not row:
+            return None
+
+        return frappe.get_doc("VE Digital Billing Series", row[0]["series_name"])
+
+    def _get_hka_cutoff_date(self) -> 'date | None':
+        """
+        Retorna la fecha de corte a partir de la cual se inicia la numeración HKA.
+        Se usa para ignorar duplicados del sistema legacy al validar bill_no y bill_control.
+
+        Orden de prioridad:
+        1. start_operations de la VE Digital Billing Series activa para la sucursal.
+        2. start_operations global de TFHKA Settings (fallback cuando branch está vacío).
+        3. None si TFHKA no está activo.
+        """
+        try:
+            tfhka_enabled = frappe.get_cached_value(
+                "TFHKA Settings", "TFHKA Settings", "enabled"
+            )
+        except Exception:
+            return None
+
+        if not tfhka_enabled:
+            return None
+
+        digital_series = self._get_active_digital_series()
+        if digital_series and digital_series.start_operations:
+            return getdate(digital_series.start_operations)
+
+        try:
+            cutoff_raw = frappe.get_cached_value(
+                "TFHKA Settings", "TFHKA Settings", "start_operations"
+            )
+            if cutoff_raw:
+                return getdate(cutoff_raw)
+        except Exception:
+            pass
+
+        return None
 
     def set_invoice_number(self, company: CustomCompany) -> None:
 
@@ -92,7 +177,8 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
                     break
                 company.increment_debit_note_number()
                 company.sales_debit_note_number_correlative = \
-                        (company.sales_debit_note_number_correlative or 1) + 1
+                    (company.sales_debit_note_number_correlative or 1) + 1
+
         else:
             while True:
                 bill_no = company.get_invoice_number()
@@ -107,6 +193,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
                     (company.sales_invoice_number_correlative or 1) + 1
 
     def set_control_number(self, company: CustomCompany) -> None:
+        """No asigna número de control si TFHKA está activo (lo gestiona HKA)."""
 
         if self.bill_control:
             return
@@ -141,9 +228,9 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
                                bill_control: str = '',
                                raise_throw: bool = True) -> bool:
         """
-        Valida que el número de control no esté ya asignado,
-        considerando documentos Aprobados (docstatus 1) o Cancelados (docstatus 2)
-        que NO hayan sido anulados (is_void 0).
+        Valida que el número de control no esté ya asignado.
+        Si TFHKA está activo, ignora duplicados cuya posting_date sea anterior
+        a la fecha start_operations de la serie digital activa.
         """
 
         bill_control_to_validate = bill_control or self.bill_control
@@ -170,43 +257,54 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
         duplicated_docs = frappe.db.get_all('Sales Invoice',
                                             filters=draft_submitted_filters,
-                                            pluck='name') or []
+                                            fields=['name', 'posting_date']) or []
 
         duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
                                                  filters=void_filters,
-                                                 pluck='name') or [])
-        if duplicated_docs:
-            duplicated_msg = []
-            if self.is_return:
-                doc_type_str = "Nota de Crédito"
-            elif self.is_debit_note:
-                doc_type_str = "Nota de Débito"
-            else:
-                doc_type_str = "Factura"
+                                                 fields=['name', 'posting_date']) or [])
 
-            for duplicated in set(duplicated_docs):
-                link = get_link_to_form(self.doctype, duplicated)
-                msg = \
-                f"El número de control {bill_control_to_validate} " \
+        if not duplicated_docs:
+            return True
+
+        cutoff = self._get_hka_cutoff_date()
+        if cutoff:
+            duplicated_docs = [
+                d for d in duplicated_docs
+                if not (d.posting_date and getdate(d.posting_date) < cutoff)
+            ]
+
+        if not duplicated_docs:
+            return True
+
+        if self.is_return:
+            doc_type_str = "Nota de Crédito"
+        elif self.is_debit_note:
+            doc_type_str = "Nota de Débito"
+        else:
+            doc_type_str = "Factura"
+
+        duplicated_msg = []
+        for doc in duplicated_docs:
+            link = get_link_to_form(self.doctype, doc.name)
+            msg = (
+                f"El número de control {bill_control_to_validate} "
                 f"ya está siendo usado en la {doc_type_str} {link}. Corrija e intente nuevamente."
-                duplicated_msg.append(msg)
+            )
+            duplicated_msg.append(msg)
 
-            if raise_throw:
-                frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
-            return False
-
-        return True
+        if raise_throw:
+            frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
+        return False
 
     def _validate_bill_no(self, bill_no: str = '', raise_throw: bool = True) -> bool:
         """
         Valida que el número de factura no esté ya asignado.
-        Acepta un valor opcional para validar.
+        Si TFHKA está activo, ignora duplicados cuya posting_date sea anterior
+        a la fecha start_operations de la serie digital activa (reinicio de
+        facturación autorizado por HKA).
         """
 
-        if any([
-            self.is_return,
-            self.is_debit_note
-        ]):
+        if any([self.is_return, self.is_debit_note]):
             return True
 
         bill_no_to_validate = bill_no or self.bill_no
@@ -235,32 +333,44 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             'is_void': 1,
         }
 
-        duplicated_docs = frappe.db.get_all('Sales Invoice',
-                                            filters=draft_submitted_filters,
-                                            pluck='name') or []
+        duplicated_docs = frappe.db.get_all(
+            'Sales Invoice',
+            filters=draft_submitted_filters,
+            fields=['name', 'posting_date']
+        ) or []
 
-        duplicated_docs.extend(frappe.db.get_all('Sales Invoice',
-                                                 filters=void_filters,
-                                                 pluck='name') or [])
-        if duplicated_docs:
-            duplicated_msg = []
-            for duplicated in set(duplicated_docs):
-                invoice_link: str = get_link_to_form(self.doctype, duplicated)
-                msg = (
-                    f'El número de factura {bill_no_to_validate} ya está siendo '
-                    f'usado en otro documento {invoice_link}. '
-                    f'Corrija e intente nuevamente.'
-                )
-                duplicated_msg.append(msg)
+        duplicated_docs.extend(frappe.db.get_all(
+            'Sales Invoice',
+            filters=void_filters,
+            fields=['name', 'posting_date']
+        ) or [])
 
-            if raise_throw:
-                frappe.throw(duplicated_msg,
-                             title="Advertencia de Duplicado",
-                             as_list=True)
-            else:
-                return False
+        if not duplicated_docs:
+            return True
 
-        return True
+        cutoff = self._get_hka_cutoff_date()
+        if cutoff:
+            duplicated_docs = [
+                d for d in duplicated_docs
+                if not (d.posting_date and getdate(d.posting_date) < cutoff)
+            ]
+
+        if not duplicated_docs:
+            return True
+
+        duplicated_msg = []
+        for doc in duplicated_docs:
+            invoice_link: str = get_link_to_form(self.doctype, doc.name)
+            msg = (
+                f'El número de factura {bill_no_to_validate} ya está siendo '
+                f'usado en otro documento {invoice_link}. '
+                f'Corrija e intente nuevamente.'
+            )
+            duplicated_msg.append(msg)
+
+        if raise_throw:
+            frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
+        return False
 
     def _validate_credit_note_no(self,
                                  credit_note_no: str = '',
