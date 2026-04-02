@@ -232,6 +232,10 @@ frappe.ui.form.on("Sales Invoice", {
     }
 
     setup_exchange_difference_button(frm);
+
+    if (frappe.boot.tfhka_enabled) {
+      setup_digital_invoice_button(frm);
+    }
   },
 
   customer: function (frm) {
@@ -450,4 +454,266 @@ function setup_exchange_difference_button(frm) {
       __("Acciones"),
     );
   }
+}
+
+/**
+ * Botón para enviar manualmente la factura a Facturación Digital (TFHKA).
+ * Solo visible si la factura está enviada y el status NO es "Sent".
+ * Muestra un modal de vista previa con todos los datos antes de enviar.
+ * @param {object} frm
+ */
+function setup_digital_invoice_button(frm) {
+  if (
+    frm.doc.docstatus !== 1 ||
+    (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
+  ) {
+    return;
+  }
+
+  frm.add_custom_button(
+    __("Enviar Facturación Digital"),
+    function () {
+      frappe.call({
+        method:
+          "l10n_ve.digital_invoice.tfhka_integration.get_invoice_preview_data",
+        args: { invoice_name: frm.doc.name },
+        freeze: true,
+        freeze_message: __("Cargando vista previa..."),
+        callback: function (r) {
+          if (r.exc || !r.message) return;
+          show_hka_preview_dialog(frm, r.message);
+        },
+      });
+    },
+    __("Acciones"),
+  );
+}
+
+/**
+ * Renderiza y muestra el modal de vista previa HKA.
+ * @param {object} frm
+ * @param {object} d  Datos devueltos por get_invoice_preview_data
+ */
+function show_hka_preview_dialog(frm, d) {
+  const items_html = d.items
+    .map(
+      (item) => `
+    <tr>
+      <td>
+        <span class="hka-preview__item-code">${frappe.utils.escape_html(item.code)}</span>
+        ${frappe.utils.escape_html(item.description)}
+        <span class="hka-preview__iva-badge ${item.is_exempt ? "hka-preview__iva-badge--exento" : "hka-preview__iva-badge--gravado"}">
+          ${item.is_exempt ? "EXENTO" : "IVA " + item.iva_rate + "%"}
+        </span>
+      </td>
+      <td class="right">${frappe.utils.escape_html(item.qty)}</td>
+      <td class="right">$ ${frappe.utils.escape_html(item.rate_usd)}</td>
+      <td class="right">$ ${frappe.utils.escape_html(item.valor_iva_usd)}</td>
+      <td class="right"><strong>$ ${frappe.utils.escape_html(item.total_item_usd)}</strong></td>
+    </tr>
+  `,
+    )
+    .join("");
+
+  const preview_html = `
+    <div class="hka-preview">
+
+      <!-- HEADER -->
+      <div class="hka-preview__header">
+
+        <div class="hka-preview__doc-numbers">
+          <div class="hka-preview__doc-num-item">
+            <span class="hka-preview__doc-num-label">N° Documento</span>
+            <span class="hka-preview__doc-num-value">
+              ${frappe.utils.escape_html(d.bill_no_preview)}
+              <span class="hka-preview__badge hka-preview__badge--orange">Proyectado</span>
+            </span>
+          </div>
+          <div class="hka-preview__doc-num-item">
+            <span class="hka-preview__doc-num-label">N° Control</span>
+            <span class="hka-preview__doc-num-value">
+              ${frappe.utils.escape_html(d.control_no_preview)}
+              <span class="hka-preview__badge hka-preview__badge--orange">Proyectado</span>
+            </span>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px;">
+          <div>
+            <p class="hka-preview__total-label">Total a Pagar — ${frappe.utils.escape_html(d.invoice_name)}</p>
+            <div style="display:flex;align-items:baseline;gap:6px;">
+              <span class="hka-preview__total-usd">$ ${frappe.utils.escape_html(d.total_usd)}</span>
+              <span class="hka-preview__total-currency">${frappe.utils.escape_html(d.currency)}</span>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <p class="hka-preview__total-bs">Bs. ${frappe.utils.escape_html(d.total_bs)}</p>
+            <p class="hka-preview__total-bs-label">Bolívares Digitales</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY -->
+      <div class="hka-preview__body">
+
+        <!-- EMISOR / CLIENTE -->
+        <div class="hka-preview__parties">
+          <div class="hka-preview__party">
+            <div class="hka-preview__avatar hka-preview__avatar--company">
+              ${frappe.utils.escape_html(d.company_name.charAt(0))}
+            </div>
+            <div>
+              <p class="hka-preview__party-name">${frappe.utils.escape_html(d.company_name)}</p>
+              <p class="hka-preview__party-rif">RIF: ${frappe.utils.escape_html(d.company_tax_id)}</p>
+              <p class="hka-preview__party-address">${frappe.utils.escape_html(d.company_address)}</p>
+              ${d.company_phone ? `<p class="hka-preview__party-address">☎ ${frappe.utils.escape_html(d.company_phone)}</p>` : ""}
+              ${d.company_website ? `<p class="hka-preview__party-address">🌐 ${frappe.utils.escape_html(d.company_website)}</p>` : ""}
+            </div>
+          </div>
+          <div class="hka-preview__party">
+            <div class="hka-preview__avatar hka-preview__avatar--client">
+              ${frappe.utils.escape_html(d.customer_name.charAt(0))}
+            </div>
+            <div>
+              <p class="hka-preview__party-name">${frappe.utils.escape_html(d.customer_name)}</p>
+              <p class="hka-preview__party-rif">RIF: ${frappe.utils.escape_html(d.customer_tax_id)}</p>
+              <p class="hka-preview__party-address">${frappe.utils.escape_html(d.customer_address)}</p>
+              ${d.customer_phone ? `<p class="hka-preview__party-address">☎ ${frappe.utils.escape_html(d.customer_phone)}</p>` : ""}
+              ${d.customer_email ? `<p class="hka-preview__party-address">✉ ${frappe.utils.escape_html(d.customer_email)}</p>` : ""}
+            </div>
+          </div>
+        </div>
+
+        <!-- FECHAS Y HORA -->
+        <div class="hka-preview__section">
+          <p class="hka-preview__section-title">Fechas y Hora de Emisión</p>
+          <div class="hka-preview__grid hka-preview__grid--4">
+            <div class="hka-preview__field"><label>Fecha Emisión</label><span>${frappe.utils.escape_html(d.fecha_emision)}</span></div>
+            <div class="hka-preview__field"><label>Hora Emisión</label><span>${frappe.utils.escape_html(d.hora_emision)}</span></div>
+            <div class="hka-preview__field"><label>Fecha Vencimiento</label><span>${frappe.utils.escape_html(d.fecha_vencimiento)}</span></div>
+            <div class="hka-preview__field"><label>Fecha Asignación</label><span>${frappe.utils.escape_html(d.fecha_asignacion)}</span></div>
+          </div>
+        </div>
+
+        <!-- SERIE Y OPERACIÓN -->
+        <div class="hka-preview__section">
+          <p class="hka-preview__section-title">Serie y Datos de la Imprenta</p>
+          <div class="hka-preview__grid hka-preview__grid--2">
+            <div class="hka-preview__field"><label>Serie TFHKA</label><span class="accent">${frappe.utils.escape_html(d.serie_tfhka)}</span></div>
+            <div class="hka-preview__field"><label>Rango Autorizado</label><span style="font-size:10px;">${frappe.utils.escape_html(d.range_from)} al ${frappe.utils.escape_html(d.range_to)}</span></div>
+          </div>
+        </div>
+
+        <!-- DATOS TÉCNICOS DEL SERVICIO -->
+        <div class="hka-preview__section">
+          <p class="hka-preview__section-title">Datos del Servicio</p>
+          <div class="hka-preview__grid hka-preview__grid--4">
+            <div class="hka-preview__field"><label>ID Servicio</label><span>${frappe.utils.escape_html(d.id_servicio)}</span></div>
+            <div class="hka-preview__field"><label>Zona</label><span>${frappe.utils.escape_html(d.zona || "—")}</span></div>
+            <div class="hka-preview__field"><label>Nodo</label><span>${frappe.utils.escape_html(d.nodo || "—")}</span></div>
+            <div class="hka-preview__field"><label>Período</label><span class="accent">${frappe.utils.escape_html(d.periodo)}</span></div>
+          </div>
+        </div>
+
+        <!-- ITEMS -->
+        <div class="hka-preview__section">
+          <p class="hka-preview__section-title">Descripción del Servicio / Productos</p>
+          <table class="hka-preview__items-table">
+            <thead>
+              <tr>
+                <th>Descripción</th>
+                <th class="right">Cant.</th>
+                <th class="right">Precio Unit.</th>
+                <th class="right">IVA</th>
+                <th class="right">Total Item</th>
+              </tr>
+            </thead>
+            <tbody>${items_html}</tbody>
+          </table>
+        </div>
+
+        <!-- TOTALES DUALES + BCV -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="hka-preview__section">
+            <p class="hka-preview__section-title" style="margin-bottom:6px;">Totales</p>
+            <div class="hka-preview__totals">
+              <div>
+                <p class="hka-preview__totals-col-title usd">USD</p>
+                <div class="hka-preview__total-row"><span>Subtotal:</span><span>$ ${frappe.utils.escape_html(d.subtotal_usd)}</span></div>
+                <div class="hka-preview__total-row bold"><span>IVA:</span><span>$ ${frappe.utils.escape_html(d.iva_usd)}</span></div>
+              </div>
+              <div>
+                <p class="hka-preview__totals-col-title bs">Bs.</p>
+                <div class="hka-preview__total-row"><span>Subtotal:</span><span>${frappe.utils.escape_html(d.subtotal_bs)}</span></div>
+                <div class="hka-preview__total-row bold"><span>IVA:</span><span>${frappe.utils.escape_html(d.iva_bs)}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hka-preview__bcv">
+            <div class="hka-preview__bcv-row">
+              <span class="hka-preview__bcv-label">Tasa BCV (${frappe.utils.escape_html(d.tasa_fecha)})</span>
+              <span class="hka-preview__bcv-value">Bs. ${frappe.utils.escape_html(d.tasa_bcv)}</span>
+            </div>
+            <p class="hka-preview__bcv-note">
+              Cálculos según Art. 25 Ley IVA. Sujeto a IGTF (+3%) si paga en divisas.
+            </p>
+          </div>
+        </div>
+
+        <!-- FOOTER INFORMATIVO -->
+        <div class="hka-preview__footer-info">
+          <span>Imprenta: THE FACTORY HKA VENEZUELA (J-402385358) • Providencia SNAT/2024/000102</span>
+          <span>Rango: ${frappe.utils.escape_html(d.range_from)} — ${frappe.utils.escape_html(d.range_to)}</span>
+        </div>
+
+      </div><!-- /body -->
+    </div><!-- /hka-preview -->
+  `;
+
+  const dialog = new frappe.ui.Dialog({
+    title: __("Vista Previa — Facturación Digital HKA"),
+    size: "large",
+    fields: [
+      { fieldtype: "HTML", fieldname: "preview_html", options: preview_html },
+    ],
+    primary_action_label: __("Confirmar Emisión"),
+    primary_action: function () {
+      dialog.hide();
+      frappe.call({
+        method:
+          "l10n_ve.digital_invoice.tfhka_integration.send_invoice_manually",
+        args: { invoice_name: frm.doc.name },
+        freeze: true,
+        freeze_message: __("Enviando a TFHKA..."),
+        callback: function (r) {
+          if (!r.exc) {
+            if (r.message === "Sent") {
+              frappe.show_alert({
+                message: __("Enviado exitosamente a TFHKA."),
+                indicator: "green",
+              });
+            } else {
+              frappe.show_alert({
+                message: __(
+                  "Hubo un error al enviar. Revisa el Log de Facturación Digital.",
+                ),
+                indicator: "red",
+              });
+            }
+            frm.reload_doc();
+          }
+        },
+      });
+    },
+    secondary_action_label: __("Cancelar"),
+    secondary_action: function () {
+      dialog.hide();
+    },
+  });
+
+  dialog.show();
+
+  // Ajustar ancho del modal para que el preview se vea completo
+  dialog.$wrapper.find(".modal-dialog").css("max-width", "760px");
 }
