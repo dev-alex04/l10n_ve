@@ -7672,5 +7672,15 @@
     "translatable": 0,
     "unique": 0,
     "width": null
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Subscription Plan",
+    "fieldname": "code",
+    "fieldtype": "Data",
+    "insert_after": "item",
+    "label": "Código",
+    "module": "L10N Ve",
+    "name": "Subscription Plan-code"
   }
 ]
