@@ -93,19 +93,25 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
         frappe.logger("l10n_ve").info(f"Factura {doc.name}: Esperando asignación de HKA (Modo Tercero).")
         return
 
-    bill_no: int = series.invoice_number_correlative or 1
+    # Incremento atómico para evitar condición de carrera en multiusuario.
+    # Se incrementa primero en la BD y luego se lee el valor post-incremento
+    # para derivar el número asignado a esta factura (current - 1).
+    frappe.db.sql("""
+        UPDATE `tabVE Digital Billing Series`
+        SET invoice_number_correlative = invoice_number_correlative + 1
+        WHERE name = %s
+    """, (series.name,))
+
+    current_correlative: int = frappe.db.get_value(
+        "VE Digital Billing Series", series.name, "invoice_number_correlative"
+    ) or 2
+
+    bill_no: int = current_correlative - 1
     bill_no_str: str = str(bill_no)
 
     # Limpiar bill_control previo para que no quede desincronizado con el nuevo bill_no
     doc.db_set("bill_control", "", update_modified=False)
     doc.db_set("bill_no", bill_no_str, update_modified=False)
-
-    frappe.db.set_value(
-        "VE Digital Billing Series",
-        series.name,
-        "invoice_number_correlative",
-        bill_no + 1
-    )
 
     frappe.clear_document_cache("VE Digital Billing Series", series.name)
     frappe.logger("l10n_ve").info(

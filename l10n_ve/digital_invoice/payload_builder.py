@@ -128,12 +128,10 @@ class TFHKAPayloadBuilder:
 
         raw_time = self.doc.posting_time or "12:00:00"
         try:
-            from datetime import datetime as dt
-            time_parts = str(raw_time).split(".")[0]
-            t = dt.strptime(time_parts, "%H:%M:%S")
-            time_obj = t.strftime("%I:%M:%S %p").lower()
+            from frappe.utils import get_time
+            time_obj = get_time(str(raw_time)).strftime("%I:%M:%S %p").lower()
         except Exception:
-            time_obj = raw_time
+            time_obj = str(raw_time).split(".")[0]
 
         if tipo_doc == "02":
             numero_documento = self.doc.credit_note_no
@@ -284,7 +282,7 @@ class TFHKAPayloadBuilder:
                 monto_exento_total_usd += flt(item.amount)
             else:
                 monto_gravado_total_usd += flt(item.amount)
-                item_iva_usd = flt(fmt(flt(fmt(item.amount)) * (iva_rate / 100)))
+                item_iva_usd = flt(item.amount * (iva_rate / 100), 2)
                 total_iva_usd += item_iva_usd
 
         subtotal_usd = monto_gravado_total_usd + monto_exento_total_usd
@@ -315,7 +313,7 @@ class TFHKAPayloadBuilder:
             total_igtf_str = fmt(total_igtf_amount)
 
         try:
-            letras = money_in_words(total_a_pagar, "VEF").lower()
+            letras = money_in_words(total_a_pagar, "VES").lower()
         except Exception:
             letras = "monto en letras"
 

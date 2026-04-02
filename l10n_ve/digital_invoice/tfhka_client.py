@@ -143,6 +143,5 @@ class TFHKAClient:
             doc.response_received = response_text
             doc.status = "Error"
             doc.insert(ignore_permissions=True)
-            frappe.db.commit()
         except Exception as e:
             frappe.logger("l10n_ve").error(f"No se pudo guardar el log TFHKA: {str(e)}")
