@@ -8,11 +8,14 @@ from frappe.utils import flt
 original_get_incoming_rate = stock_utils.get_incoming_rate
 
 @frappe.whitelist()
-def get_incoming_rate(args, raise_error_if_no_rate=True):
+def get_incoming_rate(args, raise_error_if_no_rate=True, **kwargs):
 	"""
 	Obtiene la tasa de entrada.
 	Prioriza el 'price_purchase' del maestro de artículos.
 	Si no existe, delega a la función original de ERPNext.
+
+	Acepta **kwargs para compatibilidad futura con parámetros adicionales
+	que ERPNext pueda agregar (ej: fallbacks).
 	"""
 	if isinstance(args, str):
 		args = json.loads(args)
@@ -23,6 +26,6 @@ def get_incoming_rate(args, raise_error_if_no_rate=True):
 		if price_purchase:
 			return flt(price_purchase)
 
-	return original_get_incoming_rate(args, raise_error_if_no_rate)
+	return original_get_incoming_rate(args, raise_error_if_no_rate, **kwargs)
 
 stock_utils.get_incoming_rate = get_incoming_rate
