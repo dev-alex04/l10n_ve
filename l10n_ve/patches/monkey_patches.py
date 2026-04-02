@@ -38,6 +38,11 @@ except Exception as e:
     log_patch_error('l10n_ve.patches.accounts.general_ledger', e)
 
 try:
+    import l10n_ve.patches.accounts.payment_entry
+except Exception as e:
+    log_patch_error('l10n_ve.patches.accounts.payment_entry', e)
+
+try:
     import l10n_ve.patches.setup.utils
 except Exception as e:
     log_patch_error('l10n_ve.patches.setup.utils', e)
