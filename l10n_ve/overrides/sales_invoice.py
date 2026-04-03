@@ -581,20 +581,20 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         )
 
         for tax in self.get("taxes"):
+
             if tax.is_tax_withholding_account:
                 continue
 
             amount, base_amount = self.get_tax_amounts(tax, enable_discount_accounting)
 
-            if flt(tax.base_tax_amount_after_discount_amount):
-                account_currency = get_account_currency(tax.account_head)
+            if not flt(tax.base_tax_amount_after_discount_amount):
+                continue
 
-                if tax.charge_type == 'VAT':
-                    debit_or_credit = 'credit'
-                else:
-                    debit_or_credit = 'debit'
+            account_currency = get_account_currency(tax.account_head)
 
-                gl_entries.append(
+            debit_or_credit = 'credit' if tax.add_deduct_tax == 'Add' else 'debit'
+
+            gl_entries.append(
                     self.get_gl_dict(
                         {
                             "account": tax.account_head,

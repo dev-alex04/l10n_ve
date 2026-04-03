@@ -232,6 +232,7 @@ frappe.ui.form.on("Sales Invoice", {
     }
 
     setup_exchange_difference_button(frm);
+    setup_hka_consulta_button(frm);
 
     if (frappe.boot.tfhka_enabled) {
       setup_digital_invoice_button(frm);
@@ -716,4 +717,28 @@ function show_hka_preview_dialog(frm, d) {
 
   // Ajustar ancho del modal para que el preview se vea completo
   dialog.$wrapper.find(".modal-dialog").css("max-width", "760px");
+}
+
+/**
+ * Agrega un botón "Consultar en TFHKA" cuando la factura ya fue enviada
+ * a la imprenta digital y el campo remarks contiene la urlConsulta.
+ * @param {object} frm
+ */
+function setup_hka_consulta_button(frm) {
+  if (!frm.doc.remarks || !frm.doc.remarks.includes('"urlConsulta"')) {
+    return;
+  }
+
+  try {
+    const data = JSON.parse(frm.doc.remarks);
+    const url = (data && data.resultado && data.resultado.urlConsulta) || "";
+    if (!url) return;
+
+    frm.add_custom_button(__("Consultar en TFHKA"), function () {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }, __("Acciones"));
+
+  } catch (e) {
+    // remarks no es JSON válido, ignorar silenciosamente
+  }
 }
