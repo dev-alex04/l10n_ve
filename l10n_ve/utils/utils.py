@@ -483,6 +483,9 @@ def get_exchange_rate(date: str, from_currency: str) -> float:
     en MariaDB al usarla en ORDER BY vía frappe.db.get_value.
     """
     to_currency = frappe.defaults.get_defaults().get("currency")
+    if from_currency == to_currency:
+        return 1.0
+
     if not date or not from_currency or not to_currency:
         return 0
 
