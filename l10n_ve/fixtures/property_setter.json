@@ -3243,5 +3243,20 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "default_value": "0",
+        "doc_type": "Sales Invoice",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "customer",
+        "is_system_generated": 0,
+        "module": "L10N Ve",
+        "name": "Sales Invoice-customer-in_list_view",
+        "property": "in_list_view",
+        "property_type": "Check",
+        "row_name": null,
+        "value": "1"
     }
 ]
