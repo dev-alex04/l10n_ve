@@ -370,6 +370,13 @@ fixtures = [
         "filters": [
             ["name", "=", "Venezuela, Bolivarian Republic of"]
         ]
+    },
+    {
+        "doctype": "Custom DocPerm",
+        "filters": [
+            ["parent", "=", "Sales Taxes and Charges Template"],
+            ["role", "=", "System Manager"],
+        ]
     }
 ]
 

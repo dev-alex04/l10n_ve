@@ -15,6 +15,7 @@ _JURIDICAL_NATURES: tuple[str, ...] = ("Juridical", "Government", "Communal", "E
 _NATURAL_NATURES: tuple[str, ...] = ("Venezuelan", "Extranjero", "Passport")
 
 
+@frappe.whitelist()
 def is_juridical_customer(customer_name: str) -> bool:
     """Retorna True si el cliente es una persona jurídica.
 
@@ -474,32 +475,44 @@ def get_url_to_list(doctype: str) -> str:
 
 @frappe.whitelist()
 def get_exchange_rate(date: str, from_currency: str) -> float:
-    """Obtiene la tasa de cambio para una fecha y moneda específica."""
+    """Obtiene la tasa de cambio para una fecha y moneda específica.
+
+    Busca primero la tasa más reciente en o antes de la fecha solicitada.
+    Si no existe, busca la más próxima posterior como fallback.
+    Usa SQL directo para evitar problemas con 'date' como keyword reservada
+    en MariaDB al usarla en ORDER BY vía frappe.db.get_value.
+    """
     to_currency = frappe.defaults.get_defaults().get("currency")
     if not date or not from_currency or not to_currency:
         return 0
 
-    exchange_rate = frappe.db.get_value(
-        "Currency Exchange",
-        filters={
-            "date": [">=", date],
-            "from_currency": from_currency,
-            "to_currency": to_currency,
-
-        },
-        fieldname="exchange_rate",
-        order_by="date asc",
+    result = frappe.db.sql(
+        """
+        SELECT `exchange_rate`
+        FROM `tabCurrency Exchange`
+        WHERE `date` <= %s
+            AND `from_currency` = %s
+            AND `to_currency` = %s
+        ORDER BY `date` DESC
+        LIMIT 1
+        """,
+        (date, from_currency, to_currency),
     )
 
-    if not exchange_rate:
-        exchange_rate = frappe.db.get_value(
-            "Currency Exchange",
-            filters={
-                "date": ["<=", date],
-                "from_currency": from_currency,
-                "to_currency": to_currency,
-            },
-            fieldname="exchange_rate",
-            order_by="date desc",
-        )
-    return exchange_rate or 0
+    if result:
+        return result[0][0]
+
+    result = frappe.db.sql(
+        """
+        SELECT `exchange_rate`
+        FROM `tabCurrency Exchange`
+        WHERE `date` >= %s
+            AND `from_currency` = %s
+            AND `to_currency` = %s
+        ORDER BY `date` ASC
+        LIMIT 1
+        """,
+        (date, from_currency, to_currency),
+    )
+
+    return result[0][0] if result else 0

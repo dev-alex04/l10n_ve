@@ -1,0 +1,24 @@
+[
+    {
+        "doctype": "Custom DocPerm",
+        "name": "l10n_ve-sales-taxes-template-system-manager",
+        "parent": "Sales Taxes and Charges Template",
+        "parenttype": "DocType",
+        "parentfield": "permissions",
+        "role": "System Manager",
+        "permlevel": 0,
+        "read": 1,
+        "write": 1,
+        "create": 1,
+        "delete": 1,
+        "submit": 0,
+        "cancel": 0,
+        "amend": 0,
+        "report": 1,
+        "import": 0,
+        "export": 1,
+        "print": 1,
+        "email": 1,
+        "share": 1
+    }
+]

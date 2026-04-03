@@ -4,6 +4,7 @@
 // render
 frappe.listview_settings["Sales Invoice"] = {
   has_indicator_for_cancelled: true,
+  hide_name_column: true,
   add_fields: [
     "customer",
     "customer_name",
@@ -52,7 +53,11 @@ frappe.listview_settings["Sales Invoice"] = {
       indicator = "red";
     }
 
-    if (doc.total_withholding > 0 && !doc.vat_withholding_voucher_number && doc.docstatus === 1) {
+    if (
+      doc.total_withholding > 0 &&
+      !doc.vat_withholding_voucher_number &&
+      doc.docstatus === 1
+    ) {
       status = "Por Cargar Comprobante";
       indicator = "orange";
     }
@@ -67,7 +72,7 @@ frappe.listview_settings["Sales Invoice"] = {
         erpnext.bulk_transaction_processing.create(
           listview,
           "Sales Invoice",
-          "Delivery Note"
+          "Delivery Note",
         );
       });
     }
@@ -77,7 +82,7 @@ frappe.listview_settings["Sales Invoice"] = {
         erpnext.bulk_transaction_processing.create(
           listview,
           "Sales Invoice",
-          "Payment Entry"
+          "Payment Entry",
         );
       });
     }
