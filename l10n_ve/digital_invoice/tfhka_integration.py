@@ -127,6 +127,49 @@ def _update_fiscal_dates(doc: object, fecha_fiscal: str) -> None:
         doc.reload()
 
 
+def _update_conversion_rate(doc: object, fecha_fiscal: str) -> None:
+    """
+    Actualiza la tasa de cambio del documento a la tasa BCV vigente
+    en la fecha de envío a HKA.
+
+    Lanza un error si no existe tasa de cambio registrada para hoy.
+    El envío queda bloqueado hasta que el scheduler BCV la cree
+    o el usuario la registre manualmente.
+    """
+    nueva_tasa: float = frappe.db.get_value(
+        "Currency Exchange",
+        {
+            "date": fecha_fiscal,
+            "from_currency": doc.currency,
+            "to_currency": frappe.get_cached_value(
+                "Company",
+                doc.company,
+                "default_currency"
+            ),
+        },
+        "exchange_rate"
+    )
+
+    if not nueva_tasa or nueva_tasa <= 0:
+        frappe.throw(
+            f"No existe tasa de cambio BCV para la fecha {fecha_fiscal} "
+            f"({doc.currency} → {frappe.get_cached_value('Company', doc.company, 'default_currency')}). "
+            "Registre la tasa del día antes de enviar la factura a la imprenta digital.",
+            title="Tasa de Cambio No Encontrada"
+        )
+
+    if flt(nueva_tasa) == flt(doc.conversion_rate):
+        return
+
+    frappe.logger("l10n_ve").info(
+        f"Factura {doc.name}: Actualizando tasa de cambio "
+        f"{doc.conversion_rate} → {nueva_tasa} (fecha HKA: {fecha_fiscal})"
+    )
+    doc.db_set("conversion_rate", nueva_tasa, update_modified=False)
+    doc.db_set("plc_conversion_rate", nueva_tasa, update_modified=False)
+    doc.reload()
+
+
 def _ensure_bill_no(doc: object, series_doc: object) -> None:
     """Asigna bill_no desde la serie digital siempre que se presione el botón.
     Si la factura ya tenía un número previo (del flujo legacy u otra fuente),
@@ -218,6 +261,7 @@ def process_invoice(invoice_name: str) -> bool:
         fecha_fiscal: str = today()
 
         _update_fiscal_dates(doc, fecha_fiscal)
+        _update_conversion_rate(doc, fecha_fiscal)
 
         branch = doc.get("branch") or ""
         series_doc, branch_code = get_active_billing_series(
