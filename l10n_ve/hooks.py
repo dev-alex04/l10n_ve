@@ -138,6 +138,10 @@ doctype_list_js = {
     "Currency Exchange": "public/js/doctype/currency_exchange/currency_exchange_list.js",
 }
 
+query_report_js = {
+    "General Ledger": "public/js/report/general_ledger.js",
+}
+
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 doctype_calendar_js = {"Project": "public/js/doctype/project/project_calendar.js"}
 
@@ -293,22 +297,8 @@ doc_events = {
 scheduler_events = {
        "cron": {
         "0 * * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "*/15 * * * *": ["l10n_ve.tasks.reset_all_prepared_reports"],
     }
-    # "all": [
-# 		"l10n_ve.tasks.all"
-# 	],
-# 	"daily": [
-# 		"l10n_ve.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"l10n_ve.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"l10n_ve.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"l10n_ve.tasks.monthly"
-# 	],
 }
 
 # Testing
@@ -329,6 +319,8 @@ override_whitelisted_methods = {
     "erpnext.accounts.doctype.payment_entry.payment_entry.get_outstanding_reference_documents": "l10n_ve.overrides.payment_entry.get_outstanding_reference_documents",
     "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_charts_for_country": "l10n_ve.whitelisted.account.chart_of_accounts.get_charts_for_country",
     "erpnext.accounts.doctype.bank_statement_import.bank_statement_import.get_preview_from_template": "l10n_ve.overrides.bank_statement_import.get_preview_from_template",
+    # Capa 2: aislamiento de prepared_report por sesión de usuario
+    "frappe.desk.query_report.run": "l10n_ve.patches.frappe.report_session_patch.run",
 }
 
 # each overriding function accepts a `data` argument;

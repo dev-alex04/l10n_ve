@@ -98,7 +98,21 @@ def apply_post_db_patches() -> None:
     except Exception as e:
         log_patch_error('l10n_ve.patches.reports.accounts_receivable', e)
 
-# Attempt to apply patches immediately. 
+    # Capa 1: red de seguridad — resetea cualquier prepared_report que quedó en DB
+    try:
+        from l10n_ve.tasks import reset_all_prepared_reports
+        reset_all_prepared_reports()
+    except Exception as e:
+        log_patch_error('reset_all_prepared_reports', e)
+
+    # Capa 2: suprime el timer de Frappe que activa prepared_report en BD
+    try:
+        from l10n_ve.patches.frappe.report_session_patch import apply as apply_session_patch
+        apply_session_patch()
+    except Exception as e:
+        log_patch_error('report_session_patch', e)
+
+# Attempt to apply patches immediately.
 try:
     apply_post_db_patches()
 except Exception:
