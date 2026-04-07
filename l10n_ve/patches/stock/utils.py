@@ -26,8 +26,7 @@ def get_incoming_rate(args, raise_error_if_no_rate=True, **kwargs):
 		if price_purchase:
 			return flt(price_purchase)
 
-	kwargs.pop("cmd", None)
-	kwargs.pop("method", None)
+	kwargs.clear()
 
 	return original_get_incoming_rate(args, raise_error_if_no_rate, **kwargs)
 
