@@ -11,15 +11,16 @@
   "company_tax_id",
   "title",
   "naming_series",
-  "column_break_ve_header",
-  "branch",
-  "bill_no",
-  "bill_control",
   "column_break1",
   "customer",
   "customer_name",
   "tax_id",
   "return_against",
+  "reason",
+  "column_break_ve_header",
+  "branch",
+  "bill_no",
+  "bill_control",
   "column_break_14",
   "posting_date",
   "posting_time",
@@ -269,7 +270,7 @@
   },
   {
    "bold": 1,
-   "description": "Factura de Venta a la que aplica esta Nota de Crédito",
+   "description": "Factura de Venta a la que aplica esta Nota de Cr\u00e9dito",
    "fieldname": "return_against",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -283,19 +284,20 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Número de Nota de Crédito asignado por TFHKA (HKA)",
+   "description": "N\u00famero de Nota de Cr\u00e9dito asignado por TFHKA (HKA)",
    "fieldname": "bill_no",
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Número de NC",
+   "label": "N\u00famero de NC",
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
+   "depends_on": "eval: doc.bill_control",
    "fieldname": "bill_control",
    "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Bill Control",
+   "label": "N\u00famero de Control",
    "read_only": 1
   },
   {
@@ -311,6 +313,7 @@
    "fetch_from": "customer.customer_name",
    "fieldname": "customer_name",
    "fieldtype": "Small Text",
+   "hidden": 1,
    "hide_days": 1,
    "hide_seconds": 1,
    "in_global_search": 1,
@@ -1969,27 +1972,27 @@
   {
    "fieldname": "section_iva_withholding",
    "fieldtype": "Section Break",
-   "label": "Retención IVA"
+   "label": "Retenci\u00f3n IVA"
   },
   {
    "fieldname": "vat_withholding_voucher_number",
    "fieldtype": "Data",
-   "label": "Nro. Comprobante Retención IVA"
+   "label": "Nro. Comprobante Retenci\u00f3n IVA"
   },
   {
    "fieldname": "withholding_date",
    "fieldtype": "Date",
-   "label": "Fecha de Retención"
+   "label": "Fecha de Retenci\u00f3n"
   },
   {
    "fieldname": "voucher_image",
    "fieldtype": "Attach",
-   "label": "Comprobante de Retención IVA (Archivo)"
+   "label": "Comprobante de Retenci\u00f3n IVA (Archivo)"
   },
   {
    "fieldname": "section_islr_withholding",
    "fieldtype": "Section Break",
-   "label": "Retención ISLR"
+   "label": "Retenci\u00f3n ISLR"
   },
   {
    "fieldname": "islr_receipt_number",
@@ -2037,13 +2040,22 @@
   {
    "fieldname": "column_break_irqm",
    "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "bold": 1,
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "in_global_search": 1,
+   "label": "Motivo",
+   "read_only_depends_on": "eval: doc.bill_no"
   }
  ],
  "grid_page_length": 50,
  "icon": "fa fa-file-text",
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-06 20:26:35.535162",
+ "modified": "2026-04-07 12:48:07.876562",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Sales Credit Note",

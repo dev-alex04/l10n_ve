@@ -17,11 +17,19 @@
  ],
  "fields": [
   {
+   "fieldname": "document_type",
+   "fieldtype": "Select",
+   "label": "Tipo de Documento",
+   "options": "Sales Invoice\nVE Sales Credit Note",
+   "default": "Sales Invoice",
+   "in_list_view": 0
+  },
+  {
    "fieldname": "sales_invoice",
-   "fieldtype": "Link",
+   "fieldtype": "Dynamic Link",
    "in_list_view": 1,
-   "label": "Sales Invoice",
-   "options": "Sales Invoice",
+   "label": "Factura / Documento",
+   "options": "document_type",
    "read_only": 1
   },
   {

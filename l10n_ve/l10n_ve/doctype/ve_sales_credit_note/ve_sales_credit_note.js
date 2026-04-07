@@ -73,6 +73,24 @@ frappe.ui.form.on("VE Sales Credit Note", {
       });
     }
 
+    // Botón: consultar NC en portal HKA (solo cuando ya fue emitida)
+    if (frm.doc.docstatus === 1 && frm.doc.bill_no && frm.doc.remarks) {
+      try {
+        const hka_data = JSON.parse(frm.doc.remarks);
+        const url_consulta =
+          hka_data.resultado && hka_data.resultado.urlConsulta;
+        if (url_consulta) {
+          frm.add_custom_button(
+            __("Ver en HKA"),
+            function () {
+              window.open(url_consulta, "_blank");
+            },
+            __("Ver"),
+          );
+        }
+      } catch (_) {}
+    }
+
     // Botón: emitir a HKA (solo submit, sin número HKA aún)
     if (frm.doc.docstatus === 1 && !frm.doc.bill_no) {
       frm.add_custom_button(
@@ -87,11 +105,20 @@ frappe.ui.form.on("VE Sales Credit Note", {
             freeze: true,
             freeze_message: __("Enviando Nota de Crédito a HKA..."),
             callback: function (r) {
-              if (!r.exc) {
+              if (!r.exc && r.message) {
                 frm.reload_doc();
                 frappe.show_alert({
-                  message: __("Nota de Crédito emitida exitosamente"),
+                  message: __("Nota de Crédito emitida exitosamente ante HKA"),
                   indicator: "green",
+                });
+              } else if (!r.exc && r.message === false) {
+                frm.reload_doc();
+                frappe.msgprint({
+                  title: __("Error al emitir a HKA"),
+                  message: __(
+                    "La Nota de Crédito no pudo ser emitida. Revise el log de facturación digital para más detalles."
+                  ),
+                  indicator: "red",
                 });
               }
             },

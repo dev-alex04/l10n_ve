@@ -1,7 +1,7 @@
 import json
 
 import frappe
-from frappe.utils import today, flt, getdate, cint
+from frappe.utils import flt, getdate, cint
 
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
@@ -120,58 +120,8 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     )
 
 
-def _update_fiscal_dates(doc: object, fecha_fiscal: str) -> None:
-    """Actualiza posting_date y due_date a la fecha de envío si difieren.
-    due_date puede estar ausente en VE Sales Credit Note; se actualiza de forma defensiva.
-    """
-    current_due = str(doc.due_date) if doc.due_date else ""
-    if str(doc.posting_date) != fecha_fiscal or current_due != fecha_fiscal:
-        doc.db_set("posting_date", fecha_fiscal, update_modified=False)
-        doc.db_set("due_date", fecha_fiscal, update_modified=False)
-        doc.reload()
 
 
-def _update_conversion_rate(doc: object, fecha_fiscal: str) -> None:
-    """
-    Actualiza la tasa de cambio del documento a la tasa BCV vigente
-    en la fecha de envío a HKA.
-
-    Lanza un error si no existe tasa de cambio registrada para hoy.
-    El envío queda bloqueado hasta que el scheduler BCV la cree
-    o el usuario la registre manualmente.
-    """
-    nueva_tasa: float = frappe.db.get_value(
-        "Currency Exchange",
-        {
-            "date": fecha_fiscal,
-            "from_currency": doc.currency,
-            "to_currency": frappe.get_cached_value(
-                "Company",
-                doc.company,
-                "default_currency"
-            ),
-        },
-        "exchange_rate"
-    )
-
-    if not nueva_tasa or nueva_tasa <= 0:
-        frappe.throw(
-            f"No existe tasa de cambio BCV para la fecha {fecha_fiscal} "
-            f"({doc.currency} → {frappe.get_cached_value('Company', doc.company, 'default_currency')}). "
-            "Registre la tasa del día antes de enviar la factura a la imprenta digital.",
-            title="Tasa de Cambio No Encontrada"
-        )
-
-    if flt(nueva_tasa) == flt(doc.conversion_rate):
-        return
-
-    frappe.logger("l10n_ve").info(
-        f"Factura {doc.name}: Actualizando tasa de cambio "
-        f"{doc.conversion_rate} → {nueva_tasa} (fecha HKA: {fecha_fiscal})"
-    )
-    doc.db_set("conversion_rate", nueva_tasa, update_modified=False)
-    doc.db_set("plc_conversion_rate", nueva_tasa, update_modified=False)
-    doc.reload()
 
 
 def _ensure_bill_no(doc: object, series_doc: object) -> None:
@@ -200,15 +150,13 @@ def _handle_hka_response(
     payload: dict,
     response: dict,
     series_doc: object,
-    fecha_fiscal: str,
 ) -> bool:
-    """Procesa la respuesta de HKA: persiste datos, actualiza GL, registra log."""
+    """Procesa la respuesta de HKA: persiste datos y registra log."""
     is_success = (
         response
         and not response.get("error")
         and str(response.get("codigo", "")) in ("200", "201")
     )
-    is_nc: bool = doc.doctype == "VE Sales Credit Note"
     target_field: str = "bill_no"
 
     if is_success:
@@ -238,8 +186,7 @@ def _handle_hka_response(
             json.dumps(response, indent=2, ensure_ascii=False),
             update_modified=False
         )
-        _sync_gl_entries_date(doc.name, fecha_fiscal, voucher_type=doc.doctype)
-        _log_request("Emision", doc.name, payload, response, "Success")
+        _log_request("Emision", doc.name, payload, response, "Success", doctype=doc.doctype)
         frappe.db.commit()
         return True
 
@@ -251,7 +198,7 @@ def _handle_hka_response(
     if validaciones:
         notes_parts.append("Validaciones: " + "; ".join(str(v) for v in validaciones))
     _log_request("Emision", doc.name, payload, response, "Error",
-                 notes="\n".join(notes_parts))
+                 notes="\n".join(notes_parts), doctype=doc.doctype)
     frappe.db.commit()
     return False
 
@@ -273,10 +220,9 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
 
     try:
         doc = frappe.get_doc(doctype, doc_name)
-        fecha_fiscal: str = today()
 
-        _update_fiscal_dates(doc, fecha_fiscal)
-        _update_conversion_rate(doc, fecha_fiscal)
+        if str(doc.due_date or "") != str(doc.posting_date or ""):
+            doc.db_set("due_date", doc.posting_date, update_modified=False)
 
         branch = doc.get("branch") or ""
         series_doc, branch_code = get_active_billing_series(
@@ -307,9 +253,11 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
         client = TFHKAClient()
         response = client.emitir_documento(payload)
         return _handle_hka_response(
-            doc, doc_name, payload, response, series_doc, fecha_fiscal
+            doc, doc_name, payload, response, series_doc
         )
 
+    except frappe.ValidationError:
+        raise
     except Exception as e:
         tb: str = frappe.get_traceback(with_context=True) or str(e)
         frappe.logger("l10n_ve").error(f"Error procesando {doctype} {doc_name}: {tb}")
@@ -319,43 +267,11 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
             payload if "payload" in locals() else {},
             {"error": True, "message": str(e)},
             "Error",
-            notes=tb
+            notes=tb,
+            doctype=doctype,
         )
         frappe.db.commit()
         return False
-
-
-def _sync_gl_entries_date(
-    voucher_no: str,
-    new_date: str,
-    voucher_type: str = "Sales Invoice"
-) -> None:
-    """Actualiza las fechas de GL Entries, Payment Schedule y Payment Ledger Entry."""
-    try:
-        frappe.db.sql("""
-            UPDATE `tabGL Entry`
-            SET posting_date = %s
-            WHERE voucher_type = %s
-            AND voucher_no = %s
-        """, (new_date, voucher_type, voucher_no))
-
-        frappe.db.sql("""
-            UPDATE `tabPayment Schedule`
-            SET due_date = %s
-            WHERE parent = %s
-            AND parenttype = %s
-        """, (new_date, voucher_no, voucher_type))
-
-        frappe.db.sql("""
-            UPDATE `tabPayment Ledger Entry`
-            SET posting_date = %s, due_date = %s
-            WHERE voucher_type = %s
-            AND voucher_no = %s
-        """, (new_date, new_date, voucher_type, voucher_no))
-    except Exception as e:
-        frappe.logger("l10n_ve").error(
-            f"Error actualizando registros contables para {voucher_no}: {str(e)}"
-        )
 
 
 def _log_request(
@@ -364,10 +280,12 @@ def _log_request(
     payload: dict,
     response: dict,
     status: str,
-    notes: str = ""
+    notes: str = "",
+    doctype: str = "Sales Invoice",
 ) -> None:
     """Registra el log de la solicitud."""
     log_data: dict = {
+        "document_type": doctype,
         "endpoint": endpoint,
         "sales_invoice": invoice_name,
         "payload_sent": json.dumps(payload, ensure_ascii=False, indent=1),
@@ -403,7 +321,6 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     Es 100% read-only: no asigna números, no modifica la DB, no envía a HKA.
     Los números de documento y control son proyectados (último + 1).
     """
-    from frappe.utils import now_datetime
     from l10n_ve.digital_invoice.payload_builder import clean_address as _clean_address
 
     frappe.has_permission("Sales Invoice", "submit", doc=invoice_name, throw=True)
@@ -429,9 +346,10 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     range_from_str: str = f"{prefix}-{str(series_doc.range_from).zfill(8)}"
     range_to_str: str = f"{prefix}-{str(series_doc.range_to).zfill(8)}"
 
-    now = now_datetime()
-    fecha_emision: str = now.strftime("%d/%m/%Y")
-    hora_emision: str = now.strftime("%I:%M:%S %p").lower()
+    fecha_posting = getdate(doc.posting_date)
+    fecha_emision: str = fecha_posting.strftime("%d/%m/%Y")
+    hora_emision: str = str(doc.posting_time or "")[:8] or "00:00:00"
+    fecha_vencimiento: str = getdate(doc.due_date).strftime("%d/%m/%Y") if doc.due_date else fecha_emision
 
     company_address: str = ""
     try:
@@ -529,7 +447,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "control_no_preview": control_no_preview,
         "fecha_emision": fecha_emision,
         "hora_emision": hora_emision,
-        "fecha_vencimiento": fecha_emision,
+        "fecha_vencimiento": fecha_vencimiento,
         "fecha_asignacion": fecha_emision,
         "serie_tfhka": getattr(series_doc, "serie", ""),
         "branch_code": branch_code,
