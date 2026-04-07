@@ -1753,12 +1753,133 @@ def setup_workspaces() -> None:
     add_reports_to_accounts_workspace()
     add_doctypes_to_accounting_workspace()
     add_vouchers_to_accounts_workspace()
+    add_shortcuts_to_selling_workspace()
+
+def add_shortcuts_to_selling_workspace() -> None:
+    """
+    Agrega accesos rápidos (shortcuts) al Workspace de Ventas:
+      - Factura de Venta (Sales Invoice)
+      - Nota de Crédito (VE Sales Credit Note)
+
+    Frappe renderiza la sección "Acceso rápido" desde DOS lugares:
+      1. Tabla hija `shortcuts` (datos del shortcut: label, link_to, type, color)
+      2. Campo JSON `content` (layout: bloques type="shortcut" con shortcut_name = label)
+    Ambos deben estar sincronizados para que aparezca en la UI.
+    """
+    print("Agregando shortcuts al Workspace de Ventas...")
+    try:
+        workspace_name = None
+        for candidate in ("Selling", "Ventas"):
+            if frappe.db.exists("Workspace", candidate):
+                workspace_name = candidate
+                break
+
+        if not workspace_name:
+            print("  !! No se encontró el Workspace 'Selling' / 'Ventas'. Omitiendo.")
+            return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+        print(f"  -> Workspace encontrado: {workspace_name}")
+
+        shortcuts_to_add = [
+            {
+                "label": "Factura de Venta",
+                "link_to": "Sales Invoice",
+                "type": "DocType",
+                "color": "Blue",
+            },
+            {
+                "label": "Nota de Crédito",
+                "link_to": "VE Sales Credit Note",
+                "type": "DocType",
+                "color": "Grey",
+            },
+        ]
+
+        # 1. Actualizar tabla hija shortcuts
+        current_shortcut_labels = {s.label for s in workspace.shortcuts}
+        modified = False
+
+        for shortcut in shortcuts_to_add:
+            if not frappe.db.exists("DocType", shortcut["link_to"]):
+                print(f"  -- Omitiendo (DocType no encontrado): {shortcut['link_to']}")
+                continue
+
+            if shortcut["label"] not in current_shortcut_labels:
+                workspace.append("shortcuts", {
+                    "label": shortcut["label"],
+                    "link_to": shortcut["link_to"],
+                    "type": shortcut["type"],
+                    "color": shortcut.get("color", "Grey"),
+                })
+                modified = True
+                print(f"  -> Shortcut (tabla) agregado: {shortcut['label']}")
+            else:
+                print(f"  -- Omitiendo (ya existe en tabla): {shortcut['label']}")
+
+        # 2. Actualizar campo JSON content
+        # En content, los shortcuts son bloques {"type": "shortcut", "data": {"shortcut_name": label, "col": 3}}
+        # y deben estar DESPUÉS del bloque type=header de Quick Access
+        content = json.loads(workspace.content) if workspace.content else []
+
+        existing_shortcut_names = {
+            block["data"]["shortcut_name"]
+            for block in content
+            if block.get("type") == "shortcut"
+        }
+
+        # Encontrar el índice del último shortcut existente para insertar después
+        last_shortcut_idx = -1
+        for i, block in enumerate(content):
+            if block.get("type") == "shortcut":
+                last_shortcut_idx = i
+
+        shortcuts_added_to_content = []
+        for shortcut in shortcuts_to_add:
+            if not frappe.db.exists("DocType", shortcut["link_to"]):
+                continue
+
+            if shortcut["label"] not in existing_shortcut_names:
+                import random
+                import string
+                rand_id = "".join(random.choices(string.ascii_letters + string.digits, k=10))
+                shortcuts_added_to_content.append({
+                    "id": rand_id,
+                    "type": "shortcut",
+                    "data": {
+                        "shortcut_name": shortcut["label"],
+                        "col": 3,
+                    }
+                })
+                print(f"  -> Shortcut (content) agregado: {shortcut['label']}")
+                modified = True
+            else:
+                print(f"  -- Omitiendo (ya existe en content): {shortcut['label']}")
+
+        if shortcuts_added_to_content:
+            insert_at = last_shortcut_idx + 1 if last_shortcut_idx >= 0 else len(content)
+            for i, block in enumerate(shortcuts_added_to_content):
+                content.insert(insert_at + i, block)
+
+        if modified:
+            workspace.content = json.dumps(content)
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Shortcuts agregados al Workspace '{workspace_name}'.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya tenía todos los shortcuts.")
+
+    except Exception as e:
+        print(f"Failure: Error agregando shortcuts al Workspace de Ventas: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_shortcuts_to_selling_workspace')
+
 
 def add_vouchers_to_accounts_workspace() -> None:
     """
     Agrega los DocTypes de comprobantes de retención al Workspace 'Accounting'.
     """
     print("Agregando sección Tributos al Workspace de Contabilidad...")
+
     try:
         workspace_name = get_compatible_workspace_name()
         if not workspace_name:

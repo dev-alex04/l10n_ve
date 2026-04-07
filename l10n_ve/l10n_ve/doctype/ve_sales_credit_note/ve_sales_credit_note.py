@@ -1,0 +1,519 @@
+# Copyright (c) 2026, DominaERP and contributors
+# For license information, please see license.txt
+
+from __future__ import annotations
+
+import frappe
+from frappe import _
+from frappe.utils import flt, cint
+from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
+
+from l10n_ve.controllers.taxes_mixin import TaxesMixin
+from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
+
+
+class VESalesCreditNote(TaxesMixin, SalesInvoice):
+    """
+    Nota de Crédito venezolana para integración con TFHKA (HKA).
+    Hereda de SalesInvoice para reutilizar GL entries, cálculo de impuestos
+    y validaciones de venta.
+
+    Decisión de diseño — montos positivos:
+      Los montos se almacenan siempre en positivo (visualmente natural para el admin).
+      El método get_gl_entries() los niega al vuelo antes de que ERPNext los
+      procese, logrando la reversión contable correcta sin exponer negativos en la UI.
+    """
+
+    # ------------------------------------------------------------------ #
+    # Ciclo de vida del documento                                          #
+    # ------------------------------------------------------------------ #
+
+    def before_insert(self) -> None:
+        self.is_return = 1
+        self.naming_series = "NC-.YYYY.-"
+        self.update_outstanding_for_self = 0
+        self._init_si_defaults()
+        self._inherit_branch_from_si()
+
+    def validate(self) -> None:
+        self.is_return = 1
+        self.update_outstanding_for_self = 0
+        self._init_si_defaults()
+        self._inherit_branch_from_si()
+        self._enforce_positive_amounts()
+        self._run_super_validate_safely()
+
+    def on_submit(self) -> None:
+        """
+        SalesInvoice.on_submit() accede a atributos que no existen en el DocType
+        de la NC (update_billed_amount_in_sales_order, auto_repeat, etc.).
+        Se inicializan aquí antes de delegar al super para evitar AttributeError.
+        """
+        self.is_return = 1
+        self.update_outstanding_for_self = 0
+        self._init_si_defaults()
+        super().on_submit()
+
+    def before_cancel(self) -> None:
+        """
+        SalesInvoice.before_cancel() accede a self.timesheets (entre otros).
+        Se inicializan los atributos faltantes antes de delegar al super.
+        """
+        self._block_cancel_if_sent_to_hka()
+        self.is_return = 1
+        self.update_outstanding_for_self = 0
+        self._init_si_defaults()
+        super().before_cancel()
+
+    def _block_cancel_if_sent_to_hka(self) -> None:
+        """
+        Bloquea la cancelación si la NC ya fue enviada a la imprenta digital
+        TFHKA (detectado por la presencia de bill_no o bill_control).
+        Solo se activa cuando la facturación digital está habilitada.
+        """
+        try:
+            tfhka_enabled = frappe.get_cached_value(
+                "TFHKA Settings", "TFHKA Settings", "enabled"
+            )
+        except frappe.DoesNotExistError:
+            tfhka_enabled = False
+
+        if not tfhka_enabled:
+            return
+
+        if self.bill_no or self.bill_control:
+            frappe.throw(
+                _(
+                    "La Nota de Crédito <b>{0}</b> ya fue enviada a la imprenta "
+                    "digital TFHKA (N° Documento: <b>{1}</b>, N° Control: <b>{2}</b>). "
+                    "No puede ser cancelada."
+                ).format(
+                    self.name,
+                    self.bill_no or "—",
+                    self.bill_control or "—",
+                ),
+                title=_("Cancelación Bloqueada — Facturación Digital"),
+            )
+
+    def on_cancel(self) -> None:
+        """
+        SalesInvoice.on_cancel() accede a múltiples atributos que no forman
+        parte del schema de la NC. Se inicializan antes de delegar al super.
+        """
+        self.is_return = 1
+        self.update_outstanding_for_self = 0
+        self._init_si_defaults()
+        super().on_cancel()
+
+    def validate_against_voucher_outstanding(self) -> None:
+        """
+        La validación nativa usa self.doctype para buscar el outstanding del
+        return_against, lo que falla porque la NC es un doctype distinto a Sales Invoice.
+        Se suprime intencionalmente; el outstanding se gestiona vía
+        update_outstanding_amt() en el GL entry con against_voucher = return_against.
+        """
+        return
+
+    def make_discount_gl_entries(self, gl_entries: list) -> None:
+        """
+        ERPNext asigna enable_discount_accounting solo para "Sales Invoice" y
+        "Purchase Invoice". VE Sales Credit Note no entra en ninguna rama →
+        UnboundLocalError al leer la variable en la línea posterior.
+
+        Se delega temporalmente a "Sales Invoice" para reutilizar la lógica correcta.
+        """
+        self.doctype = "Sales Invoice"
+        try:
+            super().make_discount_gl_entries(gl_entries)
+        finally:
+            self.doctype = "VE Sales Credit Note"
+
+
+
+
+    def _inherit_branch_from_si(self) -> None:
+        """
+        Hereda branch y tasa de cambio de la Factura Original (return_against).
+
+        - branch: si la SI lo tiene, se copia y queda read_only en UI (vía JS).
+        - conversion_rate / plc_conversion_rate: la NC DEBE usar la misma tasa
+          que la SI original para que los asientos en VEF sean un espejo exacto.
+          Usar una tasa diferente genera una diferencia cambiaria no deseada.
+        """
+        if not self.get("return_against"):
+            return
+
+        si_values: dict = frappe.get_cached_value(
+            "Sales Invoice",
+            self.return_against,
+            ["branch", "conversion_rate", "plc_conversion_rate"],
+            as_dict=True,
+        ) or {}
+
+        # ── Branch ──────────────────────────────────────────────────────────
+        if si_values.get("branch") and not self.get("branch"):
+            self.branch = si_values["branch"]
+
+        # ── Tasa de cambio ───────────────────────────────────────────────────
+        # Solo se hereda si el doc todavía tiene la tasa del día (no forzada).
+        # Se compara contra 1 para detectar docs en moneda base (VEF).
+        si_rate: float = flt(si_values.get("conversion_rate"))
+        if si_rate and si_rate != flt(self.conversion_rate):
+            self.conversion_rate = si_rate
+        si_plc_rate: float = flt(si_values.get("plc_conversion_rate"))
+        if si_plc_rate and si_plc_rate != flt(self.plc_conversion_rate):
+            self.plc_conversion_rate = si_plc_rate
+
+
+    def _init_si_defaults(self) -> None:
+
+        """
+        Inicializa atributos de SalesInvoice que no existen en VE Sales Credit Note
+        para evitar AttributeError en los controladores heredados de ERPNext.
+
+        SalesInvoice.validate() itera over child tables asumiendo que existen.
+        Las que quitamos del JSON deben estar presentes como listas vacías en memoria.
+        """
+        # Atributos escalares con defaults seguros
+        scalar_defaults: dict = {
+            "is_pos": 0,
+            "is_debit_note": 0,
+            "is_consolidated": 0,
+            "update_stock": 0,
+            # NOTA: update_qty NO se incluye aquí — es un MÉTODO de StatusUpdater.
+            # Incluirlo como int=0 shadowearía el método y causaría TypeError al llamar
+            # self.update_qty() desde update_prevdoc_status().
+            "is_internal_customer": 0,
+            "loyalty_program": None,
+            "loyalty_points": 0,
+            "redeem_loyalty_points": 0,
+            # Atributos usados en SalesInvoice.on_submit()
+            "update_billed_amount_in_sales_order": 0,
+            "update_billed_amount_in_delivery_note": 0,
+            "auto_repeat": None,
+            "inter_company_invoice_reference": None,
+            "campaign": None,
+            "write_off_account": None,
+            "write_off_cost_center": None,
+        }
+        for attr, val in scalar_defaults.items():
+            if not hasattr(self, attr) or self.get(attr) is None:
+                setattr(self, attr, val)
+
+        # Forzar siempre estos valores críticos
+        self.is_pos = 0
+        self.is_debit_note = 0
+
+        # Tablas hijas de SalesInvoice que pueden ser iteradas en validate()
+        # pero que fueron eliminadas del JSON de VE Sales Credit Note.
+        # Se inicializan como listas vacías para evitar AttributeError.
+        child_table_defaults: list[str] = [
+            "timesheets",
+            "pricing_rules",
+            "packed_items",
+            "advances",
+            "payment_schedule",
+            "payments",
+            "subscriptions",
+        ]
+        for table in child_table_defaults:
+            if not hasattr(self, table):
+                setattr(self, table, [])
+
+    def _run_super_validate_safely(self) -> None:
+        """
+        accounts_controller hace 'from ... import validate_return' (línea 64),
+        lo que crea una referencia LOCAL al nombre en su propio namespace.
+        Si parchamos _ret_module.validate_return esa copia ya no se afecta.
+        Debemos parchear _acc_module.validate_return directamente.
+        """
+        import erpnext.controllers.accounts_controller as _acc_module
+
+        _original_validate_return = _acc_module.validate_return
+
+        def _validate_return_nc(doc):
+            if doc.doctype != "VE Sales Credit Note":
+                _original_validate_return(doc)
+                return
+
+            if not doc.return_against:
+                frappe.throw(frappe._("Factura Afectada es obligatoria para la Nota de Crédito"))
+
+            if not frappe.db.exists("Sales Invoice", doc.return_against):
+                frappe.throw(
+                    frappe._("Factura Afectada no válida: {0}").format(doc.return_against)
+                )
+
+            # Validar empresa y cliente contra la SI original
+            si = frappe.get_cached_doc("Sales Invoice", doc.return_against)
+            if si.company != doc.company:
+                frappe.throw(
+                    frappe._("La empresa de la NC debe coincidir con la factura original: {0}")
+                    .format(si.company)
+                )
+            if si.customer != doc.customer:
+                frappe.throw(
+                    frappe._("El cliente de la NC debe coincidir con la factura original: {0}")
+                    .format(si.customer)
+                )
+
+        # accounts_controller hace "from ... import validate_return" (línea 64),
+        # lo que crea una referencia LOCAL al nombre — hay que parchear ESA referencia.
+        _acc_module.validate_return = _validate_return_nc
+        try:
+            super().validate()
+        finally:
+            _acc_module.validate_return = _original_validate_return
+
+    def calculate_taxes_and_totals(self) -> None:
+        """Usa el calculador venezolano (TaxesAndTotals) para IVA, Retenciones e ISLR."""
+        taxes_and_totals = TaxesAndTotals(self)
+        taxes_and_totals.calculate_total_exempt()
+        self.calculate_total_withholding()
+
+    def set_taxes_and_charges(self) -> None:
+        """
+        Garantiza que el IVA base se cargue desde el template y luego agrega
+        las retenciones venezolanas (IVA Retención e ISLR).
+
+        No depende de 'add_taxes_from_taxes_and_charges_template' de Accounts Settings.
+        """
+        impuestos_base = [
+            tax for tax in self.taxes or []
+            if not tax.get("is_tax_withholding_account")
+        ]
+
+        if not impuestos_base and self.get("taxes_and_charges"):
+            self.set("taxes", [])
+            self.append_taxes_from_master("Sales Taxes and Charges Template")
+        else:
+            self.set("taxes", impuestos_base)
+
+        self.set_tax_withholding_ve()
+        self.set_islr_withholding_ve()
+
+        for i, tax in enumerate(self.taxes or [], start=1):
+            tax.idx = i
+
+    def set_tax_withholding(self) -> None:
+        """
+        Desactiva el mecanismo TDS/TCS nativo de ERPNext.
+        TaxesMixin.set_tax_withholding_ve() se encarga de las retenciones venezolanas.
+        """
+        return
+
+    # ------------------------------------------------------------------ #
+    # GL Entries — corazón de la reversión contable                        #
+    # ------------------------------------------------------------------ #
+
+    def get_gl_entries(self, warehouse_account=None):
+        """
+        VE Sales Credit Note almacena montos positivos (requerimiento de UX).
+
+        Aquí se hacen dos cosas antes de que ERPNext procese los GL entries:
+
+        1. Se usa VESalesInvoice.get_gl_entries() en lugar del SalesInvoice nativo
+           de ERPNext. Esto es crítico porque el nativo:
+             - NO suma total_withholding al AR en make_customer_gl_entry()
+             - NO separa las retenciones en make_tax_gl_entries()
+           Resultado sin este fix: imbalance = IVA + IVA Withholding.
+
+        2. Se niegan todos los campos de signo para que toggle_debit_credit_if_negative
+           los invierta al lado contable correcto:
+             - AR queda ACREDITADA  → reduce el saldo pendiente del cliente
+             - Ingresos quedan DEBITADOS → revierte el ingreso reconocido
+             - IVA queda DEBITADO   → revierte el impuesto registrado
+        """
+        from l10n_ve.overrides.sales_invoice import VESalesInvoice
+
+        # _init_si_defaults() solo se llama en validate/before_insert.
+        # El ledger preview invoca make_gl_entries() directamente (sin pasar por
+        # validate), por lo que los atributos de SalesInvoice no existen aún.
+        # Se inicializa aquí para garantizar que update_stock, update_qty, etc.
+        # estén disponibles para todos los métodos delegados.
+        self._init_si_defaults()
+
+        # total_withholding ahora es campo persistente en el DocType.
+        # Frappe lo carga desde DB automáticamente. Solo recalculamos si:
+        #   a) No hay valor en DB (doc guardado antes del bench migrate), o
+        #   b) Las taxes tienen retenciones que difieren del valor guardado
+        #      (ej. taxes modificadas sin guardar previo al preview)
+        wh_from_taxes = sum(
+            flt(tax.tax_amount_after_discount_amount)
+            for tax in self.get("taxes")
+            if cint(tax.is_tax_withholding_account)
+        )
+        if not flt(self.total_withholding) and wh_from_taxes:
+            self.total_withholding = wh_from_taxes
+
+        gl_entries = VESalesInvoice.get_gl_entries(self, warehouse_account)
+
+        sign_fields = (
+            "debit",
+            "credit",
+            "debit_in_account_currency",
+            "credit_in_account_currency",
+            "debit_in_transaction_currency",
+            "credit_in_transaction_currency",
+        )
+
+        for entry in gl_entries:
+            for field in sign_fields:
+                value = entry.get(field)
+                if value:
+                    entry[field] = -1 * flt(value)
+
+            # Corrección: against_voucher_type debe coincidir con el doctype de against_voucher.
+            # Cuando against_voucher == self.return_against (la SI original), el tipo debe ser
+            # "Sales Invoice", no "VE Sales Credit Note".
+            # NO tocar entries donde against_voucher == self.name (esos sí son NC).
+            if (
+                entry.get("against_voucher_type") == self.doctype
+                and entry.get("against_voucher") == self.return_against
+            ):
+                entry["against_voucher_type"] = "Sales Invoice"
+
+        return gl_entries
+
+    def make_customer_gl_entry(self, gl_entries: list) -> None:
+        """
+        Delega a VESalesInvoice para incluir total_withholding en el AR.
+        El SalesInvoice nativo de ERPNext no suma las retenciones al débito
+        del cliente, causando desbalance en los GL entries de la NC.
+        """
+        from l10n_ve.overrides.sales_invoice import VESalesInvoice
+        VESalesInvoice.make_customer_gl_entry(self, gl_entries)
+
+    def make_tax_gl_entries(self, gl_entries: list) -> None:
+        """
+        Delega a VESalesInvoice para omitir is_tax_withholding_account.
+        El SalesInvoice nativo acredita TODOS los impuestos incluyendo
+        retenciones, lo que duplica el monto en el side crédito.
+        """
+        from l10n_ve.overrides.sales_invoice import VESalesInvoice
+        VESalesInvoice.make_tax_gl_entries(self, gl_entries)
+
+    def make_gl_entries_for_tax_withholding(self, gl_entries: list) -> None:
+        """
+        Delega a VESalesInvoice el manejo de retenciones venezolanas (IVA/ISLR).
+        Este método no existe en SalesInvoice nativo de ERPNext; sin esta
+        delegación se produce AttributeError al procesar la NC.
+        """
+        from l10n_ve.overrides.sales_invoice import VESalesInvoice
+        VESalesInvoice.make_gl_entries_for_tax_withholding(self, gl_entries)
+
+    # ------------------------------------------------------------------ #
+    # Validaciones internas                                                #
+    # ------------------------------------------------------------------ #
+
+    def _enforce_positive_amounts(self) -> None:
+        """
+        Garantiza que todos los montos de ítems sean positivos.
+        Previene errores del usuario que cambien valores negativos
+        heredados de documentos ERPNext o ingresos manuales incorrectos.
+        """
+        for item in self.items:
+            if flt(item.qty) < 0:
+                item.qty = abs(item.qty)
+            if flt(item.rate) < 0:
+                item.rate = abs(item.rate)
+
+
+# --------------------------------------------------------------------------- #
+# Búsqueda personalizada para return_against                                   #
+# --------------------------------------------------------------------------- #
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def query_available_sales_invoices(
+    doctype: str,
+    txt: str,
+    searchfield: str,
+    start: int,
+    page_len: int,
+    filters: dict,
+) -> list:
+    """
+    Retorna facturas de venta disponibles para aplicar una Nota de Crédito:
+      - Aprobadas (docstatus = 1)
+      - No son NC ni ND (is_return = 0)
+      - De la misma empresa
+      - Sin NC o ND activa referenciándolas
+
+    Excluye SIs que ya tienen:
+      - Una VE Sales Credit Note enviada (docstatus = 1)
+      - Una Sales Invoice de retorno (is_return = 1, docstatus = 1)
+    """
+    company = (filters or {}).get("company", "")
+
+    # SIs ya referenciadas por una NC venezolana activa
+    nc_activas: list[str] = frappe.db.sql_list("""
+        SELECT DISTINCT return_against
+        FROM `tabVE Sales Credit Note`
+        WHERE docstatus = 1
+          AND return_against IS NOT NULL
+          AND return_against != ''
+    """)
+
+    # SIs ya referenciadas por una NC/ND estándar de ERPNext activa
+    si_returns: list[str] = frappe.db.sql_list("""
+        SELECT DISTINCT return_against
+        FROM `tabSales Invoice`
+        WHERE docstatus = 1
+          AND is_return = 1
+          AND return_against IS NOT NULL
+          AND return_against != ''
+    """)
+
+    excluidas: list[str] = list(set(nc_activas + si_returns))
+
+    conditions = [
+        "si.docstatus = 1",
+        "si.is_return = 0",
+        "(si.is_debit_note = 0 OR si.is_debit_note IS NULL)",
+        "(si.bill_no IS NOT NULL AND si.bill_no != '')",
+        "(si.bill_control IS NOT NULL AND si.bill_control != '')",
+    ]
+    values: dict = {}
+
+    if company:
+        conditions.append("si.company = %(company)s")
+        values["company"] = company
+
+    customer = (filters or {}).get("customer", "")
+    if customer:
+        conditions.append("si.customer = %(customer)s")
+        values["customer"] = customer
+
+    if txt:
+        conditions.append(
+            "(si.name LIKE %(txt)s"
+            " OR si.customer LIKE %(txt)s"
+            " OR si.customer_name LIKE %(txt)s)"
+        )
+        values["txt"] = f"%{txt}%"
+
+    if excluidas:
+        placeholders = ", ".join(f"%(ex_{i})s" for i in range(len(excluidas)))
+        conditions.append(f"si.name NOT IN ({placeholders})")
+        for i, val in enumerate(excluidas):
+            values[f"ex_{i}"] = val
+
+    where = " AND ".join(conditions)
+    values["start"] = int(start)
+    values["page_len"] = int(page_len)
+
+    return frappe.db.sql(
+        f"""
+        SELECT
+            si.name,
+            CONCAT(si.bill_no, ' — ', si.customer_name) AS label,
+            si.posting_date,
+            si.grand_total
+        FROM `tabSales Invoice` si
+        WHERE {where}
+        ORDER BY si.posting_date DESC
+        LIMIT %(start)s, %(page_len)s
+        """,
+        values,
+    )

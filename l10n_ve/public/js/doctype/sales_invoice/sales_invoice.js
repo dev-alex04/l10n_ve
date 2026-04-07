@@ -734,10 +734,13 @@ function setup_hka_consulta_button(frm) {
     const url = (data && data.resultado && data.resultado.urlConsulta) || "";
     if (!url) return;
 
-    frm.add_custom_button(__("Consultar en TFHKA"), function () {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }, __("Acciones"));
-
+    frm.add_custom_button(
+      __("Consultar en TFHKA"),
+      function () {
+        window.open(url, "_blank", "noopener,noreferrer");
+      },
+      __("Acciones"),
+    );
   } catch (e) {
     // remarks no es JSON válido, ignorar silenciosamente
   }

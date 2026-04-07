@@ -8,6 +8,7 @@ __SALES_DOCTYPES__ = [
     "Sales Order",
     "Sales Invoice",
     "Delivery Note",
+    "VE Sales Credit Note",
 ]
 
 
@@ -100,6 +101,29 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 yield val
 
         return IterableFloat(current_tax_amount)
+
+    def calculate_totals(self) -> None:
+        """
+        Override Temporal para VE Sales Credit Note
+        Redirige VE Sales Credit Note a la rama de Sales de ERPNext.
+
+        ERPNext decide el cálculo del base_grand_total según el doctype:
+          - Sales: calcula directamente desde grand_total * conversion_rate
+          - Else (Purchase): itera taxes y accede a tax.category → AttributeError
+
+        VE Sales Credit Note no está en la lista original de Sales de ERPNext,
+        por lo que se redirige temporalmente para entrar por la rama correcta.
+        """
+        es_nc = self.doc.doctype == "VE Sales Credit Note"
+
+        if es_nc:
+            self.doc.doctype = "Sales Invoice"
+
+        try:
+            super().calculate_totals()
+        finally:
+            if es_nc:
+                self.doc.doctype = "VE Sales Credit Note"
 
     def set_cumulative_total(self, row_idx, tax) -> None:
         tax_amount = tax.tax_amount_after_discount_amount

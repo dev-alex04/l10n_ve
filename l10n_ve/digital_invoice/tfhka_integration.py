@@ -7,6 +7,7 @@ from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 from l10n_ve.utils.utils import is_juridical_customer
 
+SUPPORTED_DOCTYPES = ("Sales Invoice", "VE Sales Credit Note")
 
 def get_active_billing_series(
     company: str, branch: str
@@ -80,48 +81,51 @@ def update_billing_series_after_response(series_doc: object, control_number_str:
 
 def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     """
-    Asigna el número de factura (bill_no) desde invoice_number_correlative
-    de la serie digital. Se invoca exclusivamente desde el botón de envío a HKA.
-
-    - bill_no siempre se sobreescribe (incluye números previos del flujo legacy).
-    - bill_control se limpia para que HKA asigne el número de control correcto.
-    - El invoice_number_correlative es independiente del número de control HKA.
+    Asigna el número de documento desde el correlativo de la serie digital.
+    Para Sales Invoice usa invoice_number_correlative → bill_no.
+    Para VE Sales Credit Note usa credit_note_number_correlative → bill_no.
+    Se invoca exclusivamente desde el botón de envío a HKA.
     """
+    is_nc: bool = doc.doctype == "VE Sales Credit Note"
+    correlative_field: str = "credit_note_number_correlative" if is_nc else "invoice_number_correlative"
+    target_field: str = "bill_no"
+
     if getattr(series, "operation_mode", "Internal") == "Third Party":
         doc.db_set("bill_control", "", update_modified=False)
         doc.db_set("bill_no", "", update_modified=False)
-        frappe.logger("l10n_ve").info(f"Factura {doc.name}: Esperando asignación de HKA (Modo Tercero).")
+        frappe.logger("l10n_ve").info(f"{doc.doctype} {doc.name}: Esperando asignación de HKA (Modo Tercero).")
         return
 
     # Incremento atómico para evitar condición de carrera en multiusuario.
-    # Se incrementa primero en la BD y luego se lee el valor post-incremento
-    # para derivar el número asignado a esta factura (current - 1).
     frappe.db.sql("""
         UPDATE `tabVE Digital Billing Series`
-        SET invoice_number_correlative = invoice_number_correlative + 1
+        SET {field} = {field} + 1
         WHERE name = %s
-    """, (series.name,))
+    """.format(field=correlative_field), (series.name,))
 
     current_correlative: int = frappe.db.get_value(
-        "VE Digital Billing Series", series.name, "invoice_number_correlative"
+        "VE Digital Billing Series", series.name, correlative_field
     ) or 2
 
-    bill_no: int = current_correlative - 1
-    bill_no_str: str = str(bill_no)
+    doc_number: int = current_correlative - 1
+    doc_number_str: str = str(doc_number)
 
-    # Limpiar bill_control previo para que no quede desincronizado con el nuevo bill_no
     doc.db_set("bill_control", "", update_modified=False)
-    doc.db_set("bill_no", bill_no_str, update_modified=False)
+
+    doc.db_set(target_field, doc_number_str, update_modified=False)
 
     frappe.clear_document_cache("VE Digital Billing Series", series.name)
     frappe.logger("l10n_ve").info(
-        f"Factura {doc.name}: bill_no='{bill_no_str}' asignado desde serie '{series.name}'."
+        f"{doc.doctype} {doc.name}: {target_field}='{doc_number_str}' asignado desde serie '{series.name}'."
     )
 
 
 def _update_fiscal_dates(doc: object, fecha_fiscal: str) -> None:
-    """Actualiza posting_date y due_date a la fecha de envío si difieren."""
-    if str(doc.posting_date) != fecha_fiscal or str(doc.due_date) != fecha_fiscal:
+    """Actualiza posting_date y due_date a la fecha de envío si difieren.
+    due_date puede estar ausente en VE Sales Credit Note; se actualiza de forma defensiva.
+    """
+    current_due = str(doc.due_date) if doc.due_date else ""
+    if str(doc.posting_date) != fecha_fiscal or current_due != fecha_fiscal:
         doc.db_set("posting_date", fecha_fiscal, update_modified=False)
         doc.db_set("due_date", fecha_fiscal, update_modified=False)
         doc.reload()
@@ -204,6 +208,8 @@ def _handle_hka_response(
         and not response.get("error")
         and str(response.get("codigo", "")) in ("200", "201")
     )
+    is_nc: bool = doc.doctype == "VE Sales Credit Note"
+    target_field: str = "bill_no"
 
     if is_success:
         resultado = response.get("resultado") or {}
@@ -212,20 +218,19 @@ def _handle_hka_response(
 
         if getattr(series_doc, "operation_mode", "Internal") == "Third Party":
             if numero_documento:
-                doc.db_set("bill_no", numero_documento, update_modified=False)
+                doc.db_set(target_field, numero_documento, update_modified=False)
 
         if control:
             doc.db_set("bill_control", control, update_modified=False)
             if series_doc:
                 update_billing_series_after_response(series_doc, control)
 
-        # Auditoría: registrar si HKA confirmó un numeroDocumento diferente al bill_no asignado
-        if numero_documento and numero_documento != frappe.db.get_value(
-            "Sales Invoice", doc.name, "bill_no"
-        ):
+        # Auditoría: verificar si HKA confirmó un número distinto al asignado localmente
+        local_number = frappe.db.get_value(doc.doctype, doc.name, target_field)
+        if numero_documento and numero_documento != local_number:
             frappe.logger("l10n_ve").warning(
-                f"Factura {doc.name}: HKA confirmó numeroDocumento='{numero_documento}' "
-                f"distinto al bill_no asignado localmente."
+                f"{doc.doctype} {doc.name}: HKA confirmó numeroDocumento='{numero_documento}' "
+                f"distinto al {target_field} asignado localmente ('{local_number}')."
             )
 
         doc.db_set(
@@ -233,7 +238,7 @@ def _handle_hka_response(
             json.dumps(response, indent=2, ensure_ascii=False),
             update_modified=False
         )
-        _sync_gl_entries_date(doc.name, fecha_fiscal)
+        _sync_gl_entries_date(doc.name, fecha_fiscal, voucher_type=doc.doctype)
         _log_request("Emision", doc.name, payload, response, "Success")
         frappe.db.commit()
         return True
@@ -251,13 +256,23 @@ def _handle_hka_response(
     return False
 
 
-def process_invoice(invoice_name: str) -> bool:
+@frappe.whitelist()
+def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
     """
-    Envía una factura a TFHKA de forma síncrona.
+    Envía una factura o nota de crédito a TFHKA de forma síncrona.
+    Soporta: Sales Invoice, VE Sales Credit Note.
     Retorna True si el envío fue exitoso, False en caso de error.
     """
+    if doctype not in SUPPORTED_DOCTYPES:
+        frappe.throw(
+            f"DocType '{doctype}' no es compatible con la facturación digital.",
+            title="DocType No Soportado"
+        )
+
+    is_nc: bool = doctype == "VE Sales Credit Note"
+
     try:
-        doc = frappe.get_doc("Sales Invoice", invoice_name)
+        doc = frappe.get_doc(doctype, doc_name)
         fecha_fiscal: str = today()
 
         _update_fiscal_dates(doc, fecha_fiscal)
@@ -272,33 +287,35 @@ def process_invoice(invoice_name: str) -> bool:
 
         payload, builder = _build_invoice_payload(doc, series_doc, branch_code)
 
-        if not builder.zona or not builder.nodo:
-            missing = []
-            if not builder.zona:
-                missing.append("Zona (territory del cliente)")
-            if not builder.nodo:
-                missing.append("Nodo (router/nodo del servicio)")
-            notes = (
-                f"No se pudo resolver: {', '.join(missing)}. "
-                f"Cliente: {doc.customer}, Suscripción: {doc.get('subscription') or '-'}"
-            )
-            _log_request("Emision", doc.name, payload,
-                         {"error": True, "message": notes}, "Error", notes=notes)
-            frappe.db.commit()
-            return False
+        # Para NC no se valida zona/nodo (no tiene suscripción asociada)
+        if not is_nc:
+            if not builder.zona or not builder.nodo:
+                missing = []
+                if not builder.zona:
+                    missing.append("Zona (territory del cliente)")
+                if not builder.nodo:
+                    missing.append("Nodo (router/nodo del servicio)")
+                notes = (
+                    f"No se pudo resolver: {', '.join(missing)}. "
+                    f"Cliente: {doc.customer}, Suscripción: {doc.get('subscription') or '-'}"
+                )
+                _log_request("Emision", doc.name, payload,
+                             {"error": True, "message": notes}, "Error", notes=notes)
+                frappe.db.commit()
+                return False
 
         client = TFHKAClient()
         response = client.emitir_documento(payload)
         return _handle_hka_response(
-            doc, invoice_name, payload, response, series_doc, fecha_fiscal
+            doc, doc_name, payload, response, series_doc, fecha_fiscal
         )
 
     except Exception as e:
         tb: str = frappe.get_traceback(with_context=True) or str(e)
-        frappe.logger("l10n_ve").error(f"Error procesando FT Digital {invoice_name}: {tb}")
+        frappe.logger("l10n_ve").error(f"Error procesando {doctype} {doc_name}: {tb}")
         _log_request(
             "Emision",
-            invoice_name,
+            doc_name,
             payload if "payload" in locals() else {},
             {"error": True, "message": str(e)},
             "Error",
@@ -308,29 +325,33 @@ def process_invoice(invoice_name: str) -> bool:
         return False
 
 
-def _sync_gl_entries_date(voucher_no: str, new_date: str) -> None:
+def _sync_gl_entries_date(
+    voucher_no: str,
+    new_date: str,
+    voucher_type: str = "Sales Invoice"
+) -> None:
     """Actualiza las fechas de GL Entries, Payment Schedule y Payment Ledger Entry."""
     try:
         frappe.db.sql("""
             UPDATE `tabGL Entry`
             SET posting_date = %s
-            WHERE voucher_type = 'Sales Invoice'
+            WHERE voucher_type = %s
             AND voucher_no = %s
-        """, (new_date, voucher_no))
+        """, (new_date, voucher_type, voucher_no))
 
         frappe.db.sql("""
             UPDATE `tabPayment Schedule`
             SET due_date = %s
             WHERE parent = %s
-            AND parenttype = 'Sales Invoice'
-        """, (new_date, voucher_no))
+            AND parenttype = %s
+        """, (new_date, voucher_no, voucher_type))
 
         frappe.db.sql("""
             UPDATE `tabPayment Ledger Entry`
             SET posting_date = %s, due_date = %s
-            WHERE voucher_type = 'Sales Invoice'
+            WHERE voucher_type = %s
             AND voucher_no = %s
-        """, (new_date, new_date, voucher_no))
+        """, (new_date, new_date, voucher_type, voucher_no))
     except Exception as e:
         frappe.logger("l10n_ve").error(
             f"Error actualizando registros contables para {voucher_no}: {str(e)}"
@@ -369,9 +390,9 @@ def _create_log_entry(log_data: dict) -> None:
 
 @frappe.whitelist()
 def send_invoice_manually(invoice_name: str) -> str:
-    """Método invocado mediante botón JS para reenvío manual."""
+    """Método invocado mediante botón JS para reenvío manual de Sales Invoice."""
     frappe.has_permission("Sales Invoice", "submit", doc=invoice_name, throw=True)
-    success = process_invoice(invoice_name)
+    success = process_invoice(invoice_name, doctype="Sales Invoice")
     return "Sent" if success else "Error"
 
 

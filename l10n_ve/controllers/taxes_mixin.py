@@ -2,6 +2,7 @@ import frappe
 from frappe import _, _dict
 
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
+from l10n_ve.utils.constants import DocumentTransactionType
 from frappe.utils import flt
 
 
@@ -90,25 +91,26 @@ class TaxesMixin:
         withholding: _dict = withholding_category.get_withholding(self.company,
                                                                   self.doctype)
 
-        if self.doctype in ("Purchase Invoice", "Sales Invoice"):
+        if self.doctype in ("Purchase Invoice", "Sales Invoice", "VE Sales Credit Note"):
+            affected = self.get("affected_invoice_number") or self.return_against
             if self.is_return:
                 if not self.return_against:
                     return
 
                 withholding['description'] = \
-                    f'{withholding.description} por Nota de Crédito contra factura {self.affected_invoice_number}'
+                    f'{withholding["description"]} por Nota de Crédito contra factura {affected}'
 
             elif self.is_debit_note:
 
-                withholding.description = \
-                    f'{withholding["description"]} por Nota de Crédito contra factura {self.affected_invoice_number}'
+                withholding['description'] = \
+                    f'{withholding["description"]} por Nota de Crédito contra factura {affected}'
 
 
         self.append("taxes", withholding)
 
     def set_islr_withholding_ve(self) -> None:
-        """Agrega retención ISLR a la tabla de impuestos para Sales Invoice."""
-        if self.doctype not in ("Sales Invoice",):
+        """Agrega retención ISLR a la tabla de impuestos para Sales Invoice y VE Sales Credit Note."""
+        if self.doctype not in ("Sales Invoice", "VE Sales Credit Note"):
             return
 
         self.taxes = [
@@ -147,7 +149,19 @@ class TaxesMixin:
 
         description: str = f"ISLR {tabulator_name} {tabulator.descripcion} ({flt(aliquot_info.aliquot)}%)"
         if self.is_return and self.return_against:
-            description += f" por Nota de Crédito contra factura {self.affected_invoice_number}"
+
+            type_doctype: str = (
+                "Sales" if self.doctype in DocumentTransactionType.__SALES_DOCTYPES__
+                else "Purchase"
+            )
+
+            affected_invoice_number: str = frappe.get_cached_value(
+                f"{type_doctype} Invoice",
+                self.return_against,
+                "bill_no"
+            )
+
+            description += f" por Nota de Crédito contra factura {affected_invoice_number}"
 
         self.append("taxes", _dict({
             "charge_type": "ISLR",
