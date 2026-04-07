@@ -253,6 +253,10 @@ override_doctype_class = {
     "Bank Statement Import": "l10n_ve.overrides.bank_statement_import.CustomBankStatementImport",
 }
 
+override_doctype_dashboards = {
+    "Sales Invoice": "l10n_ve.overrides.sales_invoice.get_sales_invoice_dashboard_data",
+}
+
 
 # Document Events
 # ---------------

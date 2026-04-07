@@ -16,12 +16,14 @@
   "operation_mode",
   "column_break_1",
   "invoice_number_correlative",
+  "credit_note_number_correlative",
+  "debit_note_number_correlative",
   "section_break_range",
   "serie",
   "prefix",
   "column_break_2",
-  "range_to",
   "range_from",
+  "range_to",
   "last_control_number",
   "sucursales_section",
   "table_vhfo"
@@ -148,10 +150,24 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Serie"
+  },
+  {
+   "default": "1",
+   "fieldname": "credit_note_number_correlative",
+   "fieldtype": "Int",
+   "label": "Correlativo de Nota de Cr\u00e9dito",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "debit_note_number_correlative",
+   "fieldtype": "Int",
+   "label": "Correlativo de Nota de D\u00e9bito",
+   "reqd": 1
   }
  ],
  "links": [],
- "modified": "2026-04-01 10:13:30.896030",
+ "modified": "2026-04-06 13:09:07.673226",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Digital Billing Series",

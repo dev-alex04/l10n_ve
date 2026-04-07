@@ -35,6 +35,41 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         self.set_control_and_invoice_number()
         self.set_title_field()
 
+    def before_cancel(self) -> None:
+        self._block_cancel_if_digitally_signed()
+        super().before_cancel()
+
+    def _block_cancel_if_digitally_signed(self) -> None:
+        """
+        Bloquea la cancelación si la factura ya tiene número de documento
+        y/o número de control asignados por la imprenta digital (TFHKA).
+        Solo se activa cuando la facturación digital está habilitada.
+        """
+        try:
+            tfhka_enabled = frappe.get_cached_value(
+                "TFHKA Settings", "TFHKA Settings", "enabled"
+            )
+        except frappe.DoesNotExistError:
+            tfhka_enabled = False
+
+        if not tfhka_enabled:
+            return
+
+        if self.bill_no or self.bill_control:
+            frappe.throw(
+                _(
+                    "La factura <b>{0}</b> ya tiene número de documento fiscal "
+                    "<b>{1}</b> y número de control <b>{2}</b> asignados por la "
+                    "imprenta digital (TFHKA). No puede ser cancelada directamente. "
+                    "Debe emitir una Nota de Crédito."
+                ).format(
+                    self.name,
+                    self.bill_no or "—",
+                    self.bill_control or "—",
+                ),
+                title=_("Cancelación Bloqueada — Facturación Digital"),
+            )
+
     def validate(self) -> None:
         super().validate()
 
@@ -66,7 +101,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             tfhka_enabled = frappe.get_cached_value(
                 "TFHKA Settings", "TFHKA Settings", "enabled"
             )
-        except Exception:
+        except frappe.DoesNotExistError:
             tfhka_enabled = False
 
         if tfhka_enabled:
@@ -88,7 +123,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             tfhka_enabled = frappe.get_cached_value(
                 "TFHKA Settings", "TFHKA Settings", "enabled"
             )
-        except Exception:
+        except frappe.DoesNotExistError:
             return None
 
         if not tfhka_enabled:
@@ -127,7 +162,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             tfhka_enabled = frappe.get_cached_value(
                 "TFHKA Settings", "TFHKA Settings", "enabled"
             )
-        except Exception:
+        except frappe.DoesNotExistError:
             return None
 
         if not tfhka_enabled:
@@ -143,7 +178,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             )
             if cutoff_raw:
                 return getdate(cutoff_raw)
-        except Exception:
+        except frappe.DoesNotExistError:
             pass
 
         return None
@@ -504,6 +539,53 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         else:
             self.title = self.bill_no
 
+    def set_status(self, update: bool = False, status: str | None = None, update_modified: bool = True) -> None:
+        """
+        ERPNext computa "Credit Note Issued" buscando un Sales Invoice con is_return=1.
+        Pero la NC venezolana es VE Sales Credit Note — otro doctype — por lo que la
+        consulta original no la encuentra y la SI queda como "Paid" (verde) en vez de
+        "Credit Note Issued" (gris).
+
+        Se llama al super() SIN actualizar BD, luego se corrige el status si hay una
+        NC venezolana vinculada, y finalmente se hace un único db_set.
+        """
+        super().set_status(update=False, status=status, update_modified=update_modified)
+
+        # Early-exit: solo buscar NC en DB cuando el status calculado por super()
+        # fuera "Paid" Y la factura tiene outstanding = 0. Evita un db.exists()
+        # en el 99% de los casos donde la SI está en Draft, Unpaid o Overdue.
+        if (
+            self.status == "Paid"
+            and not cint(self.is_return)
+            and flt(self.outstanding_amount) <= 0
+            and frappe.db.exists(
+                "VE Sales Credit Note",
+                {"return_against": self.name, "docstatus": 1},
+            )
+        ):
+            self.status = "Credit Note Issued"
+
+        if update:
+            self.db_set("status", self.status, update_modified=update_modified)
+
+    def set_indicator(self) -> None:
+        """
+        Sobrescribe el indicador de portal para mostrar "Credit Note Issued"
+        cuando la SI tiene una NC venezolana vinculada y outstanding = 0.
+        """
+        if (
+            flt(self.outstanding_amount) == 0
+            and not cint(self.is_return)
+            and frappe.db.exists(
+                "VE Sales Credit Note",
+                {"return_against": self.name, "docstatus": 1},
+            )
+        ):
+            self.indicator_title = _("Credit Note Issued")
+            self.indicator_color = "gray"
+        else:
+            super().set_indicator()
+
     def get_gl_entries(self, warehouse_account=None):
         """
         Crea y retorna los asientos contables para la factura de venta.
@@ -529,7 +611,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
         for gl in gl_entries:
             gl.bill_control = self.bill_control
-            gl.bill_no = self.bill_no or self.credit_note_no or self.debit_note_no
+            gl.bill_no = self.bill_no
 
         return gl_entries
 
@@ -621,6 +703,17 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             frappe.db.get_single_value("Selling Settings", "enable_discount_accounting")
         )
 
+        # Mismo patrón que make_customer_gl_entry: cuando es una devolución (NC),
+        # la entrada de CxC debe apuntar al voucher ORIGINAL para que
+        # update_outstanding_amt lo incluya en el cálculo del SI original.
+        is_return_linked = (
+            self.is_return
+            and self.return_against
+            and not self.update_outstanding_for_self
+        )
+        against_voucher = self.return_against if is_return_linked else self.name
+        against_voucher_type = "Sales Invoice" if is_return_linked else self.doctype
+
         for tax in self.get("taxes"):
             if not tax.is_tax_withholding_account:
                 continue
@@ -640,8 +733,8 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
                             "credit": base_amount,
                             "credit_in_account_currency": base_amount,
                             "credit_in_transaction_currency": amount,
-                            "against_voucher": self.name,
-                            "against_voucher_type": self.doctype,
+                            "against_voucher": against_voucher,
+                            "against_voucher_type": against_voucher_type,
                             "cost_center": self.cost_center,
                             "project": self.project,
                         },
@@ -670,6 +763,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
                         item=tax,
                     )
                 )
+
 
 @frappe.whitelist()
 def upload_voucher_data(docname,
@@ -898,3 +992,42 @@ def create_exchange_difference_entry(docname: str, account: str = None) -> dict:
         "journal_entry": journal_entry.name,
         "amount": outstanding,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Dashboard — conexiones de Sales Invoice                                      #
+# --------------------------------------------------------------------------- #
+
+def get_sales_invoice_dashboard_data(data: dict) -> dict:
+    """
+    Extiende el dashboard de conexiones de Sales Invoice para incluir
+    VE Sales Credit Note en el grupo 'Returns' (Devoluciones).
+
+    Este hook es llamado por Frappe DESPUÉS de que _dashboard.py ya cargó los
+    grupos estándar, por lo que podemos buscar el grupo 'Returns' y agregarnos.
+
+    El campo de enlace es return_against (Link → Sales Invoice en VE NC),
+    que es no-estándar respecto al fieldname 'sales_invoice' del dashboard,
+    por lo que se registra en non_standard_fieldnames.
+
+    Nota: se compara el label sin traducir Y con traducción al locale activo
+    para garantizar que la búsqueda funcione en instalaciones ES y EN.
+    """
+    # Candidatos que identifican el grupo 'Returns' independientemente del locale
+    returns_candidates = {_("Returns"), "Returns", _("Devoluciones"), "Devoluciones"}
+
+    for group in data.get("transactions", []):
+        if group.get("label", "") in returns_candidates:
+            items = group.get("items", [])
+            if "VE Sales Credit Note" not in items:
+                items.append("VE Sales Credit Note")
+            break
+    else:
+        data.setdefault("transactions", []).append({
+            "label": _("Returns"),
+            "items": ["VE Sales Credit Note"],
+        })
+
+    data.setdefault("non_standard_fieldnames", {})["VE Sales Credit Note"] = "return_against"
+
+    return data
