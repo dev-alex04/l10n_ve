@@ -1,7 +1,7 @@
 import json
 
 import frappe
-from frappe.utils import flt, getdate, cint
+from frappe.utils import flt, getdate, cint, today
 
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
@@ -120,8 +120,126 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     )
 
 
+def _compute_tasa_fecha(doc: object) -> str:
+    """
+    Calcula la fecha de la tasa BCV a partir del posting_date ORIGINAL del documento
+    (antes de que sea actualizado a la fecha de certificación HKA).
+
+    - Jurídico: fecha exacta del posting_date.
+    - Natural:   primer día del mes del posting_date.
+    """
+    fecha_base = getdate(doc.posting_date)
+    if not is_juridical_customer(doc.customer):
+        fecha_base = fecha_base.replace(day=1)
+    return str(fecha_base)
 
 
+def _validate_tasa_coherencia(doc: object, tasa_fecha: str) -> None:
+    """
+    Verifica que la tasa de cambio registrada en el documento coincida
+    con la tasa BCV de Currency Exchange para la fecha calculada.
+
+    Si no existe tasa registrada para esa fecha, o si la tasa del documento
+    difiere de la registrada, se lanza un error bloqueando el envío a HKA.
+    """
+    if not flt(doc.conversion_rate):
+        return
+
+    company_currency: str = frappe.get_cached_value(
+        "Company", doc.company, "default_currency"
+    ) or "VEF"
+
+    tasa_registrada: float = frappe.db.get_value(
+        "Currency Exchange",
+        {
+            "date": tasa_fecha,
+            "from_currency": doc.currency,
+            "to_currency": company_currency,
+        },
+        "exchange_rate",
+        order_by="modified desc",
+    )
+
+    fecha_display: str = getdate(tasa_fecha).strftime("%d/%m/%Y")
+
+    if not tasa_registrada or flt(tasa_registrada) <= 0:
+        frappe.throw(
+            f"No BCV exchange rate found for {fecha_display} "
+            f"({doc.currency} → {company_currency}). "
+            "Please register the rate before sending this document to the digital printer.",
+            title="Exchange Rate Not Found",
+        )
+
+    if flt(tasa_registrada, 4) != flt(doc.conversion_rate, 4):
+        frappe.throw(
+            f"The document rate ({flt(doc.conversion_rate, 4)}) does not match the "
+            f"BCV rate registered for {fecha_display} ({flt(tasa_registrada, 4)}). "
+            "Please correct the rate before sending this document to the digital printer.",
+            title="Exchange Rate Mismatch",
+        )
+
+
+def _update_fiscal_dates(doc: object, fecha_hka: str) -> None:
+    """
+    Actualiza posting_date y due_date al día de certificación ante HKA.
+    Así los registros en Frappe coinciden con la Fecha de Emisión
+    que HKA asigna en el documento impreso.
+    """
+    cambios: dict = {}
+    if str(doc.posting_date or "") != fecha_hka:
+        cambios["posting_date"] = fecha_hka
+    if str(doc.due_date or "") != fecha_hka:
+        cambios["due_date"] = fecha_hka
+    if cambios:
+        for campo, valor in cambios.items():
+            doc.db_set(campo, valor, update_modified=False)
+        doc.reload()
+
+
+def _sync_gl_entries_date(voucher_no: str, new_date: str, doctype: str = "Sales Invoice") -> None:
+    """
+    Sincroniza las fechas de los asientos contables (GL Entries),
+    cronograma de pagos (Payment Schedule) e historial de pagos
+    (Payment Ledger Entry) con la fecha de certificación HKA.
+    Soporta tanto Sales Invoice como VE Sales Credit Note.
+    """
+    try:
+        frappe.db.sql("""
+            UPDATE `tabGL Entry`
+            SET posting_date = %s
+            WHERE voucher_type = %s
+              AND voucher_no   = %s
+        """, (new_date, doctype, voucher_no))
+
+        frappe.db.sql("""
+            UPDATE `tabPayment Schedule`
+            SET due_date = %s
+            WHERE parent     = %s
+              AND parenttype = %s
+        """, (new_date, voucher_no, doctype))
+
+        frappe.db.sql("""
+            UPDATE `tabPayment Ledger Entry`
+            SET posting_date = %s,
+                due_date     = %s
+            WHERE voucher_type = %s
+              AND voucher_no   = %s
+        """, (new_date, new_date, doctype, voucher_no))
+
+    except Exception as e:
+        tb: str = frappe.get_traceback(with_context=True) or str(e)
+        frappe.logger("l10n_ve").error(
+            f"Error sincronizando asientos contables de {voucher_no}: {str(e)}"
+        )
+        _log_request(
+            "GL Sync",
+            voucher_no,
+            {},
+            {"error": True, "message": str(e)},
+            "Error",
+            notes=tb,
+            doctype=doctype,
+        )
 
 
 def _ensure_bill_no(doc: object, series_doc: object) -> None:
@@ -134,11 +252,11 @@ def _ensure_bill_no(doc: object, series_doc: object) -> None:
 
 
 def _build_invoice_payload(
-    doc: object, series_doc: object, branch_code: str
+    doc: object, series_doc: object, branch_code: str, tasa_fecha: str = ""
 ) -> tuple[dict, TFHKAPayloadBuilder]:
     """Construye el payload para HKA."""
     builder = TFHKAPayloadBuilder(
-        doc, series_doc=series_doc, branch_code=branch_code
+        doc, series_doc=series_doc, branch_code=branch_code, tasa_fecha=tasa_fecha or None
     )
     payload = builder.build_payload()
     return payload, builder
@@ -181,6 +299,9 @@ def _handle_hka_response(
                 f"distinto al {target_field} asignado localmente ('{local_number}')."
             )
 
+        fecha_hka: str = today()
+        _sync_gl_entries_date(doc.name, fecha_hka, doc.doctype)
+
         doc.db_set(
             "remarks",
             json.dumps(response, indent=2, ensure_ascii=False),
@@ -221,8 +342,19 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
     try:
         doc = frappe.get_doc(doctype, doc_name)
 
-        if str(doc.due_date or "") != str(doc.posting_date or ""):
-            doc.db_set("due_date", doc.posting_date, update_modified=False)
+        # Calcular la fecha real de la tasa BCV ANTES de actualizar posting_date.
+        # Funciona para facturas nuevas y para las ya existentes acumuladas.
+        tasa_fecha: str = _compute_tasa_fecha(doc)
+
+        # Verificar que la tasa del documento coincida con la BCV registrada.
+        # Lanza error si no existe tasa o si hay desajuste, antes de tocar nada.
+        # La NC se omite: su tasa es heredada de la factura original y puede
+        # corresponder a una fecha distinta sin ser un error.
+        if not is_nc:
+            _validate_tasa_coherencia(doc, tasa_fecha)
+
+        fecha_hka: str = today()
+        _update_fiscal_dates(doc, fecha_hka)
 
         branch = doc.get("branch") or ""
         series_doc, branch_code = get_active_billing_series(
@@ -231,7 +363,7 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
 
         _ensure_bill_no(doc, series_doc)
 
-        payload, builder = _build_invoice_payload(doc, series_doc, branch_code)
+        payload, builder = _build_invoice_payload(doc, series_doc, branch_code, tasa_fecha)
 
         # Para NC no se valida zona/nodo (no tiene suscripción asociada)
         if not is_nc:

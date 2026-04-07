@@ -60,7 +60,7 @@ def clean_payload(d):
 
 
 class TFHKAPayloadBuilder:
-    def __init__(self, doc, series_doc=None, branch_code: str = "") -> None:
+    def __init__(self, doc, series_doc=None, branch_code: str = "", tasa_fecha: Optional[str] = None) -> None:
         """
         Inicializa el payload builder.
 
@@ -68,10 +68,13 @@ class TFHKAPayloadBuilder:
             doc: Documento de la factura.
             series_doc: Documento de la serie.
             branch_code: Código de la sucursal.
+            tasa_fecha: Fecha de la tasa BCV usada en el documento (YYYY-MM-DD).
+                        Si se omite, se calcula desde posting_date.
         """
         self.doc = doc
         self.series_doc = series_doc
         self.branch_code = branch_code
+        self.tasa_fecha: Optional[str] = tasa_fecha
         self.company_currency: str = frappe.get_cached_value(
             "Company", doc.company, "default_currency"
         ) or "VEF"
@@ -691,7 +694,12 @@ class TFHKAPayloadBuilder:
 
         tasa_bcv: str = ""
         if flt(doc.conversion_rate) > 0:
-            if is_juridical_customer(doc.customer):
+            # tasa_fecha explícita (capturada antes de actualizar posting_date a hoy).
+            # Fallback: si no se proporcionó, se calcula desde posting_date con la
+            # misma regla fiscal (evita romper llamadas que no pasen el parámetro).
+            if self.tasa_fecha:
+                fecha_valor = getdate(self.tasa_fecha)
+            elif is_juridical_customer(doc.customer):
                 fecha_valor = getdate(doc.posting_date)
             else:
                 fecha_valor = getdate(doc.posting_date).replace(day=1)

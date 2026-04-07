@@ -41,6 +41,10 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self._init_si_defaults()
         self._inherit_branch_from_si()
         self._enforce_positive_amounts()
+        # Impide que SalesInvoice.validate() resetee posting_date a la
+        # fecha actual del servidor cuando set_posting_time es falsy.
+        # El usuario puede cambiar la fecha libremente desde la UI.
+        self.set_posting_time = 1
         self._run_super_validate_safely()
 
     def on_submit(self) -> None:
@@ -133,12 +137,14 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
 
     def _inherit_branch_from_si(self) -> None:
         """
-        Hereda branch y tasa de cambio de la Factura Original (return_against).
+        Hereda branch, tasa de cambio y fechas de la Factura Original (return_against).
 
         - branch: si la SI lo tiene, se copia y queda read_only en UI (vía JS).
         - conversion_rate / plc_conversion_rate: la NC DEBE usar la misma tasa
           que la SI original para que los asientos en VEF sean un espejo exacto.
-          Usar una tasa diferente genera una diferencia cambiaria no deseada.
+        - posting_date / due_date: la NC replica las fechas de la SI original.
+          Se activa set_posting_time=1 para que Frappe no las resetee a hoy
+          durante validate().
         """
         if not self.get("return_against"):
             return
@@ -146,7 +152,7 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         si_values: dict = frappe.get_cached_value(
             "Sales Invoice",
             self.return_against,
-            ["branch", "conversion_rate", "plc_conversion_rate"],
+            ["branch", "conversion_rate", "plc_conversion_rate", "posting_date", "due_date"],
             as_dict=True,
         ) or {}
 
@@ -155,14 +161,24 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
             self.branch = si_values["branch"]
 
         # ── Tasa de cambio ───────────────────────────────────────────────────
-        # Solo se hereda si el doc todavía tiene la tasa del día (no forzada).
-        # Se compara contra 1 para detectar docs en moneda base (VEF).
-        si_rate: float = flt(si_values.get("conversion_rate"))
-        if si_rate and si_rate != flt(self.conversion_rate):
-            self.conversion_rate = si_rate
-        si_plc_rate: float = flt(si_values.get("plc_conversion_rate"))
-        if si_plc_rate and si_plc_rate != flt(self.plc_conversion_rate):
-            self.plc_conversion_rate = si_plc_rate
+        # Solo en docs nuevos: de ahí en adelante el usuario tiene control.
+        if self.is_new():
+            si_rate: float = flt(si_values.get("conversion_rate"))
+            if si_rate and si_rate != flt(self.conversion_rate):
+                self.conversion_rate = si_rate
+            si_plc_rate: float = flt(si_values.get("plc_conversion_rate"))
+            if si_plc_rate and si_plc_rate != flt(self.plc_conversion_rate):
+                self.plc_conversion_rate = si_plc_rate
+
+        # ── Fechas: heredar de la SI ─────────────────────────────────────────
+        # set_posting_time=1 evita que SalesInvoice.validate() / Frappe core
+        # reseteen posting_date a la fecha actual del servidor.
+        # Solo se fuerza en el primer save; luego el usuario puede cambiarlas.
+        if self.is_new() and si_values.get("posting_date"):
+            self.posting_date = si_values["posting_date"]
+            self.set_posting_time = 1
+        if self.is_new() and si_values.get("due_date"):
+            self.due_date = si_values["due_date"]
 
 
     def _init_si_defaults(self) -> None:
@@ -446,33 +462,29 @@ def query_available_sales_invoices(
     """
     company = (filters or {}).get("company", "")
 
-    # SIs ya referenciadas por una NC venezolana activa
-    nc_activas: list[str] = frappe.db.sql_list("""
-        SELECT DISTINCT return_against
-        FROM `tabVE Sales Credit Note`
-        WHERE docstatus = 1
-          AND return_against IS NOT NULL
-          AND return_against != ''
-    """)
-
-    # SIs ya referenciadas por una NC/ND estándar de ERPNext activa
-    si_returns: list[str] = frappe.db.sql_list("""
-        SELECT DISTINCT return_against
-        FROM `tabSales Invoice`
-        WHERE docstatus = 1
-          AND is_return = 1
-          AND return_against IS NOT NULL
-          AND return_against != ''
-    """)
-
-    excluidas: list[str] = list(set(nc_activas + si_returns))
-
     conditions = [
         "si.docstatus = 1",
         "si.is_return = 0",
         "(si.is_debit_note = 0 OR si.is_debit_note IS NULL)",
         "(si.bill_no IS NOT NULL AND si.bill_no != '')",
         "(si.bill_control IS NOT NULL AND si.bill_control != '')",
+        # Excluir SIs con NC venezolana activa (subquery — eficiente con índice)
+        """si.name NOT IN (
+            SELECT return_against
+            FROM `tabVE Sales Credit Note`
+            WHERE docstatus = 1
+              AND return_against IS NOT NULL
+              AND return_against != ''
+        )""",
+        # Excluir SIs con NC/ND estándar de ERPNext activa
+        """si.name NOT IN (
+            SELECT return_against
+            FROM `tabSales Invoice`
+            WHERE docstatus = 1
+              AND is_return = 1
+              AND return_against IS NOT NULL
+              AND return_against != ''
+        )""",
     ]
     values: dict = {}
 
@@ -489,15 +501,11 @@ def query_available_sales_invoices(
         conditions.append(
             "(si.name LIKE %(txt)s"
             " OR si.customer LIKE %(txt)s"
-            " OR si.customer_name LIKE %(txt)s)"
+            " OR si.customer_name LIKE %(txt)s"
+            " OR si.bill_no LIKE %(txt)s"
+            " OR si.bill_control LIKE %(txt)s)"
         )
         values["txt"] = f"%{txt}%"
-
-    if excluidas:
-        placeholders = ", ".join(f"%(ex_{i})s" for i in range(len(excluidas)))
-        conditions.append(f"si.name NOT IN ({placeholders})")
-        for i, val in enumerate(excluidas):
-            values[f"ex_{i}"] = val
 
     where = " AND ".join(conditions)
     values["start"] = int(start)
@@ -517,3 +525,82 @@ def query_available_sales_invoices(
         """,
         values,
     )
+
+
+@frappe.whitelist()
+def make_replacement_invoice(source_name: str) -> "Document":
+    """
+    Crea un borrador de Sales Invoice copiando la factura original
+    vinculada a esta Nota de Crédito.
+
+    - posting_date = hoy (fecha real de emisión del reemplazo)
+    - conversion_rate = tasa de hoy (de tabCurrency Exchange)
+    - from_date / to_date = período del servicio original (sin cambio)
+    - subscription = heredado (los hooks de la app ISP actuarán al insertar)
+
+    Esta función es agnóstica a domina_isp: trabaja únicamente con
+    Sales Invoice estándar de ERPNext.
+    """
+    from frappe.model.mapper import get_mapped_doc
+    from frappe.utils import nowdate
+
+    nc = frappe.get_cached_doc("VE Sales Credit Note", source_name)
+
+    if not nc.return_against:
+        frappe.throw(
+            frappe._("La Nota de Crédito no tiene factura original vinculada.")
+        )
+
+    def _ajustar_fecha_y_tasa(source_doc, target_doc) -> None:
+        hoy: str = nowdate()
+        target_doc.posting_date = hoy
+        target_doc.due_date = hoy
+
+        # Tasa de hoy desde Currency Exchange (Frappe core — sin dependencia de erpnext)
+        if target_doc.currency and target_doc.currency != source_doc.company_currency:
+            tasa_hoy: float | None = frappe.db.get_value(
+                "Currency Exchange",
+                {"from_currency": target_doc.currency, "date": hoy},
+                "exchange_rate",
+                order_by="modified desc",
+            )
+            if tasa_hoy:
+                target_doc.conversion_rate = tasa_hoy
+
+    return get_mapped_doc(
+        "Sales Invoice",
+        nc.return_against,
+        {
+            "Sales Invoice": {
+                "doctype": "Sales Invoice",
+                "field_no_map": [
+                    "name",
+                    "naming_series",
+                    "amended_from",
+                    "is_return",
+                    "return_against",
+                    "bill_no",
+                    "bill_date",
+                    "outstanding_amount",
+                    "status",
+                    "conversion_rate",
+                    "plc_conversion_rate",
+                    # Campos de retención específicos de Venezuela:
+                    # la nueva factura tiene su propia retención
+                    "custom_vat_withholding_voucher_number",
+                    "custom_withholding_date",
+                    "custom_voucher_image",
+                ],
+            },
+            "Sales Invoice Item": {
+                "doctype": "Sales Invoice Item",
+                "field_no_map": ["name"],
+            },
+            "Sales Taxes and Charges": {
+                "doctype": "Sales Taxes and Charges",
+                "field_no_map": ["name"],
+            },
+        },
+        postprocess=_ajustar_fecha_y_tasa,
+    )
+

@@ -73,6 +73,19 @@ frappe.ui.form.on("VE Sales Credit Note", {
       });
     }
 
+    // Botón: generar borrador de factura de reemplazo
+    // Visible solo cuando la NC está aprobada y tiene factura original vinculada.
+    if (frm.doc.docstatus === 1 && frm.doc.return_against) {
+      frm.add_custom_button(__("Generar Factura de Reemplazo"), function () {
+        frappe.model.open_mapped_doc({
+          method:
+            "l10n_ve.l10n_ve.doctype.ve_sales_credit_note" +
+            ".ve_sales_credit_note.make_replacement_invoice",
+          frm: frm,
+        });
+      });
+    }
+
     // Botón: consultar NC en portal HKA (solo cuando ya fue emitida)
     if (frm.doc.docstatus === 1 && frm.doc.bill_no && frm.doc.remarks) {
       try {
@@ -116,7 +129,7 @@ frappe.ui.form.on("VE Sales Credit Note", {
                 frappe.msgprint({
                   title: __("Error al emitir a HKA"),
                   message: __(
-                    "La Nota de Crédito no pudo ser emitida. Revise el log de facturación digital para más detalles."
+                    "La Nota de Crédito no pudo ser emitida. Revise el log de facturación digital para más detalles.",
                   ),
                   indicator: "red",
                 });
@@ -131,22 +144,25 @@ frappe.ui.form.on("VE Sales Credit Note", {
 
     // ── Grupo "Ver": asiento contable (docstatus >= 1) ─────────────────────
     if (frm.doc.docstatus >= 1) {
-      frm.add_custom_button(__("Asiento Contable"), function () {
-        frappe.route_options = {
-          voucher_no: frm.doc.name,
-          from_date: frm.doc.posting_date,
-          to_date: frm.doc.posting_date,
-          company: frm.doc.company,
-          show_cancelled_entries: frm.doc.docstatus === 2,
-        };
-        frappe.set_route("query-report", "General Ledger");
-      }, __("Ver"));
+      frm.add_custom_button(
+        __("Asiento Contable"),
+        function () {
+          frappe.route_options = {
+            voucher_no: frm.doc.name,
+            from_date: frm.doc.posting_date,
+            to_date: frm.doc.posting_date,
+            company: frm.doc.company,
+            show_cancelled_entries: frm.doc.docstatus === 2,
+          };
+          frappe.set_route("query-report", "General Ledger");
+        },
+        __("Ver"),
+      );
     }
   },
 
   // Al seleccionar la factura original:
-  //   1. Auto-carga ítems en positivo
-  //   2. Copia branch de la SI y lo pone read-only si existe
+  //   1. Auto-carga cliente, branch, tasa e ítems en positivo
   return_against: function (frm) {
     if (!frm.doc.return_against) return;
 
@@ -156,6 +172,19 @@ frappe.ui.form.on("VE Sales Credit Note", {
       callback: function (r) {
         if (!r.message) return;
         const si = r.message;
+
+        // ── Cliente: heredar de la SI ─────────────────────────────────
+        if (si.customer && !frm.doc.customer) {
+          frm.set_value("customer", si.customer);
+        }
+
+        // ── Fechas: heredar de la SI ──────────────────────────────────
+        if (si.posting_date) {
+          frm.set_value("posting_date", si.posting_date);
+        }
+        if (si.due_date) {
+          frm.set_value("due_date", si.due_date);
+        }
 
         // ── Branch: heredar de la SI y bloquear si la tiene ─────────
         if (si.branch) {
@@ -239,4 +268,48 @@ frappe.ui.form.on("VE Sales Credit Note", {
       },
     });
   },
+
+  // Al cambiar la fecha de la NC, actualiza la tasa de cambio según
+  // la misma regla fiscal que la SI: Jurídico → fecha exacta, Natural → 1ro del mes.
+  posting_date: function (frm) {
+    apply_ve_exchange_rate_nc(frm);
+  },
 });
+
+/**
+ * Obtiene y aplica la tasa de cambio venezolana correcta para la NC.
+ *
+ * Regla fiscal (igual que en VE Sales Invoice):
+ *   Jurídico → fecha exacta del posting_date.
+ *   Natural  → primer día del mes del posting_date.
+ *
+ * Solo actúa si tfhka_enabled está activo, el doc está en borrador
+ * y tiene cliente + fecha + moneda extranjera.
+ *
+ * @param {object} frm - Instancia del formulario Frappe.
+ */
+function apply_ve_exchange_rate_nc(frm) {
+  if (!frappe.boot.tfhka_enabled) return;
+  if (frm.doc.docstatus !== 0) return;
+  if (!frm.doc.customer || !frm.doc.posting_date) return;
+
+  const company_currency = erpnext.get_currency(frm.doc.company);
+  if (!frm.doc.currency || frm.doc.currency === company_currency) return;
+
+  frappe.call({
+    method: "l10n_ve.utils.utils.get_ve_exchange_rate_for_customer",
+    args: {
+      customer: frm.doc.customer,
+      date: frm.doc.posting_date,
+      from_currency: frm.doc.currency,
+    },
+    callback: function (r) {
+      if (!r.message) return;
+      const rate = flt(r.message);
+      if (rate <= 0) return;
+
+      frm.set_value("conversion_rate", rate);
+      frm.set_value("plc_conversion_rate", rate);
+    },
+  });
+}
