@@ -1,76 +1,111 @@
-# Localización Venezolana para ERPNext (l10n_ve)
+# 🇻🇪 l10n_ve - Localización Venezolana para ERPNext
 
-Esta aplicación adapta ERPNext para cumplir con los requisitos contables, fiscales y legales de Venezuela. Proporciona las funcionalidades necesarias para que las empresas que operan en Venezuela puedan gestionar sus procesos administrativos de acuerdo con la normativa local.
+La aplicación **l10n_ve** es una robusta solución desarrollada sobre el **Frappe Framework**, diseñada para adaptar **ERPNext** y cumplir estrictamente con el marco legal, tributario y fiscal de Venezuela. 
 
-## Características Principales
+Esta aplicación intercepta el flujo estándar de ERPNext para inyectar cálculos de impuestos (IVA, ISLR, IGTF, Municipales, CONATEL), generar comprobantes de retención legales, estructurar libros fiscales y gestionar integraciones con Impresoras Fiscales (ej. The Factory HKA).
 
-### 1. Gestión de Impuestos y Retenciones
+---
 
--   **Retenciones de IVA:**
-    -   Creación y gestión de **Comprobantes de Retención de IVA** tanto para clientes como para proveedores.
-    -   Configuración de porcentajes de retención de IVA según la normativa del SENIAT.
-    -   Formatos de impresión para los comprobantes de retención.
--   **Retenciones de ISLR (Impuesto Sobre la Renta):**
-    -   Generación automática de **Comprobantes de Retención de ISLR** en facturas de compra.
-    -   **Tabulador de ISLR** para configurar los conceptos de retención, porcentajes y bases aplicables a personas naturales y jurídicas.
--   **Gestión de Unidad Tributaria (U.T.):**
-    -   DocType para registrar el valor histórico de la Unidad Tributaria, utilizado en cálculos fiscales.
+## 🏗 Arquitectura y Flujos Fiscales
+
+La arquitectura de `l10n_ve` se basa en la interceptación del ciclo de vida de los documentos contables nativos (`Sales Invoice`, `Purchase Invoice`, `Payment Entry`) mediante *overrides (monkey patching)* para aplicar la normativa legal antes y después de asentar los registros en el Libro Mayor (`General Ledger`).
+
+### Diagrama de Flujo: Facturación y Retenciones
+
+```mermaid
+graph TD
+    subgraph Ciclo de Facturación (Ventas/Compras)
+        INV[Invoice / Factura] --> |Calcula Totales| T[Taxes and Totals Controller]
+        T --> |Aplica| IGTF[Impuesto IGTF 3%]
+        T --> |Determina| TFHKA{Facturación Electrónica TFHKA?}
+        TFHKA -- Sí --> API[API TFHKA Client]
+        API --> |Devuelve Nro Control| INV
+        TFHKA -- No --> L[Serie Lógica/Manual]
+    end
+
+    subgraph Ciclo de Pago y Retenciones
+        PE[Payment Entry] --> |Detecta Agente Retención| WH{Requiere Retención?}
+        WH -- ISLR --> ISLR[ISLR Withholding Voucher]
+        WH -- IVA --> IVA[VAT Withholding Voucher]
+        ISLR -.-> |Asiento Contable| GL[General Ledger]
+        IVA -.-> |Asiento Contable| GL
+    end
+
+    subgraph Libros Fiscales Obligatorios
+        INV --> SB[Libro de Ventas / Compras]
+        ISLR --> SB
+        IVA --> SB
+    end
+```
+
+---
+
+## ⚙️ Características y Funcionalidades
+
+### 1. Gestión Integral de Impuestos y Retenciones
+*   **Retenciones de IVA:** Generación automática de *Comprobantes de Retención de IVA* (`VAT Withholding Voucher`) tanto para clientes como para proveedores. Configurable al 75% o 100% legal, generando sus asientos contables paralelos.
+*   **Retenciones de ISLR:** Control de comprobantes vinculados a cuentas de compras (`ISLR Withholding Voucher`). Configuración atada a un **Tabulador de ISLR** (`Tabulator ISLR Aliquots`) que almacena la matriz legal del SENIAT (Códigos de retención, Sustraendos y porcentajes P. Natural/P. Jurídica).
+*   **Unidad Tributaria (U.T.):** Doctype nativo (`Tax Unit`) para trazar históricamente la U.T. utilizada en cálculos de sustraendos y patentes.
 
 ### 2. Informes Legales y Fiscales
+*   **Libro de Ventas y Compras:** Reportes oficiales adaptados a las providencias legales del SENIAT. Extraen datos estructurados (Fecha, RIF, Nombre, Nro Control, Factura, Exentas, Imponible, IVA y Monto Retenido), exportables vía Excel avanzados.
+*   **Cruces de Retención:** Vistas para facilitar auditorías (`vat_withholding`, `islr_withholding`), agrupando las declaraciones emitidas periódicamente.
+*   **Gestión IGTF:** Panel detallado de los cobros en moneda extranjera y liquidación de percepciones (`igtf_received`).
 
--   **Libro de Ventas:** Reporte que genera el libro de ventas en el formato requerido por el SENIAT, detallando las transacciones, impuestos y datos del cliente.
--   **Libro de Compras:** Reporte que genera el libro de compras siguiendo la estructura exigida por la normativa fiscal venezolana.
--   Exportación de reportes a formatos como Excel para su posterior declaración.
-
-### 3. Plan de Cuentas Localizado
-
--   Incluye un **Plan de Cuentas estándar para Venezuela**, que puede ser instalado durante la configuración inicial de la empresa.
--   Estructura contable adaptada a las prácticas y requerimientos locales.
+### 3. Contabilidad Bimonetaria
+*   **Plan de Cuentas Localizado:** Carga inicial mediante plantillas (`ve_plan_de_cuentas`) adaptadas a la NIIF/VEN-NIF.
+*   **Tasa de Cambio Oficial Automatizada:** Uso de un *cron job* que extrae directamente la referencial del BCV (Banco Central de Venezuela) para calcular paridad cambiaría al registrar transacciones extranjeras.
 
 ### 4. Adaptaciones Regionales
+*   **Geopolítica Venezolana:** DocTypes nativos para registrar la estructura territorial oficial de **Estados, Ciudades, Municipios y Parroquias**, exigida para encabezados fiscales y comprobantes.
+*   **Catálogo de Entidades:** Campos obligatorios incorporados en `Customer` y `Supplier` correspondientes a la denominación fiscal y Registro de Información Fiscal (**RIF**), además del tipo de contribuyente (Especial vs Ordinario).
 
--   **Direcciones y Geografía:**
-    -   DocTypes para gestionar la división político-territorial de Venezuela: **Estados, Ciudades, Municipios y Parroquias**.
-    -   Plantilla de dirección adaptada al formato venezolano.
--   **Información de Entidades (Clientes, Proveedores, Empresa):**
-    -   Campos personalizados para registrar información fiscal como el **RIF (Registro de Información Fiscal)** y la denominación fiscal.
-    -   Clasificación del tipo de contribuyente (Ordinario, Especial).
+### 5. Impuestos Municipales y Especiales (CONATEL)
+*   **Patentes y Actividad Económica:** Orquesta declaraciones a nivel de Alcaldía a través de doctypes (`VE Municipality Tax Declaration`) asociados a tarifas pre-cargadas por jurisdicción.
+*   **Fondo Especial de Telecomunicaciones:** Estructuras y liquidación integrados a facturación para tributos de CONATEL (FSU).
 
-### 5. Gestión de Múltiples Monedas
+### 6. Facturación Electrónica e Integración HKA
+*   **Servicio TFHKA:** Integración nativa asíncrona hacia The Factory HKA para obtención e inyección de series alfanuméricas legalizadas para Notas de Crédito, Notas de Débito y Facturas Electrónicas (`VE Digital Billing Series`), respaldado por un historial de transacciones seguro (`VE Digital Invoice Log`).
 
--   **Tasa de Cambio Automatizada:** Tarea programada (`cron job`) que consulta y registra automáticamente la tasa de cambio del BCV (Banco Central de Venezuela) para operaciones en moneda extranjera.
--   Modificaciones en transacciones de compra y venta para reflejar correctamente los montos en la moneda local (Bolívares) y en divisas.
+---
 
-### 6. Modificaciones a DocTypes Estándar
+## 🛠 Sobrescrituras (Overrides) del Núcleo de ERPNext
 
-La aplicación extiende y personaliza los siguientes DocTypes de ERPNext para incorporar la lógica de negocio venezolana:
+Para inyectar estas reglas, esta app utiliza `hooks.py` y una estructura profunda de Override de Clases que altera el estándar:
 
--   **Factura de Venta y Factura de Compra:** Lógica para el cálculo automático de retenciones de IVA e ISLR.
--   **Cliente y Proveedor:** Campos para información fiscal y configuración de retenciones.
--   **Empresa:** Configuración de datos fiscales de la compañía.
--   **Ítem:** Adaptaciones para la gestión de impuestos por producto.
--   **Entrada de Pago:** Mejoras en la gestión de pagos en múltiples monedas.
+| Módulo ERPNext Estándar | Comportamiento Inyectado por l10n_ve |
+| :--- | :--- |
+| **`Sales` / `Purchase Invoice`** | Valida series fiscales, inyecta la lógica y el cálculo IGTF, define topes para exenciones y procesa la llamada asíncrona a la API TFHKA antes de que el documento alcance el Submit. |
+| **`Payment Entry`** | Modifica la recepción de divisas y detecta instantáneamente si el cruce de facturas exige originar (y vincular retroactivamente) `Vouchers` de retención (IVA/ISLR). |
+| **`Customer` / `Supplier`** | Introduce validación asertiva para exigir el formato `V-XXXX` o `J-XXXX` en los RIFs, auto-asignando perfiles tributarios. |
+| **`Company` / `Address`** | Sobrescribe las validaciones de dirección para obligar la subdivisión territorial requerida por los libros contables. |
 
-## Instalación
+---
 
-1.  Asegúrate de tener `frappe-bench` instalado.
-2.  Descarga la aplicación en el directorio `apps` de tu bench:
-    ```bash
-    git clone [URL_DEL_REPOSITORIO] apps/l10n_ve
-    ```
-3.  Instala la aplicación en tu sitio:
-    ```bash
-g   bench --site [nombre_del_sitio] install-app l10n_ve
-    ```
-4.  Ejecuta las migraciones para aplicar los cambios en la base de datos:
-    ```bash
-    bench --site [nombre_del_sitio] migrate
-    ```
+## 💻 Instalación y Configuración
 
-## Uso
+Requisitos: Servidor con **Frappe Framework** (v14 o v15) y **ERPNext** ya inicializados.
 
-Una vez instalada, la aplicación se integrará con los módulos de Contabilidad, Compras y Ventas de ERPNext. Se recomienda realizar las siguientes configuraciones iniciales:
+```bash
+# Descargar la aplicación desde el repositorio
+bench get-app https://github.com/grupo-altia/l10n_ve.git
 
-1.  **Configurar la Compañía:** Ve a `Configuración > Compañía` y completa los datos fiscales de tu empresa en la pestaña "Localización Venezolana".
-2.  **Configurar Clientes y Proveedores:** En cada cliente y proveedor, especifica su RIF y el tipo de contribuyente.
-3.  **Configurar el Tabulador de ISLR:** Ve a `Contabilidad > Impuestos > Tabulador ISLR` y configura los conceptos de retención que apliquen a tu negocio.
+# Instalar la aplicación en su sitio de producción
+bench --site tusitio.local install-app l10n_ve
+
+# Ejecutar las migraciones (creación de Doctypes y Custom Fields)
+bench --site tusitio.local migrate
+```
+
+### Configuración Post-Instalación
+Al culminar, ERPNext cargará pasivamente los *Fixtures* requeridos (Plan de Ventas, Estados de Venezuela, Tax Aliquots y Bancaturas).
+
+Recomendaciones Iniciales:
+1.  **Configurar la Compañía:** Ingresar a `Configuración > Compañía` y llenar la pestaña "Localización Venezolana" (RIF, Retenedor IVA).
+2.  **Tabuladores Reales:** Revisar `Contabilidad > Impuestos > Tabulador ISLR` para validar las tarifas actualizadas con el estado macroeconómico del país.
+
+---
+
+## 📄 Licencia y Mantenimiento
+
+Software propietario/privado mantenido integralmente por **Grupo Altia**. Para más información sobre distribución o alteraciones a esta rama, favor consultar el archivo `license.txt`.
