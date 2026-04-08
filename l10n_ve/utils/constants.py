@@ -4,6 +4,7 @@ class DocumentTransactionType:
         'Sales Order',
         'Delivery Note',
         'Sales Invoice',
+        'VE Sales Credit Note',
     ]
 
     __PURCHASE_DOCTYPES__ = [

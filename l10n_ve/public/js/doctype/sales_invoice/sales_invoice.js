@@ -242,6 +242,34 @@ frappe.ui.form.on("Sales Invoice", {
   customer: function (frm) {
     toggle_vat_withholding_fields(frm);
     frm.refresh();
+    apply_ve_exchange_rate_from_date(frm);
+  },
+
+  posting_date: function (frm) {
+    apply_ve_exchange_rate_from_date(frm);
+  },
+
+  // Intercepta el reset que hace ERPNext cuando apply_price_list devuelve
+  // plc_conversion_rate calculado con la fecha exacta (no la del 1° del mes).
+  // Solo activa si TFHKA (facturación digital) está habilitado.
+  plc_conversion_rate: function (frm) {
+    if (!frappe.boot.tfhka_enabled) return;
+    const target = frm._l10n_ve_conv_rate;
+    if (!target || frm.doc.docstatus !== 0) return;
+
+    let corrected = false;
+    if (Math.abs(flt(frm.doc.plc_conversion_rate) - target) > 0.0001) {
+      frm.doc.plc_conversion_rate = target;
+      frm.refresh_field("plc_conversion_rate");
+      corrected = true;
+    }
+    if (Math.abs(flt(frm.doc.conversion_rate) - target) > 0.0001) {
+      frm.doc.conversion_rate = target;
+      frm.refresh_field("conversion_rate");
+      corrected = true;
+    }
+    // Marcar como modificado solo si hubo corrección real.
+    if (corrected) frm.dirty();
   },
 
   is_return: function (frm) {
@@ -548,6 +576,9 @@ function show_hka_preview_dialog(frm, d) {
             </div>
           </div>
           <div style="text-align:right;">
+            <p style="font-size:10px;opacity:0.75;margin:0 0 3px;letter-spacing:0.5px;">
+              1 USD = Bs. ${frappe.utils.escape_html(d.tasa_bcv)}
+            </p>
             <p class="hka-preview__total-bs">Bs. ${frappe.utils.escape_html(d.total_bs)}</p>
             <p class="hka-preview__total-bs-label">Bolívares Digitales</p>
           </div>
@@ -734,11 +765,102 @@ function setup_hka_consulta_button(frm) {
     const url = (data && data.resultado && data.resultado.urlConsulta) || "";
     if (!url) return;
 
-    frm.add_custom_button(__("Consultar en TFHKA"), function () {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }, __("Acciones"));
-
+    frm.add_custom_button(
+      __("Consultar en TFHKA"),
+      function () {
+        window.open(url, "_blank", "noopener,noreferrer");
+      },
+      __("Acciones"),
+    );
   } catch (e) {
     // remarks no es JSON válido, ignorar silenciosamente
   }
+}
+
+/**
+ * Obtiene y aplica la tasa de cambio venezolana correcta para el cliente.
+ *
+ * Regla fiscal: Jurídico → fecha exacta del posting_date.
+ *               Natural  → primer día del mes del posting_date.
+ *
+ * Sincronización: se usa frappe.after_ajax() para garantizar que la
+ * aplicación de la tasa VE ocurre DESPUÉS de que ERPNext complete su
+ * propia cadena async (get_due_date → currency → get_exchange_rate).
+ * El handler de `plc_conversion_rate` actúa como guardia de segundo
+ * nivel ante cualquier reset posterior de ERPNext.
+ *
+ * Los valores se asignan directamente en frm.doc para evitar disparar
+ * `apply_price_list` (que sobrescribiría la tasa con la fecha exacta).
+ * Los totales en BS se recalculan vía `_calculate_taxes_and_totals`.
+ *
+ * @param {object} frm - Instancia del formulario Frappe.
+ */
+function apply_ve_exchange_rate_from_date(frm) {
+  if (!frappe.boot.tfhka_enabled) return;
+
+  // Limpia el flag previo para evitar que un cambio Natural→Jurídico
+  // deje un target obsoleto activo en el handler de plc_conversion_rate.
+  frm._l10n_ve_conv_rate = null;
+
+  if (
+    !frm.doc.customer ||
+    !frm.doc.posting_date ||
+    frm.doc.docstatus !== 0
+  ) return;
+
+  const company_currency = erpnext.get_currency(frm.doc.company);
+  if (!frm.doc.currency || frm.doc.currency === company_currency) return;
+
+  // Capturamos los valores actuales para validar que no cambiaron
+  // entre el disparo del evento y la resolución del after_ajax.
+  const captured_customer = frm.doc.customer;
+  const captured_date = frm.doc.posting_date;
+  const captured_currency = frm.doc.currency;
+
+  // frappe.after_ajax() ejecuta el callback una vez que todas las
+  // llamadas ajax en vuelo del framework hayan completado, eliminando
+  // la necesidad de un setTimeout arbitrario.
+  frappe.after_ajax(function () {
+    // Verificar que el formulario no cambió mientras esperábamos
+    if (
+      frm.doc.customer !== captured_customer ||
+      frm.doc.posting_date !== captured_date ||
+      frm.doc.currency !== captured_currency ||
+      frm.doc.docstatus !== 0
+    ) return;
+
+    frappe.call({
+      method: "l10n_ve.utils.utils.get_ve_exchange_rate_for_customer",
+      args: {
+        customer: frm.doc.customer,
+        date: frm.doc.posting_date,
+        from_currency: frm.doc.currency,
+      },
+      callback: function (r) {
+        if (!r.message) return;
+        const rate = flt(r.message);
+        if (rate <= 0) return;
+
+        // Guarda el target para que el handler de plc_conversion_rate
+        // pueda interceptar cualquier reset posterior de ERPNext.
+        frm._l10n_ve_conv_rate = rate;
+
+        // Asignación directa: evita disparar apply_price_list (que
+        // devuelve plc_conversion_rate con la fecha exacta y resetea
+        // conversion_rate via el evento plc_conversion_rate()).
+        frm.doc.conversion_rate = rate;
+        frm.doc.plc_conversion_rate = rate;
+        frm.refresh_field("conversion_rate");
+        frm.refresh_field("plc_conversion_rate");
+
+        // Recalcula los campos base_* (base_grand_total, base_taxes, etc.)
+        // usando la función pura de JS del controlador (sin llamadas al backend).
+        if (frm.cscript && typeof frm.cscript._calculate_taxes_and_totals === "function") {
+          frm.cscript._calculate_taxes_and_totals();
+        }
+
+        frm.dirty();
+      },
+    });
+  });
 }

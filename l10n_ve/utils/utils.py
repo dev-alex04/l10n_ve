@@ -4,6 +4,7 @@ from frappe import _
 
 from frappe.utils import (
     getdate,
+    get_first_day,
     get_url_to_list as url_to_list,
     get_link_to_form as link_to_form
 )
@@ -519,3 +520,36 @@ def get_exchange_rate(date: str, from_currency: str) -> float:
     )
 
     return result[0][0] if result else 0
+
+
+@frappe.whitelist()
+def get_ve_exchange_rate_for_customer(
+    customer: str,
+    date: str,
+    from_currency: str = "USD",
+) -> float:
+    """Retorna la tasa de cambio correcta según el tipo de cliente venezolano.
+
+    Regla fiscal venezolana:
+    - Jurídico (Juridical / Government / Communal / Educational):
+      tasa del día exacto indicado.
+    - Natural (Venezuelan / Extranjero / Passport):
+      tasa del primer día del mes.
+
+    Args:
+        customer:      ID del Customer en Frappe.
+        date:          Fecha de referencia (posting_date, etc.) en formato 'YYYY-MM-DD'.
+        from_currency: Moneda de origen. Por defecto 'USD'.
+
+    Returns:
+        Tasa de cambio como float. 0.0 si no se encuentra ninguna.
+        Si customer está vacío o no existe, se asume Natural (primer día del mes).
+    """
+    if not customer:
+        rate_date = get_first_day(getdate(date))
+    elif is_juridical_customer(customer):
+        rate_date = getdate(date)
+    else:
+        rate_date = get_first_day(getdate(date))
+
+    return get_exchange_rate(str(rate_date), from_currency) or 0.0
