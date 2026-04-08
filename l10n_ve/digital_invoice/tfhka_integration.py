@@ -97,11 +97,19 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
         return
 
     # Incremento atómico para evitar condición de carrera en multiusuario.
-    frappe.db.sql("""
-        UPDATE `tabVE Digital Billing Series`
-        SET {field} = {field} + 1
-        WHERE name = %s
-    """.format(field=correlative_field), (series.name,))
+    # Se usan sentencias explícitas en lugar de string formatting para evitar SQL injection.
+    if is_nc:
+        frappe.db.sql("""
+            UPDATE `tabVE Digital Billing Series`
+            SET credit_note_number_correlative = credit_note_number_correlative + 1
+            WHERE name = %s
+        """, (series.name,))
+    else:
+        frappe.db.sql("""
+            UPDATE `tabVE Digital Billing Series`
+            SET invoice_number_correlative = invoice_number_correlative + 1
+            WHERE name = %s
+        """, (series.name,))
 
     current_correlative: int = frappe.db.get_value(
         "VE Digital Billing Series", series.name, correlative_field
@@ -308,8 +316,14 @@ def _handle_hka_response(
             update_modified=False
         )
         _log_request("Emision", doc.name, payload, response, "Success", doctype=doc.doctype)
-        frappe.db.commit()
         return True
+
+    # Respuesta nula (timeout, error de red, etc.): response.get() fallaría con AttributeError
+    if not response:
+        _log_request("Emision", doc.name, payload, {}, "Error",
+                     notes="La API HKA no devolvió respuesta (timeout o error de conexión).",
+                     doctype=doc.doctype)
+        return False
 
     validaciones = response.get("validaciones") or []
     mensaje = response.get("mensaje") or response.get("message") or ""
@@ -320,7 +334,6 @@ def _handle_hka_response(
         notes_parts.append("Validaciones: " + "; ".join(str(v) for v in validaciones))
     _log_request("Emision", doc.name, payload, response, "Error",
                  notes="\n".join(notes_parts), doctype=doc.doctype)
-    frappe.db.commit()
     return False
 
 
