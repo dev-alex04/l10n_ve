@@ -783,10 +783,11 @@ function setup_hka_consulta_button(frm) {
  * Regla fiscal: Jurídico → fecha exacta del posting_date.
  *               Natural  → primer día del mes del posting_date.
  *
- * Estrategia de sincronización: se usa un retardo de 2000 ms para
- * sobreponerse a la cadena async de ERPNext (get_due_date → currency
- * → get_exchange_rate). En redes lentas donde ERPNext tarde > 2 s,
- * el handler de `plc_conversion_rate` actúa como guardia de segundo nivel.
+ * Sincronización: se usa frappe.after_ajax() para garantizar que la
+ * aplicación de la tasa VE ocurre DESPUÉS de que ERPNext complete su
+ * propia cadena async (get_due_date → currency → get_exchange_rate).
+ * El handler de `plc_conversion_rate` actúa como guardia de segundo
+ * nivel ante cualquier reset posterior de ERPNext.
  *
  * Los valores se asignan directamente en frm.doc para evitar disparar
  * `apply_price_list` (que sobrescribiría la tasa con la fecha exacta).
@@ -810,10 +811,24 @@ function apply_ve_exchange_rate_from_date(frm) {
   const company_currency = erpnext.get_currency(frm.doc.company);
   if (!frm.doc.currency || frm.doc.currency === company_currency) return;
 
-  // Retardo de 2000 ms para garantizar que llegamos DESPUÉS de la cadena
-  // async de ERPNext (get_due_date → get_exchange_rate). Si el servidor
-  // responde más lento, el handler de plc_conversion_rate actúa de guardia.
-  setTimeout(function () {
+  // Capturamos los valores actuales para validar que no cambiaron
+  // entre el disparo del evento y la resolución del after_ajax.
+  const captured_customer = frm.doc.customer;
+  const captured_date = frm.doc.posting_date;
+  const captured_currency = frm.doc.currency;
+
+  // frappe.after_ajax() ejecuta el callback una vez que todas las
+  // llamadas ajax en vuelo del framework hayan completado, eliminando
+  // la necesidad de un setTimeout arbitrario.
+  frappe.after_ajax(function () {
+    // Verificar que el formulario no cambió mientras esperábamos
+    if (
+      frm.doc.customer !== captured_customer ||
+      frm.doc.posting_date !== captured_date ||
+      frm.doc.currency !== captured_currency ||
+      frm.doc.docstatus !== 0
+    ) return;
+
     frappe.call({
       method: "l10n_ve.utils.utils.get_ve_exchange_rate_for_customer",
       args: {
@@ -847,5 +862,5 @@ function apply_ve_exchange_rate_from_date(frm) {
         frm.dirty();
       },
     });
-  }, 2000);
+  });
 }
