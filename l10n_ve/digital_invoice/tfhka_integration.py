@@ -172,18 +172,18 @@ def _validate_tasa_coherencia(doc: object, tasa_fecha: str) -> None:
 
     if not tasa_registrada or flt(tasa_registrada) <= 0:
         frappe.throw(
-            f"No BCV exchange rate found for {fecha_display} "
+            f"No existe tasa de cambio BCV registrada para el {fecha_display} "
             f"({doc.currency} → {company_currency}). "
-            "Please register the rate before sending this document to the digital printer.",
-            title="Exchange Rate Not Found",
+            "Registre la tasa antes de enviar este documento a la imprenta digital.",
+            title="Tasa de Cambio No Encontrada",
         )
 
     if flt(tasa_registrada, 4) != flt(doc.conversion_rate, 4):
         frappe.throw(
-            f"The document rate ({flt(doc.conversion_rate, 4)}) does not match the "
-            f"BCV rate registered for {fecha_display} ({flt(tasa_registrada, 4)}). "
-            "Please correct the rate before sending this document to the digital printer.",
-            title="Exchange Rate Mismatch",
+            f"La tasa del documento ({flt(doc.conversion_rate, 4)}) no coincide con la "
+            f"tasa BCV registrada para el {fecha_display} ({flt(tasa_registrada, 4)}). "
+            "Corrija la tasa antes de enviar este documento a la imprenta digital.",
+            title="Tasa de Cambio Incorrecta",
         )
 
 

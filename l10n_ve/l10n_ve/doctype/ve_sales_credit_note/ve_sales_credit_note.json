@@ -11,23 +11,20 @@
   "company_tax_id",
   "title",
   "naming_series",
+  "branch",
   "column_break1",
   "customer",
   "customer_name",
   "tax_id",
   "return_against",
   "reason",
+  "avoid_reason",
   "column_break_ve_header",
-  "branch",
-  "bill_no",
-  "bill_control",
-  "column_break_14",
   "posting_date",
   "posting_time",
   "due_date",
-  "is_consolidated",
-  "is_return",
-  "update_outstanding_for_self",
+  "bill_no",
+  "bill_control",
   "accounting_dimensions_section",
   "cost_center",
   "dimension_col_break",
@@ -194,6 +191,10 @@
   "is_internal_customer",
   "is_discounted",
   "remarks",
+  "column_break_14",
+  "is_consolidated",
+  "is_return",
+  "update_outstanding_for_self",
   "connections_tab",
   "section_factura_relacionada",
   "amended_from",
@@ -277,7 +278,8 @@
    "in_standard_filter": 1,
    "label": "Factura Afectada",
    "options": "Sales Invoice",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_ve_header",
@@ -290,7 +292,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "N\u00famero de NC",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "allow_on_submit": 1,
@@ -298,14 +301,16 @@
    "fieldname": "bill_control",
    "fieldtype": "Data",
    "label": "N\u00famero de Control",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "branch",
    "fieldtype": "Link",
    "label": "Sucursal",
    "options": "VE Branch",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "bold": 1,
@@ -344,7 +349,8 @@
    "options": "Company",
    "print_hide": 1,
    "remember_last_selected_value": 1,
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fetch_from": "company.tax_id",
@@ -389,6 +395,7 @@
   {
    "fieldname": "due_date",
    "fieldtype": "Date",
+   "hidden": 1,
    "hide_days": 1,
    "hide_seconds": 1,
    "label": "Payment Due Date",
@@ -2045,9 +2052,19 @@
    "allow_on_submit": 1,
    "bold": 1,
    "fieldname": "reason",
-   "fieldtype": "Small Text",
+   "fieldtype": "Data",
    "in_global_search": 1,
    "label": "Motivo",
+   "read_only_depends_on": "eval: doc.bill_no",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "avoid_reason",
+   "fieldtype": "Small Text",
+   "in_global_search": 1,
+   "label": "Motivo de Anulacion",
+   "read_only": 1,
    "read_only_depends_on": "eval: doc.bill_no"
   }
  ],
@@ -2055,7 +2072,7 @@
  "icon": "fa fa-file-text",
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-07 12:48:07.876562",
+ "modified": "2026-04-08 16:54:12.818413",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Sales Credit Note",

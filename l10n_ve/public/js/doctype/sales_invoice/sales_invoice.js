@@ -233,6 +233,7 @@ frappe.ui.form.on("Sales Invoice", {
 
     setup_exchange_difference_button(frm);
     setup_hka_consulta_button(frm);
+    setup_credit_note_button(frm);
 
     if (frappe.boot.tfhka_enabled) {
       setup_digital_invoice_button(frm);
@@ -802,11 +803,8 @@ function apply_ve_exchange_rate_from_date(frm) {
   // deje un target obsoleto activo en el handler de plc_conversion_rate.
   frm._l10n_ve_conv_rate = null;
 
-  if (
-    !frm.doc.customer ||
-    !frm.doc.posting_date ||
-    frm.doc.docstatus !== 0
-  ) return;
+  if (!frm.doc.customer || !frm.doc.posting_date || frm.doc.docstatus !== 0)
+    return;
 
   const company_currency = erpnext.get_currency(frm.doc.company);
   if (!frm.doc.currency || frm.doc.currency === company_currency) return;
@@ -827,7 +825,8 @@ function apply_ve_exchange_rate_from_date(frm) {
       frm.doc.posting_date !== captured_date ||
       frm.doc.currency !== captured_currency ||
       frm.doc.docstatus !== 0
-    ) return;
+    )
+      return;
 
     frappe.call({
       method: "l10n_ve.utils.utils.get_ve_exchange_rate_for_customer",
@@ -855,7 +854,10 @@ function apply_ve_exchange_rate_from_date(frm) {
 
         // Recalcula los campos base_* (base_grand_total, base_taxes, etc.)
         // usando la función pura de JS del controlador (sin llamadas al backend).
-        if (frm.cscript && typeof frm.cscript._calculate_taxes_and_totals === "function") {
+        if (
+          frm.cscript &&
+          typeof frm.cscript._calculate_taxes_and_totals === "function"
+        ) {
           frm.cscript._calculate_taxes_and_totals();
         }
 
@@ -863,4 +865,38 @@ function apply_ve_exchange_rate_from_date(frm) {
       },
     });
   });
+}
+
+/**
+ * Oculta el botón nativo de ERPNext "Devolución / Nota de Crédito"
+ * y lo reemplaza con "Nota de Crédito" que abre directamente el DocType
+ * VE Sales Credit Note pre-llenado con los datos de la factura actual.
+ * @param {object} frm
+ */
+function setup_credit_note_button(frm) {
+  // setTimeout(0) garantiza que el botón nativo de ERPNext ya fue
+  // agregado antes de removerlo (nuestro refresh corre antes que el de ERPNext).
+  setTimeout(() => {
+    frm.page.remove_inner_button(__("Return / Credit Note"), __("Create"));
+  }, 1000);
+
+  if (
+    frm.doc.docstatus !== 1 ||
+    frm.doc.is_return ||
+    frm.doc.status === "Credit Note Issued"
+  )
+    return;
+
+  frm.add_custom_button(
+    __("Nota de Crédito"),
+    function () {
+      frappe.route_options = {
+        return_against: frm.doc.name,
+        company: frm.doc.company,
+        customer: frm.doc.customer,
+      };
+      frappe.new_doc("VE Sales Credit Note");
+    },
+    __("Create"),
+  );
 }
