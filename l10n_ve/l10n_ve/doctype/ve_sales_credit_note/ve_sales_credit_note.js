@@ -48,8 +48,8 @@ frappe.ui.form.on("VE Sales Credit Note", {
       );
     }
 
-    // Banner verde: número HKA asignado
-    if (frm.doc.bill_no) {
+    // Banner verde: NC emitida en HKA (solo documentos activos/submit)
+    if (frm.doc.bill_no && frm.doc.docstatus === 1) {
       frm.set_intro(
         __(
           "✅ Emitida ante HKA con número: <b>{0}</b> | Factura original: {1}",
@@ -60,6 +60,22 @@ frappe.ui.form.on("VE Sales Credit Note", {
         ),
         "green",
       );
+    }
+
+    // Banner rojo: NC anulada en HKA — bloquear Amend
+    if (frm.doc.bill_no && frm.doc.docstatus === 2) {
+      frm.set_intro(
+        __(
+          "🚫 Esta Nota de Crédito fue <b>anulada ante HKA</b> (N° {0}). " +
+            "No puede ser corregida ni enmendada. " +
+            "Cree una nueva Nota de Crédito si es necesario.",
+          [frm.doc.bill_no],
+        ),
+        "red",
+      );
+      // Frappe adds "Amend" as the primary button for cancelled docs.
+      // Hide it so the user cannot amend a document already voided in HKA.
+      frm.page.btn_primary.hide();
     }
 
     // Botón rápido: ir a la factura original (solo documentos guardados)
@@ -86,23 +102,83 @@ frappe.ui.form.on("VE Sales Credit Note", {
       });
     }
 
-    // Botón: consultar NC en portal HKA (solo cuando ya fue emitida)
-    if (frm.doc.docstatus === 1 && frm.doc.bill_no && frm.doc.remarks) {
-      try {
-        const hka_data = JSON.parse(frm.doc.remarks);
-        const url_consulta =
-          hka_data.resultado && hka_data.resultado.urlConsulta;
-        if (url_consulta) {
-          frm.add_custom_button(
-            __("Ver en HKA"),
-            function () {
-              window.open(url_consulta, "_blank");
+    // Button: void NC in HKA + Frappe (only when submitted and has HKA document number)
+    if (frm.doc.docstatus === 1 && frm.doc.bill_no) {
+      frm.add_custom_button(
+        __("Anular"),
+        function () {
+          const today = frappe.datetime.get_today();
+          const now = frappe.datetime.now_time();
+
+          const dialog = new frappe.ui.Dialog({
+            title: __("Anular Nota de Crédito en HKA"),
+            fields: [
+              {
+                label: __("Motivo de Anulación"),
+                fieldname: "reason",
+                fieldtype: "Small Text",
+                reqd: 1,
+                description: __(
+                  "Indique el motivo de la anulación. Será enviado a la imprenta digital.",
+                ),
+              },
+              {
+                label: __("Fecha de Anulación"),
+                fieldname: "void_date",
+                fieldtype: "Date",
+                default: today,
+                reqd: 1,
+              },
+              {
+                label: __("Hora de Anulación"),
+                fieldname: "void_time",
+                fieldtype: "Time",
+                default: now,
+                reqd: 1,
+              },
+            ],
+            primary_action_label: __("Confirmar Anulación"),
+            primary_action(values) {
+              dialog.hide();
+
+              // Convert YYYY-MM-DD → DD/MM/YYYY (format required by TFHKA)
+              const date_parts = values.void_date.split("-");
+              const formatted_date = `${date_parts[2]}/${date_parts[1]}/${date_parts[0]}`;
+
+              frappe.call({
+                method:
+                  "l10n_ve.l10n_ve.doctype.ve_sales_credit_note" +
+                  ".ve_sales_credit_note.void_credit_note",
+                args: {
+                  docname: frm.doc.name,
+                  reason: values.reason,
+                  void_date: formatted_date,
+                  void_time: values.void_time,
+                },
+                freeze: true,
+                freeze_message: __("Anulando en HKA y sistema..."),
+                callback(r) {
+                  if (!r.exc) {
+                    frappe.show_alert({
+                      message: __("Nota de Crédito anulada correctamente."),
+                      indicator: "green",
+                    });
+                    frm.reload_doc();
+                  }
+                },
+              });
             },
-            __("Ver"),
-          );
-        }
-      } catch (_) {}
+          });
+
+          dialog.show();
+        },
+        __("Acciones"),
+      );
     }
+
+    // Botones: consultar NC en portal HKA
+    _add_hka_consulta_button(frm, 1, __("Ver Factura Fiscal"));
+    _add_hka_consulta_button(frm, 2, __("Ver Documento Anulado en HKA"));
 
     // Botón: emitir a HKA (solo submit, sin número HKA aún)
     if (frm.doc.docstatus === 1 && !frm.doc.bill_no) {
@@ -312,4 +388,31 @@ function apply_ve_exchange_rate_nc(frm) {
       frm.set_value("plc_conversion_rate", rate);
     },
   });
+}
+
+/**
+ * Agrega un botón para consultar el documento en el portal de HKA.
+ * Solo se muestra si el docstatus coincide, tiene bill_no y remarks
+ * contiene una urlConsulta válida.
+ * @param {object} frm
+ * @param {number} docstatus - 1 para emitidas, 2 para anuladas
+ * @param {string} label - Texto del botón
+ */
+function _add_hka_consulta_button(frm, docstatus, label) {
+  if (frm.doc.docstatus !== docstatus || !frm.doc.bill_no || !frm.doc.remarks) {
+    return;
+  }
+  try {
+    const hka_data = JSON.parse(frm.doc.remarks);
+    const url = hka_data.resultado && hka_data.resultado.urlConsulta;
+    if (url) {
+      frm.add_custom_button(
+        label,
+        function () {
+          window.open(url, "_blank");
+        },
+        __("Ver"),
+      );
+    }
+  } catch (_) {}
 }

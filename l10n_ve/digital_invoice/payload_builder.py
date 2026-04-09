@@ -369,13 +369,15 @@ class TFHKAPayloadBuilder:
         total_igtf_usd = flt(total_igtf_amount / tc, 2) if total_igtf_amount else 0.0
         total_a_pagar_usd = monto_total_con_iva_usd + total_igtf_usd
 
-        # VES = USD * TC
+        # VES: bases convertidas desde USD
         monto_gravado_total = flt(fmt(monto_gravado_total_usd * tc))
         monto_exento_total = flt(fmt(monto_exento_total_usd * tc))
         subtotal = flt(fmt(subtotal_usd * tc))
-        total_iva = flt(fmt(total_iva_usd * tc))
-        monto_total_con_iva = flt(fmt(monto_total_con_iva_usd * tc))
-        total_a_pagar = flt(fmt(total_a_pagar_usd * tc))
+        # IVA calculado sobre la base imponible en VES para evitar error de
+        # redondeo por conversión desde USD (art. 25 Ley de IVA)
+        total_iva = flt(fmt(monto_gravado_total * (iva_rate / 100)))
+        monto_total_con_iva = flt(fmt(subtotal + total_iva))
+        total_a_pagar = flt(fmt(monto_total_con_iva + total_igtf_amount))
 
         self._totales_usd = {
             "subtotal": subtotal_usd,

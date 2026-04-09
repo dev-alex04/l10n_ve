@@ -134,14 +134,87 @@ class TFHKAClient:
         except Exception as e:
             return {"error": True, "message": str(e)}
 
-    def _log_error(self, endpoint: str, payload: dict, response_text: str) -> None:
+    def void_document(self, payload: dict) -> dict:
+        """
+        Envía a /api/Anular. Payload esperado:
+          { serie, tipoDocumento, numeroDocumento, motivoAnulacion, fechaAnulacion, horaAnulacion }
+        Respuesta exitosa: { codigo: 200, mensaje: "..." }
+        """
+        if not self.token:
+            self.authenticate()
+
+        url = f"{self.base_url}/api/Anular"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.token}",
+        }
+
         try:
-            sanitized = {k: "***" if k in ("usuario", "clave") else v for k, v in payload.items()}
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+
+            try:
+                data = response.json()
+            except Exception:
+                data = {
+                    "error": True,
+                    "message": response.text,
+                    "codigo": str(response.status_code),
+                }
+
+            # Log EVERY response (success and error) for traceability
+            frappe.logger("l10n_ve").info(
+                f"TFHKA Anular | HTTP {response.status_code} | payload={payload} | response={data}"
+            )
+
+            if response.ok:
+                data["_http_ok"] = True
+                # Save a clean copy (without the internal flag) to the DB log
+                log_data = {k: v for k, v in data.items() if k != "_http_ok"}
+                self._log_response("Anular", payload, log_data, status="Success")
+            else:
+                data["error"] = True
+                data.setdefault("message", response.text)
+                self._log_response("Anular", payload, data, status="Error")
+
+            return data
+
+        except requests.exceptions.HTTPError as err:
+            raw = err.response.text if err.response else str(err)
+            self._log_error("Anular", payload, raw)
+            try:
+                return json.loads(raw)
+            except Exception:
+                return {"error": True, "message": raw}
+        except Exception as e:
+            self._log_error("Anular", payload, str(e))
+            return {"error": True, "message": str(e)}
+
+    def _log_error(self, endpoint: str, payload: dict, response_text: str) -> None:
+        self._log_response(endpoint, payload, response_text, status="Error")
+
+    def _log_response(
+        self,
+        endpoint: str,
+        payload: dict,
+        response_data,
+        status: str = "Error",
+    ) -> None:
+        try:
+            sanitized = {
+                k: "***" if k in ("usuario", "clave") else v
+                for k, v in (payload.items() if isinstance(payload, dict) else {})
+            }
+            response_text = (
+                json.dumps(response_data, ensure_ascii=False)
+                if isinstance(response_data, dict)
+                else str(response_data)
+            )
             doc = frappe.new_doc("VE Digital Invoice Log")
             doc.endpoint = endpoint
             doc.payload_sent = json.dumps(sanitized, indent=2, ensure_ascii=False)
             doc.response_received = response_text
-            doc.status = "Error"
+            doc.status = status
             doc.insert(ignore_permissions=True)
         except Exception as e:
             frappe.logger("l10n_ve").error(f"No se pudo guardar el log TFHKA: {str(e)}")
+
