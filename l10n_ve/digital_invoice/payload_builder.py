@@ -305,7 +305,11 @@ class TFHKAPayloadBuilder:
             "Pais": "VE",
             "Notificar": None,
             "Telefono": [self.doc.contact_mobile],
-            "Correo": [self.doc.contact_email] if self.doc.contact_email else [],
+            "Correo": (
+                [e.strip() for e in self.doc.contact_email.split(",") if e.strip()]
+                if self.doc.contact_email
+                else []
+            ),
             "OtrosEnvios": None
         }
 
