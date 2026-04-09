@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 from __future__ import annotations
+import json
 
 import frappe
 from frappe import _
@@ -73,8 +74,16 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         """
         Bloquea la cancelación si la NC ya fue enviada a la imprenta digital
         TFHKA (detectado por la presencia de bill_no o bill_control).
+
+        La excepción es cuando `_hka_void_confirmed = True` está establecido
+        en la instancia: indica que `anular_nc()` ya confirmó la anulación
+        con HKA y está ejecutando el cancel() de Frappe de forma controlada.
+
         Solo se activa cuando la facturación digital está habilitada.
         """
+        if getattr(self, "_hka_void_confirmed", False):
+            return
+
         try:
             tfhka_enabled = frappe.get_cached_value(
                 "TFHKA Settings", "TFHKA Settings", "enabled"
@@ -90,7 +99,7 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
                 _(
                     "La Nota de Crédito <b>{0}</b> ya fue enviada a la imprenta "
                     "digital TFHKA (N° Documento: <b>{1}</b>, N° Control: <b>{2}</b>). "
-                    "No puede ser cancelada."
+                    "Use el botón 'Anular NC' para anularla correctamente."
                 ).format(
                     self.name,
                     self.bill_no or "—",
@@ -603,4 +612,97 @@ def make_replacement_invoice(source_name: str) -> "Document":
         },
         postprocess=_ajustar_fecha_y_tasa,
     )
+
+
+@frappe.whitelist()
+def void_credit_note(
+    docname: str,
+    reason: str,
+    void_date: str,
+    void_time: str,
+) -> dict:
+    """
+    Anula una Nota de Crédito en TFHKA (HKA) y luego cancela el documento
+    en Frappe, garantizando atomicidad entre ambos sistemas.
+
+    Flujo:
+      1. Valida permisos y estado del documento.
+      2. Llama a POST /api/Anular en TFHKA con tipoDocumento "02" (NC).
+      3. Si HKA responde OK → establece _hka_void_confirmed y cancela en Frappe.
+         El guard _block_cancel_if_sent_to_hka respeta ese flag.
+
+    Args:
+        docname:   Nombre del VE Sales Credit Note.
+        reason:    Motivo de anulación (texto libre).
+        void_date: Fecha en formato DD/MM/YYYY (convertida por el cliente JS).
+        void_time: Hora en HH:MM:SS (24h); se convierte a 12h para HKA.
+    """
+    from datetime import datetime
+
+    from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
+
+    credit_note = frappe.get_doc("VE Sales Credit Note", docname)
+    frappe.has_permission("VE Sales Credit Note", ptype="cancel", doc=credit_note, throw=True)
+
+    if credit_note.docstatus != 1:
+        frappe.throw(_("Solo se pueden anular Notas de Crédito aprobadas."))
+
+    if not credit_note.bill_no:
+        frappe.throw(
+            _(
+                "La NC no tiene número de documento HKA. "
+                "Solo se pueden anular NCs enviadas a la imprenta digital."
+            )
+        )
+
+    # Convertir hora 24h (HH:MM:SS) a 12h (hh:mm:ss am/pm) para TFHKA
+    try:
+        time_obj = datetime.strptime(void_time, "%H:%M:%S")
+        formatted_time: str = time_obj.strftime("%I:%M:%S %p").lower()
+    except ValueError:
+        formatted_time = void_time
+
+    # Extraer la serie usada cuando la NC fue emitida originalmente
+    serie: str = ""
+    if credit_note.remarks:
+        try:
+            hka_response: dict = json.loads(credit_note.remarks)
+            serie = (hka_response.get("resultado") or {}).get("serie") or ""
+        except Exception:
+            pass
+
+    payload: dict = {
+        "serie": serie,
+        "tipoDocumento": "02",
+        "numeroDocumento": credit_note.bill_no,
+        "motivoAnulacion": reason,
+        "fechaAnulacion": void_date,
+        "horaAnulacion": formatted_time,
+    }
+
+    client = TFHKAClient()
+    client.authenticate()
+    result: dict = client.void_document(payload)
+
+    # _http_ok se establece en void_document cuando el HTTP status es 2xx
+    if result.get("error") or not result.get("_http_ok"):
+        error_message: str = (
+            result.get("mensaje") or result.get("message") or "Error desconocido"
+        )
+        frappe.throw(
+            _(
+                "HKA rechazó la anulación. Código: {0} | Respuesta: {1}"
+            ).format(result.get("codigo", "—"), error_message),
+            title=_("Error al Anular en HKA"),
+        )
+
+    # HKA confirmó la anulación → persistir motivo y cancelar en Frappe
+    credit_note.db_set("avoid_reason", reason)
+    credit_note._hka_void_confirmed = True
+    credit_note.cancel()
+
+    return {
+        "status": "success",
+        "message": _("Nota de Crédito anulada correctamente en HKA y en el sistema."),
+    }
 
