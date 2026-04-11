@@ -26,7 +26,7 @@
   "range_to",
   "last_control_number",
   "sucursales_section",
-  "table_vhfo"
+  "branches"
  ],
  "fields": [
   {
@@ -49,13 +49,14 @@
   },
   {
    "default": "Internal",
-   "description": "Intero: El sistema genera el numero de factura. Tercer: La imprenta genera el n\u00famero de factura",
+   "description": "Interno: El sistema genera el numero de factura. Tercero: La imprenta genera el n\u00famero de factura",
    "fieldname": "operation_mode",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Modo de Operaci\u00f3n",
    "options": "\nInternal\nThird Party",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_1",
@@ -69,7 +70,8 @@
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Active\nExhausted",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "section_break_range",
@@ -81,7 +83,10 @@
    "description": "Prefijo del n\u00famero de control (ej: 00)",
    "fieldname": "prefix",
    "fieldtype": "Data",
-   "label": "Prefijo"
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Prefijo",
+   "search_index": 1
   },
   {
    "description": "N\u00famero de control inicial del bloque asignado por TFHKA",
@@ -105,6 +110,7 @@
    "description": "\u00daltimo n\u00famero de control recibido de TFHKA (actualizado autom\u00e1ticamente)",
    "fieldname": "last_control_number",
    "fieldtype": "Int",
+   "hidden": 1,
    "label": "Last Control Number Used",
    "read_only": 1
   },
@@ -140,16 +146,12 @@
    "label": "Sucursales"
   },
   {
-   "fieldname": "table_vhfo",
-   "fieldtype": "Table",
-   "options": "VE Digital Billing Series Branch"
-  },
-  {
    "description": "Serie asignada por TFHKA (ej: ARA-02). Dejar vac\u00edo si la empresa no usa series.",
    "fieldname": "serie",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Serie"
+   "label": "Serie",
+   "search_index": 1
   },
   {
    "default": "1",
@@ -164,10 +166,15 @@
    "fieldtype": "Int",
    "label": "Correlativo de Nota de D\u00e9bito",
    "reqd": 1
+  },
+  {
+   "fieldname": "branches",
+   "fieldtype": "Table",
+   "options": "VE Digital Billing Series Branch"
   }
  ],
  "links": [],
- "modified": "2026-04-06 13:09:07.673226",
+ "modified": "2026-04-11 09:53:19.751354",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Digital Billing Series",
@@ -199,8 +206,10 @@
   }
  ],
  "row_format": "Dynamic",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
+ "title_field": "serie",
  "track_changes": 1
 }
