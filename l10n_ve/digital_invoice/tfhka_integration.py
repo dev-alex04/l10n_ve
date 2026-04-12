@@ -779,21 +779,14 @@ def _process_series_invoices(
             error_count += 1
             error_invoices.append(invoice_name)
             frappe.db.rollback()
-            has_recent_log: bool = frappe.db.exists(
-                "VE Digital Invoice Log",
-                {
-                    "status": "Error",
-                    "notes": ["like", f"Error enviando {invoice_name}:%"],
-                    "creation": [">=", frappe.utils.add_days(
-                        frappe.utils.nowdate(), -1
-                    )],
-                },
+            _log_request(
+                "HKA Cron",
+                invoice_name,
+                {},
+                {"error": True, "message": str(e)},
+                "Error",
+                notes=f"Error enviando {invoice_name}: {str(e)}",
             )
-            if not has_recent_log:
-                _hka_log(
-                    f"Error enviando {invoice_name}: {str(e)}",
-                    "Error",
-                )
             if stop_on_error:
                 _hka_log(
                     f"STOP en serie {series_name} (Internal): "
