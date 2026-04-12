@@ -296,7 +296,12 @@ doc_events = {
 
 scheduler_events = {
        "cron": {
-        "0 * * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "0 * * * *": [
+            "l10n_ve.tasks.create_currency_exchange",
+            "l10n_ve.tasks.cleanup_resolved_digital_invoice_error_logs",
+        ],
+        "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_invoices_to_hka"],
+        "0 3 1 * *": ["l10n_ve.tasks.purge_old_digital_invoice_success_logs"],
     }
     # "all": [
 # 		"l10n_ve.tasks.all"

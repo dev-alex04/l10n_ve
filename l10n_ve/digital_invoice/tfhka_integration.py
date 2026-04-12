@@ -1,4 +1,5 @@
 import json
+import re
 
 import frappe
 from frappe.utils import flt, getdate, cint, today
@@ -53,30 +54,6 @@ def get_active_billing_series(
     return series_doc, branch_code
 
 
-def update_billing_series_after_response(series_doc: object, control_number_str: str) -> None:
-    """
-    Actualiza el registro de la serie tras recibir el número de control de TFHKA.
-    Si el número alcanzó el Range To, marca la serie como Exhausted.
-    """
-    try:
-        numeric_part = control_number_str.split("-")[-1]
-        if not numeric_part.isdigit():
-            return
-        control_int = int(numeric_part)
-
-        series_doc.db_set("last_control_number", control_int, update_modified=False)
-
-        if control_int >= series_doc.range_to:
-            series_doc.db_set("status", "Exhausted", update_modified=False)
-            frappe.logger("l10n_ve").warning(
-                f"Serie TFHKA {series_doc.name} agotada. "
-                f"Rango {series_doc.range_from}-{series_doc.range_to} completado."
-            )
-
-        frappe.clear_document_cache("VE Digital Billing Series", series_doc.name)
-
-    except Exception as e:
-        frappe.logger("l10n_ve").error(f"Error actualizando serie TFHKA: {str(e)}")
 
 
 def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
@@ -91,8 +68,8 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     target_field: str = "bill_no"
 
     if getattr(series, "operation_mode", "Internal") == "Third Party":
-        doc.db_set("bill_control", "", update_modified=False)
-        doc.db_set("bill_no", "", update_modified=False)
+        frappe.db.set_value(doc.doctype, doc.name, "bill_control", "", update_modified=True)
+        frappe.db.set_value(doc.doctype, doc.name, "bill_no", "", update_modified=True)
         frappe.logger("l10n_ve").info(f"{doc.doctype} {doc.name}: Esperando asignación de HKA (Modo Tercero).")
         return
 
@@ -118,9 +95,9 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     doc_number: int = current_correlative - 1
     doc_number_str: str = str(doc_number)
 
-    doc.db_set("bill_control", "", update_modified=False)
+    frappe.db.set_value(doc.doctype, doc.name, "bill_control", "", update_modified=True)
 
-    doc.db_set(target_field, doc_number_str, update_modified=False)
+    frappe.db.set_value(doc.doctype, doc.name, target_field, doc_number_str, update_modified=True)
 
     frappe.clear_document_cache("VE Digital Billing Series", series.name)
     frappe.logger("l10n_ve").info(
@@ -199,8 +176,7 @@ def _update_fiscal_dates(doc: object, fecha_hka: str) -> None:
     if str(doc.due_date or "") != fecha_hka:
         cambios["due_date"] = fecha_hka
     if cambios:
-        for campo, valor in cambios.items():
-            doc.db_set(campo, valor, update_modified=False)
+        frappe.db.set_value(doc.doctype, doc.name, cambios, update_modified=True)
         doc.reload()
 
 
@@ -292,12 +268,16 @@ def _handle_hka_response(
 
         if getattr(series_doc, "operation_mode", "Internal") == "Third Party":
             if numero_documento:
-                doc.db_set(target_field, numero_documento, update_modified=False)
+                frappe.db.set_value(
+                    doc.doctype, doc.name, target_field,
+                    numero_documento, update_modified=True
+                )
 
         if control:
-            doc.db_set("bill_control", control, update_modified=False)
-            if series_doc:
-                update_billing_series_after_response(series_doc, control)
+            frappe.db.set_value(
+                doc.doctype, doc.name, "bill_control",
+                control, update_modified=True
+            )
 
         # Auditoría: verificar si HKA confirmó un número distinto al asignado localmente
         local_number = frappe.db.get_value(doc.doctype, doc.name, target_field)
@@ -310,10 +290,10 @@ def _handle_hka_response(
         fecha_hka: str = today()
         _sync_gl_entries_date(doc.name, fecha_hka, doc.doctype)
 
-        doc.db_set(
-            "remarks",
+        frappe.db.set_value(
+            doc.doctype, doc.name, "remarks",
             json.dumps(response, indent=2, ensure_ascii=False),
-            update_modified=False
+            update_modified=True
         )
         _log_request("Emision", doc.name, payload, response, "Success", doctype=doc.doctype)
         return True
@@ -621,3 +601,315 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "iva_bs": fmt(round(iva_usd * tc, 2)),
         "invoice_name": invoice_name,
     }
+
+
+# ---------------------------------------------------------------------------
+# Scheduler: envío automático de facturas pendientes a HKA
+# ---------------------------------------------------------------------------
+
+_TFHKA_BATCH_SIZE: int = 100
+_TFHKA_DELAY_BETWEEN_CALLS: float = 0.5
+
+
+def _hka_log(description: str, status: str = "Info") -> None:
+    """Registra un evento del cron HKA en VE Digital Invoice Log."""
+    _create_log_entry({
+        "document_type": "Sales Invoice",
+        "endpoint": "HKA Cron",
+        "status": status,
+        "notes": description,
+    })
+
+
+def send_pending_invoices_to_hka() -> None:
+    """Envía facturas pagadas pendientes a HKA (scheduler cada 5 min).
+
+    Recorre cada serie de facturación digital activa y procesa por sucursal.
+
+    Comportamiento según modo de operación:
+      - Internal:    STOP on error (proteger correlativo local de saltos).
+      - Third Party: CONTINUE on error (HKA controla la numeración).
+
+    Respeta el flag 'enabled' y 'cutoff_date' de TFHKA Settings.
+    """
+    import time
+
+    tfhka_settings: dict | None = _get_tfhka_settings()
+    if not tfhka_settings:
+        return
+
+    cutoff_date: str = tfhka_settings["cutoff_date"]
+    active_series: list[dict] = _get_active_billing_series()
+
+    if not active_series:
+        return
+
+    _sanitize_customer_master_data()
+
+    total_success: int = 0
+    total_errors: int = 0
+    success_invoices: list[str] = []
+    error_invoices: list[str] = []
+
+    for series in active_series:
+        stop_on_error: bool = series["operation_mode"] == "Internal"
+        branches: list[str] = series["branches"]
+
+        if not branches:
+            continue
+
+        pending: list[str] = _get_pending_hka_invoices(
+            branches=branches,
+            cutoff_date=cutoff_date,
+        )
+
+        if not pending:
+            continue
+
+        _hka_log(
+            f"Serie {series['name']} ({series['operation_mode']}): "
+            f"{len(pending)} facturas pendientes en {len(branches)} sucursal(es).",
+            "Success",
+        )
+
+        series_stopped: bool = False
+        for invoice_name in pending:
+
+            try:
+
+                result: bool = process_invoice(invoice_name)
+
+                if result:
+                    total_success += 1
+                    success_invoices.append(invoice_name)
+                    frappe.db.commit()
+
+                else:
+
+                    total_errors += 1
+                    error_invoices.append(invoice_name)
+                    frappe.db.commit()
+                    if stop_on_error:
+                        _hka_log(
+                            f"STOP en serie {series['name']} (Internal): "
+                            f"factura {invoice_name} falló.",
+                            "Error",
+                        )
+                        series_stopped = True
+                        break
+
+            except Exception as e:
+
+                total_errors += 1
+                error_invoices.append(invoice_name)
+                frappe.db.rollback()
+                _hka_log(
+                    f"Error enviando {invoice_name}: {str(e)}",
+                    "Error",
+                )
+
+                if stop_on_error:
+                    _hka_log(
+                        f"STOP en serie {series['name']} (Internal): "
+                        f"excepción en {invoice_name}.",
+                        "Error",
+                    )
+                    series_stopped = True
+                    break
+
+            time.sleep(_TFHKA_DELAY_BETWEEN_CALLS)
+
+        if series_stopped:
+            continue
+
+    if total_success or total_errors:
+        lines: list[str] = [
+            f"Completado: {total_success} exitosas, {total_errors} con error.",
+        ]
+        if success_invoices:
+            lines.append(f"Exitosas: {', '.join(success_invoices)}")
+        if error_invoices:
+            lines.append(f"Con error: {', '.join(error_invoices)}")
+
+        _hka_log(
+            "\n".join(lines),
+            "Success" if total_errors == 0 else "Error",
+        )
+
+    _repair_partial_hka_invoices()
+
+
+def _sanitize_customer_master_data() -> None:
+    """Limpia caracteres de control (tabs, saltos de línea) en nombres de clientes.
+
+    Se ejecuta antes del envío a HKA para prevenir errores de validación
+    en el campo RazonSocial.
+    """
+    dirty_customers: list[dict] = frappe.db.sql("""
+        SELECT name, customer_name
+        FROM `tabCustomer`
+        WHERE customer_name LIKE '%%\t%%'
+           OR customer_name LIKE '%%\n%%'
+           OR customer_name LIKE '%%\r%%'
+    """, as_dict=True)
+
+    if not dirty_customers:
+        return
+
+    for customer in dirty_customers:
+        clean_name: str = " ".join(customer.customer_name.split()).strip()
+        if clean_name != customer.customer_name:
+            frappe.db.set_value(
+                "Customer", customer.name,
+                "customer_name", clean_name,
+                update_modified=False,
+            )
+
+    frappe.db.commit()
+    frappe.logger("l10n_ve").info(
+        f"Sanitización de datos maestros: {len(dirty_customers)} cliente(s) limpiado(s)."
+    )
+
+
+def _repair_partial_hka_invoices() -> None:
+    """Repara facturas con datos HKA incompletos (bill_no sin bill_control o viceversa).
+
+    Busca en los logs de error el response de HKA (código 200) para extraer
+    los valores faltantes. Esto cubre casos de timeout/deadlock donde HKA
+    procesó la factura pero la escritura local fue interrumpida.
+    """
+
+    partial_invoices: list[dict] = frappe.db.sql("""
+        SELECT name, bill_no, bill_control
+        FROM `tabSales Invoice`
+        WHERE docstatus = 1
+          AND (
+            (bill_no != '' AND bill_no IS NOT NULL AND (bill_control = '' OR bill_control IS NULL))
+            OR
+            (bill_control != '' AND bill_control IS NOT NULL AND (bill_no = '' OR bill_no IS NULL))
+          )
+    """, as_dict=True)
+
+    if not partial_invoices:
+        return
+
+    repaired: int = 0
+    for inv in partial_invoices:
+        error_log: str = frappe.db.get_value(
+            "VE Digital Invoice Log",
+            {
+                "sales_invoice": inv.name,
+                "status": "Error",
+                "document_type": "Sales Invoice",
+            },
+            "notes",
+            order_by="creation desc"
+        ) or ""
+
+        if "'codigo': '200'" not in error_log:
+            continue
+
+        updates: dict = {}
+
+        if not inv.bill_control:
+            match = re.search(r"'numeroControl':\s*'([^']+)'", error_log)
+            if match:
+                updates["bill_control"] = match.group(1)
+
+        if not inv.bill_no:
+            match = re.search(r"'numeroDocumento':\s*'([^']+)'", error_log)
+            if match:
+                updates["bill_no"] = match.group(1)
+
+        if updates:
+            frappe.db.set_value("Sales Invoice", inv.name, updates, update_modified=True)
+            _log_request(
+                "Reparacion", inv.name, {},
+                {"reparado": updates}, "Success",
+                notes=f"Datos HKA recuperados del log de error: {updates}",
+            )
+            repaired += 1
+
+    if repaired:
+        frappe.db.commit()
+        frappe.logger("tfhka").info(
+            f"Reparación automática: {repaired} factura(s) con datos HKA incompletos corregidas"
+        )
+
+
+def _get_tfhka_settings() -> dict | None:
+    """Obtiene la configuración de TFHKA. Retorna None si está deshabilitado."""
+    try:
+        enabled: bool = bool(
+            frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "enabled")
+        )
+        if not enabled:
+            return None
+
+        cutoff_date: str = (
+            frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "cutoff_date")
+            or "2026-04-01"
+        )
+        return {"cutoff_date": str(cutoff_date)}
+    except Exception:
+        return None
+
+
+def _get_active_billing_series() -> list[dict]:
+    """Obtiene las series activas con sus sucursales y modo de operación."""
+    series_list: list[dict] = frappe.get_all(
+        "VE Digital Billing Series",
+        filters={"status": "Active"},
+        fields=["name", "operation_mode", "company"],
+    )
+
+    result: list[dict] = []
+    for series in series_list:
+        branches: list[str] = [
+            row.branch for row in frappe.get_all(
+                "VE Digital Billing Series Branch",
+                filters={"parent": series["name"]},
+                fields=["branch"],
+            ) if row.branch
+        ]
+        result.append({
+            "name": series["name"],
+            "operation_mode": series["operation_mode"],
+            "company": series["company"],
+            "branches": branches,
+        })
+
+    return result
+
+
+def _get_pending_hka_invoices(
+    branches: list[str],
+    cutoff_date: str = "2026-04-01",
+) -> list[str]:
+    """Obtiene facturas pagadas pendientes de envío a HKA para sucursales específicas."""
+    if not branches:
+        return []
+
+    placeholders: str = ", ".join(["%s"] * len(branches))
+    params: list = branches + [cutoff_date, _TFHKA_BATCH_SIZE]
+
+    results = frappe.db.sql(f"""
+        SELECT si.name
+        FROM `tabSales Invoice` si
+        LEFT JOIN `tabVE Digital Invoice Log` log
+            ON log.sales_invoice = si.name
+            AND log.status = 'Success'
+            AND log.document_type = 'Sales Invoice'
+        WHERE si.branch IN ({placeholders})
+          AND si.posting_date >= %s
+          AND si.docstatus = 1
+          AND si.status = 'Paid'
+          AND si.is_return = 0
+          AND si.is_debit_note = 0
+          AND (si.bill_control IS NULL OR si.bill_control = '')
+          AND log.name IS NULL
+        ORDER BY si.posting_date, si.name
+        LIMIT %s
+    """, params, as_list=True)
+
+    return [r[0] for r in results]

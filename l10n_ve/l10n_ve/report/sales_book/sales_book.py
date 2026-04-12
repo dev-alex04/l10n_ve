@@ -512,6 +512,20 @@ def get_report_summary(totals: dict) -> list[dict]:
         },
 
         {
+            "value": (
+                totals.get("iva_general_taxpayer", 0)
+                + totals.get("iva_general_non_taxpayer", 0)
+                + totals.get("iva_reduced_taxpayer", 0)
+                + totals.get("iva_reduced_non_taxpayer", 0)
+                + totals.get("iva_additional_taxpayer", 0)
+                + totals.get("iva_additional_non_taxpayer", 0)
+            ),
+            "label": "Total IVA",
+            "datatype": "Currency",
+            "indicator": "Green"
+        },
+
+        {
             "value": totals.get("iva_retained", 0),
             "label": "IVA Retenido",
             "datatype": "Currency",

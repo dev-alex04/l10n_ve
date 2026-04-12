@@ -302,3 +302,48 @@ def _resolve_future_date(
         f"Usando tasa previa ({last_rate}) para hoy ({today_date})."
     )
     return today_date, last_rate
+
+
+def cleanup_resolved_digital_invoice_error_logs() -> None:
+    """Elimina logs de error cuya factura ya tiene un log de éxito."""
+    error_logs: list[dict] = frappe.db.sql("""
+        SELECT err.name
+        FROM `tabVE Digital Invoice Log` err
+        INNER JOIN `tabVE Digital Invoice Log` ok
+            ON ok.sales_invoice = err.sales_invoice
+            AND ok.document_type = err.document_type
+            AND ok.status = 'Success'
+        WHERE err.status = 'Error'
+    """, as_dict=True)
+
+    if not error_logs:
+        return
+
+    names: list[str] = [log.name for log in error_logs]
+    frappe.db.delete("VE Digital Invoice Log", {"name": ["in", names]})
+    frappe.db.commit()
+    frappe.logger("tfhka").info(
+        f"Limpieza de logs: {len(names)} registros de error eliminados (facturas ya exitosas)"
+    )
+
+
+def purge_old_digital_invoice_success_logs() -> None:
+    """Elimina logs de éxito del mes anterior. Se ejecuta el 1 de cada mes."""
+    first_of_current_month: str = getdate(nowdate()).replace(day=1).isoformat()
+
+    count: int = frappe.db.count(
+        "VE Digital Invoice Log",
+        {"status": "Success", "creation": ["<", first_of_current_month]},
+    )
+
+    if not count:
+        return
+
+    frappe.db.delete(
+        "VE Digital Invoice Log",
+        {"status": "Success", "creation": ["<", first_of_current_month]},
+    )
+    frappe.db.commit()
+    frappe.logger("tfhka").info(
+        f"Purga mensual: {count} logs de éxito anteriores a {first_of_current_month} eliminados"
+    )
