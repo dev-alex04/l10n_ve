@@ -1,5 +1,6 @@
 import json
 import re
+import time
 
 import frappe
 from frappe.utils import flt, getdate, cint, today
@@ -9,6 +10,13 @@ from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 from l10n_ve.utils.utils import is_juridical_customer
 
 SUPPORTED_DOCTYPES = ("Sales Invoice", "VE Sales Credit Note")
+
+_RANGE_EXHAUSTED_KEYWORDS = ("rango de numeración", "rango de numeracion")
+
+
+class HKARangeExhausted(Exception):
+    """Error fatal de serie: HKA no tiene rango de numeración disponible."""
+    pass
 
 def get_active_billing_series(
     company: str, branch: str
@@ -312,8 +320,19 @@ def _handle_hka_response(
         notes_parts.append(f"Mensaje: {mensaje}")
     if validaciones:
         notes_parts.append("Validaciones: " + "; ".join(str(v) for v in validaciones))
+
+    all_text: str = " ".join(str(v) for v in validaciones).lower() + " " + mensaje.lower()
+    is_range_exhausted: bool = any(kw in all_text for kw in _RANGE_EXHAUSTED_KEYWORDS)
+
     _log_request("Emision", doc.name, payload, response, "Error",
                  notes="\n".join(notes_parts), doctype=doc.doctype)
+
+    if is_range_exhausted:
+        raise HKARangeExhausted(
+            f"Serie agotada: HKA no tiene rango de numeración disponible "
+            f"(detectado en factura {invoice_name})."
+        )
+
     return False
 
 
@@ -340,10 +359,11 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
         tasa_fecha: str = _compute_tasa_fecha(doc)
 
         # Verificar que la tasa del documento coincida con la BCV registrada.
-        # Lanza error si no existe tasa o si hay desajuste, antes de tocar nada.
-        # La NC se omite: su tasa es heredada de la factura original y puede
-        # corresponder a una fecha distinta sin ser un error.
-        if not is_nc:
+        # Solo aplica a personas naturales: su tasa debe ser la BCV del 1er día
+        # del mes. Para jurídicos, la tasa es la del día del pago (variable) y
+        # no necesita coincidir con el posting_date.
+        # La NC se omite: su tasa es heredada de la factura original.
+        if not is_nc and not is_juridical_customer(doc.customer):
             _validate_tasa_coherencia(doc, tasa_fecha)
 
         fecha_hka: str = today()
@@ -383,6 +403,9 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
 
     except frappe.ValidationError:
         raise
+    except HKARangeExhausted:
+        raise
+
     except Exception as e:
         tb: str = frappe.get_traceback(with_context=True) or str(e)
         frappe.logger("l10n_ve").error(f"Error procesando {doctype} {doc_name}: {tb}")
@@ -408,7 +431,25 @@ def _log_request(
     notes: str = "",
     doctype: str = "Sales Invoice",
 ) -> None:
-    """Registra el log de la solicitud."""
+    """Registra el log de la solicitud.
+
+    Para errores, aplica deduplicación: si ya existe un log de error
+    reciente (últimas 24h) para la misma factura, no crea duplicado.
+    """
+    if status == "Error" and invoice_name:
+        already_exists: bool = frappe.db.exists(
+            "VE Digital Invoice Log",
+            {
+                "sales_invoice": invoice_name,
+                "status": "Error",
+                "creation": [">=", frappe.utils.add_days(
+                    frappe.utils.nowdate(), -1
+                )],
+            },
+        )
+        if already_exists:
+            return
+
     log_data: dict = {
         "document_type": doctype,
         "endpoint": endpoint,
@@ -632,8 +673,6 @@ def send_pending_invoices_to_hka() -> None:
 
     Respeta el flag 'enabled' y 'cutoff_date' de TFHKA Settings.
     """
-    import time
-
     tfhka_settings: dict | None = _get_tfhka_settings()
     if not tfhka_settings:
         return
@@ -659,9 +698,7 @@ def send_pending_invoices_to_hka() -> None:
     error_invoices: list[str] = []
 
     for series in active_series:
-        stop_on_error: bool = series["operation_mode"] == "Internal"
         branches: list[str] = series["branches"]
-
         if not branches:
             continue
 
@@ -669,7 +706,6 @@ def send_pending_invoices_to_hka() -> None:
             branches=branches,
             cutoff_date=cutoff_date,
         )
-
         if not pending:
             continue
 
@@ -679,71 +715,120 @@ def send_pending_invoices_to_hka() -> None:
             "Success",
         )
 
-        series_stopped: bool = False
-        for invoice_name in pending:
+        s, e, ok_list, err_list = _process_series_invoices(series, pending)
+        total_success += s
+        total_errors += e
+        success_invoices.extend(ok_list)
+        error_invoices.extend(err_list)
 
-            try:
+    _log_batch_summary(total_success, total_errors, success_invoices, error_invoices)
+    _repair_partial_hka_invoices()
 
-                result: bool = process_invoice(invoice_name)
 
-                if result:
-                    total_success += 1
-                    success_invoices.append(invoice_name)
-                    frappe.db.commit()
+def _process_series_invoices(
+    series: dict,
+    pending: list[str],
+) -> tuple[int, int, list[str], list[str]]:
+    """Procesa las facturas pendientes de una serie específica.
 
-                else:
+    Retorna (exitosas, errores, lista_exitosas, lista_errores).
 
-                    total_errors += 1
-                    error_invoices.append(invoice_name)
-                    frappe.db.commit()
-                    if stop_on_error:
-                        _hka_log(
-                            f"STOP en serie {series['name']} (Internal): "
-                            f"factura {invoice_name} falló.",
-                            "Error",
-                        )
-                        series_stopped = True
-                        break
+    Circuit breaker: si HKA responde "sin rango de numeración",
+    detiene toda la serie inmediatamente.
+    """
+    stop_on_error: bool = series["operation_mode"] == "Internal"
+    series_name: str = series["name"]
 
-            except Exception as e:
+    success_count: int = 0
+    error_count: int = 0
+    success_invoices: list[str] = []
+    error_invoices: list[str] = []
 
-                total_errors += 1
+    for invoice_name in pending:
+        try:
+            result: bool = process_invoice(invoice_name)
+
+            if result:
+                success_count += 1
+                success_invoices.append(invoice_name)
+                frappe.db.commit()
+            else:
+                error_count += 1
                 error_invoices.append(invoice_name)
-                frappe.db.rollback()
+                frappe.db.commit()
+                if stop_on_error:
+                    _hka_log(
+                        f"STOP en serie {series_name} (Internal): "
+                        f"factura {invoice_name} falló.",
+                        "Error",
+                    )
+                    break
+
+        except HKARangeExhausted as e:
+            error_count += 1
+            error_invoices.append(invoice_name)
+            frappe.db.commit()
+            _hka_log(
+                f"CIRCUIT BREAKER - Serie {series_name} detenida: {str(e)} "
+                f"({len(pending)} facturas pendientes sin procesar).",
+                "Error",
+            )
+            break
+
+        except Exception as e:
+            error_count += 1
+            error_invoices.append(invoice_name)
+            frappe.db.rollback()
+            has_recent_log: bool = frappe.db.exists(
+                "VE Digital Invoice Log",
+                {
+                    "status": "Error",
+                    "notes": ["like", f"Error enviando {invoice_name}:%"],
+                    "creation": [">=", frappe.utils.add_days(
+                        frappe.utils.nowdate(), -1
+                    )],
+                },
+            )
+            if not has_recent_log:
                 _hka_log(
                     f"Error enviando {invoice_name}: {str(e)}",
                     "Error",
                 )
+            if stop_on_error:
+                _hka_log(
+                    f"STOP en serie {series_name} (Internal): "
+                    f"excepción en {invoice_name}.",
+                    "Error",
+                )
+                break
 
-                if stop_on_error:
-                    _hka_log(
-                        f"STOP en serie {series['name']} (Internal): "
-                        f"excepción en {invoice_name}.",
-                        "Error",
-                    )
-                    series_stopped = True
-                    break
+        time.sleep(_TFHKA_DELAY_BETWEEN_CALLS)
 
-            time.sleep(_TFHKA_DELAY_BETWEEN_CALLS)
+    return success_count, error_count, success_invoices, error_invoices
 
-        if series_stopped:
-            continue
 
-    if total_success or total_errors:
-        lines: list[str] = [
-            f"Completado: {total_success} exitosas, {total_errors} con error.",
-        ]
-        if success_invoices:
-            lines.append(f"Exitosas: {', '.join(success_invoices)}")
-        if error_invoices:
-            lines.append(f"Con error: {', '.join(error_invoices)}")
+def _log_batch_summary(
+    total_success: int,
+    total_errors: int,
+    success_invoices: list[str],
+    error_invoices: list[str],
+) -> None:
+    """Registra el resumen final del lote de envío a HKA."""
+    if not total_success and not total_errors:
+        return
 
-        _hka_log(
-            "\n".join(lines),
-            "Success" if total_errors == 0 else "Error",
-        )
+    lines: list[str] = [
+        f"Completado: {total_success} exitosas, {total_errors} con error.",
+    ]
+    if success_invoices:
+        lines.append(f"Exitosas: {', '.join(success_invoices)}")
+    if error_invoices:
+        lines.append(f"Con error: {', '.join(error_invoices)}")
 
-    _repair_partial_hka_invoices()
+    _hka_log(
+        "\n".join(lines),
+        "Success" if total_errors == 0 else "Error",
+    )
 
 
 def _sanitize_customer_master_data() -> None:
