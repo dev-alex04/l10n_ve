@@ -19,4 +19,4 @@ def execute() -> None:
         if frappe.db.exists("Property Setter", ps_name):
             frappe.delete_doc("Property Setter", ps_name, force=True)
 
-    frappe.clear_cache()
+    frappe.clear_cache(doctype="Sales Invoice")

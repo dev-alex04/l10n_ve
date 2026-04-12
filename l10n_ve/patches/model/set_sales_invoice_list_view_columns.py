@@ -26,14 +26,16 @@ def execute() -> None:
         frappe.db.set_value(
             "List View Settings",
             "Sales Invoice",
-            "fields",
-            json.dumps(list_view_fields),
+            {
+                "fields": json.dumps(list_view_fields),
+                "total_fields": len(list_view_fields),
+            },
         )
     else:
         doc = frappe.new_doc("List View Settings")
         doc.name = "Sales Invoice"
         doc.fields = json.dumps(list_view_fields)
-        doc.total_fields = 5
+        doc.total_fields = len(list_view_fields)
         doc.insert(ignore_permissions=True)
 
     frappe.clear_cache(doctype="Sales Invoice")
