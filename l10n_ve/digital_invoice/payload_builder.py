@@ -94,7 +94,7 @@ class TFHKAPayloadBuilder:
 
         from frappe.contacts.doctype.address.address import get_address_display
 
-        billing_address: str | None = frappe.db.sql("""
+        billing_address: list = frappe.db.sql("""
             SELECT a.name
             FROM `tabAddress` a
             JOIN `tabDynamic Link` dl ON dl.parent = a.name
