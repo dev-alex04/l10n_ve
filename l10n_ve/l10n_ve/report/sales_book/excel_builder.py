@@ -43,6 +43,13 @@ class ExcelBuilder:
         self.numeric_format = '#,##0.00'
         self.int_format = '0'
 
+    def _get_col_index(self, fieldname: str) -> int:
+        """Retorna el índice de columna (1-indexed) para el fieldname dado."""
+        for i, col in enumerate(self.columns):
+            if col.get("fieldname") == fieldname:
+                return i + 1
+        return 0
+
 
     def _add_report_header(self):
         """
@@ -97,22 +104,25 @@ class ExcelBuilder:
         current_row = start_row
 
         # Configuración declarativa de los encabezados de varios niveles
+        non_tp = self._get_col_index("base_reduced_non_taxpayer")
+        tp = self._get_col_index("base_reduced_taxpayer")
+        ret = self._get_col_index("iva_retained")
+        igtf = self._get_col_index("base_amount_igtf")
+
         header_levels = [
-            # Nivel 2
             [
-                {"text": _("Ventas a No Contribuyentes"), "start_col": 17, "span": 6},
-                {"text": _("Ventas a Contribuyentes"), "start_col": 23, "span": 6},
+                {"text": _("Ventas a No Contribuyentes"), "start_col": non_tp, "span": 6},
+                {"text": _("Ventas a Contribuyentes"), "start_col": tp, "span": 6},
             ],
-            # Nivel 3
             [
-                {"text": _("Tasa Reducida 8%"), "start_col": 17, "span": 2},
-                {"text": _("Tasa General 16%"), "start_col": 19, "span": 2},
-                {"text": _("Tasa General + Adicional 31%"), "start_col": 21, "span": 2},
-                {"text": _("Tasa Reducida 8%"), "start_col": 23, "span": 2},
-                {"text": _("Tasa General 16%"), "start_col": 25, "span": 2},
-                {"text": _("Tasa General + Adicional 31%"), "start_col": 27, "span": 2},
-                {"text": _("Retención"), "start_col": 29, "span": 4},
-                {"text": _("IGTF"), "start_col": 33, "span": 3},
+                {"text": _("Tasa Reducida 8%"), "start_col": non_tp, "span": 2},
+                {"text": _("Tasa General 16%"), "start_col": non_tp + 2, "span": 2},
+                {"text": _("Tasa General + Adicional 31%"), "start_col": non_tp + 4, "span": 2},
+                {"text": _("Tasa Reducida 8%"), "start_col": tp, "span": 2},
+                {"text": _("Tasa General 16%"), "start_col": tp + 2, "span": 2},
+                {"text": _("Tasa General + Adicional 31%"), "start_col": tp + 4, "span": 2},
+                {"text": _("Retención"), "start_col": ret, "span": 4},
+                {"text": _("IGTF"), "start_col": igtf, "span": 3},
             ]
         ]
 
@@ -189,8 +199,9 @@ class ExcelBuilder:
                 cell_length = len(str(cell_value)) if cell_value is not None else 0
                 current_width = column_widths.get(col_letter, 0)
 
-                if col_index <= 14:
-                    max_text_width = 30 if fieldname == "company_name" else 15
+                col_fieldtype = col.get("fieldtype", "Data")
+                if col_fieldtype not in ("Currency", "Percent"):
+                    max_text_width = 30 if fieldname == "customer_name" else 15
                     column_widths[col_letter] = min(max(current_width, cell_length + 2), max_text_width)
                 elif cell_length > 0:
                     column_widths[col_letter] = min(max(current_width, cell_length + 1), 12)

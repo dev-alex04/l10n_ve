@@ -50,6 +50,7 @@ def get_columns() -> list[dict]:
     """
     return [
 
+        {"label": _("Sucursal"), "fieldname": "branch", "fieldtype": "Data", "width": "auto"},
         {"label": _("Fecha"), "fieldname": "posting_date", "fieldtype": "Data", "width": "auto"},
         {"label": _("RIF del Cliente"), "fieldname": "customer_tax_id", "fieldtype": "Data", "width": "auto"},
         {"label": _("Nombre del Cliente"), "fieldname": "customer_name", "fieldtype": "Data", "width": "auto"},
@@ -260,6 +261,7 @@ def get_query() -> str:
             -- is_return = 0 excluye NCs legacy de ERPNext (reemplazadas por VE Sales Credit Note)
             SELECT
                 siv.name,
+                siv.branch,
                 siv.posting_date,
                 siv.customer,
                 siv.customer_name,
@@ -274,7 +276,7 @@ def get_query() -> str:
                 siv.is_return,
                 siv.is_debit_note,
                 (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) AS conversion_rate,
-                (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.grand_total END) AS grand_total,
+                (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.net_total END) AS net_total,
                 (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_exempt END) AS total_exempt,
                 (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.base_amount_igtf END) AS base_amount_igtf,
                 (CASE WHEN siv.is_void = 1 THEN 0 ELSE siv.total_igtf END) AS total_igtf
@@ -293,6 +295,7 @@ def get_query() -> str:
             -- Solo se incluyen NC con número HKA asignado (bill_no poblado).
             SELECT
                 nc.name,
+                nc.branch,
                 nc.posting_date,
                 nc.customer,
                 nc.customer_name,
@@ -307,7 +310,7 @@ def get_query() -> str:
                 1 AS is_return,
                 0 AS is_debit_note,
                 (CASE WHEN nc.currency != %(company_currency)s THEN nc.conversion_rate ELSE 1 END) AS conversion_rate,
-                nc.grand_total,
+                nc.net_total,
                 nc.total_exempt,
                 0 AS base_amount_igtf,
                 0 AS total_igtf
@@ -322,6 +325,7 @@ def get_query() -> str:
         )
         SELECT
             {transaction_type_placeholder}
+            siv.branch,
             DATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,
             tc.tax_id AS customer_tax_id,
             siv.customer_name,
@@ -339,10 +343,10 @@ def get_query() -> str:
                 WHEN tc.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
                 ELSE 'N/A'
             END AS customer_type,
-            siv.grand_total * siv.conversion_rate AS grand_total,
+            (siv.net_total + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END), 0)) * siv.conversion_rate AS grand_total,
             siv.total_exempt * siv.conversion_rate AS total_exempt,
-            siv.base_amount_igtf,
-            siv.total_igtf,
+            siv.base_amount_igtf * siv.conversion_rate AS base_amount_igtf,
+            siv.total_igtf * siv.conversion_rate AS total_igtf,
 
             -- Base por alícuota: derivada de tax_amount*(100/rate)
             -- Funciona para Sales Invoice y VE Sales Credit Note (tstac.parent = nombre del doc)
