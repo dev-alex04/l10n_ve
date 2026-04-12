@@ -638,6 +638,14 @@ def send_pending_invoices_to_hka() -> None:
     if not tfhka_settings:
         return
 
+    if not tfhka_settings.get("enable_auto_send"):
+        return
+
+    from datetime import datetime
+    actual_date: int = datetime.now().hour
+    if not (5 <= actual_date < 21):
+        return
+
     cutoff_date: str = tfhka_settings["cutoff_date"]
     active_series: list[dict] = _get_active_billing_series()
 
@@ -840,17 +848,19 @@ def _repair_partial_hka_invoices() -> None:
 def _get_tfhka_settings() -> dict | None:
     """Obtiene la configuración de TFHKA. Retorna None si está deshabilitado."""
     try:
-        enabled: bool = bool(
-            frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "enabled")
-        )
-        if not enabled:
+        settings: dict = frappe.get_cached_value(
+            "TFHKA Settings", "TFHKA Settings",
+            ["enabled", "enable_auto_send", "cutoff_date"],
+            as_dict=True,
+        ) or {}
+
+        if not settings.get("enabled"):
             return None
 
-        cutoff_date: str = (
-            frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "cutoff_date")
-            or "2026-04-01"
-        )
-        return {"cutoff_date": str(cutoff_date)}
+        return {
+            "cutoff_date": str(settings.get("cutoff_date") or "2026-04-01"),
+            "enable_auto_send": bool(settings.get("enable_auto_send")),
+        }
     except Exception:
         return None
 
