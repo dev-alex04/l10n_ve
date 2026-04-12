@@ -906,6 +906,7 @@ def _get_pending_hka_invoices(
           AND si.status = 'Paid'
           AND si.is_return = 0
           AND si.is_debit_note = 0
+          AND (si.bill_control IS NULL OR si.bill_control = '')
           AND log.name IS NULL
         ORDER BY si.posting_date, si.name
         LIMIT %s
