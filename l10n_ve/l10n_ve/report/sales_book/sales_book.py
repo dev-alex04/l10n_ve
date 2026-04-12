@@ -345,8 +345,8 @@ def get_query() -> str:
             END AS customer_type,
             (siv.net_total + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END), 0)) * siv.conversion_rate AS grand_total,
             siv.total_exempt * siv.conversion_rate AS total_exempt,
-            siv.base_amount_igtf,
-            siv.total_igtf,
+            siv.base_amount_igtf * siv.conversion_rate AS base_amount_igtf,
+            siv.total_igtf * siv.conversion_rate AS total_igtf,
 
             -- Base por alícuota: derivada de tax_amount*(100/rate)
             -- Funciona para Sales Invoice y VE Sales Credit Note (tstac.parent = nombre del doc)
