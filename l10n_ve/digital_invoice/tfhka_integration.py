@@ -641,9 +641,8 @@ def send_pending_invoices_to_hka() -> None:
     if not tfhka_settings.get("enable_auto_send"):
         return
 
-    from datetime import datetime
-    actual_date: int = datetime.now().hour
-    if not (5 <= actual_date < 21):
+    current_hour: int = frappe.utils.now_datetime().hour
+    if not (5 <= current_hour < 21):
         return
 
     cutoff_date: str = tfhka_settings["cutoff_date"]
