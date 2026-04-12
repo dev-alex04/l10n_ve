@@ -297,6 +297,7 @@ class CustomPaymentEntry(PaymentEntry):
                                 {
                                     'total_igtf': total_igtf,
                                     'base_amount_igtf': base_amount_igtf,
+                                    'igtf_rate': self.igtf_rate,
                                 })
 
     def validate_reference_no(self) -> None:

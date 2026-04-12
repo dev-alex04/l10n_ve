@@ -1,5 +1,6 @@
 import re
 import json
+import unicodedata
 from typing import Optional
 
 import frappe
@@ -84,6 +85,29 @@ class TFHKAPayloadBuilder:
         self.company_currency = _TFHKA_CURRENCY_MAP.get(
             self.company_currency, self.company_currency
         )
+        self._ensure_billing_address()
+
+    def _ensure_billing_address(self) -> None:
+        """Si la factura no tiene dirección, la busca desde el Customer master."""
+        if self.doc.address_display:
+            return
+
+        from frappe.contacts.doctype.address.address import get_address_display
+
+        billing_address: list = frappe.db.sql("""
+            SELECT a.name
+            FROM `tabAddress` a
+            JOIN `tabDynamic Link` dl ON dl.parent = a.name
+            WHERE dl.link_doctype = 'Customer'
+              AND dl.link_name = %s
+              AND a.address_type = 'Billing'
+            LIMIT 1
+        """, (self.doc.customer,), as_list=True)
+
+        if not billing_address:
+            return
+
+        self.doc.address_display = get_address_display(billing_address[0][0])
 
     def build_payload(self) -> dict:
         self.items_payload = self._build_items()
@@ -299,7 +323,7 @@ class TFHKAPayloadBuilder:
         return {
             "TipoIdentificacion": tipo_id,
             "NumeroIdentificacion": num_id,
-            "RazonSocial": customer.customer_name,
+            "RazonSocial": self._sanitize_razon_social(customer.customer_name),
             "Direccion": direccion,
             "Ubigeo": None,
             "Pais": "VE",
@@ -312,6 +336,15 @@ class TFHKAPayloadBuilder:
             ),
             "OtrosEnvios": None
         }
+
+    @staticmethod
+    def _sanitize_razon_social(name: str) -> str:
+        """Limpia la razón social para cumplir con el formato requerido por HKA."""
+        cleaned: str = " ".join((name or "").split())
+        nfkd: str = unicodedata.normalize("NFKD", cleaned)
+        cleaned = "".join(c for c in nfkd if not unicodedata.combining(c))
+        cleaned = re.sub(r"[^A-Za-z0-9 .,\-]", "", cleaned)
+        return cleaned[:300].strip()
 
     @staticmethod
     def _parse_tax_id(tax_id: str) -> tuple:
@@ -328,6 +361,15 @@ class TFHKAPayloadBuilder:
         numero = re.sub(r"[^0-9]", "", resto)
 
         return tipo, numero or "000000000"
+
+    def _get_igtf_rate(self) -> float:
+        """Obtiene la tasa IGTF desde la factura o desde la configuración fiscal."""
+        rate: float = flt(self.doc.get("igtf_rate"))
+        if rate:
+            return rate
+        return flt(
+            frappe.get_cached_doc("Venezuela Account Settings").igtf_rate
+        ) or 3.0
 
     def _get_iva_rate(self) -> float:
         """Extrae la alícuota IVA real desde las filas de impuestos de la factura."""
@@ -386,6 +428,9 @@ class TFHKAPayloadBuilder:
             "total_iva": total_iva_usd,
             "monto_total_con_iva": monto_total_con_iva_usd,
             "total_a_pagar": total_a_pagar_usd,
+            "base_igtf": flt(self.doc.get("base_amount_igtf", 0.0)) / tc if total_igtf_amount and tc > 0 else 0.0,
+            "total_igtf": total_igtf_usd,
+            "igtf_rate": self._get_igtf_rate(),
         }
 
         total_igtf_str = None
@@ -441,7 +486,7 @@ class TFHKAPayloadBuilder:
             base_igtf = flt(self.doc.get("base_amount_igtf", 0.0))
             impuestos.append({
                 "CodigoTotalImp": "IGTF",
-                "AlicuotaImp": fmt(self.doc.get("igtf_rate", 3.0)),
+                "AlicuotaImp": fmt(self._get_igtf_rate()),
                 "BaseImponibleImp": fmt(base_igtf),
                 "ValorTotalImp": fmt(self.doc.total_igtf)
             })
@@ -530,6 +575,14 @@ class TFHKAPayloadBuilder:
                 "AlicuotaImp": "00.00",
                 "BaseImponibleImp": fmt(monto_exento),
                 "ValorTotalImp": "00.00"
+            })
+
+        if flt(usd.get("total_igtf", 0.0)) > 0:
+            impuestos.append({
+                "CodigoTotalImp": "IGTF",
+                "AlicuotaImp": fmt(usd.get("igtf_rate", 3.0)),
+                "BaseImponibleImp": fmt(usd.get("base_igtf", 0.0)),
+                "ValorTotalImp": fmt(usd.get("total_igtf", 0.0))
             })
 
         if monto_gravado > 0:
@@ -785,7 +838,11 @@ class TFHKAPayloadBuilder:
 
         # Convertir a string de python-like dict (con comillas simples) para que el parser
         # de The Factory HKA no falle en su plantilla
-        json_str = json.dumps(dict_pdf, ensure_ascii=False).replace('"', "'")
+        sanitized: dict = {
+            k: v.replace("'", "") if isinstance(v, str) else v
+            for k, v in dict_pdf.items()
+        }
+        json_str = json.dumps(sanitized, ensure_ascii=False).replace('"', "'")
 
         return [
             {"Campo": "PDF", "Valor": json_str}
