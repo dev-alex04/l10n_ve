@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.2] - 2026-04-13
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error de recursión infinita que se presentaba al intentar registrar pagos desde el dashboard ISP. c792eee
+- Optimización de la vista de lista en Sales Invoice mediante la eliminación de filtros redundantes y la configuración de columnas para mejorar la usabilidad. b197455
+- Aplicación de mejoras técnicas y ajustes de estabilidad en parches tras revisión de código. f475da9
+
+---
+
 ## [v1.0.1] - 2026-04-12
 
 ### ✨ Funcionalidades (Features)
