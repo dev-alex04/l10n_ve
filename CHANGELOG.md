@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.3] - 2026-04-13
+
+### ✨ Funcionalidades (Features)
+- Se añadió la columna Serie Fiscal al reporte del libro de ventas. 71d00f4
+
+### 🐛 Correcciones (Fixes)
+- Implementación de validación para evitar errores de división por cero en el cálculo de montos. 2515ce8
+- Ajuste en la lógica del libro de ventas para recalcular el Total Incluido IVA a partir de los componentes fiscales. 71d00f4
+
+---
+
 ## [v1.0.2] - 2026-04-13
 
 ### 🐛 Correcciones (Fixes)
