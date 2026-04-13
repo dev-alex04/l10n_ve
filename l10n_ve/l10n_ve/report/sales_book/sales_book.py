@@ -347,11 +347,13 @@ def get_query() -> str:
             END AS customer_type,
             -- Total Incl. IVA recalculado desde los componentes fiscales (bases + IVA + exentos)
             -- para garantizar consistencia interna con las columnas del reporte.
-            (
-                siv.total_exempt
-                + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / tstac.rate) ELSE 0 END), 0)
-                + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END), 0)
-            ) * siv.conversion_rate AS grand_total,
+            (CASE WHEN siv.is_void = 1 THEN 0 ELSE
+                (
+                    siv.total_exempt
+                    + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / NULLIF(tstac.rate, 0)) ELSE 0 END), 0)
+                    + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END), 0)
+                )
+            END) * siv.conversion_rate AS grand_total,
             siv.total_exempt * siv.conversion_rate AS total_exempt,
             siv.base_amount_igtf * siv.conversion_rate AS base_amount_igtf,
             siv.total_igtf * siv.conversion_rate AS total_igtf,
