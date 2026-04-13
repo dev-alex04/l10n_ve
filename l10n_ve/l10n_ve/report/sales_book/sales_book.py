@@ -55,6 +55,7 @@ def get_columns() -> list[dict]:
         {"label": _("RIF del Cliente"), "fieldname": "customer_tax_id", "fieldtype": "Data", "width": "auto"},
         {"label": _("Nombre del Cliente"), "fieldname": "customer_name", "fieldtype": "Data", "width": "auto"},
         {"label": _("Tipo de Persona"), "fieldname": "customer_type", "fieldtype": "Data", "width": "auto"},
+        {"label": _("Serie Fiscal"), "fieldname": "fiscal_series", "fieldtype": "Data", "width": "auto"},
         {"label": _("Nro. de Factura"), "fieldname": "bill_no", "fieldtype": "Data", "width": "auto"},
         {"label": _("Nro. de Control"), "fieldname": "bill_control", "fieldtype": "Data", "width": "auto"},
         {"label": _("Nro. Nota de Credito"), "fieldname": "credit_note_no", "fieldtype": "Data", "width": "auto"},
@@ -331,6 +332,7 @@ def get_query() -> str:
             siv.customer_name,
             siv.bill_no,
             siv.bill_control,
+            MAX(vdbs.serie) AS fiscal_series,
             siv.credit_note_no,
             siv.debit_note_no,
             siv.affected_invoice_number,
@@ -343,7 +345,13 @@ def get_query() -> str:
                 WHEN tc.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
                 ELSE 'N/A'
             END AS customer_type,
-            (siv.net_total + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END), 0)) * siv.conversion_rate AS grand_total,
+            -- Total Incl. IVA recalculado desde los componentes fiscales (bases + IVA + exentos)
+            -- para garantizar consistencia interna con las columnas del reporte.
+            (
+                siv.total_exempt
+                + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / tstac.rate) ELSE 0 END), 0)
+                + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END), 0)
+            ) * siv.conversion_rate AS grand_total,
             siv.total_exempt * siv.conversion_rate AS total_exempt,
             siv.base_amount_igtf * siv.conversion_rate AS base_amount_igtf,
             siv.total_igtf * siv.conversion_rate AS total_igtf,
@@ -379,6 +387,10 @@ def get_query() -> str:
             `tabSales Taxes and Charges` tstac
             ON tstac.parent = siv.name
             AND tstac.parenttype IN ('Sales Invoice', 'VE Sales Credit Note')
+        LEFT JOIN
+            `tabVE Digital Billing Series` vdbs
+            ON CAST(SUBSTRING_INDEX(siv.bill_control, '-', -1) AS UNSIGNED)
+                BETWEEN vdbs.range_from AND vdbs.range_to
     """
     return query_base
 
