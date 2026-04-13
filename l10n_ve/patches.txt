@@ -5,3 +5,5 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 l10n_ve.patches.accounts.fix_igtf_rate_on_invoices
+l10n_ve.patches.model.remove_sales_invoice_standard_filters
+l10n_ve.patches.model.set_sales_invoice_list_view_columns

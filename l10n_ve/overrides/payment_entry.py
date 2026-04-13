@@ -9,7 +9,7 @@ from frappe.model.document import Document
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
     get_outstanding_reference_documents as original_get_outstanding_reference_documents,
     PaymentEntry,
-    get_payment_entry,
+    get_payment_entry as _original_get_payment_entry,
     validate_inclusive_tax,
 )
 
@@ -685,7 +685,6 @@ class CustomPaymentEntry(PaymentEntry):
         self.transaction_exchange_rate = self.exchange_rate
 
 
-get_payment_entry_copy = get_payment_entry
 @frappe.whitelist()
 def get_payment_entry(
     dt,
@@ -700,7 +699,7 @@ def get_payment_entry(
     created_from_payment_request=False,
 ) -> PaymentEntry:
 
-    payment_entry: PaymentEntry = get_payment_entry_copy(
+    payment_entry: PaymentEntry = _original_get_payment_entry(
         dt,
         dn,
         party_amount=party_amount,
