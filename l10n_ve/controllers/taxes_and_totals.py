@@ -372,3 +372,66 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 tax.total = tax_base
         else:
             tax.total = flt(tax_base + tax_amount, tax.precision("total"))
+
+    # ------------------------------------------------------------------ #
+    # calculate_total_advance — Override para evitar errores de redondeo
+    # ------------------------------------------------------------------ #
+
+    def calculate_total_advance(self) -> None:
+        """
+        Sobrescribe la validación de anticipos de ERPNext.
+        En escenarios multimoneda (USD/VEF), ERPNext valida que el anticipo
+        no exceda grand_total * conversion_rate. Sin embargo, en VE el total
+        en VEF (base_grand_total) puede ser ligeramente superior debido al
+        cálculo de impuestos sobre la base convertida.
+        """
+        if not self.doc.docstatus.is_cancelled():
+            total_allocated_amount = sum(
+                flt(adv.allocated_amount, adv.precision("allocated_amount"))
+                for adv in self.doc.get("advances")
+            )
+
+            self.doc.total_advance = flt(
+                total_allocated_amount, self.doc.precision("total_advance")
+            )
+
+            grand_total = self.doc.rounded_total or self.doc.grand_total
+
+            if self.doc.party_account_currency == self.doc.currency:
+                invoice_total = flt(
+                    grand_total - flt(self.doc.write_off_amount),
+                    self.doc.precision("grand_total"),
+                )
+            else:
+                base_write_off_amount = flt(
+                    flt(self.doc.write_off_amount) * self.doc.conversion_rate,
+                    self.doc.precision("base_write_off_amount"),
+                )
+
+                if self.doc.base_rounded_total:
+                    invoice_total = self.doc.base_rounded_total - base_write_off_amount
+                elif self.doc.base_grand_total:
+                    invoice_total = self.doc.base_grand_total - base_write_off_amount
+                else:
+                    invoice_total = (
+                        flt(
+                            grand_total * self.doc.conversion_rate,
+                            self.doc.precision("grand_total"),
+                        )
+                        - base_write_off_amount
+                    )
+
+            if invoice_total > 0 and self.doc.total_advance > invoice_total:
+                if flt(self.doc.total_advance - invoice_total) > 0.01:
+                    from frappe import _
+                    frappe.throw(
+                        _("Advance amount cannot be greater than {0} {1}").format(
+                            self.doc.party_account_currency, invoice_total
+                        )
+                    )
+
+        if self.doc.get("write_off_outstanding_amount_automatically"):
+            self.doc.write_off_amount = 0
+
+        self.calculate_outstanding_amount()
+        self.calculate_write_off_amount()
