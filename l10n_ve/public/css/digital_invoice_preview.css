@@ -410,3 +410,137 @@
 .hka-modal-dialog .btn-primary:hover {
     filter: brightness(1.1);
 }
+
+/* ============================================================
+   Fiscal Invoice Preview — Inline Component
+   Compatible con light y dark mode via CSS variables de Frappe
+   ============================================================ */
+
+.fiscal-preview {
+    margin-top: 12px;
+}
+
+.fiscal-preview__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--subtle-fg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.fiscal-preview__header:hover {
+    background: var(--fg-color);
+}
+
+.fiscal-preview__header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fiscal-preview__icon {
+    flex-shrink: 0;
+}
+
+.fiscal-preview__icon rect,
+.fiscal-preview__icon path {
+    stroke: var(--primary-color);
+}
+
+.fiscal-preview__title {
+    font-weight: 600;
+    font-size: var(--text-md);
+    color: var(--heading-color);
+}
+
+.fiscal-preview__header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.fiscal-preview__meta {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+}
+
+.fiscal-preview__meta strong {
+    color: var(--text-color);
+}
+
+.fiscal-preview__open-link {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-xs);
+    color: var(--primary-color);
+    text-decoration: none;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--primary-color);
+    transition: background 0.15s ease;
+}
+
+.fiscal-preview__open-link:hover {
+    background: var(--primary-color);
+    color: var(--fg-color);
+}
+
+.fiscal-preview__open-link:hover svg path {
+    stroke: var(--fg-color);
+}
+
+.fiscal-preview__body {
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+    overflow: hidden;
+    background: var(--fg-color);
+}
+
+.fiscal-preview__loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    gap: 12px;
+}
+
+.fiscal-preview__loading .spinner-border {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+}
+
+.fiscal-preview__loading span {
+    font-size: var(--text-sm);
+}
+
+.fiscal-preview__fallback {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.fiscal-preview__fallback p {
+    margin: 0 0 8px;
+    font-size: var(--text-sm);
+}
+
+.fiscal-preview__fallback a {
+    color: var(--primary-color);
+    font-size: var(--text-sm);
+}
+
+.fiscal-preview--collapsed {
+    max-height: 0 !important;
+    overflow: hidden !important;
+    border: none !important;
+}

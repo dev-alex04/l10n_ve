@@ -189,6 +189,58 @@ class TFHKAClient:
             self._log_error("Anular", payload, str(e))
             return {"error": True, "message": str(e)}
 
+    def download_file(
+        self,
+        numero_documento: str,
+        tipo_documento: str = "01",
+        tipo_archivo: str = "pdf",
+        serie: str = "",
+    ) -> dict:
+        """
+        Descarga archivo desde /api/DescargaArchivo.
+        Retorna { codigo, mensaje, archivo } donde 'archivo' es base64.
+        tipo_documento: 01=Factura, 02=NotaCredito, 03=NotaDebito (Catálogo 1 SENIAT)
+        tipo_archivo: pdf, xml, json
+        """
+        if not self.token:
+            self.authenticate()
+
+        url = f"{self.base_url}/api/DescargaArchivo"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.token}",
+        }
+        payload = {
+            "tipoDocumento": tipo_documento,
+            "numeroDocumento": numero_documento,
+            "tipoArchivo": tipo_archivo,
+        }
+        if serie:
+            payload["serie"] = serie
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
+
+            try:
+                data = response.json()
+            except Exception:
+                data = {
+                    "error": True,
+                    "message": response.text,
+                    "codigo": str(response.status_code),
+                }
+
+            if not response.ok:
+                data["error"] = True
+                data.setdefault("message", response.text)
+                self._log_error("DescargaArchivo", payload, response.text)
+
+            return data
+
+        except Exception as e:
+            self._log_error("DescargaArchivo", payload, str(e))
+            return {"error": True, "message": str(e)}
+
     def _log_error(self, endpoint: str, payload: dict, response_text: str) -> None:
         self._log_response(endpoint, payload, response_text, status="Error")
 
@@ -218,3 +270,58 @@ class TFHKAClient:
         except Exception as e:
             frappe.logger("l10n_ve").error(f"No se pudo guardar el log TFHKA: {str(e)}")
 
+
+@frappe.whitelist()
+def get_fiscal_invoice_pdf(invoice_name: str) -> dict:
+    """
+    Descarga el PDF de la factura fiscal desde TFHKA
+    y retorna el base64 para renderizar en el frontend.
+    """
+    doc = frappe.get_cached_doc("Sales Invoice", invoice_name)
+    frappe.has_permission("Sales Invoice", "read", doc=doc, throw=True)
+
+    if not doc.remarks or '"numeroDocumento"' not in doc.remarks:
+        return {"base64": None, "error": "Esta factura no tiene datos de facturación digital."}
+
+    try:
+        hka_data = json.loads(doc.remarks)
+    except (json.JSONDecodeError, TypeError):
+        return {"base64": None, "error": "El campo remarks no contiene datos HKA válidos."}
+
+    resultado = (hka_data.get("resultado") or {})
+    numero_documento = resultado.get("numeroDocumento")
+    serie = resultado.get("serie") or ""
+    if not numero_documento:
+        return {"base64": None, "error": "No se encontró el número de documento en los datos HKA."}
+
+    # 01=Factura, 02=NotaCredito(is_return), 03=NotaDebito
+    tipo_documento = "01"
+    if doc.is_return:
+        tipo_documento = "02"
+    elif doc.is_debit_note:
+        tipo_documento = "03"
+
+    client = TFHKAClient()
+    response = client.download_file(
+        numero_documento=str(numero_documento),
+        tipo_documento=tipo_documento,
+        tipo_archivo="pdf",
+        serie=serie,
+    )
+
+    archivo_base64 = response.get("archivo")
+    if not archivo_base64:
+        frappe.logger("l10n_ve").warning(
+            f"DescargaArchivo sin PDF: {response.get('mensaje', 'Sin mensaje')} "
+            f"(doc={numero_documento}, serie={serie})"
+        )
+        return {
+            "base64": None,
+            "error": response.get("mensaje", "TFHKA no retornó el archivo PDF."),
+        }
+
+    return {
+        "base64": archivo_base64,
+        "numero_documento": numero_documento,
+        "numero_control": resultado.get("numeroControl", ""),
+    }

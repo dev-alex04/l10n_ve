@@ -64,6 +64,21 @@
         "value": "Debit Note"
     },
     {
+        "default_value": 1,
+        "doc_type": "Sales Invoice",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "is_debit_note",
+        "is_system_generated": 0,
+        "module": "l10n_ve",
+        "name": "Sales Invoice-is_debit_note-hidden",
+        "property": "hidden",
+        "property_type": "Check",
+        "row_name": null,
+        "value": 1
+    },
+    {
         "default_value": null,
         "doc_type": "Sales Invoice",
         "docstatus": 0,

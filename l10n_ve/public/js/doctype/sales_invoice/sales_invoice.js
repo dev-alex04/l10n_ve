@@ -233,6 +233,7 @@ frappe.ui.form.on("Sales Invoice", {
 
     setup_exchange_difference_button(frm);
     setup_hka_consulta_button(frm);
+    render_fiscal_invoice_preview(frm);
     setup_credit_note_button(frm);
 
     if (frappe.boot.tfhka_enabled) {
@@ -900,3 +901,4 @@ function setup_credit_note_button(frm) {
     __("Create"),
   );
 }
+

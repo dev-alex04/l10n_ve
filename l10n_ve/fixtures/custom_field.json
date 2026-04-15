@@ -7682,5 +7682,17 @@
     "label": "Código",
     "module": "L10N Ve",
     "name": "Subscription Plan-code"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "sales_invoice_preview",
+    "fieldtype": "HTML",
+    "insert_after": "is_pos",
+    "label": "Vista Previa",
+    "module": "L10N Ve",
+    "no_copy": 1,
+    "read_only": 1,
+    "name": "Sales Invoice-sales_invoice_preview"
   }
 ]
