@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.5] - 2026-04-15
+
+### ✨ Funcionalidades (Features)
+- Implementación de una vista previa fiscal reutilizable diseñada para integrarse en Facturas de Venta (SI) y Notas de Crédito (NC). 082a97a
+- Incorporación de vista previa inline para facturas fiscales HKA dentro del módulo de Sales Invoice, optimizando el flujo de revisión. 996cd39
+
+---
+
 ## [v1.0.4] - 2026-04-15
 
 ### 🐛 Correcciones (Fixes)
