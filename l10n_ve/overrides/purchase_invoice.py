@@ -510,7 +510,7 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
         """
 
         for tax in self.get("taxes"):
-            if getattr(tax, "is_tax_withholding_account", 0) == 0 or not tax.tax_amount:
+            if tax.charge_type != 'VAT Withholding':
                 continue
 
             base_tds_amount = abs(tax.base_tax_amount_after_discount_amount)
