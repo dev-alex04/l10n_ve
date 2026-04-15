@@ -510,7 +510,7 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
         """
 
         for tax in self.get("taxes"):
-            if tax.charge_type != 'VAT Withholding':
+            if getattr(tax, "is_tax_withholding_account", 0) == 0 or not tax.tax_amount:
                 continue
 
             base_tds_amount = abs(tax.base_tax_amount_after_discount_amount)
@@ -519,6 +519,8 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
             against_voucher = self.name
             if self.is_return and self.return_against and not self.update_outstanding_for_self:
                 against_voucher = self.return_against
+
+            self.add_supplier_gl_entry(gl_entries, base_tds_amount, tds_amount)
 
             # Did not use base_grand_total to book rounding loss gle
             gl = {
