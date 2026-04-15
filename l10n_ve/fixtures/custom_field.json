@@ -545,7 +545,7 @@
     "modified": "2025-09-02 00:00:00.000000",
     "module": "L10N Ve",
     "name": "Sales Invoice-custom_bill_control",
-    "no_copy": 0,
+    "no_copy": 1,
     "non_negative": 0,
     "options": null,
     "permlevel": 0,
@@ -602,7 +602,7 @@
     "modified": "2025-09-02 00:00:00.000000",
     "module": "L10N Ve",
     "name": "Sales Invoice-custom_bill_no",
-    "no_copy": 0,
+    "no_copy": 1,
     "non_negative": 0,
     "options": null,
     "permlevel": 0,
@@ -773,7 +773,7 @@
     "modified": "2025-09-02 00:00:00.000000",
     "module": "L10N Ve",
     "name": "Purchase Invoice-custom_número_de_control",
-    "no_copy": 0,
+    "no_copy": 1,
     "non_negative": 0,
     "options": null,
     "permlevel": 0,
@@ -7682,5 +7682,17 @@
     "label": "Código",
     "module": "L10N Ve",
     "name": "Subscription Plan-code"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "sales_invoice_preview",
+    "fieldtype": "HTML",
+    "insert_after": "is_pos",
+    "label": "Vista Previa",
+    "module": "L10N Ve",
+    "no_copy": 1,
+    "read_only": 1,
+    "name": "Sales Invoice-sales_invoice_preview"
   }
 ]

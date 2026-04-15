@@ -12,6 +12,11 @@
   "title",
   "naming_series",
   "branch",
+  "posting_date",
+  "posting_time",
+  "due_date",
+  "bill_no",
+  "bill_control",
   "column_break1",
   "customer",
   "customer_name",
@@ -20,11 +25,7 @@
   "reason",
   "avoid_reason",
   "column_break_ve_header",
-  "posting_date",
-  "posting_time",
-  "due_date",
-  "bill_no",
-  "bill_control",
+  "credit_note_preview",
   "accounting_dimensions_section",
   "cost_center",
   "dimension_col_break",
@@ -286,7 +287,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "N\u00famero de Nota de Cr\u00e9dito asignado por TFHKA (HKA)",
    "fieldname": "bill_no",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -2064,15 +2064,18 @@
    "fieldtype": "Small Text",
    "in_global_search": 1,
    "label": "Motivo de Anulacion",
-   "read_only": 1,
-   "read_only_depends_on": "eval: doc.bill_no"
+   "read_only": 1
+  },
+  {
+   "fieldname": "credit_note_preview",
+   "fieldtype": "HTML"
   }
  ],
  "grid_page_length": 50,
  "icon": "fa fa-file-text",
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-08 16:54:12.818413",
+ "modified": "2026-04-15 16:22:05.842396",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Sales Credit Note",
