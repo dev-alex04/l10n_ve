@@ -1,5 +1,6 @@
 import json
 
+import frappe
 import erpnext
 from frappe.utils import cint, flt
 
@@ -385,7 +386,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         en VEF (base_grand_total) puede ser ligeramente superior debido al
         cálculo de impuestos sobre la base convertida.
         """
-        if not self.doc.docstatus.is_cancelled():
+        if self.doc.docstatus != 2:
             total_allocated_amount = sum(
                 flt(adv.allocated_amount, adv.precision("allocated_amount"))
                 for adv in self.doc.get("advances")
@@ -416,7 +417,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                     invoice_total = (
                         flt(
                             grand_total * self.doc.conversion_rate,
-                            self.doc.precision("grand_total"),
+                            self.doc.precision("base_grand_total"),
                         )
                         - base_write_off_amount
                     )
