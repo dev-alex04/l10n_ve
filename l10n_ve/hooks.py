@@ -10,6 +10,7 @@ app_include_js = [
     "/assets/l10n_ve/js/item_logic/item_logic.js",
     "/assets/l10n_ve/js/utils/report_view_patch.js",
     "/assets/l10n_ve/js/widgets/number_card_widget.js",
+    "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
 ]
 
 # Apps
@@ -74,7 +75,6 @@ doctype_js = {
         "public/js/utils/utils.js",
         "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
-        "public/js/doctype/sales_invoice/fiscal_invoice_preview.js",
         "public/js/doctype/sales_invoice/sales_invoice.js",
         "public/js/doctype/sales_invoice/sales_invoice_pdf_generator.js",
     ],

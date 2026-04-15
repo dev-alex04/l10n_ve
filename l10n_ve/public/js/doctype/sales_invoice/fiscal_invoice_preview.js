@@ -1,6 +1,7 @@
 /**
  * Componente de vista previa de factura fiscal HKA.
- * Renderiza el PDF descargado desde TFHKA dentro del campo HTML 'sales_invoice_preview'.
+ * Renderiza el PDF descargado desde TFHKA dentro de un campo HTML.
+ * Reutilizable para Sales Invoice y VE Sales Credit Note.
  */
 
 /**
@@ -40,7 +41,7 @@ function get_fiscal_preview_header_html(
             <rect x="1" y="1" width="14" height="14" rx="2" stroke-width="1.5" fill="none"/>
             <path d="M4 5h8M4 8h6M4 11h4" stroke-width="1.2" stroke-linecap="round"/>
           </svg>
-          <span class="fiscal-preview__title">Factura Fiscal Digital</span>
+          <span class="fiscal-preview__title">Documento Fiscal Digital</span>
         </div>
         <div class="fiscal-preview__header-right">
           ${numero_documento ? `<span class="fiscal-preview__meta">Doc: <strong>${esc(numero_documento)}</strong></span>` : ""}
@@ -93,11 +94,20 @@ function get_fiscal_preview_fallback_html(message, url_consulta) {
 
 /**
  * Renderiza la vista previa de la factura fiscal HKA
- * dentro del campo HTML 'sales_invoice_preview'.
- * @param {object} frm
+ * dentro de un campo HTML del formulario.
+ *
+ * @param {object} frm - Instancia del formulario Frappe
+ * @param {object} [opts] - Opciones de configuración
+ * @param {string} [opts.field_name="sales_invoice_preview"] - Nombre del campo HTML destino
+ * @param {string} [opts.doctype="Sales Invoice"] - DocType para el endpoint backend
  */
-function render_fiscal_invoice_preview(frm) {
-  const wrapper = frm.fields_dict.sales_invoice_preview;
+function render_fiscal_invoice_preview(frm, opts) {
+  const config = Object.assign(
+    { field_name: "sales_invoice_preview", doctype: "Sales Invoice" },
+    opts || {},
+  );
+
+  const wrapper = frm.fields_dict[config.field_name];
   if (!wrapper) return;
 
   if (!frm.doc.remarks || !frm.doc.remarks.includes('"urlConsulta"')) {
@@ -121,7 +131,7 @@ function render_fiscal_invoice_preview(frm) {
 
   frappe.call({
     method: "l10n_ve.digital_invoice.tfhka_client.get_fiscal_invoice_pdf",
-    args: { invoice_name: frm.doc.name },
+    args: { invoice_name: frm.doc.name, doctype: config.doctype },
     callback: function (r) {
       const body = wrapper.$wrapper.find(".fiscal-preview__body");
       if (!r.message || !r.message.base64) {

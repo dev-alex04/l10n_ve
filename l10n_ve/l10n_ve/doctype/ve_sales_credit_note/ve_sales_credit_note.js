@@ -176,6 +176,12 @@ frappe.ui.form.on("VE Sales Credit Note", {
       );
     }
 
+    // Vista previa del PDF fiscal
+    render_fiscal_invoice_preview(frm, {
+      field_name: "credit_note_preview",
+      doctype: "VE Sales Credit Note",
+    });
+
     // Botones: consultar NC en portal HKA
     _add_hka_consulta_button(frm, 1, __("Ver Factura Fiscal"));
     _add_hka_consulta_button(frm, 2, __("Ver Documento Anulado en HKA"));
