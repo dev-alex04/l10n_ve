@@ -180,8 +180,14 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
       const tax = this.frm.doc.taxes[i];
 
       if (tax.charge_type === "VAT" && !tax.is_tax_withholding_account) {
+        let vat_base = 0;
+        (this.frm.doc.items || []).forEach((item) => {
+          if (!item.vat_exempt) {
+            vat_base += flt(item.base_net_amount);
+          }
+        });
         tax.base_tax_amount = flt(
-          (base_taxable_vef * flt(tax.rate)) / 100,
+          (vat_base * flt(tax.rate)) / 100,
           precision("base_tax_amount", tax)
         );
       } else if (tax.charge_type === "On Net Total") {
@@ -190,21 +196,22 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
           precision("base_tax_amount", tax)
         );
       } else if (tax.charge_type === "VAT Withholding") {
-        for (let prev_tax of this.frm.doc.taxes) {
-          if (prev_tax.charge_type === "VAT") {
-            tax.base_tax_amount = flt(
-              (prev_tax.base_tax_amount * flt(tax.rate)) / 100,
-              precision("base_tax_amount", tax)
-            );
-            break;
+        let total_vat_base = 0;
+        for (let t of this.frm.doc.taxes) {
+          if (t.charge_type === "VAT") {
+            total_vat_base += flt(t.base_tax_amount);
           }
         }
+        tax.base_tax_amount = flt(
+          (total_vat_base * flt(tax.rate)) / 100,
+          precision("base_tax_amount", tax)
+        );
       } else if (tax.charge_type === "ISLR") {
         const base_islr_base =
           (flt(this.frm.doc.base_total) * flt(tax.percentage_base)) / 100;
         const base_islr =
           (base_islr_base * flt(tax.rate)) / 100 -
-          flt(tax.subtracting) * conversion_rate;
+          flt(tax.subtracting);
         tax.base_tax_amount = flt(
           Math.max(base_islr, 0),
           precision("base_tax_amount", tax)
@@ -269,7 +276,7 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
           __VE_DOCTYPES_JS__.includes(this.frm.doc.doctype)
         ) {
           tax.base_total = flt(
-            base_tax_base + base_tax_for_total * -1,
+            base_tax_base + base_tax_for_total,
             precision("base_total", tax)
           );
         } else {

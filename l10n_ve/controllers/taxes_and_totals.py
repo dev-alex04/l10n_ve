@@ -152,8 +152,13 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         for i, tax in enumerate(self.doc.get("taxes")):
 
             if tax.charge_type == "VAT" and not tax.get("is_tax_withholding_account"):
+                vat_base: float = sum(
+                    flt(item.base_net_amount)
+                    for item in self.doc.items
+                    if not item.get("vat_exempt")
+                )
                 tax.base_tax_amount = flt(
-                    base_taxable_vef * flt(tax.rate) / 100,
+                    vat_base * flt(tax.rate) / 100,
                     tax.precision("base_tax_amount")
                 )
 
@@ -164,19 +169,21 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 )
 
             elif tax.charge_type == "VAT Withholding":
-                for prev_tax in self.doc.get("taxes"):
-                    if prev_tax.charge_type == "VAT":
-                        tax.base_tax_amount = flt(
-                            prev_tax.base_tax_amount * flt(tax.rate) / 100,
-                            tax.precision("base_tax_amount")
-                        )
-                        break
+                total_vat_base: float = sum(
+                    flt(t.base_tax_amount)
+                    for t in self.doc.get("taxes")
+                    if t.charge_type == "VAT"
+                )
+                tax.base_tax_amount = flt(
+                    total_vat_base * flt(tax.rate) / 100,
+                    tax.precision("base_tax_amount")
+                )
 
             elif tax.charge_type == "ISLR":
                 base_islr_base: float = flt(self.doc.base_total) * flt(tax.percentage_base) / 100
                 base_islr: float = (
                     (base_islr_base * flt(tax.rate) / 100)
-                    - flt(tax.subtracting) * conversion_rate
+                    - flt(tax.subtracting)
                 )
                 tax.base_tax_amount = flt(
                     max(base_islr, 0),
@@ -228,7 +235,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 if tax.charge_type in ("VAT Withholding", "ISLR") \
                         and self.doc.doctype in __VE_DOCTYPES__:
                     tax.base_total = flt(
-                        base_tax_base + (base_tax_for_total * -1),
+                        base_tax_base + base_tax_for_total,
                         tax.precision("base_total")
                     )
                 else:
