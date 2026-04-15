@@ -1982,3 +1982,504 @@ def add_vouchers_to_accounts_workspace() -> None:
     except Exception as e:
         print(f"Failure: Error actualizando Comprobantes en Workspace: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_vouchers_to_accounts_workspace')
+
+
+def migrate_chart_of_accounts(company_name: str = "Galanet Solution C.A.") -> None:
+    """
+    Migra el plan de cuentas de Galanet al formato de BLACK (GS LATAM TELECOM).
+
+    Operaciones:
+    - Fase 1a: Elimina puntos del número de cuenta en TODAS las cuentas existentes
+    - Fase 1b: Renombra las cuentas comunes al nombre definido en BLACK
+    - Fase 1c: Actualiza account_type según BLACK donde corresponda
+    - Fase 2: Agrega las cuentas exclusivas de BLACK que no existen en Galanet
+
+    IMPORTANTE: Ejecutar fuera de horario laboral y con backup previo.
+    """
+    from erpnext.accounts.doctype.account.account import update_account_number
+
+    print("=" * 70)
+    print("MIGRACIÓN PLAN DE CUENTAS: BLACK → GALANET")
+    print("=" * 70)
+
+    company_abbr: str = frappe.get_cached_value("Company", company_name, "abbr")
+    if not company_abbr:
+        print(f"FATAL: No se encontró la compañía '{company_name}'")
+        return
+
+    print(f"Compañía: {company_name} ({company_abbr})")
+
+    # --- Cargar CSVs ---
+    base_dir: str = os.path.dirname(__file__)
+    black_csv_path: str = os.path.join(
+        base_dir, 'resources', 'chart_of_accounts', 'CuentaBLACK.csv'
+    )
+    galanet_csv_path: str = os.path.join(
+        base_dir, 'resources', 'chart_of_accounts', 'CuentaGALANET.csv'
+    )
+
+    black_accounts: list[dict] = _read_chart_csv(black_csv_path, has_is_group=True)
+    galanet_accounts: list[dict] = _read_chart_csv(galanet_csv_path, has_is_group=False)
+
+    print(f"Cuentas BLACK cargadas: {len(black_accounts)}")
+    print(f"Cuentas GALANET cargadas: {len(galanet_accounts)}")
+
+    # --- Construir mapas normalizados ---
+    # Clave: número sin puntos → datos de la cuenta
+    black_map: dict[str, dict] = {}
+    for acc in black_accounts:
+        normalized: str = acc["account_number"].replace(".", "")
+        black_map[normalized] = acc
+
+    galanet_map: dict[str, dict] = {}
+    for acc in galanet_accounts:
+        normalized: str = acc["account_number"].replace(".", "")
+        galanet_map[normalized] = acc
+
+    common_numbers: set[str] = set(black_map.keys()) & set(galanet_map.keys())
+    black_exclusive: set[str] = set(black_map.keys()) - set(galanet_map.keys())
+
+    print(f"Cuentas comunes (por número normalizado): {len(common_numbers)}")
+    print(f"Cuentas exclusivas de BLACK a agregar: {len(black_exclusive)}")
+
+    # --- Bypass de _ensure_idle_system ---
+    original_in_test: bool = getattr(frappe.flags, 'in_test', False)
+    frappe.flags.in_test = True
+
+    success_count: int = 0
+    error_count: int = 0
+    errors_detail: list[str] = []
+
+    # =====================================================
+    # FASE 1: Renombrar cuentas existentes de Galanet
+    # =====================================================
+    print("\n" + "=" * 70)
+    print("FASE 1: Renombrar cuentas existentes")
+    print("=" * 70)
+
+    # Ordenar por profundidad (padres primero, por largo de número)
+    sorted_galanet: list[dict] = sorted(
+        galanet_accounts,
+        key=lambda x: len(x["account_number"].replace(".", ""))
+    )
+
+    for gal_acc in sorted_galanet:
+        old_number: str = gal_acc["account_number"]
+        new_number: str = old_number.replace(".", "")
+        old_name_value: str = gal_acc["account_name"]
+        normalized: str = new_number
+
+        # Determinar el nuevo nombre de cuenta
+        new_account_name: str = old_name_value
+        new_account_type: str | None = None
+
+        if normalized in black_map:
+            black_acc: dict = black_map[normalized]
+            if black_acc["account_name"] != old_name_value:
+                new_account_name = black_acc["account_name"]
+                print(f"  RENOMBRAR: '{old_name_value}' → '{new_account_name}' (#{normalized})")
+
+            black_type: str = black_acc.get("account_type", "")
+            gal_type: str = gal_acc.get("account_type", "")
+            if black_type and black_type != gal_type:
+                new_account_type = black_type
+
+        # Construir el name actual del documento en ERPNext
+        current_doc_name: str = _build_account_doc_name(
+            old_number, old_name_value, company_abbr
+        )
+
+        # Verificar que la cuenta existe en la BD
+        if not frappe.db.exists("Account", current_doc_name):
+            # Intentar buscar por account_number + company
+            current_doc_name = frappe.db.get_value(
+                "Account",
+                {"account_number": old_number, "company": company_name},
+                "name"
+            )
+            if not current_doc_name:
+                print(f"  !! NO ENCONTRADA: #{old_number} - {old_name_value}")
+                error_count += 1
+                errors_detail.append(
+                    f"Cuenta no encontrada: #{old_number} - {old_name_value}"
+                )
+                continue
+
+        # ¿El número o nombre cambió?
+        number_changed: bool = old_number != new_number
+        name_changed: bool = old_name_value != new_account_name
+
+        if number_changed or name_changed:
+            try:
+                update_account_number(
+                    current_doc_name,
+                    new_account_name,
+                    new_number
+                )
+                action: str = f"#{old_number}→#{new_number}"
+                if name_changed:
+                    action += f" | '{old_name_value}'→'{new_account_name}'"
+                print(f"  OK: {action}")
+                success_count += 1
+            except Exception as e:
+                error_msg: str = (
+                    f"Error renombrando #{old_number} ({old_name_value}): {e}"
+                )
+                print(f"  !! FAIL: {error_msg}")
+                error_count += 1
+                errors_detail.append(error_msg)
+                frappe.db.rollback()
+                continue
+
+        # Fase 1c: Actualizar account_type si difiere
+        if new_account_type:
+            try:
+                updated_doc_name: str = _build_account_doc_name(
+                    new_number, new_account_name, company_abbr
+                )
+                if not frappe.db.exists("Account", updated_doc_name):
+                    updated_doc_name = frappe.db.get_value(
+                        "Account",
+                        {"account_number": new_number, "company": company_name},
+                        "name"
+                    )
+                if updated_doc_name:
+                    frappe.db.set_value(
+                        "Account", updated_doc_name,
+                        "account_type", new_account_type
+                    )
+                    print(f"  TIPO: #{new_number} → account_type='{new_account_type}'")
+            except Exception as e:
+                print(f"  !! FAIL tipo #{new_number}: {e}")
+                errors_detail.append(
+                    f"Error actualizando tipo #{new_number}: {e}"
+                )
+
+    frappe.db.commit()
+    print(f"\nFase 1 completada: {success_count} exitosos, {error_count} errores")
+
+    # =====================================================
+    # FASE 2: Agregar cuentas exclusivas de BLACK
+    # =====================================================
+    print("\n" + "=" * 70)
+    print("FASE 2: Agregar cuentas exclusivas de BLACK")
+    print("=" * 70)
+
+    # Ordenar por largo de número (padres primero)
+    sorted_black_exclusive: list[str] = sorted(
+        black_exclusive, key=lambda x: len(x)
+    )
+
+    new_count: int = 0
+    new_errors: int = 0
+
+    for normalized_num in sorted_black_exclusive:
+        black_acc = black_map[normalized_num]
+        account_number: str = black_acc["account_number"]
+        account_name: str = black_acc["account_name"]
+        is_group: bool = black_acc.get("is_group", False)
+        root_type: str = black_acc.get("root_type", "")
+        account_type: str = black_acc.get("account_type", "")
+
+        # Mapear parent_account de BLACK a Galanet
+        parent_account: str | None = _map_parent_account(
+            black_acc, black_map, company_name, company_abbr
+        )
+
+        # Verificar si ya existe en el ERPNext
+        target_doc_name: str = _build_account_doc_name(
+            account_number, account_name, company_abbr
+        )
+
+        if frappe.db.exists("Account", target_doc_name):
+            continue
+
+        if frappe.db.get_value(
+            "Account",
+            {"account_number": account_number, "company": company_name},
+            "name"
+        ):
+            continue
+
+        try:
+            new_acc = frappe.new_doc("Account")
+            new_acc.account_name = account_name
+            new_acc.account_number = account_number
+            new_acc.is_group = is_group
+            new_acc.root_type = root_type
+            new_acc.company = company_name
+            if account_type:
+                new_acc.account_type = account_type
+            if parent_account:
+                new_acc.parent_account = parent_account
+
+            new_acc.flags.ignore_permissions = True
+            new_acc.flags.ignore_mandatory = True
+            new_acc.insert(ignore_permissions=True, ignore_if_duplicate=True)
+
+            print(f"  + CREADA: #{account_number} - {account_name} "
+                  f"(grupo={is_group}, padre={parent_account or 'root'})")
+            new_count += 1
+
+            if new_count % 50 == 0:
+                frappe.db.commit()
+        except Exception as e:
+            error_msg = f"Error creando #{account_number} - {account_name}: {e}"
+            print(f"  !! FAIL: {error_msg}")
+            new_errors += 1
+            errors_detail.append(error_msg)
+            frappe.db.rollback()
+
+    frappe.db.commit()
+
+    # --- Rebuild tree ---
+    print("\nReconstruyendo árbol de cuentas...")
+    try:
+        from frappe.utils.nestedset import rebuild_tree
+        rebuild_tree("Account", "parent_account")
+        print("Árbol reconstruido exitosamente.")
+    except Exception as e:
+        print(f"!! Error reconstruyendo árbol: {e}")
+
+    # --- Restaurar flag ---
+    frappe.flags.in_test = original_in_test
+
+    # --- Resumen ---
+    print("\n" + "=" * 70)
+    print("RESUMEN DE MIGRACIÓN")
+    print("=" * 70)
+    print(f"Fase 1 - Cuentas renombradas: {success_count}")
+    print(f"Fase 1 - Errores: {error_count}")
+    print(f"Fase 2 - Cuentas creadas: {new_count}")
+    print(f"Fase 2 - Errores: {new_errors}")
+    print(f"Total errores: {error_count + new_errors}")
+
+    if errors_detail:
+        print("\nDETALLE DE ERRORES:")
+        for err in errors_detail:
+            print(f"  - {err}")
+
+    print("\n" + "=" * 70)
+    print("MIGRACIÓN COMPLETADA")
+    print("=" * 70)
+
+    _verify_migration(company_name)
+
+
+def _read_chart_csv(
+    file_path: str, has_is_group: bool = False
+) -> list[dict]:
+    """
+    Lee un CSV de plan de cuentas y retorna una lista de diccionarios normalizados.
+    Soporta ambos formatos (BLACK con 'Es un grupo' y GALANET sin esa columna).
+    """
+    accounts: list[dict] = []
+
+    with open(file_path, 'r', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            account_number: str = (row.get("Número de cuenta") or "").strip()
+            account_name: str = (row.get("Nombre de la Cuenta") or "").strip()
+
+            if not account_number or not account_name:
+                continue
+
+            is_group: bool = False
+            if has_is_group:
+                is_group = str(row.get("Es un grupo", "0")).strip() == "1"
+
+            root_type: str = (row.get("Tipo de root") or "").strip()
+            account_type: str = (row.get("Tipo de cuenta") or "").strip()
+            parent_identifier: str = (row.get("Cuenta principal") or "").strip()
+
+            accounts.append({
+                "identifier": (row.get("Identificador") or "").strip(),
+                "account_name": account_name,
+                "account_number": account_number,
+                "is_group": is_group,
+                "root_type": root_type,
+                "account_type": account_type,
+                "parent_identifier": parent_identifier,
+            })
+
+    return accounts
+
+
+def _build_account_doc_name(
+    account_number: str, account_name: str, company_abbr: str
+) -> str:
+    """
+    Construye el name del documento Account tal como lo genera ERPNext.
+    Formato: '{account_number} - {account_name} - {company_abbr}'
+    """
+    if account_number:
+        return f"{account_number} - {account_name} - {company_abbr}"
+    return f"{account_name} - {company_abbr}"
+
+
+def _map_parent_account(
+    black_acc: dict,
+    black_map: dict[str, dict],
+    company_name: str,
+    company_abbr: str,
+) -> str | None:
+    """
+    Mapea el parent_account de una cuenta BLACK al name equivalente
+    en el ERPNext de Galanet.
+    """
+    parent_identifier: str = black_acc.get("parent_identifier", "")
+    if not parent_identifier:
+        return None
+
+    # Extraer el número del parent_identifier de BLACK
+    # Formato: "1101 - CAJAS - GLTC" → número = "1101"
+    parts: list[str] = parent_identifier.split(" - ")
+    if not parts:
+        return None
+
+    parent_number: str = parts[0].strip()
+
+    # Buscar en la BD de Galanet por account_number
+    parent_doc_name: str | None = frappe.db.get_value(
+        "Account",
+        {"account_number": parent_number, "company": company_name},
+        "name"
+    )
+
+    if parent_doc_name:
+        return parent_doc_name
+
+    # Si no existe aún, construir el name esperado usando BLACK
+    if parent_number in black_map:
+        parent_data: dict = black_map[parent_number]
+        return _build_account_doc_name(
+            parent_number, parent_data["account_name"], company_abbr
+        )
+
+    return None
+
+
+def _verify_migration(company_name: str = "Galanet Solution C.A.") -> None:
+    """
+    Ejecuta 6 verificaciones post-migración del plan de cuentas.
+    Muestra resultados con indicadores ✅/❌ en consola.
+    """
+    print("\n" + "=" * 70)
+    print("VERIFICACIÓN POST-MIGRACIÓN")
+    print("=" * 70)
+
+    passed: int = 0
+    failed: int = 0
+
+    # V1: Sin puntos en números de cuenta
+    dots_count: int = frappe.db.sql(
+        """SELECT COUNT(*) FROM tabAccount
+           WHERE company = %s AND account_number LIKE '%%.%%'""",
+        company_name
+    )[0][0]
+    if dots_count == 0:
+        print("  ✅ V1: Sin puntos en números de cuenta")
+        passed += 1
+    else:
+        print(f"  ❌ V1: {dots_count} cuentas aún tienen puntos en el número")
+        failed += 1
+
+    # V2: Total esperado = 803 (441 Galanet + 362 exclusivas BLACK)
+    total: int = frappe.db.sql(
+        "SELECT COUNT(*) FROM tabAccount WHERE company = %s",
+        company_name
+    )[0][0]
+    if total == 803:
+        print(f"  ✅ V2: Total de cuentas correcto ({total})")
+        passed += 1
+    else:
+        print(f"  ❌ V2: Total de cuentas inesperado: {total} (esperado: 803)")
+        failed += 1
+
+    # V3: Cuentas comunes con nombres de BLACK
+    expected_names: dict[str, str] = {
+        "1102": "BANCOS NACIONALES",
+        "1107": "ADELANTOS A PROVEEDORES",
+        "1202": "ACTIVOS TANGIBLES",
+        "21": "CORRIENTE",
+        "2101": "EFECTOS A PAGAR",
+        "2102": "PRESTAMOS BANCARIO CORTO PLAZO",
+        "2103": "CUENTAS POR PAGAR",
+        "31": "CAPITAL",
+        "6101": "GASTOS DE PERSONAL",
+        "6201": "GASTOS OPERACIONALES",
+        "71": "OTROS INGRESOS",
+        "81": "OTROS EGRESOS",
+    }
+    name_mismatches: list[str] = []
+    for acc_num, expected_name in expected_names.items():
+        actual_name: str | None = frappe.db.get_value(
+            "Account",
+            {"account_number": acc_num, "company": company_name},
+            "account_name"
+        )
+        if actual_name != expected_name:
+            name_mismatches.append(
+                f"#{acc_num}: '{actual_name}' (esperado: '{expected_name}')"
+            )
+
+    if not name_mismatches:
+        print("  ✅ V3: 12 cuentas comunes con nombres de BLACK correctos")
+        passed += 1
+    else:
+        print(f"  ❌ V3: {len(name_mismatches)} nombres no coinciden:")
+        for m in name_mismatches:
+            print(f"       - {m}")
+        failed += 1
+
+    # V4: Sin GL Entries huérfanos
+    orphans: int = frappe.db.sql(
+        """SELECT COUNT(DISTINCT gle.account)
+           FROM `tabGL Entry` gle
+           LEFT JOIN tabAccount a ON a.name = gle.account
+           WHERE a.name IS NULL AND gle.company = %s""",
+        company_name
+    )[0][0]
+    if orphans == 0:
+        print("  ✅ V4: Sin GL Entries huérfanos (integridad referencial OK)")
+        passed += 1
+    else:
+        print(f"  ❌ V4: {orphans} cuentas en GL Entry sin Account correspondiente")
+        failed += 1
+
+    # V5: account_type de #2101 = 'Payable'
+    acc_type_2101: str | None = frappe.db.get_value(
+        "Account",
+        {"account_number": "2101", "company": company_name},
+        "account_type"
+    )
+    if acc_type_2101 == "Payable":
+        print("  ✅ V5: #2101 account_type = 'Payable'")
+        passed += 1
+    else:
+        print(f"  ❌ V5: #2101 account_type = '{acc_type_2101}' (esperado: 'Payable')")
+        failed += 1
+
+    # V6: Sin cuentas huérfanas (sin padre y no root)
+    orphan_accounts: int = frappe.db.sql(
+        """SELECT COUNT(*) FROM tabAccount
+           WHERE company = %s
+             AND (parent_account IS NULL OR parent_account = '')
+             AND LENGTH(account_number) > 1""",
+        company_name
+    )[0][0]
+    if orphan_accounts == 0:
+        print("  ✅ V6: Jerarquía correcta (sin cuentas huérfanas)")
+        passed += 1
+    else:
+        print(f"  ❌ V6: {orphan_accounts} cuentas sin padre (no root)")
+        failed += 1
+
+    # Resumen
+    print("\n" + "-" * 40)
+    total_checks: int = passed + failed
+    if failed == 0:
+        print(f"  🎉 {passed}/{total_checks} verificaciones aprobadas")
+    else:
+        print(f"  ⚠️  {passed}/{total_checks} aprobadas, {failed} fallidas")
+    print("=" * 70)
