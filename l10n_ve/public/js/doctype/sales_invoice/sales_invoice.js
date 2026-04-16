@@ -43,6 +43,9 @@ frappe.ui.form.on("Sales Invoice", {
 
   refresh: function (frm) {
     setup_void_button(frm);
+    setup_hka_void_button(frm);
+    setup_hka_void_banners(frm);
+    setup_hka_voided_consulta_button(frm);
 
     toggle_vat_withholding_fields(frm);
     toggle_islr_withholding_fields(frm);
@@ -389,6 +392,9 @@ function set_sales_invoice_fields(frm) {
 }
 
 function print_button_pdf(frm) {
+  // Cuando HKA está activo, el PDF se genera desde la imprenta digital
+  if (frappe.boot.tfhka_enabled) return;
+
   if (!frm.custom_buttons["Generar PDF de Factura"]) {
     frm.add_custom_button(__("Generar PDF de Factura"), () => {
       generate_custom_invoice_preview(frm);
@@ -516,7 +522,7 @@ function setup_digital_invoice_button(frm) {
         },
       });
     },
-    __("Acciones"),
+    __("Factura Digital"),
   );
 }
 
@@ -772,7 +778,7 @@ function setup_hka_consulta_button(frm) {
       function () {
         window.open(url, "_blank", "noopener,noreferrer");
       },
-      __("Acciones"),
+      __("Factura Digital"),
     );
   } catch (e) {
     // remarks no es JSON válido, ignorar silenciosamente
@@ -902,3 +908,138 @@ function setup_credit_note_button(frm) {
   );
 }
 
+/**
+ * Botón "Anular en HKA" para facturas emitidas ante la imprenta digital.
+ * Solo visible cuando docstatus === 1 y la factura tiene bill_no.
+ * Abre un diálogo para capturar motivo, fecha y hora de anulación,
+ * luego llama al endpoint backend que anula en HKA y cancela en Frappe.
+ * @param {object} frm
+ */
+function setup_hka_void_button(frm) {
+  if (frm.doc.docstatus !== 1 || !frm.doc.bill_no) return;
+
+  frm.add_custom_button(
+    __("Anular Factura de Venta"),
+    function () {
+      const today = frappe.datetime.get_today();
+      const now = frappe.datetime.now_time();
+
+      const dialog = new frappe.ui.Dialog({
+        title: __("Anular Factura en HKA"),
+        fields: [
+          {
+            label: __("Motivo de Anulación"),
+            fieldname: "reason",
+            fieldtype: "Small Text",
+            reqd: 1,
+            description: __(
+              "Indique el motivo de la anulación. Será enviado a la imprenta digital.",
+            ),
+          },
+          {
+            label: __("Fecha de Anulación"),
+            fieldname: "void_date",
+            fieldtype: "Date",
+            default: today,
+            reqd: 1,
+            read_only: 1,
+          },
+          {
+            label: __("Hora de Anulación"),
+            fieldname: "void_time",
+            fieldtype: "Time",
+            default: now,
+            reqd: 1,
+            read_only: 1,
+          },
+        ],
+        primary_action_label: __("Confirmar Anulación"),
+        primary_action(values) {
+          dialog.hide();
+
+          // Convertir YYYY-MM-DD → DD/MM/YYYY (formato requerido por TFHKA)
+          const date_parts = values.void_date.split("-");
+          const formatted_date = `${date_parts[2]}/${date_parts[1]}/${date_parts[0]}`;
+
+          frappe.call({
+            method: "l10n_ve.overrides.sales_invoice.void_sales_invoice",
+            args: {
+              docname: frm.doc.name,
+              reason: values.reason,
+              void_date: formatted_date,
+              void_time: values.void_time,
+            },
+            freeze: true,
+            freeze_message: __("Anulando en HKA y sistema..."),
+            callback(r) {
+              if (!r.exc) {
+                frappe.show_alert({
+                  message: __(
+                    "Factura anulada correctamente en HKA y en el sistema.",
+                  ),
+                  indicator: "green",
+                });
+                frm.reload_doc();
+              }
+            },
+          });
+        },
+      });
+
+      dialog.show();
+    },
+    __("Factura Digital"),
+  );
+}
+
+/**
+ * Muestra banners informativos cuando una factura fue anulada ante HKA.
+ * - Banner rojo con el motivo de anulación.
+ * - Oculta el botón "Amend" para evitar enmendar documentos anulados fiscalmente.
+ * @param {object} frm
+ */
+function setup_hka_void_banners(frm) {
+  if (frm.doc.docstatus !== 2 || !frm.doc.bill_no || !frm.doc.avoid_reason) {
+    return;
+  }
+
+  frm.set_intro(
+    __(
+      "🚫 Esta factura fue <b>anulada ante HKA</b> (N° {0}). " +
+        "No puede ser corregida ni enmendada. " +
+        "Cree una nueva factura si es necesario.",
+      [frm.doc.bill_no],
+    ),
+    "red",
+  );
+
+  frm.page.btn_primary.hide();
+}
+
+/**
+ * Botón "Ver Documento Anulado en HKA" para facturas canceladas
+ * que fueron anuladas en la imprenta digital.
+ * Abre la URL de consulta del documento en el portal TFHKA.
+ * @param {object} frm
+ */
+function setup_hka_voided_consulta_button(frm) {
+  if (frm.doc.docstatus !== 2 || !frm.doc.bill_no || !frm.doc.remarks) {
+    return;
+  }
+
+  try {
+    const hka_data = JSON.parse(frm.doc.remarks);
+    const url = hka_data.resultado && hka_data.resultado.urlConsulta;
+    if (!url) return;
+
+    frm.add_custom_button(
+      __("Ver Documento Anulado en HKA"),
+      function () {
+        window.open(url, "_blank", "noopener,noreferrer");
+      },
+      __("Factura Digital"),
+    );
+  } catch (_) {
+    // remarks no es JSON válido, ignorar silenciosamente
+  }
+}

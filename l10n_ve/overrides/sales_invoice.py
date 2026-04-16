@@ -43,8 +43,16 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         """
         Bloquea la cancelación si la factura ya tiene número de documento
         y/o número de control asignados por la imprenta digital (TFHKA).
+
+        La excepción es cuando `_hka_void_confirmed = True` está establecido
+        en la instancia: indica que `void_sales_invoice()` ya confirmó la
+        anulación con HKA y está ejecutando el cancel() de forma controlada.
+
         Solo se activa cuando la facturación digital está habilitada.
         """
+        if getattr(self, "_hka_void_confirmed", False):
+            return
+
         try:
             tfhka_enabled = frappe.get_cached_value(
                 "TFHKA Settings", "TFHKA Settings", "enabled"
@@ -61,7 +69,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
                     "La factura <b>{0}</b> ya tiene número de documento fiscal "
                     "<b>{1}</b> y número de control <b>{2}</b> asignados por la "
                     "imprenta digital (TFHKA). No puede ser cancelada directamente. "
-                    "Debe emitir una Nota de Crédito."
+                    "Use el botón <b>'Anular en HKA'</b> o emita una Nota de Crédito."
                 ).format(
                     self.name,
                     self.bill_no or "—",
@@ -565,8 +573,23 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         ):
             self.status = "Credit Note Issued"
 
+        if cint(self.is_void):
+            self.status = "Void"
+
         if update:
             self.db_set("status", self.status, update_modified=update_modified)
+
+    def on_cancel(self) -> None:
+        """
+        ERPNext hardcodea db_set('status', 'Cancelled') en on_cancel (línea 570),
+        saltándose set_status(). Corregimos el status a 'Void' después de que
+        el super() termina toda su lógica de cancelación.
+        """
+        super().on_cancel()
+
+        if cint(self.is_void):
+            self.db_set("status", "Void")
+            self.status = "Void"
 
     def set_indicator(self) -> None:
         """
@@ -911,6 +934,103 @@ def void_document(doctype, name):
 
     frappe.clear_document_cache(doctype, name)
     doc.reload()
+
+
+@frappe.whitelist()
+def void_sales_invoice(
+    docname: str,
+    reason: str,
+    void_date: str,
+    void_time: str,
+) -> dict:
+    """
+    Anula una Factura de Venta en TFHKA (HKA) y luego cancela el documento
+    en Frappe, garantizando atomicidad entre ambos sistemas.
+
+    La lógica de comunicación con HKA está centralizada en
+    ``TFHKAClient.void_fiscal_document()``.
+
+    Args:
+        docname:   Nombre de la Sales Invoice.
+        reason:    Motivo de anulación (texto libre).
+        void_date: Fecha en formato DD/MM/YYYY (convertida por el cliente JS).
+        void_time: Hora en HH:MM:SS (24h); se convierte a 12h internamente.
+    """
+    from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
+
+    invoice: "VESalesInvoice" = frappe.get_doc("Sales Invoice", docname)
+    frappe.has_permission("Sales Invoice", ptype="cancel", doc=invoice, throw=True)
+
+    if invoice.docstatus != 1:
+        frappe.throw(_("Solo se pueden anular facturas aprobadas."))
+
+    # Pre-validar que la factura puede ser cancelada en Frappe ANTES de
+    # contactar a HKA.  Si existen documentos vinculados (Payment Entry,
+    # POS Closing, etc.), el cancel() fallaría después de ya haber anulado
+    # en HKA, dejando un estado inconsistente.
+    #
+    # ignore_linked_doctypes replica la misma lista que ERPNext establece
+    # en SalesInvoice.on_cancel() — estos doctypes se eliminan/revierten
+    # durante el cancel() real, por lo que NO deben bloquear la
+    # pre-validación (p. ej. GL Entry, Stock Ledger Entry).
+    from frappe.model.delete_doc import (
+        check_if_doc_is_dynamically_linked,
+        check_if_doc_is_linked,
+    )
+    from erpnext.accounts.doctype.sales_invoice.sales_invoice import (
+        check_if_return_invoice_linked_with_payment_entry,
+    )
+
+    invoice.ignore_linked_doctypes = (
+        "GL Entry",
+        "Stock Ledger Entry",
+        "Repost Item Valuation",
+        "Repost Payment Ledger",
+        "Repost Payment Ledger Items",
+        "Repost Accounting Ledger",
+        "Repost Accounting Ledger Items",
+        "Unreconcile Payment",
+        "Unreconcile Payment Entries",
+        "Payment Ledger Entry",
+        "Serial and Batch Bundle",
+    )
+
+    invoice.check_if_consolidated_invoice()
+    check_if_doc_is_linked(invoice, method="Cancel")
+    check_if_doc_is_dynamically_linked(invoice, method="Cancel")
+    check_if_return_invoice_linked_with_payment_entry(invoice)
+
+    # Catálogo 1 SENIAT: 01=Factura, 02=NotaCredito, 03=NotaDebito
+    if invoice.is_return:
+        tipo_documento: str = "02"
+    elif invoice.is_debit_note:
+        tipo_documento = "03"
+    else:
+        tipo_documento = "01"
+
+    client = TFHKAClient()
+    client.void_fiscal_document(
+        doc=invoice,
+        reason=reason,
+        void_date=void_date,
+        void_time=void_time,
+        tipo_documento=tipo_documento,
+    )
+
+    # HKA confirmó la anulación → persistir motivo, marcar como anulado y cancelar
+    # Usamos db_set con update_modified=False para no alterar el timestamp
+    # y evitar TimestampMismatchError al hacer cancel() → save()
+    invoice.db_set("avoid_reason", reason, update_modified=False)
+    invoice.db_set("is_void", True, update_modified=False)
+    invoice.is_void = True
+    invoice._hka_void_confirmed = True
+    invoice.cancel()
+    invoice.add_comment("Comment", _("Factura anulada ante HKA. Motivo: {0}").format(reason))
+
+    return {
+        "status": "success",
+        "message": _("Factura anulada correctamente en HKA y en el sistema."),
+    }
 
 
 @frappe.whitelist()

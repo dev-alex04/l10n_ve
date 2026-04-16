@@ -189,6 +189,96 @@ class TFHKAClient:
             self._log_error("Anular", payload, str(e))
             return {"error": True, "message": str(e)}
 
+    def void_fiscal_document(
+        self,
+        doc,
+        reason: str,
+        void_date: str,
+        void_time: str,
+        tipo_documento: str,
+    ) -> dict:
+        """
+        Lógica centralizada para anular un documento fiscal en TFHKA.
+
+        Extrae la serie desde `remarks`, convierte la hora al formato 12h,
+        construye el payload, llama a /api/Anular y valida la respuesta.
+
+        Args:
+            doc:             Documento Frappe (Sales Invoice o VE Sales Credit Note).
+            reason:          Motivo de anulación (texto libre).
+            void_date:       Fecha en formato DD/MM/YYYY.
+            void_time:       Hora en HH:MM:SS (24h); se convierte a 12h internamente.
+            tipo_documento:  Catálogo 1 SENIAT: "01" Factura, "02" NC, "03" ND.
+
+        Returns:
+            dict con status y message si fue exitoso.
+
+        Raises:
+            frappe.ValidationError si el documento no tiene bill_no, serie,
+            o si HKA rechaza la anulación.
+        """
+        from datetime import datetime
+
+        if not doc.bill_no:
+            frappe.throw(
+                _(
+                    "El documento no tiene número de documento HKA. "
+                    "Solo se pueden anular documentos enviados a la imprenta digital."
+                )
+            )
+
+        # Convertir hora 24h (HH:MM:SS) a 12h (hh:mm:ss am/pm) para TFHKA
+        try:
+            time_obj = datetime.strptime(void_time, "%H:%M:%S")
+            formatted_time: str = time_obj.strftime("%I:%M:%S %p").lower()
+        except ValueError:
+            formatted_time = void_time
+
+        # Extraer la serie desde la respuesta HKA original almacenada en remarks
+        serie: str = ""
+        if doc.remarks:
+            try:
+                hka_response: dict = json.loads(doc.remarks)
+                serie = (hka_response.get("resultado") or {}).get("serie") or ""
+            except Exception:
+                pass
+
+        if not serie:
+            frappe.throw(
+                _(
+                    "El documento no tiene serie HKA. "
+                    "Solo se pueden anular documentos enviados a la imprenta digital."
+                )
+            )
+
+        payload: dict = {
+            "serie": serie,
+            "tipoDocumento": tipo_documento,
+            "numeroDocumento": doc.bill_no,
+            "motivoAnulacion": reason,
+            "fechaAnulacion": void_date,
+            "horaAnulacion": formatted_time,
+        }
+
+        self.authenticate()
+        result: dict = self.void_document(payload)
+
+        if result.get("error") or not result.get("_http_ok"):
+            error_message: str = (
+                result.get("mensaje") or result.get("message") or "Error desconocido"
+            )
+            frappe.throw(
+                _(
+                    "HKA rechazó la anulación. Código: {0} | Respuesta: {1}"
+                ).format(result.get("codigo", "—"), error_message),
+                title=_("Error al Anular en HKA"),
+            )
+
+        return {
+            "status": "success",
+            "result": result,
+        }
+
     def download_file(
         self,
         numero_documento: str,
