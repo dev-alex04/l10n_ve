@@ -7655,7 +7655,7 @@
     "fieldtype": "Link",
     "insert_after": "tax_withholding_category",
     "label": "Concepto ISLR",
-    "module": "Domina ISP",
+    "module": "L10N Ve",
     "name": "Customer-tabulator_islr",
     "options": "Tabulator ISLR",
     "reqd": 0
