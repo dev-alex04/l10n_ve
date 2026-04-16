@@ -42,6 +42,11 @@ frappe.ui.form.on("Sales Invoice", {
   },
 
   refresh: function (frm) {
+    // Resetear visibilidad del botón primario en cada refresh para evitar que
+    // el hide() de setup_hka_void_banners persista al navegar a otra factura
+    // (problema de SPA: Frappe reutiliza el objeto page entre formularios).
+    frm.page.btn_primary.show();
+
     setup_void_button(frm);
     setup_hka_void_button(frm);
     setup_hka_void_banners(frm);
@@ -1063,6 +1068,5 @@ function setup_replacement_invoice_button(frm) {
         frm: frm,
       });
     },
-    __("Factura Digital"),
   );
 }
