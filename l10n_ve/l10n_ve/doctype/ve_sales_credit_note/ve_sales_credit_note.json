@@ -211,7 +211,8 @@
   "column_break_iiwy",
   "islr_receipt_number",
   "column_break_irqm",
-  "voucher_image_islr"
+  "voucher_image_islr",
+  "is_void"
  ],
  "fields": [
   {
@@ -1876,7 +1877,7 @@
    "label": "Status",
    "length": 30,
    "no_copy": 1,
-   "options": "\nDraft\nReturn\nCredit Note Issued\nSubmitted\nPaid\nPartly Paid\nUnpaid\nUnpaid and Discounted\nPartly Paid and Discounted\nOverdue and Discounted\nOverdue\nCancelled\nInternal Transfer",
+   "options": "\nDraft\nReturn\nCredit Note Issued\nSubmitted\nPaid\nPartly Paid\nUnpaid\nUnpaid and Discounted\nPartly Paid and Discounted\nOverdue and Discounted\nOverdue\nCancelled\nInternal Transfer\nVoid",
    "print_hide": 1,
    "read_only": 1
   },
@@ -2067,6 +2068,15 @@
    "read_only": 1
   },
   {
+   "default": "0",
+   "fieldname": "is_void",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Is Void",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "credit_note_preview",
    "fieldtype": "HTML"
   }
@@ -2075,7 +2085,7 @@
  "icon": "fa fa-file-text",
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-15 16:22:05.842396",
+ "modified": "2026-04-16 14:49:03.548483",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Sales Credit Note",

@@ -49,7 +49,7 @@ frappe.listview_settings["Sales Invoice"] = {
     }
 
     if (doc.is_void) {
-      status = "Anulado";
+      status = __("Void");
       indicator = "red";
     }
 

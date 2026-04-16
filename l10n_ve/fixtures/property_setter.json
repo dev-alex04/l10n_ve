@@ -3258,5 +3258,21 @@
         "property_type": "Check",
         "row_name": null,
         "value": "1"
+    },
+    {
+        "default_value": null,
+        "doc_type": "Sales Invoice",
+        "docstatus": 0,
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "status",
+        "is_system_generated": 0,
+        "modified": "2026-04-16 10:00:00",
+        "module": "L10N Ve",
+        "name": "Sales Invoice-status-options",
+        "property": "options",
+        "property_type": "Text",
+        "row_name": null,
+        "value": "\nDraft\nReturn\nCredit Note Issued\nSubmitted\nPaid\nPartly Paid\nUnpaid\nUnpaid and Discounted\nPartly Paid and Discounted\nOverdue and Discounted\nOverdue\nCancelled\nInternal Transfer\nVoid"
     }
 ]

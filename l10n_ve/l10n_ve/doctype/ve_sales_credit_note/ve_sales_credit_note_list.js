@@ -11,8 +11,13 @@ frappe.listview_settings["VE Sales Credit Note"] = {
         "credit_note_no",
         "company",
         "currency",
+        "is_void",
     ],
     get_indicator: function (doc) {
+        // NC anulada ante HKA → rojo con etiqueta Anulado (tiene prioridad)
+        if (doc.is_void) {
+            return [__("Void"), "red", "is_void,=,1"];
+        }
         // NC ya emitida ante HKA → verde
         if (doc.credit_note_no) {
             return [__("Emitida"), "green", "credit_note_no,!=,"];

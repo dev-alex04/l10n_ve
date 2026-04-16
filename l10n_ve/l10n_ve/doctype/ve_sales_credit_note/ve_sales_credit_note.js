@@ -128,6 +128,7 @@ frappe.ui.form.on("VE Sales Credit Note", {
                 fieldtype: "Date",
                 default: today,
                 reqd: 1,
+                read_only: 1,
               },
               {
                 label: __("Hora de Anulación"),
@@ -135,6 +136,7 @@ frappe.ui.form.on("VE Sales Credit Note", {
                 fieldtype: "Time",
                 default: now,
                 reqd: 1,
+                read_only: 1,
               },
             ],
             primary_action_label: __("Confirmar Anulación"),
