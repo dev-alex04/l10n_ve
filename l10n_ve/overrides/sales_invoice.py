@@ -1185,17 +1185,26 @@ def make_replacement_invoice(source_name: str) -> "Document":
         target_doc.posting_date = hoy
         target_doc.due_date = hoy
 
+        # Cortocircuito: si ambas monedas son iguales, la tasa es 1.0
+        if target_doc.currency == source_doc.company_currency:
+            target_doc.conversion_rate = 1.0
+            target_doc.plc_conversion_rate = 1.0
+            return
+
         # Actualizar tasa de cambio al día de hoy si la moneda difiere de la base
-        if target_doc.currency and target_doc.currency != source_doc.company_currency:
-            tasa_hoy: float | None = frappe.db.get_value(
-                "Currency Exchange",
-                {"from_currency": target_doc.currency, "date": hoy},
-                "exchange_rate",
-                order_by="modified desc",
-            )
-            if tasa_hoy:
-                target_doc.conversion_rate = tasa_hoy
-                target_doc.plc_conversion_rate = tasa_hoy
+        tasa_hoy: float | None = frappe.db.get_value(
+            "Currency Exchange",
+            {
+                "from_currency": target_doc.currency,
+                "to_currency": source_doc.company_currency,
+                "date": hoy,
+            },
+            "exchange_rate",
+            order_by="modified desc",
+        )
+        if tasa_hoy:
+            target_doc.conversion_rate = tasa_hoy
+            target_doc.plc_conversion_rate = tasa_hoy
 
     return get_mapped_doc(
         "Sales Invoice",
