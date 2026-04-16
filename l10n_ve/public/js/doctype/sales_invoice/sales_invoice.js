@@ -46,6 +46,7 @@ frappe.ui.form.on("Sales Invoice", {
     setup_hka_void_button(frm);
     setup_hka_void_banners(frm);
     setup_hka_voided_consulta_button(frm);
+    setup_replacement_invoice_button(frm);
 
     toggle_vat_withholding_fields(frm);
     toggle_islr_withholding_fields(frm);
@@ -1042,4 +1043,26 @@ function setup_hka_voided_consulta_button(frm) {
   } catch (_) {
     // remarks no es JSON válido, ignorar silenciosamente
   }
+}
+
+/**
+ * Botón "Generar Factura de Reemplazo" para facturas anuladas ante HKA.
+ * Solo visible cuando docstatus === 2 e is_void === 1.
+ * Usa get_mapped_doc para crear un borrador con los mismos datos
+ * de la factura original pero con fecha, tasa y campos fiscales limpios.
+ * @param {object} frm
+ */
+function setup_replacement_invoice_button(frm) {
+  if (frm.doc.docstatus !== 2 || !frm.doc.is_void) return;
+
+  frm.add_custom_button(
+    __("Generar Factura de Reemplazo"),
+    function () {
+      frappe.model.open_mapped_doc({
+        method: "l10n_ve.overrides.sales_invoice.make_replacement_invoice",
+        frm: frm,
+      });
+    },
+    __("Factura Digital"),
+  );
 }

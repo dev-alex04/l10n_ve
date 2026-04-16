@@ -111,11 +111,18 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         """
         SalesInvoice.on_cancel() accede a múltiples atributos que no forman
         parte del schema de la NC. Se inicializan antes de delegar al super.
+
+        ERPNext hardcodea db_set('status', 'Cancelled') en su on_cancel().
+        Si la NC está marcada como is_void, corregimos el status a 'Void' después.
         """
         self.is_return = 1
         self.update_outstanding_for_self = 0
         self._init_si_defaults()
         super().on_cancel()
+
+        if cint(self.is_void):
+            self.db_set("status", "Void")
+            self.status = "Void"
 
     def validate_against_voucher_outstanding(self) -> None:
         """
@@ -650,9 +657,12 @@ def void_credit_note(
         tipo_documento="02",
     )
 
-    # HKA confirmó la anulación → persistir motivo y cancelar en Frappe
+    # HKA confirmó la anulación → persistir motivo, marcar como anulado y cancelar en Frappe.
+    # db_set antes de cancel() para que on_cancel() ya lea is_void=True y asigne status "Void".
     # update_modified=False evita TimestampMismatchError al hacer cancel() → save()
     credit_note.db_set("avoid_reason", reason, update_modified=False)
+    credit_note.db_set("is_void", True, update_modified=False)
+    credit_note.is_void = True
     credit_note._hka_void_confirmed = True
     credit_note.cancel()
 

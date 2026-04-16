@@ -1151,3 +1151,93 @@ def get_sales_invoice_dashboard_data(data: dict) -> dict:
     data.setdefault("non_standard_fieldnames", {})["VE Sales Credit Note"] = "return_against"
 
     return data
+
+
+@frappe.whitelist()
+def make_replacement_invoice(source_name: str) -> "Document":
+    """
+    Crea un borrador de Sales Invoice a partir de una factura anulada (is_void=1).
+
+    Reglas de mapeo:
+    - posting_date y due_date = hoy
+    - conversion_rate = tasa de hoy (de tabCurrency Exchange, si aplica)
+    - Los campos fiscales (bill_no, bill_control, bill_date) se limpian para
+      que la nueva factura inicie sin número HKA asignado.
+    - Los períodos de servicio (from_date, to_date) y la suscripción se heredan,
+      para que los hooks de domina_isp actúen correctamente al insertar.
+    """
+    from frappe.model.mapper import get_mapped_doc
+    from frappe.utils import nowdate
+
+    invoice = frappe.get_cached_doc("Sales Invoice", source_name)
+
+    # Verificar permiso de lectura sobre la factura fuente y de creación de la nueva SI
+    frappe.has_permission("Sales Invoice", ptype="read", doc=invoice, throw=True)
+    frappe.has_permission("Sales Invoice", ptype="create", throw=True)
+
+    if not cint(invoice.is_void):
+        frappe.throw(_(
+            "Solo se puede generar una factura de reemplazo desde una factura anulada (Void)."
+        ))
+
+    def _adjust_date_and_rate(source_doc, target_doc) -> None:
+        hoy: str = nowdate()
+        target_doc.posting_date = hoy
+        target_doc.due_date = hoy
+
+        # Actualizar tasa de cambio al día de hoy si la moneda difiere de la base
+        if target_doc.currency and target_doc.currency != source_doc.company_currency:
+            tasa_hoy: float | None = frappe.db.get_value(
+                "Currency Exchange",
+                {"from_currency": target_doc.currency, "date": hoy},
+                "exchange_rate",
+                order_by="modified desc",
+            )
+            if tasa_hoy:
+                target_doc.conversion_rate = tasa_hoy
+                target_doc.plc_conversion_rate = tasa_hoy
+
+    return get_mapped_doc(
+        "Sales Invoice",
+        source_name,
+        {
+            "Sales Invoice": {
+                "doctype": "Sales Invoice",
+                "field_no_map": [
+                    "name",
+                    "naming_series",
+                    "amended_from",
+                    "is_return",
+                    "return_against",
+                    # Campos fiscales: la nueva factura debe obtener su propio número HKA
+                    "bill_no",
+                    "bill_date",
+                    "bill_control",
+                    "credit_note_no",
+                    "debit_note_no",
+                    "outstanding_amount",
+                    "status",
+                    "is_void",
+                    "avoid_reason",
+                    "conversion_rate",
+                    "plc_conversion_rate",
+                    # Retenciones: la nueva factura gestiona las propias
+                    "vat_withholding_voucher_number",
+                    "withholding_date",
+                    "voucher_image",
+                    "islr_receipt_number",
+                    "islr_date",
+                    "voucher_image_islr",
+                ],
+            },
+            "Sales Invoice Item": {
+                "doctype": "Sales Invoice Item",
+                "field_no_map": ["name"],
+            },
+            "Sales Taxes and Charges": {
+                "doctype": "Sales Taxes and Charges",
+                "field_no_map": ["name"],
+            },
+        },
+        postprocess=_adjust_date_and_rate,
+    )
