@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.6] - 2026-04-16
+
+### ✨ Funcionalidades (Features)
+- Implementación de la anulación de Facturas de Venta a través del proveedor HKA utilizando un esquema de cancelación atómica. [6b7fc66]
+- Mejora en la consistencia de los procesos de anulación para Notas de Crédito (NC) y facturas de reemplazo dentro del sistema. [d90d1e5]
+
+### 🐛 Correcciones (Fixes)
+- Integración de la función `to_currency` y lógica de cortocircuito para el manejo preciso de la tasa de cambio en facturas de reemplazo (módulo HKA). [724a309]
+- Corrección de errores en la interfaz de usuario relacionados con el botón "Guardar" y ajuste en la agrupación del botón de reemplazo. [62d5254]
+
+---
+
 ## [v1.0.5] - 2026-04-15
 
 ### ✨ Funcionalidades (Features)
