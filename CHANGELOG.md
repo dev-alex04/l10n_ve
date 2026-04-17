@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.7] - 2026-04-17
+
+### ✨ Funcionalidades (Features)
+
+* Mejora en el proceso de importación de extractos bancarios. 2b69f0a
+
+### 🐛 Correcciones (Fixes)
+
+* **Localización Fiscal (VE):** Ajuste integral en la metodología de recálculo de impuestos base en moneda nacional (VEF) y corrección de lógica en cálculos multi-tasa y retenciones. 15bc3c5, 3670185
+* **Contabilidad:** Resolución de desbalances contables en retenciones de IVA y corrección del asiento faltante al proveedor en facturas de compra. 1985d3a, 563944c
+* **Ventas:** Optimización de la validación de anticipos en Sales Invoice mediante el uso de grand_total base para mitigar errores por redondeo de decimales. 1985d3a
+* **Controladores de Impuestos:** Eliminación de cálculos redundantes de vat_base para optimizar el procesamiento de transacciones. 563e605
+* **Pagos:** Implementación de verificación de existencia de igtf_rate en la entrada de pagos para asegurar la integridad de los datos antes de actualizar facturas. edc0b16
+
+---
+
 ## [v1.0.6] - 2026-04-16
 
 ### ✨ Funcionalidades (Features)
