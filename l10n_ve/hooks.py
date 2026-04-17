@@ -128,6 +128,9 @@ doctype_js = {
     "Installation Note": [
          "public/js/doctype/installation_note/installation_note.js"
     ],
+    "Mode of Payment": [
+         "public/js/doctype/mode_of_payment/mode_of_payment.js"
+    ],
 
 }
 
