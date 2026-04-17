@@ -1060,13 +1060,10 @@ function setup_hka_voided_consulta_button(frm) {
 function setup_replacement_invoice_button(frm) {
   if (frm.doc.docstatus !== 2 || !frm.doc.is_void) return;
 
-  frm.add_custom_button(
-    __("Generar Factura de Reemplazo"),
-    function () {
-      frappe.model.open_mapped_doc({
-        method: "l10n_ve.overrides.sales_invoice.make_replacement_invoice",
-        frm: frm,
-      });
-    },
-  );
+  frm.add_custom_button(__("Generar Factura de Reemplazo"), function () {
+    frappe.model.open_mapped_doc({
+      method: "l10n_ve.overrides.sales_invoice.make_replacement_invoice",
+      frm: frm,
+    });
+  });
 }
