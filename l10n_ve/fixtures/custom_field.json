@@ -7761,5 +7761,16 @@
     "no_copy": 1,
     "read_only": 1,
     "name": "Sales Invoice-sales_invoice_preview"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Mode of Payment",
+    "fieldname": "is_igtf_applicable",
+    "fieldtype": "Check",
+    "insert_after": "currency",
+    "label": "Aplica IGTF",
+    "module": "L10N Ve",
+    "name": "Mode of Payment-is_igtf_applicable",
+    "reqd": 0
   }
 ]
