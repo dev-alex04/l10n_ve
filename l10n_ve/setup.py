@@ -2172,6 +2172,7 @@ def migrate_chart_of_accounts(company_name: str = "Galanet Solution C.A.") -> No
 
     new_count: int = 0
     new_errors: int = 0
+    skip_count: int = 0
 
     for normalized_num in sorted_black_exclusive:
         black_acc = black_map[normalized_num]
@@ -2186,7 +2187,7 @@ def migrate_chart_of_accounts(company_name: str = "Galanet Solution C.A.") -> No
             black_acc, black_map, company_name, company_abbr
         )
 
-        # Verificar si ya existe en el ERPNext
+        # Verificar si ya existe en el ERPNext por doc_name
         target_doc_name: str = _build_account_doc_name(
             account_number, account_name, company_abbr
         )
@@ -2194,11 +2195,28 @@ def migrate_chart_of_accounts(company_name: str = "Galanet Solution C.A.") -> No
         if frappe.db.exists("Account", target_doc_name):
             continue
 
+        # Verificar si ya existe por account_number
         if frappe.db.get_value(
             "Account",
             {"account_number": account_number, "company": company_name},
             "name"
         ):
+            continue
+
+        # Verificar si ya existe por nombre + padre (evita duplicados
+        # semánticos entre BLACK y GALANET)
+        if parent_account and frappe.db.get_value(
+            "Account",
+            {
+                "account_name": account_name,
+                "parent_account": parent_account,
+                "company": company_name,
+            },
+            "name"
+        ):
+            skip_count += 1
+            print(f"  ~ OMITIDA (duplicado nombre+padre): "
+                  f"#{account_number} - {account_name}")
             continue
 
         try:
@@ -2251,6 +2269,7 @@ def migrate_chart_of_accounts(company_name: str = "Galanet Solution C.A.") -> No
     print(f"Fase 1 - Cuentas renombradas: {success_count}")
     print(f"Fase 1 - Errores: {error_count}")
     print(f"Fase 2 - Cuentas creadas: {new_count}")
+    print(f"Fase 2 - Omitidas (duplicado nombre+padre): {skip_count}")
     print(f"Fase 2 - Errores: {new_errors}")
     print(f"Total errores: {error_count + new_errors}")
 
@@ -2326,12 +2345,18 @@ def _map_parent_account(
     """
     Mapea el parent_account de una cuenta BLACK al name equivalente
     en el ERPNext de Galanet.
+
+    Estrategia de búsqueda (en orden):
+    1. Por account_number exacto en la BD
+    2. Por account_name del padre BLACK en la BD (resuelve casos donde
+       BLACK y GALANET usan números distintos para el mismo concepto,
+       ej: BLACK #5102 vs GALANET #5201, ambos 'COSTOS LABORALES')
+    3. Construir el doc_name esperado usando datos de BLACK (fallback)
     """
     parent_identifier: str = black_acc.get("parent_identifier", "")
     if not parent_identifier:
         return None
 
-    # Extraer el número del parent_identifier de BLACK
     # Formato: "1101 - CAJAS - GLTC" → número = "1101"
     parts: list[str] = parent_identifier.split(" - ")
     if not parts:
@@ -2339,21 +2364,30 @@ def _map_parent_account(
 
     parent_number: str = parts[0].strip()
 
-    # Buscar en la BD de Galanet por account_number
+    # 1. Buscar por account_number exacto
     parent_doc_name: str | None = frappe.db.get_value(
         "Account",
         {"account_number": parent_number, "company": company_name},
         "name"
     )
-
     if parent_doc_name:
         return parent_doc_name
 
-    # Si no existe aún, construir el name esperado usando BLACK
+    # 2. Buscar por account_name (resuelve equivalencias BLACK↔GALANET)
     if parent_number in black_map:
         parent_data: dict = black_map[parent_number]
+        parent_name: str = parent_data["account_name"]
+        parent_by_name: str | None = frappe.db.get_value(
+            "Account",
+            {"account_name": parent_name, "company": company_name, "is_group": 1},
+            "name"
+        )
+        if parent_by_name:
+            return parent_by_name
+
+        # 3. Fallback: construir el doc_name esperado usando BLACK
         return _build_account_doc_name(
-            parent_number, parent_data["account_name"], company_abbr
+            parent_number, parent_name, company_abbr
         )
 
     return None
@@ -2384,16 +2418,21 @@ def _verify_migration(company_name: str = "Galanet Solution C.A.") -> None:
         print(f"  ❌ V1: {dots_count} cuentas aún tienen puntos en el número")
         failed += 1
 
-    # V2: Total esperado = 803 (441 Galanet + 362 exclusivas BLACK)
+    # V2: Total esperado ≈ 800 (441 Galanet + cuentas exclusivas BLACK)
+    # El total exacto depende de cuántas cuentas BLACK son omitidas
+    # por duplicado nombre+padre con las existentes de GALANET
     total: int = frappe.db.sql(
         "SELECT COUNT(*) FROM tabAccount WHERE company = %s",
         company_name
     )[0][0]
-    if total == 803:
-        print(f"  ✅ V2: Total de cuentas correcto ({total})")
+    min_expected: int = 700
+    max_expected: int = 810
+    if min_expected <= total <= max_expected:
+        print(f"  ✅ V2: Total de cuentas dentro del rango esperado ({total})")
         passed += 1
     else:
-        print(f"  ❌ V2: Total de cuentas inesperado: {total} (esperado: 803)")
+        print(f"  ❌ V2: Total de cuentas fuera de rango: {total} "
+              f"(esperado: {min_expected}-{max_expected})")
         failed += 1
 
     # V3: Cuentas comunes con nombres de BLACK
