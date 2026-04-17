@@ -1,5 +1,15 @@
 [
   {
+    "doctype": "Custom Field",
+    "dt": "Customer",
+    "fieldname": "fiscal_info_section",
+    "fieldtype": "Section Break",
+    "insert_after": "accounting_tab",
+    "label": "Información Fiscal",
+    "module": "L10N Ve",
+    "name": "Customer-fiscal_info_section"
+  },
+  {
     "allow_in_quick_entry": 0,
     "allow_on_submit": 0,
     "bold": 0,
@@ -26,7 +36,7 @@
     "in_list_view": 0,
     "in_preview": 0,
     "in_standard_filter": 0,
-    "insert_after": null,
+    "insert_after": "fiscal_info_section",
     "is_system_generated": 0,
     "is_virtual": 0,
     "label": "Is special taxpayer",
@@ -7643,7 +7653,7 @@
     "dt": "Customer",
     "fieldname": "tabulator_islr",
     "fieldtype": "Link",
-    "insert_after": "applies_vat",
+    "insert_after": "tax_withholding_category",
     "label": "Concepto ISLR",
     "module": "Domina ISP",
     "name": "Customer-tabulator_islr",
