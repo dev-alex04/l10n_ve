@@ -292,13 +292,17 @@ class CustomPaymentEntry(PaymentEntry):
                 total_igtf = current_total_igtf + reference_total_igtf
                 base_amount_igtf = current_base_amount_igtf + reference_base_amount_igtf
 
+            update_values = {
+                'total_igtf': total_igtf,
+                'base_amount_igtf': base_amount_igtf,
+            }
+
+            if frappe.get_meta(reference.reference_doctype).has_field('igtf_rate'):
+                update_values['igtf_rate'] = self.igtf_rate
+
             frappe.db.set_value(reference.reference_doctype,
                                 reference.reference_name,
-                                {
-                                    'total_igtf': total_igtf,
-                                    'base_amount_igtf': base_amount_igtf,
-                                    'igtf_rate': self.igtf_rate,
-                                })
+                                update_values)
 
     def validate_reference_no(self) -> None:
         """

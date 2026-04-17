@@ -520,6 +520,8 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
             if self.is_return and self.return_against and not self.update_outstanding_for_self:
                 against_voucher = self.return_against
 
+            self.add_supplier_gl_entry(gl_entries, base_tds_amount, tds_amount)
+
             # Did not use base_grand_total to book rounding loss gle
             gl = {
                 "account": self.credit_to,

@@ -98,7 +98,6 @@ function handle_customer_field_change(frm, fieldname) {
 
 function reorganize_customer_fields(frm) {
   let tax_id_field_wrapper = frm.get_field("tax_id").$wrapper;
-  let tabulator_islr = frm.get_field("tabulator_islr").$wrapper;
   let type_of_person_field_wrapper = frm.get_field("type_of_person").$wrapper;
   let customer_type_field_wrapper = frm.get_field("customer_type").$wrapper;
   let customer_name_field_wrapper = frm.get_field("customer_name").$wrapper;
@@ -107,16 +106,8 @@ function reorganize_customer_fields(frm) {
   let nature_of_the_taxpayer_field_wrapper = frm.get_field(
     "nature_of_the_taxpayer",
   ).$wrapper;
-  let tax_withholding_category_field_wrapper = frm.get_field(
-    "tax_withholding_category",
-  ).$wrapper;
-  let is_special_taxpayer_field_wrapper = frm.get_field(
-    "is_special_taxpayer",
-  ).$wrapper;
 
-  tax_withholding_category_field_wrapper.insertAfter(
-    is_special_taxpayer_field_wrapper,
-  );
+  // Solo organizamos los campos de la pestaña de Detalles
   customer_type_field_wrapper.insertAfter(customer_name_field_wrapper);
   type_of_document_field_wrapper.insertAfter(customer_type_field_wrapper);
   nature_of_the_taxpayer_field_wrapper.insertAfter(
@@ -126,5 +117,20 @@ function reorganize_customer_fields(frm) {
     nature_of_the_taxpayer_field_wrapper,
   );
   tax_id_field_wrapper.insertAfter(type_of_person_field_wrapper);
-  tabulator_islr.insertAfter(tax_withholding_category_field_wrapper);
+
+  // Moviendo campos fiscales a la sección 'Información Fiscal'
+  let is_special_taxpayer_field_wrapper = frm.get_field(
+    "is_special_taxpayer",
+  ).$wrapper;
+  let tax_withholding_category_field_wrapper = frm.get_field(
+    "tax_withholding_category",
+  ).$wrapper;
+  let tabulator_islr_field_wrapper = frm.get_field("tabulator_islr").$wrapper;
+
+  tax_withholding_category_field_wrapper.insertAfter(
+    is_special_taxpayer_field_wrapper,
+  );
+  tabulator_islr_field_wrapper.insertAfter(
+    tax_withholding_category_field_wrapper,
+  );
 }
