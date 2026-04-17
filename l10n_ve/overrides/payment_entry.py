@@ -839,6 +839,8 @@ def get_branch_payment_mode_account(branch: str, mode_of_payment: str) -> str | 
 def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters):
     if isinstance(filters, str):
         filters = json.loads(filters)
+    elif not filters:
+        filters = {}
 
     """Obtiene los modos de pago (y si aplican IGTF) configurados para una sucursal."""
     branch = filters.get("branch")
@@ -848,6 +850,7 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
             SELECT name, is_igtf_applicable
             FROM `tabMode of Payment`
             WHERE name LIKE %(txt)s
+            AND enabled = 1
             ORDER BY name
             LIMIT %(start)s, %(page_len)s
         """, {
@@ -864,6 +867,7 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
         INNER JOIN `tabMode of Payment` mop ON mop.name = vbpm.mode_of_payment
         WHERE vbpm.parent = %(branch)s
         AND vbpm.mode_of_payment LIKE %(txt)s
+        AND mop.enabled = 1
         ORDER BY vbpm.mode_of_payment
         LIMIT %(start)s, %(page_len)s
     """, {
