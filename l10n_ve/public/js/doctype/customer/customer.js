@@ -118,6 +118,7 @@ function reorganize_customer_fields(frm) {
   );
   tax_id_field_wrapper.insertAfter(type_of_person_field_wrapper);
 
+  // Moviendo campos fiscales a la sección 'Información Fiscal'
   let is_special_taxpayer_field_wrapper = frm.get_field(
     "is_special_taxpayer",
   ).$wrapper;
