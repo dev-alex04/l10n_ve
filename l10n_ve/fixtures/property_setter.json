@@ -3274,5 +3274,16 @@
         "property_type": "Text",
         "row_name": null,
         "value": "\nDraft\nReturn\nCredit Note Issued\nSubmitted\nPaid\nPartly Paid\nUnpaid\nUnpaid and Discounted\nPartly Paid and Discounted\nOverdue and Discounted\nOverdue\nCancelled\nInternal Transfer\nVoid"
+    },
+    {
+        "doc_type": "Customer",
+        "doctype": "Property Setter",
+        "doctype_or_field": "DocField",
+        "field_name": "tax_withholding_category",
+        "property": "insert_after",
+        "property_type": "Data",
+        "value": "is_special_taxpayer",
+        "module": "L10N Ve",
+        "name": "Customer-tax_withholding_category-insert_after"
     }
 ]

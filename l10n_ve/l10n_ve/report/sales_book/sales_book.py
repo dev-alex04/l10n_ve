@@ -390,6 +390,7 @@ def get_query() -> str:
             `tabVE Digital Billing Series` vdbs
             ON CAST(SUBSTRING_INDEX(siv.bill_control, '-', -1) AS UNSIGNED)
                 BETWEEN vdbs.range_from AND vdbs.range_to
+                AND vdbs.company = %(company)s
     """
     return query_base
 
