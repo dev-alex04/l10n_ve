@@ -180,14 +180,8 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
       const tax = this.frm.doc.taxes[i];
 
       if (tax.charge_type === "VAT" && !tax.is_tax_withholding_account) {
-        let vat_base = 0;
-        (this.frm.doc.items || []).forEach((item) => {
-          if (!item.vat_exempt) {
-            vat_base += flt(item.base_net_amount);
-          }
-        });
         tax.base_tax_amount = flt(
-          (vat_base * flt(tax.rate)) / 100,
+          (base_taxable_vef * flt(tax.rate)) / 100,
           precision("base_tax_amount", tax)
         );
       } else if (tax.charge_type === "On Net Total") {

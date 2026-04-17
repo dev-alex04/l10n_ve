@@ -153,13 +153,8 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         for i, tax in enumerate(self.doc.get("taxes")):
 
             if tax.charge_type == "VAT" and not tax.get("is_tax_withholding_account"):
-                vat_base: float = sum(
-                    flt(item.base_net_amount)
-                    for item in self.doc.items
-                    if not item.get("vat_exempt")
-                )
                 tax.base_tax_amount = flt(
-                    vat_base * flt(tax.rate) / 100,
+                    base_taxable_vef * flt(tax.rate) / 100,
                     tax.precision("base_tax_amount")
                 )
 
