@@ -271,7 +271,7 @@ def _get_cte() -> str:
                 siv.is_void, siv.is_return, siv.is_debit_note,
                 (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) AS conversion_rate,
                 1 AS amount_sign,
-
+                siv.base_net_total,
                 siv.total_exempt,
                 siv.base_amount_igtf,
                 siv.total_igtf
@@ -296,7 +296,7 @@ def _get_cte() -> str:
                 0 AS is_void, 1 AS is_return, 0 AS is_debit_note,
                 (CASE WHEN nc.currency != %(company_currency)s THEN nc.conversion_rate ELSE 1 END) AS conversion_rate,
                 -1 AS amount_sign,
-
+                nc.base_net_total,
                 nc.total_exempt,
                 0 AS base_amount_igtf,
                 0 AS total_igtf
@@ -336,34 +336,35 @@ def _get_common_columns() -> str:
                 WHEN tc.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
                 ELSE 'N/A'
             END AS customer_type,
-            -- Total Incl. IVA: recalculado como exempt + bases + IVAs usando base_tax_amount
-            -- (moneda de la empresa). Usa el mismo método que las columnas de base/IVA para
-            -- garantizar consistencia interna (Total = Exento + Bases + IVAs).
+            -- Usa campos base_* almacenados directamente en la factura (fuente de verdad).
+            -- base_net_total: base imponible + exento en VEF (precalculado por ERPNext/l10n_ve)
+            -- base_tax_amount: IVA en VEF (precalculado por l10n_ve taxes_and_totals)
+            -- Total = base_net_total + sum(base_tax_amount VAT Add)
+            -- Garantiza que el libro refleje exactamente los montos de la factura.
             -- (1 - is_void): anula todos los montos para facturas anuladas (SENIAT: fila presente, montos en cero)
             (
-                siv.total_exempt * siv.conversion_rate
-                + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / NULLIF(tstac.rate, 0)) ELSE 0 END), 0)
+                siv.base_net_total
                 + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END), 0)
             ) * siv.amount_sign * (1 - siv.is_void) AS grand_total,
             siv.total_exempt * siv.conversion_rate * siv.amount_sign * (1 - siv.is_void) AS total_exempt,
             siv.base_amount_igtf * siv.conversion_rate * siv.amount_sign * (1 - siv.is_void) AS base_amount_igtf,
             siv.total_igtf * siv.conversion_rate * siv.amount_sign * (1 - siv.is_void) AS total_igtf,
 
-            -- Base por alícuota: derivada de base_tax_amount*(100/rate) en moneda de la empresa
-            -- Funciona para Sales Invoice y VE Sales Credit Note (tstac.parent = nombre del doc)
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.base_tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_general_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_general_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN tstac.base_tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_reduced_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_reduced_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN tstac.base_tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_additional_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_additional_non_taxpayer,
+            -- Base por alícuota: base_net_total menos exento (para facturas con una sola alícuota IVA)
+            -- IVA por alícuota: base_tax_amount almacenado (sin recalcular)
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN siv.base_net_total - siv.total_exempt * siv.conversion_rate ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_general_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_general_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN siv.base_net_total - siv.total_exempt * siv.conversion_rate ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_reduced_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_reduced_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN siv.base_net_total - siv.total_exempt * siv.conversion_rate ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_additional_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_additional_non_taxpayer,
 
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN tstac.base_tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_general_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_general_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN tstac.base_tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_reduced_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_reduced_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.base_tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_additional_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_additional_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN siv.base_net_total - siv.total_exempt * siv.conversion_rate ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_general_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_general_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN siv.base_net_total - siv.total_exempt * siv.conversion_rate ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_reduced_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_reduced_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN siv.base_net_total - siv.total_exempt * siv.conversion_rate ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_additional_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_additional_taxpayer,
             MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.base_tax_amount) ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_retained,
             MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END) * (1 - siv.is_void) AS vat_withholding_rate
         FROM
