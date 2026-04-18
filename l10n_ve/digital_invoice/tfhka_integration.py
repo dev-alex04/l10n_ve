@@ -18,6 +18,11 @@ class HKARangeExhausted(Exception):
     """Error fatal de serie: HKA no tiene rango de numeración disponible."""
     pass
 
+
+class HKAAmountMismatchError(frappe.ValidationError):
+    """Los montos del payload no coinciden con los de la factura."""
+    pass
+
 def get_active_billing_series(
     company: str, branch: str
 ) -> tuple[object, str]:
@@ -170,6 +175,110 @@ def _validate_tasa_coherencia(doc: object, tasa_fecha: str) -> None:
             "Corrija la tasa antes de enviar este documento a la imprenta digital.",
             title="Tasa de Cambio Incorrecta",
         )
+
+
+
+_AMOUNT_TOLERANCE: float = 0.02
+
+
+def _validate_invoice_integrity(doc: object) -> list[str]:
+    """Valida consistencia interna de los campos base_* de la factura.
+
+    Retorna lista de errores encontrados (vacía = OK).
+    """
+    errors: list[str] = []
+    base_net_total: float = flt(doc.base_net_total)
+
+    if not base_net_total:
+        errors.append(
+            f"base_net_total está vacío o es cero ({base_net_total})"
+        )
+        return errors
+
+    items_base_sum: float = sum(
+        flt(item.base_net_amount) for item in doc.items
+    )
+    diff_items: float = abs(items_base_sum - base_net_total)
+    if diff_items > _AMOUNT_TOLERANCE:
+        errors.append(
+            f"Σ items.base_net_amount = {items_base_sum:.2f} ≠ "
+            f"base_net_total = {base_net_total:.2f} "
+            f"(diferencia: {diff_items:.2f} VEF)"
+        )
+
+    for tax in doc.get("taxes", []):
+        if tax.get("charge_type") != "VAT" or flt(tax.rate) <= 0:
+            continue
+        if not flt(tax.base_tax_amount):
+            errors.append(
+                f"IVA '{tax.description}': base_tax_amount está vacío o es cero"
+            )
+
+    return errors
+
+
+def _validate_payload_vs_invoice(payload: dict, doc: object) -> list[str]:
+    """Valida que TODOS los montos del payload coincidan con la factura.
+
+    Compara cada campo monetario del payload Totales contra los valores
+    base_* almacenados en la factura. Retorna lista de diferencias.
+
+    Las claves del payload están en camelCase (aplicado por clean_payload).
+    """
+    errors: list[str] = []
+    tc: float = flt(doc.conversion_rate) if doc.conversion_rate else 1.0
+
+    base_tax_ves: float = sum(
+        flt(tax.base_tax_amount)
+        for tax in doc.get("taxes", [])
+        if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0
+    )
+    exempt_base: float = flt(doc.get("total_exempt", 0.0)) * tc
+
+    # Claves en camelCase (clean_payload convierte PascalCase → camelCase)
+    expected: dict[str, float] = {
+        "montoGravadoTotal": flt(doc.base_net_total) - exempt_base,
+        "montoExentoTotal": exempt_base,
+        "subtotal": flt(doc.base_net_total),
+        "totalIVA": base_tax_ves,
+        "montoTotalConIVA": flt(doc.base_net_total) + base_tax_ves,
+    }
+
+    totales: dict = (
+        payload
+        .get("documentoElectronico", {})
+        .get("encabezado", {})
+        .get("totales", {})
+    )
+
+    for field, expected_val in expected.items():
+        payload_val: float = flt(totales.get(field, 0))
+        diff: float = abs(payload_val - expected_val)
+        if diff > _AMOUNT_TOLERANCE:
+            errors.append(
+                f"{field}: payload={payload_val:.2f}, "
+                f"factura={expected_val:.2f} "
+                f"(diferencia: {diff:.2f} VEF)"
+            )
+
+    gravado: float = flt(totales.get("montoGravadoTotal", 0))
+    exento: float = flt(totales.get("montoExentoTotal", 0))
+    subtotal: float = flt(totales.get("subtotal", 0))
+    iva: float = flt(totales.get("totalIVA", 0))
+    total: float = flt(totales.get("montoTotalConIVA", 0))
+
+    if abs((gravado + exento) - subtotal) > _AMOUNT_TOLERANCE:
+        errors.append(
+            f"Aritmética: Gravado({gravado:.2f}) + Exento({exento:.2f}) "
+            f"= {gravado + exento:.2f} ≠ Subtotal({subtotal:.2f})"
+        )
+    if abs((subtotal + iva) - total) > _AMOUNT_TOLERANCE:
+        errors.append(
+            f"Aritmética: Subtotal({subtotal:.2f}) + IVA({iva:.2f}) "
+            f"= {subtotal + iva:.2f} ≠ Total({total:.2f})"
+        )
+
+    return errors
 
 
 def _update_fiscal_dates(doc: object, fecha_hka: str) -> None:
@@ -337,11 +446,18 @@ def _handle_hka_response(
 
 
 @frappe.whitelist()
-def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
+def process_invoice(
+    doc_name: str,
+    doctype: str = "Sales Invoice",
+    raise_on_error: bool = False,
+) -> bool:
     """
     Envía una factura o nota de crédito a TFHKA de forma síncrona.
     Soporta: Sales Invoice, VE Sales Credit Note.
     Retorna True si el envío fue exitoso, False en caso de error.
+
+    Si raise_on_error=True (invocación desde botón), lanza excepción
+    cuando los montos no cuadran. Si False (cron), solo registra log.
     """
     if doctype not in SUPPORTED_DOCTYPES:
         frappe.throw(
@@ -349,6 +465,7 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
             title="DocType No Soportado"
         )
 
+    raise_on_error = cint(raise_on_error)
     is_nc: bool = doctype == "VE Sales Credit Note"
 
     try:
@@ -378,6 +495,32 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
 
         payload, builder = _build_invoice_payload(doc, series_doc, branch_code, tasa_fecha)
 
+        # --- VALIDACIÓN PRE-ENVÍO: integridad factura + payload vs factura ---
+        # Ambas validaciones se ejecutan DESPUÉS de construir el payload
+        # y ANTES de enviar a HKA.
+        all_errors: list[str] = []
+        all_errors.extend(_validate_invoice_integrity(doc))
+        all_errors.extend(_validate_payload_vs_invoice(payload, doc))
+
+        if all_errors:
+            msg: str = (
+                f"Validación fiscal fallida para {doctype} {doc_name}:\n"
+                + "\n".join(f"  • {e}" for e in all_errors)
+            )
+            frappe.logger("l10n_ve").error(msg)
+            _log_request(
+                "Validación Pre-Envío HKA", doc_name, payload,
+                {"error": True, "message": msg}, "Error",
+                notes=msg, doctype=doctype,
+            )
+            frappe.db.commit()
+            if raise_on_error:
+                frappe.throw(
+                    msg, exc=HKAAmountMismatchError,
+                    title="Discrepancia de Montos Fiscales",
+                )
+            return False
+
         # Para NC no se valida zona/nodo (no tiene suscripción asociada)
         if not is_nc:
             if not builder.zona or not builder.nodo:
@@ -401,7 +544,7 @@ def process_invoice(doc_name: str, doctype: str = "Sales Invoice") -> bool:
             doc, doc_name, payload, response, series_doc
         )
 
-    except frappe.ValidationError:
+    except (frappe.ValidationError, HKAAmountMismatchError):
         raise
     except HKARangeExhausted:
         raise
@@ -476,7 +619,9 @@ def _create_log_entry(log_data: dict) -> None:
 def send_invoice_manually(invoice_name: str) -> str:
     """Método invocado mediante botón JS para reenvío manual de Sales Invoice."""
     frappe.has_permission("Sales Invoice", "submit", doc=invoice_name, throw=True)
-    success = process_invoice(invoice_name, doctype="Sales Invoice")
+    success = process_invoice(
+        invoice_name, doctype="Sales Invoice", raise_on_error=True
+    )
     return "Sent" if success else "Error"
 
 

@@ -339,12 +339,30 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             frappe.throw(duplicated_msg, title="Advertencia de Duplicado", as_list=True)
         return False
 
-    def _validate_bill_no(self, bill_no: str = '', raise_throw: bool = True) -> bool:
+    def _get_series_branches(self) -> list[str]:
+        """Retorna las branches que comparten la misma serie digital que esta factura.
+
+        Si la factura no tiene branch o TFHKA no está activo, retorna lista vacía
+        (el caller debe usar filtro por company como fallback).
         """
-        Valida que el número de factura no esté ya asignado.
+        series_doc = self._get_active_digital_series()
+        if not series_doc:
+            return []
+
+        return [
+            row.branch for row in series_doc.get("branches", [])
+            if row.branch
+        ]
+
+    def _validate_bill_no(self, bill_no: str = '', raise_throw: bool = True) -> bool:
+        """Valida que el número de factura no esté ya asignado dentro de la misma serie.
+
+        La unicidad del bill_no es por serie digital (VE Digital Billing Series),
+        no por empresa. Una serie puede agrupar múltiples branches.
+
+        Si TFHKA no está activo, cae al filtro legacy por empresa.
         Si TFHKA está activo, ignora duplicados cuya posting_date sea anterior
-        a la fecha start_operations de la serie digital activa (reinicio de
-        facturación autorizado por HKA).
+        a la fecha start_operations de la serie digital activa.
         """
 
         if any([self.is_return, self.is_debit_note]):
@@ -357,21 +375,27 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         if not bill_no_to_validate.isdigit():
             frappe.throw("El número de factura solo debe contener números.")
 
-        draft_submitted_filters = {
+        series_branches: list[str] = self._get_series_branches()
+
+        base_filters: dict = {
             'is_return': False,
             'is_debit_note': False,
-            'company': self.company,
             'name': ['!=', self.name],
             'bill_no': bill_no_to_validate,
+        }
+
+        if series_branches:
+            base_filters['branch'] = ['in', series_branches]
+        else:
+            base_filters['company'] = self.company
+
+        draft_submitted_filters = {
+            **base_filters,
             'docstatus': ['in', [0, 1]],
         }
 
         void_filters = {
-            'is_return': False,
-            'is_debit_note': False,
-            'company': self.company,
-            'name': ['!=', self.name],
-            'bill_no': bill_no_to_validate,
+            **base_filters,
             'docstatus': 2,
             'is_void': 1,
         }
