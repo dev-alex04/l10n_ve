@@ -36,8 +36,59 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         self.set_title_field()
 
     def before_cancel(self) -> None:
+        self._block_cancel_if_has_active_notes()
         self._block_cancel_if_digitally_signed()
         super().before_cancel()
+
+    def _block_cancel_if_has_active_notes(self) -> None:
+        """
+        Bloquea la cancelación si la factura tiene una Nota de Crédito o
+        Nota de Débito venezolana activa (docstatus=1).
+
+        Regla de negocio: para anular una factura con NC/ND, primero se
+        deben anular los documentos dependientes.
+        """
+        active_nc: dict | None = frappe.db.get_value(
+            "VE Sales Credit Note",
+            {"return_against": self.name, "docstatus": 1},
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if active_nc:
+            nc_bill: str = active_nc.bill_no or active_nc.name
+            nc_link: str = (
+                f'<a href="/app/ve-sales-credit-note/{active_nc.name}">'
+                f'{nc_bill}</a>'
+            )
+            frappe.throw(
+                _(
+                    "No se puede anular la factura <b>{0}</b> porque tiene "
+                    "una Nota de Crédito activa: {1}. "
+                    "Anule primero la Nota de Crédito."
+                ).format(self.name, nc_link),
+                title=_("Cancelación Bloqueada — NC Activa"),
+            )
+
+        active_nd: dict | None = frappe.db.get_value(
+            "VE Sales Debit Note",
+            {"return_against": self.name, "docstatus": 1},
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if active_nd:
+            nd_bill: str = active_nd.bill_no or active_nd.name
+            nd_link: str = (
+                f'<a href="/app/ve-sales-debit-note/{active_nd.name}">'
+                f'{nd_bill}</a>'
+            )
+            frappe.throw(
+                _(
+                    "No se puede anular la factura <b>{0}</b> porque tiene "
+                    "una Nota de Débito activa: {1}. "
+                    "Anule primero la Nota de Débito."
+                ).format(self.name, nd_link),
+                title=_("Cancelación Bloqueada — ND Activa"),
+            )
 
     def _block_cancel_if_digitally_signed(self) -> None:
         """
@@ -673,7 +724,11 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             if (self.base_rounding_adjustment and self.base_rounded_total)
             else self.base_grand_total,
             self.precision("base_grand_total"),
-        ) + flt(self.total_withholding * self.conversion_rate, self.precision("base_grand_total"))
+        ) + sum(
+            flt(tax.base_tax_amount_after_discount_amount)
+            for tax in self.get("taxes")
+            if cint(tax.is_tax_withholding_account)
+        )
 
         if grand_total and not self.is_internal_transfer():
             against_voucher = self.name
@@ -987,6 +1042,8 @@ def void_sales_invoice(
 
     if invoice.docstatus != 1:
         frappe.throw(_("Solo se pueden anular facturas aprobadas."))
+
+    invoice._block_cancel_if_has_active_notes()
 
     # Pre-validar que la factura puede ser cancelada en Frappe ANTES de
     # contactar a HKA.  Si existen documentos vinculados (Payment Entry,

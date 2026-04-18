@@ -2,6 +2,7 @@
 // For license information, please see license.txt
 
 frappe.listview_settings["VE Sales Credit Note"] = {
+    has_indicator_for_cancelled: true,
     add_fields: [
         "customer",
         "customer_name",
@@ -16,7 +17,7 @@ frappe.listview_settings["VE Sales Credit Note"] = {
     get_indicator: function (doc) {
         // NC anulada ante HKA → rojo con etiqueta Anulado (tiene prioridad)
         if (doc.is_void) {
-            return [__("Void"), "red", "is_void,=,1"];
+            return [__("Anulado"), "red", "is_void,=,1"];
         }
         // NC ya emitida ante HKA → verde
         if (doc.credit_note_no) {

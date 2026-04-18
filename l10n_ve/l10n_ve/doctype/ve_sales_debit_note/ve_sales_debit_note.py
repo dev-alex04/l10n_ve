@@ -44,6 +44,7 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         self._init_si_defaults()
         self._inherit_branch_from_si()
         self._enforce_positive_amounts()
+        self._validate_unique_note_per_invoice()
         self.set_posting_time = 1
         self._run_super_validate_safely()
 
@@ -525,7 +526,6 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
                 item.qty = abs(item.qty)
             if flt(item.rate) < 0:
                 item.rate = abs(item.rate)
-
 
 # --------------------------------------------------------------------------- #
 # Búsqueda personalizada para return_against                                   #

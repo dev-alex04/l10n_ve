@@ -41,6 +41,7 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self._init_si_defaults()
         self._inherit_branch_from_si()
         self._enforce_positive_amounts()
+        self._validate_unique_note_per_invoice()
         # Impide que SalesInvoice.validate() resetee posting_date a la
         # fecha actual del servidor cuando set_posting_time es falsy.
         # El usuario puede cambiar la fecha libremente desde la UI.
@@ -479,8 +480,9 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
                 item.rate = abs(item.rate)
 
 
+
 # --------------------------------------------------------------------------- #
-# Búsqueda personalizada para return_against                                   #
+# Búsqueda personalizada para return_against                                  #
 # --------------------------------------------------------------------------- #
 
 @frappe.whitelist()

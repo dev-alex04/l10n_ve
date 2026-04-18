@@ -33,6 +33,13 @@ frappe.ui.form.on("VE Sales Credit Note", {
   refresh: function (frm) {
     frm.toggle_reqd("due_date", false);
 
+    // Sobreescribir indicador "Cancelled" → "Anulado" cuando fue anulada en HKA
+    if (frm.doc.docstatus === 2 && frm.doc.is_void) {
+      setTimeout(() => {
+        frm.page.set_indicator(__("Anulado"), "red");
+      }, 0);
+    }
+
     // Vista previa del asiento contable (idéntica a Factura de Venta)
     // Solo disponible en borradores ya guardados — usa el mismo motor
     // que la SI nativa: make_gl_entries() con rollback automático
@@ -174,7 +181,7 @@ frappe.ui.form.on("VE Sales Credit Note", {
 
           dialog.show();
         },
-        __("Acciones"),
+        __("Factura Digital"),
       );
     }
 
@@ -222,9 +229,9 @@ frappe.ui.form.on("VE Sales Credit Note", {
             },
           });
         },
-        __("Facturación Digital"),
+        __("Factura Digital"),
       );
-      frm.page.set_inner_btn_group_as_primary(__("Facturación Digital"));
+      frm.page.set_inner_btn_group_as_primary(__("Factura Digital"));
     }
 
     // ── Grupo "Ver": asiento contable (docstatus >= 1) ─────────────────────

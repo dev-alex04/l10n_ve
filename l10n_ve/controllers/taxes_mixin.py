@@ -176,3 +176,89 @@ class TaxesMixin:
             "percentage_base": flt(aliquot_info.percentage_base),
             "subtracting": flt(aliquot_info.subtracting),
         }))
+
+    # ------------------------------------------------------------------ #
+    # Exclusividad NC ↔ ND por factura                                     #
+    # ------------------------------------------------------------------ #
+
+    def _validate_unique_note_per_invoice(self) -> None:
+        """
+        Regla de negocio fiscal venezolana:
+        Una Factura de Venta solo puede tener UNA Nota de Crédito o UNA Nota
+        de Débito activa. No se permiten duplicados ni coexistencia NC + ND.
+        """
+        if not self.get("return_against"):
+            return
+
+        si_bill_no: str = frappe.get_cached_value(
+            "Sales Invoice", self.return_against, "bill_no"
+        ) or ""
+        si_label: str = (
+            f'<a href="/app/sales-invoice/{self.return_against}">'
+            f'{si_bill_no or self.return_against}</a>'
+        )
+
+        existing_nc: dict | None = frappe.db.get_value(
+            "VE Sales Credit Note",
+            {
+                "return_against": self.return_against,
+                "docstatus": 1,
+                "name": ("!=", self.name),
+            },
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if existing_nc:
+            nc_bill: str = existing_nc.bill_no or existing_nc.name
+            nc_label: str = (
+                f'<a href="/app/ve-sales-credit-note/{existing_nc.name}">'
+                f'{nc_bill}</a>'
+            )
+            if self.doctype == "VE Sales Credit Note":
+                frappe.throw(
+                    _(
+                        "La Factura {0} ya tiene una Nota de Crédito activa: "
+                        "{1}. Solo se permite una NC por factura."
+                    ).format(si_label, nc_label)
+                )
+            else:
+                frappe.throw(
+                    _(
+                        "La Factura {0} ya tiene una Nota de Crédito activa: "
+                        "{1}. No se puede crear una Nota de Débito sobre "
+                        "una factura con NC vigente."
+                    ).format(si_label, nc_label)
+                )
+
+        existing_nd: dict | None = frappe.db.get_value(
+            "VE Sales Debit Note",
+            {
+                "return_against": self.return_against,
+                "docstatus": 1,
+                "name": ("!=", self.name),
+            },
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if existing_nd:
+            nd_bill: str = existing_nd.bill_no or existing_nd.name
+            nd_label: str = (
+                f'<a href="/app/ve-sales-debit-note/{existing_nd.name}">'
+                f'{nd_bill}</a>'
+            )
+            if self.doctype == "VE Sales Debit Note":
+                frappe.throw(
+                    _(
+                        "La Factura {0} ya tiene una Nota de Débito activa: "
+                        "{1}. Solo se permite una ND por factura."
+                    ).format(si_label, nd_label)
+                )
+            else:
+                frappe.throw(
+                    _(
+                        "La Factura {0} ya tiene una Nota de Débito activa: "
+                        "{1}. No se puede crear una Nota de Crédito sobre "
+                        "una factura con ND vigente."
+                    ).format(si_label, nd_label)
+                )
+

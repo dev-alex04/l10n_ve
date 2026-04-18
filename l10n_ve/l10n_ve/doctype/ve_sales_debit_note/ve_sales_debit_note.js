@@ -33,6 +33,13 @@ frappe.ui.form.on("VE Sales Debit Note", {
   refresh: function (frm) {
     frm.toggle_reqd("due_date", false);
 
+    // Sobreescribir indicador "Cancelled" → "Anulado" cuando fue anulada en HKA
+    if (frm.doc.docstatus === 2 && frm.doc.is_void) {
+      setTimeout(() => {
+        frm.page.set_indicator(__("Anulado"), "red");
+      }, 0);
+    }
+
     // Vista previa del asiento contable
     erpnext.accounts.ledger_preview.show_accounting_ledger_preview(frm);
 
@@ -156,8 +163,9 @@ frappe.ui.form.on("VE Sales Debit Note", {
 
           dialog.show();
         },
-        __("Acciones"),
+        __("Factura Digital"),
       );
+      frm.page.set_inner_btn_group_as_primary(__("Factura Digital"));
     }
 
     // Vista previa del PDF fiscal
@@ -180,6 +188,7 @@ frappe.ui.form.on("VE Sales Debit Note", {
             args: {
               doc_name: frm.doc.name,
               doctype: "VE Sales Debit Note",
+              raise_on_error: true,
             },
             freeze: true,
             freeze_message: __("Enviando Nota de Débito a HKA..."),
