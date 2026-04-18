@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.9] - 2026-04-18
+
+### ✨ Funcionalidades (Features)
+- **Migración del Plan de Cuentas 2026:** Implementación de la nueva estructura contable con soporte para la consolidación (merge) de asientos contables (GL Entries). [fdd1a2c]
+
+### 🐛 Correcciones (Fixes)
+- **Libro de Ventas:** Se corrigió la doble conversión del IGTF, el manejo de documentos anulados del lado del cliente y la lógica condicional para el IVA retenido. [cd87b68]
+- **Compatibilidad SQL:** Optimización de consultas para soportar el modo `ONLY_FULL_GROUP_BY` mediante el uso de agregaciones `MAX()` y estandarización de precisión decimal en el constructor de carga (payload builder). [04205e3]
+- **Corte Fiscal:** Ajuste en la integración de datos legacy y nuevos esquemas mediante `UNION ALL`, mejorando el tratamiento de documentos marcados como anulados (void handling). [d0e78b0]
+- **Validación Fiscal:** Mejora en la validación de montos para impresoras fiscales HKA y aplicación de reglas de unicidad para el número de factura (`bill_no`) basado en la serie. [ce9166e]
+
+---
+
 ## [v1.0.8] - 2026-04-17
 
 ### ✨ Funcionalidades (Features)
