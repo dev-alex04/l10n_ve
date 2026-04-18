@@ -91,7 +91,7 @@ class TaxesMixin:
         withholding: _dict = withholding_category.get_withholding(self.company,
                                                                   self.doctype)
 
-        if self.doctype in ("Purchase Invoice", "Sales Invoice", "VE Sales Credit Note"):
+        if self.doctype in DocumentTransactionType.__ALL_INVOICE_DOCTYPES__:
             affected = self.get("affected_invoice_number") or self.return_against
             if self.is_return:
                 if not self.return_against:
@@ -103,14 +103,14 @@ class TaxesMixin:
             elif self.is_debit_note:
 
                 withholding['description'] = \
-                    f'{withholding["description"]} por Nota de Crédito contra factura {affected}'
+                    f'{withholding["description"]} por Nota de Débito contra factura {affected}'
 
 
         self.append("taxes", withholding)
 
     def set_islr_withholding_ve(self) -> None:
-        """Agrega retención ISLR a la tabla de impuestos para Sales Invoice y VE Sales Credit Note."""
-        if self.doctype not in ("Sales Invoice", "VE Sales Credit Note"):
+        """Agrega retención ISLR a la tabla de impuestos para documentos de venta."""
+        if self.doctype not in DocumentTransactionType.__SALES_INVOICE_DOCTYPES__:
             return
 
         self.taxes = [

@@ -1754,6 +1754,7 @@ def setup_workspaces() -> None:
     add_doctypes_to_accounting_workspace()
     add_vouchers_to_accounts_workspace()
     add_shortcuts_to_selling_workspace()
+    add_links_to_selling_workspace()
 
 def add_shortcuts_to_selling_workspace() -> None:
     """
@@ -1793,6 +1794,12 @@ def add_shortcuts_to_selling_workspace() -> None:
                 "link_to": "VE Sales Credit Note",
                 "type": "DocType",
                 "color": "Grey",
+            },
+            {
+                "label": "Nota de Débito",
+                "link_to": "VE Sales Debit Note",
+                "type": "DocType",
+                "color": "Orange",
             },
         ]
 
@@ -1873,6 +1880,92 @@ def add_shortcuts_to_selling_workspace() -> None:
         print(f"Failure: Error agregando shortcuts al Workspace de Ventas: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_shortcuts_to_selling_workspace')
 
+
+def add_links_to_selling_workspace() -> None:
+    """
+    Agrega Nota de Crédito y Nota de Débito como links en la sección 'Ventas'
+    del Workspace de Ventas, justo después de 'Sales Invoice'.
+
+    Frappe renderiza los links del menú lateral desde la tabla hija `links`.
+    Los links se insertan después de Sales Invoice para mantener el orden lógico:
+      Factura de Venta → Nota de Crédito → Nota de Débito
+    """
+    print("Agregando NC/ND a la sección Ventas del Workspace...")
+    try:
+        workspace_name = None
+        for candidate in ("Selling", "Ventas"):
+            if frappe.db.exists("Workspace", candidate):
+                workspace_name = candidate
+                break
+
+        if not workspace_name:
+            print("  !! No se encontró el Workspace 'Selling' / 'Ventas'. Omitiendo.")
+            return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+
+        links_to_add = [
+            {
+                "label": _("Nota de Crédito"),
+                "link_to": "VE Sales Credit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+            {
+                "label": _("Nota de Débito"),
+                "link_to": "VE Sales Debit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+        ]
+
+        current_links = {l.link_to for l in workspace.links}
+        modified = False
+
+        sales_invoice_idx = None
+        for i, link in enumerate(workspace.links):
+            if link.link_to == "Sales Invoice":
+                sales_invoice_idx = i
+                break
+
+        insert_offset = 1
+        for link_config in links_to_add:
+            if not frappe.db.exists("DocType", link_config["link_to"]):
+                print(f"  -- Omitiendo (DocType no encontrado): {link_config['link_to']}")
+                continue
+
+            if link_config["link_to"] in current_links:
+                print(f"  -- Omitiendo (ya existe): {link_config['label']}")
+                continue
+
+            new_link = workspace.append("links", {})
+            new_link.label = link_config["label"]
+            new_link.type = link_config["type"]
+            new_link.link_type = link_config["link_type"]
+            new_link.link_to = link_config["link_to"]
+
+            if sales_invoice_idx is not None:
+                target_idx = sales_invoice_idx + insert_offset + 1
+                links_list = workspace.links
+                last_link = links_list.pop()
+                links_list.insert(target_idx, last_link)
+                insert_offset += 1
+
+            modified = True
+            print(f"  -> Link agregado: {link_config['label']}")
+
+        if modified:
+            for i, link in enumerate(workspace.links, start=1):
+                link.idx = i
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Links NC/ND agregados al Workspace '{workspace_name}'.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya tenía los links.")
+
+    except Exception as e:
+        print(f"Failure: Error agregando links NC/ND al Workspace: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_links_to_selling_workspace')
 
 def add_vouchers_to_accounts_workspace() -> None:
     """

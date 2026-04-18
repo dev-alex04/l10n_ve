@@ -361,7 +361,7 @@ class TFHKAClient:
             frappe.logger("l10n_ve").error(f"No se pudo guardar el log TFHKA: {str(e)}")
 
 
-ALLOWED_DOCTYPES: list[str] = ["Sales Invoice", "VE Sales Credit Note"]
+ALLOWED_DOCTYPES: list[str] = ["Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note"]
 
 
 @frappe.whitelist()
@@ -392,14 +392,16 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
         return {"base64": None, "error": "No se encontró el número de documento en los datos HKA."}
 
     # Catálogo 1 SENIAT: 01=Factura, 02=NotaCredito, 03=NotaDebito
-    if doctype == "VE Sales Credit Note":
-        tipo_documento = "02"
-    else:
-        tipo_documento = "01"
-        if doc.is_return:
-            tipo_documento = "02"
-        elif doc.is_debit_note:
-            tipo_documento = "03"
+
+    document_map = {
+        "Sales Invoice": "01",
+        "VE Sales Credit Note": "02",
+        "VE Sales Debit Note": "03",
+    }
+
+    tipo_documento = document_map.get(doctype)
+    if not tipo_documento:
+        frappe.throw(f"DocType '{doctype}' no soportado.")
 
     client = TFHKAClient()
     response = client.download_file(

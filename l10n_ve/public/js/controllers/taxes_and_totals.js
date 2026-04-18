@@ -8,6 +8,7 @@ const __VE_DOCTYPES_JS__ = [
   "Sales Invoice",
   "Delivery Note",
   "VE Sales Credit Note",
+  "VE Sales Debit Note",
   "Purchase Order",
   "Purchase Invoice",
   "Purchase Receipt",
@@ -20,7 +21,7 @@ const __VE_DOCTYPES_JS__ = [
 erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
   item,
   tax,
-  item_tax_map
+  item_tax_map,
 ) {
   var tax_rate = this._get_tax_rate(tax, item_tax_map);
   var current_tax_amount = 0.0;
@@ -28,14 +29,14 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
   // To set row_id by default as previous row.
   if (
     ["On Previous Row Amount", "On Previous Row Total"].includes(
-      tax.charge_type
+      tax.charge_type,
     )
   ) {
     if (tax.idx === 1) {
       frappe.throw(
         __(
-          "Cannot select charge type as 'On Previous Row Amount' or 'On Previous Row Total' for first row"
-        )
+          "Cannot select charge type as 'On Previous Row Amount' or 'On Previous Row Total' for first row",
+        ),
       );
     }
     if (!tax.row_id) {
@@ -110,7 +111,7 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
 
 erpnext.taxes_and_totals.prototype.set_cumulative_total = function (
   row_idx,
-  tax
+  tax,
 ) {
   var tax_amount = tax.tax_amount_after_discount_amount;
 
@@ -155,7 +156,7 @@ erpnext.taxes_and_totals.prototype._is_multicurrency = function () {
   if (!this.frm || !this.frm.doc.company) return false;
   const company_currency = frappe.get_doc(
     ":Company",
-    this.frm.doc.company
+    this.frm.doc.company,
   )?.default_currency;
   return this.frm.doc.currency !== company_currency;
 };
@@ -182,12 +183,12 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
       if (tax.charge_type === "VAT" && !tax.is_tax_withholding_account) {
         tax.base_tax_amount = flt(
           (base_taxable_vef * flt(tax.rate)) / 100,
-          precision("base_tax_amount", tax)
+          precision("base_tax_amount", tax),
         );
       } else if (tax.charge_type === "On Net Total") {
         tax.base_tax_amount = flt(
           (base_taxable_vef * flt(tax.rate)) / 100,
-          precision("base_tax_amount", tax)
+          precision("base_tax_amount", tax),
         );
       } else if (tax.charge_type === "VAT Withholding") {
         let total_vat_base = 0;
@@ -198,17 +199,16 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
         }
         tax.base_tax_amount = flt(
           (total_vat_base * flt(tax.rate)) / 100,
-          precision("base_tax_amount", tax)
+          precision("base_tax_amount", tax),
         );
       } else if (tax.charge_type === "ISLR") {
         const base_islr_base =
           (flt(this.frm.doc.base_total) * flt(tax.percentage_base)) / 100;
         const base_islr =
-          (base_islr_base * flt(tax.rate)) / 100 -
-          flt(tax.subtracting);
+          (base_islr_base * flt(tax.rate)) / 100 - flt(tax.subtracting);
         tax.base_tax_amount = flt(
           Math.max(base_islr, 0),
-          precision("base_tax_amount", tax)
+          precision("base_tax_amount", tax),
         );
       } else if (tax.charge_type === "On Previous Row Amount") {
         const prev_idx = cint(tax.row_id) - 1;
@@ -216,7 +216,7 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
           const prev_tax = this.frm.doc.taxes[prev_idx];
           tax.base_tax_amount = flt(
             (prev_tax.base_tax_amount * flt(tax.rate)) / 100,
-            precision("base_tax_amount", tax)
+            precision("base_tax_amount", tax),
           );
         }
       } else if (tax.charge_type === "On Previous Row Total") {
@@ -225,7 +225,7 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
           const prev_tax = this.frm.doc.taxes[prev_idx];
           tax.base_tax_amount = flt(
             (prev_tax.base_total * flt(tax.rate)) / 100,
-            precision("base_tax_amount", tax)
+            precision("base_tax_amount", tax),
           );
         }
       }
@@ -239,7 +239,7 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
           flt(tax.tax_amount_after_discount_amount) / flt(tax.tax_amount);
         tax.base_tax_amount_after_discount_amount = flt(
           tax.base_tax_amount * discount_ratio,
-          precision("base_tax_amount_after_discount_amount", tax)
+          precision("base_tax_amount_after_discount_amount", tax),
         );
       } else {
         tax.base_tax_amount_after_discount_amount = tax.base_tax_amount;
@@ -271,7 +271,7 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
         ) {
           tax.base_total = flt(
             base_tax_base + base_tax_for_total,
-            precision("base_total", tax)
+            precision("base_total", tax),
           );
         } else {
           tax.base_total = base_tax_base;
@@ -279,7 +279,7 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
       } else {
         tax.base_total = flt(
           base_tax_base + base_tax_for_total,
-          precision("base_total", tax)
+          precision("base_total", tax),
         );
       }
 
@@ -351,26 +351,135 @@ erpnext.taxes_and_totals.prototype.calculate_totals = function () {
     const last_tax = this.frm.doc.taxes[this.frm.doc.taxes.length - 1];
     this.frm.doc.base_grand_total = flt(
       last_tax.base_total,
-      precision("base_grand_total")
+      precision("base_grand_total"),
     );
   }
 
   this.frm.doc.base_total_taxes_and_charges = flt(
     this.frm.doc.base_grand_total - this.frm.doc.base_net_total,
-    precision("base_total_taxes_and_charges")
+    precision("base_total_taxes_and_charges"),
   );
 
   if (
     frappe.meta.get_docfield(
       this.frm.doc.doctype,
       "rounded_total",
-      this.frm.doc.name
+      this.frm.doc.name,
     )
   ) {
     this.frm.doc.base_rounded_total = flt(
       this.frm.doc.base_grand_total,
-      precision("base_rounded_total")
+      precision("base_rounded_total"),
     );
     this.frm.doc.base_rounding_adjustment = 0;
   }
 };
+
+// ------------------------------------------------------------------ //
+// calculate_outstanding_amount — Override para NC/ND venezolanas
+// ------------------------------------------------------------------ //
+
+const _original_calculate_outstanding_amount =
+  erpnext.taxes_and_totals.prototype.calculate_outstanding_amount;
+
+erpnext.taxes_and_totals.prototype.calculate_outstanding_amount = function (
+  update_paid_amount,
+) {
+  const ve_invoice_doctypes = ["VE Sales Credit Note", "VE Sales Debit Note"];
+
+  if (!ve_invoice_doctypes.includes(this.frm.doc.doctype)) {
+    return _original_calculate_outstanding_amount.call(
+      this,
+      update_paid_amount,
+    );
+  }
+
+  // No calcular para documentos ya aprobados (se calcula desde GL entries)
+  if (this.frm.doc.docstatus > 0) return;
+
+  frappe.model.round_floats_in(this.frm.doc, [
+    "grand_total",
+    "total_advance",
+    "write_off_amount",
+  ]);
+
+  let grand_total = this.frm.doc.rounded_total || this.frm.doc.grand_total;
+  let base_grand_total =
+    this.frm.doc.base_rounded_total || this.frm.doc.base_grand_total;
+
+  let total_amount_to_pay;
+  if (this.frm.doc.party_account_currency == this.frm.doc.currency) {
+    total_amount_to_pay = flt(
+      grand_total - this.frm.doc.total_advance,
+      precision("grand_total"),
+    );
+  } else {
+    total_amount_to_pay = flt(
+      flt(base_grand_total, precision("base_grand_total")) -
+        this.frm.doc.total_advance,
+      precision("base_grand_total"),
+    );
+  }
+
+  this.frm.doc.outstanding_amount = flt(
+    total_amount_to_pay,
+    precision("outstanding_amount"),
+  );
+};
+
+// ------------------------------------------------------------------ //
+// Override de calculate_taxes_and_totals
+// ------------------------------------------------------------------ //
+
+const _original_calculate_taxes_and_totals =
+  erpnext.taxes_and_totals.prototype.calculate_taxes_and_totals;
+
+erpnext.taxes_and_totals.prototype.calculate_taxes_and_totals = async function (
+  update_paid_amount,
+) {
+  await _original_calculate_taxes_and_totals.call(this, update_paid_amount);
+
+  const ve_invoice_doctypes = ["VE Sales Credit Note", "VE Sales Debit Note"];
+  if (
+    ve_invoice_doctypes.includes(this.frm.doc.doctype) &&
+    this.frm.doc.docstatus < 2
+  ) {
+    this.calculate_total_advance(update_paid_amount);
+  }
+};
+
+// ------------------------------------------------------------------ //
+
+function recalculate_ve_document(frm) {
+  // Aplica para VE Sales Credit Note y VE Sales Debit Note
+  // Usado por VE Sales Credit Note Item y VE Sales Debit Note Item
+  try {
+    if (frm.cscript && frm.cscript.calculate_taxes_and_totals) {
+      frm.cscript.calculate_taxes_and_totals();
+    } else {
+      const calc = new erpnext.taxes_and_totals({ frm: frm });
+      // Fallback methods que taxes_and_totals espera del TransactionController
+      calc.get_company_currency = function () {
+        return erpnext.get_currency(this.frm.doc.company);
+      };
+      calc.shipping_rule = function () {
+        return Promise.resolve();
+      };
+
+      // Fallback variables
+      if (!frappe.flags.round_off_applicable_accounts) {
+        frappe.flags.round_off_applicable_accounts = [];
+      }
+
+      calc.calculate_taxes_and_totals()
+        .then(() => {
+          frm.refresh_fields();
+        })
+        .catch((e) => {
+          console.error("Error en calculate_taxes_and_totals async:", e);
+        });
+    }
+  } catch (err) {
+    console.error("Error en recalculate_ve_document:", err);
+  }
+}
