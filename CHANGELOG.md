@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.8] - 2026-04-17
+
+### ✨ Funcionalidades (Features)
+- **l10n_ve**: Implementación de la migración del plan de cuentas 2026, incluyendo la funcionalidad de consolidación (merge) de asientos contables (GL Entries). (d7013f6)
+
+### 🐛 Correcciones (Fixes)
+- **sales_book**: Optimización en la generación del libro de ventas al utilizar los campos `base_*` almacenados directamente en la factura, eliminando la necesidad de realizar recalculaciones. (6ded34f)
+- **sales_book**: Ajuste en el manejo de montos utilizando `base_tax_amount` y corrección de la lógica para asegurar que los montos se anulen correctamente en facturas marcadas como "void". (8a6dd23)
+
+---
+
 ## [v1.0.7] - 2026-04-17
 
 ### ✨ Funcionalidades (Features)
