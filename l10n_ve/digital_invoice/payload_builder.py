@@ -420,12 +420,12 @@ class TFHKAPayloadBuilder:
             if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0:
                 base_tax_amount_ves += flt(tax.base_tax_amount)
 
-        monto_exento_total = flt(fmt(flt(self.doc.get("total_exempt", 0.0)) * tc))
-        monto_gravado_total = flt(fmt(flt(self.doc.base_net_total) - monto_exento_total))
-        subtotal = flt(fmt(flt(self.doc.base_net_total)))
-        total_iva = flt(fmt(base_tax_amount_ves))
-        monto_total_con_iva = flt(fmt(subtotal + total_iva))
-        total_a_pagar = flt(fmt(monto_total_con_iva + total_igtf_amount))
+        monto_exento_total = flt(flt(self.doc.get("total_exempt", 0.0)) * tc, 2)
+        monto_gravado_total = flt(flt(self.doc.base_net_total) - monto_exento_total, 2)
+        subtotal = flt(self.doc.base_net_total, 2)
+        total_iva = flt(base_tax_amount_ves, 2)
+        monto_total_con_iva = flt(subtotal + total_iva, 2)
+        total_a_pagar = flt(monto_total_con_iva + total_igtf_amount, 2)
 
         self._totales_usd = {
             "subtotal": subtotal_usd,
@@ -646,8 +646,8 @@ class TFHKAPayloadBuilder:
 
         for idx, item in enumerate(self.doc.items, start=1):
             is_exempt = item.get("is_exempt", 0) or item.get("vat_exempt", 0)
-            item_amount = flt(fmt(item.amount))
-            item_rate = flt(fmt(item.rate))
+            item_amount = flt(item.amount, 2)
+            item_rate = flt(item.rate, 2)
 
             valor_iva = 0.0
             tasa_iva = "0"
@@ -656,7 +656,7 @@ class TFHKAPayloadBuilder:
             if not is_exempt and flt(self.doc.base_total_taxes_and_charges) > 0:
                 tasa_iva = str(int(iva_rate))
                 codigo_impuesto = "G"
-                valor_iva = flt(fmt(item_amount * (iva_rate / 100)))
+                valor_iva = flt(item_amount * (iva_rate / 100), 2)
 
             cantidad = str(cint(item.qty)) if item.qty == cint(item.qty) else str(item.qty)
 
