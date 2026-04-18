@@ -381,10 +381,11 @@ class TFHKAPayloadBuilder:
         return 16.0
 
     def _build_totales(self) -> dict:
-        """Totales principales en VES derivados de USD × TC.
+        """Totales principales en VES usando campos base_* almacenados.
 
-        Se calculan primero en USD (moneda del documento) y luego se
-        multiplican por la tasa de cambio para obtener bolívares.
+        Los montos VEF se leen directamente de base_net_total y
+        base_tax_amount de la factura (fuente de verdad), garantizando
+        que HKA reciba exactamente lo que la factura muestra.
         La fuente USD se almacena en _totales_usd para que
         TotalesOtraMoneda y DetallesItems la reutilicen sin redondeo."""
         def fmt(val):
@@ -411,15 +412,20 @@ class TFHKAPayloadBuilder:
         total_igtf_usd = flt(total_igtf_amount / tc, 2) if total_igtf_amount else 0.0
         total_a_pagar_usd = monto_total_con_iva_usd + total_igtf_usd
 
-        # VES: bases convertidas desde USD
-        monto_gravado_total = flt(fmt(monto_gravado_total_usd * tc))
-        monto_exento_total = flt(fmt(monto_exento_total_usd * tc))
-        subtotal = flt(fmt(subtotal_usd * tc))
-        # IVA calculado sobre la base imponible en VES para evitar error de
-        # redondeo por conversión desde USD (art. 25 Ley de IVA)
-        total_iva = flt(fmt(monto_gravado_total * (iva_rate / 100)))
-        monto_total_con_iva = flt(fmt(subtotal + total_iva))
-        total_a_pagar = flt(fmt(monto_total_con_iva + total_igtf_amount))
+        # VES: montos leídos de campos base_* almacenados en la factura.
+        # Evita recalcular desde USD × TC, eliminando diferencias por
+        # redondeo entre la factura y lo enviado a HKA.
+        base_tax_amount_ves: float = 0.0
+        for tax in self.doc.get("taxes", []):
+            if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0:
+                base_tax_amount_ves += flt(tax.base_tax_amount)
+
+        monto_exento_total = flt(flt(self.doc.get("total_exempt", 0.0)) * tc, 2)
+        monto_gravado_total = flt(flt(self.doc.base_net_total) - monto_exento_total, 2)
+        subtotal = flt(self.doc.base_net_total, 2)
+        total_iva = flt(base_tax_amount_ves, 2)
+        monto_total_con_iva = flt(subtotal + total_iva, 2)
+        total_a_pagar = flt(monto_total_con_iva + total_igtf_amount, 2)
 
         self._totales_usd = {
             "subtotal": subtotal_usd,
@@ -640,8 +646,8 @@ class TFHKAPayloadBuilder:
 
         for idx, item in enumerate(self.doc.items, start=1):
             is_exempt = item.get("is_exempt", 0) or item.get("vat_exempt", 0)
-            item_amount = flt(fmt(item.amount))
-            item_rate = flt(fmt(item.rate))
+            item_amount = flt(item.amount, 2)
+            item_rate = flt(item.rate, 2)
 
             valor_iva = 0.0
             tasa_iva = "0"
@@ -650,7 +656,7 @@ class TFHKAPayloadBuilder:
             if not is_exempt and flt(self.doc.base_total_taxes_and_charges) > 0:
                 tasa_iva = str(int(iva_rate))
                 codigo_impuesto = "G"
-                valor_iva = flt(fmt(item_amount * (iva_rate / 100)))
+                valor_iva = flt(item_amount * (iva_rate / 100), 2)
 
             cantidad = str(cint(item.qty)) if item.qty == cint(item.qty) else str(item.qty)
 

@@ -198,6 +198,7 @@ frappe.ui.form.on("VE Sales Credit Note", {
             args: {
               doc_name: frm.doc.name,
               doctype: "VE Sales Credit Note",
+              raise_on_error: true,
             },
             freeze: true,
             freeze_message: __("Enviando Nota de Crédito a HKA..."),
