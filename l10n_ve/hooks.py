@@ -299,6 +299,9 @@ doc_events = {
     },
     "File": {
         "after_insert": "l10n_ve.overrides.task.sync_attachment_to_project",
+    },
+    "GL Entry": {
+        "on_update": "l10n_ve.overrides.gl_entry.update_ve_outstanding_amount",
     }
 }
 # Scheduled Tasks

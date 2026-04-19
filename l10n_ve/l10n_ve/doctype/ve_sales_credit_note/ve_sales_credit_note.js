@@ -40,6 +40,14 @@ frappe.ui.form.on("VE Sales Credit Note", {
       }, 0);
     }
 
+    // La NC hereda de SalesInvoice, que marca status = "Paid" cuando
+    // outstanding == 0. Para la NC esto significa que fue aplicada.
+    if (frm.doc.docstatus === 1 && frm.doc.status === "Paid") {
+      setTimeout(() => {
+        frm.page.set_indicator(__("Aplicada"), "green");
+      }, 0);
+    }
+
     // Vista previa del asiento contable (idéntica a Factura de Venta)
     // Solo disponible en borradores ya guardados — usa el mismo motor
     // que la SI nativa: make_gl_entries() con rollback automático

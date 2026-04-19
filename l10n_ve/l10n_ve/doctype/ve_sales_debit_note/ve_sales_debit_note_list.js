@@ -15,18 +15,21 @@ frappe.listview_settings["VE Sales Debit Note"] = {
         "is_void",
     ],
     get_indicator: function (doc) {
-        // ND anulada ante HKA → rojo con etiqueta Anulado (tiene prioridad)
         if (doc.is_void) {
             return [__("Anulado"), "red", "is_void,=,1"];
         }
-        // ND ya emitida ante HKA → verde
-        if (doc.bill_no) {
-            return [__("Emitida"), "green", "bill_no,!=,"];
+        if (doc.docstatus === 1 && doc.status === "Paid") {
+            return [__("Pago"), "green", "status,=,Paid"];
+        }
+        if (doc.docstatus === 1 && doc.status === "Overdue") {
+            return [__("Vencido"), "red", "status,=,Overdue"];
+        }
+        if (doc.bill_no && doc.docstatus === 1) {
+            return [__("Emitida"), "blue", "bill_no,!=,"];
         }
         const status_colors = {
             Draft: "red",
             Submitted: "blue",
-            Return: "gray",
             Cancelled: "red",
         };
         return [__(doc.status), status_colors[doc.status] || "gray", "status,=," + doc.status];

@@ -40,6 +40,20 @@ frappe.ui.form.on("VE Sales Debit Note", {
       }, 0);
     }
 
+    // Indicador de pago completado
+    if (frm.doc.docstatus === 1 && frm.doc.status === "Paid") {
+      setTimeout(() => {
+        frm.page.set_indicator(__("Pago"), "green");
+      }, 0);
+    }
+
+    // Indicador de vencimiento
+    if (frm.doc.docstatus === 1 && frm.doc.status === "Overdue") {
+      setTimeout(() => {
+        frm.page.set_indicator(__("Vencido"), "red");
+      }, 0);
+    }
+
     // Vista previa del asiento contable
     erpnext.accounts.ledger_preview.show_accounting_ledger_preview(frm);
 
@@ -233,6 +247,33 @@ frappe.ui.form.on("VE Sales Debit Note", {
         },
         __("Ver"),
       );
+    }
+    // Botón: crear pago contra la ND
+    if (frm.doc.docstatus === 1 && flt(frm.doc.outstanding_amount) > 0) {
+      frm.add_custom_button(
+        __("Pago"),
+        function () {
+          frappe.call({
+            method:
+              "erpnext.accounts.doctype.payment_entry" +
+              ".payment_entry.get_payment_entry",
+            args: {
+              dt: "VE Sales Debit Note",
+              dn: frm.doc.name,
+            },
+            freeze: true,
+            freeze_message: __("Preparando pago..."),
+            callback: function (r) {
+              if (r.message) {
+                const doclist = frappe.model.sync(r.message);
+                frappe.set_route("Form", doclist[0].doctype, doclist[0].name);
+              }
+            },
+          });
+        },
+        __("Crear"),
+      );
+      frm.page.set_inner_btn_group_as_primary(__("Crear"));
     }
   },
 
