@@ -102,6 +102,17 @@ frappe.listview_settings["Sales Invoice"] = {
       });
     }
 
+    // Forzar columnas: Subject (bill_no), customer_name, bill_control, status
+    const get_df = frappe.meta.get_docfield.bind(null, "Sales Invoice");
+    listview.columns = [
+      { type: "Subject", df: get_df("bill_no") || { label: __("Número de Factura"), fieldname: "bill_no" } },
+      { type: "Tag" },
+      { type: "Status" },
+      { type: "Field", df: get_df("customer_name") || { label: __("Cliente"), fieldname: "customer_name" } },
+      { type: "Field", df: get_df("bill_control") || { label: __("Número de Control"), fieldname: "bill_control" } },
+    ];
+    listview.render_header(true);
+
     // Tooltip para el ⚠️ de comprobante faltante
     const original_render = listview.render_list;
     listview.render_list = function () {
