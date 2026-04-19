@@ -32,6 +32,7 @@ frappe.ui.form.on("VE Sales Credit Note", {
 
   refresh: function (frm) {
     frm.toggle_reqd("due_date", false);
+    calculate_base_total_with_vat(frm);
 
     // Sobreescribir indicador "Cancelled" → "Anulado" cuando fue anulada en HKA
     if (frm.doc.docstatus === 2 && frm.doc.is_void) {

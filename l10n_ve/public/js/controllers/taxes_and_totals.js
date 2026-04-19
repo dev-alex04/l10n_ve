@@ -345,6 +345,9 @@ const _original_calculate_totals =
 erpnext.taxes_and_totals.prototype.calculate_totals = function () {
   _original_calculate_totals.call(this);
 
+  // Recalcular Total Base + IVA en cada cambio de montos (qty, rate, etc.)
+  calculate_base_total_with_vat(this.frm);
+
   if (!this._is_multicurrency()) return;
 
   if (this.frm.doc.taxes && this.frm.doc.taxes.length) {
@@ -482,4 +485,29 @@ function recalculate_ve_document(frm) {
   } catch (err) {
     console.error("Error en recalculate_ve_document:", err);
   }
+}
+
+// ------------------------------------------------------------------ //
+// Cálculo del campo "Total Base + IVA (Bs)" — usado por SI, NC y ND
+// ------------------------------------------------------------------ //
+
+/**
+ * Asigna el Total Base + IVA en moneda de la compañía (Bs).
+ * Toma el valor de base_total de la fila con charge_type === 'VAT',
+ * que ya fue calculado por ERPNext (base_net_total + IVA).
+ * Si no hay IVA, usa base_net_total como fallback.
+ * @param {object} frm - Instancia del formulario (Sales Invoice, NC o ND)
+ */
+function calculate_base_total_with_vat(frm) {
+  let result = flt(frm.doc.base_net_total);
+
+  for (const tax_row of frm.doc.taxes || []) {
+    if (tax_row.charge_type === "VAT") {
+      result = flt(tax_row.base_total);
+      break;
+    }
+  }
+
+  frm.doc.base_total_with_vat = result;
+  frm.refresh_field("base_total_with_vat");
 }

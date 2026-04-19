@@ -57,6 +57,7 @@ frappe.ui.form.on("Sales Invoice", {
     toggle_islr_withholding_fields(frm);
     set_sales_invoice_fields(frm);
     print_button_pdf(frm);
+    calculate_base_total_with_vat(frm);
 
     setTimeout(() => {
       // Oculta el botón de impresión principal
