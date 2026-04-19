@@ -244,6 +244,7 @@ frappe.ui.form.on("Sales Invoice", {
     setup_hka_consulta_button(frm);
     render_fiscal_invoice_preview(frm);
     setup_credit_note_button(frm);
+    setup_debit_note_button(frm);
 
     if (frappe.boot.tfhka_enabled) {
       setup_digital_invoice_button(frm);
@@ -887,16 +888,20 @@ function apply_ve_exchange_rate_from_date(frm) {
  * @param {object} frm
  */
 function setup_credit_note_button(frm) {
-  // setTimeout(0) garantiza que el botón nativo de ERPNext ya fue
-  // agregado antes de removerlo (nuestro refresh corre antes que el de ERPNext).
+  // El controller de ERPNext (extend_cscript) agrega "Return / Credit Note"
+  // DESPUÉS de nuestro refresh. Usamos un timeout para removerlo siempre.
   setTimeout(() => {
     frm.page.remove_inner_button(__("Return / Credit Note"), __("Create"));
-  }, 1000);
+  }, 500);
+  setTimeout(() => {
+    frm.page.remove_inner_button(__("Return / Credit Note"), __("Create"));
+  }, 1500);
 
   if (
     frm.doc.docstatus !== 1 ||
     frm.doc.is_return ||
-    frm.doc.status === "Credit Note Issued"
+    frm.doc.status === "Credit Note Issued" ||
+    frm.doc.status === "Debit Note Issued"
   )
     return;
 
@@ -909,6 +914,37 @@ function setup_credit_note_button(frm) {
         customer: frm.doc.customer,
       };
       frappe.new_doc("VE Sales Credit Note");
+    },
+    __("Create"),
+  );
+}
+
+/**
+ * Botón "Nota de Débito" en el grupo "Create" de la Factura de Venta.
+ * Redirige al formulario de VE Sales Debit Note pre-llenado con los datos
+ * de la factura actual. Solo visible cuando la factura está aprobada y no
+ * es una NC ni una ND.
+ * @param {object} frm
+ */
+function setup_debit_note_button(frm) {
+  if (
+    frm.doc.docstatus !== 1 ||
+    frm.doc.is_return ||
+    frm.doc.is_debit_note ||
+    frm.doc.status === "Debit Note Issued" ||
+    frm.doc.status === "Credit Note Issued"
+  )
+    return;
+
+  frm.add_custom_button(
+    __("Nota de Débito"),
+    function () {
+      frappe.route_options = {
+        return_against: frm.doc.name,
+        company: frm.doc.company,
+        customer: frm.doc.customer,
+      };
+      frappe.new_doc("VE Sales Debit Note");
     },
     __("Create"),
   );

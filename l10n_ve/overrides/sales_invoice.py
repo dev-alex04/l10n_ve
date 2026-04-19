@@ -648,6 +648,17 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         ):
             self.status = "Credit Note Issued"
 
+        if (
+            self.status not in ("Credit Note Issued",)
+            and not cint(self.is_return)
+            and not cint(self.is_debit_note)
+            and frappe.db.exists(
+                "VE Sales Debit Note",
+                {"return_against": self.name, "docstatus": 1},
+            )
+        ):
+            self.status = "Debit Note Issued"
+
         if cint(self.is_void):
             self.status = "Void"
 
@@ -668,19 +679,15 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
     def set_indicator(self) -> None:
         """
-        Sobrescribe el indicador de portal para mostrar "Credit Note Issued"
-        cuando la SI tiene una NC venezolana vinculada y outstanding = 0.
+        Sobrescribe el indicador de portal usando el status ya calculado
+        por set_status(), sin consultas adicionales a la BD.
         """
-        if (
-            flt(self.outstanding_amount) == 0
-            and not cint(self.is_return)
-            and frappe.db.exists(
-                "VE Sales Credit Note",
-                {"return_against": self.name, "docstatus": 1},
-            )
-        ):
+        if self.status == "Credit Note Issued":
             self.indicator_title = _("Credit Note Issued")
             self.indicator_color = "gray"
+        elif self.status == "Debit Note Issued":
+            self.indicator_title = _("Debit Note Issued")
+            self.indicator_color = "orange"
         else:
             super().set_indicator()
 

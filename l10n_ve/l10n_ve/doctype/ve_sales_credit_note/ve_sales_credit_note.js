@@ -350,7 +350,7 @@ function _add_hka_consulta_button(frm, docstatus, label) {
         function () {
           window.open(url, "_blank");
         },
-        __("Ver"),
+        __("Factura Digital"),
       );
     }
   } catch (_) {}

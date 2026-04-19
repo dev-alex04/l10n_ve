@@ -3273,7 +3273,7 @@
         "property": "options",
         "property_type": "Text",
         "row_name": null,
-        "value": "\nDraft\nReturn\nCredit Note Issued\nSubmitted\nPaid\nPartly Paid\nUnpaid\nUnpaid and Discounted\nPartly Paid and Discounted\nOverdue and Discounted\nOverdue\nCancelled\nInternal Transfer\nVoid"
+        "value": "\nDraft\nReturn\nCredit Note Issued\nSubmitted\nPaid\nPartly Paid\nUnpaid\nUnpaid and Discounted\nPartly Paid and Discounted\nOverdue and Discounted\nOverdue\nCancelled\nInternal Transfer\nVoid\nDebit Note Issued"
     },
     {
         "doc_type": "Customer",

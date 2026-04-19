@@ -262,3 +262,20 @@ class TaxesMixin:
                     ).format(si_label, nd_label)
                 )
 
+    # ------------------------------------------------------------------ #
+    # Actualización de status en la factura padre                          #
+    # ------------------------------------------------------------------ #
+
+    def _update_parent_invoice_status(self) -> None:
+        """
+        Fuerza la actualización del status de la factura de venta padre
+        cuando una NC o ND es aprobada o cancelada.
+
+        Esto permite que la SI refleje correctamente 'Credit Note Issued'
+        o 'Debit Note Issued' sin necesidad de recargar manualmente.
+        """
+        if not self.get("return_against"):
+            return
+
+        parent_si = frappe.get_doc("Sales Invoice", self.return_against)
+        parent_si.set_status(update=True)
