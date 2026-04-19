@@ -34,7 +34,6 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         super().calculate()
 
         ve_invoice_doctypes: list = [
-            "VE Sales Credit Note",
             "VE Sales Debit Note",
         ]
         if self.doc.doctype in ve_invoice_doctypes:
@@ -457,11 +456,10 @@ class TaxesAndTotals(calculate_taxes_and_totals):
     def calculate_outstanding_amount(self) -> None:
         """
         ERPNext core (taxes_and_totals.py:875) solo calcula outstanding para
-        'Sales Invoice' y 'Purchase Invoice'. Las NC y ND venezolanas no entran.
-        Se extiende la condición para incluirlas.
+        'Sales Invoice' y 'Purchase Invoice'. La ND venezolana no entra.
+        Se extiende la condición para incluirla.
         """
         ve_invoice_doctypes: list = [
-            "VE Sales Credit Note",
             "VE Sales Debit Note",
         ]
 

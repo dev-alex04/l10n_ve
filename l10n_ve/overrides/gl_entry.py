@@ -4,8 +4,9 @@ Hook on_update para GL Entry.
 ERPNext solo actualiza outstanding_amount para Sales Invoice,
 Purchase Invoice y Fees (ver gl_entry.py:111-124).
 
-Este hook extiende esa lógica para los DocTypes fiscales
-venezolanos (VE Sales Debit Note, VE Sales Credit Note).
+Este hook extiende esa lógica para la Nota de Débito venezolana.
+Las Notas de Crédito NO se incluyen porque no manejan outstanding
+propio — reducen el outstanding de la factura original.
 """
 
 from __future__ import annotations
@@ -13,12 +14,12 @@ from __future__ import annotations
 import frappe
 from frappe.utils import flt
 
-VE_VOUCHER_TYPES: tuple = ("VE Sales Debit Note", "VE Sales Credit Note")
+VE_VOUCHER_TYPES: tuple = ("VE Sales Debit Note",)
 
 
 def update_ve_outstanding_amount(doc, method: str | None = None) -> None:
     """
-    Recalcula outstanding_amount de NC/ND cuando un GL Entry
+    Recalcula outstanding_amount de la ND cuando un GL Entry
     se registra contra ellas (ej. al aprobar un Payment Entry).
 
     Replica la lógica de ``update_outstanding_amt`` de ERPNext

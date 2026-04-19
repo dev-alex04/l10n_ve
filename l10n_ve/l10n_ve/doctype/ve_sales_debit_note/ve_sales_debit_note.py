@@ -28,6 +28,19 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
     """
 
     # ------------------------------------------------------------------ #
+    # Indicador del portal                                                 #
+    # ------------------------------------------------------------------ #
+
+    def set_indicator(self) -> None:
+        """Sobreescribe SalesInvoice.set_indicator() para evitar 'Overdue'."""
+        if flt(self.outstanding_amount) == 0:
+            self.indicator_title = _("Paid")
+            self.indicator_color = "green"
+        else:
+            self.indicator_title = _("Unpaid")
+            self.indicator_color = "orange"
+
+    # ------------------------------------------------------------------ #
     # Ciclo de vida del documento                                          #
     # ------------------------------------------------------------------ #
 

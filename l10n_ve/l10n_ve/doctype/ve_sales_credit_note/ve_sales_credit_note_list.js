@@ -10,7 +10,7 @@ frappe.listview_settings["VE Sales Credit Note"] = {
     "grand_total",
     "outstanding_amount",
     "return_against",
-    "credit_note_no",
+    "bill_no",
     "company",
     "currency",
     "is_void",
@@ -19,16 +19,17 @@ frappe.listview_settings["VE Sales Credit Note"] = {
     if (doc.is_void) {
       return [__("Anulado"), "red", "is_void,=,1"];
     }
-    if (doc.docstatus === 1 && doc.status === "Paid") {
-      return [__("Aplicada"), "green", "status,=,Paid"];
+    if (doc.docstatus === 1 && doc.bill_no) {
+      return [__("Emitida"), "blue", "bill_no,!=,"];
     }
-    if (doc.credit_note_no && doc.docstatus === 1) {
-      return [__("Emitida"), "blue", "credit_note_no,!=,"];
+    if (doc.docstatus === 1 && flt(doc.outstanding_amount) === 0) {
+      return [__("Aplicada"), "green", "outstanding_amount,=,0"];
+    }
+    if (doc.docstatus === 1) {
+      return [__("Pendiente"), "orange", "docstatus,=,1"];
     }
     const status_colors = {
       Draft: "red",
-      Submitted: "blue",
-      Return: "gray",
       Cancelled: "red",
     };
     return [
@@ -39,3 +40,4 @@ frappe.listview_settings["VE Sales Credit Note"] = {
   },
   right_column: "grand_total",
 };
+

@@ -40,9 +40,12 @@ frappe.ui.form.on("VE Sales Credit Note", {
       }, 0);
     }
 
-    // La NC hereda de SalesInvoice, que marca status = "Paid" cuando
-    // outstanding == 0. Para la NC esto significa que fue aplicada.
-    if (frm.doc.docstatus === 1 && frm.doc.status === "Paid") {
+    // Indicador de estado del formulario (misma lógica que list view)
+    if (frm.doc.docstatus === 1 && frm.doc.bill_no) {
+      setTimeout(() => {
+        frm.page.set_indicator(__("Emitida"), "blue");
+      }, 0);
+    } else if (frm.doc.docstatus === 1 && flt(frm.doc.outstanding_amount) === 0) {
       setTimeout(() => {
         frm.page.set_indicator(__("Aplicada"), "green");
       }, 0);

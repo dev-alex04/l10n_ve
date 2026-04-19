@@ -40,17 +40,21 @@ frappe.ui.form.on("VE Sales Debit Note", {
       }, 0);
     }
 
-    // Indicador de pago completado
-    if (frm.doc.docstatus === 1 && frm.doc.status === "Paid") {
+    // Indicador compuesto: estado fiscal + estado de pago
+    if (frm.doc.docstatus === 1) {
       setTimeout(() => {
-        frm.page.set_indicator(__("Pago"), "green");
-      }, 0);
-    }
+        let fiscal = frm.doc.bill_no ? __("Emitida") : __("Aplicada");
+        let payment, color;
 
-    // Indicador de vencimiento
-    if (frm.doc.docstatus === 1 && frm.doc.status === "Overdue") {
-      setTimeout(() => {
-        frm.page.set_indicator(__("Vencido"), "red");
+        if (flt(frm.doc.outstanding_amount) === 0) {
+          payment = __("Pagado");
+          color = "green";
+        } else {
+          payment = __("Por Cobrar");
+          color = frm.doc.bill_no ? "blue" : "orange";
+        }
+
+        frm.page.set_indicator(`${fiscal} - ${payment}`, color);
       }, 0);
     }
 

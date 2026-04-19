@@ -37,9 +37,9 @@ class CustomPaymentEntry(PaymentEntry):
         return super().allocate_amount_to_references(paid_amount, received_amount, allocate_payment_amount)
 
     def get_valid_reference_doctypes(self) -> tuple:
-        """Extiende los doctypes de referencia válidos para incluir NC y ND."""
+        """Extiende los doctypes de referencia válidos para incluir ND."""
         valid: tuple = super().get_valid_reference_doctypes() or ()
-        ve_doctypes: tuple = ("VE Sales Debit Note", "VE Sales Credit Note")
+        ve_doctypes: tuple = ("VE Sales Debit Note",)
         return valid + tuple(dt for dt in ve_doctypes if dt not in valid)
 
     def validate(self) -> None:

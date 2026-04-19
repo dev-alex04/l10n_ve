@@ -25,6 +25,15 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
     """
 
     # ------------------------------------------------------------------ #
+    # Indicador del portal                                                 #
+    # ------------------------------------------------------------------ #
+
+    def set_indicator(self) -> None:
+        """Sobreescribe SalesInvoice.set_indicator() para evitar 'Overdue'."""
+        self.indicator_title = _("Return")
+        self.indicator_color = "gray"
+
+    # ------------------------------------------------------------------ #
     # Ciclo de vida del documento                                          #
     # ------------------------------------------------------------------ #
 

@@ -18,21 +18,31 @@ frappe.listview_settings["VE Sales Debit Note"] = {
         if (doc.is_void) {
             return [__("Anulado"), "red", "is_void,=,1"];
         }
-        if (doc.docstatus === 1 && doc.status === "Paid") {
-            return [__("Pago"), "green", "status,=,Paid"];
+
+        if (doc.docstatus !== 1) {
+            const status_colors = {
+                Draft: "red",
+                Cancelled: "red",
+            };
+            return [__(doc.status), status_colors[doc.status] || "gray", "status,=," + doc.status];
         }
-        if (doc.docstatus === 1 && doc.status === "Overdue") {
-            return [__("Vencido"), "red", "status,=,Overdue"];
+
+        // Estado fiscal
+        let fiscal_label = doc.bill_no ? __("Emitida") : __("Aplicada");
+
+        // Estado de pago
+        let payment_label = "";
+        let color = "orange";
+
+        if (flt(doc.outstanding_amount) === 0) {
+            payment_label = __("Pagado");
+            color = "green";
+        } else {
+            payment_label = __("Por Cobrar");
+            color = doc.bill_no ? "blue" : "orange";
         }
-        if (doc.bill_no && doc.docstatus === 1) {
-            return [__("Emitida"), "blue", "bill_no,!=,"];
-        }
-        const status_colors = {
-            Draft: "red",
-            Submitted: "blue",
-            Cancelled: "red",
-        };
-        return [__(doc.status), status_colors[doc.status] || "gray", "status,=," + doc.status];
+
+        return [`${fiscal_label} - ${payment_label}`, color, "docstatus,=,1"];
     },
     right_column: "grand_total",
 };
