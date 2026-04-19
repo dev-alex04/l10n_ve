@@ -142,6 +142,8 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         self._validate_debit_note_no(raise_throw=True)
         self._validate_credit_note_no(raise_throw=True)
 
+        self._set_base_total_with_vat()
+
     def validate_return_in_same_month(self) -> None:
         """
         Valida que una Nota de Crédito o Débito se cree en el mismo mes

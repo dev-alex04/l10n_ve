@@ -60,6 +60,7 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         self._validate_unique_note_per_invoice()
         self.set_posting_time = 1
         self._run_super_validate_safely()
+        self._set_base_total_with_vat()
 
     def on_submit(self) -> None:
         """

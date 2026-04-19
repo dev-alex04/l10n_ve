@@ -32,6 +32,22 @@ class TaxesMixin:
             if tax.is_tax_withholding_account
         ])
 
+    def _set_base_total_with_vat(self) -> None:
+        """Asigna base_total_with_vat tomando base_total de la fila VAT.
+
+        Negocio: el equipo financiero necesita ver el monto antes de
+        retenciones (base imponible + IVA) en moneda de la compañía.
+        Fallback a base_net_total si no hay fila VAT.
+        """
+        result: float = flt(self.base_net_total)
+
+        for tax_row in self.taxes or []:
+            if tax_row.charge_type == "VAT":
+                result = flt(tax_row.base_total)
+                break
+
+        self.base_total_with_vat = result
+
     # ------------------------------ OVERRIDES ------------------------------ #
 
     def set_taxes_and_charges(self) -> None:

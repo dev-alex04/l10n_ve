@@ -56,6 +56,7 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         # El usuario puede cambiar la fecha libremente desde la UI.
         self.set_posting_time = 1
         self._run_super_validate_safely()
+        self._set_base_total_with_vat()
 
     def on_submit(self) -> None:
         """
