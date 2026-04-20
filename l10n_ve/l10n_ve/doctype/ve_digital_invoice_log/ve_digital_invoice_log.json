@@ -23,7 +23,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Tipo de Documento",
-   "options": "Sales Invoice\nVE Sales Credit Note"
+   "options": "Sales Invoice\nVE Sales Credit Note\nVE Sales Debit Note"
   },
   {
    "fieldname": "sales_invoice",

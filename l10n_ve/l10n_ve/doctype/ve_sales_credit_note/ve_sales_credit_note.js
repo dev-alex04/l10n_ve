@@ -32,6 +32,25 @@ frappe.ui.form.on("VE Sales Credit Note", {
 
   refresh: function (frm) {
     frm.toggle_reqd("due_date", false);
+    calculate_base_total_with_vat(frm);
+
+    // Sobreescribir indicador "Cancelled" → "Anulado" cuando fue anulada en HKA
+    if (frm.doc.docstatus === 2 && frm.doc.is_void) {
+      setTimeout(() => {
+        frm.page.set_indicator(__("Anulado"), "red");
+      }, 0);
+    }
+
+    // Indicador de estado del formulario (misma lógica que list view)
+    if (frm.doc.docstatus === 1 && frm.doc.bill_no) {
+      setTimeout(() => {
+        frm.page.set_indicator(__("Emitida"), "blue");
+      }, 0);
+    } else if (frm.doc.docstatus === 1 && flt(frm.doc.outstanding_amount) === 0) {
+      setTimeout(() => {
+        frm.page.set_indicator(__("Aplicada"), "green");
+      }, 0);
+    }
 
     // Vista previa del asiento contable (idéntica a Factura de Venta)
     // Solo disponible en borradores ya guardados — usa el mismo motor
@@ -174,7 +193,7 @@ frappe.ui.form.on("VE Sales Credit Note", {
 
           dialog.show();
         },
-        __("Acciones"),
+        __("Factura Digital"),
       );
     }
 
@@ -222,9 +241,9 @@ frappe.ui.form.on("VE Sales Credit Note", {
             },
           });
         },
-        __("Facturación Digital"),
+        __("Factura Digital"),
       );
-      frm.page.set_inner_btn_group_as_primary(__("Facturación Digital"));
+      frm.page.set_inner_btn_group_as_primary(__("Factura Digital"));
     }
 
     // ── Grupo "Ver": asiento contable (docstatus >= 1) ─────────────────────
@@ -249,115 +268,38 @@ frappe.ui.form.on("VE Sales Credit Note", {
   // Al seleccionar la factura original:
   //   1. Auto-carga cliente, branch, tasa e ítems en positivo
   return_against: function (frm) {
-    if (!frm.doc.return_against) return;
-
-    frappe.call({
-      method: "frappe.client.get",
-      args: { doctype: "Sales Invoice", name: frm.doc.return_against },
-      callback: function (r) {
-        if (!r.message) return;
-        const si = r.message;
-
-        // ── Cliente: heredar de la SI ─────────────────────────────────
-        if (si.customer && !frm.doc.customer) {
-          frm.set_value("customer", si.customer);
-        }
-
-        // ── Fechas: heredar de la SI ──────────────────────────────────
-        if (si.posting_date) {
-          frm.set_value("posting_date", si.posting_date);
-        }
-        if (si.due_date) {
-          frm.set_value("due_date", si.due_date);
-        }
-
-        // ── Branch: heredar de la SI y bloquear si la tiene ─────────
-        if (si.branch) {
-          frm.set_value("branch", si.branch);
-          frm.set_df_property("branch", "read_only", 1);
-        } else {
-          frm.set_df_property("branch", "read_only", 0);
-        }
-
-        // ── Tasa de cambio: heredar de la SI ─────────────────────────
-        // La NC debe usar la MISMA tasa que la factura original para que
-        // los asientos contables en VEF sean un espejo exacto.
-        if (si.conversion_rate) {
-          frm.set_value("conversion_rate", si.conversion_rate);
-        }
-        if (si.plc_conversion_rate) {
-          frm.set_value("plc_conversion_rate", si.plc_conversion_rate);
-        }
-
-        // ── Ítems: copiar desde la SI en positivo ────────────────────
-        frm.clear_table("items");
-        si.items.forEach(function (item) {
-          let row = frm.add_child("items");
-          // Campos descriptivos
-          row.item_code = item.item_code;
-          row.item_name = item.item_name;
-          row.description = item.description;
-          row.uom = item.uom;
-          row.stock_uom = item.stock_uom;
-          row.income_account = item.income_account;
-          row.cost_center = item.cost_center;
-          row.warehouse = item.warehouse;
-
-          // Cantidades y precios — siempre positivos
-          row.qty = Math.abs(item.qty);
-          row.stock_qty = Math.abs(item.stock_qty || item.qty);
-          row.rate = Math.abs(item.rate);
-
-          // Campos calculados obligatorios
-          row.uom_conversion_factor = item.uom_conversion_factor || 1;
-          row.conversion_factor = item.conversion_factor || 1;
-          row.amount = Math.abs(item.amount || item.qty * item.rate);
-          row.base_rate = Math.abs(item.base_rate || item.rate);
-          row.base_amount = Math.abs(item.base_amount || item.amount);
-          row.net_rate = Math.abs(item.net_rate || item.rate);
-          row.net_amount = Math.abs(item.net_amount || item.amount);
-          row.base_net_rate = Math.abs(
-            item.base_net_rate || item.base_rate || item.rate,
-          );
-          row.base_net_amount = Math.abs(
-            item.base_net_amount || item.base_amount || item.amount,
-          );
-
-          // Impuestos del ítem
-          row.item_tax_template = item.item_tax_template;
-          row.tax_rate = item.tax_rate;
-        });
-
-        frm.refresh_field("items");
-
-        // Totales del encabezado — el servidor los recalcula en validate(),
-        // pero el cliente los requiere para pasar la validación de campos obligatorios
-        frm.doc.grand_total = Math.abs(si.grand_total || 0);
-        frm.doc.base_grand_total = Math.abs(si.base_grand_total || 0);
-        frm.doc.net_total = Math.abs(si.net_total || 0);
-        frm.doc.base_net_total = Math.abs(si.base_net_total || 0);
-        frm.doc.total = Math.abs(si.total || 0);
-        frm.doc.base_total = Math.abs(si.base_total || 0);
-        frm.doc.total_taxes_and_charges = Math.abs(
-          si.total_taxes_and_charges || 0,
-        );
-        frm.doc.base_total_taxes_and_charges = Math.abs(
-          si.base_total_taxes_and_charges || 0,
-        );
-        frm.doc.outstanding_amount = 0;
-
-        frappe.show_alert({
-          message: __("Ítems cargados desde {0}", [frm.doc.return_against]),
-          indicator: "blue",
-        });
-      },
-    });
+    populate_from_sales_invoice(frm);
   },
 
   // Al cambiar la fecha de la NC, actualiza la tasa de cambio según
   // la misma regla fiscal que la SI: Jurídico → fecha exacta, Natural → 1ro del mes.
   posting_date: function (frm) {
     apply_ve_exchange_rate_nc(frm);
+  },
+});
+
+// ------------------------------------------------------------------ //
+// Child table: recálculo al cambiar qty, rate o descuento
+// ------------------------------------------------------------------ //
+
+frappe.ui.form.on("VE Sales Credit Note Item", {
+  qty(frm) {
+    recalculate_ve_document(frm);
+  },
+  rate(frm) {
+    recalculate_ve_document(frm);
+  },
+  price_list_rate(frm) {
+    recalculate_ve_document(frm);
+  },
+  discount_percentage(frm) {
+    recalculate_ve_document(frm);
+  },
+  discount_amount(frm) {
+    recalculate_ve_document(frm);
+  },
+  items_remove(frm) {
+    recalculate_ve_document(frm);
   },
 });
 
@@ -420,7 +362,7 @@ function _add_hka_consulta_button(frm, docstatus, label) {
         function () {
           window.open(url, "_blank");
         },
-        __("Ver"),
+        __("Factura Digital"),
       );
     }
   } catch (_) {}

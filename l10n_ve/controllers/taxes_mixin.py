@@ -32,6 +32,22 @@ class TaxesMixin:
             if tax.is_tax_withholding_account
         ])
 
+    def _set_base_total_with_vat(self) -> None:
+        """Asigna base_total_with_vat tomando base_total de la fila VAT.
+
+        Negocio: el equipo financiero necesita ver el monto antes de
+        retenciones (base imponible + IVA) en moneda de la compañía.
+        Fallback a base_net_total si no hay fila VAT.
+        """
+        result: float = flt(self.base_net_total)
+
+        for tax_row in self.taxes or []:
+            if tax_row.charge_type == "VAT":
+                result = flt(tax_row.base_total)
+                break
+
+        self.base_total_with_vat = result
+
     # ------------------------------ OVERRIDES ------------------------------ #
 
     def set_taxes_and_charges(self) -> None:
@@ -91,7 +107,7 @@ class TaxesMixin:
         withholding: _dict = withholding_category.get_withholding(self.company,
                                                                   self.doctype)
 
-        if self.doctype in ("Purchase Invoice", "Sales Invoice", "VE Sales Credit Note"):
+        if self.doctype in DocumentTransactionType.__ALL_INVOICE_DOCTYPES__:
             affected = self.get("affected_invoice_number") or self.return_against
             if self.is_return:
                 if not self.return_against:
@@ -103,14 +119,14 @@ class TaxesMixin:
             elif self.is_debit_note:
 
                 withholding['description'] = \
-                    f'{withholding["description"]} por Nota de Crédito contra factura {affected}'
+                    f'{withholding["description"]} por Nota de Débito contra factura {affected}'
 
 
         self.append("taxes", withholding)
 
     def set_islr_withholding_ve(self) -> None:
-        """Agrega retención ISLR a la tabla de impuestos para Sales Invoice y VE Sales Credit Note."""
-        if self.doctype not in ("Sales Invoice", "VE Sales Credit Note"):
+        """Agrega retención ISLR a la tabla de impuestos para documentos de venta."""
+        if self.doctype not in DocumentTransactionType.__SALES_INVOICE_DOCTYPES__:
             return
 
         self.taxes = [
@@ -176,3 +192,106 @@ class TaxesMixin:
             "percentage_base": flt(aliquot_info.percentage_base),
             "subtracting": flt(aliquot_info.subtracting),
         }))
+
+    # ------------------------------------------------------------------ #
+    # Exclusividad NC ↔ ND por factura                                     #
+    # ------------------------------------------------------------------ #
+
+    def _validate_unique_note_per_invoice(self) -> None:
+        """
+        Regla de negocio fiscal venezolana:
+        Una Factura de Venta solo puede tener UNA Nota de Crédito o UNA Nota
+        de Débito activa. No se permiten duplicados ni coexistencia NC + ND.
+        """
+        if not self.get("return_against"):
+            return
+
+        si_bill_no: str = frappe.get_cached_value(
+            "Sales Invoice", self.return_against, "bill_no"
+        ) or ""
+        si_label: str = (
+            f'<a href="/app/sales-invoice/{self.return_against}">'
+            f'{si_bill_no or self.return_against}</a>'
+        )
+
+        existing_nc: dict | None = frappe.db.get_value(
+            "VE Sales Credit Note",
+            {
+                "return_against": self.return_against,
+                "docstatus": 1,
+                "name": ("!=", self.name),
+            },
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if existing_nc:
+            nc_bill: str = existing_nc.bill_no or existing_nc.name
+            nc_label: str = (
+                f'<a href="/app/ve-sales-credit-note/{existing_nc.name}">'
+                f'{nc_bill}</a>'
+            )
+            if self.doctype == "VE Sales Credit Note":
+                frappe.throw(
+                    _(
+                        "La Factura {0} ya tiene una Nota de Crédito activa: "
+                        "{1}. Solo se permite una NC por factura."
+                    ).format(si_label, nc_label)
+                )
+            else:
+                frappe.throw(
+                    _(
+                        "La Factura {0} ya tiene una Nota de Crédito activa: "
+                        "{1}. No se puede crear una Nota de Débito sobre "
+                        "una factura con NC vigente."
+                    ).format(si_label, nc_label)
+                )
+
+        existing_nd: dict | None = frappe.db.get_value(
+            "VE Sales Debit Note",
+            {
+                "return_against": self.return_against,
+                "docstatus": 1,
+                "name": ("!=", self.name),
+            },
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if existing_nd:
+            nd_bill: str = existing_nd.bill_no or existing_nd.name
+            nd_label: str = (
+                f'<a href="/app/ve-sales-debit-note/{existing_nd.name}">'
+                f'{nd_bill}</a>'
+            )
+            if self.doctype == "VE Sales Debit Note":
+                frappe.throw(
+                    _(
+                        "La Factura {0} ya tiene una Nota de Débito activa: "
+                        "{1}. Solo se permite una ND por factura."
+                    ).format(si_label, nd_label)
+                )
+            else:
+                frappe.throw(
+                    _(
+                        "La Factura {0} ya tiene una Nota de Débito activa: "
+                        "{1}. No se puede crear una Nota de Crédito sobre "
+                        "una factura con ND vigente."
+                    ).format(si_label, nd_label)
+                )
+
+    # ------------------------------------------------------------------ #
+    # Actualización de status en la factura padre                          #
+    # ------------------------------------------------------------------ #
+
+    def _update_parent_invoice_status(self) -> None:
+        """
+        Fuerza la actualización del status de la factura de venta padre
+        cuando una NC o ND es aprobada o cancelada.
+
+        Esto permite que la SI refleje correctamente 'Credit Note Issued'
+        o 'Debit Note Issued' sin necesidad de recargar manualmente.
+        """
+        if not self.get("return_against"):
+            return
+
+        parent_si = frappe.get_doc("Sales Invoice", self.return_against)
+        parent_si.set_status(update=True)

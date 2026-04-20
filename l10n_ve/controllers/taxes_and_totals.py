@@ -13,6 +13,7 @@ __VE_DOCTYPES__ = [
     "Sales Invoice",
     "Delivery Note",
     "VE Sales Credit Note",
+    "VE Sales Debit Note",
     "Purchase Order",
     "Purchase Invoice",
     "Purchase Receipt",
@@ -23,6 +24,20 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
     def __init__(self, doc) -> None:
         super().__init__(doc)
+
+    def calculate(self) -> None:
+        """
+        ERPNext core solo llama calculate_total_advance() (que a su vez
+        calcula outstanding) para 'Sales Invoice' y 'Purchase Invoice'.
+        Se extiende para que los doctypes venezolanos también lo ejecuten.
+        """
+        super().calculate()
+
+        ve_invoice_doctypes: list = [
+            "VE Sales Debit Note",
+        ]
+        if self.doc.doctype in ve_invoice_doctypes:
+            self.calculate_total_advance()
 
     def _is_multicurrency(self) -> bool:
         """Indica si el documento usa moneda diferente a la de la compañía."""
@@ -305,20 +320,26 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
     def calculate_totals(self) -> None:
         """
-        Override que mantiene el redirect de VE Sales Credit Note
-        y recalcula base_grand_total usando los componentes VEF
-        recalculados con la metodología fiscal venezolana.
+        Override que mantiene el redirect de VE Sales Credit Note y
+        VE Sales Debit Note. Luego recalcula base_grand_total usando
+        los componentes VEF recalculados con la metodología fiscal venezolana.
         """
-        es_nc: bool = self.doc.doctype == "VE Sales Credit Note"
+        es_doc_ve: bool = self.doc.doctype in (
+            "VE Sales Credit Note", "VE Sales Debit Note"
+        )
+        original_doctype: str = self.doc.doctype
 
-        if es_nc:
+        if es_doc_ve:
             self.doc.doctype = "Sales Invoice"
+            for tax in self.doc.get("taxes", []):
+                if not hasattr(tax, "category") or not tax.category:
+                    tax.category = "Total"
 
         try:
             super().calculate_totals()
         finally:
-            if es_nc:
-                self.doc.doctype = "VE Sales Credit Note"
+            if es_doc_ve:
+                self.doc.doctype = original_doctype
 
         if not self._is_multicurrency():
             return
@@ -431,3 +452,40 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
         self.calculate_outstanding_amount()
         self.calculate_write_off_amount()
+
+    def calculate_outstanding_amount(self) -> None:
+        """
+        ERPNext core (taxes_and_totals.py:875) solo calcula outstanding para
+        'Sales Invoice' y 'Purchase Invoice'. La ND venezolana no entra.
+        Se extiende la condición para incluirla.
+        """
+        ve_invoice_doctypes: list = [
+            "VE Sales Debit Note",
+        ]
+
+        if self.doc.doctype not in ve_invoice_doctypes:
+            return super().calculate_outstanding_amount()
+
+        grand_total = self.doc.rounded_total or self.doc.grand_total
+        base_grand_total = self.doc.base_rounded_total or self.doc.base_grand_total
+
+        self.doc.round_floats_in(
+            self.doc, ["grand_total", "total_advance", "write_off_amount"]
+        )
+
+        if self.doc.party_account_currency == self.doc.currency:
+            total_amount_to_pay = flt(
+                grand_total - flt(self.doc.total_advance),
+                self.doc.precision("grand_total"),
+            )
+        else:
+            total_amount_to_pay = flt(
+                flt(base_grand_total, self.doc.precision("base_grand_total"))
+                - flt(self.doc.total_advance),
+                self.doc.precision("base_grand_total"),
+            )
+
+        self.doc.outstanding_amount = flt(
+            total_amount_to_pay,
+            self.doc.precision("outstanding_amount"),
+        )
