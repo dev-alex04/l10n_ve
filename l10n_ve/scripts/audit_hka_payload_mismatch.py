@@ -257,3 +257,104 @@ def run() -> None:
             print(f"  {field:<30} {vef_val:>+15.2f} {usd_val:>+15.2f}")
 
     print(f"{'=' * 70}\n")
+
+    # =================================================================== #
+    # FASE 3: Montos ERP vs payload exitoso HKA (desde 16 de abril)       #
+    # =================================================================== #
+
+    cutoff_date: str = "2026-04-16"
+    recent_invoices: list[dict] = frappe.db.get_all(
+        "Sales Invoice",
+        filters={
+            "docstatus": ["in", [1, 2]],
+            "bill_no": ["is", "set"],
+            "posting_date": [">=", cutoff_date],
+        },
+        fields=["name", "base_net_total", "base_grand_total",
+                "base_total_taxes_and_charges", "conversion_rate",
+                "total", "grand_total"],
+        order_by="posting_date ASC",
+    )
+
+    total_f3: int = len(recent_invoices)
+    mismatches_f3: int = 0
+    no_log_f3: int = 0
+    mismatched_ids: list[dict] = []
+
+    print(f"\n{'=' * 70}")
+    print(f"  Fase 3: Montos ERP vs payload exitoso HKA")
+    print(f"  Facturas desde {cutoff_date} — {total_f3} documentos")
+    print(f"{'=' * 70}\n")
+
+    for j, inv in enumerate(recent_invoices, 1):
+        _print_progress(j, total_f3, mismatches_f3, 0, no_log_f3, "F3")
+
+        sent_payload: dict | None = _get_sent_payload(inv.name)
+        if sent_payload is None:
+            no_log_f3 += 1
+            continue
+
+        sent_totales: dict = _extract_totales(sent_payload, "totales")
+        if not sent_totales:
+            no_log_f3 += 1
+            continue
+
+        # Obtener datos de impuestos de la factura
+        doc = frappe.get_doc("Sales Invoice", inv.name)
+        base_net: float = flt(doc.base_net_total)
+
+        base_vat: float = 0.0
+        for tax in doc.get("taxes", []):
+            if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0:
+                base_vat += flt(tax.base_tax_amount)
+
+        exempt_base: float = flt(doc.get("total_exempt", 0.0)) * flt(doc.conversion_rate or 1)
+
+        # Mapeo ERP → campos HKA
+        erp_values: dict[str, float] = {
+            "subtotal": base_net,
+            "montoGravadoTotal": base_net - exempt_base,
+            "montoExentoTotal": exempt_base,
+            "totalIVA": base_vat,
+            "montoTotalConIVA": base_net + base_vat,
+        }
+
+        # Comparar contra payload enviado
+        field_errors: list[str] = []
+        for field, erp_val in erp_values.items():
+            hka_val: float = flt(sent_totales.get(field, 0))
+            diff: float = abs(hka_val - erp_val)
+            if diff > _TOLERANCE:
+                field_errors.append(
+                    f"  {field}: ERP={erp_val:.2f}, HKA={hka_val:.2f} (Δ {diff:.2f})"
+                )
+
+        if field_errors:
+            mismatches_f3 += 1
+            mismatched_ids.append({
+                "name": inv.name,
+                "errors": field_errors,
+            })
+
+    # --- RESUMEN F3 ---
+    sys.stdout.write("\r" + " " * 90 + "\r")
+    print(f"\n{'=' * 70}")
+    print(f"  RESUMEN FASE 3")
+    print(f"{'=' * 70}")
+    print(f"    Total (desde {cutoff_date}): {total_f3}")
+    print(f"    Discrepancias:              {mismatches_f3}")
+    print(f"    Sin log HKA:                {no_log_f3}")
+    ok_f3: int = total_f3 - mismatches_f3 - no_log_f3
+    print(f"    OK:                         {ok_f3}")
+
+    if mismatched_ids:
+        print(f"\n{'=' * 70}")
+        print(f"  FACTURAS CON DISCREPANCIA (ERP vs HKA enviado)")
+        print(f"{'=' * 70}")
+        for entry in mismatched_ids:
+            print(f"\n  ❌ {entry['name']}")
+            for err in entry["errors"]:
+                print(f"    {err}")
+
+    print(f"\n{'=' * 70}\n")
+
