@@ -36,6 +36,12 @@ class CustomPaymentEntry(PaymentEntry):
             received_amount = flt(self.received_amount)
         return super().allocate_amount_to_references(paid_amount, received_amount, allocate_payment_amount)
 
+    def get_valid_reference_doctypes(self) -> tuple:
+        """Extiende los doctypes de referencia válidos para incluir ND."""
+        valid: tuple = super().get_valid_reference_doctypes() or ()
+        ve_doctypes: tuple = ("VE Sales Debit Note",)
+        return valid + tuple(dt for dt in ve_doctypes if dt not in valid)
+
     def validate(self) -> None:
         super().validate()
 
@@ -703,6 +709,12 @@ def get_payment_entry(
     created_from_payment_request=False,
 ) -> PaymentEntry:
 
+    # ERPNext no reconoce DocTypes custom en set_party_type() ni
+    # set_payment_type(). Para la ND forzamos los valores correctos.
+    if dt == "VE Sales Debit Note":
+        party_type = party_type or "Customer"
+        payment_type = payment_type or "Receive"
+
     payment_entry: PaymentEntry = _original_get_payment_entry(
         dt,
         dn,
@@ -715,6 +727,13 @@ def get_payment_entry(
         ignore_permissions=ignore_permissions,
         created_from_payment_request=created_from_payment_request,
     )
+
+    # ERPNext usa get_party_account() genérica para DocTypes desconocidos,
+    # lo cual podría devolver una cuenta AR distinta a la de la ND.
+    if dt == "VE Sales Debit Note":
+        nd_doc = frappe.get_cached_doc("VE Sales Debit Note", dn)
+        if nd_doc.debit_to and payment_entry.paid_from != nd_doc.debit_to:
+            payment_entry.paid_from = nd_doc.debit_to
 
     igtf_rate: float = frappe.db.get_single_value(
       "Venezuela Account Settings",

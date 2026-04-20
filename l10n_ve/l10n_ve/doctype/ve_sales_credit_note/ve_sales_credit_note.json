@@ -74,6 +74,7 @@
   "total_taxes_and_charges",
   "totals",
   "base_grand_total",
+  "base_total_with_vat",
   "base_rounding_adjustment",
   "base_rounded_total",
   "base_in_words",
@@ -293,15 +294,18 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "N\u00famero de NC",
+   "no_copy": 1,
    "read_only": 1,
    "search_index": 1
   },
   {
    "allow_on_submit": 1,
-   "depends_on": "eval: doc.bill_control",
    "fieldname": "bill_control",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "N\u00famero de Control",
+   "no_copy": 1,
    "read_only": 1,
    "search_index": 1
   },
@@ -846,6 +850,18 @@
    "print_hide": 1,
    "read_only": 1,
    "reqd": 1
+  },
+  {
+   "bold": 1,
+   "description": "Suma de la base imponible + impuestos IVA, sin retenciones",
+   "fieldname": "base_total_with_vat",
+   "fieldtype": "Currency",
+   "hide_days": 1,
+   "hide_seconds": 1,
+   "label": "Total Base + IVA (Bs)",
+   "options": "Company:company:default_currency",
+   "print_hide": 1,
+   "read_only": 1
   },
   {
    "depends_on": "eval:!doc.disable_rounded_total",
@@ -2052,6 +2068,7 @@
   {
    "allow_on_submit": 1,
    "bold": 1,
+   "default": "Error en Facturaci\u00f3n",
    "fieldname": "reason",
    "fieldtype": "Data",
    "in_global_search": 1,
@@ -2085,7 +2102,7 @@
  "icon": "fa fa-file-text",
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-16 14:49:03.548483",
+ "modified": "2026-04-19 06:59:34.005260",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Sales Credit Note",

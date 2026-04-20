@@ -11,6 +11,7 @@ app_include_js = [
     "/assets/l10n_ve/js/utils/report_view_patch.js",
     "/assets/l10n_ve/js/widgets/number_card_widget.js",
     "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
+    "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
 ]
 
 # Apps
@@ -120,13 +121,21 @@ doctype_js = {
         "public/js/doctype/stock_entry/stock_entry.js",
     ],
     "Project": [
-         "public/js/doctype/project/project.js"
+        "public/js/doctype/project/project.js"
     ],
     "Task": [
-         "public/js/doctype/task/task.js"
+        "public/js/doctype/task/task.js"
     ],
     "Installation Note": [
-         "public/js/doctype/installation_note/installation_note.js"
+        "public/js/doctype/installation_note/installation_note.js"
+    ],
+    "VE Sales Debit Note": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
+    ],
+    "VE Sales Credit Note": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
     ],
     "Mode of Payment": [
          "public/js/doctype/mode_of_payment/mode_of_payment.js"
@@ -293,6 +302,9 @@ doc_events = {
     },
     "File": {
         "after_insert": "l10n_ve.overrides.task.sync_attachment_to_project",
+    },
+    "GL Entry": {
+        "on_update": "l10n_ve.overrides.gl_entry.update_ve_outstanding_amount",
     }
 }
 # Scheduled Tasks

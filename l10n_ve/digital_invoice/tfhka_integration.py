@@ -9,7 +9,7 @@ from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 from l10n_ve.utils.utils import is_juridical_customer
 
-SUPPORTED_DOCTYPES = ("Sales Invoice", "VE Sales Credit Note")
+SUPPORTED_DOCTYPES = ("Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note")
 
 _RANGE_EXHAUSTED_KEYWORDS = ("rango de numeración", "rango de numeracion")
 
@@ -74,10 +74,19 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     Asigna el número de documento desde el correlativo de la serie digital.
     Para Sales Invoice usa invoice_number_correlative → bill_no.
     Para VE Sales Credit Note usa credit_note_number_correlative → bill_no.
+    Para VE Sales Debit Note usa debit_note_number_correlative → bill_no.
     Se invoca exclusivamente desde el botón de envío a HKA.
     """
     is_nc: bool = doc.doctype == "VE Sales Credit Note"
-    correlative_field: str = "credit_note_number_correlative" if is_nc else "invoice_number_correlative"
+    is_nd: bool = doc.doctype == "VE Sales Debit Note"
+
+    if is_nc:
+        correlative_field: str = "credit_note_number_correlative"
+    elif is_nd:
+        correlative_field: str = "debit_note_number_correlative"
+    else:
+        correlative_field: str = "invoice_number_correlative"
+
     target_field: str = "bill_no"
 
     if getattr(series, "operation_mode", "Internal") == "Third Party":
@@ -87,11 +96,16 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
         return
 
     # Incremento atómico para evitar condición de carrera en multiusuario.
-    # Se usan sentencias explícitas en lugar de string formatting para evitar SQL injection.
     if is_nc:
         frappe.db.sql("""
             UPDATE `tabVE Digital Billing Series`
             SET credit_note_number_correlative = credit_note_number_correlative + 1
+            WHERE name = %s
+        """, (series.name,))
+    elif is_nd:
+        frappe.db.sql("""
+            UPDATE `tabVE Digital Billing Series`
+            SET debit_note_number_correlative = debit_note_number_correlative + 1
             WHERE name = %s
         """, (series.name,))
     else:
@@ -217,15 +231,56 @@ def _validate_invoice_integrity(doc: object) -> list[str]:
     return errors
 
 
-def _validate_payload_vs_invoice(payload: dict, doc: object) -> list[str]:
-    """Valida que TODOS los montos del payload coincidan con la factura.
+def _compare_totales_section(
+    payload_totales: dict,
+    expected: dict[str, float],
+    currency_label: str,
+) -> list[str]:
+    """Compara un dict de totales del payload contra valores esperados.
 
-    Compara cada campo monetario del payload Totales contra los valores
-    base_* almacenados en la factura. Retorna lista de diferencias.
-
-    Las claves del payload están en camelCase (aplicado por clean_payload).
+    Retorna lista de errores con prefijo [currency_label].
+    Valida tanto campo-a-campo como aritmética interna.
     """
     errors: list[str] = []
+
+    for field, expected_val in expected.items():
+        payload_val: float = flt(payload_totales.get(field, 0))
+        diff: float = abs(payload_val - expected_val)
+        if diff > _AMOUNT_TOLERANCE:
+            errors.append(
+                f"[{currency_label}] {field}: payload={payload_val:.2f}, "
+                f"factura={expected_val:.2f} "
+                f"(Δ {diff:.2f})"
+            )
+
+    # Aritmética interna del payload
+    gravado: float = flt(payload_totales.get("montoGravadoTotal", 0))
+    exento: float = flt(payload_totales.get("montoExentoTotal", 0))
+    subtotal: float = flt(payload_totales.get("subtotal", 0))
+    iva: float = flt(payload_totales.get("totalIVA", 0))
+    total: float = flt(payload_totales.get("montoTotalConIVA", 0))
+
+    if abs((gravado + exento) - subtotal) > _AMOUNT_TOLERANCE:
+        errors.append(
+            f"[{currency_label}] Aritmética: Gravado({gravado:.2f}) + "
+            f"Exento({exento:.2f}) = {gravado + exento:.2f} "
+            f"≠ Subtotal({subtotal:.2f})"
+        )
+    if abs((subtotal + iva) - total) > _AMOUNT_TOLERANCE:
+        errors.append(
+            f"[{currency_label}] Aritmética: Subtotal({subtotal:.2f}) + "
+            f"IVA({iva:.2f}) = {subtotal + iva:.2f} "
+            f"≠ Total({total:.2f})"
+        )
+
+    return errors
+
+
+def _build_expected_ves(doc: object) -> tuple[dict[str, float], float]:
+    """Construye los valores esperados VES desde la factura.
+
+    Retorna (expected_dict, total_igtf).
+    """
     tc: float = flt(doc.conversion_rate) if doc.conversion_rate else 1.0
 
     base_tax_ves: float = sum(
@@ -233,50 +288,80 @@ def _validate_payload_vs_invoice(payload: dict, doc: object) -> list[str]:
         for tax in doc.get("taxes", [])
         if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0
     )
-    exempt_base: float = flt(doc.get("total_exempt", 0.0)) * tc
+    exempt_ves: float = flt(doc.get("total_exempt", 0.0)) * tc
+    base_net: float = flt(doc.base_net_total)
+    total_igtf: float = flt(doc.get("total_igtf", 0.0))
 
-    # Claves en camelCase (clean_payload convierte PascalCase → camelCase)
     expected: dict[str, float] = {
-        "montoGravadoTotal": flt(doc.base_net_total) - exempt_base,
-        "montoExentoTotal": exempt_base,
-        "subtotal": flt(doc.base_net_total),
+        "montoGravadoTotal": base_net - exempt_ves,
+        "montoExentoTotal": exempt_ves,
+        "subtotal": base_net,
         "totalIVA": base_tax_ves,
-        "montoTotalConIVA": flt(doc.base_net_total) + base_tax_ves,
+        "montoTotalConIVA": base_net + base_tax_ves,
+        "totalAPagar": base_net + base_tax_ves + total_igtf,
     }
 
-    totales: dict = (
+    return expected, total_igtf
+
+
+def _build_expected_usd(doc: object) -> dict[str, float]:
+    """Construye los valores esperados USD desde la factura."""
+    tax_usd: float = sum(
+        flt(tax.tax_amount)
+        for tax in doc.get("taxes", [])
+        if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0
+    )
+    exempt_usd: float = flt(doc.get("total_exempt", 0.0))
+    net_total: float = flt(doc.net_total)
+
+    return {
+        "montoGravadoTotal": net_total - exempt_usd,
+        "montoExentoTotal": exempt_usd,
+        "subtotal": net_total,
+        "totalIVA": tax_usd,
+        "montoTotalConIVA": net_total + tax_usd,
+    }
+
+
+def _extract_payload_section(payload: dict, section: str) -> dict:
+    """Extrae una sección de totales del payload HKA."""
+    return (
         payload
         .get("documentoElectronico", {})
         .get("encabezado", {})
-        .get("totales", {})
-    )
+        .get(section, {})
+    ) or {}
 
-    for field, expected_val in expected.items():
-        payload_val: float = flt(totales.get(field, 0))
-        diff: float = abs(payload_val - expected_val)
-        if diff > _AMOUNT_TOLERANCE:
+
+def _validate_payload_vs_invoice(payload: dict, doc: object) -> list[str]:
+    """Valida que TODOS los montos del payload coincidan con la factura.
+
+    Compara cada campo monetario del payload contra los valores
+    almacenados en la factura para ambas monedas (VES y USD) e IGTF.
+    """
+    errors: list[str] = []
+
+    # VES
+    totales_ves: dict = _extract_payload_section(payload, "totales")
+    expected_ves, total_igtf = _build_expected_ves(doc)
+    errors.extend(_compare_totales_section(totales_ves, expected_ves, "VES"))
+
+    # USD (solo si existe TotalesOtraMoneda)
+    totales_usd: dict = _extract_payload_section(payload, "totalesOtraMoneda")
+    if totales_usd:
+        expected_usd: dict[str, float] = _build_expected_usd(doc)
+        errors.extend(_compare_totales_section(totales_usd, expected_usd, "USD"))
+
+    # IGTF
+    if total_igtf > 0:
+        payload_igtf: float = flt(totales_ves.get("totalIGTF", 0))
+        diff_igtf: float = abs(payload_igtf - total_igtf)
+        if diff_igtf > _AMOUNT_TOLERANCE:
             errors.append(
-                f"{field}: payload={payload_val:.2f}, "
-                f"factura={expected_val:.2f} "
-                f"(diferencia: {diff:.2f} VEF)"
+                f"[IGTF] totalIGTF: payload={payload_igtf:.2f}, "
+                f"factura={total_igtf:.2f} "
+                f"(Δ {diff_igtf:.2f})"
             )
-
-    gravado: float = flt(totales.get("montoGravadoTotal", 0))
-    exento: float = flt(totales.get("montoExentoTotal", 0))
-    subtotal: float = flt(totales.get("subtotal", 0))
-    iva: float = flt(totales.get("totalIVA", 0))
-    total: float = flt(totales.get("montoTotalConIVA", 0))
-
-    if abs((gravado + exento) - subtotal) > _AMOUNT_TOLERANCE:
-        errors.append(
-            f"Aritmética: Gravado({gravado:.2f}) + Exento({exento:.2f}) "
-            f"= {gravado + exento:.2f} ≠ Subtotal({subtotal:.2f})"
-        )
-    if abs((subtotal + iva) - total) > _AMOUNT_TOLERANCE:
-        errors.append(
-            f"Aritmética: Subtotal({subtotal:.2f}) + IVA({iva:.2f}) "
-            f"= {subtotal + iva:.2f} ≠ Total({total:.2f})"
-        )
 
     return errors
 
@@ -452,8 +537,8 @@ def process_invoice(
     raise_on_error: bool = False,
 ) -> bool:
     """
-    Envía una factura o nota de crédito a TFHKA de forma síncrona.
-    Soporta: Sales Invoice, VE Sales Credit Note.
+    Envía una factura, nota de crédito o nota de débito a TFHKA de forma síncrona.
+    Soporta: Sales Invoice, VE Sales Credit Note, VE Sales Debit Note.
     Retorna True si el envío fue exitoso, False en caso de error.
 
     Si raise_on_error=True (invocación desde botón), lanza excepción
@@ -467,20 +552,19 @@ def process_invoice(
 
     raise_on_error = cint(raise_on_error)
     is_nc: bool = doctype == "VE Sales Credit Note"
+    is_nd: bool = doctype == "VE Sales Debit Note"
+    skip_si_validations: bool = is_nc or is_nd
 
     try:
         doc = frappe.get_doc(doctype, doc_name)
 
         # Calcular la fecha real de la tasa BCV ANTES de actualizar posting_date.
-        # Funciona para facturas nuevas y para las ya existentes acumuladas.
         tasa_fecha: str = _compute_tasa_fecha(doc)
 
         # Verificar que la tasa del documento coincida con la BCV registrada.
-        # Solo aplica a personas naturales: su tasa debe ser la BCV del 1er día
-        # del mes. Para jurídicos, la tasa es la del día del pago (variable) y
-        # no necesita coincidir con el posting_date.
-        # La NC se omite: su tasa es heredada de la factura original.
-        if not is_nc and not is_juridical_customer(doc.customer):
+        # Solo aplica a facturas de personas naturales.
+        # NC y ND se omiten: su tasa es heredada de la factura original.
+        if not skip_si_validations and not is_juridical_customer(doc.customer):
             _validate_tasa_coherencia(doc, tasa_fecha)
 
         fecha_hka: str = today()
@@ -496,8 +580,6 @@ def process_invoice(
         payload, builder = _build_invoice_payload(doc, series_doc, branch_code, tasa_fecha)
 
         # --- VALIDACIÓN PRE-ENVÍO: integridad factura + payload vs factura ---
-        # Ambas validaciones se ejecutan DESPUÉS de construir el payload
-        # y ANTES de enviar a HKA.
         all_errors: list[str] = []
         all_errors.extend(_validate_invoice_integrity(doc))
         all_errors.extend(_validate_payload_vs_invoice(payload, doc))
@@ -521,8 +603,8 @@ def process_invoice(
                 )
             return False
 
-        # Para NC no se valida zona/nodo (no tiene suscripción asociada)
-        if not is_nc:
+        # Para NC y ND no se valida zona/nodo (no tienen suscripción asociada)
+        if not skip_si_validations:
             if not builder.zona or not builder.nodo:
                 missing = []
                 if not builder.zona:

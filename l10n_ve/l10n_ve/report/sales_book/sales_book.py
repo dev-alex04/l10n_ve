@@ -139,11 +139,13 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
     # retornó exitosamente y asignó número de control fiscal.
     hka_filter_inv: str = ""
     hka_filter_nc: str = ""
+    hka_filter_nd: str = ""
     try:
         hka_enabled = frappe.db.get_single_value("TFHKA Settings", "enabled", cache=True)
         if hka_enabled:
             hka_filter_inv = "AND LOCATE('\"numeroControl\"', siv.remarks) > 0"
             hka_filter_nc = "AND LOCATE('\"numeroControl\"', nc.remarks) > 0"
+            hka_filter_nd = "AND LOCATE('\"numeroControl\"', nd.remarks) > 0"
     except Exception:
         pass
 
@@ -154,6 +156,7 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
     branch: str = filters.get("branch") or ""
     branch_filter_inv: str = "AND siv.branch = %(branch)s" if branch else ""
     branch_filter_nc: str = "AND nc.branch = %(branch)s" if branch else ""
+    branch_filter_nd: str = "AND nd.branch = %(branch)s" if branch else ""
 
     # --- Datos del período principal ---
     # Dos placeholders independientes: {inv_cond} para tabSales Invoice (alias siv),
@@ -162,6 +165,7 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
         query_base
         .replace("{inv_cond}", f"siv.posting_date BETWEEN %(from_date)s AND %(to_date)s {hka_filter_inv} {branch_filter_inv}")
         .replace("{nc_cond}", f"nc.posting_date BETWEEN %(from_date)s AND %(to_date)s {hka_filter_nc} {branch_filter_nc}")
+        .replace("{nd_cond}", f"nd.posting_date BETWEEN %(from_date)s AND %(to_date)s {hka_filter_nd} {branch_filter_nd}")
     )
     main_query += """
         ORDER BY
@@ -191,6 +195,11 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
             AND nc.withholding_date BETWEEN %(from_date)s AND %(to_date)s
             {hka_filter_nc}
             {branch_filter_nc}
+        """)
+        .replace("{nd_cond}", f"""
+            nd.posting_date < %(from_date)s
+            {hka_filter_nd}
+            {branch_filter_nd}
         """)
     )
     adjustment_query += """
@@ -307,6 +316,31 @@ def _get_cte() -> str:
                 AND nc.bill_no IS NOT NULL AND nc.bill_no != ''
                 AND nc.bill_control IS NOT NULL AND nc.bill_control != ''
                 AND {nc_cond}
+
+            UNION ALL
+
+            -- FUENTE C: Notas de Débito venezolanas
+            SELECT
+                nd.name, nd.branch, nd.posting_date, nd.customer,
+                nd.customer_name, nd.bill_no, nd.bill_control,
+                NULL AS credit_note_no,
+                nd.bill_no AS debit_note_no,
+                COALESCE(si_orig.bill_no, nd.return_against) AS affected_invoice_number,
+                NULL AS vat_withholding_voucher_number, NULL AS withholding_date,
+                nd.is_void, 0 AS is_return, 1 AS is_debit_note,
+                (CASE WHEN nd.currency != %(company_currency)s THEN nd.conversion_rate ELSE 1 END) AS conversion_rate,
+                1 AS amount_sign,
+                nd.base_net_total,
+                nd.total_exempt,
+                nd.base_amount_igtf,
+                nd.total_igtf
+            FROM `tabVE Sales Debit Note` nd
+            LEFT JOIN `tabSales Invoice` si_orig ON si_orig.name = nd.return_against
+            WHERE nd.company = %(company)s
+                AND (nd.docstatus = 1 OR (nd.docstatus = 2 AND nd.is_void = 1))
+                AND nd.bill_no IS NOT NULL AND nd.bill_no != ''
+                AND nd.bill_control IS NOT NULL AND nd.bill_control != ''
+                AND {nd_cond}
         )
     """
 
@@ -374,7 +408,7 @@ def _get_common_columns() -> str:
         LEFT JOIN
             `tabSales Taxes and Charges` tstac
             ON tstac.parent = siv.name
-            AND tstac.parenttype IN ('Sales Invoice', 'VE Sales Credit Note')
+            AND tstac.parenttype IN ('Sales Invoice', 'VE Sales Credit Note', 'VE Sales Debit Note')
         LEFT JOIN
             `tabVE Digital Billing Series` vdbs
             ON CAST(SUBSTRING_INDEX(siv.bill_control, '-', -1) AS UNSIGNED)

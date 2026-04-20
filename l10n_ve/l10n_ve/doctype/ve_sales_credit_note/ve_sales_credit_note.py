@@ -25,6 +25,15 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
     """
 
     # ------------------------------------------------------------------ #
+    # Indicador del portal                                                 #
+    # ------------------------------------------------------------------ #
+
+    def set_indicator(self) -> None:
+        """Sobreescribe SalesInvoice.set_indicator() para evitar 'Overdue'."""
+        self.indicator_title = _("Return")
+        self.indicator_color = "gray"
+
+    # ------------------------------------------------------------------ #
     # Ciclo de vida del documento                                          #
     # ------------------------------------------------------------------ #
 
@@ -41,11 +50,13 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self._init_si_defaults()
         self._inherit_branch_from_si()
         self._enforce_positive_amounts()
+        self._validate_unique_note_per_invoice()
         # Impide que SalesInvoice.validate() resetee posting_date a la
         # fecha actual del servidor cuando set_posting_time es falsy.
         # El usuario puede cambiar la fecha libremente desde la UI.
         self.set_posting_time = 1
         self._run_super_validate_safely()
+        self._set_base_total_with_vat()
 
     def on_submit(self) -> None:
         """
@@ -57,6 +68,7 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self.update_outstanding_for_self = 0
         self._init_si_defaults()
         super().on_submit()
+        self._update_parent_invoice_status()
 
     def before_cancel(self) -> None:
         """
@@ -68,6 +80,10 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self.update_outstanding_for_self = 0
         self._init_si_defaults()
         super().before_cancel()
+
+    def on_cancel(self) -> None:
+        super().on_cancel()
+        self._update_parent_invoice_status()
 
     def _block_cancel_if_sent_to_hka(self) -> None:
         """
@@ -152,9 +168,10 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
 
     def _inherit_branch_from_si(self) -> None:
         """
-        Hereda branch, tasa de cambio y fechas de la Factura Original (return_against).
+        Hereda branch, debit_to, tasa de cambio y fechas de la Factura Original (return_against).
 
         - branch: si la SI lo tiene, se copia y queda read_only en UI (vía JS).
+        - debit_to: cuenta AR de la SI original.
         - conversion_rate / plc_conversion_rate: la NC DEBE usar la misma tasa
           que la SI original para que los asientos en VEF sean un espejo exacto.
         - posting_date / due_date: la NC replica las fechas de la SI original.
@@ -167,13 +184,20 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         si_values: dict = frappe.get_cached_value(
             "Sales Invoice",
             self.return_against,
-            ["branch", "conversion_rate", "plc_conversion_rate", "posting_date", "due_date"],
+            [
+                "branch", "debit_to", "conversion_rate",
+                "plc_conversion_rate", "posting_date", "due_date",
+            ],
             as_dict=True,
         ) or {}
 
         # ── Branch ──────────────────────────────────────────────────────────
         if si_values.get("branch") and not self.get("branch"):
             self.branch = si_values["branch"]
+
+        # ── Cuenta AR ────────────────────────────────────────────────────────
+        if si_values.get("debit_to") and not self.get("debit_to"):
+            self.debit_to = si_values["debit_to"]
 
         # ── Tasa de cambio ───────────────────────────────────────────────────
         # Solo en docs nuevos: de ahí en adelante el usuario tiene control.
@@ -217,15 +241,36 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
             "is_internal_customer": 0,
             "loyalty_program": None,
             "loyalty_points": 0,
+            "loyalty_amount": 0,
+            "loyalty_redemption_account": None,
+            "loyalty_redemption_cost_center": None,
             "redeem_loyalty_points": 0,
             # Atributos usados en SalesInvoice.on_submit()
             "update_billed_amount_in_sales_order": 0,
             "update_billed_amount_in_delivery_note": 0,
+            "update_outstanding_for_self": 0,
             "auto_repeat": None,
             "inter_company_invoice_reference": None,
             "campaign": None,
             "write_off_account": None,
             "write_off_cost_center": None,
+            "write_off_amount": 0,
+            "base_write_off_amount": 0,
+            "write_off_outstanding_amount_automatically": 0,
+            "paid_amount": 0,
+            "base_paid_amount": 0,
+            "change_amount": 0,
+            "base_change_amount": 0,
+            "account_for_change_amount": None,
+            "allocate_advances_automatically": 0,
+            "only_include_allocated_payments": 0,
+            "ignore_default_payment_terms_template": 0,
+            "payment_terms_template": None,
+            "pos_profile": None,
+            "cash_bank_account": None,
+            "subscription": None,
+            "total_billing_hours": 0,
+            "total_billing_amount": 0,
         }
         for attr, val in scalar_defaults.items():
             if not hasattr(self, attr) or self.get(attr) is None:
@@ -450,8 +495,9 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
                 item.rate = abs(item.rate)
 
 
+
 # --------------------------------------------------------------------------- #
-# Búsqueda personalizada para return_against                                   #
+# Búsqueda personalizada para return_against                                  #
 # --------------------------------------------------------------------------- #
 
 @frappe.whitelist()
@@ -471,9 +517,11 @@ def query_available_sales_invoices(
       - De la misma empresa
       - Sin NC o ND activa referenciándolas
 
-    Excluye SIs que ya tienen:
-      - Una VE Sales Credit Note enviada (docstatus = 1)
-      - Una Sales Invoice de retorno (is_return = 1, docstatus = 1)
+    Exclusión mutua NC ↔ ND:
+      Excluye SIs que ya tienen:
+        - Una VE Sales Credit Note activa (docstatus = 1)
+        - Una VE Sales Debit Note activa (docstatus = 1)
+        - Una Sales Invoice de retorno (is_return = 1, docstatus = 1)
     """
     company = (filters or {}).get("company", "")
 
@@ -487,6 +535,14 @@ def query_available_sales_invoices(
         """si.name NOT IN (
             SELECT return_against
             FROM `tabVE Sales Credit Note`
+            WHERE docstatus = 1
+              AND return_against IS NOT NULL
+              AND return_against != ''
+        )""",
+        # Excluir SIs con ND venezolana activa (exclusión mutua NC↔ND)
+        """si.name NOT IN (
+            SELECT return_against
+            FROM `tabVE Sales Debit Note`
             WHERE docstatus = 1
               AND return_against IS NOT NULL
               AND return_against != ''

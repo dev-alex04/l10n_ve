@@ -36,8 +36,59 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         self.set_title_field()
 
     def before_cancel(self) -> None:
+        self._block_cancel_if_has_active_notes()
         self._block_cancel_if_digitally_signed()
         super().before_cancel()
+
+    def _block_cancel_if_has_active_notes(self) -> None:
+        """
+        Bloquea la cancelación si la factura tiene una Nota de Crédito o
+        Nota de Débito venezolana activa (docstatus=1).
+
+        Regla de negocio: para anular una factura con NC/ND, primero se
+        deben anular los documentos dependientes.
+        """
+        active_nc: dict | None = frappe.db.get_value(
+            "VE Sales Credit Note",
+            {"return_against": self.name, "docstatus": 1},
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if active_nc:
+            nc_bill: str = active_nc.bill_no or active_nc.name
+            nc_link: str = (
+                f'<a href="/app/ve-sales-credit-note/{active_nc.name}">'
+                f'{nc_bill}</a>'
+            )
+            frappe.throw(
+                _(
+                    "No se puede anular la factura <b>{0}</b> porque tiene "
+                    "una Nota de Crédito activa: {1}. "
+                    "Anule primero la Nota de Crédito."
+                ).format(self.name, nc_link),
+                title=_("Cancelación Bloqueada — NC Activa"),
+            )
+
+        active_nd: dict | None = frappe.db.get_value(
+            "VE Sales Debit Note",
+            {"return_against": self.name, "docstatus": 1},
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if active_nd:
+            nd_bill: str = active_nd.bill_no or active_nd.name
+            nd_link: str = (
+                f'<a href="/app/ve-sales-debit-note/{active_nd.name}">'
+                f'{nd_bill}</a>'
+            )
+            frappe.throw(
+                _(
+                    "No se puede anular la factura <b>{0}</b> porque tiene "
+                    "una Nota de Débito activa: {1}. "
+                    "Anule primero la Nota de Débito."
+                ).format(self.name, nd_link),
+                title=_("Cancelación Bloqueada — ND Activa"),
+            )
 
     def _block_cancel_if_digitally_signed(self) -> None:
         """
@@ -90,6 +141,8 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         self._validate_bill_control(raise_throw=True)
         self._validate_debit_note_no(raise_throw=True)
         self._validate_credit_note_no(raise_throw=True)
+
+        self._set_base_total_with_vat()
 
     def validate_return_in_same_month(self) -> None:
         """
@@ -597,6 +650,17 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         ):
             self.status = "Credit Note Issued"
 
+        if (
+            self.status not in ("Credit Note Issued",)
+            and not cint(self.is_return)
+            and not cint(self.is_debit_note)
+            and frappe.db.exists(
+                "VE Sales Debit Note",
+                {"return_against": self.name, "docstatus": 1},
+            )
+        ):
+            self.status = "Debit Note Issued"
+
         if cint(self.is_void):
             self.status = "Void"
 
@@ -617,19 +681,15 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
     def set_indicator(self) -> None:
         """
-        Sobrescribe el indicador de portal para mostrar "Credit Note Issued"
-        cuando la SI tiene una NC venezolana vinculada y outstanding = 0.
+        Sobrescribe el indicador de portal usando el status ya calculado
+        por set_status(), sin consultas adicionales a la BD.
         """
-        if (
-            flt(self.outstanding_amount) == 0
-            and not cint(self.is_return)
-            and frappe.db.exists(
-                "VE Sales Credit Note",
-                {"return_against": self.name, "docstatus": 1},
-            )
-        ):
+        if self.status == "Credit Note Issued":
             self.indicator_title = _("Credit Note Issued")
             self.indicator_color = "gray"
+        elif self.status == "Debit Note Issued":
+            self.indicator_title = _("Debit Note Issued")
+            self.indicator_color = "orange"
         else:
             super().set_indicator()
 
@@ -673,7 +733,11 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             if (self.base_rounding_adjustment and self.base_rounded_total)
             else self.base_grand_total,
             self.precision("base_grand_total"),
-        ) + flt(self.total_withholding * self.conversion_rate, self.precision("base_grand_total"))
+        ) + sum(
+            flt(tax.base_tax_amount_after_discount_amount)
+            for tax in self.get("taxes")
+            if cint(tax.is_tax_withholding_account)
+        )
 
         if grand_total and not self.is_internal_transfer():
             against_voucher = self.name
@@ -987,6 +1051,8 @@ def void_sales_invoice(
 
     if invoice.docstatus != 1:
         frappe.throw(_("Solo se pueden anular facturas aprobadas."))
+
+    invoice._block_cancel_if_has_active_notes()
 
     # Pre-validar que la factura puede ser cancelada en Frappe ANTES de
     # contactar a HKA.  Si existen documentos vinculados (Payment Entry,

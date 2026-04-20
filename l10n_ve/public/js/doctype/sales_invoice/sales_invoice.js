@@ -57,6 +57,7 @@ frappe.ui.form.on("Sales Invoice", {
     toggle_islr_withholding_fields(frm);
     set_sales_invoice_fields(frm);
     print_button_pdf(frm);
+    calculate_base_total_with_vat(frm);
 
     setTimeout(() => {
       // Oculta el botón de impresión principal
@@ -244,10 +245,13 @@ frappe.ui.form.on("Sales Invoice", {
     setup_hka_consulta_button(frm);
     render_fiscal_invoice_preview(frm);
     setup_credit_note_button(frm);
+    setup_debit_note_button(frm);
 
     if (frappe.boot.tfhka_enabled) {
       setup_digital_invoice_button(frm);
     }
+
+    set_ve_form_indicator(frm);
   },
 
   customer: function (frm) {
@@ -291,6 +295,62 @@ frappe.ui.form.on("Sales Invoice", {
     toggle_document_number_fields(frm);
   },
 });
+
+/**
+ * Indicador compuesto para el formulario de Factura de Venta.
+ * Combina el estado fiscal (Emitida/Pendiente) con el estado de pago.
+ * @param {object} frm
+ */
+function set_ve_form_indicator(frm) {
+  if (frm.doc.docstatus === 2 && frm.doc.is_void) {
+    setTimeout(() => {
+      frm.page.set_indicator(__("Anulado"), "red");
+    }, 0);
+    return;
+  }
+
+  if (frm.doc.docstatus !== 1) return;
+
+  // SI legacy que son NC o ND (is_return / is_debit_note)
+  if (frm.doc.is_return) return;
+  if (frm.doc.is_debit_note) return;
+
+  setTimeout(() => {
+    let fiscal = frm.doc.bill_no ? __("Emitida") : __("Pendiente");
+
+    let payment, color;
+    const status = frm.doc.status;
+
+    if (status === "Paid") {
+      payment = __("Pagado");
+      color = "green";
+    } else if (status === "Credit Note Issued") {
+      payment = __("NC Aplicada");
+      color = "gray";
+    } else if (status === "Debit Note Issued") {
+      payment = __("ND Aplicada");
+      color = "gray";
+    } else if (status.includes("Partly Paid")) {
+      payment = __("Parcial");
+      color = "yellow";
+    } else {
+      payment = __("Por Cobrar");
+      color = frm.doc.bill_no ? "blue" : "orange";
+    }
+
+    // Advertencia de comprobante faltante integrada en el indicador
+    let indicator_label = `${fiscal} - ${payment}`;
+    if (
+      flt(frm.doc.total_withholding) > 0 &&
+      !frm.doc.vat_withholding_voucher_number
+    ) {
+      indicator_label += " · Falta comprobante de retención de IVA";
+      color = "orange";
+    }
+
+    frm.page.set_indicator(indicator_label, color);
+  }, 0);
+}
 
 function toggle_document_number_fields(frm) {
   const is_credit_note = frm.doc.is_return;
@@ -887,16 +947,20 @@ function apply_ve_exchange_rate_from_date(frm) {
  * @param {object} frm
  */
 function setup_credit_note_button(frm) {
-  // setTimeout(0) garantiza que el botón nativo de ERPNext ya fue
-  // agregado antes de removerlo (nuestro refresh corre antes que el de ERPNext).
+  // El controller de ERPNext (extend_cscript) agrega "Return / Credit Note"
+  // DESPUÉS de nuestro refresh. Usamos un timeout para removerlo siempre.
   setTimeout(() => {
     frm.page.remove_inner_button(__("Return / Credit Note"), __("Create"));
-  }, 1000);
+  }, 500);
+  setTimeout(() => {
+    frm.page.remove_inner_button(__("Return / Credit Note"), __("Create"));
+  }, 1500);
 
   if (
     frm.doc.docstatus !== 1 ||
     frm.doc.is_return ||
-    frm.doc.status === "Credit Note Issued"
+    frm.doc.status === "Credit Note Issued" ||
+    frm.doc.status === "Debit Note Issued"
   )
     return;
 
@@ -909,6 +973,37 @@ function setup_credit_note_button(frm) {
         customer: frm.doc.customer,
       };
       frappe.new_doc("VE Sales Credit Note");
+    },
+    __("Create"),
+  );
+}
+
+/**
+ * Botón "Nota de Débito" en el grupo "Create" de la Factura de Venta.
+ * Redirige al formulario de VE Sales Debit Note pre-llenado con los datos
+ * de la factura actual. Solo visible cuando la factura está aprobada y no
+ * es una NC ni una ND.
+ * @param {object} frm
+ */
+function setup_debit_note_button(frm) {
+  if (
+    frm.doc.docstatus !== 1 ||
+    frm.doc.is_return ||
+    frm.doc.is_debit_note ||
+    frm.doc.status === "Debit Note Issued" ||
+    frm.doc.status === "Credit Note Issued"
+  )
+    return;
+
+  frm.add_custom_button(
+    __("Nota de Débito"),
+    function () {
+      frappe.route_options = {
+        return_against: frm.doc.name,
+        company: frm.doc.company,
+        customer: frm.doc.customer,
+      };
+      frappe.new_doc("VE Sales Debit Note");
     },
     __("Create"),
   );

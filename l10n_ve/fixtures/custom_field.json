@@ -7763,6 +7763,22 @@
     "name": "Sales Invoice-sales_invoice_preview"
   },
   {
+    "bold": 1,
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "base_total_with_vat",
+    "fieldtype": "Currency",
+    "insert_after": "base_grand_total",
+    "is_virtual": 0,
+    "label": "Total Base + IVA (Bs)",
+    "module": "L10N Ve",
+    "name": "Sales Invoice-base_total_with_vat",
+    "options": "Company:company:default_currency",
+    "print_hide": 1,
+    "read_only": 1,
+    "description": "Suma de la base imponible + impuestos IVA, sin retenciones"
+  },
+  {
     "doctype": "Custom Field",
     "dt": "Mode of Payment",
     "fieldname": "is_igtf_applicable",

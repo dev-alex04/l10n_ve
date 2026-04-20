@@ -393,24 +393,23 @@ class TFHKAPayloadBuilder:
 
         iva_rate = self._get_iva_rate()
         tc: float = flt(self.doc.conversion_rate) if self.doc.conversion_rate else 1.0
-        monto_exento_total_usd = 0.0
-        monto_gravado_total_usd = 0.0
-        total_iva_usd = 0.0
 
-        for item in self.doc.items:
-            is_exempt = item.get("is_exempt", 0) or item.get("vat_exempt", 0)
-            if is_exempt or flt(self.doc.base_total_taxes_and_charges) == 0:
-                monto_exento_total_usd += flt(item.amount)
-            else:
-                monto_gravado_total_usd += flt(item.amount)
-                item_iva_usd = flt(item.amount * (iva_rate / 100), 2)
-                total_iva_usd += item_iva_usd
+        # USD: montos leídos directamente del documento (fuente de verdad).
+        # net_total, total_exempt y tax.tax_amount son calculados por ERPNext
+        # en un solo paso, sin redondeo intermedio por ítem.
+        monto_exento_total_usd: float = flt(self.doc.get("total_exempt", 0.0))
+        subtotal_usd: float = flt(self.doc.net_total)
+        monto_gravado_total_usd: float = flt(subtotal_usd - monto_exento_total_usd)
 
-        subtotal_usd = monto_gravado_total_usd + monto_exento_total_usd
-        monto_total_con_iva_usd = subtotal_usd + total_iva_usd
-        total_igtf_amount = flt(self.doc.get("total_igtf", 0.0))
-        total_igtf_usd = flt(total_igtf_amount / tc, 2) if total_igtf_amount else 0.0
-        total_a_pagar_usd = monto_total_con_iva_usd + total_igtf_usd
+        total_iva_usd: float = 0.0
+        for tax in self.doc.get("taxes", []):
+            if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0:
+                total_iva_usd += flt(tax.tax_amount)
+
+        monto_total_con_iva_usd: float = flt(subtotal_usd + total_iva_usd)
+        total_igtf_amount: float = flt(self.doc.get("total_igtf", 0.0))
+        total_igtf_usd: float = flt(total_igtf_amount / tc, 2) if total_igtf_amount else 0.0
+        total_a_pagar_usd: float = flt(monto_total_con_iva_usd + total_igtf_usd)
 
         # VES: montos leídos de campos base_* almacenados en la factura.
         # Evita recalcular desde USD × TC, eliminando diferencias por
