@@ -858,14 +858,18 @@ def get_branch_payment_mode_account(branch: str, mode_of_payment: str) -> str | 
 def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters):
     if isinstance(filters, str):
         filters = json.loads(filters)
+    elif not filters:
+        filters = {}
 
-    """Obtiene los modos de pago configurados para una sucursal."""
+    """Obtiene los modos de pago (y si aplican IGTF) configurados para una sucursal."""
     branch = filters.get("branch")
     if not branch:
         # Retornar todos los modos de pago si no hay sucursal
         return frappe.db.sql("""
-            SELECT name FROM `tabMode of Payment`
+            SELECT name, is_igtf_applicable
+            FROM `tabMode of Payment`
             WHERE name LIKE %(txt)s
+            AND enabled = 1
             ORDER BY name
             LIMIT %(start)s, %(page_len)s
         """, {
@@ -876,10 +880,13 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
 
     # Obtener modos de pago de la tabla hija de la sucursal
     return frappe.db.sql("""
-        SELECT vbpm.mode_of_payment
+        SELECT 
+            vbpm.mode_of_payment, mop.is_igtf_applicable
         FROM `tabVE Branch Payment Modes` vbpm
+        INNER JOIN `tabMode of Payment` mop ON mop.name = vbpm.mode_of_payment
         WHERE vbpm.parent = %(branch)s
         AND vbpm.mode_of_payment LIKE %(txt)s
+        AND mop.enabled = 1
         ORDER BY vbpm.mode_of_payment
         LIMIT %(start)s, %(page_len)s
     """, {

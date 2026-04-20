@@ -7777,5 +7777,16 @@
     "print_hide": 1,
     "read_only": 1,
     "description": "Suma de la base imponible + impuestos IVA, sin retenciones"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Mode of Payment",
+    "fieldname": "is_igtf_applicable",
+    "fieldtype": "Check",
+    "insert_after": "currency",
+    "label": "Aplica IGTF",
+    "module": "L10N Ve",
+    "name": "Mode of Payment-is_igtf_applicable",
+    "reqd": 0
   }
 ]

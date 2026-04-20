@@ -137,6 +137,9 @@ doctype_js = {
         "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
     ],
+    "Mode of Payment": [
+         "public/js/doctype/mode_of_payment/mode_of_payment.js"
+    ],
 
 }
 
