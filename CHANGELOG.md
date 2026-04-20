@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.11] - 2026-04-20
+
+### 🐛 Correcciones (Fixes)
+- Se restauró la función `_get_common_joins()` y se corrigió un error de sintaxis (coma faltante) en la definición de columnas dentro del módulo de libro de ventas (sales_book). [5e57b44]
+
+---
+
 ## [v1.0.10] - 2026-04-20
 
 ### ✨ Funcionalidades (Features)
