@@ -86,9 +86,7 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         self._init_si_defaults()
         super().before_cancel()
 
-    def on_cancel(self) -> None:
-        super().on_cancel()
-        self._update_parent_invoice_status()
+
 
     def _block_cancel_if_sent_to_hka(self) -> None:
         """
@@ -139,6 +137,7 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         self._init_si_defaults()
         super().on_cancel()
         self._update_outstanding_amount()
+        self._update_parent_invoice_status()
 
         if cint(self.is_void):
             self.db_set("status", "Void")
