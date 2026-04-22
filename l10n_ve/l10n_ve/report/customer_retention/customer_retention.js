@@ -24,6 +24,17 @@ frappe.query_reports["Customer Retention"] = {
 			"default": frappe.datetime.get_today(),
 		},
 		{
+			"fieldname": "branch",
+			"label": __("Sucursal"),
+			"fieldtype": "Link",
+			"options": "VE Branch",
+			"get_query": () => {
+				return {
+					filters: { company: frappe.query_report.get_filter_value("company") }
+				};
+			}
+		},
+		{
 			"fieldname": "customer",
 			"label": __("Customer"),
 			"fieldtype": "Link",
@@ -69,5 +80,15 @@ frappe.query_reports["Customer Retention"] = {
 				frappe.msgprint(__("Por favor genere el reporte primero."));
 			}
 		});
+	},
+	formatter: function (value, row, column, data, default_formatter) {
+		value = default_formatter(value, row, column, data);
+
+		if (column.fieldname === "bill_no" && data && data.name && data.doctype) {
+			const final_link = `/app/${data.doctype.toLowerCase().replace(/ /g, "-")}/${data.name}`;
+			value = `<a href="${final_link}" style="font-weight: bold; color: var(--primary-color); text-decoration: none;">${value}</a>`;
+		}
+
+		return value;
 	}
 };
