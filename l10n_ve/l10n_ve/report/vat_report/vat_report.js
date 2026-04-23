@@ -48,10 +48,10 @@ frappe.query_reports["VAT report"] = {
 		value = default_formatter(value, row, column, data);
 
 		if (column.fieldname === "bill_no" && data && data.name && data.doctype_link) {
-			const doc_link = frappe.utils.get_dev_mode() ? 
+			const doc_link = frappe.utils.get_dev_mode() ?
 				`/app/${data.doctype_link.toLowerCase().replace(/ /g, "-")}/${data.name}` :
 				frappe.utils.get_form_link(data.doctype_link, data.name);
-			
+
 			// Si no estamos en modo dev, get_form_link suele ser más robusto
 			const final_link = `/app/${data.doctype_link.toLowerCase().replace(/ /g, "-")}/${data.name}`;
 
@@ -59,5 +59,19 @@ frappe.query_reports["VAT report"] = {
 		}
 
 		return value;
+	},
+	onload: function (report) {
+		const add_download_button = (label, method) => {
+			report.page.add_inner_button(__(label), function () {
+				const filters = report.get_values();
+				window.open(
+					frappe.urllib.get_full_url(
+						`/api/method/${method}?filters=${encodeURIComponent(JSON.stringify(filters))}`
+					)
+				);
+			});
+		};
+
+		add_download_button("Descargar Excel", "l10n_ve.l10n_ve.report.vat_report.vat_report_impression.download_custom_excel");
 	}
 };
