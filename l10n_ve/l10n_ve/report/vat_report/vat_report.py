@@ -24,10 +24,8 @@ def execute(filters=None):
 
 	columns = get_columns()
 	
-	# Procesar datos para el dashboard y la tabla resumen
 	data = get_data(main_data)
 	
-	# Resumen para el Dashboard (cartas superiores)
 	report_summary = get_report_summary(data)
 
 	return columns, data, None, None, report_summary
@@ -54,7 +52,6 @@ def get_data(main_data):
 	rows = []
 
 	for row in main_data:
-		# Lógica para siglas de tipo de documento
 		if row.get("is_void"):
 			doc_type = "ANU"
 		elif row.get("is_debit_note"):
@@ -64,7 +61,6 @@ def get_data(main_data):
 		else:
 			doc_type = "FAC"
 
-		# Identificar el doctype real para el enlace
 		if row.get("is_debit_note"):
 			doctype_name = "VE Sales Debit Note"
 		elif row.get("is_return"):
@@ -72,7 +68,6 @@ def get_data(main_data):
 		else:
 			doctype_name = "Sales Invoice"
 
-		# Manejo de documentos anulados
 		if row.get("is_void"):
 			rows.append({
 				"posting_date": row.get("posting_date"),
@@ -90,7 +85,6 @@ def get_data(main_data):
 			})
 			continue
 
-		# Calcular bases e IVAs consolidados de la fila
 		base = flt(row.get("base_general_taxpayer", 0) + row.get("base_general_non_taxpayer", 0) +
 				   row.get("base_reduced_taxpayer", 0) + row.get("base_reduced_non_taxpayer", 0) +
 				   row.get("base_additional_taxpayer", 0) + row.get("base_additional_non_taxpayer", 0) +
@@ -102,7 +96,6 @@ def get_data(main_data):
 		
 		total = flt(row.get("grand_total", 0))
 
-		# Mapear datos a la fila
 		rows.append({
 			"posting_date": row.get("posting_date"),
 			"branch": row.get("branch"),
@@ -118,7 +111,6 @@ def get_data(main_data):
 			"doctype_link": doctype_name
 		})
 
-	# NOTA: Se eliminó la fila de TOTALES inferior por petición del usuario (ya existe en el Dashboard)
 	return rows
 
 
