@@ -65,6 +65,11 @@ def get_data(filters):
 
 	charge_types_str = ", ".join(charge_types)
 
+	company_currency = frappe.get_cached_value("Company", filters.get("company"), "default_currency")
+	fiscal_cutoff = '2026-04-15'
+	filters["company_currency"] = company_currency
+	filters["fiscal_cutoff"] = fiscal_cutoff
+
 	# Query unificado para todas las fuentes
 	query = f"""
 		SELECT * FROM (
@@ -73,7 +78,16 @@ def get_data(filters):
 				si.name, si.posting_date, si.bill_no, si.bill_control, si.customer_name, si.branch,
 				COALESCE(NULLIF(si.tax_id, ''), c.tax_id) as tax_id,
 				si.base_total, si.base_grand_total AS grand_total,
-				stc.charge_type, stc.base_tax_amount AS withholding_amount,
+				stc.charge_type,
+				CASE 
+					WHEN si.posting_date <= %(fiscal_cutoff)s THEN ABS(stc.tax_amount) * (CASE WHEN si.currency != %(company_currency)s THEN si.conversion_rate ELSE 1 END) 
+					ELSE 
+						CASE 
+							WHEN stc.charge_type = 'VAT Withholding' AND (si.vat_withholding_voucher_number IS NULL OR si.vat_withholding_voucher_number = '') THEN 0
+							WHEN stc.charge_type = 'ISLR' AND (si.islr_receipt_number IS NULL OR si.islr_receipt_number = '') THEN 0
+							ELSE ABS(stc.base_tax_amount) 
+						END
+				END AS withholding_amount,
 				CASE WHEN stc.charge_type = 'VAT Withholding' THEN si.vat_withholding_voucher_number ELSE si.islr_receipt_number END as voucher_number,
 				CASE WHEN stc.charge_type = 'VAT Withholding' THEN si.withholding_date ELSE si.islr_date END as withholding_date,
 				stc.rate AS retention_percentage,
@@ -93,7 +107,16 @@ def get_data(filters):
 				nc.name, nc.posting_date, nc.bill_no, nc.bill_control, nc.customer_name, nc.branch,
 				COALESCE(NULLIF(nc.tax_id, ''), c.tax_id) as tax_id,
 				nc.base_total, nc.base_grand_total AS grand_total,
-				stc.charge_type, stc.base_tax_amount AS withholding_amount,
+				stc.charge_type,
+				CASE 
+					WHEN nc.posting_date <= %(fiscal_cutoff)s THEN ABS(stc.tax_amount) * (CASE WHEN nc.currency != %(company_currency)s THEN nc.conversion_rate ELSE 1 END) 
+					ELSE 
+						CASE 
+							WHEN stc.charge_type = 'VAT Withholding' AND (nc.vat_withholding_voucher_number IS NULL OR nc.vat_withholding_voucher_number = '') THEN 0
+							WHEN stc.charge_type = 'ISLR' AND (nc.islr_receipt_number IS NULL OR nc.islr_receipt_number = '') THEN 0
+							ELSE ABS(stc.base_tax_amount) 
+						END
+				END AS withholding_amount,
 				CASE WHEN stc.charge_type = 'VAT Withholding' THEN nc.vat_withholding_voucher_number ELSE nc.islr_receipt_number END as voucher_number,
 				CASE WHEN stc.charge_type = 'VAT Withholding' THEN nc.withholding_date ELSE nc.islr_date END as withholding_date,
 				stc.rate AS retention_percentage,
@@ -113,7 +136,11 @@ def get_data(filters):
 				nd.name, nd.posting_date, nd.bill_no, nd.bill_control, nd.customer_name, nd.branch,
 				COALESCE(NULLIF(nd.tax_id, ''), c.tax_id) as tax_id,
 				nd.base_total, nd.base_grand_total AS grand_total,
-				stc.charge_type, stc.base_tax_amount AS withholding_amount,
+				stc.charge_type,
+				CASE 
+					WHEN nd.posting_date <= %(fiscal_cutoff)s THEN ABS(stc.tax_amount) * (CASE WHEN nd.currency != %(company_currency)s THEN nd.conversion_rate ELSE 1 END) 
+					ELSE ABS(stc.base_tax_amount)
+				END AS withholding_amount,
 				NULL as voucher_number,
 				NULL as withholding_date,
 				stc.rate AS retention_percentage,
@@ -164,9 +191,9 @@ def get_report_summary(data):
 	if not data:
 		return []
 
-	total_base = sum(flt(d.base_total) for d in data)
-	total_invoiced = sum(flt(d.grand_total) for d in data)
-	total_withheld = sum(flt(d.withholding_amount) for d in data)
+	total_base = sum(flt(d.get("base_total", 0)) for d in data)
+	total_invoiced = sum(flt(d.get("grand_total", 0)) for d in data)
+	total_withheld = sum(flt(d.get("withholding_amount", 0)) for d in data)
 
 	return [
 		{"value": total_base, "label": _("Total Base Imponible"), "datatype": "Currency"},

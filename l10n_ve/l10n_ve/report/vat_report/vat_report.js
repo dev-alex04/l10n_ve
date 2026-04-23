@@ -48,12 +48,7 @@ frappe.query_reports["VAT report"] = {
 		value = default_formatter(value, row, column, data);
 
 		if (column.fieldname === "bill_no" && data && data.name && data.doctype_link) {
-			const doc_link = frappe.utils.get_dev_mode() ?
-				`/app/${data.doctype_link.toLowerCase().replace(/ /g, "-")}/${data.name}` :
-				frappe.utils.get_form_link(data.doctype_link, data.name);
-
-			// Si no estamos en modo dev, get_form_link suele ser más robusto
-			const final_link = `/app/${data.doctype_link.toLowerCase().replace(/ /g, "-")}/${data.name}`;
+			const final_link = "/app/" + data.doctype_link.toLowerCase().replace(/ /g, "-") + "/" + data.name;
 
 			value = `<a href="${final_link}" style="font-weight: bold; color: var(--primary-color); text-decoration: none;">${value}</a>`;
 		}
