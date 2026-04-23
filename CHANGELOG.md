@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.11] - 2026-04-20
+
+### 🐛 Correcciones (Fixes)
+- Se restauró la función `_get_common_joins()` y se corrigió un error de sintaxis (coma faltante) en la definición de columnas dentro del módulo de libro de ventas (sales_book). [5e57b44]
+
+---
+
+## [v1.0.10] - 2026-04-20
+
+### ✨ Funcionalidades (Features)
+- **Integración de Notas de Débito:** Se ha incorporado completamente la Nota de Débito en el flujo fiscal, el Libro de Ventas y el flujo de pagos (063e305, a53d2bf).
+- **Indicadores de Estado:** Implementación de indicadores compuestos {Fiscal} - {Pago} en la lista de Facturas de Venta y nuevos indicadores de estado "Anulado" para Notas de Crédito y Débito (1cb29a3, 9b6c874).
+- **Cálculos Fiscales en Bs:** Adición de campos para visualizar el "Total Base + IVA (Bs)" en Facturas de Venta, Notas de Crédito y Notas de Débito (4b65a46, e30eb17).
+- **Gestión de IGTF:** Incorporación del campo `is_igtf_applicable` en el Doctype Modo de Pago, con soporte para importación/exportación a nivel de sucursal (20385b3).
+- **Validaciones de Cancelación:** Se añadió un bloqueo que impide la cancelación de Facturas de Venta si existen notas asociadas activas (9b6c874).
+
+### 🐛 Correcciones (Fixes)
+- **Estabilización de Documentos:** Se unificó la lógica de cancelación duplicada en Notas de Débito que impedía actualizar el estatus del documento padre y se corrigió la paridad de funciones entre NC y ND (5fae454, 428b300).
+- **Optimización de Libro de Ventas:** Ahora se utilizan los valores de base imponible almacenados directamente en la factura para evitar inconsistencias por recalculos (9ff4ade).
+- **Lógica Fiscal:** Eliminación del recálculo redundante de IVA en USD dentro del generador de payload y expansión de las validaciones de datos previas al envío fiscal (8123597).
+- **Ajustes Contables y Montos:** Corrección del cálculo de montos pendientes (outstanding) en Notas de Crédito y solución a errores en las entradas de diario (GL Entry) relacionadas con retenciones (c785df3, 9b6c874).
+- **Interfaz de Usuario:** Ajustes en la visibilidad de campos de IGTF y corrección en la visualización forzada de la columna de cliente en el listado de facturas (f668808, 33c80f2).
+
+---
+
 ## [v1.0.9] - 2026-04-18
 
 ### ✨ Funcionalidades (Features)

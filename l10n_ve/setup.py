@@ -1499,8 +1499,15 @@ def add_reports_to_accounts_workspace() -> None:
         reports_to_add = [
             {
                 "type": "Link",
-                "label": _("Retención de Clientes"),
+                "label": _("Retención de Cliente IVA/ISLR"),
                 "link_to": "Customer Retention",
+                "link_type": "Report",
+                "is_query_report": 1
+            },
+            {
+                "type": "Link",
+                "label": _("Reporte de IVA"),
+                "link_to": "VAT report",
                 "link_type": "Report",
                 "is_query_report": 1
             },

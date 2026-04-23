@@ -39,7 +39,7 @@ def get_customer_retention_excel(filters=None):
 	columns = get_columns()
 	
 	# Filtrar columnas no deseadas
-	columns_to_remove = ["name", "retention_type", "voucher_image"]
+	columns_to_remove = ["name", "retention_type", "voucher_image", "doc_type", "branch"]
 	columns = [c for c in columns if c.get("fieldname") not in columns_to_remove]
 
 	wb = openpyxl.Workbook()
@@ -136,7 +136,7 @@ def get_customer_retention_pdf(filters=None):
     columns = get_columns()
 
     # Filtrar columnas no deseadas
-    columns_to_remove = ["name", "retention_type", "voucher_image"]
+    columns_to_remove = ["name", "retention_type", "voucher_image", "doc_type", "branch"]
     columns = [c for c in columns if c.get("fieldname") not in columns_to_remove]
 
     company_details = _get_company_details(filters.get("company"))

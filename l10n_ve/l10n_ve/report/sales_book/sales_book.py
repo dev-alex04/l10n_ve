@@ -400,7 +400,13 @@ def _get_common_columns() -> str:
             SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN siv.base_net_total - siv.total_exempt * siv.conversion_rate ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS base_additional_taxpayer,
             SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_additional_taxpayer,
             MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.base_tax_amount) ELSE 0 END) * siv.amount_sign * (1 - siv.is_void) AS iva_retained,
-            MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END) * (1 - siv.is_void) AS vat_withholding_rate
+            MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END) * (1 - siv.is_void) AS vat_withholding_rate,
+    """
+
+
+def _get_common_joins() -> str:
+    """JOINs compartidos por ambos SELECTs (legacy y nuevo)."""
+    return """
         FROM
             InvoiceData siv
         LEFT JOIN
