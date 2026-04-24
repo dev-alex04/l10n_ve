@@ -35,7 +35,7 @@ frappe.query_reports["VAT report"] = {
 			fieldname: "fiscal_year",
 			label: __("Año Fiscal (Opcional)"),
 			fieldtype: "Select",
-			options: ["", "2024", "2025", "2026", "2027"]
+			options: ["", ...Array.from({length: 5}, (_, i) => String(new Date().getFullYear() - 2 + i))]
 		},
 		{
 			fieldname: "fiscal_month",

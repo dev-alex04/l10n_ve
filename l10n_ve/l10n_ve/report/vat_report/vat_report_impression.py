@@ -19,7 +19,7 @@ def _get_company_details(company_name):
             address_doc = frappe.get_cached_doc("Address", company_doc.get("custom_company_primary_address"))
             company_address = address_doc.address_line1
         except Exception:
-            pass
+            frappe.log_error(title="Error obteniendo dirección de empresa")
     return {"name": company_name, "rif": company_rif, "address": company_address}
 
 @frappe.whitelist()
@@ -81,7 +81,7 @@ def download_custom_excel(filters=None):
     for d in data:
         ws.cell(row=row_num, column=1, value=formatdate(d.get("posting_date")))
         ws.cell(row=row_num, column=2, value=d.get("branch"))
-        ws.cell(row=row_num, column=3, value=d.get("customer_name").replace("<b>", "").replace("</b>", ""))
+        ws.cell(row=row_num, column=3, value=(d.get("customer_name") or "").replace("<b>", "").replace("</b>", ""))
         ws.cell(row=row_num, column=4, value=d.get("customer_tax_id"))
         ws.cell(row=row_num, column=5, value=d.get("document_type"))
         ws.cell(row=row_num, column=6, value=d.get("bill_no"))

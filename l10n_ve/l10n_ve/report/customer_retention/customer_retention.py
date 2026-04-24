@@ -9,6 +9,10 @@ from frappe.utils import flt
 def execute(filters=None):
 	if not filters:
 		filters = {}
+
+	if not filters.get("company"):
+		frappe.throw(_("Debe seleccionar una Empresa para generar el reporte."))
+
 	columns = get_columns()
 	data = get_data(filters)
 	return columns, data, None, None, get_report_summary(data)

@@ -156,7 +156,7 @@ def _get_date_range_from_filters(filters):
 				from_date = date(year, month_num, 1).strftime('%Y-%m-%d')
 				last_day = calendar.monthrange(year, month_num)[1]
 				to_date = date(year, month_num, last_day).strftime('%Y-%m-%d')
-		except Exception:
+		except (ValueError, TypeError, KeyError):
 			pass
 			
 	return from_date, to_date
