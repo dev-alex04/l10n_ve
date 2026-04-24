@@ -81,7 +81,9 @@ def get_data(main_data):
 				"tax_amount": 0,
 				"grand_total": 0,
 				"name": row.get("name"),
-				"doctype_link": doctype_name
+				"doctype_link": doctype_name,
+				"is_void": 1,
+				"is_return": 0
 			})
 			continue
 
@@ -108,7 +110,9 @@ def get_data(main_data):
 			"tax_amount": iva,
 			"grand_total": total,
 			"name": row.get("name"),
-			"doctype_link": doctype_name
+			"doctype_link": doctype_name,
+			"is_void": row.get("is_void"),
+			"is_return": row.get("is_return")
 		})
 
 	return rows
@@ -118,8 +122,8 @@ def get_report_summary(data):
 	"""Extrae los totales del período para el dashboard superior."""
 	if not data: return []
 	
-	total_base = sum(flt(row.get("taxable_base", 0)) for row in data)
-	total_iva = sum(flt(row.get("tax_amount", 0)) for row in data)
+	total_base = sum(flt(row.get("taxable_base", 0)) for row in data if not row.get("is_void") and not row.get("is_return"))
+	total_iva = sum(flt(row.get("tax_amount", 0)) for row in data if not row.get("is_void") and not row.get("is_return"))
 
 	return [
 		{
