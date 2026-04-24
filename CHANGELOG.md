@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.12] - 2026-04-24
+
+### ✨ Funcionalidades (Features)
+- Se implementó la capacidad de exportación a Excel para el Reporte de IVA (b788a99).
+- Mejoras en la alineación fiscal y procesos de limpieza en las exportaciones relacionadas con la localización de Venezuela l10n_ve (6e4a4ae).
+
+### 🐛 Correcciones (Fixes)
+- Implementación de validaciones defensivas y manejo robusto de excepciones en los reportes de IVA y retenciones para asegurar la integridad del sistema ante datos inesperados (6edb571).
+
+---
+
 ## [v1.0.11] - 2026-04-20
 
 ### 🐛 Correcciones (Fixes)
