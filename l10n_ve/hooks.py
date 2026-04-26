@@ -10,6 +10,7 @@ app_include_js = [
     "/assets/l10n_ve/js/item_logic/item_logic.js",
     "/assets/l10n_ve/js/utils/report_view_patch.js",
     "/assets/l10n_ve/js/widgets/number_card_widget.js",
+    "/assets/l10n_ve/js/utils/sales_billing_indicators.js",
     "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
     "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
 ]

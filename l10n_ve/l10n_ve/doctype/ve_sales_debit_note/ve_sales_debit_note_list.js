@@ -15,34 +15,18 @@ frappe.listview_settings["VE Sales Debit Note"] = {
         "is_void",
     ],
     get_indicator: function (doc) {
-        if (doc.is_void) {
-            return [__("Anulado"), "red", "is_void,=,1"];
+        const result = compute_ve_billing_indicator(doc, {
+            doc_type: "debit_note",
+        });
+
+        if (result) {
+            const filter = doc.is_void ? "is_void,=,1" : "docstatus,=,1";
+            return [result.label, result.color, filter];
         }
 
-        if (doc.docstatus !== 1) {
-            const status_colors = {
-                Draft: "red",
-                Cancelled: "red",
-            };
-            return [__(doc.status), status_colors[doc.status] || "gray", "status,=," + doc.status];
-        }
-
-        // Estado fiscal
-        let fiscal_label = doc.bill_no ? __("Emitida") : __("Aplicada");
-
-        // Estado de pago
-        let payment_label = "";
-        let color = "orange";
-
-        if (flt(doc.outstanding_amount) === 0) {
-            payment_label = __("Pagado");
-            color = "green";
-        } else {
-            payment_label = __("Por Cobrar");
-            color = doc.bill_no ? "blue" : "orange";
-        }
-
-        return [`${fiscal_label} - ${payment_label}`, color, "docstatus,=,1"];
+        // Fallback: Draft / Cancelled (nativo)
+        const status_colors = { Draft: "red", Cancelled: "red" };
+        return [__(doc.status), status_colors[doc.status] || "gray", "status,=," + doc.status];
     },
     right_column: "grand_total",
 };

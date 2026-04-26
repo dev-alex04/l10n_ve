@@ -251,7 +251,7 @@ frappe.ui.form.on("Sales Invoice", {
       setup_digital_invoice_button(frm);
     }
 
-    set_ve_form_indicator(frm);
+    set_ve_form_indicator(frm, { doc_type: "sales_invoice" });
   },
 
   customer: function (frm) {
@@ -296,61 +296,8 @@ frappe.ui.form.on("Sales Invoice", {
   },
 });
 
-/**
- * Indicador compuesto para el formulario de Factura de Venta.
- * Combina el estado fiscal (Emitida/Pendiente) con el estado de pago.
- * @param {object} frm
- */
-function set_ve_form_indicator(frm) {
-  if (frm.doc.docstatus === 2 && frm.doc.is_void) {
-    setTimeout(() => {
-      frm.page.set_indicator(__("Anulado"), "red");
-    }, 0);
-    return;
-  }
-
-  if (frm.doc.docstatus !== 1) return;
-
-  // SI legacy que son NC o ND (is_return / is_debit_note)
-  if (frm.doc.is_return) return;
-  if (frm.doc.is_debit_note) return;
-
-  setTimeout(() => {
-    let fiscal = frm.doc.bill_no ? __("Emitida") : __("Pendiente");
-
-    let payment, color;
-    const status = frm.doc.status;
-
-    if (status === "Paid") {
-      payment = __("Pagado");
-      color = "green";
-    } else if (status === "Credit Note Issued") {
-      payment = __("NC Aplicada");
-      color = "gray";
-    } else if (status === "Debit Note Issued") {
-      payment = __("ND Aplicada");
-      color = "gray";
-    } else if (status.includes("Partly Paid")) {
-      payment = __("Parcial");
-      color = "yellow";
-    } else {
-      payment = __("Por Cobrar");
-      color = frm.doc.bill_no ? "blue" : "orange";
-    }
-
-    // Advertencia de comprobante faltante integrada en el indicador
-    let indicator_label = `${fiscal} - ${payment}`;
-    if (
-      flt(frm.doc.total_withholding) > 0 &&
-      !frm.doc.vat_withholding_voucher_number
-    ) {
-      indicator_label += " · Falta comprobante de retención de IVA";
-      color = "orange";
-    }
-
-    frm.page.set_indicator(indicator_label, color);
-  }, 0);
-}
+// set_ve_form_indicator() — definida en sales_billing_indicators.js (app_include_js)
+// Invocada en refresh con: set_ve_form_indicator(frm, { doc_type: "sales_invoice" })
 
 function toggle_document_number_fields(frm) {
   const is_credit_note = frm.doc.is_return;
