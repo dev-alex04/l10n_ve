@@ -16,22 +16,20 @@ frappe.listview_settings["VE Sales Credit Note"] = {
     "is_void",
   ],
   get_indicator: function (doc) {
-    if (doc.is_void) {
-      return [__("Anulado"), "red", "is_void,=,1"];
+    const result = compute_ve_billing_indicator(doc, {
+      doc_type: "credit_note",
+    });
+
+    if (result) {
+      let filter = "docstatus,=,1";
+      if (doc.is_void) filter = "is_void,=,1";
+      else if (doc.bill_no) filter = "bill_no,!=,";
+      else if (flt(doc.outstanding_amount) === 0) filter = "outstanding_amount,=,0";
+      return [result.label, result.color, filter];
     }
-    if (doc.docstatus === 1 && doc.bill_no) {
-      return [__("Emitida"), "blue", "bill_no,!=,"];
-    }
-    if (doc.docstatus === 1 && flt(doc.outstanding_amount) === 0) {
-      return [__("Aplicada"), "green", "outstanding_amount,=,0"];
-    }
-    if (doc.docstatus === 1) {
-      return [__("Pendiente"), "orange", "docstatus,=,1"];
-    }
-    const status_colors = {
-      Draft: "red",
-      Cancelled: "red",
-    };
+
+    // Fallback: Draft / Cancelled (nativo)
+    const status_colors = { Draft: "red", Cancelled: "red" };
     return [
       __(doc.status),
       status_colors[doc.status] || "gray",

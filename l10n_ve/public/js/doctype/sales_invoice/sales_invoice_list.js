@@ -21,62 +21,30 @@ frappe.listview_settings["Sales Invoice"] = {
   ],
 
   get_indicator: function (doc) {
-    // ── Overrides absolutos ──
-    if (doc.is_void) {
-      return [__("Anulado"), "red", "is_void,=,1"];
+    const result = compute_ve_billing_indicator(doc, {
+      doc_type: "sales_invoice",
+    });
+
+    if (result) {
+      let label = result.label;
+      if (result.withholding_warning) label += " ⚠️";
+      const filter = doc.is_void ? "is_void,=,1" : "docstatus,=,1";
+      return [label, result.color, filter];
     }
+
+    // Estados no-VE (compute retornó null)
     if (doc.docstatus === 2) {
       return [__("Cancelado"), "red", "docstatus,=,2"];
     }
     if (doc.docstatus === 0) {
       return [__("Borrador"), "red", "docstatus,=,0"];
     }
-
-    // SI legacy que son NC o ND (is_return / is_debit_note dentro de Sales Invoice)
     if (doc.is_return) {
       return [__("Nota de Crédito"), "gray", "is_return,=,1"];
     }
     if (doc.is_debit_note) {
       return [__("Nota de Débito"), "gray", "is_debit_note,=,1"];
     }
-
-    // ── docstatus === 1: indicador compuesto {Fiscal} - {Pago} ──
-
-    // Nivel 1: Estado fiscal (¿fue emitida en HKA?)
-    let fiscal = doc.bill_no ? __("Emitida") : __("Pendiente");
-
-    // Nivel 2: Estado de pago (basado en doc.status de ERPNext)
-    let payment, color;
-    const status = doc.status;
-
-    if (status === "Paid") {
-      payment = __("Pagado");
-      color = "green";
-    } else if (status === "Credit Note Issued") {
-      payment = __("NC Aplicada");
-      color = "gray";
-    } else if (status === "Debit Note Issued") {
-      payment = __("ND Aplicada");
-      color = "gray";
-    } else if (status.includes("Partly Paid")) {
-      payment = __("Parcial");
-      color = "yellow";
-    } else {
-      payment = __("Por Cobrar");
-      color = doc.bill_no ? "blue" : "orange";
-    }
-
-    let label = `${fiscal} - ${payment}`;
-
-    // ⚠️ Indicador de comprobante de retención faltante
-    if (
-      flt(doc.total_withholding) > 0 &&
-      !doc.vat_withholding_voucher_number
-    ) {
-      label += " ⚠️";
-    }
-
-    return [label, color, "docstatus,=,1"];
   },
 
   right_column: "grand_total",
