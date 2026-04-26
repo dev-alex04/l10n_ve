@@ -1,13 +1,14 @@
 import frappe
 from frappe import _
-import json
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
 import base64
 
-from l10n_ve.l10n_ve.report.sales_book.sales_book import get_columns, get_sales_data, get_total_row
+from l10n_ve.l10n_ve.report.sales_book.sales_book import (
+    get_columns, get_total_row, prepare_excel_export, build_excel_filename,
+)
 
 class ExcelBuilder:
     """
@@ -453,72 +454,38 @@ class ExcelBuilder:
 
 @frappe.whitelist()
 def create_excel_file(report_name, filters=None, **kwargs):
-    """
-    Genera el archivo de Excel directamente y lo guarda.
-    """
+    """Genera el archivo de Excel con formato detallado."""
     if not filters:
         filters = kwargs.get("filters_json")
 
-    if isinstance(filters, str):
-        filters = json.loads(filters)
-
     try:
+        ctx: dict = prepare_excel_export(filters)
+
         columns = get_columns()
-        main_data, adjustment_data = get_sales_data(filters)
-
-        counter_column = {
-            "label": "Nr Oper.",
-            "fieldname": "sequence_number",
-            "width": 20
-        }
-        columns.insert(0, counter_column)
-
-        # Numerar ambas listas de datos
-        all_data_for_numbering = main_data + adjustment_data
-        for i, row in enumerate(all_data_for_numbering):
-            row["sequence_number"] = i + 1
-
-        if not main_data and not adjustment_data:
-            frappe.throw(_("No se encontraron datos para los filtros seleccionados."))
-
-        # El resumen principal se basa ÚNICAMENTE en los datos del período. Los ajustes se manejan por separado.
-        summary_data = get_total_row(main_data)
-
-        company_doc = frappe.get_doc("Company", filters.get("company"))
-        address_name = company_doc.get("custom_company_primary_address")
-        company_address = frappe.db.get_value("Address", address_name, "address_line1") if address_name else _("Dirección no disponible")
-
-        company_data = {
-            "company_name": company_doc.company_name,
-            "tax_id": company_doc.tax_id,
-            "is_special_taxpayer": company_doc.is_special_taxpayer,
-            "address": company_address
-        }
-
-        from_date = frappe.utils.getdate(filters.get("from_date"))
-        to_date = frappe.utils.getdate(filters.get("to_date"))
+        columns.insert(0, {"label": "Nr Oper.", "fieldname": "sequence_number", "width": 20})
 
         title = _("Libro de Ventas")
 
         builder = ExcelBuilder(
             title,
             columns,
-            main_data,
-            adjustment_data,
-            summary_data,
-            company_data,
-            from_date,
-            to_date,
+            ctx["main_data"],
+            ctx["adjustment_data"],
+            ctx["summary_data"],
+            ctx["company_data"],
+            ctx["from_date"],
+            ctx["to_date"],
         )
         excel_content = builder.build()
 
-        excel_content_bytes = excel_content.getvalue()
-        base64_content = base64.b64encode(excel_content_bytes).decode('utf-8')
+        base64_content = base64.b64encode(excel_content.getvalue()).decode('utf-8')
 
         return {
             "type": "download",
-            "filename": f"{title}.xlsx",
-            "filecontent": base64_content
+            "filename": build_excel_filename(
+                ctx["company_doc"].company_name, ctx["from_date"], ctx["to_date"]
+            ),
+            "filecontent": base64_content,
         }
 
     except Exception as e:
