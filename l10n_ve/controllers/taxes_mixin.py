@@ -122,6 +122,14 @@ class TaxesMixin:
                     f'{withholding["description"]} por Nota de Débito contra factura {affected}'
 
 
+        # Solo agregar retención de IVA si hay al menos una fila VAT.
+        # Sin IVA no hay base sobre la cual calcular la retención.
+        has_vat_charge: bool = any(
+            tax.charge_type == "VAT" for tax in self.taxes or []
+        )
+        if not has_vat_charge:
+            return
+
         self.append("taxes", withholding)
 
     def set_islr_withholding_ve(self) -> None:
