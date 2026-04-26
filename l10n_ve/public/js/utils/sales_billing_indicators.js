@@ -52,7 +52,7 @@ function compute_ve_billing_indicator(doc, opts) {
  * Incluye detección de comprobante de retención faltante.
  */
 function _sales_invoice_indicator(doc) {
-  const fiscal = doc.bill_no ? __("Emitida") : __("Pendiente");
+  const fiscal = doc.bill_no ? __("Emitida") : __("Por Emitir");
   let payment, color;
   const status = doc.status || "";
 
@@ -71,6 +71,11 @@ function _sales_invoice_indicator(doc) {
   } else {
     payment = __("Por Cobrar");
     color = doc.bill_no ? "blue" : "orange";
+  }
+
+  // Por Emitir (sin bill_no) → siempre naranja, sin importar estado de pago
+  if (!doc.bill_no) {
+    color = "orange";
   }
 
   const withholding_warning =
