@@ -195,6 +195,47 @@ def execute() -> None:
             errors += 1
             print(f"  ✗ {clear_entry['doctype']}.{clear_entry['field']}: {e}")
 
+    # Fase 3: Desactivar inventario perpetuo (ISP = servicios, no stock físico)
+    perpetual_enabled: int = frappe.db.get_value(
+        "Company", COMPANY, "enable_perpetual_inventory"
+    ) or 0
+
+    if perpetual_enabled:
+        frappe.db.set_value(
+            "Company", COMPANY,
+            "enable_perpetual_inventory", 0,
+            update_modified=False
+        )
+        fixed += 1
+        print("  ✓ Company.enable_perpetual_inventory: 1 → 0 (ISP no requiere stock)")
+
+    # Fase 4: Configurar defaults de Company que quedaron vacíos post-migración
+    DEFAULTS_TO_SET: list[tuple[str, str]] = [
+        ("default_operating_cost_account", "5101010 - Acceso a Internet Proveedor Nacional - Galanet"),
+        ("write_off_account", "6201047 - Perdida por Cuentas Incobrables - Galanet"),
+        ("accumulated_depreciation_account", "1202002 - Depreciación Acum. Muebles y Enseres - Galanet"),
+        ("depreciation_expense_account", "6204004 - Depreciacion Equipos de Computacion - Galanet"),
+        ("purchase_igtf_account", "2105005 - IGTF por Pagar - Galanet"),
+    ]
+
+    for field_name, account_name in DEFAULTS_TO_SET:
+        current: str | None = frappe.db.get_value("Company", COMPANY, field_name)
+        if current:
+            skipped += 1
+            continue
+
+        if not frappe.db.exists("Account", account_name):
+            print(f"  ✗ Cuenta no existe para {field_name}: {account_name}")
+            errors += 1
+            continue
+
+        frappe.db.set_value(
+            "Company", COMPANY, field_name, account_name,
+            update_modified=False
+        )
+        fixed += 1
+        print(f"  ✓ Company.{field_name}: (vacío) → {account_name[:45]}...")
+
     if fixed > 0:
         frappe.db.commit()
 

@@ -41,24 +41,24 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
             )
 
 
-    def validate_fiscal_period(self):
+    def validate_fiscal_period(self) -> None:
         if not self.fiscal_period:
             return
 
-        parts = self.fiscal_period.split('/')
+        parts: list[str] = self.fiscal_period.split('/')
 
-        is_invalid_format = len(parts) != (2
-                            or not parts[0].isdigit()
-                            or not parts[1].isdigit()
-                            or len(parts[0]) != 2
-                            or len(parts[1]) != 4
-                            )
+        is_invalid_format: bool = (
+            len(parts) != 2
+            or not parts[0].isdigit()
+            or not parts[1].isdigit()
+            or len(parts[0]) != 2
+            or len(parts[1]) != 4
+        )
 
         if is_invalid_format:
             frappe.throw(_("El Periodo Fiscal debe tener el formato MM/YYYY (ej: 10/2025)."))
 
-        is_invalid_month = not (1 <= int(parts[0]) <= 12)
-        if is_invalid_month:
+        if not (1 <= int(parts[0]) <= 12):
             frappe.throw(_("El mes en el Periodo Fiscal no es válido."))
 
 @frappe.whitelist()
@@ -75,15 +75,15 @@ def get_valid_invoices(supplier, start_date, end_date, company):
     default_currency = frappe.db.get_value('Company', company, 'default_currency')
 
     excluded_from_withholding = frappe.db.sql("""
-        SELECT 
-            child.purchase_invoice 
-        FROM 
+        SELECT
+            child.purchase_invoice
+        FROM
             `tabVAT Withholding Voucher Item` child
-        INNER JOIN 
+        INNER JOIN
             `tabVAT Withholding Voucher` parent ON child.parent = parent.name
-        WHERE 
+        WHERE
             parent.docstatus != 2
-            AND child.purchase_invoice IS NOT NULL 
+            AND child.purchase_invoice IS NOT NULL
             AND child.purchase_invoice != ''
     """, as_dict=True)
 
@@ -170,9 +170,9 @@ def get_valid_invoices(supplier, start_date, end_date, company):
 @frappe.whitelist()
 def mark_as_declared(docname):
     doc = frappe.get_doc("VAT Withholding Voucher", docname)
-    
+
     if doc.docstatus != 1:
         frappe.throw(_("Solo se pueden marcar como declarados los comprobantes que estén en estado Aprobado."))
-    
+
     doc.db_set("is_declared", 1)
     return True
