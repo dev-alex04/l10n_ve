@@ -122,8 +122,8 @@ def get_report_summary(data):
 	"""Extrae los totales del período para el dashboard superior."""
 	if not data: return []
 	
-	total_base = sum(flt(row.get("taxable_base", 0)) for row in data if not row.get("is_void") and not row.get("is_return"))
-	total_iva = sum(flt(row.get("tax_amount", 0)) for row in data if not row.get("is_void") and not row.get("is_return"))
+	total_base = sum(flt(row.get("taxable_base", 0)) for row in data if not row.get("is_void"))
+	total_iva = sum(flt(row.get("tax_amount", 0)) for row in data if not row.get("is_void"))
 
 	return [
 		{
