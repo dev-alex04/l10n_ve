@@ -237,10 +237,6 @@
    "report": 1,
    "role": "Accounts User",
    "share": 1
-  },
-  {
-   "read": 1,
-   "role": "All"
   }
  ],
  "row_format": "Dynamic",
