@@ -432,21 +432,17 @@ class SeniatExcelBuilder:
     # ── Orquestador ──
 
     def build(self) -> BytesIO:
-        try:
-            header_end = self._add_report_header()
-            headers_row = self._build_multi_level_headers(header_end)
-            last_data = self._write_data_rows(self.main_data, headers_row)
-            totals_row = self._write_totals_row(self.main_data, last_data)
-            summary_row = self._build_summary_table(totals_row)
-            self._build_adjustments_table(summary_row)
+        header_end = self._add_report_header()
+        headers_row = self._build_multi_level_headers(header_end)
+        last_data = self._write_data_rows(self.main_data, headers_row)
+        totals_row = self._write_totals_row(self.main_data, last_data)
+        summary_row = self._build_summary_table(totals_row)
+        self._build_adjustments_table(summary_row)
 
-            stream = BytesIO()
-            self.wb.save(stream)
-            stream.seek(0)
-            return stream
-        except Exception as e:
-            frappe.log_error(frappe.get_traceback(), "SeniatExcelBuilder.build")
-            frappe.throw(_("Error al construir el Excel formato SENIAT: {0}").format(e))
+        stream = BytesIO()
+        self.wb.save(stream)
+        stream.seek(0)
+        return stream
 
 
 # ──────────────────────────────────────────────────────────────────────
