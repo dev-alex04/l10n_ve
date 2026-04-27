@@ -34,30 +34,8 @@ frappe.ui.form.on("VE Sales Debit Note", {
     frm.toggle_reqd("due_date", false);
     calculate_base_total_with_vat(frm);
 
-    // Sobreescribir indicador "Cancelled" → "Anulado" cuando fue anulada en HKA
-    if (frm.doc.docstatus === 2 && frm.doc.is_void) {
-      setTimeout(() => {
-        frm.page.set_indicator(__("Anulado"), "red");
-      }, 0);
-    }
-
-    // Indicador compuesto: estado fiscal + estado de pago
-    if (frm.doc.docstatus === 1) {
-      setTimeout(() => {
-        let fiscal = frm.doc.bill_no ? __("Emitida") : __("Aplicada");
-        let payment, color;
-
-        if (flt(frm.doc.outstanding_amount) === 0) {
-          payment = __("Pagado");
-          color = "green";
-        } else {
-          payment = __("Por Cobrar");
-          color = frm.doc.bill_no ? "blue" : "orange";
-        }
-
-        frm.page.set_indicator(`${fiscal} - ${payment}`, color);
-      }, 0);
-    }
+    // Indicador fiscal VE (centralizado en sales_billing_indicators.js)
+    set_ve_form_indicator(frm, { doc_type: "debit_note" });
 
     // Vista previa del asiento contable
     erpnext.accounts.ledger_preview.show_accounting_ledger_preview(frm);

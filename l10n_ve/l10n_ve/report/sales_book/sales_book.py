@@ -439,8 +439,9 @@ def _get_legacy_calc_columns() -> str:
                 + COALESCE(SUM(CASE WHEN tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END), 0)
             ) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS grand_total,
             MAX(siv.total_exempt) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS total_exempt,
-            MAX(siv.base_amount_igtf) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_amount_igtf,
-            MAX(siv.total_igtf) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS total_igtf,
+            -- IGTF ya almacenado en VEF (no multiplicar por conversion_rate)
+            MAX(siv.base_amount_igtf) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_amount_igtf,
+            MAX(siv.total_igtf) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS total_igtf,
 
             SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_non_taxpayer,
             SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_non_taxpayer,

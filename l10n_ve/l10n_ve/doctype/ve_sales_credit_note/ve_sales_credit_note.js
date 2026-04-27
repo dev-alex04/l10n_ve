@@ -34,23 +34,8 @@ frappe.ui.form.on("VE Sales Credit Note", {
     frm.toggle_reqd("due_date", false);
     calculate_base_total_with_vat(frm);
 
-    // Sobreescribir indicador "Cancelled" → "Anulado" cuando fue anulada en HKA
-    if (frm.doc.docstatus === 2 && frm.doc.is_void) {
-      setTimeout(() => {
-        frm.page.set_indicator(__("Anulado"), "red");
-      }, 0);
-    }
-
-    // Indicador de estado del formulario (misma lógica que list view)
-    if (frm.doc.docstatus === 1 && frm.doc.bill_no) {
-      setTimeout(() => {
-        frm.page.set_indicator(__("Emitida"), "blue");
-      }, 0);
-    } else if (frm.doc.docstatus === 1 && flt(frm.doc.outstanding_amount) === 0) {
-      setTimeout(() => {
-        frm.page.set_indicator(__("Aplicada"), "green");
-      }, 0);
-    }
+    // Indicador fiscal VE (centralizado en sales_billing_indicators.js)
+    set_ve_form_indicator(frm, { doc_type: "credit_note" });
 
     // Vista previa del asiento contable (idéntica a Factura de Venta)
     // Solo disponible en borradores ya guardados — usa el mismo motor
