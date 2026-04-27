@@ -44,6 +44,61 @@ def execute(filters=None):
     return columns, data, None, None, report_summary
 
 
+def prepare_excel_export(filters: dict) -> dict:
+    """Prepara los datos comunes para ambos formatos de exportación Excel.
+
+    Retorna un dict con: main_data, adjustment_data, summary_data,
+    company_data, from_date, to_date, company_doc.
+    """
+    import json as _json
+    if isinstance(filters, str):
+        filters = _json.loads(filters)
+
+    main_data, adjustment_data = get_sales_data(filters)
+
+    # Numerar filas
+    for i, row in enumerate(main_data + adjustment_data):
+        row["sequence_number"] = i + 1
+
+    if not main_data and not adjustment_data:
+        frappe.throw(_("No se encontraron datos para los filtros seleccionados."))
+
+    summary_data: dict = get_total_row(main_data)
+
+    company_doc = frappe.get_doc("Company", filters.get("company"))
+    address_name = company_doc.get("custom_company_primary_address")
+    company_address: str = (
+        frappe.db.get_value("Address", address_name, "address_line1")
+        if address_name else _("Dirección no disponible")
+    )
+
+    company_data: dict = {
+        "company_name": company_doc.company_name,
+        "tax_id": company_doc.tax_id,
+        "is_special_taxpayer": company_doc.is_special_taxpayer,
+        "address": company_address,
+    }
+
+    from_date = frappe.utils.getdate(filters.get("from_date"))
+    to_date = frappe.utils.getdate(filters.get("to_date"))
+
+    return {
+        "main_data": main_data,
+        "adjustment_data": adjustment_data,
+        "summary_data": summary_data,
+        "company_data": company_data,
+        "company_doc": company_doc,
+        "from_date": from_date,
+        "to_date": to_date,
+    }
+
+
+def build_excel_filename(company_name: str, from_date, to_date) -> str:
+    """Genera nombre de archivo consistente para ambos formatos."""
+    safe_company: str = company_name.replace("/", "-").replace("\\", "-")
+    return f"Libro de Ventas - {safe_company} - {from_date.strftime('%d-%m-%Y')} al {to_date.strftime('%d-%m-%Y')}.xlsx"
+
+
 def get_columns() -> list[dict]:
     """
     Define las columnas de la tabla del reporte. Se han simplificado las etiquetas para evitar errores en el archivo Excel.
