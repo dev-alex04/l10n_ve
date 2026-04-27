@@ -4,15 +4,24 @@ Recorre dinámicamente todos los campos Link→Account del schema y verifica
 que los valores apunten a cuentas existentes.
 
 Uso:
-    bench --site domina.galanet execute l10n_ve.patches.accounts.audit_orphan_accounts
+    bench --site domina.galanet execute l10n_ve.patches.accounts.audit_orphan_accounts.execute
 """
+import re
+
 import frappe
+
+
+# Patrón para validar identificadores SQL seguros (letras, números, espacios, guiones)
+_SAFE_IDENTIFIER = re.compile(r"^[a-zA-Z0-9_ ]+$")
+
+
+def _is_safe_identifier(value: str) -> bool:
+    """Valida que un identificador SQL no contenga caracteres peligrosos."""
+    return bool(_SAFE_IDENTIFIER.match(value))
 
 
 def execute() -> None:
     """Audita todas las tablas buscando referencias a cuentas inexistentes."""
-
-    company: str = "Galanet Solution C.A."
 
     # Obtener todos los campos Link→Account del schema
     link_fields: list[dict] = frappe.db.sql("""
@@ -37,6 +46,11 @@ def execute() -> None:
         fn: str = field["fieldname"]
         table_name: str = f"tab{dt}"
 
+        # Validar identificadores contra inyección SQL
+        if not _is_safe_identifier(dt) or not _is_safe_identifier(fn):
+            print(f"  ⚠ Identificador no seguro omitido: {dt}.{fn}")
+            continue
+
         # Verificar que la tabla existe
         if not frappe.db.sql(
             "SELECT 1 FROM INFORMATION_SCHEMA.TABLES "
@@ -56,20 +70,31 @@ def execute() -> None:
 
         checked += 1
 
-        # Buscar valores huérfanos
-        orphans: list[dict] = frappe.db.sql(f"""
+        # Conteo real de huérfanos (sin LIMIT)
+        orphan_count: int = frappe.db.sql(f"""
+            SELECT COUNT(*) FROM `{table_name}` t
+            WHERE IFNULL(t.`{fn}`, '') != ''
+            AND t.`{fn}` NOT IN (SELECT name FROM `tabAccount`)
+        """)[0][0]
+
+        if orphan_count == 0:
+            continue
+
+        total_orphans += orphan_count
+
+        # Mostrar solo los primeros 5 ejemplos para legibilidad
+        examples: list[dict] = frappe.db.sql(f"""
             SELECT t.name, t.`{fn}` as orphan_value
             FROM `{table_name}` t
             WHERE IFNULL(t.`{fn}`, '') != ''
             AND t.`{fn}` NOT IN (SELECT name FROM `tabAccount`)
-            LIMIT 10
+            LIMIT 5
         """, as_dict=True)
 
-        if orphans:
-            total_orphans += len(orphans)
-            print(f"\n🔴 {dt}.{fn} — {len(orphans)} referencia(s) huérfana(s):")
-            for o in orphans:
-                print(f"   doc: {o['name'][:50]}  →  {o['orphan_value']}")
+        suffix: str = f" (mostrando 5 de {orphan_count})" if orphan_count > 5 else ""
+        print(f"\n🔴 {dt}.{fn} — {orphan_count} referencia(s) huérfana(s){suffix}:")
+        for o in examples:
+            print(f"   doc: {o['name'][:50]}  →  {o['orphan_value']}")
 
     print("\n" + "=" * 80)
     print(f"Campos verificados: {checked}")
