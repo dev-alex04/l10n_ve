@@ -2548,7 +2548,7 @@ def replace_chart_of_accounts(company_name: str = "Galanet Solution C.A.") -> No
                 else:
                     frappe.delete_doc(
                         "Account", doc_name,
-                        ignore_permissions=True, force=True
+                        ignore_permissions=True
                     )
                     frappe.db.commit()
                     del_ok += 1
