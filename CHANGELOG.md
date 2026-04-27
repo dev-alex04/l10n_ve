@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.13] - 2026-04-27
+
+### 🐛 Correcciones (Fixes)
+- **Reporte de IVA:** Se corrigió la inclusión de Notas de Crédito en los totales del resumen, asegurando que los montos con signo negativo se procesen correctamente. (39ce93d)
+- **Indicadores Fiscales:** Actualización de la etiqueta "Pendiente" a "Por Emitir" y ajuste visual para forzar el color naranja en facturas que no cuentan con emisión fiscal. (e4be327)
+- **Lógica de Facturación:** Refactorización y centralización de la lógica de indicadores fiscales dentro de `sales_billing_indicators.js` para mejorar la consistencia del sistema. (ebcd55b)
+- **Impuestos y Retenciones:** Se implementó una validación para prevenir retenciones de IVA en transacciones sin IVA y se corrigió un error que provocaba una doble conversión en el cálculo del IGTF. (34272a6)
+
+---
+
 ## [v1.0.12] - 2026-04-24
 
 ### ✨ Funcionalidades (Features)
