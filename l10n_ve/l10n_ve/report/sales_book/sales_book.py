@@ -95,7 +95,8 @@ def prepare_excel_export(filters: dict) -> dict:
 
 def build_excel_filename(company_name: str, from_date, to_date) -> str:
     """Genera nombre de archivo consistente para ambos formatos."""
-    return f"Libro de Ventas - {company_name} - {from_date.strftime('%d-%m-%Y')} al {to_date.strftime('%d-%m-%Y')}.xlsx"
+    safe_company: str = company_name.replace("/", "-").replace("\\", "-")
+    return f"Libro de Ventas - {safe_company} - {from_date.strftime('%d-%m-%Y')} al {to_date.strftime('%d-%m-%Y')}.xlsx"
 
 
 def get_columns() -> list[dict]:

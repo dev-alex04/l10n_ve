@@ -102,7 +102,7 @@ def post_process_seniat_rows(
         )
         row["base_dto3584"] = base_dto
         row["iva_dto3584"] = iva_dto
-        row["rate_dto3584"] = general_rate / 100 if base_dto else 0
+        row["rate_dto3584"] = general_rate if base_dto else 0
 
         # A No Contribuyentes (W-Y): vacía temporalmente (ver TODO arriba).
         row["base_non_taxpayer"] = 0
@@ -299,7 +299,7 @@ class SeniatExcelBuilder:
                 cell.border = self.border
 
                 if isinstance(value, (int, float)):
-                    cell.number_format = self.num_fmt
+                    cell.number_format = "0" if col_def["fieldname"] == "sequence_number" else self.num_fmt
                     cell.alignment = self.align_right
                 else:
                     cell.alignment = self.align_left
