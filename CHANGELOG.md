@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.14] - 2026-04-27
+
+### ✨ Funcionalidades (Features)
+- Refactorización y optimización del módulo `audit_orphan_accounts` para mejorar la calidad del código y la eficiencia de las auditorías. 80e30e0
+
+### 🐛 Correcciones (Fixes)
+- Resolución de problemas de integridad de datos: corrección de 15 referencias huérfanas en cuentas detectadas tras la migración del plan 2026. 3436f6f
+
+---
+
 ## [v1.0.13] - 2026-04-27
 
 ### 🐛 Correcciones (Fixes)
