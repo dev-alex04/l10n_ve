@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.16] - 2026-04-28
+
+### ✨ Funcionalidades (Features)
+- Se habilitó la capacidad para que el rol de Administrator pueda forzar el envío a HKA, omitiendo las validaciones de tasa del BCV. [37f02b6]
+
+### 🐛 Correcciones (Fixes)
+- Corrección de error de lógica por doble negación en el cálculo de totales acumulados de retenciones dentro de `set_cumulative_total`. [3c67a51]
+- Se resolvió un problema de doble contabilización de retenciones de IVA en los asientos contables (GL Entries) del módulo de compras. [5bd83d6]
+
+---
+
 ## [v1.0.15] - 2026-04-27
 
 ### 🐛 Correcciones (Fixes)
