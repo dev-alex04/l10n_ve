@@ -507,11 +507,9 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                     )
 
     def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
-        """Genera el asiento contable para retenciones de IVA.
-
-        Solo crea el crédito a la cuenta de retención (ej. 2105002).
-        No toca la cuenta payable porque make_supplier_gl_entry ya usa
-        el grand_total neto (descontada la retención).
+        """
+        Genera el asiento contable para retenciones de IVA.
+        Crea el crédito a la cuenta de retención para balancear el débito al proveedor.
         """
         for tax in self.get("taxes"):
             if tax.charge_type != 'VAT Withholding':
@@ -523,9 +521,31 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
             if not flt(base_tds_amount) and not flt(tds_amount):
                 continue
 
-            account_currency = get_account_currency(tax.account_head)
+            against_voucher = self.name
+            if self.is_return and self.return_against and not self.update_outstanding_for_self:
+                against_voucher = self.return_against
 
-            # Crédito a cuenta de retención (obligación fiscal)
+            self.add_supplier_gl_entry(gl_entries, base_tds_amount, tds_amount)
+
+            # Débito al Proveedor (ya incluido arriba por add_supplier_gl_entry)
+            gl = {
+                "account": self.credit_to,
+                "party_type": "Supplier",
+                "party": self.supplier,
+                "due_date": self.due_date,
+                "against": tax.account_head,
+                "debit": base_tds_amount,
+                "debit_in_account_currency": base_tds_amount,
+                "debit_in_transaction_currency": tds_amount,
+                "against_voucher": against_voucher,
+                "against_voucher_type": self.doctype,
+                "project": self.project,
+                "cost_center": self.cost_center,
+            }
+            gl_entries.append(self.get_gl_dict(gl, self.party_account_currency, item=self))
+
+            # CRÉDITO a la cuenta de retención (Obligación Fiscal) - ESTO ES LO QUE FALTA
+            account_currency = get_account_currency(tax.account_head)
             gl_entries.append(
                 self.get_gl_dict(
                     {

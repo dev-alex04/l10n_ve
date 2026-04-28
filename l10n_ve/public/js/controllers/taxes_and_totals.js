@@ -130,8 +130,8 @@ erpnext.taxes_and_totals.prototype.set_cumulative_total = function (
       ["VAT Withholding", "ISLR"].includes(tax.charge_type) &&
       __VE_DOCTYPES_JS__.includes(this.frm.doc.doctype)
     ) {
-      //  Se multiplica por -1 para forzar la resta
-      tax.total = flt(tax_base + tax_amount * -1, precision("total"));
+      //  Se asegura que la retención siempre reste, independientemente de su signo original
+      tax.total = flt(tax_base - Math.abs(tax_amount), precision("total"));
     } else {
       tax.total = tax_base;
     }
