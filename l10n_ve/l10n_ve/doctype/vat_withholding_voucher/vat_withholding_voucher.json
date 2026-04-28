@@ -1,16 +1,18 @@
 {
  "actions": [],
- "autoname": "field:voucher_number",
+ "autoname": "naming_series:",
  "creation": "2025-08-26 16:06:42.540261",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "voucher_number",
   "start_date",
   "end_date",
   "column_break_flvf",
   "empresa",
   "supplier",
+  "bill_control",
   "is_declared",
   "column_break_fjrk",
   "fiscal_period",
@@ -23,23 +25,35 @@
   "section_break_sanm",
   "vat_withholding_voucher_item",
   "section_break_oyzq",
-  "column_break_tobf",
   "column_break_vieg",
   "totals_grand_total",
   "totals_total_exempt",
   "totals_total",
   "totals_taxes_and_charges_added",
   "totals_tax_amount_vat",
-  "amended_from"
+  "digital_invoice_status",
+  "column_break_tobf",
+  "hka_preview",
+  "amended_from",
+  "hka_response"
  ],
  "fields": [
+  {
+   "default": "COMP-RET-IVA-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "COMP-RET-IVA-.YYYY.-",
+   "print_hide": 1,
+   "reqd": 1
+  },
   {
    "fieldname": "voucher_number",
    "fieldtype": "Data",
    "label": "No. de Comprobante",
-   "read_only": 1,
-   "reqd": 1,
-   "unique": 1
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_flvf",
@@ -132,12 +146,14 @@
    "fieldname": "issue_date",
    "fieldtype": "Date",
    "label": "Fecha Emisi\u00f3n",
+   "no_copy": 1,
    "reqd": 1
   },
   {
    "fieldname": "delivery_date",
    "fieldtype": "Date",
    "label": "Fecha Entrega",
+   "no_copy": 1,
    "reqd": 1
   },
   {
@@ -174,6 +190,39 @@
    "read_only": 1
   },
   {
+   "fieldname": "digital_invoice_status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Estado Emisi\u00f3n Digital",
+   "no_copy": 1,
+   "options": "\nPending\nSent\nError\nVoided",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hka_response",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Respuesta HKA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "bill_control",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "N\u00b0 Control HKA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "hka_preview",
+   "fieldtype": "HTML",
+   "label": "Vista Previa Fiscal",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
@@ -197,11 +246,11 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-26 09:17:15.301109",
+ "modified": "2026-04-27 19:38:50.689494",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
- "naming_rule": "By fieldname",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {

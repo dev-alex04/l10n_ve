@@ -23,6 +23,7 @@
   "total_exempt",
   "total",
   "rate",
+  "withholding_rate",
   "taxes_and_charges_added",
   "tax_amount_vat"
  ],
@@ -110,6 +111,12 @@
    "read_only": 1
   },
   {
+   "fieldname": "withholding_rate",
+   "fieldtype": "Float",
+   "label": "% Retención",
+   "read_only": 1
+  },
+  {
    "fieldname": "taxes_and_charges_added",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -120,7 +127,7 @@
   {
    "fieldname": "total_exempt",
    "fieldtype": "Currency",
-   "label": "Compras sin cr\u00e9dito fiscal",
+   "label": "Compras sin crédito fiscal",
    "read_only": 1
   },
   {
