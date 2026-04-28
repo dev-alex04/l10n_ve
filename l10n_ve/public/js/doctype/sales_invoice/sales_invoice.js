@@ -249,6 +249,7 @@ frappe.ui.form.on("Sales Invoice", {
 
     if (frappe.boot.tfhka_enabled) {
       setup_digital_invoice_button(frm);
+      setup_force_send_hka_button(frm);
     }
 
     set_ve_form_indicator(frm, { doc_type: "sales_invoice" });
@@ -534,6 +535,56 @@ function setup_digital_invoice_button(frm) {
           show_hka_preview_dialog(frm, r.message);
         },
       });
+    },
+    __("Factura Digital"),
+  );
+}
+
+/**
+ * Botón para forzar el envío a HKA saltando la validación de tasa BCV.
+ * Solo visible para Administrator en facturas aprobadas que no hayan sido
+ * enviadas exitosamente a HKA.
+ * @param {object} frm
+ */
+function setup_force_send_hka_button(frm) {
+  if (
+    frappe.session.user !== "Administrator" ||
+    frm.doc.docstatus !== 1 ||
+    (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
+  ) {
+    return;
+  }
+
+  frm.add_custom_button(
+    __("⚡ Forzar Envío HKA"),
+    function () {
+      frappe.confirm(
+        __(
+          "<b>⚠️ Atención:</b> Esta acción enviará la factura a HKA " +
+            "<b>sin validar la tasa de cambio BCV</b>.<br><br>" +
+            "Solo debe usarse cuando la tasa BCV del documento difiere " +
+            "de la registrada por motivos operativos legítimos.<br><br>" +
+            "¿Desea continuar?",
+        ),
+        function () {
+          frappe.call({
+            method:
+              "l10n_ve.digital_invoice.tfhka_integration.send_invoice_manually",
+            args: { invoice_name: frm.doc.name, force: 1 },
+            freeze: true,
+            freeze_message: __("Enviando a HKA (forzado)..."),
+            callback: function (r) {
+              if (!r.exc) {
+                frappe.show_alert({
+                  message: __("Factura enviada exitosamente a HKA"),
+                  indicator: "green",
+                });
+                frm.reload_doc();
+              }
+            },
+          });
+        },
+      );
     },
     __("Factura Digital"),
   );
