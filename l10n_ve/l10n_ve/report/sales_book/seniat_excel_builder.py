@@ -63,6 +63,10 @@ def get_seniat_columns() -> list[dict]:
         {"label": _("Nro. Comprobante"), "fieldname": "vat_withholding_voucher_number", "fieldtype": "Data", "width": 15},
         {"label": _("%"), "fieldname": "vat_withholding_rate", "fieldtype": "Percent", "width": 6},
         {"label": _("IVA Retenido"), "fieldname": "iva_retained", "fieldtype": "Currency", "width": 14},
+        # IGTF - Impuesto a las Grandes Transacciones Financieras
+        {"label": _("Base IGTF"), "fieldname": "base_amount_igtf", "fieldtype": "Currency", "width": 14},
+        {"label": _("%"), "fieldname": "igtf_rate", "fieldtype": "Percent", "width": 6},
+        {"label": _("Monto IGTF"), "fieldname": "total_igtf", "fieldtype": "Currency", "width": 14},
     ]
 
 
@@ -277,6 +281,12 @@ class SeniatExcelBuilder:
         # Col AF: "IVA Retenido" (merge 3 filas)
         _merge(r1, 32, r3, 32, _("IVA Retenido"))
 
+        # Cols AG-AI: "IGTF"
+        _merge(r1, 33, r1, 35, _("IGTF"))
+        _merge(r2, 33, r3, 33, _("Base"))
+        _merge(r2, 34, r3, 34, _("%"))
+        _merge(r2, 35, r3, 35, _("Monto"))
+
         # Altura de filas
         for r in (r1, r2, r3):
             ws.row_dimensions[r].height = 25
@@ -321,7 +331,7 @@ class SeniatExcelBuilder:
         totals: dict = {f: 0.0 for f in currency_fields}
 
         for row in data:
-            if row.get("is_void") or row.get("is_return"):
+            if row.get("is_void"):
                 continue
             for field in currency_fields:
                 totals[field] = flt(totals[field]) + flt(row.get(field, 0))
