@@ -382,8 +382,8 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             if tax.charge_type in ("VAT Withholding", "ISLR") \
                     and self.doc.doctype in __VE_DOCTYPES__:
 
-                # Se multiplica por -1 para forzar la resta
-                tax.total = flt(tax_base + (tax_amount * -1), tax.precision("total"))
+                # tax_amount ya es negativo por get_tax_amount_if_for_valuation_or_deduction
+                tax.total = flt(tax_base + tax_amount, tax.precision("total"))
 
             else:
                 tax.total = tax_base
