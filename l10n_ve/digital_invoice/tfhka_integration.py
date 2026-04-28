@@ -535,6 +535,7 @@ def process_invoice(
     doc_name: str,
     doctype: str = "Sales Invoice",
     raise_on_error: bool = False,
+    force: bool = False,
 ) -> bool:
     """
     Envía una factura, nota de crédito o nota de débito a TFHKA de forma síncrona.
@@ -551,6 +552,7 @@ def process_invoice(
         )
 
     raise_on_error = cint(raise_on_error)
+    force = cint(force)
     is_nc: bool = doctype == "VE Sales Credit Note"
     is_nd: bool = doctype == "VE Sales Debit Note"
     skip_si_validations: bool = is_nc or is_nd
@@ -559,12 +561,17 @@ def process_invoice(
         doc = frappe.get_doc(doctype, doc_name)
 
         # Calcular la fecha real de la tasa BCV ANTES de actualizar posting_date.
-        tasa_fecha: str = _compute_tasa_fecha(doc)
+        # En modo forzado, usar la fecha exacta del posting_date para que
+        # el texto del PDF refleje la fecha real de la tasa del documento.
+        if force:
+            tasa_fecha: str = str(getdate(doc.posting_date))
+        else:
+            tasa_fecha: str = _compute_tasa_fecha(doc)
 
         # Verificar que la tasa del documento coincida con la BCV registrada.
         # Solo aplica a facturas de personas naturales.
         # NC y ND se omiten: su tasa es heredada de la factura original.
-        if not skip_si_validations and not is_juridical_customer(doc.customer):
+        if not skip_si_validations and not is_juridical_customer(doc.customer) and not force:
             _validate_tasa_coherencia(doc, tasa_fecha)
 
         fecha_hka: str = today()
@@ -698,11 +705,19 @@ def _create_log_entry(log_data: dict) -> None:
 
 
 @frappe.whitelist()
-def send_invoice_manually(invoice_name: str) -> str:
+def send_invoice_manually(invoice_name: str, force: bool = False) -> str:
     """Método invocado mediante botón JS para reenvío manual de Sales Invoice."""
+    force = cint(force)
+
+    if force and frappe.session.user != "Administrator":
+        frappe.throw(
+            "Solo el Administrador puede forzar el envío a HKA.",
+            title="Permiso Denegado",
+        )
+
     frappe.has_permission("Sales Invoice", "submit", doc=invoice_name, throw=True)
     success = process_invoice(
-        invoice_name, doctype="Sales Invoice", raise_on_error=True
+        invoice_name, doctype="Sales Invoice", raise_on_error=True, force=force
     )
     return "Sent" if success else "Error"
 
