@@ -624,10 +624,11 @@ def get_total_row(data: list[dict]) -> dict:
     })
 
     for row in data:
-        # Las facturas anuladas y las Notas de Crédito se muestran en el
-        # libro con sus montos originales, pero NO se incluyen en los
-        # totales del reporte (requisito fiscal SENIAT).
-        if row.get("is_void") or row.get("is_return"):
+        # Las facturas anuladas se muestran en el libro con montos en cero
+        # y NO se incluyen en los totales (requisito fiscal SENIAT).
+        # Las NC SÍ se incluyen: sus montos ya son negativos (amount_sign=-1)
+        # y deben restar del total del período.
+        if row.get("is_void"):
             continue
 
         for key in totals.keys():
