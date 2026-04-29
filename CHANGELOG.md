@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.17] - 2026-04-29
+
+### 🐛 Correcciones (Fixes)
+
+- **Compras:** Se corrigió un error que generaba asientos contables (GL) desbalanceados al procesar retenciones de IVA. 5979ff0
+- **Libro de Ventas:** Se actualizaron los totales para incluir Notas de Crédito y se integró el impuesto IGTF al formato de reporte del SENIAT. 0adfad2
+- **Contabilidad:** Ajuste en los algoritmos de cálculo de retenciones y mejora en la lógica de balanceo para asientos contables en el módulo de compras. 0a66bf2
+
+---
+
 ## [v1.0.16] - 2026-04-28
 
 ### ✨ Funcionalidades (Features)
