@@ -13,9 +13,30 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
     def validate(self):
         self.validate_address()
         self.validate_fiscal_period()
+        self.validate_unique_voucher_number()
         if self.is_new() and self.amended_from:
             self._populate_withholding_rate()
         self.validate_withholding_amount()
+
+    def validate_unique_voucher_number(self) -> None:
+        """Valida que el número de comprobante no esté duplicado."""
+        if not self.voucher_number:
+            return
+
+        duplicate: str | None = frappe.db.get_value(
+            "VAT Withholding Voucher",
+            {
+                "voucher_number": self.voucher_number,
+                "name": ["!=", self.name],
+                "docstatus": ["!=", 2],
+            },
+        )
+        if duplicate:
+            frappe.throw(
+                _("Ya existe un comprobante de retención IVA con el número {0}: {1}").format(
+                    frappe.bold(self.voucher_number), frappe.bold(duplicate)
+                )
+            )
 
     def _populate_withholding_rate(self) -> None:
         """Pobla withholding_rate desde la factura de compra si está vacío.

@@ -36,12 +36,12 @@ frappe.listview_settings["VAT Withholding Voucher"] = {
     }
 
     if (doc.digital_invoice_status === "Error") {
-      return [__("Error"), "red", "digital_invoice_status,=,Error"];
+      return [__("Error en emisión"), "red", "digital_invoice_status,=,Error"];
     }
 
     if (doc.digital_invoice_status === "Pending") {
       return [
-        __("Pendiente"),
+        __("Pendiente de emisión"),
         "orange",
         "digital_invoice_status,=,Pending",
       ];

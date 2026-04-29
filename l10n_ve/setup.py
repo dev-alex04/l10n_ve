@@ -633,7 +633,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
             mop_name = mode['mode_of_payment']
             mop_type = mode['type']
             mop_visibility_type = mode['visibility_type']
-            
+
             if not frappe.db.exists('Mode of Payment', mop_name):
                 print(f"  + Creando nuevo Modo de Pago: '{mop_name}'")
                 doc = frappe.new_doc('Mode of Payment')
@@ -1473,11 +1473,11 @@ def get_compatible_workspace_name(priorities=None) -> str:
     """
     if not priorities:
         priorities = ["Accounting", "Accounts", "Financial Reports"]
-        
+
     for name in priorities:
         if frappe.db.exists("Workspace", name):
             return name
-    
+
     print(f"  !! No se encontró ningún Workspace compatible ({', '.join(priorities)}).")
     return None
 
@@ -1549,11 +1549,11 @@ def add_reports_to_accounts_workspace() -> None:
         ]
 
         links_to_move = [r["link_to"] for r in reports_to_add]
-        
+
         initial_links_count = len(workspace.links)
         workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         modified = len(workspace.links) != initial_links_count
-        
+
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = "Reportes Venezuela"
@@ -1594,7 +1594,7 @@ def add_reports_to_accounts_workspace() -> None:
                     block["data"]["links"] = [r for r in reports_to_add if frappe.db.exists("Report", r["link_to"])]
                     modified = True
                     break
-            
+
             if not card_found:
                 print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
                 new_card = {
@@ -1655,11 +1655,11 @@ def add_doctypes_to_accounting_workspace() -> None:
             })
 
         links_to_move = [l["link_to"] for l in links_to_add]
-        
+
         initial_links_count = len(workspace.links)
         workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         modified = len(workspace.links) != initial_links_count
-        
+
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = "Configuración Venezuela"
@@ -1694,7 +1694,7 @@ def add_doctypes_to_accounting_workspace() -> None:
                 block["data"]["links"] = [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 modified = True
                 break
-        
+
         if not card_found:
             print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
             new_card = {
@@ -1707,7 +1707,7 @@ def add_doctypes_to_accounting_workspace() -> None:
             }
             content.append(new_card)
             modified = True
-        
+
         if modified:
             workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
@@ -1990,19 +1990,19 @@ def add_vouchers_to_accounts_workspace() -> None:
 
         links_to_add = [
             {
-                "label": _("Retención de IVA"),
+                "label": _("Comprobantes de Retención de IVA"),
                 "link_to": "VAT Withholding Voucher",
                 "type": "Link",
                 "link_type": "DocType"
             },
             {
-                "label": _("Retención de ISLR"),
+                "label": _("Comprobantes de Retención de ISLR"),
                 "link_to": "ISLR Withholding Voucher",
                 "type": "Link",
                 "link_type": "DocType"
             },
             {
-                "label": _("Declaración de Municipales"),
+                "label": _("Declaración de Impuestos Municipales"),
                 "link_to": "VE Municipality Tax Declaration",
                 "type": "Link",
                 "link_type": "DocType"
@@ -2016,11 +2016,11 @@ def add_vouchers_to_accounts_workspace() -> None:
         ]
 
         links_to_move = [l["link_to"] for l in links_to_add]
-        
+
         initial_links_count = len(workspace.links)
         workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         modified = len(workspace.links) != initial_links_count
-        
+
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = _("Tributos")
@@ -2057,7 +2057,7 @@ def add_vouchers_to_accounts_workspace() -> None:
                 block["data"]["links"] = [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 modified = True
                 break
-        
+
         if not card_found:
             print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
             new_card = {
@@ -2070,7 +2070,7 @@ def add_vouchers_to_accounts_workspace() -> None:
             }
             content.append(new_card)
             modified = True
-        
+
         if modified:
             workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)

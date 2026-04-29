@@ -71,15 +71,18 @@ frappe.ui.form.on("VAT Withholding Voucher", {
     }
 
     // Indicador de estado de emisión digital (HKA)
-    const hka_status_map = {
-      Sent: ["Emitido", "green"],
-      Error: ["Error", "red"],
-      Pending: ["Pendiente", "orange"],
-      Voided: ["Anulado", "red"],
-    };
-    const hka_info = hka_status_map[frm.doc.digital_invoice_status];
-    if (hka_info) {
-      frm.page.set_indicator(hka_info[0], hka_info[1]);
+    // Solo mostrar en documentos activos; si está cancelado, dejar el indicador estándar de Frappe
+    if (frm.doc.docstatus !== 2 || frm.doc.digital_invoice_status === "Voided") {
+      const hka_status_map = {
+        Sent: ["Emitido", "green"],
+        Error: ["Error en emisión", "red"],
+        Pending: ["Pendiente de emisión", "orange"],
+        Voided: ["Anulado", "red"],
+      };
+      const hka_info = hka_status_map[frm.doc.digital_invoice_status];
+      if (hka_info) {
+        frm.page.set_indicator(hka_info[0], hka_info[1]);
+      }
     }
 
     // Botón de envío/reenvío manual a HKA (cuando no se ha enviado o hay error)
