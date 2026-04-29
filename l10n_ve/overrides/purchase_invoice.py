@@ -507,25 +507,31 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                     )
 
     def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
-        """Genera el asiento contable para retenciones de IVA.
+        """Genera el asiento contable para retenciones de IVA en compras.
 
-        Solo crea el crédito a la cuenta de retención (ej. 2105002).
+        Solo crea el CRÉDITO a la cuenta de retención (ej: 2105002).
         No toca la cuenta payable porque make_supplier_gl_entry ya usa
         el grand_total neto (descontada la retención).
+
+        Asiento resultante (ejemplo: Base 100 + IVA 16% = 116, Ret 75%):
+          DÉBITO  Gasto           100  (make_item_gl_entries)
+          DÉBITO  IVA Crédito      16  (make_tax_gl_entries)
+          CRÉDITO Proveedor       104  (make_supplier_gl_entry, grand_total neto)
+          CRÉDITO Retención IVA    12  (esta función)
+          Total: 116 = 116 ✅
         """
         for tax in self.get("taxes"):
             if tax.charge_type != 'VAT Withholding':
                 continue
 
-            base_tds_amount = abs(tax.base_tax_amount_after_discount_amount)
-            tds_amount = abs(tax.tax_amount_after_discount_amount)
+            base_tds_amount: float = abs(tax.base_tax_amount_after_discount_amount)
+            tds_amount: float = abs(tax.tax_amount_after_discount_amount)
 
             if not flt(base_tds_amount) and not flt(tds_amount):
                 continue
 
-            account_currency = get_account_currency(tax.account_head)
-
-            # Crédito a cuenta de retención (obligación fiscal)
+            # CRÉDITO a cuenta de retención (obligación fiscal)
+            account_currency: str = get_account_currency(tax.account_head)
             gl_entries.append(
                 self.get_gl_dict(
                     {

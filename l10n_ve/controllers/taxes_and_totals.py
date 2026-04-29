@@ -270,7 +270,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             return 0
 
         if hasattr(tax, "add_deduct_tax") and tax.add_deduct_tax == "Deduct":
-            return base_tax_amount * -1
+            return abs(base_tax_amount) * -1
 
         return base_tax_amount
 
@@ -382,8 +382,8 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             if tax.charge_type in ("VAT Withholding", "ISLR") \
                     and self.doc.doctype in __VE_DOCTYPES__:
 
-                # tax_amount ya es negativo por get_tax_amount_if_for_valuation_or_deduction
-                tax.total = flt(tax_base + tax_amount, tax.precision("total"))
+                # Se asegura que la retención siempre reste, independientemente de su signo original
+                tax.total = flt(tax_base - abs(tax_amount), tax.precision("total"))
 
             else:
                 tax.total = tax_base
