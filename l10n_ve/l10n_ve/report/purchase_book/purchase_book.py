@@ -4,15 +4,22 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate
 
-import calendar
 import base64
-from datetime import date
 
 from xml.dom import minidom
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 
 def execute(filters=None):
+    """Punto de entrada principal para el Reporte de Libro de Compras."""
+    filters = filters or {}
+
+    if not filters.get("company"):
+        frappe.throw(_("Debe seleccionar una Empresa para generar el reporte."))
+    if not filters.get("from_date") and not filters.get("date_from"):
+        frappe.throw(_("Debe ingresar la Fecha Desde."))
+    if not filters.get("to_date"):
+        frappe.throw(_("Debe ingresar la Fecha Hasta."))
 
     columns: list[dict] = get_columns()
 
@@ -56,76 +63,72 @@ def get_columns() -> list[dict]:
         {"fieldname": "anticipo_iva_importacion", "label": "Anticipo de IVA (Importación)", "fieldtype": "Currency", "width": "auto"}
     ]
 
-def get_query_data(filters: dict) -> list[dict]:
+def _get_tax_rates() -> tuple[float, float, float]:
+    """Lee las alícuotas de IVA desde la configuración centralizada."""
+    try:
+        tax_rates_doc = frappe.get_cached_doc("Taxes Rates", "Taxes Rates")
+        return (
+            tax_rates_doc.get("general_rate") or 16.0,
+            tax_rates_doc.get("reduced_rate") or 8.0,
+            tax_rates_doc.get("additional_rate") or 31.0,
+        )
+    except frappe.DoesNotExistError:
+        frappe.log_error(
+            "Reporte Libro de Compras: DocType 'Taxes Rates' no existe, usando tasas por defecto.",
+            "Purchase Book Report"
+        )
+        return 16.0, 8.0, 31.0
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Purchase Book Report - Error al leer Taxes Rates")
+        return 16.0, 8.0, 31.0
 
+
+def get_query_data(filters: dict) -> list[dict]:
+    """Ejecuta la query del Libro de Compras con los filtros proporcionados."""
     from_date: str
-    to_date:str
+    to_date: str
     from_date, to_date = _get_date_range_from_filters(filters)
-    filters["date_from"] = from_date
+    filters["from_date"] = from_date
     filters["to_date"] = to_date
 
     query: str = get_query(filters)
 
-    # Asegurarse de que from_date sea un objeto de fecha
     from_date_obj = getdate(from_date)
 
-    company_currency: str = frappe.db.get_value("Company",
-                                           filters.get("company"),
-                                           "default_currency")
+    company_currency: str = frappe.get_cached_value(
+        "Company", filters.get("company"), "default_currency"
+    )
 
-    values = {}
+    general_rate, reduced_rate, additional_rate = _get_tax_rates()
 
-    values['from_date'] = from_date
-    values['to_date'] = to_date
+    values: dict = {
+        "from_date": from_date,
+        "to_date": to_date,
+        "company_currency": company_currency,
+        "month": from_date_obj.month,
+        "year": from_date_obj.year,
+        "general_rate": general_rate,
+        "reduced_rate": reduced_rate,
+        "additional_rate": additional_rate,
+    }
 
     if filters.get("company"):
-        values['company'] = filters.get("company")
+        values["company"] = filters.get("company")
 
-    values['company_currency'] = company_currency
-
-    values['month'] = from_date_obj.month
-    values['year'] = from_date_obj.year
-
-    data = frappe.db.sql(query, values, as_dict=True)
+    data: list[dict] = frappe.db.sql(query, values, as_dict=True)
 
     return data
 
 
 def get_query(filters: dict) -> str:
-
-    from_date:str = filters.get("date_from")
-    to_date: str = filters.get("to_date")
-
-    if filters.get("fiscal_year") and filters.get("fiscal_month"):
-        try:
-            year = int(filters.get("fiscal_year"))
-            month_mapping = {
-                'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
-                'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
-            }
-            month_num = month_mapping.get(filters.get("fiscal_month"))
-
-            from_date = date(year, month_num, 1)
-            last_day = calendar.monthrange(year, month_num)[1]
-            to_date = date(year, month_num, last_day)
-
-        except (ValueError, TypeError):
-            frappe.throw(_("Valores de Año o Mes Fiscal inválidos."))
-
-    if not from_date or not to_date:
-        frappe.throw(_("Por favor, selecciona un rango de fechas o un período fiscal."))
-
-    conditions = "AND tPI.docstatus IN (1)"
+    """Construye la query SQL del Libro de Compras."""
+    conditions: str = "AND tPI.docstatus = 1"
     conditions += " AND tPI.posting_date BETWEEN %(from_date)s AND %(to_date)s"
 
     if filters.get("company"):
         conditions += " AND tPI.company = %(company)s"
 
-    reduced_rate = 8
-    general_rate = 16
-    additional_rate = 31
-
-    query = f"""
+    query: str = """
         WITH InvoiceData AS (
             SELECT
                 tPI.name,
@@ -140,81 +143,108 @@ def get_query(filters: dict) -> str:
                 tPI.affected_invoice_number,
                 tPI.total_igtf,
                 tPI.bill_date,
-                tPI.docstatus,
                 tPI.is_debit_note,
-                (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) AS conversion_rate,
-                (tPI.total - tPI.total_exempt) AS taxable_base,
-                tPI.grand_total,
-                tPI.total_exempt
+                tPI.base_grand_total,
+                tPI.base_total,
+                tPI.total_exempt,
+                (CASE WHEN tPI.currency != %(company_currency)s
+                    THEN tPI.conversion_rate ELSE 1 END) AS conversion_rate
             FROM `tabPurchase Invoice` AS tPI
-            WHERE 1=1 {{conditions}}
+            WHERE 1=1 {conditions}
         )
         SELECT
-            piv.name as nro_factura,
-            piv.posting_date as posting_date,
-            T4.tax_id as tax_id,
-            piv.supplier_name as supplier_name,
-            piv.is_return as tipo,
-            piv.bill_no as bill_no,
-            piv.bill_control as bill_control,
-            piv.grand_total * piv.conversion_rate as grand_total,
-            piv.total_exempt * piv.conversion_rate as total_exempt,
-            piv.credit_note_no,
-            piv.debit_note_no,
-            piv.affected_invoice_number,
-            piv.total_igtf,
-            DATE_FORMAT(piv.bill_date, '%%d/%%m/%%Y') AS bill_date,
+            inv.name AS nro_factura,
+            inv.posting_date,
+            supp.tax_id,
+            inv.supplier_name,
+            inv.is_return AS tipo,
+            inv.bill_no,
+            inv.bill_control,
+            inv.base_grand_total AS grand_total,
+            inv.total_exempt * inv.conversion_rate AS total_exempt,
+            inv.credit_note_no,
+            inv.debit_note_no,
+            inv.affected_invoice_number,
+            inv.total_igtf,
+            DATE_FORMAT(inv.bill_date, '%%d/%%m/%%Y') AS bill_date,
 
-            SUM(CASE WHEN T5.rate = {reduced_rate} THEN piv.taxable_base ELSE 0 END) * piv.conversion_rate as base_reducida,
-            SUM(CASE WHEN T5.rate = {reduced_rate} THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as impuesto_reducida,
-            SUM(CASE WHEN T5.rate = {general_rate} THEN piv.taxable_base ELSE 0 END) * piv.conversion_rate as base_general,
-            SUM(CASE WHEN T5.rate = {general_rate} THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as impuesto_general,
-            SUM(CASE WHEN T5.rate = {additional_rate} THEN piv.taxable_base ELSE 0 END) * piv.conversion_rate as base_adicional,
-            SUM(CASE WHEN T5.rate = {additional_rate} THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as impuesto_adicional,
-            SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as taxes_and_charges_deducted,
+            -- Bases imponibles por alícuota (base_total ya en VEF, solo resta exempt)
+            SUM(CASE WHEN ptc.rate = %(reduced_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN (inv.base_total - inv.total_exempt * inv.conversion_rate) ELSE 0 END) AS base_reducida,
+            SUM(CASE WHEN ptc.rate = %(reduced_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN ptc.base_tax_amount ELSE 0 END) AS impuesto_reducida,
+            SUM(CASE WHEN ptc.rate = %(general_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN (inv.base_total - inv.total_exempt * inv.conversion_rate) ELSE 0 END) AS base_general,
+            SUM(CASE WHEN ptc.rate = %(general_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN ptc.base_tax_amount ELSE 0 END) AS impuesto_general,
+            SUM(CASE WHEN ptc.rate = %(additional_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN (inv.base_total - inv.total_exempt * inv.conversion_rate) ELSE 0 END) AS base_adicional,
+            SUM(CASE WHEN ptc.rate = %(additional_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN ptc.base_tax_amount ELSE 0 END) AS impuesto_adicional,
 
-            MAX(T2.voucher_number) AS nro_comprobante_retencion,
-            DATE_FORMAT(MAX(T2.delivery_date), '%%d/%%m/%%Y') AS fecha_entrega,
-            MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
+            -- Retención IVA desde comprobantes de retención (ya en VEF)
+            COALESCE(ret.tax_amount_vat, 0) AS taxes_and_charges_deducted,
+            ret.voucher_number AS nro_comprobante_retencion,
+            DATE_FORMAT(ret.delivery_date, '%%d/%%m/%%Y') AS fecha_entrega,
+            COALESCE(ret.withholding_rate, 0) AS porcentaje_ret,
 
             MAX(CASE
-                WHEN T4.type_of_person = 'Domiciled legal entity' THEN 'PJD'
-                WHEN T4.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
-                WHEN T4.type_of_person = 'Natural person domiciled' THEN 'PND'
-                WHEN T4.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
+                WHEN supp.type_of_person = 'Domiciled legal entity' THEN 'PJD'
+                WHEN supp.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
+                WHEN supp.type_of_person = 'Natural person domiciled' THEN 'PND'
+                WHEN supp.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
                 ELSE 'N/A'
             END) AS supplier_type,
             MAX(CASE
-                WHEN piv.docstatus = 2 THEN '03-Anu'
-                WHEN piv.is_return = 1 THEN '02-Comp'
-                WHEN piv.is_debit_note = 1 THEN '02-Comp'
+                WHEN inv.is_return = 1 THEN '02-Comp'
+                WHEN inv.is_debit_note = 1 THEN '02-Comp'
                 ELSE '01-Reg'
             END) AS transaction_type,
-            MAX(CASE
-                WHEN tPER.islr_concept IS NOT NULL AND tPER.islr_concept != '' THEN 'Sí'
-                ELSE 'No'
-            END) AS islr_retention_applied,
-            (piv.taxable_base) * piv.conversion_rate AS taxable_base
+            CASE WHEN islr_ref.has_islr = 1 THEN 'Sí' ELSE 'No' END AS islr_retention_applied,
+            (inv.base_total - inv.total_exempt * inv.conversion_rate) AS taxable_base
         FROM
-            InvoiceData as piv
+            InvoiceData AS inv
         LEFT JOIN
-            `tabPurchase Taxes and Charges` as T5
-            ON T5.parent = piv.name
+            `tabPurchase Taxes and Charges` AS ptc
+            ON ptc.parent = inv.name
+        -- Subquery: retención IVA aprobada (evita fan-out)
+        LEFT JOIN (
+            SELECT
+                wvi.purchase_invoice,
+                MAX(wvi.tax_amount_vat) AS tax_amount_vat,
+                MAX(wvi.withholding_rate) AS withholding_rate,
+                MAX(wv.voucher_number) AS voucher_number,
+                MAX(wv.delivery_date) AS delivery_date
+            FROM `tabVAT Withholding Voucher Item` wvi
+            INNER JOIN `tabVAT Withholding Voucher` wv
+                ON wvi.parent = wv.name AND wv.docstatus = 1
+            GROUP BY wvi.purchase_invoice
+        ) AS ret ON ret.purchase_invoice = inv.name
         LEFT JOIN
-            `tabVAT Withholding Voucher Item` as T3
-            ON T3.purchase_invoice = piv.name
-        LEFT JOIN
-            `tabVAT Withholding Voucher` as T2
-            ON T3.parent = T2.name
-        LEFT JOIN
-            `tabSupplier` as T4
-            ON T4.name = piv.supplier
-        LEFT JOIN
-            `tabPayment Entry Reference` as tPER
-            ON tPER.reference_name = piv.name AND tPER.reference_doctype = 'Purchase Invoice'
+            `tabSupplier` AS supp
+            ON supp.name = inv.supplier
+        -- Subquery: flag ISLR con pago aprobado (evita fan-out)
+        LEFT JOIN (
+            SELECT
+                pe_ref.reference_name,
+                1 AS has_islr
+            FROM `tabPayment Entry Reference` pe_ref
+            INNER JOIN `tabPayment Entry` pe
+                ON pe.name = pe_ref.parent AND pe.docstatus = 1
+            WHERE pe_ref.reference_doctype = 'Purchase Invoice'
+                AND pe_ref.islr_concept IS NOT NULL
+                AND pe_ref.islr_concept != ''
+            GROUP BY pe_ref.reference_name
+        ) AS islr_ref ON islr_ref.reference_name = inv.name
 
-        GROUP BY piv.name
-        ORDER BY piv.bill_date ASC
+        GROUP BY inv.name
+        ORDER BY inv.bill_date ASC
     """
     query = query.replace("{conditions}", conditions)
 
@@ -361,34 +391,15 @@ def get_report_summary(totals: dict) -> dict:
 
 
 def _get_date_range_from_filters(filters: dict) -> tuple[str, str]:
-    """
-    Helper function to determine date range from report filters.
-    Handles both direct date ranges and fiscal period selections.
-    """
-    from_date = filters.get("date_from")
-    to_date = filters.get("to_date")
-    fiscal_year = filters.get("fiscal_year")
-    fiscal_month_name = filters.get("fiscal_month")
-
-    if fiscal_year and fiscal_month_name:
-        try:
-            year = int(fiscal_year)
-            month_mapping = {
-                'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
-                'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
-            }
-            month_num = month_mapping.get(fiscal_month_name)
-            if not month_num:
-                raise ValueError("Invalid month name")
-
-            from_date = date(year, month_num, 1).strftime('%Y-%m-%d')
-            last_day = calendar.monthrange(year, month_num)[1]
-            to_date = date(year, month_num, last_day).strftime('%Y-%m-%d')
-        except (ValueError, TypeError):
-            frappe.throw(_("Valores de Año o Mes Fiscal inválidos."))
+    """Extrae el rango de fechas desde los filtros del reporte."""
+    from_date: str | None = filters.get("from_date") or filters.get("date_from")
+    to_date: str | None = filters.get("to_date")
 
     if not from_date or not to_date:
-        frappe.throw(_("Por favor, seleccione un rango de fechas o un período fiscal para generar el archivo."))
+        frappe.throw(_("Por favor, seleccione un rango de fechas para generar el reporte."))
+
+    if getdate(from_date) > getdate(to_date):
+        frappe.throw(_("La Fecha Desde no puede ser posterior a la Fecha Hasta."))
 
     return from_date, to_date
 
@@ -408,7 +419,7 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
         from_date: str
         to_date: str
         from_date, to_date = _get_date_range_from_filters(filters)
-        filters["date_from"] = from_date
+        filters["from_date"] = from_date
         filters["to_date"] = to_date
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
@@ -438,7 +449,7 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
             WHERE
                 pe.docstatus = 1
                 AND pe.company = %(company)s
-                AND pe.posting_date BETWEEN %(date_from)s AND %(to_date)s
+                AND pe.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 AND ref.reference_doctype = 'Purchase Invoice'
                 AND ref.islr_concept IS NOT NULL
                 AND ref.islr_concept != ''
@@ -484,7 +495,7 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en generate_xml_islr_file")
-        frappe.throw(_(f"Ocurrió un error al generar el archivo XML de ISLR: {e}"))
+        frappe.throw(_("Ocurrió un error al generar el archivo XML de ISLR: {0}").format(e))
 
 @frappe.whitelist()
 def generate_txt_file(filters: dict | str) -> dict:
@@ -496,7 +507,7 @@ def generate_txt_file(filters: dict | str) -> dict:
         from_date: str
         to_date: str
         from_date, to_date = _get_date_range_from_filters(filters)
-        filters["date_from"] = from_date
+        filters["from_date"] = from_date
         filters["to_date"] = to_date
 
         company_doc = frappe.get_doc("Company", filters.get("company"))
@@ -575,4 +586,4 @@ def generate_txt_file(filters: dict | str) -> dict:
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en generate_txt_file")
-        frappe.throw(_(f"Ocurrió un error al generar el archivo TXT: {e}"))
+        frappe.throw(_("Ocurrió un error al generar el archivo TXT: {0}").format(e))
