@@ -106,7 +106,6 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
 
   supplier: function (frm) {
     frm.clear_table("islr_withholding_voucher_item");
-    frm.add_child("islr_withholding_voucher_item");
     frm.refresh_field("islr_withholding_voucher_item");
 
     frm.set_value("supplier_address", "");
@@ -119,7 +118,6 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
 
   empresa: function (frm) {
     frm.clear_table("islr_withholding_voucher_item");
-    frm.add_child("islr_withholding_voucher_item");
     frm.refresh_field("islr_withholding_voucher_item");
 
     frm.set_value("company_address", "");
@@ -139,7 +137,6 @@ function validar_fechas(frm, campo) {
     if (endDate < startDate) {
       frm.set_value(campo, null);
       frm.clear_table("islr_withholding_voucher_item");
-      frm.add_child("islr_withholding_voucher_item");
       frm.refresh_field("islr_withholding_voucher_item");
 
       throw new Error(
@@ -193,7 +190,6 @@ function load_invoices(frm) {
           new_row.bill_control = invoice.bill_control;
           new_row.posting_date = invoice.posting_date;
           new_row.grand_total = invoice.grand_total;
-          new_row.payment_entry_name = invoice.payment_entry_name || "";
           new_row.islr_base_amount = invoice.islr_base_amount;
           new_row.paid_amount = invoice.paid_amount;
           new_row.rate = invoice.rate;
@@ -207,12 +203,9 @@ function load_invoices(frm) {
           frm.doc.totals_paid_amount += invoice.paid_amount || 0;
         });
 
-        frm.refresh_fields(["totals_islr_base_amount", "totals_islr_amount"]);
-
         frm.refresh_fields();
       } else {
         frm.clear_table("islr_withholding_voucher_item");
-        frm.add_child("islr_withholding_voucher_item");
         frm.refresh_field("islr_withholding_voucher_item");
 
         frm.doc.totals_islr_base_amount = 0;

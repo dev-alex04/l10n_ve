@@ -2,8 +2,9 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
-from frappe.utils import nowdate, getdate
+from frappe.utils import flt, nowdate, getdate
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 from l10n_ve.utils.utils import format_amounts
 
@@ -29,7 +30,6 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
             "islr_base_amount",
             "subtracting",
             "islr_amount",
-            "subtracting"
         ]
 
         self.company_tax_id = company_tax_id or "N/A"
@@ -37,8 +37,8 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
         format_amounts(self, main_fields, child_fields, child_table_field="islr_withholding_voucher_item")
 
     def before_insert(self) -> None:
-        company_doc = frappe.get_doc("Company", self.empresa)
-        correlative_format = company_doc.islr_withholding_format
+        company_doc = frappe.get_cached_doc("Company", self.empresa)
+        correlative_format: str = company_doc.islr_withholding_format
 
         final_voucher_number, final_next_correlative_number, \
             current_year, current_month = \
@@ -46,8 +46,6 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
                                               company_doc.islr_withholding_correlative)
 
         self.voucher_number = final_voucher_number
-        final_next_correlative_number = final_next_correlative_number
-
         self.posting_date = nowdate()
 
         company_doc.islr_withholding_correlative = final_next_correlative_number
@@ -58,168 +56,179 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
         current_date = getdate(nowdate())
 
         if document_date:
-            document_month_year = getdate(document_date).strftime('%Y-%m')
-            current_month_year = current_date.strftime('%Y-%m')
+            document_month_year: str = getdate(document_date).strftime('%Y-%m')
+            current_month_year: str = current_date.strftime('%Y-%m')
         else:
-            frappe.throw("No se puede determinar la fecha del comprobante para la validación.")
+            frappe.throw(
+                _("No se puede determinar la fecha del comprobante para la validación.")
+            )
 
         if document_month_year != current_month_year:
             frappe.throw(
-                f"No se puede eliminar el comprobante. Solo se permiten eliminaciones para el periodo actual ({current_month_year})."
+                _("No se puede eliminar el comprobante. Solo se permiten "
+                  "eliminaciones para el periodo actual ({0}).").format(current_month_year)
             )
 
+
+# ------------------------------------------------------------------ #
+# Endpoints whitelisted                                               #
+# ------------------------------------------------------------------ #
+
 @frappe.whitelist()
-def get_valid_invoices(supplier, start_date, end_date, company):
-    default_currency = frappe.db.get_value('Company', company, 'default_currency')
-    type_of_person = frappe.db.get_value("Supplier", supplier, "type_of_person")
+def get_valid_invoices(
+    supplier: str,
+    start_date: str,
+    end_date: str,
+    company: str,
+) -> list[dict]:
+    """Obtiene facturas de compra con retención ISLR para el comprobante.
 
+    Lee directamente desde Purchase Taxes and Charges (charge_type='ISLR')
+    de facturas aprobadas en el rango de fechas indicado.
+
+    Genera una fila por cada concepto ISLR de cada factura (multi-concepto).
+    Excluye combinaciones (factura, código) ya incluidas en otros comprobantes.
+    """
+    default_currency: str = frappe.get_cached_value(
+        "Company", company, "default_currency"
+    ) or ""
+
+    type_of_person: str = frappe.db.get_value(
+        "Supplier", supplier, "type_of_person"
+    ) or ""
     if not type_of_person:
-        frappe.throw(_("El Proveedor debe tener un 'Tipo de Persona' definido para procesar retenciones ISLR."))
+        frappe.throw(
+            _("El Proveedor debe tener un 'Tipo de Persona' definido "
+              "para procesar retenciones ISLR.")
+        )
 
-    excluded_from_withholding = frappe.db.sql("""
-        SELECT 
-            child.purchase_invoice 
-        FROM 
-            `tabISLR Withholding Voucher Item` child
-        INNER JOIN 
-            `tabISLR Withholding Voucher` parent ON child.parent = parent.name
-        WHERE 
-            parent.docstatus != 2 
-            AND child.purchase_invoice IS NOT NULL 
+    # Combinaciones (factura, código) ya en otros comprobantes (no cancelados)
+    excluded_combinations: list[dict] = frappe.db.sql("""
+        SELECT child.purchase_invoice, child.code
+        FROM `tabISLR Withholding Voucher Item` child
+        INNER JOIN `tabISLR Withholding Voucher` parent ON child.parent = parent.name
+        WHERE parent.docstatus != 2
+            AND parent.empresa = %(company)s
+            AND child.purchase_invoice IS NOT NULL
             AND child.purchase_invoice != ''
-    """, as_dict=True)
+    """, {"company": company}, as_dict=True)
 
-    all_excluded_invoices = [d.purchase_invoice for d in excluded_from_withholding]
+    excluded_set: set[tuple[str, str]] = {
+        (d.purchase_invoice, d.code or "") for d in excluded_combinations
+    }
 
-    valid_invoices = frappe.get_all(
+    # Facturas válidas en el rango de fechas
+    valid_invoices: list[dict] = frappe.get_all(
         "Purchase Invoice",
-        filters=[
-            {"supplier": supplier},
-            {"posting_date": ["between", [start_date, end_date]]},
-            {"company": company},
-            {"docstatus": 1},
-            {"is_return": 0},
-            {"is_debit_note": 0},
-            {"name": ["not in", all_excluded_invoices]},
-        ],
-        fields=["name", "bill_no", "bill_control", "posting_date", "grand_total",
-            "total", "affected_invoice_number", "conversion_rate", "currency"
+        filters={
+            "supplier": supplier,
+            "posting_date": ["between", [start_date, end_date]],
+            "company": company,
+            "docstatus": 1,
+            "is_return": 0,
+            "is_debit_note": 0,
+        },
+        fields=[
+            "name", "bill_no", "bill_control", "posting_date",
+            "grand_total", "total", "base_total", "base_grand_total",
+            "outstanding_amount", "affected_invoice_number",
+            "conversion_rate", "currency"
         ]
     )
 
-    valid_invoices_names = [d.name for d in valid_invoices]
+    if not valid_invoices:
+        return []
 
-    approved_payment_entries = frappe.get_all(
-        "Payment Entry",
-        filters=[
-            {"docstatus": 1},
-            {"company": company},
-            {"party_type": "Supplier"},
-            {"party": supplier},
-            ["Advance Taxes and Charges", "charge_type", "=", "ISLR"]
-        ],
-        fields=["name", "paid_amount"]
-    )
-    approved_payment_entry_names = [d.name for d in approved_payment_entries]
-    paid_amount_map = {d.name: d.paid_amount or 0 for d in approved_payment_entries}
+    valid_invoice_names: list[str] = [inv.name for inv in valid_invoices]
+    invoice_map: dict = {inv.name: inv for inv in valid_invoices}
 
-    islr_references = frappe.get_all(
-        "Payment Entry Reference",
+    # Obtener todas las filas ISLR de las facturas válidas
+    islr_taxes: list[dict] = frappe.get_all(
+        "Purchase Taxes and Charges",
         filters={
-            "reference_doctype": "Purchase Invoice",
-            "reference_name": ["in", valid_invoices_names],
-            "parent": ["in", approved_payment_entry_names],
-            "islr_amount": [">", 0]
+            "parent": ["in", valid_invoice_names],
+            "parenttype": "Purchase Invoice",
+            "charge_type": "ISLR",
         },
         fields=[
-            "parent", "reference_name", "islr_concept", "islr_base_amount", "islr_amount"
-        ],
-        order_by="creation desc"
+            "parent", "rate", "tax_amount", "base_tax_amount",
+            "percentage_base", "subtracting", "code",
+            "base_tax_amount_after_discount_amount"
+        ]
     )
 
-    islr_concept_names = {ref.islr_concept for ref in islr_references if ref.islr_concept}
-    final_islr_data_map = {}
+    if not islr_taxes:
+        return []
 
-    concept_codes = frappe.get_all(
-        "Tabulator ISLR",
-        filters={"name": ["in", list(islr_concept_names)]},
-        fields=["name", "codigo"]
-    )
-    concept_code_map = {str(d.name): d.codigo for d in concept_codes}
+    invoices_with_taxes: list[dict] = []
 
-    islr_aliquots = frappe.get_all(
-        "Tabulator ISLR Aliquots",
-        filters={
-            "parent": ["in", list(islr_concept_names)],
-            "types_of_person": type_of_person
-        },
-        fields=["parent", "aliquot", "subtracting"]
-    )
-    aliquot_details_map = {d.parent: d for d in islr_aliquots}
-
-    for ref in islr_references:
-        invoice_name = ref.reference_name
-
-        if ref.islr_concept and invoice_name not in final_islr_data_map:
-
-            concept_name = ref.islr_concept
-            aliquot_details = aliquot_details_map.get(concept_name, {})
-
-            final_islr_data_map[invoice_name] = {
-                "payment_entry_name": ref.parent,
-                "islr_base_amount": ref.islr_base_amount or 0,
-                "islr_amount": ref.islr_amount or 0,
-                "code": concept_code_map.get(concept_name),
-                "rate": aliquot_details.get("aliquot"),
-                "subtracting": aliquot_details.get("subtracting"),
-            }
-
-    invoices_with_taxes = []
-
-    for item in valid_invoices:
-        islr_details = final_islr_data_map.get(item.name)
-
-        if not islr_details:
+    for tax in islr_taxes:
+        invoice = invoice_map.get(tax.parent)
+        if not invoice:
             continue
 
-        payment_entry_name = islr_details.get("payment_entry_name")
-        paid_amount = paid_amount_map.get(payment_entry_name, 0)
-        conversion_rate = item.conversion_rate
-        rate = 1
+        tax_code: str = tax.code or ""
 
-        if default_currency != item.currency and conversion_rate:
-            rate = conversion_rate
+        # Excluir si ya está en otro comprobante
+        if (tax.parent, tax_code) in excluded_set:
+            continue
 
-        grand_total = (item.grand_total or 0) * rate
+        # Factor de conversión a moneda de la empresa
+        conversion_rate: float = flt(invoice.conversion_rate) or 1.0
+        is_multicurrency: bool = default_currency != invoice.currency
+        rate: float = conversion_rate if is_multicurrency else 1.0
 
-        invoice_data = {
-            "purchase_invoice": item.name,
-            "doc_no": item.bill_no,
+        # Base de retención ISLR en moneda de la empresa
+        islr_base_amount: float = flt(
+            flt(invoice.total) * flt(tax.percentage_base or 100) / 100 * rate, 2
+        )
+
+        # Monto retenido ISLR en moneda de la empresa
+        islr_amount: float = abs(flt(
+            tax.base_tax_amount_after_discount_amount or tax.base_tax_amount, 2
+        ))
+
+        # Grand total en moneda de la empresa
+        grand_total_vef: float = abs(flt(invoice.grand_total or 0) * rate)
+
+        # Monto abonado (pagado) en moneda de la empresa
+        paid_amount: float = max(
+            flt(invoice.base_grand_total or 0)
+            - flt(invoice.outstanding_amount or 0), 0
+        )
+
+        invoice_data: dict = {
+            "purchase_invoice": invoice.name,
+            "doc_no": invoice.bill_no,
             "doc_type": "FACT",
-            "bill_control": item.bill_control,
-            "posting_date": item.posting_date,
-            "rate": islr_details.get("rate", 0),
-            "subtracting": abs(islr_details.get("subtracting", 0)),
-            "islr_amount": abs(islr_details.get("islr_amount", 0)),
-            "code": islr_details.get("code", ""),
-            "islr_base_amount": abs(islr_details.get("islr_base_amount", 0)),
-            "grand_total": abs(grand_total),
-            "total": abs(item.total),
-            "affected_invoice_number": item.affected_invoice_number,
-            "paid_amount": abs(paid_amount),
-            "payment_entry_name": payment_entry_name,
+            "bill_control": invoice.bill_control,
+            "posting_date": invoice.posting_date,
+            "rate": flt(tax.rate),
+            "subtracting": abs(flt(tax.subtracting)),
+            "islr_amount": islr_amount,
+            "code": tax_code,
+            "islr_base_amount": abs(islr_base_amount),
+            "grand_total": grand_total_vef,
+            "total": abs(flt(invoice.total)),
+            "affected_invoice_number": invoice.affected_invoice_number,
+            "paid_amount": paid_amount,
         }
 
         invoices_with_taxes.append(invoice_data)
 
     return invoices_with_taxes
 
+
 @frappe.whitelist()
-def mark_as_declared(docname):
+def mark_as_declared(docname: str) -> bool:
+    """Marca un comprobante ISLR como declarado ante el SENIAT."""
     doc = frappe.get_doc("ISLR Withholding Voucher", docname)
-    
+
     if doc.docstatus != 1:
-        frappe.throw(_("Solo se pueden marcar como declarados los comprobantes que estén en estado Aprobado."))
-    
+        frappe.throw(
+            _("Solo se pueden marcar como declarados los comprobantes "
+              "que estén en estado Aprobado.")
+        )
+
     doc.db_set("is_declared", 1)
     return True
