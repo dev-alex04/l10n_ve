@@ -52,54 +52,27 @@ frappe.query_reports["purchase_book"] = {
   ],
 
   onload: function (report) {
-    // Botón: Exportar a Excel
-    report.page.add_inner_button(__("Exportar a Excel"), function () {
-      const filters = report.get_filter_values();
-      if (!filters.company) {
-        frappe.throw(
-          __("Por favor, selecciona una Compañía para generar el reporte.")
-        );
-        return;
-      }
+    // Botón: Formato Detallado (formato actual)
+    report.page.add_inner_button(
+      __("Formato Detallado"),
+      () =>
+        _export_excel(
+          report,
+          "l10n_ve.l10n_ve.report.purchase_book.excel_builder.create_excel_file"
+        ),
+      __("Exportar Excel")
+    );
 
-      frappe.dom.freeze();
-      frappe.call({
-        method:
-          "l10n_ve.l10n_ve.report.purchase_book.excel_builder.create_excel_file",
-        args: {
-          report_name: "Libro de Compra",
-          filters: JSON.stringify(filters),
-        },
-        callback: function (r) {
-          frappe.dom.unfreeze();
-          if (r.message && r.message.type === "download") {
-            download_base64_file(
-              r.message.filename,
-              r.message.filecontent,
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            );
-            frappe.show_alert({
-              message: __(
-                "Reporte Excel generado y descargado correctamente."
-              ),
-              indicator: "green",
-            });
-          } else {
-            frappe.throw(
-              __("No se pudo generar el archivo de Excel.")
-            );
-          }
-        },
-        error: function () {
-          frappe.dom.unfreeze();
-          frappe.throw(
-            __(
-              "Ocurrió un error al generar el archivo. Por favor, revisa el Log de Errores."
-            )
-          );
-        },
-      });
-    });
+    // Botón: Formato Fiscal (formato SENIAT)
+    report.page.add_inner_button(
+      __("Formato Fiscal"),
+      () =>
+        _export_excel(
+          report,
+          "l10n_ve.l10n_ve.report.purchase_book.seniat_excel_builder.create_seniat_excel_file"
+        ),
+      __("Exportar Excel")
+    );
 
     // Botón: Generar XML ISLR
     report.page.add_inner_button(__("Generar XML ISLR"), function () {
@@ -196,3 +169,51 @@ frappe.query_reports["purchase_book"] = {
     });
   },
 };
+
+/**
+ * Helper compartido para exportar Excel (ambos formatos).
+ */
+function _export_excel(report, method) {
+  frappe.dom.freeze();
+
+  const filters = report.get_filter_values();
+  if (!filters.company) {
+    frappe.dom.unfreeze();
+    frappe.throw(
+      __("Por favor, selecciona una Compañía para generar el reporte.")
+    );
+    return;
+  }
+
+  frappe.call({
+    method: method,
+    args: {
+      report_name: "Libro de Compra",
+      filters: JSON.stringify(filters),
+    },
+    callback: function (r) {
+      frappe.dom.unfreeze();
+      if (r.message && r.message.type === "download") {
+        download_base64_file(
+          r.message.filename,
+          r.message.filecontent,
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        frappe.show_alert({
+          message: __("Reporte Excel generado y descargado correctamente."),
+          indicator: "green",
+        });
+      } else {
+        frappe.throw(__("No se pudo generar el archivo de Excel."));
+      }
+    },
+    error: function () {
+      frappe.dom.unfreeze();
+      frappe.throw(
+        __(
+          "Ocurrió un error al generar el archivo. Por favor, revisa el Log de Errores."
+        )
+      );
+    },
+  });
+}

@@ -414,9 +414,12 @@ def create_excel_file(report_name, filters=None, **kwargs):
         excel_content_bytes = excel_content.getvalue()
         base64_content = base64.b64encode(excel_content_bytes).decode('utf-8')
 
+        safe_company: str = company_data["company_name"].replace("/", "-").replace("\\", "-")
+        filename: str = f"{title} - {safe_company} - {from_date.strftime('%d-%m-%Y')} al {to_date.strftime('%d-%m-%Y')}.xlsx"
+
         return {
             "type": "download",
-            "filename": f"{title}.xlsx",
+            "filename": filename,
             "filecontent": base64_content
         }
 

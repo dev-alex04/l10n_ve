@@ -21,6 +21,9 @@ def execute(filters=None):
     if not filters.get("to_date"):
         frappe.throw(_("Debe ingresar la Fecha Hasta."))
 
+    if getdate(filters.get("from_date") or filters.get("date_from")) > getdate(filters.get("to_date")):
+        frappe.throw(_("La Fecha Desde no puede ser posterior a la Fecha Hasta."))
+
     columns: list[dict] = get_columns()
 
     data: list[dict] = get_query_data(filters)
