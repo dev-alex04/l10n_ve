@@ -13,6 +13,38 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
     def validate(self) -> None:
         self.validate_address()
+        self.validate_unique_voucher_number()
+        self.validate_withholding_amount()
+
+    def validate_unique_voucher_number(self) -> None:
+        """Valida que el número de comprobante no esté duplicado."""
+        if not self.voucher_number:
+            return
+
+        duplicate: str | None = frappe.db.get_value(
+            "ISLR Withholding Voucher",
+            {
+                "voucher_number": self.voucher_number,
+                "name": ["!=", self.name],
+                "docstatus": ["!=", 2],
+            },
+        )
+        if duplicate:
+            frappe.throw(
+                _("Ya existe un comprobante de retención ISLR con el número {0}: {1}").format(
+                    frappe.bold(self.voucher_number), frappe.bold(duplicate)
+                )
+            )
+
+    def validate_withholding_amount(self) -> None:
+        """Impide aprobar un comprobante cuando no hay ISLR a retener."""
+        total_islr: float = flt(self.totals_islr_amount)
+        if not total_islr:
+            frappe.throw(
+                _("No se puede procesar este comprobante porque el monto total "
+                  "de ISLR retenido es 0. Verifique que las facturas incluidas "
+                  "tengan retención de ISLR.")
+            )
 
     def before_print(self, settings) -> None:
         company_tax_id = frappe.db.get_value("Company", self.empresa, "tax_id")
@@ -217,18 +249,3 @@ def get_valid_invoices(
         invoices_with_taxes.append(invoice_data)
 
     return invoices_with_taxes
-
-
-@frappe.whitelist()
-def mark_as_declared(docname: str) -> bool:
-    """Marca un comprobante ISLR como declarado ante el SENIAT."""
-    doc = frappe.get_doc("ISLR Withholding Voucher", docname)
-
-    if doc.docstatus != 1:
-        frappe.throw(
-            _("Solo se pueden marcar como declarados los comprobantes "
-              "que estén en estado Aprobado.")
-        )
-
-    doc.db_set("is_declared", 1)
-    return True

@@ -42,20 +42,13 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
     if (frm.doc.docstatus === 1 && !frm.doc.is_declared) {
       frm.add_custom_button(__('Marcar como Declarado'), function () {
         frappe.confirm(__('¿Estás seguro de marcar este comprobante como declarado? Esta acción no se puede deshacer.'), () => {
-          frappe.call({
-            method: "l10n_ve.l10n_ve.doctype.islr_withholding_voucher.islr_withholding_voucher.mark_as_declared",
-            args: {
-              docname: frm.doc.name,
-              doctype: frm.doc.doctype
-            },
-            callback: function (r) {
-              frm.reload_doc();
-              frappe.msgprint({
-                title: __('Éxito'),
-                indicator: 'green',
-                message: __('Comprobante actualizado correctamente')
-              });
-            }
+          frm.call("mark_as_declared").then(() => {
+            frm.reload_doc();
+            frappe.msgprint({
+              title: __('Éxito'),
+              indicator: 'green',
+              message: __('Comprobante actualizado correctamente')
+            });
           });
         });
       }).addClass('btn-primary');

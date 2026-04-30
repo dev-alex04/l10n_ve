@@ -48,21 +48,13 @@ frappe.ui.form.on("VAT Withholding Voucher", {
               "¿Estás seguro de marcar este comprobante como declarado? Esta acción no se puede deshacer.",
             ),
             () => {
-              frappe.call({
-                method:
-                  "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.mark_as_declared",
-                args: {
-                  docname: frm.doc.name,
-                  doctype: frm.doc.doctype,
-                },
-                callback: function (r) {
-                  frm.reload_doc();
-                  frappe.msgprint({
-                    title: __("Éxito"),
-                    indicator: "green",
-                    message: __("Comprobante actualizado correctamente"),
-                  });
-                },
+              frm.call("mark_as_declared").then(() => {
+                frm.reload_doc();
+                frappe.msgprint({
+                  title: __("Éxito"),
+                  indicator: "green",
+                  message: __("Comprobante actualizado correctamente"),
+                });
               });
             },
           );
@@ -247,7 +239,6 @@ frappe.ui.form.on("VAT Withholding Voucher", {
 
   supplier: function (frm) {
     frm.clear_table("vat_withholding_voucher_item");
-    frm.add_child("vat_withholding_voucher_item");
     frm.refresh_field("vat_withholding_voucher_item");
 
     frm.set_value("supplier_address", "");
@@ -260,7 +251,6 @@ frappe.ui.form.on("VAT Withholding Voucher", {
 
   empresa: function (frm) {
     frm.clear_table("vat_withholding_voucher_item");
-    frm.add_child("vat_withholding_voucher_item");
     frm.refresh_field("vat_withholding_voucher_item");
 
     frm.set_value("company_address", "");
@@ -286,7 +276,6 @@ function validar_fechas(frm, campo) {
     if (endDate < startDate) {
       frm.set_value(campo, null);
       frm.clear_table("vat_withholding_voucher_item");
-      frm.add_child("vat_withholding_voucher_item");
       frm.refresh_field("vat_withholding_voucher_item");
 
       throw new Error(
@@ -355,18 +344,9 @@ function load_invoices(frm) {
             (invoice.tax_amount_vat || 0) * negative;
         });
 
-        frm.refresh_fields([
-          "totals_grand_total",
-          "totals_total_exempt",
-          "totals_total",
-          "totals_taxes_and_charges_added",
-          "totals_tax_amount_vat",
-        ]);
-
         frm.refresh_fields();
       } else {
         frm.clear_table("vat_withholding_voucher_item");
-        frm.add_child("vat_withholding_voucher_item");
         frm.refresh_field("vat_withholding_voucher_item");
 
         frm.doc.totals_grand_total = 0;

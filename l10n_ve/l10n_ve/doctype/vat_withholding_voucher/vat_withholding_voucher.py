@@ -94,7 +94,7 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
             return False
 
     def before_insert(self):
-        company_doc = frappe.get_doc("Company", self.empresa)
+        company_doc = frappe.get_cached_doc("Company", self.empresa)
         correlative_format = company_doc.vat_withholding_format
 
         final_voucher_number, final_next_correlative_number, year, month = \
@@ -114,11 +114,14 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
             document_month_year = getdate(document_date).strftime('%Y-%m')
             current_month_year = current_date.strftime('%Y-%m')
         else:
-            frappe.throw("No se puede determinar la fecha del comprobante para la validación.")
+            frappe.throw(
+                _("No se puede determinar la fecha del comprobante para la validación.")
+            )
 
         if document_month_year != current_month_year:
             frappe.throw(
-                f"No se puede eliminar el comprobante. Solo se permiten eliminaciones para el periodo actual ({current_month_year})."
+                _("No se puede eliminar el comprobante. Solo se permiten "
+                  "eliminaciones para el periodo actual ({0}).").format(current_month_year)
             )
 
 
@@ -172,9 +175,10 @@ def get_valid_invoices(supplier: str, start_date: str, end_date: str, company: s
             `tabVAT Withholding Voucher` parent ON child.parent = parent.name
         WHERE
             parent.docstatus = 1
+            AND parent.empresa = %(company)s
             AND child.purchase_invoice IS NOT NULL
             AND child.purchase_invoice != ''
-    """, as_dict=True)
+    """, {"company": company}, as_dict=True)
 
     all_excluded_invoices: list[str] = [d.purchase_invoice for d in excluded_from_withholding]
 
@@ -280,13 +284,3 @@ def get_valid_invoices(supplier: str, start_date: str, end_date: str, company: s
         invoices_with_taxes.append(invoice_data)
 
     return invoices_with_taxes
-
-@frappe.whitelist()
-def mark_as_declared(docname):
-    doc = frappe.get_doc("VAT Withholding Voucher", docname)
-
-    if doc.docstatus != 1:
-        frappe.throw(_("Solo se pueden marcar como declarados los comprobantes que estén en estado Aprobado."))
-
-    doc.db_set("is_declared", 1)
-    return True
