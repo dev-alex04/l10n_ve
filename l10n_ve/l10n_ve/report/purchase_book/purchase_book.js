@@ -91,16 +91,12 @@ frappe.query_reports["purchase_book"] = {
         args: { filters: JSON.stringify(filters) },
         callback: function (r) {
           frappe.dom.unfreeze();
-          if (r.message) {
-            const blob = new Blob([r.message], { type: "text/xml" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "retenciones_islr.xml";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+          if (r.message && r.message.type === "download") {
+            download_base64_file(
+              r.message.filename,
+              r.message.filecontent,
+              "text/xml;charset=utf-8"
+            );
             frappe.show_alert({
               message: __("Reporte XML ISLR generado correctamente."),
               indicator: "green",

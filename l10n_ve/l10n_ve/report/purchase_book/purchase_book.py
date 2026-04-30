@@ -232,19 +232,16 @@ def get_query(filters: dict) -> str:
         LEFT JOIN
             `tabSupplier` AS supp
             ON supp.name = inv.supplier
-        -- Subquery: flag ISLR con pago aprobado (evita fan-out)
+        -- Subquery: flag ISLR desde comprobantes de retención (evita fan-out)
         LEFT JOIN (
             SELECT
-                pe_ref.reference_name,
+                islr_item.purchase_invoice,
                 1 AS has_islr
-            FROM `tabPayment Entry Reference` pe_ref
-            INNER JOIN `tabPayment Entry` pe
-                ON pe.name = pe_ref.parent AND pe.docstatus = 1
-            WHERE pe_ref.reference_doctype = 'Purchase Invoice'
-                AND pe_ref.islr_concept IS NOT NULL
-                AND pe_ref.islr_concept != ''
-            GROUP BY pe_ref.reference_name
-        ) AS islr_ref ON islr_ref.reference_name = inv.name
+            FROM `tabISLR Withholding Voucher Item` islr_item
+            INNER JOIN `tabISLR Withholding Voucher` islr_v
+                ON islr_item.parent = islr_v.name AND islr_v.docstatus = 1
+            GROUP BY islr_item.purchase_invoice
+        ) AS islr_ref ON islr_ref.purchase_invoice = inv.name
 
         GROUP BY inv.name
         ORDER BY inv.bill_date ASC
@@ -408,9 +405,15 @@ def _get_date_range_from_filters(filters: dict) -> tuple[str, str]:
 
 
 @frappe.whitelist()
-def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
+def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
     """
-    Generates an XML string for ISLR retentions based on report filters.
+    Genera un XML de retenciones ISLR para el SENIAT basado en ISLR Withholding Voucher.
+
+    Lee directamente desde ISLR Withholding Voucher Item (fuente de verdad),
+    eliminando la dependencia legacy de Payment Entry Reference.
+
+    Returns:
+        dict con filename y filecontent (base64) para descarga, o None si no hay datos.
     """
     try:
         if not filters:
@@ -425,37 +428,33 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
         filters["from_date"] = from_date
         filters["to_date"] = to_date
 
-        company_doc = frappe.get_doc("Company", filters.get("company"))
-        company_rif = (company_doc.tax_id or "").replace('-', '')
+        company_doc = frappe.get_cached_doc("Company", filters.get("company"))
+        company_rif: str = (company_doc.tax_id or "").replace('-', '')
         if not company_rif:
             frappe.throw(_("El RIF de la compañía es obligatorio para generar el XML de ISLR."))
 
-        periodo = getdate(from_date).strftime("%Y%m")
+        periodo: str = getdate(from_date).strftime("%Y%m")
 
-        retentions = frappe.db.sql("""
+        retentions: list[dict] = frappe.db.sql("""
             SELECT
                 REPLACE(supp.tax_id, '-', '') AS supplier_rif,
-                pi.bill_no,
-                pi.bill_control,
-                pe.posting_date,
-                ref.islr_concept AS islr_concept,
-                tab.codigo AS codigo_concepto,
-                ali.aliquot AS porcentaje_retencion,
-                ref.islr_base_amount AS monto_operacion,
+                item.doc_no AS bill_no,
+                item.bill_control,
+                item.posting_date AS fecha_operacion,
+                item.code AS codigo_concepto,
+                item.rate AS porcentaje_retencion,
+                item.islr_base_amount AS monto_operacion,
                 supp.type_of_person
-            FROM `tabPayment Entry Reference` AS ref
-            JOIN `tabPayment Entry` AS pe ON ref.parent = pe.name
-            JOIN `tabPurchase Invoice` AS pi ON ref.reference_name = pi.name
-            JOIN `tabSupplier` AS supp ON pi.supplier = supp.name
-            LEFT JOIN `tabTabulator ISLR` AS tab ON ref.islr_concept = tab.name
-            LEFT JOIN `tabTabulator ISLR Aliquots` AS ali ON tab.name = ali.parent AND supp.type_of_person = ali.types_of_person
+            FROM `tabISLR Withholding Voucher Item` AS item
+            INNER JOIN `tabISLR Withholding Voucher` AS voucher
+                ON item.parent = voucher.name AND voucher.docstatus = 1
+            INNER JOIN `tabPurchase Invoice` AS pi
+                ON item.purchase_invoice = pi.name
+            INNER JOIN `tabSupplier` AS supp
+                ON pi.supplier = supp.name
             WHERE
-                pe.docstatus = 1
-                AND pe.company = %(company)s
-                AND pe.posting_date BETWEEN %(from_date)s AND %(to_date)s
-                AND ref.reference_doctype = 'Purchase Invoice'
-                AND ref.islr_concept IS NOT NULL
-                AND ref.islr_concept != ''
+                voucher.empresa = %(company)s
+                AND voucher.posting_date BETWEEN %(from_date)s AND %(to_date)s
         """, filters, as_dict=True)
 
         if not retentions:
@@ -463,12 +462,12 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
             return None
 
         root = Element("RelacionRetencionesISLR", {"RifAgente": company_rif, "Periodo": periodo})
-        processing_errors = []
+        processing_errors: list[str] = []
 
         for ret in retentions:
             if not ret.codigo_concepto or ret.porcentaje_retencion is None:
-                error_msg = _("No se encontró configuración de alícuota para el concepto '{0}'" \
-                " y tipo de persona '{1}' (Factura: {2}).").format(ret.islr_concept, ret.type_of_person, ret.bill_no or 'N/A')
+                error_msg: str = _("Falta código de concepto o alícuota para la factura '{0}'"
+                    " (tipo persona: '{1}').").format(ret.bill_no or 'N/A', ret.type_of_person or 'N/A')
 
                 if error_msg not in processing_errors:
                     processing_errors.append(error_msg)
@@ -477,8 +476,8 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
             detalle = SubElement(root, "DetalleRetencion")
             SubElement(detalle, "RifRetenido").text = ret.supplier_rif or "N/A"
             SubElement(detalle, "NumeroFactura").text = ret.bill_no or "N/A"
-            SubElement(detalle, "NumeroControl").text = str(ret.bill_control) if ret.bill_control is not None else "N/A"
-            SubElement(detalle, "FechaOperacion").text = getdate(ret.posting_date).strftime("%d/%m/%Y")
+            SubElement(detalle, "NumeroControl").text = str(ret.bill_control) if ret.bill_control else "N/A"
+            SubElement(detalle, "FechaOperacion").text = getdate(ret.fecha_operacion).strftime("%d/%m/%Y")
             SubElement(detalle, "CodigoConcepto").text = ret.codigo_concepto
             SubElement(detalle, "MontoOperacion").text = f"{flt(ret.monto_operacion):.2f}"
             SubElement(detalle, "PorcentajeRetencion").text = f"{flt(ret.porcentaje_retencion)}"
@@ -489,12 +488,17 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
                             title=_("Errores de Procesamiento"),
                             indicator="orange")
 
-        # Formatear para una salida legible (pretty print)
-        rough_string = tostring(root, "utf-8")
+        rough_string: bytes = tostring(root, "utf-8")
         reparsed = minidom.parseString(rough_string)
-        pretty_xml_as_string = reparsed.toprettyxml(indent="  ", encoding="UTF-8").decode()
+        pretty_xml: str = reparsed.toprettyxml(indent="  ", encoding="UTF-8").decode()
 
-        return pretty_xml_as_string
+        encoded_content: str = base64.b64encode(pretty_xml.encode('utf-8')).decode('utf-8')
+
+        return {
+            "type": "download",
+            "filename": f"ISLR_Retenciones_XML-{company_doc.abbr}-{periodo}.xml",
+            "filecontent": encoded_content,
+        }
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en generate_xml_islr_file")
@@ -502,6 +506,7 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
 
 @frappe.whitelist()
 def generate_txt_file(filters: dict | str) -> dict:
+    """Genera archivo TXT de retenciones IVA para el SENIAT (Libro de Compras)."""
 
     try:
         if isinstance(filters, str):
@@ -513,24 +518,21 @@ def generate_txt_file(filters: dict | str) -> dict:
         filters["from_date"] = from_date
         filters["to_date"] = to_date
 
-        company_doc = frappe.get_doc("Company", filters.get("company"))
-        company_rif = company_doc.tax_id or ""
-        company_rif = company_rif.replace('-', '')
+        company_doc = frappe.get_cached_doc("Company", filters.get("company"))
+        company_rif: str = (company_doc.tax_id or "").replace('-', '')
 
         if not company_rif:
             frappe.throw(_("El RIF de la compañía no está configurado."))
 
         periodo = getdate(from_date).strftime('%Y%m')
         data: list[dict] = get_query_data(filters)
-        invoices_with_voucher = [row for row in data if row.get("nro_comprobante_retencion")]
+        invoices_with_voucher: list[dict] = [row for row in data if row.get("nro_comprobante_retencion")]
 
         if not invoices_with_voucher:
             # Si no hay facturas con comprobante, crea una línea con valores por defecto
             line_data = [
-
-                str(company_rif) or "",
-                str(periodo) or "",
-
+                company_rif,
+                periodo,
             ] + ["0"] * 14
 
             content = "\t".join(line_data) + "\n"
@@ -541,7 +543,8 @@ def generate_txt_file(filters: dict | str) -> dict:
             content_lines = []
             for row in invoices_with_voucher:
 
-                tax_rate = "0"
+                # Determinar alícuota IVA aplicada a la factura
+                tax_rate: str = "0"  # Exento o sin base imponible
                 if flt(row.get("base_general")) != 0:
                     tax_rate = "16"
                 elif flt(row.get("base_reducida")) != 0:
@@ -558,6 +561,14 @@ def generate_txt_file(filters: dict | str) -> dict:
 
                 document_number = row.get("credit_note_no") or row.get("debit_note_no") or row.get("bill_no") or "0"
 
+                # Calcular MontoDocumento = Base + IVA_completo + Exento
+                # (SENIAT requiere el total ANTES de retenciones;
+                #  base_grand_total de ERPNext ya tiene la retención IVA descontada)
+                taxable_base: float = abs(flt(row.get('taxable_base') or 0))
+                total_exempt: float = abs(flt(row.get('total_exempt') or 0))
+                iva_full: float = taxable_base * flt(tax_rate) / 100
+                monto_documento: float = taxable_base + iva_full + total_exempt
+
                 line_data = [
                     str(company_rif),
                     str(periodo),
@@ -567,14 +578,14 @@ def generate_txt_file(filters: dict | str) -> dict:
                     (row.get("tax_id") or "0").replace('-', ''),
                     document_number,
                     row.get("bill_control") or "0",
-                    f"{abs(flt(row.get('grand_total') or 0)):.2f}",
-                    f"{abs(flt(row.get('taxable_base') or 0)):.2f}",
+                    f"{monto_documento:.2f}",
+                    f"{taxable_base:.2f}",
                     f"{abs(flt(row.get('taxes_and_charges_deducted') or 0)):.2f}",
                     row.get("affected_invoice_number") or "0",
                     row.get("nro_comprobante_retencion") or "0",
-                    f"{abs(flt(row.get('total_exempt') or 0)):.2f}",
+                    f"{total_exempt:.2f}",
                     f"{abs(flt(tax_rate)):.2f}",
-                    "0",
+                    "0",  # Campo 16: IVA percibido (no aplica en compras, reservado)
                 ]
                 content_lines.append("\t".join(line_data))
 
