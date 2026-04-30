@@ -2,16 +2,18 @@
  "actions": [],
  "allow_events_in_timeline": 1,
  "allow_import": 1,
- "autoname": "field:voucher_number",
+ "autoname": "naming_series:",
  "creation": "2025-09-14 02:24:04.110331",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "start_date",
   "voucher_number",
   "column_break_lzyc",
   "end_date",
   "posting_date",
+  "bill_control",
   "is_declared",
   "section_break_vaxc",
   "empresa",
@@ -22,13 +24,16 @@
   "section_break_ucxr",
   "islr_withholding_voucher_item",
   "section_break_nqao",
-  "column_break_zbxa",
   "column_break_zmix",
   "totals_grand_total",
   "totals_paid_amount",
   "totals_islr_base_amount",
   "totals_islr_amount",
-  "amended_from"
+  "digital_invoice_status",
+  "column_break_hka",
+  "hka_preview",
+  "amended_from",
+  "hka_response"
  ],
  "fields": [
   {
@@ -63,10 +68,6 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "column_break_zbxa",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "column_break_zmix",
    "fieldtype": "Column Break"
   },
@@ -78,11 +79,22 @@
    "reqd": 1
   },
   {
+   "default": "COMP-RET-ISLR-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "COMP-RET-ISLR-.YYYY.-",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
    "fieldname": "voucher_number",
    "fieldtype": "Data",
    "label": "No. de Comprobante",
-   "reqd": 1,
-   "unique": 1
+   "no_copy": 1,
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "end_date",
@@ -102,7 +114,9 @@
   {
    "fieldname": "supplier",
    "fieldtype": "Link",
+   "in_filter": 1,
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Proveedor",
    "options": "Supplier",
    "reqd": 1
@@ -110,9 +124,12 @@
   {
    "fieldname": "empresa",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Empresa",
    "options": "Company",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "posting_date",
@@ -162,17 +179,58 @@
    "in_list_view": 1,
    "label": "Declarado",
    "read_only": 1
+  },
+  {
+   "fieldname": "digital_invoice_status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Estado Emisi\u00f3n Digital",
+   "no_copy": 1,
+   "options": "\nPending\nSent\nError\nVoided",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hka_response",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Respuesta HKA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "bill_control",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "N\u00b0 Control",
+   "no_copy": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "hka_preview",
+   "fieldtype": "HTML",
+   "label": "Vista Previa Fiscal",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_hka",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-26 09:20:58.278041",
+ "modified": "2026-04-30 10:02:00.109785",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "ISLR Withholding Voucher",
- "naming_rule": "By fieldname",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -215,8 +273,10 @@
   }
  ],
  "row_format": "Dynamic",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
+ "title_field": "voucher_number",
  "track_changes": 1
 }

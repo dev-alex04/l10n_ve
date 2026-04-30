@@ -11,7 +11,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
-from l10n_ve.digital_invoice.retention_payload_builder import TFHKARetentionPayloadBuilder
+from l10n_ve.digital_invoice.vat_whithholding_payload_builder import TFHKARetentionPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 
 
@@ -116,6 +116,7 @@ def _log_retention_request(
     response: dict,
     status: str,
     notes: str = "",
+    document_type: str = "VAT Withholding Voucher",
 ) -> None:
     """Registra la solicitud/respuesta en VE Digital Invoice Log.
 
@@ -126,10 +127,11 @@ def _log_retention_request(
         response: Respuesta recibida de HKA.
         status: 'Success' o 'Error'.
         notes: Notas adicionales descriptivas.
+        document_type: Tipo de documento ('VAT Withholding Voucher' o 'ISLR Withholding Voucher').
     """
     try:
         log = frappe.new_doc("VE Digital Invoice Log")
-        log.document_type = "VAT Withholding Voucher"
+        log.document_type = document_type
         log.sales_invoice = voucher_name
         log.endpoint = endpoint
         log.status = status
@@ -232,16 +234,18 @@ def _handle_retention_response(
     payload: dict,
     response: dict,
     raise_on_error: bool = False,
+    document_type: str = "VAT Withholding Voucher",
 ) -> bool:
     """Procesa la respuesta de HKA para un comprobante de retención.
 
     Actualiza el estado del documento y registra el log correspondiente.
 
     Args:
-        doc: Documento VAT Withholding Voucher.
+        doc: Documento de retención (VAT o ISLR Withholding Voucher).
         payload: Payload que se envió.
         response: Respuesta de la API.
         raise_on_error: Si True, lanza excepción en caso de error.
+        document_type: Tipo de documento para el log.
 
     Returns:
         True si la emisión fue exitosa.
@@ -278,6 +282,7 @@ def _handle_retention_response(
             response=response,
             status="Success",
             notes=f"Comprobante {doc.name} emitido exitosamente. N° HKA: {hka_doc_number}",
+            document_type=document_type,
         )
 
         return True
@@ -294,6 +299,7 @@ def _handle_retention_response(
         response=response or {},
         status="Error",
         notes=notes,
+        document_type=document_type,
     )
 
     frappe.db.commit()

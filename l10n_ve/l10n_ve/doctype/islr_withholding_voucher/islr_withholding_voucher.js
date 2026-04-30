@@ -35,6 +35,12 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
         });
       });
 
+      if (frm.doc.docstatus === 0 && !frm.is_new()) {
+        frm.add_custom_button(__("Obtener Facturas"), function () {
+          load_invoices(frm);
+        });
+      }
+
       const fields = ["start_date", "end_date", "empresa", "supplier", "islr_withholding_voucher_item"];
       fields_read_only(frm, fields);
     }
@@ -53,12 +59,147 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
         });
       }).addClass('btn-primary');
     }
+
+    // Indicador de estado de emisión digital (HKA)
+    if (frm.doc.docstatus !== 2 || frm.doc.digital_invoice_status === "Voided") {
+      const hka_status_map = {
+        Sent: ["Emitido", "green"],
+        Error: ["Error en emisión", "red"],
+        Pending: ["Pendiente de emisión", "orange"],
+        Voided: ["Anulado", "red"],
+      };
+      const hka_info = hka_status_map[frm.doc.digital_invoice_status];
+      if (hka_info) {
+        frm.page.set_indicator(hka_info[0], hka_info[1]);
+      }
+    }
+
+    // Mensaje informativo sobre emisión digital
+    if (frm.doc.docstatus === 1) {
+      if (!frm.doc.digital_invoice_status || frm.doc.digital_invoice_status === "Error") {
+        frm.set_intro(
+          __("Este comprobante será emitido automáticamente por el sistema en los próximos minutos. "
+            + "Si desea emitirlo de inmediato, use el botón <b>\"Emitir\"</b> en el menú Factura Digital."),
+          "blue"
+        );
+      } else if (frm.doc.digital_invoice_status === "Sent") {
+        frm.set_intro(
+          __("Comprobante emitido exitosamente ante la imprenta fiscal digital."),
+          "green"
+        );
+      }
+    }
+
+    // Botón de envío/reenvío manual a HKA
+    if (
+      frm.doc.docstatus === 1 &&
+      (!frm.doc.digital_invoice_status ||
+        frm.doc.digital_invoice_status === "Error")
+    ) {
+      frm.add_custom_button(__("Emitir"), function () {
+        frappe.confirm(
+          __("¿Desea enviar este comprobante de retención ISLR a la imprenta fiscal digital?"),
+          () => {
+            frappe.call({
+              method:
+                "l10n_ve.digital_invoice.islr_withholding_integration.send_islr_voucher_manually",
+              args: { voucher_name: frm.doc.name },
+              freeze: true,
+              freeze_message: __("Enviando a HKA..."),
+              callback: function () {
+                frm.reload_doc();
+              },
+            });
+          },
+        );
+      });
+    }
+
+    // Botón "Anular Comprobante" (solo cuando está emitido a HKA)
+    if (frm.doc.docstatus === 1 && frm.doc.digital_invoice_status === "Sent") {
+      frm.add_custom_button(
+        __("Anular Comprobante"),
+        function () {
+          const today = frappe.datetime.get_today();
+          const now = frappe.datetime.now_time();
+
+          const dialog = new frappe.ui.Dialog({
+            title: __("Anular Comprobante ISLR en HKA"),
+            fields: [
+              {
+                label: __("Motivo de Anulación"),
+                fieldname: "reason",
+                fieldtype: "Small Text",
+                reqd: 1,
+                description: __(
+                  "Indique el motivo de la anulación. Será enviado a la imprenta digital.",
+                ),
+              },
+              {
+                label: __("Fecha de Anulación"),
+                fieldname: "void_date",
+                fieldtype: "Date",
+                default: today,
+                reqd: 1,
+                read_only: 1,
+              },
+              {
+                label: __("Hora de Anulación"),
+                fieldname: "void_time",
+                fieldtype: "Time",
+                default: now,
+                reqd: 1,
+                read_only: 1,
+              },
+            ],
+            primary_action_label: __("Confirmar Anulación"),
+            primary_action(values) {
+              dialog.hide();
+
+              // Convertir YYYY-MM-DD → DD/MM/YYYY (formato TFHKA)
+              const date_parts = values.void_date.split("-");
+              const formatted_date = `${date_parts[2]}/${date_parts[1]}/${date_parts[0]}`;
+
+              frappe.call({
+                method:
+                  "l10n_ve.digital_invoice.islr_withholding_integration.void_islr_voucher",
+                args: {
+                  voucher_name: frm.doc.name,
+                  reason: values.reason,
+                  void_date: formatted_date,
+                  void_time: values.void_time,
+                },
+                freeze: true,
+                freeze_message: __("Anulando en HKA y sistema..."),
+                callback(r) {
+                  if (!r.exc) {
+                    frappe.show_alert({
+                      message: __(
+                        "Comprobante anulado correctamente en HKA y en el sistema.",
+                      ),
+                      indicator: "green",
+                    });
+                    frm.reload_doc();
+                  }
+                },
+              });
+            },
+          });
+
+          dialog.show();
+        },
+        __("Factura Digital"),
+      );
+    }
+
+    // Vista previa del documento fiscal HKA
+    render_islr_fiscal_preview(frm);
   },
 
   onload: function (frm) {
-    if (frm.doc.__islocal) {
+    if (frm.doc.__islocal && !frm.doc.amended_from) {
       const company_name = frm.doc.empresa;
-      const today = new Date();
+      const today = frappe.datetime.get_today();
 
       if (company_name) {
         frm
@@ -74,6 +215,14 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
             }
           });
       }
+    }
+
+    // Limpiar campos HKA al enmendar para garantizar un documento limpio
+    if (frm.doc.__islocal && frm.doc.amended_from) {
+      frm.set_value("digital_invoice_status", "");
+      frm.set_value("hka_response", "");
+      frm.set_value("bill_control", "");
+      frm.set_value("voucher_number", "");
     }
   },
 
@@ -245,5 +394,16 @@ function calculate_totals(frm) {
 function fields_read_only(frm, fields) {
   fields.forEach(field => {
     frm.set_df_property(field, 'read_only', true);
+  });
+}
+
+/**
+ * Renderiza la vista previa del documento fiscal HKA en el comprobante ISLR.
+ * Utiliza el helper compartido render_fiscal_preview.
+ */
+function render_islr_fiscal_preview(frm) {
+  render_fiscal_preview(frm, {
+    doctype: "ISLR Withholding Voucher",
+    title: "Comprobante Fiscal Digital (ISLR)",
   });
 }

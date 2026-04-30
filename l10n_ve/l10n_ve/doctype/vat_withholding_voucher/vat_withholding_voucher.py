@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, nowdate, getdate, cint
+from frappe.utils import flt, nowdate, getdate
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 
 
@@ -84,14 +84,6 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
                   "\"Anular Comprobante\" para anularlo primero en HKA.").format(self.name)
             )
 
-    def _is_hka_enabled(self) -> bool:
-        """Verifica si la integración TFHKA está habilitada."""
-        try:
-            return bool(cint(frappe.get_cached_value(
-                "TFHKA Settings", "TFHKA Settings", "enabled"
-            )))
-        except frappe.DoesNotExistError:
-            return False
 
     def before_insert(self):
         company_doc = frappe.get_cached_doc("Company", self.empresa)

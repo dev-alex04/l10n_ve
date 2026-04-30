@@ -16,6 +16,18 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
         self.validate_unique_voucher_number()
         self.validate_withholding_amount()
 
+    def before_cancel(self) -> None:
+        """Bloquea la cancelación si el comprobante ya fue emitido a HKA."""
+        if frappe.flags.get("hka_void_confirmed"):
+            return
+
+        if self.digital_invoice_status == "Sent":
+            frappe.throw(
+                _("No se puede cancelar el comprobante {0} porque ya fue emitido "
+                  "a la imprenta fiscal digital (TFHKA). Use el botón "
+                  "\"Anular Comprobante\" para anularlo primero en HKA.").format(self.name)
+            )
+
     def validate_unique_voucher_number(self) -> None:
         """Valida que el número de comprobante no esté duplicado."""
         if not self.voucher_number:

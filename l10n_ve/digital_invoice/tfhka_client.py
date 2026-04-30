@@ -363,7 +363,7 @@ class TFHKAClient:
 
 ALLOWED_DOCTYPES: list[str] = [
     "Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note",
-    "VAT Withholding Voucher",
+    "VAT Withholding Voucher", "ISLR Withholding Voucher",
 ]
 
 
@@ -381,8 +381,8 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     doc = frappe.get_cached_doc(doctype, invoice_name)
     frappe.has_permission(doctype, "read", doc=doc, throw=True)
 
-    # VAT Withholding Voucher guarda la respuesta HKA en hka_response
-    if doctype == "VAT Withholding Voucher":
+    # VAT/ISLR Withholding Voucher guarda la respuesta HKA en hka_response
+    if doctype in ("VAT Withholding Voucher", "ISLR Withholding Voucher"):
         raw_hka = doc.hka_response or ""
     else:
         raw_hka = doc.remarks or ""
@@ -401,12 +401,13 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     if not numero_documento:
         return {"base64": None, "error": "No se encontró el número de documento en los datos HKA."}
 
-    # Catálogo SENIAT: 01=Factura, 02=NC, 03=ND, 05=Retención
+    # Catálogo SENIAT: 01=Factura, 02=NC, 03=ND, 05=Retención IVA, 06=Retención ISLR
     document_map = {
         "Sales Invoice": "01",
         "VE Sales Credit Note": "02",
         "VE Sales Debit Note": "03",
         "VAT Withholding Voucher": "05",
+        "ISLR Withholding Voucher": "06",
     }
 
     tipo_documento = document_map.get(doctype)

@@ -77,6 +77,22 @@ frappe.ui.form.on("VAT Withholding Voucher", {
       }
     }
 
+    // Mensaje informativo sobre emisión digital
+    if (frm.doc.docstatus === 1) {
+      if (!frm.doc.digital_invoice_status || frm.doc.digital_invoice_status === "Error") {
+        frm.set_intro(
+          __("Este comprobante será emitido automáticamente por el sistema en los próximos minutos. "
+            + "Si desea emitirlo de inmediato, use el botón <b>\"Emitir\"</b> en el menú Factura Digital."),
+          "blue"
+        );
+      } else if (frm.doc.digital_invoice_status === "Sent") {
+        frm.set_intro(
+          __("Comprobante emitido exitosamente ante la imprenta fiscal digital."),
+          "green"
+        );
+      }
+    }
+
     // Botón de envío/reenvío manual a HKA (cuando no se ha enviado o hay error)
     if (
       frm.doc.docstatus === 1 &&
@@ -188,7 +204,7 @@ frappe.ui.form.on("VAT Withholding Voucher", {
   onload: function (frm) {
     if (frm.doc.__islocal && !frm.doc.amended_from) {
       const company_name = frm.doc.empresa;
-      const today = new Date();
+      const today = frappe.datetime.get_today();
 
       if (company_name) {
         frm
@@ -407,122 +423,13 @@ function fields_read_only(frm, fields) {
 }
 
 /**
- * Renderiza la vista previa del documento fiscal HKA en el comprobante de retención.
- * Lee los datos desde hka_response (a diferencia de Sales Invoice que usa remarks).
+ * Renderiza la vista previa del documento fiscal HKA en el comprobante IVA.
+ * Utiliza el helper compartido render_fiscal_preview.
  */
 function render_retention_fiscal_preview(frm) {
-  const wrapper = frm.fields_dict["hka_preview"];
-  if (!wrapper || frm.is_new()) return;
-
-  const raw = frm.doc.hka_response || "";
-  if (!raw || !raw.includes('"urlConsulta"')) {
-    wrapper.$wrapper.html("");
-    return;
-  }
-
-  let hka;
-  try {
-    const data = JSON.parse(raw);
-    const resultado = (data && data.resultado) || {};
-    hka = {
-      url_consulta: resultado.urlConsulta || "",
-      numero_control: resultado.numeroControl || "",
-      numero_documento: resultado.numeroDocumento || "",
-    };
-  } catch (e) {
-    wrapper.$wrapper.html("");
-    return;
-  }
-
-  if (!hka.numero_documento) {
-    wrapper.$wrapper.html("");
-    return;
-  }
-
-  const esc = frappe.utils.escape_html;
-  wrapper.$wrapper.html(`
-    <div class="fiscal-preview">
-      <div class="fiscal-preview__header"
-        onclick="this.parentElement.querySelector('.fiscal-preview__body').classList.toggle('fiscal-preview--collapsed')">
-        <div class="fiscal-preview__header-left">
-          <svg class="fiscal-preview__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="1" y="1" width="14" height="14" rx="2" stroke-width="1.5" fill="none"/>
-            <path d="M4 5h8M4 8h6M4 11h4" stroke-width="1.2" stroke-linecap="round"/>
-          </svg>
-          <span class="fiscal-preview__title">Comprobante Fiscal Digital</span>
-        </div>
-        <div class="fiscal-preview__header-right">
-          ${hka.numero_documento ? `<span class="fiscal-preview__meta">Doc: <strong>${esc(hka.numero_documento)}</strong></span>` : ""}
-          ${hka.numero_control ? `<span class="fiscal-preview__meta">Control: <strong>${esc(hka.numero_control)}</strong></span>` : ""}
-          ${
-            hka.url_consulta
-              ? `<a href="${esc(hka.url_consulta)}"
-              class="fiscal-preview__open-link"
-              target="_blank" rel="noopener noreferrer"
-              title="Abrir en nueva pestaña"
-              onclick="event.stopPropagation();">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M9 6.5v3a1 1 0 01-1 1H2.5a1 1 0 01-1-1V4a1 1 0 011-1H5.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                <path d="M7 1.5h3.5V5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M5 7l5.5-5.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-              </svg>
-              Abrir
-            </a>`
-              : ""
-          }
-        </div>
-      </div>
-      <div class="fiscal-preview__body">
-        <div class="fiscal-preview__loading">
-          <div class="spinner-border text-muted" role="status"></div>
-          <span>Descargando comprobante fiscal desde TFHKA...</span>
-        </div>
-      </div>
-    </div>
-  `);
-
-  frappe.call({
-    method: "l10n_ve.digital_invoice.tfhka_client.get_fiscal_invoice_pdf",
-    args: { invoice_name: frm.doc.name, doctype: "VAT Withholding Voucher" },
-    callback: function (r) {
-      const body = wrapper.$wrapper.find(".fiscal-preview__body");
-      if (!r.message || !r.message.base64) {
-        body.html(`
-          <div class="fiscal-preview__fallback">
-            <p>${r.message ? r.message.error : "No se pudo cargar la vista previa."}</p>
-            ${
-              hka.url_consulta
-                ? `<a href="${esc(hka.url_consulta)}" target="_blank" rel="noopener noreferrer">
-                Ver comprobante en el portal de TFHKA →
-              </a>`
-                : ""
-            }
-          </div>
-        `);
-        return;
-      }
-
-      body.html(`
-        <iframe
-          src="data:application/pdf;base64,${r.message.base64}"
-          style="width: 100%; height: 600px; border: none; display: block;"
-        ></iframe>
-      `);
-    },
-    error: function () {
-      const body = wrapper.$wrapper.find(".fiscal-preview__body");
-      body.html(`
-        <div class="fiscal-preview__fallback">
-          <p>Error al conectar con TFHKA.</p>
-          ${
-            hka.url_consulta
-              ? `<a href="${esc(hka.url_consulta)}" target="_blank" rel="noopener noreferrer">
-              Ver comprobante en el portal de TFHKA →
-            </a>`
-              : ""
-          }
-        </div>
-      `);
-    },
+  render_fiscal_preview(frm, {
+    doctype: "VAT Withholding Voucher",
+    title: "Comprobante Fiscal Digital",
   });
 }
+
