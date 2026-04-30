@@ -48,6 +48,57 @@ class TaxesMixin:
 
         self.base_total_with_vat = result
 
+    # Prioridad de ordenamiento para la tabla de impuestos.
+    # Menor número = aparece primero.
+    _TAX_SORT_PRIORITY: dict[str, int] = {
+        "On Net Total": 0,
+        "On Previous Row Amount": 0,
+        "On Previous Row Total": 0,
+        "On Item Quantity": 0,
+        "VAT": 0,
+        "Actual": 0,
+        "VAT Withholding": 1,
+        "ISLR": 2,
+    }
+
+    def _sort_and_reindex_taxes(self) -> None:
+        """Ordena las filas de impuestos por prioridad fiscal y reindexar.
+
+        Orden resultante:
+        1. Impuestos base (VAT, On Net Total, etc.)
+        2. Retención de IVA (VAT Withholding)
+        3. Retención de ISLR (ISLR)
+        """
+        if not self.taxes:
+            return
+
+        self.taxes.sort(
+            key=lambda tax: self._TAX_SORT_PRIORITY.get(tax.charge_type, 0)
+        )
+
+        for i, tax in enumerate(self.taxes, start=1):
+            tax.idx = i
+
+    def _ensure_tax_cost_centers(self) -> None:
+        """Asigna cost_center a las filas de impuestos que no lo tengan.
+
+        Prioridad:
+        1. cost_center del documento (self.cost_center)
+        2. cost_center por defecto de la compañía
+        """
+        if not self.taxes:
+            return
+
+        default_cost_center: str = (
+            getattr(self, "cost_center", "")
+            or frappe.get_cached_value("Company", self.company, "cost_center")
+            or ""
+        )
+
+        for tax in self.taxes:
+            if not tax.get("cost_center") and default_cost_center:
+                tax.cost_center = default_cost_center
+
     # ------------------------------ OVERRIDES ------------------------------ #
 
     def set_taxes_and_charges(self) -> None:
@@ -55,9 +106,8 @@ class TaxesMixin:
 
         self.set_tax_withholding_ve()
         self.set_islr_withholding_ve()
-
-        for i, tax in enumerate(self.taxes or [], start=1):
-            tax.idx = i
+        self._sort_and_reindex_taxes()
+        self._ensure_tax_cost_centers()
 
     def calculate_taxes_and_totals(self) -> None:
         taxes_and_totals_calculator = TaxesAndTotals(self)
@@ -133,7 +183,16 @@ class TaxesMixin:
         self.append("taxes", withholding)
 
     def set_islr_withholding_ve(self) -> None:
-        """Agrega retención ISLR a la tabla de impuestos para documentos de venta."""
+        """Agrega retención ISLR a la tabla de impuestos.
+
+        - Ventas: se asigna automáticamente desde Customer.tabulator_islr.
+        - Compras: se asigna manualmente vía diálogo en el formulario.
+          Aquí solo se preservan las filas ISLR existentes.
+        """
+        if self.doctype in DocumentTransactionType.__PURCHASE_DOCTYPES__:
+            # En compras el ISLR se agrega manualmente; no limpiar ni auto-asignar
+            return
+
         if self.doctype not in DocumentTransactionType.__SALES_INVOICE_DOCTYPES__:
             return
 

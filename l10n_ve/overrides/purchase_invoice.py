@@ -507,21 +507,24 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                     )
 
     def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
-        """Genera el asiento contable para retenciones de IVA en compras.
+        """Genera los asientos contables para retenciones de IVA e ISLR en compras.
 
-        Solo crea el CRÉDITO a la cuenta de retención (ej: 2105002).
+        Solo crea el CRÉDITO a la cuenta de retención correspondiente.
         No toca la cuenta payable porque make_supplier_gl_entry ya usa
-        el grand_total neto (descontada la retención).
+        el grand_total neto (descontadas ambas retenciones).
 
-        Asiento resultante (ejemplo: Base 100 + IVA 16% = 116, Ret 75%):
+        Asiento resultante (ejemplo: Base 100 + IVA 16% = 116, Ret IVA 75%, Ret ISLR 5%):
           DÉBITO  Gasto           100  (make_item_gl_entries)
           DÉBITO  IVA Crédito      16  (make_tax_gl_entries)
-          CRÉDITO Proveedor       104  (make_supplier_gl_entry, grand_total neto)
+          CRÉDITO Proveedor        99  (make_supplier_gl_entry, grand_total neto)
           CRÉDITO Retención IVA    12  (esta función)
+          CRÉDITO Retención ISLR    5  (esta función)
           Total: 116 = 116 ✅
         """
+        withholding_charge_types: tuple[str, ...] = ("VAT Withholding", "ISLR")
+
         for tax in self.get("taxes"):
-            if tax.charge_type != 'VAT Withholding':
+            if tax.charge_type not in withholding_charge_types:
                 continue
 
             base_tds_amount: float = abs(tax.base_tax_amount_after_discount_amount)
@@ -548,3 +551,255 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                     item=tax,
                 )
             )
+
+    # ------------------------------------------------------------------ #
+    # ISLR — Asignación manual de retención en Purchase Invoice            #
+    # ------------------------------------------------------------------ #
+
+    @frappe.whitelist()
+    def set_islr_concept(self, tabulator_name: str) -> None:
+        """Calcula y agrega la retención de ISLR en la tabla de impuestos.
+
+        Flujo:
+        1. Valida prerequisitos (proveedor, cuenta ISLR)
+        2. Busca la alícuota según tipo de persona del proveedor
+        3. Calcula el monto de retención
+        4. Agrega la fila ISLR como Deduct en Purchase Taxes and Charges
+        """
+        if not tabulator_name:
+            frappe.throw(_("Debe seleccionar un concepto de ISLR."))
+
+        type_of_person, islr_account = self._validate_islr_prerequisites()
+
+        tabulator, aliquot_info = self._get_islr_aliquot(
+            tabulator_name, type_of_person
+        )
+
+        self._validate_no_duplicate_islr(tabulator.codigo)
+
+        islr_amount: float = self._calculate_islr_amount(aliquot_info)
+        if islr_amount <= 0:
+            frappe.msgprint(
+                _("El monto de retención de ISLR calculado es cero o negativo. "
+                  "No se agregó retención.")
+            )
+            return
+
+        tax_row: dict = self._build_islr_tax_row(
+            tabulator, aliquot_info, islr_amount, islr_account
+        )
+        self.append("taxes", tax_row)
+
+        self._reindex_taxes()
+        self.calculate_taxes_and_totals()
+        self.save()
+
+        frappe.msgprint(
+            _("Retención de ISLR agregada: {0} ({1})").format(
+                frappe.format_value(islr_amount, {"fieldtype": "Currency"}),
+                tax_row["description"]
+            ),
+            indicator="green",
+            alert=True
+        )
+
+    @frappe.whitelist()
+    def remove_islr_concept(self) -> None:
+        """Elimina la retención de ISLR de la tabla de impuestos."""
+        has_islr: bool = any(
+            tax.get("charge_type") == "ISLR" for tax in self.taxes or []
+        )
+
+        if not has_islr:
+            frappe.msgprint(
+                _("No hay retención de ISLR para eliminar."),
+                indicator="orange",
+                alert=True
+            )
+            return
+
+        self._remove_existing_islr_taxes()
+        self._reindex_taxes()
+        self.calculate_taxes_and_totals()
+        self.save()
+
+        frappe.msgprint(
+            _("Retención de ISLR eliminada exitosamente."),
+            indicator="green",
+            alert=True
+        )
+
+    # ------------------------------------------------------------------ #
+    # Helpers privados para ISLR                                           #
+    # ------------------------------------------------------------------ #
+
+    def _validate_islr_prerequisites(self) -> tuple[str, str]:
+        """Valida que el proveedor y la compañía tengan la configuración ISLR.
+
+        Returns:
+            tuple: (type_of_person, islr_account)
+        """
+        type_of_person: str = frappe.db.get_value(
+            "Supplier", self.supplier, "type_of_person"
+        ) or ""
+        if not type_of_person:
+            frappe.throw(
+                _("El proveedor {0} no tiene configurado el Tipo de Persona.").format(
+                    self.supplier
+                )
+            )
+
+        islr_account: str = frappe.get_cached_value(
+            "Company", self.company, "purchase_islr_account"
+        ) or ""
+        if not islr_account:
+            frappe.throw(
+                _("La cuenta de ISLR de compras no está configurada "
+                  "en la Compañía {0}.").format(self.company)
+            )
+
+        return type_of_person, islr_account
+
+    def _get_islr_aliquot(
+        self, tabulator_name: str, type_of_person: str
+    ) -> tuple:
+        """Obtiene el tabulador y la alícuota correspondiente al tipo de persona.
+
+        Returns:
+            tuple: (tabulator_doc, aliquot_row)
+        """
+        tabulator = frappe.get_cached_doc("Tabulator ISLR", tabulator_name)
+        if not tabulator.aliquot:
+            frappe.throw(
+                _("El tabulador {0} no tiene alícuotas configuradas.").format(
+                    tabulator_name
+                )
+            )
+
+        aliquot_info = next(
+            (
+                aq for aq in tabulator.aliquot
+                if aq.types_of_person == type_of_person and flt(aq.aliquot) > 0
+            ),
+            None
+        )
+        if not aliquot_info:
+            frappe.throw(
+                _("No se encontró alícuota para el tipo de persona '{0}' "
+                  "en el tabulador '{1}'.").format(type_of_person, tabulator_name)
+            )
+
+        return tabulator, aliquot_info
+
+    def _calculate_islr_amount(self, aliquot_info) -> float:
+        """Calcula el monto de retención ISLR sobre la base imponible.
+
+        Fórmula: (total × %base / 100 × alícuota / 100) - sustraendo
+        """
+        base_amount: float = flt(self.total)
+        tax_base: float = flt(
+            base_amount * flt(aliquot_info.percentage_base) / 100, 2
+        )
+        return flt(
+            (tax_base * flt(aliquot_info.aliquot) / 100)
+            - flt(aliquot_info.subtracting), 2
+        )
+
+    def _build_islr_tax_row(
+        self, tabulator, aliquot_info, islr_amount: float, islr_account: str
+    ) -> dict:
+        """Construye el diccionario para la fila ISLR en Purchase Taxes and Charges."""
+        description: str = (
+            f"ISLR {tabulator.codigo} {tabulator.descripcion}"
+            f" ({flt(aliquot_info.aliquot)}%)"
+        )
+
+        return {
+            "charge_type": "ISLR",
+            "category": "Total",
+            "add_deduct_tax": "Deduct",
+            "description": description,
+            "is_tax_withholding_account": True,
+            "account_head": islr_account,
+            "tax_amount": islr_amount,
+            "base_tax_amount": islr_amount,
+            "rate": flt(aliquot_info.aliquot),
+            "percentage_base": flt(aliquot_info.percentage_base),
+            "subtracting": flt(aliquot_info.subtracting),
+            "code": tabulator.codigo,
+            "tabulator_islr": tabulator.name,
+        }
+
+    def _validate_no_duplicate_islr(self, codigo: str) -> None:
+        """Valida que no exista ya una retención ISLR con el mismo código."""
+        existing_codes: list[str] = [
+            tax.get("code", "") for tax in self.taxes or []
+            if tax.get("charge_type") == "ISLR"
+        ]
+        if codigo in existing_codes:
+            frappe.throw(
+                _("Ya existe una retención ISLR con el código '{0}' "
+                  "en esta factura.").format(codigo)
+            )
+
+    def _remove_existing_islr_taxes(self) -> None:
+        """Elimina todas las filas ISLR existentes de la tabla de impuestos."""
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if tax.get("charge_type") != "ISLR"
+        ]
+
+    def _reindex_taxes(self) -> None:
+        """Ordena y reindexar las filas de impuestos después de agregar o eliminar."""
+        self._sort_and_reindex_taxes()
+
+
+@frappe.whitelist()
+def get_tabulators_by_person_type(
+    doctype: str,
+    txt: str,
+    searchfield: str,
+    start: int,
+    page_len: int,
+    filters: dict,
+) -> list[tuple]:
+    """Filtra Tabuladores ISLR que tengan alícuota para el tipo de persona indicado.
+
+    Se usa como query del campo Link en el diálogo de ISLR de Purchase Invoice.
+    Excluye tabuladores cuyos códigos ya están en la factura (existing_codes).
+    """
+    type_of_person: str = filters.get("type_of_person", "")
+    existing_codes: list[str] = filters.get("existing_codes") or []
+
+    # Asegurar que sea una lista (puede llegar como string JSON desde el frontend)
+    if isinstance(existing_codes, str):
+        import json
+        try:
+            existing_codes = json.loads(existing_codes)
+        except (json.JSONDecodeError, TypeError):
+            existing_codes = [existing_codes] if existing_codes else []
+
+    exclusion_clause: str = ""
+    if existing_codes:
+        escaped: list[str] = [frappe.db.escape(code) for code in existing_codes]
+        exclusion_clause = f"AND t.codigo NOT IN ({', '.join(escaped)})"
+
+    return frappe.db.sql(
+        f"""
+        SELECT DISTINCT t.name, t.codigo, t.descripcion
+        FROM `tabTabulator ISLR` t
+        INNER JOIN `tabTabulator ISLR Aliquots` a ON a.parent = t.name
+        WHERE a.types_of_person = %(type_of_person)s
+            AND a.aliquot > 0
+            AND (t.name LIKE %(txt)s OR t.codigo LIKE %(txt)s OR t.descripcion LIKE %(txt)s)
+            {exclusion_clause}
+        ORDER BY t.codigo
+        LIMIT %(page_len)s OFFSET %(start)s
+        """,
+        {
+            "type_of_person": type_of_person,
+            "txt": f"%{txt}%",
+            "start": start,
+            "page_len": page_len,
+        },
+    )
