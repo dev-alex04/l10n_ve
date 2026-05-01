@@ -65,8 +65,8 @@ class TestISLRPayloadBuilder(FrappeTestCase):
     # Estructura general del payload
     # ─────────────────────────────────────────────
 
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.db.get_value", return_value=None)
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
     def test_payload_structure(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
         """Verifica estructura raíz: documentoElectronico con encabezado y detallesRetencion."""
         doc = _make_islr_doc()
@@ -78,8 +78,8 @@ class TestISLRPayloadBuilder(FrappeTestCase):
         self.assertIn("encabezado", de)
         self.assertIn("detallesRetencion", de)
 
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.db.get_value", return_value=None)
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
     def test_tipo_documento_is_06(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
         """tipoDocumento debe ser '06' para ISLR."""
         doc = _make_islr_doc()
@@ -89,8 +89,8 @@ class TestISLRPayloadBuilder(FrappeTestCase):
         id_doc: dict = payload["documentoElectronico"]["encabezado"]["identificacionDocumento"]
         self.assertEqual(id_doc["tipoDocumento"], "06")
 
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.db.get_value", return_value=None)
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
     def test_transaction_id_prefix(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
         """transaccionId debe iniciar con 'RISLR'."""
         doc = _make_islr_doc()
@@ -104,8 +104,8 @@ class TestISLRPayloadBuilder(FrappeTestCase):
     # totalesRetencion
     # ─────────────────────────────────────────────
 
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.db.get_value", return_value=None)
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
     def test_retention_totals_islr(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
         """totalISRL debe coincidir con totals_islr_amount formateado."""
         doc = _make_islr_doc()
@@ -115,8 +115,8 @@ class TestISLRPayloadBuilder(FrappeTestCase):
         totales: dict = payload["documentoElectronico"]["encabezado"]["totalesRetencion"]
         self.assertEqual(totales["totalISRL"], "9723.92")
 
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.db.get_value", return_value=None)
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
     def test_retention_totals_base_imponible(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
         """totalBaseImponible debe coincidir con totals_islr_base_amount."""
         doc = _make_islr_doc()
@@ -130,8 +130,8 @@ class TestISLRPayloadBuilder(FrappeTestCase):
     # detallesRetencion (líneas individuales)
     # ─────────────────────────────────────────────
 
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.db.get_value", return_value=None)
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
     def test_detail_porcentaje_conversion(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
         """rate=5 → porcentaje='0.05' (HKA espera fracción decimal)."""
         doc = _make_islr_doc()
@@ -142,8 +142,8 @@ class TestISLRPayloadBuilder(FrappeTestCase):
         self.assertEqual(detail["porcentaje"], "0.05")
         self.assertEqual(detail["porcentajeRetencion"], "0.05")
 
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.db.get_value", return_value=None)
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
     def test_detail_fecha_formato(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
         """fechaDocumento debe estar en formato DD/MM/YYYY."""
         doc = _make_islr_doc()
@@ -153,8 +153,8 @@ class TestISLRPayloadBuilder(FrappeTestCase):
         detail: dict = payload["documentoElectronico"]["detallesRetencion"][0]
         self.assertEqual(detail["fechaDocumento"], "15/04/2026")
 
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.db.get_value", return_value=None)
-    @patch("l10n_ve.digital_invoice.base_whithholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
     def test_detail_codigo_concepto(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
         """codigoConcepto debe mapear item.code correctamente."""
         doc = _make_islr_doc()

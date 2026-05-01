@@ -10,7 +10,9 @@
  * @param {string} [options.preview_field="hka_preview"] - Nombre del campo HTML wrapper.
  * @param {string} [options.response_field="hka_response"] - Nombre del campo con la respuesta HKA.
  */
-function render_fiscal_preview(frm, options = {}) {
+frappe.l10n_ve = frappe.l10n_ve || {};
+
+frappe.l10n_ve.render_fiscal_preview = function (frm, options = {}) {
   const {
     doctype,
     title = "Comprobante Fiscal Digital",
@@ -132,4 +134,4 @@ function render_fiscal_preview(frm, options = {}) {
       `);
     },
   });
-}
+};

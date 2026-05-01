@@ -10,7 +10,7 @@ import time
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, nowdate, add_months
 
 from l10n_ve.digital_invoice.islr_payload_builder import TFHKAISLRPayloadBuilder
 from l10n_ve.digital_invoice.retention_integration import (
@@ -171,7 +171,9 @@ def send_pending_islr_vouchers(tfhka_settings: dict) -> None:
     Args:
         tfhka_settings: Configuración de TFHKA con cutoff_date.
     """
-    cutoff_date: str = tfhka_settings.get("cutoff_date", "2026-04-01")
+    cutoff_date: str = tfhka_settings.get(
+        "cutoff_date", add_months(nowdate(), -3)
+    )
 
     pending: list[str] = _get_pending_islr_vouchers(cutoff_date)
     if not pending:

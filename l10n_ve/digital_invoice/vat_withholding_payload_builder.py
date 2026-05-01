@@ -6,7 +6,7 @@ para reutilizar la lógica compartida con ISLR.
 """
 from frappe.utils import flt, getdate
 
-from l10n_ve.digital_invoice.base_whithholding_builder import BaseRetentionPayloadBuilder
+from l10n_ve.digital_invoice.base_withholding_builder import BaseRetentionPayloadBuilder
 
 
 class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):

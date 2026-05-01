@@ -37,6 +37,8 @@ class WithholdingVoucher():
     @frappe.whitelist()
     def mark_as_declared(self) -> bool:
         """Marca un comprobante como declarado ante el SENIAT."""
+        frappe.has_permission(self.doctype, "write", doc=self, throw=True)
+
         if self.docstatus != 1:
             frappe.throw(
                 _("Solo se pueden marcar como declarados los comprobantes "

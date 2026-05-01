@@ -128,7 +128,7 @@ class TaxesMixin:
             if not tax.get('is_tax_withholding_account') or tax.get('charge_type') == 'ISLR'
         ]
 
-        if self.doctype in ("Purchase Invoice", "Purchase Order", "Supplier Quotation"):
+        if self.doctype in DocumentTransactionType.__PURCHASE_DOCTYPES__:
             if not bool(frappe.db.get_value('Company',
                                             self.company,
                                             'is_special_taxpayer')):

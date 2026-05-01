@@ -1,3 +1,5 @@
+import json
+
 import frappe
 from frappe import _
 from frappe.utils import flt, get_link_to_form, getdate
@@ -506,22 +508,34 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                         )
                     )
 
+    def _grand_total_includes_withholding(self) -> bool:
+        """Indica si base_grand_total incluye las retenciones (bruto).
+
+        En Purchase Invoice, calculate_taxes_and_totals deduce las retenciones
+        del grand_total → base_grand_total ya es neto → NO se necesita DR al AP.
+
+        Subclases como VE Purchase Credit Note pueden override este método
+        para retornar True cuando su grand_total es bruto.
+        """
+        return False
+
     def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
         """Genera los asientos contables para retenciones de IVA e ISLR en compras.
 
-        Solo crea el CRÉDITO a la cuenta de retención correspondiente.
-        No toca la cuenta payable porque make_supplier_gl_entry ya usa
-        el grand_total neto (descontadas ambas retenciones).
+        Crea CRÉDITO a la cuenta de retención correspondiente.
+        Opcionalmente crea DÉBITO al AP cuando grand_total incluye las retenciones
+        (caso VE Purchase Credit Note donde grand_total es bruto).
 
-        Asiento resultante (ejemplo: Base 100 + IVA 16% = 116, Ret IVA 75%, Ret ISLR 5%):
-          DÉBITO  Gasto           100  (make_item_gl_entries)
-          DÉBITO  IVA Crédito      16  (make_tax_gl_entries)
-          CRÉDITO Proveedor        99  (make_supplier_gl_entry, grand_total neto)
-          CRÉDITO Retención IVA    12  (esta función)
-          CRÉDITO Retención ISLR    5  (esta función)
-          Total: 116 = 116 ✅
+        Flujo Purchase Invoice (grand_total neto = 99):
+          DR Gasto 100 + DR IVA 16 = 116
+          CR AP 99 + CR Ret IVA 12 + CR Ret ISLR 5 = 116 ✅
+
+        Flujo VE Purchase Credit Note (grand_total bruto = 116):
+          DR Gasto 100 + DR IVA 16 + DR AP 12 + DR AP 5 = 133
+          CR AP 116 + CR Ret IVA 12 + CR Ret ISLR 5 = 133 ✅
         """
         withholding_charge_types: tuple[str, ...] = ("VAT Withholding", "ISLR")
+        needs_ap_debit: bool = self._grand_total_includes_withholding()
 
         for tax in self.get("taxes"):
             if tax.charge_type not in withholding_charge_types:
@@ -532,6 +546,10 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
             if not flt(base_tds_amount) and not flt(tds_amount):
                 continue
+
+            # DÉBITO a cuenta AP solo cuando grand_total no descuenta retenciones
+            if needs_ap_debit:
+                self.add_supplier_gl_entry(gl_entries, -base_tds_amount, -tds_amount)
 
             # CRÉDITO a cuenta de retención (obligación fiscal)
             account_currency: str = get_account_currency(tax.account_head)
@@ -590,7 +608,7 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
         )
         self.append("taxes", tax_row)
 
-        self._reindex_taxes()
+        self._sort_and_reindex_taxes()
         self.calculate_taxes_and_totals()
         self.save()
 
@@ -619,7 +637,7 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
             return
 
         self._remove_existing_islr_taxes()
-        self._reindex_taxes()
+        self._sort_and_reindex_taxes()
         self.calculate_taxes_and_totals()
         self.save()
 
@@ -749,9 +767,6 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
             if tax.get("charge_type") != "ISLR"
         ]
 
-    def _reindex_taxes(self) -> None:
-        """Ordena y reindexar las filas de impuestos después de agregar o eliminar."""
-        self._sort_and_reindex_taxes()
 
 
 @frappe.whitelist()
@@ -773,16 +788,26 @@ def get_tabulators_by_person_type(
 
     # Asegurar que sea una lista (puede llegar como string JSON desde el frontend)
     if isinstance(existing_codes, str):
-        import json
         try:
             existing_codes = json.loads(existing_codes)
         except (json.JSONDecodeError, TypeError):
             existing_codes = [existing_codes] if existing_codes else []
 
+    params: dict = {
+        "type_of_person": type_of_person,
+        "txt": f"%{txt}%",
+        "start": start,
+        "page_len": page_len,
+    }
+
     exclusion_clause: str = ""
     if existing_codes:
-        escaped: list[str] = [frappe.db.escape(code) for code in existing_codes]
-        exclusion_clause = f"AND t.codigo NOT IN ({', '.join(escaped)})"
+        placeholders: list[str] = []
+        for i, code in enumerate(existing_codes):
+            key: str = f"exc_{i}"
+            placeholders.append(f"%({key})s")
+            params[key] = code
+        exclusion_clause = f"AND t.codigo NOT IN ({', '.join(placeholders)})"
 
     return frappe.db.sql(
         f"""
@@ -796,10 +821,5 @@ def get_tabulators_by_person_type(
         ORDER BY t.codigo
         LIMIT %(page_len)s OFFSET %(start)s
         """,
-        {
-            "type_of_person": type_of_person,
-            "txt": f"%{txt}%",
-            "start": start,
-            "page_len": page_len,
-        },
+        params,
     )

@@ -11,7 +11,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
-from l10n_ve.digital_invoice.vat_whithholding_payload_builder import TFHKARetentionPayloadBuilder
+from l10n_ve.digital_invoice.vat_withholding_payload_builder import TFHKARetentionPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 
 

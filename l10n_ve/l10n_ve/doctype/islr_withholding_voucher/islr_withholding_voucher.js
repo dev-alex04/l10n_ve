@@ -399,10 +399,10 @@ function fields_read_only(frm, fields) {
 
 /**
  * Renderiza la vista previa del documento fiscal HKA en el comprobante ISLR.
- * Utiliza el helper compartido render_fiscal_preview.
+ * Utiliza el helper compartido frappe.l10n_ve.render_fiscal_preview.
  */
 function render_islr_fiscal_preview(frm) {
-  render_fiscal_preview(frm, {
+  frappe.l10n_ve.render_fiscal_preview(frm, {
     doctype: "ISLR Withholding Voucher",
     title: "Comprobante Fiscal Digital (ISLR)",
   });

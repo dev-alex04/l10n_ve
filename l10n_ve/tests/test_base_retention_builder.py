@@ -16,7 +16,7 @@ de retención IVA (tipo 05) e ISLR (tipo 06):
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from l10n_ve.digital_invoice.base_whithholding_builder import BaseRetentionPayloadBuilder
+from l10n_ve.digital_invoice.base_withholding_builder import BaseRetentionPayloadBuilder
 
 
 class TestParseRIF(FrappeTestCase):

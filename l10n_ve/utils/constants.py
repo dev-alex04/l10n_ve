@@ -13,6 +13,8 @@ class DocumentTransactionType:
         'Purchase Receipt',
         'Purchase Invoice',
         'Supplier Quotation',
+        'VE Purchase Credit Note',
+        'VE Purchase Debit Note',
     ]
 
     __SALES_INVOICE_DOCTYPES__ = [
@@ -26,4 +28,6 @@ class DocumentTransactionType:
         'Sales Invoice',
         'VE Sales Credit Note',
         'VE Sales Debit Note',
+        'VE Purchase Credit Note',
+        'VE Purchase Debit Note',
     ]
