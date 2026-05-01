@@ -12,6 +12,8 @@ const __VE_DOCTYPES_JS__ = [
   "Purchase Order",
   "Purchase Invoice",
   "Purchase Receipt",
+  "VE Purchase Credit Note",
+  "VE Purchase Debit Note",
 ];
 
 // ------------------------------------------------------------------ //
@@ -387,7 +389,12 @@ const _original_calculate_outstanding_amount =
 erpnext.taxes_and_totals.prototype.calculate_outstanding_amount = function (
   update_paid_amount,
 ) {
-  const ve_invoice_doctypes = ["VE Sales Credit Note", "VE Sales Debit Note"];
+  const ve_invoice_doctypes = [
+    "VE Sales Credit Note",
+    "VE Sales Debit Note",
+    "VE Purchase Credit Note",
+    "VE Purchase Debit Note",
+  ];
 
   if (!ve_invoice_doctypes.includes(this.frm.doc.doctype)) {
     return _original_calculate_outstanding_amount.call(
@@ -441,7 +448,12 @@ erpnext.taxes_and_totals.prototype.calculate_taxes_and_totals = async function (
 ) {
   await _original_calculate_taxes_and_totals.call(this, update_paid_amount);
 
-  const ve_invoice_doctypes = ["VE Sales Credit Note", "VE Sales Debit Note"];
+  const ve_invoice_doctypes = [
+    "VE Sales Credit Note",
+    "VE Sales Debit Note",
+    "VE Purchase Credit Note",
+    "VE Purchase Debit Note",
+  ];
   if (
     ve_invoice_doctypes.includes(this.frm.doc.doctype) &&
     this.frm.doc.docstatus < 2
@@ -473,7 +485,8 @@ function recalculate_ve_document(frm) {
         frappe.flags.round_off_applicable_accounts = [];
       }
 
-      calc.calculate_taxes_and_totals()
+      calc
+        .calculate_taxes_and_totals()
         .then(() => {
           frm.refresh_fields();
         })

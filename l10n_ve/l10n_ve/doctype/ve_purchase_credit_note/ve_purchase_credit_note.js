@@ -28,6 +28,8 @@ frappe.ui.form.on("VE Purchase Credit Note", {
   },
 
   refresh: function (frm) {
+    calculate_base_total_with_vat(frm);
+
     // Vista previa del asiento contable
     erpnext.accounts.ledger_preview.show_accounting_ledger_preview(frm);
 

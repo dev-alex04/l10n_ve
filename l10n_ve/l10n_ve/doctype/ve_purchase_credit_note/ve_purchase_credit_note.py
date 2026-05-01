@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, getdate
 
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
 
@@ -46,6 +46,7 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         self._validate_credit_note_number()
         # Impide que PurchaseInvoice.validate() resetee posting_date
         self.set_posting_time = 1
+        self._validate_bill_date()
         self._run_super_validate_safely()
         self._set_base_total_with_vat()
 
@@ -58,6 +59,7 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         self.update_outstanding_for_self = 0
         self._init_pi_defaults()
         super().on_submit()
+        self._update_parent_invoice_status()
 
     def before_cancel(self) -> None:
         """
@@ -73,6 +75,17 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         self.update_outstanding_for_self = 0
         self._init_pi_defaults()
         super().on_cancel()
+        self._update_parent_invoice_status()
+
+    def _update_parent_invoice_status(self) -> None:
+        """Recalcula el status de la PI original tras emitir/cancelar esta NC."""
+        if not self.return_against:
+            return
+        if not frappe.db.exists("Purchase Invoice", self.return_against):
+            return
+
+        pi = frappe.get_doc("Purchase Invoice", self.return_against)
+        pi.set_status(update=True)
 
     def validate_against_voucher_outstanding(self) -> None:
         """
@@ -303,6 +316,7 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
             self.set("taxes", impuestos_base)
 
         self.set_tax_withholding_ve()
+        self.set_islr_withholding_ve()
 
         for i, tax in enumerate(self.taxes or [], start=1):
             tax.idx = i
@@ -346,9 +360,9 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
                 if value:
                     entry[field] = -1 * flt(value)
 
-            # against_voucher_type debe coincidir con el doctype del against_voucher.
-            # Cuando against_voucher == return_against (la PI original), el tipo
-            # debe ser "Purchase Invoice", no "VE Purchase Credit Note".
+            # Corrección: against_voucher_type debe coincidir con el doctype de against_voucher.
+            # Cuando against_voucher == self.return_against (la PI original), el tipo debe ser
+            # "Purchase Invoice", no "VE Purchase Credit Note".
             if (
                 entry.get("against_voucher_type") == self.doctype
                 and entry.get("against_voucher") == self.return_against
@@ -426,6 +440,17 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
             frappe.throw(
                 _("Ya existe una Nota de Crédito con el número {0} para este proveedor.").format(
                     self.bill_no
+                )
+            )
+
+    def _validate_bill_date(self) -> None:
+        """Valida que la fecha del documento del proveedor no sea posterior a posting_date."""
+        if self.bill_date and getdate(self.bill_date) > getdate(self.posting_date):
+            frappe.throw(
+                _("La fecha del documento del proveedor ({0}) no puede ser mayor "
+                  "a la fecha de contabilización ({1}).").format(
+                    frappe.format(self.bill_date, {"fieldtype": "Date"}),
+                    frappe.format(self.posting_date, {"fieldtype": "Date"}),
                 )
             )
 

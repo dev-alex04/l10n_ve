@@ -12,6 +12,7 @@
   "title",
   "bill_control",
   "bill_no",
+  "bill_date",
   "column_break_6",
   "supplier",
   "supplier_name",
@@ -21,9 +22,6 @@
   "posting_date",
   "posting_time",
   "update_outstanding_for_self",
-  "supplier_invoice_details",
-  "column_break_15",
-  "bill_date",
   "accounting_dimensions_section",
   "cost_center",
   "dimension_col_break",
@@ -265,13 +263,6 @@
    "read_only": 1
   },
   {
-   "collapsible": 1,
-   "collapsible_depends_on": "bill_no",
-   "fieldname": "supplier_invoice_details",
-   "fieldtype": "Section Break",
-   "label": "Supplier Invoice"
-  },
-  {
    "fieldname": "bill_no",
    "fieldtype": "Data",
    "label": "Numero de Nota de Cr\u00e9dito",
@@ -317,17 +308,14 @@
    "read_only": 1
   },
   {
-   "fieldname": "column_break_15",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "bill_date",
    "fieldtype": "Date",
    "label": "Supplier Invoice Date",
    "no_copy": 1,
    "oldfieldname": "bill_date",
    "oldfieldtype": "Date",
-   "print_hide": 1
+   "print_hide": 1,
+   "reqd": 1
   },
   {
    "collapsible": 1,
@@ -1072,7 +1060,7 @@
  "icon": "fa fa-file-text",
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-30 21:54:00.559615",
+ "modified": "2026-05-01 12:32:56.380253",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Purchase Credit Note",

@@ -2,7 +2,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import flt, get_link_to_form, getdate
+from frappe.utils import cint, flt, get_link_to_form, getdate
 
 import erpnext
 from erpnext.stock import get_warehouse_account_map
@@ -62,9 +62,48 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
     def validate_supplier_invoice(self) -> None:
 
-        if self.bill_date:
-            if getdate(self.bill_date) > getdate(self.posting_date):
-                frappe.throw(_("Supplier Invoice Date cannot be greater than Posting Date"))
+        if self.bill_date and getdate(self.bill_date) > getdate(self.posting_date):
+            frappe.throw(
+                _("La fecha del documento del proveedor ({0}) no puede ser mayor "
+                  "a la fecha de contabilización ({1}).").format(
+                    frappe.format(self.bill_date, {"fieldtype": "Date"}),
+                    frappe.format(self.posting_date, {"fieldtype": "Date"}),
+                )
+            )
+
+    def set_status(self, update: bool = False, status: str | None = None, update_modified: bool = True) -> None:
+        """Extiende set_status para detectar NC/ND venezolanas vinculadas.
+
+        ERPNext core solo busca Purchase Invoice con is_return=1 para marcar
+        'Debit Note Issued'. Aquí se agrega la búsqueda en los DocTypes
+        VE Purchase Credit Note y VE Purchase Debit Note.
+        """
+        super().set_status(update=False, status=status, update_modified=update_modified)
+
+        if (
+            self.status == "Paid"
+            and not cint(self.is_return)
+            and flt(self.outstanding_amount) <= 0
+            and frappe.db.exists(
+                "VE Purchase Credit Note",
+                {"return_against": self.name, "docstatus": 1},
+            )
+        ):
+            self.status = "Debit Note Issued"
+
+        if (
+            self.status not in ("Debit Note Issued",)
+            and not cint(self.is_return)
+            and not cint(self.is_debit_note)
+            and frappe.db.exists(
+                "VE Purchase Debit Note",
+                {"return_against": self.name, "docstatus": 1},
+            )
+        ):
+            self.status = "Debit Note Issued"
+
+        if update:
+            self.db_set("status", self.status, update_modified=update_modified)
 
     def validate_affected_invoice_number(self) -> None:
         # Revisa si hace falta validar con is_return
