@@ -1,12 +1,16 @@
 import re
 import frappe
 from frappe import _
+import os
 
 from frappe.utils import (
     getdate,
     get_first_day,
     get_url_to_list as url_to_list,
-    get_link_to_form as link_to_form
+    get_link_to_form as link_to_form,
+    nowdate,
+    add_months,
+    add_days
 )
 
 import erpnext
@@ -553,3 +557,65 @@ def get_ve_exchange_rate_for_customer(
         rate_date = get_first_day(getdate(date))
 
     return get_exchange_rate(str(rate_date), from_currency) or 0.0
+
+def validate_portal_upload(file_url, max_size_mb=5):
+    """
+    Valida que el archivo cargado sea una imagen o PDF y no exceda el peso permitido.
+    """
+    if not file_url:
+        return
+
+    allowed_extensions = ['.pdf', '.png', '.jpg', '.jpeg', '.webp']
+    file_ext = os.path.splitext(file_url.lower())[1]
+    
+    if file_ext not in allowed_extensions:
+        frappe.throw(_("Formato de archivo no permitido. Solo se aceptan PDF e imágenes (JPG, PNG, WebP)."))
+
+    file_info = frappe.db.get_value("File", {"file_url": file_url}, ["file_size", "file_name"], as_dict=True)
+    
+    if file_info and file_info.file_size:
+        max_size_bytes = max_size_mb * 1024 * 1024
+        if file_info.file_size > max_size_bytes:
+            frappe.delete_doc("File", frappe.db.get_value("File", {"file_url": file_url}))
+            frappe.throw(_("El archivo excede el límite de {0}MB.").format(max_size_mb))
+
+def delete_old_attachment(doc, fieldname, new_file_url=None):
+    """
+    Elimina el archivo adjunto anterior si existe y es distinto al nuevo.
+    """
+    old_file_url = doc.get(fieldname)
+    
+    # Solo actuar si hay un archivo viejo y es diferente al que se está subiendo
+    if old_file_url and old_file_url != new_file_url:
+        file_name = frappe.db.get_value("File", {"file_url": old_file_url}, "name")
+        if file_name:
+            try:
+                frappe.delete_doc("File", file_name, ignore_permissions=True, force=True)
+            except frappe.DoesNotExistError:
+                pass
+
+def get_last_day_of_month(date):
+    first_day_next_month = getdate(date).replace(day=1)
+    next_month = add_months(first_day_next_month, 1)
+    return add_days(next_month, -1)
+
+def is_period_open(voucher_date, type="IVA"):
+    if not voucher_date:
+        return True
+    
+    today = getdate(nowdate())
+    v_date = getdate(voucher_date)
+    
+    if type == "IVA":
+        if v_date.day <= 15:
+            limit_date = v_date.replace(day=15)
+        else:
+            limit_date = get_last_day_of_month(v_date)
+        
+        return today <= limit_date
+
+    elif type == "ISLR":
+        limit_date = get_last_day_of_month(v_date)
+        return today <= limit_date
+    
+    return False
