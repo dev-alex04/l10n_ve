@@ -40,7 +40,7 @@
    "fieldname": "company_address",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Direcci\u00f3n Empresa"
+   "label": "Dirección Empresa"
   },
   {
    "fieldname": "column_break_lzyc",
@@ -50,7 +50,7 @@
    "fieldname": "supplier_address",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Direcci\u00f3n Proveedor"
+   "label": "Dirección Proveedor"
   },
   {
    "fieldname": "section_break_ucxr",
@@ -135,12 +135,12 @@
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "hidden": 1,
-   "label": "Fecha Creaci\u00f3n"
+   "label": "Fecha Creación"
   },
   {
    "fieldname": "totals_islr_base_amount",
    "fieldtype": "Currency",
-   "label": "Total Objeto a Retenci\u00f3n",
+   "label": "Total Objeto a Retención",
    "read_only": 1
   },
   {
@@ -185,7 +185,7 @@
    "fieldtype": "Select",
    "hidden": 1,
    "in_list_view": 1,
-   "label": "Estado Emisi\u00f3n Digital",
+   "label": "Estado Emisión Digital",
    "no_copy": 1,
    "options": "\nPending\nSent\nError\nVoided",
    "read_only": 1
@@ -205,7 +205,7 @@
    "in_filter": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "N\u00b0 Control",
+   "label": "N° Control",
    "no_copy": 1,
    "read_only": 1,
    "search_index": 1
@@ -243,7 +243,9 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "write": 1
+   "write": 1,
+   "submit": 1,
+   "cancel": 1
   },
   {
    "create": 1,
@@ -255,7 +257,9 @@
    "report": 1,
    "role": "Accounts Manager",
    "share": 1,
-   "write": 1
+   "write": 1,
+   "submit": 1,
+   "cancel": 1
   },
   {
    "create": 1,
@@ -266,10 +270,6 @@
    "report": 1,
    "role": "Accounts User",
    "share": 1
-  },
-  {
-   "read": 1,
-   "role": "All"
   }
  ],
  "row_format": "Dynamic",

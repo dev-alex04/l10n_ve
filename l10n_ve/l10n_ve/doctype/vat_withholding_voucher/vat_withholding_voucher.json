@@ -112,7 +112,8 @@
   {
    "fieldname": "end_date",
    "fieldtype": "Date",
-   "label": "Fecha Fin"
+   "label": "Fecha Fin",
+   "reqd": 1
   },
   {
    "fieldname": "section_break_oyzq",
@@ -147,7 +148,7 @@
   {
    "fieldname": "issue_date",
    "fieldtype": "Date",
-   "label": "Fecha Emisi\u00f3n",
+   "label": "Fecha Emisión",
    "no_copy": 1,
    "reqd": 1
   },
@@ -167,7 +168,7 @@
    "fieldname": "company_address",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Direcci\u00f3n Empresa"
+   "label": "Dirección Empresa"
   },
   {
    "fieldname": "column_break_kbuz",
@@ -177,12 +178,12 @@
    "fieldname": "supplier_address",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Direcci\u00f3n Proveedor"
+   "label": "Dirección Proveedor"
   },
   {
    "fieldname": "totals_total_exempt",
    "fieldtype": "Currency",
-   "label": "Total Compras sin cr\u00e9dito fiscal",
+   "label": "Total Compras sin crédito fiscal",
    "read_only": 1
   },
   {
@@ -196,7 +197,7 @@
    "fieldtype": "Select",
    "hidden": 1,
    "in_list_view": 1,
-   "label": "Estado Emisi\u00f3n Digital",
+   "label": "Estado Emisión Digital",
    "no_copy": 1,
    "options": "\nPending\nSent\nError\nVoided",
    "read_only": 1
@@ -215,7 +216,7 @@
    "hidden": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "N\u00b0 Control HKA",
+   "label": "N° Control HKA",
    "no_copy": 1,
    "read_only": 1
   },
@@ -267,7 +268,9 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "write": 1
+   "write": 1,
+   "submit": 1,
+   "cancel": 1
   },
   {
    "create": 1,
@@ -279,7 +282,9 @@
    "report": 1,
    "role": "Accounts Manager",
    "share": 1,
-   "write": 1
+   "write": 1,
+   "submit": 1,
+   "cancel": 1
   },
   {
    "create": 1,
