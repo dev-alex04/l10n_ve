@@ -16,19 +16,11 @@ def execute(filters=None):
 
     if not filters.get("company"):
         frappe.throw(_("Debe seleccionar una Empresa para generar el reporte."))
-    if not filters.get("from_date") and not filters.get("date_from"):
-        frappe.throw(_("Debe ingresar la Fecha Desde."))
-    if not filters.get("to_date"):
-        frappe.throw(_("Debe ingresar la Fecha Hasta."))
-
-    if getdate(filters.get("from_date") or filters.get("date_from")) > getdate(filters.get("to_date")):
-        frappe.throw(_("La Fecha Desde no puede ser posterior a la Fecha Hasta."))
 
     columns: list[dict] = get_columns()
-
     data: list[dict] = get_query_data(filters)
     totals: dict = get_totals_from_data(data)
-    report_summary: dict = get_report_summary(totals)
+    report_summary: list[dict] = get_report_summary(totals)
 
     return columns, data, None, None, report_summary
 
@@ -88,15 +80,11 @@ def _get_tax_rates() -> tuple[float, float, float]:
 
 def get_query_data(filters: dict) -> list[dict]:
     """Ejecuta la query del Libro de Compras con los filtros proporcionados."""
-    from_date: str
-    to_date: str
     from_date, to_date = _get_date_range_from_filters(filters)
     filters["from_date"] = from_date
     filters["to_date"] = to_date
 
     query: str = get_query(filters)
-
-    from_date_obj = getdate(from_date)
 
     company_currency: str = frappe.get_cached_value(
         "Company", filters.get("company"), "default_currency"
@@ -108,8 +96,6 @@ def get_query_data(filters: dict) -> list[dict]:
         "from_date": from_date,
         "to_date": to_date,
         "company_currency": company_currency,
-        "month": from_date_obj.month,
-        "year": from_date_obj.year,
         "general_rate": general_rate,
         "reduced_rate": reduced_rate,
         "additional_rate": additional_rate,
@@ -118,9 +104,7 @@ def get_query_data(filters: dict) -> list[dict]:
     if filters.get("company"):
         values["company"] = filters.get("company")
 
-    data: list[dict] = frappe.db.sql(query, values, as_dict=True)
-
-    return data
+    return frappe.db.sql(query, values, as_dict=True)
 
 
 def get_query(filters: dict) -> str:
@@ -183,6 +167,33 @@ def get_query(filters: dict) -> str:
             WHERE nc.docstatus = 1
                 AND nc.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 {nc_company_condition}
+
+            UNION ALL
+
+            -- Notas de débito de compra (VE Purchase Debit Note)
+            SELECT
+                nd.name,
+                nd.posting_date,
+                nd.supplier,
+                nd.supplier_name,
+                0 AS is_return,
+                nd.bill_no,
+                nd.bill_control,
+                NULL AS credit_note_no,
+                nd.bill_no AS debit_note_no,
+                nd.affected_invoice_number,
+                nd.total_igtf,
+                nd.bill_date,
+                1 AS is_debit_note,
+                nd.base_grand_total,
+                nd.base_total,
+                nd.total_exempt,
+                (CASE WHEN nd.currency != %(company_currency)s
+                    THEN nd.conversion_rate ELSE 1 END) AS conversion_rate
+            FROM `tabVE Purchase Debit Note` AS nd
+            WHERE nd.docstatus = 1
+                AND nd.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                {nd_company_condition}
         )
         SELECT
             inv.name AS nro_factura,
@@ -283,151 +294,86 @@ def get_query(filters: dict) -> str:
     nc_company_condition: str = "AND nc.company = %(company)s" if filters.get("company") else ""
     query = query.replace("{nc_company_condition}", nc_company_condition)
 
+    # Condición de compañía para NDs
+    nd_company_condition: str = "AND nd.company = %(company)s" if filters.get("company") else ""
+    query = query.replace("{nd_company_condition}", nd_company_condition)
+
     return query
 
 
+_SUMMABLE_FIELDS: list[str] = [
+    "grand_total", "total_exempt", "base_reducida", "impuesto_reducida",
+    "base_general", "impuesto_general", "base_adicional", "impuesto_adicional",
+    "total_igtf",
+]
+
+_SUMMARY_LABELS: list[tuple[str, str]] = [
+    ("grand_total", "Total Compras"),
+    ("total_exempt", "Total Compras Sin Crédito"),
+    ("base_reducida", "Total Base Reducida"),
+    ("impuesto_reducida", "Total Impuesto Reducido"),
+    ("base_general", "Total Base General"),
+    ("impuesto_general", "Total Impuesto 16%"),
+    ("base_adicional", "Total Base Adicional"),
+    ("impuesto_adicional", "Total Impuesto 31%"),
+    ("taxes_and_charges_deducted", "Total IVA Retenido"),
+    ("iva_retenido_terceros", "IVA Retenido (a terceros)"),
+    ("anticipo_iva_importacion", "Anticipo de IVA (Importación)"),
+    ("total_igtf", "Total IGTF Pagado"),
+]
+
+
 def get_totals_from_data(data: list[dict]) -> dict:
-    # Inicializar los contadores
-    grand_total = 0
-    total_exempt = 0
-    base_reducida = 0
-    impuesto_reducida = 0
-    base_general = 0
-    impuesto_general = 0
-    base_adicional = 0
-    impuesto_adicional = 0
-    taxes_and_charges_deducted = 0
-    iva_retenido_terceros = 0
-    anticipo_iva_importacion = 0
-    total_igtf = 0
+    """Acumula totales de todas las filas del reporte."""
+    totals: dict = {f: 0.0 for f in _SUMMABLE_FIELDS}
+    totals.update({
+        "taxes_and_charges_deducted": 0.0,
+        "iva_retenido_terceros": 0.0,
+        "anticipo_iva_importacion": 0.0,
+        "retencion_general": 0.0,
+        "retencion_adicional": 0.0,
+        "retencion_reducida": 0.0,
+    })
 
-    retencion_general = 0
-    retencion_adicional = 0
-    retencion_reducida = 0
-
-    # Iterar sobre cada fila de la data
     for row in data:
-        ret_monto = flt(row.get("taxes_and_charges_deducted"))
-        grand_total += row.get("grand_total", 0)
-        total_exempt += row.get("total_exempt", 0)
-        base_reducida += row.get("base_reducida", 0)
-        impuesto_reducida += row.get("impuesto_reducida", 0)
-        base_general += row.get("base_general", 0)
-        impuesto_general += row.get("impuesto_general", 0)
-        base_adicional += row.get("base_adicional", 0)
-        impuesto_adicional += row.get("impuesto_adicional", 0)
-        total_igtf += row.get("total_igtf", 0)
-        if row.get("nro_comprobante_retencion") and ret_monto != 0:
-            taxes_and_charges_deducted += ret_monto
-            iva_retenido_terceros += row.get("iva_retenido_terceros", 0)
-            anticipo_iva_importacion += row.get("anticipo_iva_importacion", 0)
+        for field in _SUMMABLE_FIELDS:
+            totals[field] += flt(row.get(field))
 
-            bases = {
-                "general": flt(row.get("base_general")),
-                "adicional": flt(row.get("base_adicional")),
-                "reducida": flt(row.get("base_reducida")),
-            }
+        # Retención IVA: solo si tiene comprobante asociado
+        ret_monto: float = flt(row.get("taxes_and_charges_deducted"))
+        if not row.get("nro_comprobante_retencion") or ret_monto == 0:
+            continue
 
-            # Encuentra la base más alta (que asume tiene el impuesto más representativo)
-            if bases["general"] >= bases["adicional"] and bases["general"] >= bases["reducida"]:
-                retencion_general += ret_monto
-            elif bases["adicional"] >= bases["general"] and bases["adicional"] >= bases["reducida"]:
-                retencion_adicional += ret_monto
-            elif bases["reducida"] > 0:
-                retencion_reducida += ret_monto
-            else:
-                retencion_general += ret_monto
+        totals["taxes_and_charges_deducted"] += ret_monto
+        totals["iva_retenido_terceros"] += flt(row.get("iva_retenido_terceros"))
+        totals["anticipo_iva_importacion"] += flt(row.get("anticipo_iva_importacion"))
 
-    return {
-        "grand_total": grand_total,
-        "total_exempt": total_exempt,
-        "base_reducida": base_reducida,
-        "impuesto_reducida": impuesto_reducida,
-        "base_general": base_general,
-        "impuesto_general": impuesto_general,
-        "base_adicional": base_adicional,
-        "impuesto_adicional": impuesto_adicional,
-        "taxes_and_charges_deducted": taxes_and_charges_deducted,
-        "retencion_general": retencion_general,
-        "iva_retenido_terceros": iva_retenido_terceros,
-        "anticipo_iva_importacion": anticipo_iva_importacion,
-        "total_igtf": total_igtf,
-        "retencion_adicional": retencion_adicional,
-        "retencion_reducida": retencion_reducida,
+        # Clasificar retención por la base imponible más alta
+        bases: dict = {
+            "general": flt(row.get("base_general")),
+            "adicional": flt(row.get("base_adicional")),
+            "reducida": flt(row.get("base_reducida")),
+        }
+        max_base: str = max(bases, key=bases.get)
+        if bases[max_base] > 0:
+            totals[f"retencion_{max_base}"] += ret_monto
+        else:
+            totals["retencion_general"] += ret_monto
 
-    }
+    return totals
 
 
-def get_report_summary(totals: dict) -> dict:
-    summary = [
-        {
-            "value": totals.get("grand_total"),
-            "label": "Total Compras",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("total_exempt"),
-            "label": "Total Compras Sin Crédito",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("base_reducida"),
-            "label": "Total Base Reducida",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("impuesto_reducida"),
-            "label": "Total Impuesto Reducido",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("base_general"),
-            "label": "Total Base General",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("impuesto_general"),
-            "label": "Total Impuesto 16%",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("base_adicional"),
-            "label": "Total Base Adicional",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("impuesto_adicional"),
-            "label": "Total Impuesto 31%",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("taxes_and_charges_deducted"),
-            "label": "Total IVA Retenido",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("iva_retenido_terceros"),
-            "label": "IVA Retenido (a terceros)",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("anticipo_iva_importacion"),
-            "label": "Anticipo de IVA (Importación)",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("total_igtf"),
-            "label": "Total IGTF Pagado",
-            "datatype": "Currency"
-        },
+def get_report_summary(totals: dict) -> list[dict]:
+    """Genera el resumen inferior del reporte a partir de los totales."""
+    return [
+        {"value": totals.get(field), "label": label, "datatype": "Currency"}
+        for field, label in _SUMMARY_LABELS
     ]
-
-    return summary
 
 
 def _get_date_range_from_filters(filters: dict) -> tuple[str, str]:
-    """Extrae el rango de fechas desde los filtros del reporte."""
-    from_date: str | None = filters.get("from_date") or filters.get("date_from")
+    """Extrae y valida el rango de fechas desde los filtros del reporte."""
+    from_date: str | None = filters.get("from_date")
     to_date: str | None = filters.get("to_date")
 
     if not from_date or not to_date:
@@ -533,6 +479,8 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
             "filecontent": encoded_content,
         }
 
+    except frappe.ValidationError:
+        raise
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en generate_xml_islr_file")
         frappe.throw(_("Ocurrió un error al generar el archivo XML de ISLR: {0}").format(e))
@@ -631,6 +579,8 @@ def generate_txt_file(filters: dict | str) -> dict:
             "filecontent": encoded_content
         }
 
+    except frappe.ValidationError:
+        raise
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en generate_txt_file")
         frappe.throw(_("Ocurrió un error al generar el archivo TXT: {0}").format(e))

@@ -7,110 +7,42 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
-  "start_date",
-  "voucher_number",
-  "column_break_lzyc",
-  "end_date",
-  "posting_date",
-  "bill_control",
-  "is_declared",
-  "section_break_vaxc",
-  "empresa",
-  "company_address",
-  "column_break_rpba",
   "supplier",
-  "supplier_address",
-  "section_break_ucxr",
+  "column_1",
+  "empresa",
+  "column_3",
+  "voucher_number",
+  "naming_series",
+  "section_6",
+  "start_date",
+  "end_date",
+  "column_9",
+  "posting_date",
+  "section_11",
   "islr_withholding_voucher_item",
-  "section_break_nqao",
-  "column_break_zmix",
+  "section_13",
   "totals_grand_total",
-  "totals_paid_amount",
   "totals_islr_base_amount",
   "totals_islr_amount",
+  "column_17",
+  "totals_paid_amount",
+  "section_19",
+  "company_address",
+  "column_21",
+  "supplier_address",
+  "section_23",
   "digital_invoice_status",
-  "column_break_hka",
+  "is_declared",
+  "column_26",
+  "bill_control",
+  "section_28",
+  "hka_response",
+  "section_30",
   "hka_preview",
-  "amended_from",
-  "hka_response"
+  "section_32",
+  "amended_from"
  ],
  "fields": [
-  {
-   "fieldname": "company_address",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Dirección Empresa"
-  },
-  {
-   "fieldname": "column_break_lzyc",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "supplier_address",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Dirección Proveedor"
-  },
-  {
-   "fieldname": "section_break_ucxr",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "islr_withholding_voucher_item",
-   "fieldtype": "Table",
-   "label": "Facturas",
-   "options": "ISLR Withholding Voucher Item",
-   "reqd": 1
-  },
-  {
-   "fieldname": "section_break_nqao",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "column_break_zmix",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "start_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "Fecha Inicio",
-   "reqd": 1
-  },
-  {
-   "default": "COMP-RET-ISLR-.YYYY.-",
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "Naming Series",
-   "options": "COMP-RET-ISLR-.YYYY.-",
-   "print_hide": 1,
-   "reqd": 1
-  },
-  {
-   "fieldname": "voucher_number",
-   "fieldtype": "Data",
-   "label": "No. de Comprobante",
-   "no_copy": 1,
-   "read_only": 1,
-   "search_index": 1
-  },
-  {
-   "fieldname": "end_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "Fecha Fin",
-   "reqd": 1
-  },
-  {
-   "fieldname": "section_break_vaxc",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "column_break_rpba",
-   "fieldtype": "Column Break"
-  },
   {
    "fieldname": "supplier",
    "fieldtype": "Link",
@@ -120,6 +52,10 @@
    "label": "Proveedor",
    "options": "Supplier",
    "reqd": 1
+  },
+  {
+   "fieldname": "column_1",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "empresa",
@@ -132,10 +68,78 @@
    "search_index": 1
   },
   {
+   "fieldname": "column_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "voucher_number",
+   "fieldtype": "Data",
+   "label": "No. de Comprobante",
+   "no_copy": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "default": "COMP-RET-ISLR-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "COMP-RET-ISLR-.YYYY.-",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_6",
+   "fieldtype": "Section Break",
+   "label": ""
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Fecha Inicio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Fecha Fin",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_9",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "hidden": 1,
    "label": "Fecha Creación"
+  },
+  {
+   "fieldname": "section_11",
+   "fieldtype": "Section Break",
+   "label": "Facturas"
+  },
+  {
+   "fieldname": "islr_withholding_voucher_item",
+   "fieldtype": "Table",
+   "label": "Facturas",
+   "options": "ISLR Withholding Voucher Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_13",
+   "fieldtype": "Section Break",
+   "label": "Totales"
+  },
+  {
+   "fieldname": "totals_grand_total",
+   "fieldtype": "Currency",
+   "label": "Total Facturas",
+   "read_only": 1
   },
   {
    "fieldname": "totals_islr_base_amount",
@@ -150,10 +154,8 @@
    "read_only": 1
   },
   {
-   "fieldname": "totals_grand_total",
-   "fieldtype": "Currency",
-   "label": "Total Facturas",
-   "read_only": 1
+   "fieldname": "column_17",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "totals_paid_amount",
@@ -162,23 +164,32 @@
    "read_only": 1
   },
   {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "ISLR Withholding Voucher",
-   "print_hide": 1,
-   "read_only": 1,
-   "search_index": 1
+   "fieldname": "section_19",
+   "fieldtype": "Section Break",
+   "label": "Direcciones",
+   "collapsible": 1
   },
   {
-   "default": "0",
-   "fieldname": "is_declared",
-   "fieldtype": "Check",
+   "fieldname": "company_address",
+   "fieldtype": "Data",
    "hidden": 1,
-   "in_list_view": 1,
-   "label": "Declarado",
-   "read_only": 1
+   "label": "Dirección Empresa"
+  },
+  {
+   "fieldname": "column_21",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier_address",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Dirección Proveedor"
+  },
+  {
+   "fieldname": "section_23",
+   "fieldtype": "Section Break",
+   "label": "Factura Digital",
+   "collapsible": 1
   },
   {
    "fieldname": "digital_invoice_status",
@@ -191,12 +202,17 @@
    "read_only": 1
   },
   {
-   "fieldname": "hka_response",
-   "fieldtype": "Small Text",
+   "default": "0",
+   "fieldname": "is_declared",
+   "fieldtype": "Check",
    "hidden": 1,
-   "label": "Respuesta HKA",
-   "no_copy": 1,
+   "in_list_view": 1,
+   "label": "Declarado",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_26",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "bill_control",
@@ -211,6 +227,24 @@
    "search_index": 1
   },
   {
+   "fieldname": "section_28",
+   "fieldtype": "Section Break",
+   "label": ""
+  },
+  {
+   "fieldname": "hka_response",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Respuesta HKA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_30",
+   "fieldtype": "Section Break",
+   "label": ""
+  },
+  {
    "fieldname": "hka_preview",
    "fieldtype": "HTML",
    "label": "Vista Previa Fiscal",
@@ -218,8 +252,19 @@
    "read_only": 1
   },
   {
-   "fieldname": "column_break_hka",
-   "fieldtype": "Column Break"
+   "fieldname": "section_32",
+   "fieldtype": "Section Break",
+   "label": ""
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "ISLR Withholding Voucher",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,

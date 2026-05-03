@@ -5,60 +5,45 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
+  "supplier",
+  "fiscal_period",
+  "column_2",
+  "empresa",
+  "column_4",
   "voucher_number",
+  "naming_series",
+  "section_7",
   "start_date",
   "end_date",
-  "column_break_flvf",
-  "empresa",
-  "supplier",
-  "bill_control",
-  "is_declared",
-  "column_break_fjrk",
-  "fiscal_period",
+  "column_10",
   "issue_date",
   "delivery_date",
-  "section_break_pncx",
-  "company_address",
-  "column_break_kbuz",
-  "supplier_address",
-  "section_break_sanm",
+  "section_13",
   "vat_withholding_voucher_item",
-  "section_break_oyzq",
-  "column_break_vieg",
+  "section_15",
   "totals_grand_total",
-  "totals_total_exempt",
   "totals_total",
-  "totals_taxes_and_charges_added",
   "totals_tax_amount_vat",
+  "column_19",
+  "totals_total_exempt",
+  "totals_taxes_and_charges_added",
+  "section_22",
+  "company_address",
+  "column_24",
+  "supplier_address",
+  "section_26",
   "digital_invoice_status",
-  "column_break_tobf",
+  "is_declared",
+  "column_29",
+  "bill_control",
+  "section_31",
+  "hka_response",
+  "section_33",
   "hka_preview",
-  "amended_from",
-  "hka_response"
+  "section_35",
+  "amended_from"
  ],
  "fields": [
-  {
-   "default": "COMP-RET-IVA-.YYYY.-",
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "Naming Series",
-   "options": "COMP-RET-IVA-.YYYY.-",
-   "print_hide": 1,
-   "reqd": 1
-  },
-  {
-   "fieldname": "voucher_number",
-   "fieldtype": "Data",
-   "label": "No. de Comprobante",
-   "no_copy": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_flvf",
-   "fieldtype": "Column Break"
-  },
   {
    "fieldname": "supplier",
    "fieldtype": "Link",
@@ -77,7 +62,7 @@
    "reqd": 1
   },
   {
-   "fieldname": "column_break_fjrk",
+   "fieldname": "column_2",
    "fieldtype": "Column Break"
   },
   {
@@ -91,15 +76,30 @@
    "search_index": 1
   },
   {
-   "fieldname": "section_break_sanm",
-   "fieldtype": "Section Break"
+   "fieldname": "column_4",
+   "fieldtype": "Column Break"
   },
   {
-   "fieldname": "vat_withholding_voucher_item",
-   "fieldtype": "Table",
-   "label": "Facturas",
-   "options": "VAT Withholding Voucher Item",
+   "fieldname": "voucher_number",
+   "fieldtype": "Data",
+   "label": "No. de Comprobante",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "COMP-RET-IVA-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "COMP-RET-IVA-.YYYY.-",
+   "print_hide": 1,
    "reqd": 1
+  },
+  {
+   "fieldname": "section_7",
+   "fieldtype": "Section Break",
+   "label": ""
   },
   {
    "default": "Today",
@@ -116,34 +116,8 @@
    "reqd": 1
   },
   {
-   "fieldname": "section_break_oyzq",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "column_break_tobf",
+   "fieldname": "column_10",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_vieg",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "totals_grand_total",
-   "fieldtype": "Currency",
-   "label": "Total Compras + IVA",
-   "read_only": 1
-  },
-  {
-   "fieldname": "totals_total",
-   "fieldtype": "Currency",
-   "label": "Total Base Imponible",
-   "read_only": 1
-  },
-  {
-   "fieldname": "totals_taxes_and_charges_added",
-   "fieldtype": "Currency",
-   "label": "Total IVA",
-   "read_only": 1
   },
   {
    "fieldname": "issue_date",
@@ -160,9 +134,61 @@
    "reqd": 1
   },
   {
-   "fieldname": "section_break_pncx",
+   "fieldname": "section_13",
    "fieldtype": "Section Break",
-   "hidden": 1
+   "label": "Facturas"
+  },
+  {
+   "fieldname": "vat_withholding_voucher_item",
+   "fieldtype": "Table",
+   "label": "Facturas",
+   "options": "VAT Withholding Voucher Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_15",
+   "fieldtype": "Section Break",
+   "label": "Totales"
+  },
+  {
+   "fieldname": "totals_grand_total",
+   "fieldtype": "Currency",
+   "label": "Total Compras + IVA",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_total",
+   "fieldtype": "Currency",
+   "label": "Total Base Imponible",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_tax_amount_vat",
+   "fieldtype": "Currency",
+   "label": "Total IVA Retenido",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_19",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "totals_total_exempt",
+   "fieldtype": "Currency",
+   "label": "Total Compras sin crédito fiscal",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_taxes_and_charges_added",
+   "fieldtype": "Currency",
+   "label": "Total IVA",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_22",
+   "fieldtype": "Section Break",
+   "label": "Direcciones",
+   "collapsible": 1
   },
   {
    "fieldname": "company_address",
@@ -171,7 +197,7 @@
    "label": "Dirección Empresa"
   },
   {
-   "fieldname": "column_break_kbuz",
+   "fieldname": "column_24",
    "fieldtype": "Column Break"
   },
   {
@@ -181,16 +207,10 @@
    "label": "Dirección Proveedor"
   },
   {
-   "fieldname": "totals_total_exempt",
-   "fieldtype": "Currency",
-   "label": "Total Compras sin crédito fiscal",
-   "read_only": 1
-  },
-  {
-   "fieldname": "totals_tax_amount_vat",
-   "fieldtype": "Currency",
-   "label": "Total IVA Retenido",
-   "read_only": 1
+   "fieldname": "section_26",
+   "fieldtype": "Section Break",
+   "label": "Factura Digital",
+   "collapsible": 1
   },
   {
    "fieldname": "digital_invoice_status",
@@ -203,12 +223,17 @@
    "read_only": 1
   },
   {
-   "fieldname": "hka_response",
-   "fieldtype": "Small Text",
+   "default": "0",
+   "fieldname": "is_declared",
+   "fieldtype": "Check",
    "hidden": 1,
-   "label": "Respuesta HKA",
-   "no_copy": 1,
+   "in_list_view": 1,
+   "label": "Declarado",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_29",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "bill_control",
@@ -221,11 +246,34 @@
    "read_only": 1
   },
   {
+   "fieldname": "section_31",
+   "fieldtype": "Section Break",
+   "label": ""
+  },
+  {
+   "fieldname": "hka_response",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Respuesta HKA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_33",
+   "fieldtype": "Section Break",
+   "label": ""
+  },
+  {
    "fieldname": "hka_preview",
    "fieldtype": "HTML",
    "label": "Vista Previa Fiscal",
    "no_copy": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "section_35",
+   "fieldtype": "Section Break",
+   "label": ""
   },
   {
    "fieldname": "amended_from",
@@ -236,15 +284,6 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "is_declared",
-   "fieldtype": "Check",
-   "hidden": 1,
-   "in_list_view": 1,
-   "label": "Declarado",
-   "read_only": 1
   }
  ],
  "grid_page_length": 50,
