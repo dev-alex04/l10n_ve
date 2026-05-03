@@ -107,7 +107,7 @@ def _post_process_seniat_rows(
         row["rate_importacion"] = 0
         row["impuesto_importacion"] = 0
         row["creditos_fiscales"] = 0
-        row["ret_islr_monto"] = 0
+        # ret_islr_monto ya viene de la query SQL con el monto real
 
     return data
 

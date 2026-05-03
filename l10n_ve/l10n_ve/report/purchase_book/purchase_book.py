@@ -126,6 +126,7 @@ def get_query_data(filters: dict) -> list[dict]:
 def get_query(filters: dict) -> str:
     """Construye la query SQL del Libro de Compras."""
     conditions: str = "AND tPI.docstatus = 1"
+    conditions += " AND tPI.is_return = 0"
     conditions += " AND tPI.posting_date BETWEEN %(from_date)s AND %(to_date)s"
 
     if filters.get("company"):
@@ -133,6 +134,7 @@ def get_query(filters: dict) -> str:
 
     query: str = """
         WITH InvoiceData AS (
+            -- Facturas de compra (Purchase Invoice)
             SELECT
                 tPI.name,
                 tPI.posting_date,
@@ -154,6 +156,33 @@ def get_query(filters: dict) -> str:
                     THEN tPI.conversion_rate ELSE 1 END) AS conversion_rate
             FROM `tabPurchase Invoice` AS tPI
             WHERE 1=1 {conditions}
+
+            UNION ALL
+
+            -- Notas de crédito de compra (VE Purchase Credit Note)
+            SELECT
+                nc.name,
+                nc.posting_date,
+                nc.supplier,
+                nc.supplier_name,
+                1 AS is_return,
+                nc.bill_no,
+                nc.bill_control,
+                nc.bill_no AS credit_note_no,
+                NULL AS debit_note_no,
+                nc.affected_invoice_number,
+                nc.total_igtf,
+                nc.bill_date,
+                0 AS is_debit_note,
+                nc.base_grand_total,
+                nc.base_total,
+                nc.total_exempt,
+                (CASE WHEN nc.currency != %(company_currency)s
+                    THEN nc.conversion_rate ELSE 1 END) AS conversion_rate
+            FROM `tabVE Purchase Credit Note` AS nc
+            WHERE nc.docstatus = 1
+                AND nc.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                {nc_company_condition}
         )
         SELECT
             inv.name AS nro_factura,
@@ -210,6 +239,7 @@ def get_query(filters: dict) -> str:
                 ELSE '01-Reg'
             END) AS transaction_type,
             CASE WHEN islr_ref.has_islr = 1 THEN 'Sí' ELSE 'No' END AS islr_retention_applied,
+            COALESCE(islr_ref.islr_amount, 0) AS ret_islr_monto,
             (inv.base_total - inv.total_exempt * inv.conversion_rate) AS taxable_base
         FROM
             InvoiceData AS inv
@@ -232,11 +262,12 @@ def get_query(filters: dict) -> str:
         LEFT JOIN
             `tabSupplier` AS supp
             ON supp.name = inv.supplier
-        -- Subquery: flag ISLR desde comprobantes de retención (evita fan-out)
+        -- Subquery: ISLR desde comprobantes de retención (monto + flag)
         LEFT JOIN (
             SELECT
                 islr_item.purchase_invoice,
-                1 AS has_islr
+                1 AS has_islr,
+                SUM(islr_item.islr_amount) AS islr_amount
             FROM `tabISLR Withholding Voucher Item` islr_item
             INNER JOIN `tabISLR Withholding Voucher` islr_v
                 ON islr_item.parent = islr_v.name AND islr_v.docstatus = 1
@@ -247,6 +278,10 @@ def get_query(filters: dict) -> str:
         ORDER BY inv.bill_date ASC
     """
     query = query.replace("{conditions}", conditions)
+
+    # Condición de compañía para NCs (misma lógica que PIs)
+    nc_company_condition: str = "AND nc.company = %(company)s" if filters.get("company") else ""
+    query = query.replace("{nc_company_condition}", nc_company_condition)
 
     return query
 
@@ -448,10 +483,8 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
             FROM `tabISLR Withholding Voucher Item` AS item
             INNER JOIN `tabISLR Withholding Voucher` AS voucher
                 ON item.parent = voucher.name AND voucher.docstatus = 1
-            INNER JOIN `tabPurchase Invoice` AS pi
-                ON item.purchase_invoice = pi.name
             INNER JOIN `tabSupplier` AS supp
-                ON pi.supplier = supp.name
+                ON voucher.supplier = supp.name
             WHERE
                 voucher.empresa = %(company)s
                 AND voucher.posting_date BETWEEN %(from_date)s AND %(to_date)s
