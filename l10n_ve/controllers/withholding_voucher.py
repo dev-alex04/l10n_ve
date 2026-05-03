@@ -5,6 +5,17 @@ from l10n_ve.utils.utils import get_company_address, get_supplier_address
 
 
 class WithholdingVoucher():
+    """Mixin base para comprobantes de retención (IVA e ISLR).
+
+    Provee lógica compartida de direcciones, correlativos y estado declarado.
+    """
+
+    PURCHASE_PARENTTYPES: list[str] = [
+        "Purchase Invoice",
+        "VE Purchase Credit Note",
+        "VE Purchase Debit Note",
+    ]
+
     def validate_address(self) -> None:
         error_messages = []
 

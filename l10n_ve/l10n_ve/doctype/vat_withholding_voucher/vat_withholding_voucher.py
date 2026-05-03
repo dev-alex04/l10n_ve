@@ -1,6 +1,8 @@
 # Copyright (c) 2025, DominaERP and contributors
 # For license information, please see license.txt
 
+from __future__ import annotations
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
@@ -8,9 +10,37 @@ from frappe.utils import flt, nowdate, getdate
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 
 
+# ── Constantes de módulo ────────────────────────────────────────────── #
+
+# Referencia corta a la constante de clase heredada del mixin
+_PURCHASE_PARENTTYPES: list[str] = WithholdingVoucher.PURCHASE_PARENTTYPES
+
+_DOC_FIELDS: dict[str, list[str]] = {
+    "Purchase Invoice": [
+        "name", "bill_no", "bill_control", "posting_date",
+        "base_grand_total", "base_total", "total_exempt",
+        "base_taxes_and_charges_added", "conversion_rate", "currency",
+        "is_return", "is_debit_note",
+        "credit_note_no", "debit_note_no", "affected_invoice_number",
+    ],
+    "VE Purchase Credit Note": [
+        "name", "bill_no", "bill_control", "posting_date",
+        "base_grand_total", "base_total", "total_exempt",
+        "base_taxes_and_charges_added", "conversion_rate", "currency",
+        "affected_invoice_number",
+    ],
+    "VE Purchase Debit Note": [
+        "name", "bill_no", "bill_control", "posting_date",
+        "base_grand_total", "base_total", "total_exempt",
+        "base_taxes_and_charges_added", "conversion_rate", "currency",
+        "affected_invoice_number",
+    ],
+}
+
+
 class VATWithholdingVoucher(Document, WithholdingVoucher):
 
-    def validate(self):
+    def validate(self) -> None:
         self.validate_address()
         self.validate_fiscal_period()
         self.validate_unique_voucher_number()
@@ -55,7 +85,7 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
         rates: list[dict] = frappe.get_all(
             "Purchase Taxes and Charges",
             filters={
-                "parenttype": ["in", ["Purchase Invoice", "VE Purchase Credit Note", "VE Purchase Debit Note"]],
+                "parenttype": ["in", _PURCHASE_PARENTTYPES],
                 "parent": ["in", invoice_names],
                 "charge_type": "VAT Withholding",
             },
@@ -84,8 +114,7 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
                   "\"Anular Comprobante\" para anularlo primero en HKA.").format(self.name)
             )
 
-
-    def before_insert(self):
+    def before_insert(self) -> None:
         company_doc = frappe.get_cached_doc("Company", self.empresa)
         correlative_format = company_doc.vat_withholding_format
 
@@ -95,27 +124,25 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
         self.voucher_number = final_voucher_number
         self.fiscal_period = f"{month}/{year}"
 
+        # El correlativo se incrementa antes del insert. Si insert() falla,
+        # el correlativo queda incrementado (gap aceptable en correlativos fiscales).
         company_doc.vat_withholding_correlative = final_next_correlative_number
         company_doc.save(ignore_permissions=True)
 
-    def on_trash(self):
-        document_date = self.issue_date
-        current_date = getdate(nowdate())
-
-        if document_date:
-            document_month_year = getdate(document_date).strftime('%Y-%m')
-            current_month_year = current_date.strftime('%Y-%m')
-        else:
+    def on_trash(self) -> None:
+        if not self.issue_date:
             frappe.throw(
                 _("No se puede determinar la fecha del comprobante para la validación.")
             )
 
-        if document_month_year != current_month_year:
+        document_month: str = getdate(self.issue_date).strftime('%Y-%m')
+        current_month: str = getdate(nowdate()).strftime('%Y-%m')
+
+        if document_month != current_month:
             frappe.throw(
                 _("No se puede eliminar el comprobante. Solo se permiten "
-                  "eliminaciones para el periodo actual ({0}).").format(current_month_year)
+                  "eliminaciones para el periodo actual ({0}).").format(current_month)
             )
-
 
     def validate_fiscal_period(self) -> None:
         if not self.fiscal_period:
@@ -152,6 +179,9 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
                   "tiene IVA retenido. Verifique que las facturas tengan IVA gravable.")
             )
 
+
+# ── API pública ──────────────────────────────────────────────────────── #
+
 @frappe.whitelist()
 def get_valid_invoices(
     supplier: str,
@@ -170,101 +200,141 @@ def get_valid_invoices(
     Args:
         exclude_voucher: Nombre del comprobante actual para no auto-excluirse.
     """
+    # Fase 1: Documentos ya asignados a comprobantes vigentes
+    all_excluded_invoices: list[str] = _get_excluded_invoices(company, exclude_voucher)
 
-    # Fase 1: Obtener documentos ya asignados a comprobantes vigentes
-    excluded_from_withholding: list[dict] = frappe.db.sql("""
-        SELECT
-            child.purchase_invoice
-        FROM
-            `tabVAT Withholding Voucher Item` child
-        INNER JOIN
-            `tabVAT Withholding Voucher` parent ON child.parent = parent.name
-        WHERE
-            parent.docstatus = 1
+    # Fase 2: Candidatos por DocType (1 query UNION ALL)
+    names_by_doctype: dict[str, list[str]] = _get_candidate_invoices(
+        supplier, start_date, end_date, company, all_excluded_invoices,
+    )
+
+    all_valid_names: list[str] = []
+    for names in names_by_doctype.values():
+        all_valid_names.extend(names)
+
+    if not all_valid_names:
+        return []
+
+    # Fase 3: Datos de retención (VAT Withholding) con monto > 0
+    withholding_map: dict[str, dict] = _get_withholding_map(all_valid_names)
+    if not withholding_map:
+        return []
+
+    invoices_with_withholding: set[str] = set(withholding_map)
+
+    # Fase 4: Datos de IVA (VAT) para la tasa aplicada
+    vat_map: dict[str, dict] = _get_vat_map(invoices_with_withholding)
+
+    # Fase 5: Datos completos de facturas filtradas por retención
+    default_currency: str = frappe.get_cached_value("Company", company, "default_currency") or ""
+
+    invoices_with_taxes: list[dict] = []
+    for doc_type, candidate_names in names_by_doctype.items():
+        candidate_set: set[str] = set(candidate_names)
+        filtered: list[str] = [n for n in invoices_with_withholding if n in candidate_set]
+        if not filtered:
+            continue
+
+        docs: list[dict] = frappe.get_all(
+            doc_type,
+            filters={"name": ["in", filtered]},
+            fields=_DOC_FIELDS[doc_type],
+        )
+        for doc in docs:
+            invoices_with_taxes.append(
+                _build_invoice_row(doc, vat_map, withholding_map, default_currency, doc_type=doc_type)
+            )
+
+    return invoices_with_taxes
+
+
+# ── Funciones internas ───────────────────────────────────────────────── #
+
+def _get_excluded_invoices(company: str, exclude_voucher: str) -> list[str]:
+    """Obtiene documentos ya asignados a comprobantes vigentes."""
+    rows: list[dict] = frappe.db.sql("""
+        SELECT child.purchase_invoice
+        FROM `tabVAT Withholding Voucher Item` child
+        INNER JOIN `tabVAT Withholding Voucher` parent ON child.parent = parent.name
+        WHERE parent.docstatus = 1
             AND parent.empresa = %(company)s
             AND parent.name != %(exclude_voucher)s
             AND child.purchase_invoice IS NOT NULL
             AND child.purchase_invoice != ''
     """, {"company": company, "exclude_voucher": exclude_voucher or ""}, as_dict=True)
 
-    all_excluded_invoices: list[str] = [d.purchase_invoice for d in excluded_from_withholding]
+    return [d.purchase_invoice for d in rows]
 
-    # Fase 2a: Obtener Purchase Invoices candidatas
-    pi_filters: dict = {
+
+def _get_candidate_invoices(
+    supplier: str,
+    start_date: str,
+    end_date: str,
+    company: str,
+    excluded: list[str],
+) -> dict[str, list[str]]:
+    """Obtiene nombres de documentos candidatos agrupados por DocType.
+
+    Ejecuta 1 query UNION ALL en vez de N queries separadas.
+    """
+    params: dict = {
         "supplier": supplier,
-        "posting_date": ["between", [start_date, end_date]],
+        "start_date": start_date,
+        "end_date": end_date,
         "company": company,
-        "docstatus": 1,
     }
-    if all_excluded_invoices:
-        pi_filters["name"] = ["not in", all_excluded_invoices]
 
-    valid_pi_names: list[str] = frappe.get_all(
-        "Purchase Invoice",
-        filters=pi_filters,
-        pluck="name"
+    exclusion_clause: str = ""
+    if excluded:
+        exclusion_clause = "AND name NOT IN %(excluded)s"
+        params["excluded"] = excluded
+
+    unions: list[str] = []
+    for dt in _PURCHASE_PARENTTYPES:
+        tab: str = f"`tab{dt}`"
+        unions.append(f"""
+            SELECT name, '{dt}' AS doctype FROM {tab}
+            WHERE supplier = %(supplier)s
+              AND posting_date BETWEEN %(start_date)s AND %(end_date)s
+              AND company = %(company)s
+              AND docstatus = 1
+              {exclusion_clause}
+        """)
+
+    rows: list[dict] = frappe.db.sql(
+        " UNION ALL ".join(unions), params, as_dict=True
     )
 
-    # Fase 2b: Obtener VE Purchase Credit Notes candidatas
-    nc_filters: dict = {
-        "supplier": supplier,
-        "posting_date": ["between", [start_date, end_date]],
-        "company": company,
-        "docstatus": 1,
-    }
-    if all_excluded_invoices:
-        nc_filters["name"] = ["not in", all_excluded_invoices]
+    result: dict[str, list[str]] = {dt: [] for dt in _PURCHASE_PARENTTYPES}
+    for r in rows:
+        result[r.doctype].append(r.name)
+    return result
 
-    valid_nc_names: list[str] = frappe.get_all(
-        "VE Purchase Credit Note",
-        filters=nc_filters,
-        pluck="name"
-    )
 
-    # Fase 2c: Obtener VE Purchase Debit Notes candidatas
-    nd_filters: dict = {
-        "supplier": supplier,
-        "posting_date": ["between", [start_date, end_date]],
-        "company": company,
-        "docstatus": 1,
-    }
-    if all_excluded_invoices:
-        nd_filters["name"] = ["not in", all_excluded_invoices]
-
-    valid_nd_names: list[str] = frappe.get_all(
-        "VE Purchase Debit Note",
-        filters=nd_filters,
-        pluck="name"
-    )
-
-    all_valid_names: list[str] = valid_pi_names + valid_nc_names + valid_nd_names
-    if not all_valid_names:
-        return []
-
-    # Fase 3: Obtener datos de retención (VAT Withholding) con monto > 0
-    # Buscar en ambos parenttypes
+def _get_withholding_map(all_valid_names: list[str]) -> dict[str, dict]:
+    """Obtiene datos de retención (VAT Withholding) indexados por parent."""
     withholding_data: list[dict] = frappe.get_all(
         "Purchase Taxes and Charges",
         filters={
-            "parenttype": ["in", ["Purchase Invoice", "VE Purchase Credit Note", "VE Purchase Debit Note"]],
+            "parenttype": ["in", _PURCHASE_PARENTTYPES],
             "parent": ["in", all_valid_names],
             "charge_type": "VAT Withholding",
             "base_tax_amount": ["!=", 0],
         },
         fields=["parent", "rate as withholding_rate", "base_tax_amount"],
     )
+    return {d.parent: d for d in withholding_data}
 
-    if not withholding_data:
-        return []
 
-    invoices_with_withholding: set[str] = {d.parent for d in withholding_data}
-    withholding_map: dict[str, dict] = {d.parent: d for d in withholding_data}
+def _get_vat_map(invoices_with_withholding: set[str]) -> dict[str, dict]:
+    """Obtiene datos de IVA (VAT) indexados por parent, acumulando base_tax_amount."""
+    if not invoices_with_withholding:
+        return {}
 
-    # Fase 4: Obtener datos de IVA (VAT) para la tasa aplicada
     vat_data: list[dict] = frappe.get_all(
         "Purchase Taxes and Charges",
         filters={
-            "parenttype": ["in", ["Purchase Invoice", "VE Purchase Credit Note", "VE Purchase Debit Note"]],
+            "parenttype": ["in", _PURCHASE_PARENTTYPES],
             "parent": ["in", list(invoices_with_withholding)],
             "charge_type": "VAT",
         },
@@ -278,70 +348,7 @@ def get_valid_invoices(
         else:
             vat_map[d.parent]["base_tax_amount"] += d.base_tax_amount
 
-    # Fase 5a: Obtener datos completos de las PIs filtradas
-    pi_names_with_wh: list[str] = [n for n in invoices_with_withholding if n in valid_pi_names]
-    nc_names_with_wh: list[str] = [n for n in invoices_with_withholding if n in valid_nc_names]
-    nd_names_with_wh: list[str] = [n for n in invoices_with_withholding if n in valid_nd_names]
-
-    default_currency: str = frappe.db.get_value("Company", company, "default_currency") or ""
-
-    invoices_with_taxes: list[dict] = []
-
-    if pi_names_with_wh:
-        pi_docs: list[dict] = frappe.get_all(
-            "Purchase Invoice",
-            filters={"name": ["in", pi_names_with_wh]},
-            fields=[
-                "name", "bill_no", "bill_control", "posting_date",
-                "base_grand_total", "base_total", "total_exempt",
-                "base_taxes_and_charges_added", "conversion_rate", "currency",
-                "is_return", "is_debit_note",
-                "credit_note_no", "debit_note_no", "affected_invoice_number",
-            ]
-        )
-        for inv in pi_docs:
-            invoices_with_taxes.append(
-                _build_invoice_row(inv, vat_map, withholding_map, default_currency,
-                                   doc_type="Purchase Invoice")
-            )
-
-    # Fase 5b: Obtener datos completos de las NCs filtradas
-    if nc_names_with_wh:
-        nc_docs: list[dict] = frappe.get_all(
-            "VE Purchase Credit Note",
-            filters={"name": ["in", nc_names_with_wh]},
-            fields=[
-                "name", "bill_no", "bill_control", "posting_date",
-                "base_grand_total", "base_total", "total_exempt",
-                "base_taxes_and_charges_added", "conversion_rate", "currency",
-                "affected_invoice_number",
-            ]
-        )
-        for nc in nc_docs:
-            invoices_with_taxes.append(
-                _build_invoice_row(nc, vat_map, withholding_map, default_currency,
-                                   doc_type="VE Purchase Credit Note")
-            )
-
-    # Fase 5c: Obtener datos completos de las NDs filtradas
-    if nd_names_with_wh:
-        nd_docs: list[dict] = frappe.get_all(
-            "VE Purchase Debit Note",
-            filters={"name": ["in", nd_names_with_wh]},
-            fields=[
-                "name", "bill_no", "bill_control", "posting_date",
-                "base_grand_total", "base_total", "total_exempt",
-                "base_taxes_and_charges_added", "conversion_rate", "currency",
-                "affected_invoice_number",
-            ]
-        )
-        for nd in nd_docs:
-            invoices_with_taxes.append(
-                _build_invoice_row(nd, vat_map, withholding_map, default_currency,
-                                   doc_type="VE Purchase Debit Note")
-            )
-
-    return invoices_with_taxes
+    return vat_map
 
 
 def _build_invoice_row(
@@ -386,4 +393,3 @@ def _build_invoice_row(
         "withholding_rate": abs(wh_details.get("withholding_rate", 0)),
         "tax_amount_vat": abs(wh_details.get("base_tax_amount", 0)),
     }
-
