@@ -55,7 +55,7 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
         rates: list[dict] = frappe.get_all(
             "Purchase Taxes and Charges",
             filters={
-                "parenttype": "Purchase Invoice",
+                "parenttype": ["in", ["Purchase Invoice", "VE Purchase Credit Note"]],
                 "parent": ["in", invoice_names],
                 "charge_type": "VAT Withholding",
             },
@@ -138,26 +138,40 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
             frappe.throw(_("El mes en el Periodo Fiscal no es válido."))
 
     def validate_withholding_amount(self) -> None:
-        """Impide aprobar un comprobante cuando no hay IVA a retener."""
+        """Impide aprobar un comprobante cuando ningún item tiene IVA a retener.
 
-        total_vat: float = flt(self.totals_tax_amount_vat)
-        if not total_vat:
+        El total neto puede ser 0 o negativo cuando NCs compensan PIs,
+        pero al menos un item individual debe tener IVA retenido.
+        """
+        has_any_withholding: bool = any(
+            flt(item.tax_amount_vat) for item in self.get("vat_withholding_voucher_item", [])
+        )
+        if not has_any_withholding:
             frappe.throw(
-                _("No se puede procesar este comprobante porque el monto total de IVA retenido es 0. "
-                  "Verifique que las facturas incluidas tengan IVA gravable.")
+                _("No se puede procesar este comprobante porque ninguna factura incluida "
+                  "tiene IVA retenido. Verifique que las facturas tengan IVA gravable.")
             )
 
 @frappe.whitelist()
-def get_valid_invoices(supplier: str, start_date: str, end_date: str, company: str) -> list[dict]:
-    """Obtiene facturas de compra válidas para incluir en un comprobante de retención de IVA.
+def get_valid_invoices(
+    supplier: str,
+    start_date: str,
+    end_date: str,
+    company: str,
+    exclude_voucher: str = "",
+) -> list[dict]:
+    """Obtiene facturas de compra y NC válidas para un comprobante de retención IVA.
 
     Criterios de inclusión:
-    - Factura aprobada (docstatus=1) del proveedor y rango de fechas indicado
+    - Documento aprobado (docstatus=1) del proveedor y rango de fechas indicado
     - Que tenga una fila de impuesto tipo 'VAT Withholding' con monto > 0
-    - Que no esté ya incluida en otro comprobante (no cancelado)
+    - Que no esté ya incluida en otro comprobante vigente (no cancelado)
+
+    Args:
+        exclude_voucher: Nombre del comprobante actual para no auto-excluirse.
     """
 
-    # Fase 1: Obtener facturas ya asignadas a comprobantes vigentes
+    # Fase 1: Obtener documentos ya asignados a comprobantes vigentes
     excluded_from_withholding: list[dict] = frappe.db.sql("""
         SELECT
             child.purchase_invoice
@@ -168,38 +182,56 @@ def get_valid_invoices(supplier: str, start_date: str, end_date: str, company: s
         WHERE
             parent.docstatus = 1
             AND parent.empresa = %(company)s
+            AND parent.name != %(exclude_voucher)s
             AND child.purchase_invoice IS NOT NULL
             AND child.purchase_invoice != ''
-    """, {"company": company}, as_dict=True)
+    """, {"company": company, "exclude_voucher": exclude_voucher or ""}, as_dict=True)
 
     all_excluded_invoices: list[str] = [d.purchase_invoice for d in excluded_from_withholding]
 
-    # Fase 2: Obtener facturas candidatas (sin JOIN implícito a child table)
-    invoice_filters: dict = {
+    # Fase 2a: Obtener Purchase Invoices candidatas
+    pi_filters: dict = {
         "supplier": supplier,
         "posting_date": ["between", [start_date, end_date]],
         "company": company,
         "docstatus": 1,
     }
     if all_excluded_invoices:
-        invoice_filters["name"] = ["not in", all_excluded_invoices]
+        pi_filters["name"] = ["not in", all_excluded_invoices]
 
-    valid_invoice_names: list[dict] = frappe.get_all(
+    valid_pi_names: list[str] = frappe.get_all(
         "Purchase Invoice",
-        filters=invoice_filters,
-        fields=["name"],
+        filters=pi_filters,
         pluck="name"
     )
 
-    if not valid_invoice_names:
+    # Fase 2b: Obtener VE Purchase Credit Notes candidatas
+    nc_filters: dict = {
+        "supplier": supplier,
+        "posting_date": ["between", [start_date, end_date]],
+        "company": company,
+        "docstatus": 1,
+    }
+    if all_excluded_invoices:
+        nc_filters["name"] = ["not in", all_excluded_invoices]
+
+    valid_nc_names: list[str] = frappe.get_all(
+        "VE Purchase Credit Note",
+        filters=nc_filters,
+        pluck="name"
+    )
+
+    all_valid_names: list[str] = valid_pi_names + valid_nc_names
+    if not all_valid_names:
         return []
 
     # Fase 3: Obtener datos de retención (VAT Withholding) con monto > 0
+    # Buscar en ambos parenttypes
     withholding_data: list[dict] = frappe.get_all(
         "Purchase Taxes and Charges",
         filters={
-            "parenttype": "Purchase Invoice",
-            "parent": ["in", valid_invoice_names],
+            "parenttype": ["in", ["Purchase Invoice", "VE Purchase Credit Note"]],
+            "parent": ["in", all_valid_names],
             "charge_type": "VAT Withholding",
             "base_tax_amount": ["!=", 0],
         },
@@ -209,7 +241,6 @@ def get_valid_invoices(supplier: str, start_date: str, end_date: str, company: s
     if not withholding_data:
         return []
 
-    # Solo facturas que realmente tienen retención > 0
     invoices_with_withholding: set[str] = {d.parent for d in withholding_data}
     withholding_map: dict[str, dict] = {d.parent: d for d in withholding_data}
 
@@ -217,7 +248,7 @@ def get_valid_invoices(supplier: str, start_date: str, end_date: str, company: s
     vat_data: list[dict] = frappe.get_all(
         "Purchase Taxes and Charges",
         filters={
-            "parenttype": "Purchase Invoice",
+            "parenttype": ["in", ["Purchase Invoice", "VE Purchase Credit Note"]],
             "parent": ["in", list(invoices_with_withholding)],
             "charge_type": "VAT",
         },
@@ -231,48 +262,92 @@ def get_valid_invoices(supplier: str, start_date: str, end_date: str, company: s
         else:
             vat_map[d.parent]["base_tax_amount"] += d.base_tax_amount
 
-    # Fase 5: Obtener datos completos de las facturas filtradas
-    invoices: list[dict] = frappe.get_all(
-        "Purchase Invoice",
-        filters={"name": ["in", list(invoices_with_withholding)]},
-        fields=[
-            "name", "bill_no", "bill_control", "posting_date",
-            "base_grand_total", "base_total", "total_exempt",
-            "base_taxes_and_charges_added", "conversion_rate", "currency",
-            "is_return", "is_debit_note",
-            "credit_note_no", "debit_note_no", "affected_invoice_number",
-        ]
-    )
+    # Fase 5a: Obtener datos completos de las PIs filtradas
+    pi_names_with_wh: list[str] = [n for n in invoices_with_withholding if n in valid_pi_names]
+    nc_names_with_wh: list[str] = [n for n in invoices_with_withholding if n in valid_nc_names]
 
     default_currency: str = frappe.db.get_value("Company", company, "default_currency") or ""
 
     invoices_with_taxes: list[dict] = []
-    for inv in invoices:
-        vat_details: dict = vat_map.get(inv.name, {})
-        wh_details: dict = withholding_map.get(inv.name, {})
 
-        # total_exempt no tiene campo base_*, requiere conversión manual
-        rate: float = inv.conversion_rate if (default_currency != inv.currency and inv.conversion_rate) else 1
-        total_exempt: float = (inv.total_exempt or 0) * rate
+    if pi_names_with_wh:
+        pi_docs: list[dict] = frappe.get_all(
+            "Purchase Invoice",
+            filters={"name": ["in", pi_names_with_wh]},
+            fields=[
+                "name", "bill_no", "bill_control", "posting_date",
+                "base_grand_total", "base_total", "total_exempt",
+                "base_taxes_and_charges_added", "conversion_rate", "currency",
+                "is_return", "is_debit_note",
+                "credit_note_no", "debit_note_no", "affected_invoice_number",
+            ]
+        )
+        for inv in pi_docs:
+            invoices_with_taxes.append(
+                _build_invoice_row(inv, vat_map, withholding_map, default_currency,
+                                   doc_type="Purchase Invoice")
+            )
 
-        invoice_data: dict = {
-            "purchase_invoice": inv.name,
-            "bill_no": inv.bill_no,
-            "bill_control": inv.bill_control,
-            "posting_date": inv.posting_date,
-            "grand_total": abs(inv.base_grand_total or 0),
-            "total": abs(inv.base_total or 0),
-            "total_exempt": abs(total_exempt),
-            "taxes_and_charges_added": abs(vat_details.get("base_tax_amount", 0)),
-            "credit_note_no": inv.credit_note_no,
-            "debit_note_no": inv.debit_note_no,
-            "affected_invoice_number": inv.affected_invoice_number,
-            "is_return": inv.is_return,
-            "is_debit_note": inv.is_debit_note,
-            "rate": vat_details.get("rate", 0),
-            "withholding_rate": abs(wh_details.get("withholding_rate", 0)),
-            "tax_amount_vat": abs(wh_details.get("base_tax_amount", 0)),
-        }
-        invoices_with_taxes.append(invoice_data)
+    # Fase 5b: Obtener datos completos de las NCs filtradas
+    if nc_names_with_wh:
+        nc_docs: list[dict] = frappe.get_all(
+            "VE Purchase Credit Note",
+            filters={"name": ["in", nc_names_with_wh]},
+            fields=[
+                "name", "bill_no", "bill_control", "posting_date",
+                "base_grand_total", "base_total", "total_exempt",
+                "base_taxes_and_charges_added", "conversion_rate", "currency",
+                "affected_invoice_number",
+            ]
+        )
+        for nc in nc_docs:
+            invoices_with_taxes.append(
+                _build_invoice_row(nc, vat_map, withholding_map, default_currency,
+                                   doc_type="VE Purchase Credit Note")
+            )
+
 
     return invoices_with_taxes
+
+
+def _build_invoice_row(
+    inv: dict,
+    vat_map: dict[str, dict],
+    withholding_map: dict[str, dict],
+    default_currency: str,
+    doc_type: str = "Purchase Invoice",
+) -> dict:
+    """Construye un dict de fila para el child table del comprobante de retención IVA.
+
+    Montos siempre en positivo (abs). La diferenciación NC/PI se hace
+    mediante el campo credit_note_no en el child table.
+    """
+    vat_details: dict = vat_map.get(inv.name, {})
+    wh_details: dict = withholding_map.get(inv.name, {})
+
+    rate: float = inv.conversion_rate if (default_currency != inv.currency and inv.conversion_rate) else 1
+    total_exempt: float = (inv.total_exempt or 0) * rate
+
+    is_nc: bool = doc_type == "VE Purchase Credit Note"
+
+    return {
+        "purchase_invoice_type": doc_type,
+        "purchase_invoice": inv.name,
+        "bill_no": inv.bill_no,
+        "bill_control": inv.bill_control,
+        "posting_date": inv.posting_date,
+        "grand_total": abs(inv.base_grand_total or 0),
+        "total": abs(inv.base_total or 0),
+        "total_exempt": abs(total_exempt),
+        "taxes_and_charges_added": abs(vat_details.get("base_tax_amount", 0)),
+        # NC: credit_note_no = bill_no para diferenciación en totales y reporte
+        "credit_note_no": inv.bill_no if is_nc else inv.get("credit_note_no"),
+        "debit_note_no": inv.get("debit_note_no"),
+        "affected_invoice_number": inv.affected_invoice_number,
+        "is_return": 1 if is_nc else inv.get("is_return", 0),
+        "is_debit_note": inv.get("is_debit_note", 0),
+        "rate": vat_details.get("rate", 0),
+        "withholding_rate": abs(wh_details.get("withholding_rate", 0)),
+        "tax_amount_vat": abs(wh_details.get("base_tax_amount", 0)),
+    }
+

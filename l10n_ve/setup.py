@@ -1762,6 +1762,7 @@ def setup_workspaces() -> None:
     add_vouchers_to_accounts_workspace()
     add_shortcuts_to_selling_workspace()
     add_links_to_selling_workspace()
+    add_links_to_buying_workspace()
 
 def add_shortcuts_to_selling_workspace() -> None:
     """
@@ -2780,3 +2781,81 @@ def _verify_replacement(company_name: str = "Galanet Solution C.A.") -> None:
     else:
         print(f"  ⚠️  {passed}/{total_checks} aprobadas, {failed} fallidas")
     print("=" * 70)
+
+
+def add_links_to_buying_workspace() -> None:
+    """Agrega VE Purchase Credit Note como link en la sección 'Compras'
+    del Workspace de Compras, justo después de 'Purchase Invoice'.
+
+    Sigue el mismo patrón de add_links_to_selling_workspace.
+    """
+    print("Agregando NC de Compras al Workspace de Compras...")
+    try:
+        workspace_name = None
+        for candidate in ("Buying", "Compras"):
+            if frappe.db.exists("Workspace", candidate):
+                workspace_name = candidate
+                break
+
+        if not workspace_name:
+            print("  !! No se encontró el Workspace 'Buying' / 'Compras'. Omitiendo.")
+            return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+
+        links_to_add: list[dict] = [
+            {
+                "label": _("Nota de Crédito"),
+                "link_to": "VE Purchase Credit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+        ]
+
+        current_links: set[str] = {link.link_to for link in workspace.links}
+        modified: bool = False
+
+        purchase_invoice_idx: int | None = None
+        for i, link in enumerate(workspace.links):
+            if link.link_to == "Purchase Invoice":
+                purchase_invoice_idx = i
+                break
+
+        insert_offset: int = 1
+        for link_config in links_to_add:
+            if not frappe.db.exists("DocType", link_config["link_to"]):
+                print(f"  -- Omitiendo (DocType no encontrado): {link_config['link_to']}")
+                continue
+
+            if link_config["link_to"] in current_links:
+                print(f"  -- Omitiendo (ya existe): {link_config['label']}")
+                continue
+
+            new_link = workspace.append("links", {})
+            new_link.label = link_config["label"]
+            new_link.type = link_config["type"]
+            new_link.link_type = link_config["link_type"]
+            new_link.link_to = link_config["link_to"]
+
+            if purchase_invoice_idx is not None:
+                target_idx: int = purchase_invoice_idx + insert_offset + 1
+                links_list = workspace.links
+                last_link = links_list.pop()
+                links_list.insert(target_idx, last_link)
+                insert_offset += 1
+
+            modified = True
+            print(f"  -> Link agregado: {link_config['label']}")
+
+        if modified:
+            for i, link in enumerate(workspace.links, start=1):
+                link.idx = i
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Links NC agregados al Workspace '{workspace_name}'.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya tenía los links.")
+
+    except Exception as e:
+        print(f"Failure: Error agregando links NC al Workspace de Compras: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_links_to_buying_workspace')

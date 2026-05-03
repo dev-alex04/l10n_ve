@@ -64,11 +64,13 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
     def before_cancel(self) -> None:
         """
         PurchaseInvoice.before_cancel() accede a atributos que no existen.
-        Se inicializan antes de delegar.
+        Se inicializan antes de delegar. Se valida que no esté asociada a
+        comprobantes de retención vigentes.
         """
         self.is_return = 1
         self.update_outstanding_for_self = 0
         self._init_pi_defaults()
+        self._validate_withholding_vouchers_on_cancel()
 
     def on_cancel(self) -> None:
         self.is_return = 1
@@ -127,6 +129,30 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         para compensar el CR AP que usa el grand_total completo.
         """
         return True
+
+    def _validate_withholding_vouchers_on_cancel(self) -> None:
+        """Bloquea la cancelación si la NC está asociada a un comprobante de retención."""
+        reasons: list[str] = []
+
+        if frappe.db.exists(
+            "VAT Withholding Voucher Item",
+            {"purchase_invoice": self.name}
+        ):
+            reasons.append("un Comprobante de retención de IVA")
+
+        if frappe.db.exists(
+            "ISLR Withholding Voucher Item",
+            {"purchase_invoice": self.name}
+        ):
+            reasons.append("un Comprobante de retención de ISLR")
+
+        if reasons:
+            frappe.throw(
+                _("No se puede cancelar esta Nota de Crédito. Está asociada a {0}.").format(
+                    " y a ".join(reasons)
+                ),
+                frappe.ValidationError,
+            )
 
     # ------------------------------------------------------------------ #
     # Herencia de datos desde la PI original                               #
@@ -303,20 +329,32 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         """
         Garantiza que el IVA base se cargue desde el template y luego agrega
         las retenciones venezolanas (IVA Retención e ISLR).
+
+        Las filas ISLR se preservan porque se asignan manualmente vía diálogo.
         """
-        impuestos_base = [
+        base_tax = [
             tax for tax in self.taxes or []
             if not tax.get("is_tax_withholding_account")
         ]
 
-        if not impuestos_base and self.get("taxes_and_charges"):
+        # Preservar filas ISLR existentes (asignadas manualmente)
+        islr_rows = [
+            tax for tax in self.taxes or []
+            if tax.get("charge_type") == "ISLR"
+        ]
+
+        if not base_tax and self.get("taxes_and_charges"):
             self.set("taxes", [])
             self.append_taxes_from_master("Purchase Taxes and Charges Template")
         else:
-            self.set("taxes", impuestos_base)
+            self.set("taxes", base_tax)
 
         self.set_tax_withholding_ve()
         self.set_islr_withholding_ve()
+
+        # Re-agregar filas ISLR preservadas
+        for row in islr_rows:
+            self.append("taxes", row)
 
         for i, tax in enumerate(self.taxes or [], start=1):
             tax.idx = i

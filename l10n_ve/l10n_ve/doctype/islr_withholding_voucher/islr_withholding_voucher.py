@@ -49,13 +49,18 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
             )
 
     def validate_withholding_amount(self) -> None:
-        """Impide aprobar un comprobante cuando no hay ISLR a retener."""
-        total_islr: float = flt(self.totals_islr_amount)
-        if not total_islr:
+        """Impide aprobar un comprobante cuando ningún item tiene ISLR a retener.
+
+        El total neto puede ser 0 o negativo cuando NCs compensan PIs,
+        pero al menos un item individual debe tener ISLR retenido.
+        """
+        has_any_withholding: bool = any(
+            flt(item.islr_amount) for item in self.get("islr_withholding_voucher_item", [])
+        )
+        if not has_any_withholding:
             frappe.throw(
-                _("No se puede procesar este comprobante porque el monto total "
-                  "de ISLR retenido es 0. Verifique que las facturas incluidas "
-                  "tengan retención de ISLR.")
+                _("No se puede procesar este comprobante porque ninguna factura incluida "
+                  "tiene ISLR retenido. Verifique que las facturas tengan retención de ISLR.")
             )
 
     def before_print(self, settings) -> None:
@@ -124,6 +129,7 @@ def get_valid_invoices(
     start_date: str,
     end_date: str,
     company: str,
+    exclude_voucher: str = "",
 ) -> list[dict]:
     """Obtiene facturas de compra con retención ISLR para el comprobante.
 
@@ -132,6 +138,9 @@ def get_valid_invoices(
 
     Genera una fila por cada concepto ISLR de cada factura (multi-concepto).
     Excluye combinaciones (factura, código) ya incluidas en otros comprobantes.
+
+    Args:
+        exclude_voucher: Nombre del comprobante actual para no auto-excluirse.
     """
     default_currency: str = frappe.get_cached_value(
         "Company", company, "default_currency"
@@ -146,22 +155,23 @@ def get_valid_invoices(
               "para procesar retenciones ISLR.")
         )
 
-    # Combinaciones (factura, código) ya en otros comprobantes (no cancelados)
+    # Combinaciones (factura, código) ya en otros comprobantes aprobados
     excluded_combinations: list[dict] = frappe.db.sql("""
         SELECT child.purchase_invoice, child.code
         FROM `tabISLR Withholding Voucher Item` child
         INNER JOIN `tabISLR Withholding Voucher` parent ON child.parent = parent.name
-        WHERE parent.docstatus != 2
+        WHERE parent.docstatus = 1
             AND parent.empresa = %(company)s
+            AND parent.name != %(exclude_voucher)s
             AND child.purchase_invoice IS NOT NULL
             AND child.purchase_invoice != ''
-    """, {"company": company}, as_dict=True)
+    """, {"company": company, "exclude_voucher": exclude_voucher or ""}, as_dict=True)
 
     excluded_set: set[tuple[str, str]] = {
         (d.purchase_invoice, d.code or "") for d in excluded_combinations
     }
 
-    # Facturas válidas en el rango de fechas
+    # Fase 1: Facturas de compra válidas en el rango de fechas
     valid_invoices: list[dict] = frappe.get_all(
         "Purchase Invoice",
         filters={
@@ -180,22 +190,43 @@ def get_valid_invoices(
         ]
     )
 
-    if not valid_invoices:
+    # Fase 1b: Notas de crédito de compra válidas
+    valid_ncs: list[dict] = frappe.get_all(
+        "VE Purchase Credit Note",
+        filters={
+            "supplier": supplier,
+            "posting_date": ["between", [start_date, end_date]],
+            "company": company,
+            "docstatus": 1,
+        },
+        fields=[
+            "name", "bill_no", "bill_control", "posting_date",
+            "grand_total", "total", "base_total", "base_grand_total",
+            "outstanding_amount", "affected_invoice_number",
+            "conversion_rate", "currency"
+        ]
+    )
+
+    if not valid_invoices and not valid_ncs:
         return []
 
     valid_invoice_names: list[str] = [inv.name for inv in valid_invoices]
-    invoice_map: dict = {inv.name: inv for inv in valid_invoices}
+    valid_nc_names: list[str] = [nc.name for nc in valid_ncs]
+    all_names: list[str] = valid_invoice_names + valid_nc_names
 
-    # Obtener todas las filas ISLR de las facturas válidas
+    invoice_map: dict = {inv.name: inv for inv in valid_invoices}
+    nc_map: dict = {nc.name: nc for nc in valid_ncs}
+
+    # Fase 2: Obtener todas las filas ISLR de PIs y NCs
     islr_taxes: list[dict] = frappe.get_all(
         "Purchase Taxes and Charges",
         filters={
-            "parent": ["in", valid_invoice_names],
-            "parenttype": "Purchase Invoice",
+            "parent": ["in", all_names],
+            "parenttype": ["in", ["Purchase Invoice", "VE Purchase Credit Note"]],
             "charge_type": "ISLR",
         },
         fields=[
-            "parent", "rate", "tax_amount", "base_tax_amount",
+            "parent", "parenttype", "rate", "tax_amount", "base_tax_amount",
             "percentage_base", "subtracting", "code",
             "base_tax_amount_after_discount_amount"
         ]
@@ -207,7 +238,8 @@ def get_valid_invoices(
     invoices_with_taxes: list[dict] = []
 
     for tax in islr_taxes:
-        invoice = invoice_map.get(tax.parent)
+        is_nc: bool = tax.parenttype == "VE Purchase Credit Note"
+        invoice: dict | None = nc_map.get(tax.parent) if is_nc else invoice_map.get(tax.parent)
         if not invoice:
             continue
 
@@ -242,9 +274,10 @@ def get_valid_invoices(
         )
 
         invoice_data: dict = {
+            "purchase_invoice_type": "VE Purchase Credit Note" if is_nc else "Purchase Invoice",
             "purchase_invoice": invoice.name,
             "doc_no": invoice.bill_no,
-            "doc_type": "FACT",
+            "doc_type": "N/CR" if is_nc else "FACT",
             "bill_control": invoice.bill_control,
             "posting_date": invoice.posting_date,
             "rate": flt(tax.rate),
@@ -256,6 +289,7 @@ def get_valid_invoices(
             "total": abs(flt(invoice.total)),
             "affected_invoice_number": invoice.affected_invoice_number,
             "paid_amount": paid_amount,
+            "is_return": 1 if is_nc else 0,
         }
 
         invoices_with_taxes.append(invoice_data)

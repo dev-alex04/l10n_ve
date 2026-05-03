@@ -6,6 +6,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "purchase_invoice_type",
   "purchase_invoice",
   "bill_no",
   "bill_control",
@@ -28,6 +29,25 @@
   "tax_amount_vat"
  ],
  "fields": [
+  {
+   "default": "Purchase Invoice",
+   "fieldname": "purchase_invoice_type",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Tipo de Documento de Compra",
+   "options": "Purchase Invoice\nVE Purchase Credit Note",
+   "read_only": 1
+  },
+  {
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Factura de Compra",
+   "options": "purchase_invoice_type",
+   "read_only": 1,
+   "reqd": 1
+  },
   {
    "fieldname": "bill_no",
    "fieldtype": "Data",
@@ -68,16 +88,6 @@
   {
    "fieldname": "column_break_pnui",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "purchase_invoice",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Factura de Compra",
-   "options": "Purchase Invoice",
-   "read_only": 1,
-   "reqd": 1
   },
   {
    "fieldname": "posting_date",
@@ -161,7 +171,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-10-16 17:38:27.730422",
+ "modified": "2026-05-01 18:36:00.000000",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher Item",

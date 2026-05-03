@@ -316,6 +316,7 @@ function load_invoices(frm) {
       start_date: frm.doc.start_date,
       end_date: frm.doc.end_date,
       company: frm.doc.empresa,
+      exclude_voucher: frm.doc.name || "",
     },
     callback: function (r) {
       frm.doc.totals_islr_base_amount = 0;
@@ -326,6 +327,7 @@ function load_invoices(frm) {
       if (r.message && r.message.length > 0) {
         r.message.forEach((invoice) => {
           let new_row = frm.add_child("islr_withholding_voucher_item");
+          new_row.purchase_invoice_type = invoice.purchase_invoice_type || "Purchase Invoice";
           new_row.purchase_invoice = invoice.purchase_invoice;
           new_row.doc_no = invoice.doc_no;
           new_row.doc_type = invoice.doc_type;
@@ -339,10 +341,12 @@ function load_invoices(frm) {
           new_row.code = invoice.code;
           new_row.islr_amount = invoice.islr_amount;
 
-          frm.doc.totals_islr_base_amount += invoice.islr_base_amount || 0;
-          frm.doc.totals_islr_amount += invoice.islr_amount || 0;
-          frm.doc.totals_grand_total += invoice.grand_total || 0;
-          frm.doc.totals_paid_amount += invoice.paid_amount || 0;
+          let negative = invoice.is_return ? -1 : 1;
+
+          frm.doc.totals_islr_base_amount += (invoice.islr_base_amount || 0) * negative;
+          frm.doc.totals_islr_amount += (invoice.islr_amount || 0) * negative;
+          frm.doc.totals_grand_total += (invoice.grand_total || 0) * negative;
+          frm.doc.totals_paid_amount += (invoice.paid_amount || 0) * negative;
         });
 
         frm.refresh_fields();

@@ -16,6 +16,13 @@ class TFHKAISLRPayloadBuilder(BaseRetentionPayloadBuilder):
     TRANSACTION_PREFIX: str = "RISLR"
     CHILD_TABLE_FIELD: str = "islr_withholding_voucher_item"
 
+    # Mapeo doc_type → TipoDocumento HKA (Catálogo 1)
+    _DOC_TYPE_MAP: dict[str, str] = {
+        "FACT": "01",
+        "N/CR": "02",
+        "N/DB": "03",
+    }
+
     # ─────────────────────────────────────────────────────────────
     # Implementación de métodos abstractos
     # ─────────────────────────────────────────────────────────────
@@ -31,19 +38,34 @@ class TFHKAISLRPayloadBuilder(BaseRetentionPayloadBuilder):
     # ─────────────────────────────────────────────────────────────
 
     def _build_retention_totals(self) -> dict:
-        """Nodo de totales consolidados de la retención ISLR."""
+        """Nodo de totales consolidados de la retención ISLR.
+
+        Según ejemplo oficial HKA ('COMPROBANTE DE ISLR EN NEGATIVO.json'):
+        - TotalBaseImponible y TotalISRL van en abs()
+        - EsNegativo: true si el neto es negativo (NC > facturas)
+        - TipoComprobante: "2" si es negativo, "1" si es positivo
+        """
         emission_date: str = self._get_emission_date()
+        is_negative: bool = self._is_net_negative()
 
         return {
-            "TotalBaseImponible": "{:.2f}".format(flt(self.doc.totals_islr_base_amount)),
+            "TotalBaseImponible": "{:.2f}".format(abs(flt(self.doc.totals_islr_base_amount))),
             "NumeroCompRetencion": self._clean_voucher_number(),
             "FechaEmisionCR": emission_date,
             "TotalIVA": None,
             "TotalRetenido": None,
-            "TotalISRL": "{:.2f}".format(flt(self.doc.totals_islr_amount)),
-            "TotalIGTF": None,
-            "TipoComprobante": "1",
+            "TotalISRL": "{:.2f}".format(abs(flt(self.doc.totals_islr_amount))),
+            "TotalIGTF": "",
+            "TipoComprobante": "2" if is_negative else "1",
+            "EsNegativo": is_negative,
         }
+
+    def _is_net_negative(self) -> bool:
+        """Determina si el comprobante tiene resultado neto negativo.
+
+        Ocurre cuando las NCs superan el monto de las facturas.
+        """
+        return flt(self.doc.totals_islr_base_amount) < 0
 
     # ─────────────────────────────────────────────────────────────
     # DetallesRetencion (ISLR)
@@ -57,30 +79,36 @@ class TFHKAISLRPayloadBuilder(BaseRetentionPayloadBuilder):
         return details
 
     def _build_islr_detail_item(self, item, line_number: int) -> dict:
-        """Construye un detalle individual de retención ISLR."""
+        """Construye un detalle individual de retención ISLR.
+
+        Según patrón oficial HKA: montos siempre en positivo (abs).
+        La diferenciación NC/Factura se hace con TipoDocumento.
+        """
         posting_date: str = getdate(item.posting_date).strftime("%d/%m/%Y")
 
         # Porcentaje ISLR: rate viene como 5 → HKA espera 0.05
         islr_percentage: str = "{:.2f}".format(flt(item.rate) / 100)
 
+        tipo_documento: str = self._DOC_TYPE_MAP.get(item.doc_type or "", "01")
+
         return {
             "NumeroLinea": str(line_number),
             "FechaDocumento": posting_date,
-            "TipoDocumento": "01",
+            "TipoDocumento": tipo_documento,
             "SerieDocumento": None,
             "NumeroDocumento": item.doc_no or "",
             "NumeroControl": item.bill_control or "",
-            "TipoTransaccion": None,
-            "MontoTotal": None,
-            "MontoExento": None,
-            "BaseImponible": "{:.2f}".format(flt(item.islr_base_amount)),
+            "TipoTransaccion": "",
+            "MontoTotal": "{:.2f}".format(abs(flt(item.grand_total))),
+            "MontoExento": "",
+            "BaseImponible": "{:.2f}".format(abs(flt(item.islr_base_amount))),
             "Porcentaje": islr_percentage,
             "PorcentajeRetencion": islr_percentage,
-            "Sustraendo": "{:.2f}".format(flt(item.subtracting)),
-            "MontoIVA": None,
-            "Retenido": "{:.2f}".format(flt(item.islr_amount)),
-            "Percibido": None,
+            "Sustraendo": "{:.2f}".format(abs(flt(item.subtracting))),
+            "MontoIVA": "",
+            "Retenido": "{:.2f}".format(abs(flt(item.islr_amount))),
+            "Percibido": "0",
             "CodigoConcepto": item.code or "",
             "Moneda": self.company_currency,
-            "InfoAdicionalItem": None,
+            "InfoAdicionalItem": [],
         }

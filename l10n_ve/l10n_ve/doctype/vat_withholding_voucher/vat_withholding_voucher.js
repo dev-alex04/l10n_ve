@@ -322,6 +322,7 @@ function load_invoices(frm) {
       start_date: frm.doc.start_date,
       end_date: frm.doc.end_date,
       company: frm.doc.empresa,
+      exclude_voucher: frm.doc.name || "",
     },
     callback: function (r) {
       frm.doc.totals_grand_total = 0;
@@ -333,6 +334,7 @@ function load_invoices(frm) {
       if (r.message && r.message.length > 0) {
         r.message.forEach((invoice) => {
           let new_row = frm.add_child("vat_withholding_voucher_item");
+          new_row.purchase_invoice_type = invoice.purchase_invoice_type || "Purchase Invoice";
           new_row.purchase_invoice = invoice.purchase_invoice;
           new_row.bill_no = invoice.bill_no;
           new_row.bill_control = invoice.bill_control;

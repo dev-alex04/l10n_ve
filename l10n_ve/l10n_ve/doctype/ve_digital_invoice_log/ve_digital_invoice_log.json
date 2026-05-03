@@ -23,7 +23,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Tipo de Documento",
-   "options": "Sales Invoice\nVE Sales Credit Note\nVE Sales Debit Note\nVAT Withholding Voucher"
+   "options": "Sales Invoice\nVE Sales Credit Note\nVE Sales Debit Note\nVAT Withholding Voucher\nISLR Withholding Voucher"
   },
   {
    "fieldname": "sales_invoice",
