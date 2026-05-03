@@ -27,6 +27,15 @@ frappe.ui.form.on("VE Purchase Credit Note", {
     });
   },
 
+  before_save: function (frm) {
+    // stock_qty es reqd en Purchase Invoice Item.
+    (frm.doc.items || []).forEach(function (item) {
+      if (!flt(item.conversion_factor)) {
+        item.conversion_factor = 1;
+      }
+      item.stock_qty = flt(item.qty) * flt(item.conversion_factor);
+    });
+  },
   refresh: function (frm) {
     calculate_base_total_with_vat(frm);
     set_islr_buttons(frm);
@@ -123,6 +132,7 @@ frappe.ui.form.on("VE Purchase Credit Note", {
             "description",
             "item_group",
             "qty",
+            "stock_qty",
             "uom",
             "stock_uom",
             "conversion_factor",
@@ -148,8 +158,6 @@ frappe.ui.form.on("VE Purchase Credit Note", {
           ];
           fields_to_copy.forEach(function (field) {
             if (item[field] !== undefined && item[field] !== null) {
-              new_item[field] = Math.abs(item[field]) || item[field];
-              // Solo aplicar abs a números
               if (typeof item[field] === "number") {
                 new_item[field] = Math.abs(item[field]);
               } else {
@@ -157,6 +165,13 @@ frappe.ui.form.on("VE Purchase Credit Note", {
               }
             }
           });
+
+          // stock_qty es reqd en Purchase Invoice Item
+          if (!flt(new_item.conversion_factor)) {
+            new_item.conversion_factor = 1;
+          }
+          new_item.stock_qty =
+            flt(new_item.qty) * flt(new_item.conversion_factor);
         });
         frm.refresh_field("items");
 
@@ -203,7 +218,10 @@ frappe.ui.form.on("VE Purchase Credit Note", {
 // ------------------------------------------------------------------ //
 
 frappe.ui.form.on("VE Purchase Credit Note Item", {
-  qty(frm) {
+  qty(frm, cdt, cdn) {
+    // stock_qty es reqd en Purchase Invoice Item
+    const row = locals[cdt][cdn];
+    row.stock_qty = flt(row.qty) * flt(row.conversion_factor || 1);
     frm.trigger("calculate_taxes_and_totals");
   },
   rate(frm) {

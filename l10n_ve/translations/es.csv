@@ -698,3 +698,5 @@ VE Sales Debit Note,Nota de Débito,
 Debit Note Issued,Nota de Débito Emitida,
 {0} {1}: Either debit or credit amount is required for {2},{0} {1}: El asiento contable de este documento está descuadrado. Comuníquese con el Administrador del sistema.,
 VE Purchase Credit Note,Nota de Crédito,
+VE Purchase Debit Note,Nota de Débito,
+

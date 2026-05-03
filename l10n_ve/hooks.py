@@ -140,9 +140,11 @@ doctype_js = {
         "public/js/controllers/taxes_and_totals.js",
     ],
     "VE Purchase Credit Note": [
+        "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
     ],
     "VE Purchase Debit Note": [
+        "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
     ],
     "Mode of Payment": [

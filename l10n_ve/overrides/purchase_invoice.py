@@ -89,7 +89,7 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                 {"return_against": self.name, "docstatus": 1},
             )
         ):
-            self.status = "Debit Note Issued"
+            self.status = "Credit Note Issued"
 
         if (
             self.status not in ("Debit Note Issued",)

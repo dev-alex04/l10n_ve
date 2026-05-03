@@ -17,6 +17,8 @@ __VE_DOCTYPES__ = [
     "Purchase Order",
     "Purchase Invoice",
     "Purchase Receipt",
+    "VE Purchase Credit Note",
+    "VE Purchase Debit Note",
 ]
 
 

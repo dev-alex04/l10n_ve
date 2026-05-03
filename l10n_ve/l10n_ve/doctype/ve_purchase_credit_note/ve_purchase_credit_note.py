@@ -123,12 +123,13 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
             self.doctype = "VE Purchase Credit Note"
 
     def _grand_total_includes_withholding(self) -> bool:
-        """La NC calcula grand_total bruto (base + IVA, sin descontar retenciones).
+        """El grand_total de la NC ya descuenta retenciones (es neto).
 
-        make_gl_entries_for_tax_withholding necesita crear DR al AP
-        para compensar el CR AP que usa el grand_total completo.
+        set_cumulative_total en taxes_and_totals resta VAT Withholding e ISLR
+        del total acumulado, por lo que grand_total = base + IVA - retenciones.
+        No se necesita DR extra al AP.
         """
-        return True
+        return False
 
     def _validate_withholding_vouchers_on_cancel(self) -> None:
         """Bloquea la cancelación si la NC está asociada a un comprobante de retención."""
@@ -429,12 +430,17 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
     # ------------------------------------------------------------------ #
 
     def _enforce_positive_amounts(self) -> None:
-        """Garantiza que todos los montos de ítems sean positivos."""
+        """Garantiza que todos los montos de ítems sean positivos y setea stock_qty."""
         for item in self.items:
             if flt(item.qty) < 0:
                 item.qty = abs(item.qty)
             if flt(item.rate) < 0:
                 item.rate = abs(item.rate)
+
+            # Purchase Invoice Item tiene stock_qty como reqd=1.
+            if not flt(item.conversion_factor):
+                item.conversion_factor = 1.0
+            item.stock_qty = flt(item.qty) * flt(item.conversion_factor)
 
     def _validate_unique_note_per_invoice(self) -> None:
         """Verifica que no exista otra NC activa para la misma factura original."""
