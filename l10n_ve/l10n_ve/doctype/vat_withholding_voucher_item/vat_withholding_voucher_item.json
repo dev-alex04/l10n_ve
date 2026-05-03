@@ -35,7 +35,7 @@
    "fieldtype": "Select",
    "hidden": 1,
    "label": "Tipo de Documento de Compra",
-   "options": "Purchase Invoice\nVE Purchase Credit Note",
+   "options": "Purchase Invoice\nVE Purchase Credit Note\nVE Purchase Debit Note",
    "read_only": 1
   },
   {

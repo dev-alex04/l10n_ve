@@ -2784,12 +2784,13 @@ def _verify_replacement(company_name: str = "Galanet Solution C.A.") -> None:
 
 
 def add_links_to_buying_workspace() -> None:
-    """Agrega VE Purchase Credit Note como link en la sección 'Compras'
-    del Workspace de Compras, justo después de 'Purchase Invoice'.
+    """Agrega VE Purchase Credit Note y VE Purchase Debit Note como links
+    en la sección 'Compras' del Workspace de Compras, justo después de
+    'Purchase Invoice'.
 
     Sigue el mismo patrón de add_links_to_selling_workspace.
     """
-    print("Agregando NC de Compras al Workspace de Compras...")
+    print("Agregando NC/ND de Compras al Workspace de Compras...")
     try:
         workspace_name = None
         for candidate in ("Buying", "Compras"):
@@ -2807,6 +2808,12 @@ def add_links_to_buying_workspace() -> None:
             {
                 "label": _("Nota de Crédito"),
                 "link_to": "VE Purchase Credit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+            {
+                "label": _("Nota de Débito"),
+                "link_to": "VE Purchase Debit Note",
                 "type": "Link",
                 "link_type": "DocType",
             },
@@ -2852,7 +2859,7 @@ def add_links_to_buying_workspace() -> None:
                 link.idx = i
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
-            print(f"Success: Links NC agregados al Workspace '{workspace_name}'.")
+            print(f"Success: Links NC/ND agregados al Workspace '{workspace_name}'.")
         else:
             print(f"  -- Workspace '{workspace_name}' ya tenía los links.")
 

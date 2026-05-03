@@ -17,31 +17,85 @@ from l10n_ve.utils.utils import validate_return_in_same_month
 
 class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
+    def before_cancel(self) -> None:
+        self._block_cancel_if_has_active_notes()
+        self._block_cancel_if_has_withholdings()
+        super().before_cancel()
+
     def on_cancel(self) -> None:
         super().on_cancel()
 
-        # TODO: Mover a una funcion
+    def _block_cancel_if_has_active_notes(self) -> None:
+        """Bloquea la cancelación si la factura tiene NC o ND venezolana activa.
 
-        has_iva_withholding = frappe.db.exists(
+        Regla de negocio: para anular una factura con NC/ND, primero se
+        deben anular los documentos dependientes.
+        """
+        active_nc: dict | None = frappe.db.get_value(
+            "VE Purchase Credit Note",
+            {"return_against": self.name, "docstatus": 1},
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if active_nc:
+            nc_bill: str = active_nc.bill_no or active_nc.name
+            nc_link: str = (
+                f'<a href="/app/ve-purchase-credit-note/{active_nc.name}">'
+                f'{nc_bill}</a>'
+            )
+            frappe.throw(
+                _(
+                    "No se puede anular la factura <b>{0}</b> porque tiene "
+                    "una Nota de Crédito activa: {1}. "
+                    "Anule primero la Nota de Crédito."
+                ).format(self.name, nc_link),
+                title=_("Cancelación Bloqueada — NC Activa"),
+            )
+
+        active_nd: dict | None = frappe.db.get_value(
+            "VE Purchase Debit Note",
+            {"return_against": self.name, "docstatus": 1},
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if active_nd:
+            nd_bill: str = active_nd.bill_no or active_nd.name
+            nd_link: str = (
+                f'<a href="/app/ve-purchase-debit-note/{active_nd.name}">'
+                f'{nd_bill}</a>'
+            )
+            frappe.throw(
+                _(
+                    "No se puede anular la factura <b>{0}</b> porque tiene "
+                    "una Nota de Débito activa: {1}. "
+                    "Anule primero la Nota de Débito."
+                ).format(self.name, nd_link),
+                title=_("Cancelación Bloqueada — ND Activa"),
+            )
+
+    def _block_cancel_if_has_withholdings(self) -> None:
+        """Bloquea la cancelación si la factura está en un comprobante de retención activo."""
+        reasons: list[str] = []
+
+        if frappe.db.exists(
             "VAT Withholding Voucher Item",
-            {"purchase_invoice": self.name }
-        )
-
-        has_islr_withholding = frappe.db.exists(
-            "ISLR Withholding Voucher Item",
-            {"purchase_invoice": self.name }
-        )
-
-        reasons = []
-        if has_iva_withholding:
+            {"purchase_invoice": self.name}
+        ):
             reasons.append("un Comprobante de retención de IVA")
 
-        if has_islr_withholding:
+        if frappe.db.exists(
+            "ISLR Withholding Voucher Item",
+            {"purchase_invoice": self.name}
+        ):
             reasons.append("un Comprobante de retención de ISLR")
 
         if reasons:
-            message = "No se puede cancelar esta factura. Está asociada a " + " y a ".join(reasons) + "."
-            frappe.throw(message, frappe.ValidationError)
+            frappe.throw(
+                _("No se puede cancelar esta factura. Está asociada a {0}.").format(
+                    " y a ".join(reasons)
+                ),
+                frappe.ValidationError,
+            )
 
     def before_submit(self) -> None:
         super().before_submit()

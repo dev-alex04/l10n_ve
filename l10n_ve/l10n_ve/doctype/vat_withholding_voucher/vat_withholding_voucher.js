@@ -351,6 +351,7 @@ function load_invoices(frm) {
           new_row.affected_invoice_number = invoice.affected_invoice_number;
           new_row.tax_amount = invoice.tax_amount;
 
+          // Solo NC resta en los totales del comprobante
           let negative = invoice.is_return ? -1 : 1;
 
           frm.doc.totals_grand_total += (invoice.grand_total || 0) * negative;
@@ -393,6 +394,7 @@ function calculate_totals(frm) {
   let total_tax_amount_vat = 0;
 
   frm.doc.vat_withholding_voucher_item.forEach((item) => {
+    // Solo NC resta en los totales del comprobante
     let negative = item.credit_note_no ? -1 : 1;
 
     total_grand_total += (item.grand_total || 0) * negative;
