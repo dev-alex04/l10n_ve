@@ -8,6 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "company",
+  "branch",
   "naming_series",
   "title",
   "bill_control",
@@ -215,6 +216,15 @@
    "remember_last_selected_value": 1
   },
   {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Sucursal",
+   "options": "VE Branch",
+   "read_only": 1,
+   "no_copy": 0,
+   "search_index": 1
+  },
+  {
    "fieldname": "column_break_6",
    "fieldtype": "Column Break"
   },
@@ -223,7 +233,7 @@
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Fecha de Contabilizaci\u00f3n",
+   "label": "Fecha de Contabilización",
    "oldfieldname": "posting_date",
    "oldfieldtype": "Date",
    "print_hide": 1,
@@ -265,7 +275,7 @@
   {
    "fieldname": "bill_no",
    "fieldtype": "Data",
-   "label": "Numero de Nota de Cr\u00e9dito",
+   "label": "Numero de Nota de Crédito",
    "oldfieldname": "bill_no",
    "oldfieldtype": "Data",
    "print_hide": 1,

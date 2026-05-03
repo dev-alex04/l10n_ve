@@ -104,6 +104,9 @@ def get_query_data(filters: dict) -> list[dict]:
     if filters.get("company"):
         values["company"] = filters.get("company")
 
+    if filters.get("branch"):
+        values["branch"] = filters.get("branch")
+
     return frappe.db.sql(query, values, as_dict=True)
 
 
@@ -115,6 +118,11 @@ def get_query(filters: dict) -> str:
 
     if filters.get("company"):
         conditions += " AND tPI.company = %(company)s"
+
+    # Filtro opcional de sucursal
+    branch: str = filters.get("branch") or ""
+    if branch:
+        conditions += " AND tPI.branch = %(branch)s"
 
     query: str = """
         WITH InvoiceData AS (
@@ -167,6 +175,7 @@ def get_query(filters: dict) -> str:
             WHERE nc.docstatus = 1
                 AND nc.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 {nc_company_condition}
+                {nc_branch_condition}
 
             UNION ALL
 
@@ -194,6 +203,7 @@ def get_query(filters: dict) -> str:
             WHERE nd.docstatus = 1
                 AND nd.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 {nd_company_condition}
+                {nd_branch_condition}
         )
         SELECT
             inv.name AS nro_factura,
@@ -297,6 +307,12 @@ def get_query(filters: dict) -> str:
     # Condición de compañía para NDs
     nd_company_condition: str = "AND nd.company = %(company)s" if filters.get("company") else ""
     query = query.replace("{nd_company_condition}", nd_company_condition)
+
+    # Condición de sucursal para NCs y NDs
+    nc_branch_condition: str = "AND nc.branch = %(branch)s" if branch else ""
+    query = query.replace("{nc_branch_condition}", nc_branch_condition)
+    nd_branch_condition: str = "AND nd.branch = %(branch)s" if branch else ""
+    query = query.replace("{nd_branch_condition}", nd_branch_condition)
 
     return query
 

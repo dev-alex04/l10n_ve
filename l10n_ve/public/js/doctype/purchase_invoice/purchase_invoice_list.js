@@ -52,12 +52,8 @@ frappe.listview_settings["Purchase Invoice"] = {
       return [__("Pago Parcial"), "yellow", "status,=,Partly Paid"];
     }
 
-    if (status === "Overdue") {
-      return [__("Atrasado"), "red", "status,=,Overdue"];
-    }
-
-    if (status === "Unpaid") {
-      return [__("Por Pagar"), "orange", "status,=,Unpaid"];
+    if (status === "Overdue" || status === "Unpaid") {
+      return [__("Por Pagar"), "orange", "status,=," + status];
     }
 
     if (status === "Internal Transfer") {

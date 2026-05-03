@@ -310,6 +310,18 @@ doc_events = {
     "Purchase Receipt": {
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
+    "VE Purchase Credit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "VE Purchase Debit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "VE Sales Credit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "VE Sales Debit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
     "File": {
         "after_insert": "l10n_ve.overrides.task.sync_attachment_to_project",
     },

@@ -8,6 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "company",
+  "branch",
   "naming_series",
   "title",
   "bill_no",
@@ -267,6 +268,15 @@
    "remember_last_selected_value": 1
   },
   {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Sucursal",
+   "options": "VE Branch",
+   "read_only": 1,
+   "no_copy": 0,
+   "search_index": 1
+  },
+  {
    "fieldname": "column_break_6",
    "fieldtype": "Column Break"
   },
@@ -314,7 +324,7 @@
    "default": "0",
    "fieldname": "apply_tds",
    "fieldtype": "Check",
-   "label": "Aplicar Retenci\u00f3n",
+   "label": "Aplicar Retención",
    "print_hide": 1
   },
   {
@@ -346,7 +356,7 @@
   {
    "fieldname": "bill_date",
    "fieldtype": "Date",
-   "label": "Fecha de Nota de D\u00e9bito",
+   "label": "Fecha de Nota de Débito",
    "no_copy": 1,
    "oldfieldname": "bill_date",
    "oldfieldtype": "Date",

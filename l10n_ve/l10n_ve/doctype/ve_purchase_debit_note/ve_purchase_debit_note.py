@@ -198,7 +198,7 @@ class VEPurchaseDebitNote(TaxesMixin, PurchaseInvoice):
             [
                 "credit_to", "conversion_rate",
                 "plc_conversion_rate", "posting_date", "due_date",
-                "bill_no",
+                "bill_no", "branch",
             ],
             as_dict=True,
         ) or {}
@@ -226,6 +226,10 @@ class VEPurchaseDebitNote(TaxesMixin, PurchaseInvoice):
         # ── Nro. Factura Afectada ────────────────────────────────────────────
         if pi_values.get("bill_no"):
             self.affected_invoice_number = pi_values["bill_no"]
+
+        # ── Sucursal: heredar de la PI ────────────────────────────────────────
+        if pi_values.get("branch") and not self.get("branch"):
+            self.branch = pi_values["branch"]
 
     # ------------------------------------------------------------------ #
     # Defaults de PurchaseInvoice                                          #

@@ -134,6 +134,11 @@ frappe.ui.form.on("VE Purchase Debit Note", {
         // Nro. Factura Afectada
         frm.set_value("affected_invoice_number", pi.bill_no || "");
 
+        // Sucursal: heredar de la PI original
+        if (pi.branch) {
+          frm.set_value("branch", pi.branch);
+        }
+
         // Taxes and charges template
         frm.set_value("taxes_and_charges", pi.taxes_and_charges);
 

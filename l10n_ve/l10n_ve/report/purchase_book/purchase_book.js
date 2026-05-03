@@ -49,6 +49,15 @@ frappe.query_reports["purchase_book"] = {
       fieldtype: "Date",
       default: frappe.datetime.month_end(),
     },
+    {
+      fieldname: "branch",
+      label: __("Sucursal"),
+      fieldtype: "Link",
+      options: "VE Branch",
+      get_query: () => ({
+        filters: { company: frappe.query_report.get_filter_value("company") },
+      }),
+    },
   ],
 
   onload: function (report) {
