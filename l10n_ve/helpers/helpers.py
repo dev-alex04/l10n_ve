@@ -1,40 +1,78 @@
 # Copyright (c) 2025, DominaERP and contributors
 # For license information, please see license.txt
 
+from typing import TYPE_CHECKING
+
 import frappe
 
+if TYPE_CHECKING:
+    from frappe.model.document import Document
 
-def set_ve_branch(doc, method):
+
+def set_ve_branch(doc: "Document", method: str) -> None:
+    """Asigna la sucursal VE Branch al documento y establece el centro de costos correspondiente."""
 
     try:
         if not frappe.get_meta(doc.doctype).get_field("branch"):
             return
 
-        if doc.branch:
-            return
+        if not doc.branch:
+            branches = frappe.get_all("VE Branch Users", filters={
+                "user": frappe.session.user,
+                "parenttype": "VE Branch"
+            }, fields=["parent"])
 
-        branches = frappe.get_all("VE Branch Users", filters={
-            "user": frappe.session.user,
-            "parenttype": "VE Branch"
-        }, fields=["parent"])
+            unique_branches = list(set([b.parent for b in branches if b.parent]))
 
-        unique_branches = list(set([b.parent for b in branches if b.parent]))
+            if len(unique_branches) == 1:
+                doc.branch = unique_branches[0]
 
-        if len(unique_branches) == 1:
-            doc.branch = unique_branches[0]
+            elif len(unique_branches) > 1:
+                branches_list = ", ".join([frappe.bold(frappe.utils.escape_html(b)) for b in unique_branches])
 
-        elif len(unique_branches) > 1:
-            branches_list = ", ".join([frappe.bold(frappe.utils.escape_html(b)) for b in unique_branches])
-            
-            frappe.throw(
-                frappe._("El usuario tiene múltiples sucursales asignadas: {0}. Por favor seleccione una.").format(branches_list),
-                title=frappe._("Selección de Sucursal")
-            )
+                frappe.throw(
+                    frappe._("El usuario tiene múltiples sucursales asignadas: {0}. Por favor seleccione una.").format(branches_list),
+                    title=frappe._("Selección de Sucursal")
+                )
+
+        _set_cost_center_from_branch(doc)
+
     except Exception as e:
         if isinstance(e, frappe.exceptions.ValidationError):
             raise
 
         frappe.log_error(
-            title=f"Error al asignar sucursal",
+            title="Error al asignar sucursal",
             message=f"Error al asignar sucursal: {str(e)} \n{frappe.get_traceback()}"
         )
+
+
+def _set_cost_center_from_branch(doc: "Document") -> None:
+    """Establece el centro de costos del documento basado en la sucursal VE Branch asignada.
+
+    Aplica el cost_center a nivel de documento, a cada item de la tabla hija `items`
+    y a cada línea de la tabla `taxes`.
+    """
+    if not doc.branch:
+        return
+
+    if not frappe.get_meta(doc.doctype).get_field("cost_center"):
+        return
+
+    branch_cost_center: str | None = frappe.get_cached_value(
+        "VE Branch", doc.branch, "cost_center"
+    )
+
+    if not branch_cost_center:
+        return
+
+    doc.cost_center = branch_cost_center
+
+    for item in doc.get("items", []):
+        if hasattr(item, "cost_center"):
+            item.cost_center = branch_cost_center
+
+    for tax in doc.get("taxes", []):
+        if hasattr(tax, "cost_center"):
+            tax.cost_center = branch_cost_center
+
