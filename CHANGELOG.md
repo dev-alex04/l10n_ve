@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.20] - 2026-05-08
+
+### ✨ Funcionalidades (Features)
+- Actualización de la lógica interna en las funciones encargadas de la carga de comprobantes de retención.
+
+### 🐛 Correcciones (Fixes)
+- **Seguridad:** Se corrigió una vulnerabilidad crítica en los endpoints de retención que permitía el bypass de permisos de administrador y se reforzó la validación de acceso. 7307bd4
+- Mejora en la validación del período fiscal y depuración de código en los endpoints de retención para asegurar la integridad de los datos. ca1c4ea
+
+---
+
 ## [v1.0.19] - 2026-05-08
 
 ### 🐛 Correcciones (Fixes)
