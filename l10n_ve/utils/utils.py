@@ -571,12 +571,12 @@ def validate_portal_upload(file_url, max_size_mb=5):
     if file_ext not in allowed_extensions:
         frappe.throw(_("Formato de archivo no permitido. Solo se aceptan PDF e imágenes (JPG, PNG, WebP)."))
 
-    file_info = frappe.db.get_value("File", {"file_url": file_url}, ["file_size", "file_name"], as_dict=True)
-    
+    file_info = frappe.db.get_value("File", {"file_url": file_url}, ["name", "file_size"], as_dict=True)
+
     if file_info and file_info.file_size:
         max_size_bytes = max_size_mb * 1024 * 1024
         if file_info.file_size > max_size_bytes:
-            frappe.delete_doc("File", frappe.db.get_value("File", {"file_url": file_url}))
+            frappe.delete_doc("File", file_info.name, ignore_permissions=True)
             frappe.throw(_("El archivo excede el límite de {0}MB.").format(max_size_mb))
 
 def delete_old_attachment(doc, fieldname, new_file_url=None):
@@ -599,14 +599,14 @@ def get_last_day_of_month(date):
     next_month = add_months(first_day_next_month, 1)
     return add_days(next_month, -1)
 
-def is_period_open(voucher_date, type="IVA"):
+def is_period_open(voucher_date, period_type="IVA"):
     if not voucher_date:
         return True
     
     today = getdate(nowdate())
     v_date = getdate(voucher_date)
     
-    if type == "IVA":
+    if period_type == "IVA":
         if v_date.day <= 15:
             limit_date = v_date.replace(day=15)
         else:
@@ -614,7 +614,7 @@ def is_period_open(voucher_date, type="IVA"):
         
         return today <= limit_date
 
-    elif type == "ISLR":
+    elif period_type == "ISLR":
         limit_date = get_last_day_of_month(v_date)
         return today <= limit_date
     

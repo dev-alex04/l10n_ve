@@ -876,59 +876,12 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
                 )
 
 
-# @frappe.whitelist()
-# def upload_voucher_data(docname,
-#                         voucher_number,
-#                         withholding_date,
-#                         file_url=None)-> dict:
-#     """
-#     Actualiza la Sales Invoice (Factura de Venta) con los datos del
-#     comprobante de retención.
-#     """
-#     try:
-#         doc = frappe.get_doc("Sales Invoice", docname)
-
-#         if doc.get("withholding_date") and not is_period_open(doc.get("withholding_date"), "IVA"):
-#             frappe.throw(_("El periodo de declaración para esta retención de IVA ha finalizado. Debe comunicarse con el departamento de soporte."))
-
-#         if file_url:
-#             validate_portal_upload(file_url, 5)
-#             delete_old_attachment(doc, 'voucher_image')
-
-#         doc.db_set('vat_withholding_voucher_number', voucher_number)
-#         doc.db_set('withholding_date', withholding_date)
-#         doc.db_set('voucher_image', file_url)
-
-#         doc.add_comment(
-#             "Comment",
-#             f"Comprobante de IVA actualizado. Número: {voucher_number}. Fecha: {withholding_date}.",
-
-#         )
-
-#         return {
-#             "status": "success",
-#             "msg": "Factura de Venta actualizada con los datos del comprobante."
-#         }
-
-#     except frappe.DoesNotExistError:
-#         frappe.log_error(f"Sales Invoice {docname} no encontrada.",
-#                          "Error en upload_voucher_data")
-#         return {
-#             "status": "error",
-#             "msg": f"Factura de Venta con ID {docname} no encontrada."
-#         }
-#     except Exception as e:
-#         frappe.log_error(frappe.get_traceback(), "Error en upload_voucher_data")
-#         return {
-#             "status": "error",
-#             "msg": f"Error inesperado al guardar los datos: {str(e)}"
-#         }
 
 @frappe.whitelist()
 def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None) -> dict:
     try:
         if not withholding_date or not file_url:
-            frappe.throw("Faltan datos obligatorios.")
+            frappe.throw(_("Faltan datos obligatorios."))
 
         if file_url:
             validate_portal_upload(file_url, 5)
@@ -936,9 +889,12 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
         user_roles = frappe.get_roles()
 
         if "ISP Finance" not in user_roles:
+            if not is_period_open(withholding_date, "IVA"):
+                frappe.throw(_("La fecha del comprobante cae en un período de declaración cerrado."))
+
             current_date = frappe.db.get_value("Sales Invoice", docname, "withholding_date")
             if current_date and not is_period_open(current_date, "IVA"):
-                frappe.throw("El periodo de declaración ha finalizado.")
+                frappe.throw(_("El periodo de declaración para esta retención de IVA ha finalizado. Debe comunicarse con el departamento de soporte."))
 
         invoice_doc = frappe.get_doc("Sales Invoice", docname)
 
@@ -974,68 +930,21 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
         frappe.log_error(frappe.get_traceback(), "Error IVA Portal")
         return {"status": "error", "msg": str(e)}
 
-# @frappe.whitelist()
-# def upload_islr_voucher_data(docname,
-#                              islr_date,
-#                              islr_receipt_number=None,
-#                              file_url=None)-> dict:
-#     """
-#     Actualiza la Sales Invoice (Factura de Venta)
-#     con los datos del comprobante de retención de ISLR.
-#     """
-#     try:
-#         # Validación en el backend
-#         if not islr_date or not file_url:
-#             frappe.throw(_("La fecha y el archivo del comprobante de ISLR son obligatorios."))
-
-#         doc = frappe.get_doc("Sales Invoice", docname)
-
-#         if doc.get("islr_date") and not is_period_open(doc.get("islr_date"), "ISLR"):
-#             frappe.throw(_("El periodo de declaración para esta retención de ISLR ha finalizado. Debe comunicarse con el departamento de soporte."))
-
-#         if file_url:
-#             validate_portal_upload(file_url, 5)
-#             delete_old_attachment(doc, 'voucher_image_islr')
-
-#         doc.db_set('islr_receipt_number', islr_receipt_number)
-#         doc.db_set('islr_date', islr_date)
-#         doc.db_set('voucher_image_islr', file_url)
-
-#         comment_text = f"Comprobante de Retención de ISLR actualizado. Fecha: {islr_date}."
-#         if islr_receipt_number:
-#             comment_text = f"Comprobante de Retención de ISLR actualizado. Número: {islr_receipt_number}. Fecha: {islr_date}."
-#         else:
-#             comment_text = f"Comprobante de Retención de ISLR actualizado (sin número). Fecha: {islr_date}."
-
-#         doc.add_comment(
-#             "Comment",
-#             comment_text,
-#         )
-
-#         return {
-#             "status": "success",
-#             "msg": "Factura de Venta actualizada con los datos del comprobante de ISLR."
-#         }
-
-#     except frappe.DoesNotExistError:
-#         frappe.log_error(f"Sales Invoice {docname} no encontrada.", "Error en upload_islr_voucher_data")
-#         return {"status": "error", "msg": f"Factura de Venta con ID {docname} no encontrada."}
-
-#     except Exception as e:
-#         frappe.log_error(frappe.get_traceback(), "Error en upload_islr_voucher_data")
-#         return {"status": "error", "msg": f"Error inesperado al guardar los datos: {str(e)}"}
 
 @frappe.whitelist()
 def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_url=None) -> dict:
     try:
         if not islr_date or not file_url:
-            frappe.throw("La fecha y el archivo del comprobante de ISLR son obligatorios.")
+            frappe.throw(_("La fecha y el archivo del comprobante de ISLR son obligatorios."))
 
         if file_url:
             validate_portal_upload(file_url, 5)
 
         user_roles = frappe.get_roles()
         if "ISP Finance" not in user_roles:
+            if not is_period_open(islr_date, "ISLR"):
+                frappe.throw(_("La fecha del comprobante cae en un período de declaración cerrado."))
+
             current_date = frappe.db.get_value("Sales Invoice", docname, "islr_date")
             if current_date and not is_period_open(current_date, "ISLR"):
                 frappe.throw(_("El periodo de declaración para esta retención de ISLR ha finalizado. Debe comunicarse con el departamento de soporte."))
