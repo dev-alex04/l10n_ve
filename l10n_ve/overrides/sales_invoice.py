@@ -886,17 +886,17 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
         if file_url:
             validate_portal_upload(file_url, 5)
 
+        invoice_doc = frappe.get_doc("Sales Invoice", docname)
+
         user_roles = frappe.get_roles()
 
-        if "ISP Finance" not in user_roles:
+        if frappe.session.user != "Administrator" and "ISP Finance" not in user_roles:
             if not is_period_open(withholding_date, "IVA"):
                 frappe.throw(_("La fecha del comprobante cae en un período de declaración cerrado."))
 
-            current_date = frappe.db.get_value("Sales Invoice", docname, "withholding_date")
+            current_date = invoice_doc.get("withholding_date")
             if current_date and not is_period_open(current_date, "IVA"):
                 frappe.throw(_("El periodo de declaración para esta retención de IVA ha finalizado. Debe comunicarse con el departamento de soporte."))
-
-        invoice_doc = frappe.get_doc("Sales Invoice", docname)
 
         delete_old_attachment(invoice_doc, "voucher_image", file_url)
 
@@ -940,16 +940,16 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
         if file_url:
             validate_portal_upload(file_url, 5)
 
+        invoice_doc = frappe.get_doc("Sales Invoice", docname)
+
         user_roles = frappe.get_roles()
-        if "ISP Finance" not in user_roles:
+        if frappe.session.user != "Administrator" and "ISP Finance" not in user_roles:
             if not is_period_open(islr_date, "ISLR"):
                 frappe.throw(_("La fecha del comprobante cae en un período de declaración cerrado."))
 
-            current_date = frappe.db.get_value("Sales Invoice", docname, "islr_date")
+            current_date = invoice_doc.get("islr_date")
             if current_date and not is_period_open(current_date, "ISLR"):
                 frappe.throw(_("El periodo de declaración para esta retención de ISLR ha finalizado. Debe comunicarse con el departamento de soporte."))
-
-        invoice_doc = frappe.get_doc("Sales Invoice", docname)
 
         delete_old_attachment(invoice_doc, "voucher_image_islr", file_url)
 
