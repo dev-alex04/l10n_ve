@@ -9,6 +9,7 @@ from datetime import datetime
 
 import frappe
 from frappe import _
+from frappe.model.document import Document
 from frappe.utils import flt
 
 from l10n_ve.digital_invoice.vat_withholding_payload_builder import TFHKARetentionPayloadBuilder
@@ -27,7 +28,7 @@ _RETENTION_DELAY_BETWEEN_CALLS: float = 0.5
 # Validación pre-envío
 # ---------------------------------------------------------------------------
 
-def _validate_retention_integrity(doc) -> list[str]:
+def _validate_retention_integrity(doc: Document) -> list[str]:
     """Valida la integridad del comprobante antes de enviar a HKA.
 
     Verifica que todos los datos requeridos por la API estén presentes
@@ -65,33 +66,27 @@ def _validate_retention_integrity(doc) -> list[str]:
         prefix: str = f"Línea {idx} ({item.purchase_invoice})"
 
         if not (item.bill_no or "").strip():
-            errors.append(f"{prefix}: Falta el No. de Factura (bill_no).")
+            errors.append(_("{0}: Falta el No. de Factura (bill_no).").format(prefix))
 
         if not (item.bill_control or "").strip():
-            errors.append(f"{prefix}: Falta el No. de Control (bill_control).")
+            errors.append(_("{0}: Falta el No. de Control (bill_control).").format(prefix))
 
         if not flt(item.rate):
-            errors.append(f"{prefix}: La alícuota de IVA (rate) es 0.")
+            errors.append(_("{0}: La alícuota de IVA (rate) es 0.").format(prefix))
 
         if not flt(item.withholding_rate):
-            errors.append(f"{prefix}: El porcentaje de retención es 0.")
+            errors.append(_("{0}: El porcentaje de retención es 0.").format(prefix))
 
-        # HKA valida [1055]: MontoTotal = BaseImponible + MontoExento + MontoIVA
-        base: float = flt(item.total)
-        exento: float = flt(item.total_exempt)
-        iva: float = flt(item.taxes_and_charges_added)
-        expected_total: float = base + exento + iva
-        grand: float = flt(item.grand_total)
-        if abs(expected_total - grand) > 0.05 and abs(expected_total) > 0:
-            # grand_total puede no cuadrar (incluye retención), no es error del voucher
-            pass
+        # Nota: no se valida grand_total vs (base + exento + IVA) porque
+        # grand_total incluye retenciones descontadas y puede diferir.
 
         # HKA valida [1060]: Retenido = MontoIVA × PorcentajeRetencion
+        iva: float = flt(item.taxes_and_charges_added)
         retenido_calc: float = iva * flt(item.withholding_rate) / 100
         if retenido_calc <= 0 and iva > 0 and flt(item.withholding_rate) > 0:
             errors.append(
-                f"{prefix}: El monto retenido calculado es 0 "
-                f"(IVA={iva:.2f} × Ret={item.withholding_rate}%)."
+                _("{0}: El monto retenido calculado es 0 "
+                  "(IVA={1:.2f} × Ret={2}%).").format(prefix, iva, item.withholding_rate)
             )
 
         total_retenido_calc += retenido_calc
@@ -99,7 +94,7 @@ def _validate_retention_integrity(doc) -> list[str]:
     # Validar consistencia de total retenido
     if items and total_retenido_calc <= 0:
         errors.append(
-            "El total retenido calculado es 0. Verifique alícuotas y porcentajes."
+            _("El total retenido calculado es 0. Verifique alícuotas y porcentajes.")
         )
 
     return errors
@@ -196,7 +191,6 @@ def process_retention_voucher(
             notes=error_msg,
         )
         doc.db_set("digital_invoice_status", "Error")
-        frappe.db.commit()
         if raise_on_error:
             frappe.throw(error_msg)
         return False
@@ -220,7 +214,6 @@ def process_retention_voucher(
             notes=error_msg,
         )
         doc.db_set("digital_invoice_status", "Error")
-        frappe.db.commit()
         if raise_on_error:
             frappe.throw(error_msg)
         return False
@@ -366,11 +359,11 @@ def send_pending_retention_vouchers(tfhka_settings: dict) -> None:
             if result:
                 success_count += 1
                 success_vouchers.append(voucher_name)
-                frappe.db.commit()
             else:
                 error_count += 1
                 error_vouchers.append(voucher_name)
-                frappe.db.commit()
+
+            frappe.db.commit()
 
         except Exception as e:
             error_count += 1
