@@ -31,7 +31,7 @@ def get_islr_aliquot(
     if not tabulator_name:
         return None
 
-    tabulator: Document = frappe.get_cached_doc("Tabulator ISLR", tabulator_name)
+    tabulator = frappe.get_cached_doc("Tabulator ISLR", tabulator_name)
     if not tabulator.aliquot:
         return None
 
