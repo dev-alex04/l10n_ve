@@ -304,6 +304,46 @@ def _resolve_future_date(
     return today_date, last_rate
 
 
+def reset_all_prepared_reports() -> None:
+    """
+    Capa 1 — Red de seguridad del sistema de prepared_report inteligente.
+
+    Frappe activa prepared_report=1 en BD cuando un reporte tarda > 15s.
+    La Capa 2 (report_session_patch.py) suprime ese mecanismo interceptando
+    execute_script_report, pero pueden existir paths alternativos no cubiertos.
+
+    Esta tarea corre cada 15 minutos y resetea prepared_report=0 en todos
+    los reportes que lo tengan activo en BD, garantizando que ningún reporte
+    quede bloqueado en modo background de forma permanente.
+
+    El commit lo gestiona el llamador (el worker de scheduler de Frappe hace
+    commit automático al finalizar cada job; migrate lo hace por patch).
+    """
+    if not (frappe.local and getattr(frappe.local, "db", None)):
+        return
+
+    try:
+        reportes_afectados = frappe.db.get_all(
+            "Report",
+            filters={"prepared_report": 1},
+            pluck="name",
+        )
+
+        if not reportes_afectados:
+            return
+
+        for report_name in reportes_afectados:
+            frappe.db.set_value("Report", report_name, "prepared_report", 0)
+
+        frappe.logger().info(
+            f"[l10n_ve] reset_all_prepared_reports: {len(reportes_afectados)} "
+            f"reporte(s) reseteado(s): {reportes_afectados}"
+        )
+
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "[l10n_ve] Error en reset_all_prepared_reports")
+
+
 def cleanup_resolved_digital_invoice_error_logs() -> None:
     """Elimina logs de error HKA que ya no aportan valor diagnóstico.
 

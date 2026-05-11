@@ -54,7 +54,7 @@ def set_bill_numbers_on_columns(i: int, column: dict, columns: list[dict]) -> No
 def initialize_gle_map(gl_entries, filters, totals_dict) -> OrderedDict:
 
     gle_map = OrderedDict()
-    group_by = group_by_field(filters.get("group_by"))
+    group_by = group_by_field(filters.get("categorize_by") or filters.get("group_by"))
 
     for gle in gl_entries:
 
@@ -72,9 +72,10 @@ def initialize_gle_map(gl_entries, filters, totals_dict) -> OrderedDict:
 
 def group_by_field(group_by) -> Literal['party'] | Literal['account'] | Literal['voucher_no']:
 
-    if group_by == "Group by Party":
+    if group_by in ("Categorize by Party", "Group by Party"):
         return "party"
-    elif group_by in ["Group by Voucher (Consolidated)", "Group by Account"]:
+    elif group_by in ("Categorize by Voucher (Consolidated)", "Categorize by Account",
+                      "Group by Voucher (Consolidated)", "Group by Account"):
         return "account"
     else:
         return "voucher_no"
@@ -98,9 +99,11 @@ def custom_get_gl_entries(filters, accounting_dimensions):
     if filters.get("include_dimensions"):
         order_by_statement = "order by posting_date, creation"
 
-    if filters.get("group_by") == "Group by Voucher":
+    categorize_by = filters.get("categorize_by") or filters.get("group_by", "")
+
+    if categorize_by in ("Categorize by Voucher", "Group by Voucher"):
         order_by_statement = "order by posting_date, voucher_type, voucher_no"
-    if filters.get("group_by") == "Group by Account":
+    if categorize_by in ("Categorize by Account", "Group by Account"):
         order_by_statement = "order by account, posting_date, creation"
 
     if filters.get("include_default_book_entries"):
