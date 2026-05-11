@@ -104,21 +104,31 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
         format_amounts(self, main_fields, child_fields, child_table_field="islr_withholding_voucher_item")
 
     def before_insert(self) -> None:
-        company_doc = frappe.get_cached_doc("Company", self.empresa)
-        correlative_format: str = company_doc.islr_withholding_format
+        # Row lock atómico para prevenir race conditions en correlativos
+        company_row: dict = frappe.db.sql(
+            "SELECT islr_withholding_correlative, islr_withholding_format "
+            "FROM `tabCompany` WHERE name = %s FOR UPDATE",
+            self.empresa, as_dict=True
+        )
+        if not company_row:
+            frappe.throw(_("Empresa no encontrada: {0}").format(self.empresa))
+
+        company_data: dict = company_row[0]
+        correlative_format: str = company_data.islr_withholding_format
 
         (final_voucher_number, final_next_correlative_number,
          current_year, current_month) = self._get_and_format_correlatives(
-            correlative_format, company_doc.islr_withholding_correlative
+            correlative_format, company_data.islr_withholding_correlative
         )
 
         self.voucher_number = final_voucher_number
         self.posting_date = nowdate()
 
-        # El correlativo se incrementa antes del insert. Si insert() falla,
-        # el correlativo queda incrementado (gap aceptable en correlativos fiscales).
-        company_doc.islr_withholding_correlative = final_next_correlative_number
-        company_doc.save(ignore_permissions=True)
+        # Incremento atómico: gap aceptable si insert() falla después
+        frappe.db.sql(
+            "UPDATE `tabCompany` SET islr_withholding_correlative = %s WHERE name = %s",
+            (final_next_correlative_number, self.empresa)
+        )
 
     def on_trash(self) -> None:
         if not self.posting_date:

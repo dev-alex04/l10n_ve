@@ -563,7 +563,12 @@ def generate_txt_file(filters: dict | str) -> dict:
                 #  base_grand_total de ERPNext ya tiene la retención IVA descontada)
                 taxable_base: float = abs(flt(row.get('taxable_base') or 0))
                 total_exempt: float = abs(flt(row.get('total_exempt') or 0))
-                iva_full: float = taxable_base * flt(tax_rate) / 100
+                # Sumar IVA desglosado por alícuota (multi-alícuota safe)
+                iva_full: float = (
+                    abs(flt(row.get("impuesto_general") or 0))
+                    + abs(flt(row.get("impuesto_reducida") or 0))
+                    + abs(flt(row.get("impuesto_adicional") or 0))
+                )
                 monto_documento: float = taxable_base + iva_full + total_exempt
 
                 line_data = [
