@@ -904,16 +904,15 @@ def _hka_log(description: str, status: str = "Info") -> None:
     })
 
 
-def send_pending_invoices_to_hka() -> None:
-    """Envía facturas pagadas pendientes a HKA (scheduler cada 5 min).
+def send_pending_documents_to_hka() -> None:
+    """Cron unificado: envía facturas de venta + retenciones IVA + retenciones ISLR.
 
-    Recorre cada serie de facturación digital activa y procesa por sucursal.
+    Paso 1: Facturas de venta pendientes (lógica existente).
+    Paso 2: Comprobantes de retención IVA pendientes.
+    Paso 3: Comprobantes de retención ISLR pendientes.
 
-    Comportamiento según modo de operación:
-      - Internal:    STOP on error (proteger correlativo local de saltos).
-      - Third Party: CONTINUE on error (HKA controla la numeración).
-
-    Respeta el flag 'enabled' y 'cutoff_date' de TFHKA Settings.
+    Respeta el flag 'enabled', 'enable_auto_send' y 'cutoff_date' de TFHKA Settings.
+    Solo opera entre las 5:00 y las 21:00.
     """
     tfhka_settings: dict | None = _get_tfhka_settings()
     if not tfhka_settings:
@@ -926,6 +925,31 @@ def send_pending_invoices_to_hka() -> None:
     if not (5 <= current_hour < 21):
         return
 
+    # Paso 1: Facturas de venta
+    _send_pending_invoices(tfhka_settings)
+
+    # Paso 2: Retenciones de IVA
+    from l10n_ve.digital_invoice.retention_integration import send_pending_retention_vouchers
+    send_pending_retention_vouchers(tfhka_settings)
+
+    # Paso 3: Retenciones de ISLR
+    from l10n_ve.digital_invoice.islr_withholding_integration import send_pending_islr_vouchers
+    send_pending_islr_vouchers(tfhka_settings)
+
+
+# Alias de compatibilidad para evitar romper referencias externas
+send_pending_invoices_to_hka = send_pending_documents_to_hka
+
+
+def _send_pending_invoices(tfhka_settings: dict) -> None:
+    """Envía facturas de venta pagadas pendientes a HKA.
+
+    Recorre cada serie de facturación digital activa y procesa por sucursal.
+
+    Comportamiento según modo de operación:
+      - Internal:    STOP on error (proteger correlativo local de saltos).
+      - Third Party: CONTINUE on error (HKA controla la numeración).
+    """
     cutoff_date: str = tfhka_settings["cutoff_date"]
     active_series: list[dict] = _get_active_billing_series()
 

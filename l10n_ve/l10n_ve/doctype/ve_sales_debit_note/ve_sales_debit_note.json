@@ -204,7 +204,7 @@
    "no_copy": 1,
    "oldfieldname": "naming_series",
    "oldfieldtype": "Select",
-   "options": "ACC-VND-.YYYY.-",
+   "options": "ND-VENT-.YYYY.-",
    "print_hide": 1,
    "reqd": 1,
    "set_only_once": 1
@@ -329,7 +329,7 @@
    "print_hide": 1
   },
   {
-   "description": "Factura de Venta a la que aplica esta Nota de D\u00e9bito",
+   "description": "Factura de Venta a la que aplica esta Nota de Débito",
    "fieldname": "return_against",
    "fieldtype": "Link",
    "hide_days": 1,
@@ -1673,7 +1673,7 @@
    "hide_seconds": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "N\u00famero de ND",
+   "label": "Número de ND",
    "no_copy": 1,
    "read_only": 1
   },
@@ -1684,7 +1684,7 @@
    "hide_seconds": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "N\u00famero de Control",
+   "label": "Número de Control",
    "no_copy": 1,
    "read_only": 1
   },
@@ -1696,7 +1696,8 @@
    "label": "Sucursal",
    "options": "VE Branch",
    "read_only": 1,
-   "search_index": 1
+   "search_index": 1,
+   "no_copy": 0
   },
   {
    "fieldname": "total_withholding",
@@ -1717,7 +1718,7 @@
    "read_only": 1
   },
   {
-   "default": "Error en Facturaci\u00f3n",
+   "default": "Error en Facturación",
    "fieldname": "reason",
    "fieldtype": "Data",
    "hide_days": 1,
@@ -1731,7 +1732,7 @@
    "fieldtype": "Small Text",
    "hide_days": 1,
    "hide_seconds": 1,
-   "label": "Motivo de Anulaci\u00f3n",
+   "label": "Motivo de Anulación",
    "read_only": 1
   },
   {

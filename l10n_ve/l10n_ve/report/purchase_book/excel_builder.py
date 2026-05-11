@@ -348,8 +348,6 @@ class ExcelBuilder:
 
                 processed_data.append(withholding_voucher)
 
-                pass
-
             processed_data.append(processed_invoice)
 
         # Asignar el número de secuencia después de procesar y duplicar filas
@@ -396,7 +394,7 @@ def create_excel_file(report_name, filters=None, **kwargs):
             "address": company_address
         }
 
-        from_date = frappe.utils.getdate(filters.get("date_from"))
+        from_date = frappe.utils.getdate(filters.get("from_date") or filters.get("date_from"))
         to_date = frappe.utils.getdate(filters.get("to_date"))
 
         title = _("Libro de Compras")
@@ -416,9 +414,12 @@ def create_excel_file(report_name, filters=None, **kwargs):
         excel_content_bytes = excel_content.getvalue()
         base64_content = base64.b64encode(excel_content_bytes).decode('utf-8')
 
+        safe_company: str = company_data["company_name"].replace("/", "-").replace("\\", "-")
+        filename: str = f"{title} - {safe_company} - {from_date.strftime('%d-%m-%Y')} al {to_date.strftime('%d-%m-%Y')}.xlsx"
+
         return {
             "type": "download",
-            "filename": f"{title}.xlsx",
+            "filename": filename,
             "filecontent": base64_content
         }
 

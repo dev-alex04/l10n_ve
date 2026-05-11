@@ -1,9 +1,21 @@
 import frappe
+from frappe import _
 from frappe.utils import nowdate, getdate
 from l10n_ve.utils.utils import get_company_address, get_supplier_address
 
 
 class WithholdingVoucher():
+    """Mixin base para comprobantes de retención (IVA e ISLR).
+
+    Provee lógica compartida de direcciones, correlativos y estado declarado.
+    """
+
+    PURCHASE_PARENTTYPES: list[str] = [
+        "Purchase Invoice",
+        "VE Purchase Credit Note",
+        "VE Purchase Debit Note",
+    ]
+
     def validate_address(self) -> None:
         error_messages = []
 
@@ -34,12 +46,25 @@ class WithholdingVoucher():
             frappe.throw(final_error_message)
 
     @frappe.whitelist()
+    def mark_as_declared(self) -> bool:
+        """Marca un comprobante como declarado ante el SENIAT."""
+        frappe.has_permission(self.doctype, "write", doc=self, throw=True)
+
+        if self.docstatus != 1:
+            frappe.throw(
+                _("Solo se pueden marcar como declarados los comprobantes "
+                  "que estén en estado Aprobado.")
+            )
+        self.db_set("is_declared", 1)
+        return True
+
+    @frappe.whitelist()
     def get_withholding_correlative(self, company_name, voucher_type) -> dict:
 
         if not company_name:
             return {}
 
-        company_doc = frappe.get_doc("Company", company_name)
+        company_doc = frappe.get_cached_doc("Company", company_name)
 
         format_field = f"{voucher_type}_withholding_format"
         correlative_field = f"{voucher_type}_withholding_correlative"
@@ -82,3 +107,4 @@ class WithholdingVoucher():
         final_next_correlative_number = f"{next_correlative_num}"
 
         return final_voucher_number, final_next_correlative_number, current_year, current_month
+

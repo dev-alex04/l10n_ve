@@ -6,7 +6,15 @@ original_execute = pp.execute
 
 def custom_execute(filters=None):
     columns, data = original_execute(filters)
-    
+
+    # Corrección: el reporte core de ERPNext agrega 'delay_in_payment' solo si
+    # invoice.due_date existe, causando filas con menos elementos que columnas.
+    # Esto provoca IndexError en normalize_result. Normalizamos las filas aquí.
+    expected_length: int = len(columns)
+    for row in data:
+        if isinstance(row, list) and len(row) < expected_length:
+            row.extend([None] * (expected_length - len(row)))
+
     party_col_idx = -1
     party_type_col_idx = -1
     doc_type_col_idx = -1

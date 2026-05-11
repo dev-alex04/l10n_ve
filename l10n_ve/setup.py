@@ -633,7 +633,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
             mop_name = mode['mode_of_payment']
             mop_type = mode['type']
             mop_visibility_type = mode['visibility_type']
-            
+
             if not frappe.db.exists('Mode of Payment', mop_name):
                 print(f"  + Creando nuevo Modo de Pago: '{mop_name}'")
                 doc = frappe.new_doc('Mode of Payment')
@@ -1473,11 +1473,11 @@ def get_compatible_workspace_name(priorities=None) -> str:
     """
     if not priorities:
         priorities = ["Accounting", "Accounts", "Financial Reports"]
-        
+
     for name in priorities:
         if frappe.db.exists("Workspace", name):
             return name
-    
+
     print(f"  !! No se encontró ningún Workspace compatible ({', '.join(priorities)}).")
     return None
 
@@ -1549,11 +1549,11 @@ def add_reports_to_accounts_workspace() -> None:
         ]
 
         links_to_move = [r["link_to"] for r in reports_to_add]
-        
+
         initial_links_count = len(workspace.links)
         workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         modified = len(workspace.links) != initial_links_count
-        
+
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = "Reportes Venezuela"
@@ -1594,7 +1594,7 @@ def add_reports_to_accounts_workspace() -> None:
                     block["data"]["links"] = [r for r in reports_to_add if frappe.db.exists("Report", r["link_to"])]
                     modified = True
                     break
-            
+
             if not card_found:
                 print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
                 new_card = {
@@ -1655,11 +1655,11 @@ def add_doctypes_to_accounting_workspace() -> None:
             })
 
         links_to_move = [l["link_to"] for l in links_to_add]
-        
+
         initial_links_count = len(workspace.links)
         workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         modified = len(workspace.links) != initial_links_count
-        
+
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = "Configuración Venezuela"
@@ -1694,7 +1694,7 @@ def add_doctypes_to_accounting_workspace() -> None:
                 block["data"]["links"] = [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 modified = True
                 break
-        
+
         if not card_found:
             print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
             new_card = {
@@ -1707,7 +1707,7 @@ def add_doctypes_to_accounting_workspace() -> None:
             }
             content.append(new_card)
             modified = True
-        
+
         if modified:
             workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
@@ -1762,6 +1762,7 @@ def setup_workspaces() -> None:
     add_vouchers_to_accounts_workspace()
     add_shortcuts_to_selling_workspace()
     add_links_to_selling_workspace()
+    add_links_to_buying_workspace()
 
 def add_shortcuts_to_selling_workspace() -> None:
     """
@@ -1990,19 +1991,19 @@ def add_vouchers_to_accounts_workspace() -> None:
 
         links_to_add = [
             {
-                "label": _("Retención de IVA"),
+                "label": _("Comprobantes de Retención de IVA"),
                 "link_to": "VAT Withholding Voucher",
                 "type": "Link",
                 "link_type": "DocType"
             },
             {
-                "label": _("Retención de ISLR"),
+                "label": _("Comprobantes de Retención de ISLR"),
                 "link_to": "ISLR Withholding Voucher",
                 "type": "Link",
                 "link_type": "DocType"
             },
             {
-                "label": _("Declaración de Municipales"),
+                "label": _("Declaración de Impuestos Municipales"),
                 "link_to": "VE Municipality Tax Declaration",
                 "type": "Link",
                 "link_type": "DocType"
@@ -2016,11 +2017,11 @@ def add_vouchers_to_accounts_workspace() -> None:
         ]
 
         links_to_move = [l["link_to"] for l in links_to_add]
-        
+
         initial_links_count = len(workspace.links)
         workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         modified = len(workspace.links) != initial_links_count
-        
+
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = _("Tributos")
@@ -2057,7 +2058,7 @@ def add_vouchers_to_accounts_workspace() -> None:
                 block["data"]["links"] = [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 modified = True
                 break
-        
+
         if not card_found:
             print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
             new_card = {
@@ -2070,7 +2071,7 @@ def add_vouchers_to_accounts_workspace() -> None:
             }
             content.append(new_card)
             modified = True
-        
+
         if modified:
             workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
@@ -2780,3 +2781,88 @@ def _verify_replacement(company_name: str = "Galanet Solution C.A.") -> None:
     else:
         print(f"  ⚠️  {passed}/{total_checks} aprobadas, {failed} fallidas")
     print("=" * 70)
+
+
+def add_links_to_buying_workspace() -> None:
+    """Agrega VE Purchase Credit Note y VE Purchase Debit Note como links
+    en la sección 'Compras' del Workspace de Compras, justo después de
+    'Purchase Invoice'.
+
+    Sigue el mismo patrón de add_links_to_selling_workspace.
+    """
+    print("Agregando NC/ND de Compras al Workspace de Compras...")
+    try:
+        workspace_name = None
+        for candidate in ("Buying", "Compras"):
+            if frappe.db.exists("Workspace", candidate):
+                workspace_name = candidate
+                break
+
+        if not workspace_name:
+            print("  !! No se encontró el Workspace 'Buying' / 'Compras'. Omitiendo.")
+            return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+
+        links_to_add: list[dict] = [
+            {
+                "label": _("Nota de Crédito"),
+                "link_to": "VE Purchase Credit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+            {
+                "label": _("Nota de Débito"),
+                "link_to": "VE Purchase Debit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+        ]
+
+        current_links: set[str] = {link.link_to for link in workspace.links}
+        modified: bool = False
+
+        purchase_invoice_idx: int | None = None
+        for i, link in enumerate(workspace.links):
+            if link.link_to == "Purchase Invoice":
+                purchase_invoice_idx = i
+                break
+
+        insert_offset: int = 1
+        for link_config in links_to_add:
+            if not frappe.db.exists("DocType", link_config["link_to"]):
+                print(f"  -- Omitiendo (DocType no encontrado): {link_config['link_to']}")
+                continue
+
+            if link_config["link_to"] in current_links:
+                print(f"  -- Omitiendo (ya existe): {link_config['label']}")
+                continue
+
+            new_link = workspace.append("links", {})
+            new_link.label = link_config["label"]
+            new_link.type = link_config["type"]
+            new_link.link_type = link_config["link_type"]
+            new_link.link_to = link_config["link_to"]
+
+            if purchase_invoice_idx is not None:
+                target_idx: int = purchase_invoice_idx + insert_offset + 1
+                links_list = workspace.links
+                last_link = links_list.pop()
+                links_list.insert(target_idx, last_link)
+                insert_offset += 1
+
+            modified = True
+            print(f"  -> Link agregado: {link_config['label']}")
+
+        if modified:
+            for i, link in enumerate(workspace.links, start=1):
+                link.idx = i
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Links NC/ND agregados al Workspace '{workspace_name}'.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya tenía los links.")
+
+    except Exception as e:
+        print(f"Failure: Error agregando links NC al Workspace de Compras: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_links_to_buying_workspace')
