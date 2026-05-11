@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.22] - 2026-05-11
+
+### ✨ Funcionalidades (Features)
+- Mejora de la experiencia de usuario (UX) en los reportes financieros mediante la supresión de la generación automática de `prepared_report`. [fd42024](https://github.com/example/repo/commit/fd42024)
+
+### 🐛 Correcciones (Fixes)
+- Implementación de `frappe.get_traceback()` en la función `reset_all_prepared_reports` para garantizar un registro de errores (logging) completo y detallado durante la ejecución. [2dc3e1d](https://github.com/example/repo/commit/2dc3e1d)
+
+---
+
 ## [v1.0.21] - 2026-05-11
 
 ### ✨ Funcionalidades (Features)
