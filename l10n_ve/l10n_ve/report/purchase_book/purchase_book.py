@@ -4,21 +4,23 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate
 
-import calendar
 import base64
-from datetime import date
 
 from xml.dom import minidom
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 
 def execute(filters=None):
+    """Punto de entrada principal para el Reporte de Libro de Compras."""
+    filters = filters or {}
+
+    if not filters.get("company"):
+        frappe.throw(_("Debe seleccionar una Empresa para generar el reporte."))
 
     columns: list[dict] = get_columns()
-
     data: list[dict] = get_query_data(filters)
     totals: dict = get_totals_from_data(data)
-    report_summary: dict = get_report_summary(totals)
+    report_summary: list[dict] = get_report_summary(totals)
 
     return columns, data, None, None, report_summary
 
@@ -56,77 +58,75 @@ def get_columns() -> list[dict]:
         {"fieldname": "anticipo_iva_importacion", "label": "Anticipo de IVA (Importación)", "fieldtype": "Currency", "width": "auto"}
     ]
 
-def get_query_data(filters: dict) -> list[dict]:
+def _get_tax_rates() -> tuple[float, float, float]:
+    """Lee las alícuotas de IVA desde la configuración centralizada."""
+    try:
+        tax_rates_doc = frappe.get_cached_doc("Taxes Rates", "Taxes Rates")
+        return (
+            tax_rates_doc.get("general_rate") or 16.0,
+            tax_rates_doc.get("reduced_rate") or 8.0,
+            tax_rates_doc.get("additional_rate") or 31.0,
+        )
+    except frappe.DoesNotExistError:
+        frappe.log_error(
+            "Reporte Libro de Compras: DocType 'Taxes Rates' no existe, usando tasas por defecto.",
+            "Purchase Book Report"
+        )
+        return 16.0, 8.0, 31.0
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Purchase Book Report - Error al leer Taxes Rates")
+        return 16.0, 8.0, 31.0
 
-    from_date: str
-    to_date:str
+
+def get_query_data(filters: dict) -> list[dict]:
+    """Ejecuta la query del Libro de Compras con los filtros proporcionados."""
     from_date, to_date = _get_date_range_from_filters(filters)
-    filters["date_from"] = from_date
+    filters["from_date"] = from_date
     filters["to_date"] = to_date
 
     query: str = get_query(filters)
 
-    # Asegurarse de que from_date sea un objeto de fecha
-    from_date_obj = getdate(from_date)
+    company_currency: str = frappe.get_cached_value(
+        "Company", filters.get("company"), "default_currency"
+    )
 
-    company_currency: str = frappe.db.get_value("Company",
-                                           filters.get("company"),
-                                           "default_currency")
+    general_rate, reduced_rate, additional_rate = _get_tax_rates()
 
-    values = {}
-
-    values['from_date'] = from_date
-    values['to_date'] = to_date
+    values: dict = {
+        "from_date": from_date,
+        "to_date": to_date,
+        "company_currency": company_currency,
+        "general_rate": general_rate,
+        "reduced_rate": reduced_rate,
+        "additional_rate": additional_rate,
+    }
 
     if filters.get("company"):
-        values['company'] = filters.get("company")
+        values["company"] = filters.get("company")
 
-    values['company_currency'] = company_currency
+    if filters.get("branch"):
+        values["branch"] = filters.get("branch")
 
-    values['month'] = from_date_obj.month
-    values['year'] = from_date_obj.year
-
-    data = frappe.db.sql(query, values, as_dict=True)
-
-    return data
+    return frappe.db.sql(query, values, as_dict=True)
 
 
 def get_query(filters: dict) -> str:
-
-    from_date:str = filters.get("date_from")
-    to_date: str = filters.get("to_date")
-
-    if filters.get("fiscal_year") and filters.get("fiscal_month"):
-        try:
-            year = int(filters.get("fiscal_year"))
-            month_mapping = {
-                'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
-                'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
-            }
-            month_num = month_mapping.get(filters.get("fiscal_month"))
-
-            from_date = date(year, month_num, 1)
-            last_day = calendar.monthrange(year, month_num)[1]
-            to_date = date(year, month_num, last_day)
-
-        except (ValueError, TypeError):
-            frappe.throw(_("Valores de Año o Mes Fiscal inválidos."))
-
-    if not from_date or not to_date:
-        frappe.throw(_("Por favor, selecciona un rango de fechas o un período fiscal."))
-
-    conditions = "AND tPI.docstatus IN (1)"
+    """Construye la query SQL del Libro de Compras."""
+    conditions: str = "AND tPI.docstatus = 1"
+    conditions += " AND tPI.is_return = 0"
     conditions += " AND tPI.posting_date BETWEEN %(from_date)s AND %(to_date)s"
 
     if filters.get("company"):
         conditions += " AND tPI.company = %(company)s"
 
-    reduced_rate = 8
-    general_rate = 16
-    additional_rate = 31
+    # Filtro opcional de sucursal
+    branch: str = filters.get("branch") or ""
+    if branch:
+        conditions += " AND tPI.branch = %(branch)s"
 
-    query = f"""
+    query: str = """
         WITH InvoiceData AS (
+            -- Facturas de compra (Purchase Invoice)
             SELECT
                 tPI.name,
                 tPI.posting_date,
@@ -140,263 +140,277 @@ def get_query(filters: dict) -> str:
                 tPI.affected_invoice_number,
                 tPI.total_igtf,
                 tPI.bill_date,
-                tPI.docstatus,
                 tPI.is_debit_note,
-                (CASE WHEN tPI.currency != %(company_currency)s THEN tPI.conversion_rate ELSE 1 END) AS conversion_rate,
-                (tPI.total - tPI.total_exempt) AS taxable_base,
-                tPI.grand_total,
-                tPI.total_exempt
+                tPI.base_grand_total,
+                tPI.base_total,
+                tPI.total_exempt,
+                (CASE WHEN tPI.currency != %(company_currency)s
+                    THEN tPI.conversion_rate ELSE 1 END) AS conversion_rate
             FROM `tabPurchase Invoice` AS tPI
-            WHERE 1=1 {{conditions}}
+            WHERE 1=1 {conditions}
+
+            UNION ALL
+
+            -- Notas de crédito de compra (VE Purchase Credit Note)
+            SELECT
+                nc.name,
+                nc.posting_date,
+                nc.supplier,
+                nc.supplier_name,
+                1 AS is_return,
+                nc.bill_no,
+                nc.bill_control,
+                nc.bill_no AS credit_note_no,
+                NULL AS debit_note_no,
+                nc.affected_invoice_number,
+                nc.total_igtf,
+                nc.bill_date,
+                0 AS is_debit_note,
+                nc.base_grand_total,
+                nc.base_total,
+                nc.total_exempt,
+                (CASE WHEN nc.currency != %(company_currency)s
+                    THEN nc.conversion_rate ELSE 1 END) AS conversion_rate
+            FROM `tabVE Purchase Credit Note` AS nc
+            WHERE nc.docstatus = 1
+                AND nc.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                {nc_company_condition}
+                {nc_branch_condition}
+
+            UNION ALL
+
+            -- Notas de débito de compra (VE Purchase Debit Note)
+            SELECT
+                nd.name,
+                nd.posting_date,
+                nd.supplier,
+                nd.supplier_name,
+                0 AS is_return,
+                nd.bill_no,
+                nd.bill_control,
+                NULL AS credit_note_no,
+                nd.bill_no AS debit_note_no,
+                nd.affected_invoice_number,
+                nd.total_igtf,
+                nd.bill_date,
+                1 AS is_debit_note,
+                nd.base_grand_total,
+                nd.base_total,
+                nd.total_exempt,
+                (CASE WHEN nd.currency != %(company_currency)s
+                    THEN nd.conversion_rate ELSE 1 END) AS conversion_rate
+            FROM `tabVE Purchase Debit Note` AS nd
+            WHERE nd.docstatus = 1
+                AND nd.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                {nd_company_condition}
+                {nd_branch_condition}
         )
         SELECT
-            piv.name as nro_factura,
-            piv.posting_date as posting_date,
-            T4.tax_id as tax_id,
-            piv.supplier_name as supplier_name,
-            piv.is_return as tipo,
-            piv.bill_no as bill_no,
-            piv.bill_control as bill_control,
-            piv.grand_total * piv.conversion_rate as grand_total,
-            piv.total_exempt * piv.conversion_rate as total_exempt,
-            piv.credit_note_no,
-            piv.debit_note_no,
-            piv.affected_invoice_number,
-            piv.total_igtf,
-            DATE_FORMAT(piv.bill_date, '%%d/%%m/%%Y') AS bill_date,
+            inv.name AS nro_factura,
+            inv.posting_date,
+            supp.tax_id,
+            inv.supplier_name,
+            inv.is_return AS tipo,
+            inv.bill_no,
+            inv.bill_control,
+            inv.base_grand_total AS grand_total,
+            inv.total_exempt * inv.conversion_rate AS total_exempt,
+            inv.credit_note_no,
+            inv.debit_note_no,
+            inv.affected_invoice_number,
+            inv.total_igtf,
+            DATE_FORMAT(inv.bill_date, '%%d/%%m/%%Y') AS bill_date,
 
-            SUM(CASE WHEN T5.rate = {reduced_rate} THEN piv.taxable_base ELSE 0 END) * piv.conversion_rate as base_reducida,
-            SUM(CASE WHEN T5.rate = {reduced_rate} THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as impuesto_reducida,
-            SUM(CASE WHEN T5.rate = {general_rate} THEN piv.taxable_base ELSE 0 END) * piv.conversion_rate as base_general,
-            SUM(CASE WHEN T5.rate = {general_rate} THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as impuesto_general,
-            SUM(CASE WHEN T5.rate = {additional_rate} THEN piv.taxable_base ELSE 0 END) * piv.conversion_rate as base_adicional,
-            SUM(CASE WHEN T5.rate = {additional_rate} THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as impuesto_adicional,
-            SUM(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.tax_amount ELSE 0 END) * piv.conversion_rate as taxes_and_charges_deducted,
+            -- Bases imponibles por alícuota (base_total ya en VEF, solo resta exempt)
+            SUM(CASE WHEN ptc.rate = %(reduced_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN (inv.base_total - inv.total_exempt * inv.conversion_rate) ELSE 0 END) AS base_reducida,
+            SUM(CASE WHEN ptc.rate = %(reduced_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN ptc.base_tax_amount ELSE 0 END) AS impuesto_reducida,
+            SUM(CASE WHEN ptc.rate = %(general_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN (inv.base_total - inv.total_exempt * inv.conversion_rate) ELSE 0 END) AS base_general,
+            SUM(CASE WHEN ptc.rate = %(general_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN ptc.base_tax_amount ELSE 0 END) AS impuesto_general,
+            SUM(CASE WHEN ptc.rate = %(additional_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN (inv.base_total - inv.total_exempt * inv.conversion_rate) ELSE 0 END) AS base_adicional,
+            SUM(CASE WHEN ptc.rate = %(additional_rate)s
+                AND COALESCE(ptc.charge_type, '') != 'VAT Withholding'
+                THEN ptc.base_tax_amount ELSE 0 END) AS impuesto_adicional,
 
-            MAX(T2.voucher_number) AS nro_comprobante_retencion,
-            DATE_FORMAT(MAX(T2.delivery_date), '%%d/%%m/%%Y') AS fecha_entrega,
-            MAX(CASE WHEN T5.charge_type = 'VAT Withholding' THEN T5.rate ELSE 0 END) as porcentaje_ret,
+            -- Retención IVA desde comprobantes de retención (ya en VEF)
+            COALESCE(ret.tax_amount_vat, 0) AS taxes_and_charges_deducted,
+            ret.voucher_number AS nro_comprobante_retencion,
+            DATE_FORMAT(ret.delivery_date, '%%d/%%m/%%Y') AS fecha_entrega,
+            COALESCE(ret.withholding_rate, 0) AS porcentaje_ret,
 
             MAX(CASE
-                WHEN T4.type_of_person = 'Domiciled legal entity' THEN 'PJD'
-                WHEN T4.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
-                WHEN T4.type_of_person = 'Natural person domiciled' THEN 'PND'
-                WHEN T4.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
+                WHEN supp.type_of_person = 'Domiciled legal entity' THEN 'PJD'
+                WHEN supp.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
+                WHEN supp.type_of_person = 'Natural person domiciled' THEN 'PND'
+                WHEN supp.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
                 ELSE 'N/A'
             END) AS supplier_type,
             MAX(CASE
-                WHEN piv.docstatus = 2 THEN '03-Anu'
-                WHEN piv.is_return = 1 THEN '02-Comp'
-                WHEN piv.is_debit_note = 1 THEN '02-Comp'
+                WHEN inv.is_return = 1 THEN '02-Comp'
+                WHEN inv.is_debit_note = 1 THEN '02-Comp'
                 ELSE '01-Reg'
             END) AS transaction_type,
-            MAX(CASE
-                WHEN tPER.islr_concept IS NOT NULL AND tPER.islr_concept != '' THEN 'Sí'
-                ELSE 'No'
-            END) AS islr_retention_applied,
-            (piv.taxable_base) * piv.conversion_rate AS taxable_base
+            CASE WHEN islr_ref.has_islr = 1 THEN 'Sí' ELSE 'No' END AS islr_retention_applied,
+            COALESCE(islr_ref.islr_amount, 0) AS ret_islr_monto,
+            (inv.base_total - inv.total_exempt * inv.conversion_rate) AS taxable_base
         FROM
-            InvoiceData as piv
+            InvoiceData AS inv
         LEFT JOIN
-            `tabPurchase Taxes and Charges` as T5
-            ON T5.parent = piv.name
+            `tabPurchase Taxes and Charges` AS ptc
+            ON ptc.parent = inv.name
+        -- Subquery: retención IVA aprobada (evita fan-out)
+        LEFT JOIN (
+            SELECT
+                wvi.purchase_invoice,
+                MAX(wvi.tax_amount_vat) AS tax_amount_vat,
+                MAX(wvi.withholding_rate) AS withholding_rate,
+                MAX(wv.voucher_number) AS voucher_number,
+                MAX(wv.delivery_date) AS delivery_date
+            FROM `tabVAT Withholding Voucher Item` wvi
+            INNER JOIN `tabVAT Withholding Voucher` wv
+                ON wvi.parent = wv.name AND wv.docstatus = 1
+            GROUP BY wvi.purchase_invoice
+        ) AS ret ON ret.purchase_invoice = inv.name
         LEFT JOIN
-            `tabVAT Withholding Voucher Item` as T3
-            ON T3.purchase_invoice = piv.name
-        LEFT JOIN
-            `tabVAT Withholding Voucher` as T2
-            ON T3.parent = T2.name
-        LEFT JOIN
-            `tabSupplier` as T4
-            ON T4.name = piv.supplier
-        LEFT JOIN
-            `tabPayment Entry Reference` as tPER
-            ON tPER.reference_name = piv.name AND tPER.reference_doctype = 'Purchase Invoice'
+            `tabSupplier` AS supp
+            ON supp.name = inv.supplier
+        -- Subquery: ISLR desde comprobantes de retención (monto + flag)
+        LEFT JOIN (
+            SELECT
+                islr_item.purchase_invoice,
+                1 AS has_islr,
+                SUM(islr_item.islr_amount) AS islr_amount
+            FROM `tabISLR Withholding Voucher Item` islr_item
+            INNER JOIN `tabISLR Withholding Voucher` islr_v
+                ON islr_item.parent = islr_v.name AND islr_v.docstatus = 1
+            GROUP BY islr_item.purchase_invoice
+        ) AS islr_ref ON islr_ref.purchase_invoice = inv.name
 
-        GROUP BY piv.name
-        ORDER BY piv.bill_date ASC
+        GROUP BY inv.name
+        ORDER BY inv.bill_date ASC
     """
     query = query.replace("{conditions}", conditions)
+
+    # Condición de compañía para NCs (misma lógica que PIs)
+    nc_company_condition: str = "AND nc.company = %(company)s" if filters.get("company") else ""
+    query = query.replace("{nc_company_condition}", nc_company_condition)
+
+    # Condición de compañía para NDs
+    nd_company_condition: str = "AND nd.company = %(company)s" if filters.get("company") else ""
+    query = query.replace("{nd_company_condition}", nd_company_condition)
+
+    # Condición de sucursal para NCs y NDs
+    nc_branch_condition: str = "AND nc.branch = %(branch)s" if branch else ""
+    query = query.replace("{nc_branch_condition}", nc_branch_condition)
+    nd_branch_condition: str = "AND nd.branch = %(branch)s" if branch else ""
+    query = query.replace("{nd_branch_condition}", nd_branch_condition)
 
     return query
 
 
+_SUMMABLE_FIELDS: list[str] = [
+    "grand_total", "total_exempt", "base_reducida", "impuesto_reducida",
+    "base_general", "impuesto_general", "base_adicional", "impuesto_adicional",
+    "total_igtf",
+]
+
+_SUMMARY_LABELS: list[tuple[str, str]] = [
+    ("grand_total", "Total Compras"),
+    ("total_exempt", "Total Compras Sin Crédito"),
+    ("base_reducida", "Total Base Reducida"),
+    ("impuesto_reducida", "Total Impuesto Reducido"),
+    ("base_general", "Total Base General"),
+    ("impuesto_general", "Total Impuesto 16%"),
+    ("base_adicional", "Total Base Adicional"),
+    ("impuesto_adicional", "Total Impuesto 31%"),
+    ("taxes_and_charges_deducted", "Total IVA Retenido"),
+    ("iva_retenido_terceros", "IVA Retenido (a terceros)"),
+    ("anticipo_iva_importacion", "Anticipo de IVA (Importación)"),
+    ("total_igtf", "Total IGTF Pagado"),
+]
+
+
 def get_totals_from_data(data: list[dict]) -> dict:
-    # Inicializar los contadores
-    grand_total = 0
-    total_exempt = 0
-    base_reducida = 0
-    impuesto_reducida = 0
-    base_general = 0
-    impuesto_general = 0
-    base_adicional = 0
-    impuesto_adicional = 0
-    taxes_and_charges_deducted = 0
-    iva_retenido_terceros = 0
-    anticipo_iva_importacion = 0
-    total_igtf = 0
+    """Acumula totales de todas las filas del reporte."""
+    totals: dict = {f: 0.0 for f in _SUMMABLE_FIELDS}
+    totals.update({
+        "taxes_and_charges_deducted": 0.0,
+        "iva_retenido_terceros": 0.0,
+        "anticipo_iva_importacion": 0.0,
+        "retencion_general": 0.0,
+        "retencion_adicional": 0.0,
+        "retencion_reducida": 0.0,
+    })
 
-    retencion_general = 0
-    retencion_adicional = 0
-    retencion_reducida = 0
-
-    # Iterar sobre cada fila de la data
     for row in data:
-        ret_monto = flt(row.get("taxes_and_charges_deducted"))
-        grand_total += row.get("grand_total", 0)
-        total_exempt += row.get("total_exempt", 0)
-        base_reducida += row.get("base_reducida", 0)
-        impuesto_reducida += row.get("impuesto_reducida", 0)
-        base_general += row.get("base_general", 0)
-        impuesto_general += row.get("impuesto_general", 0)
-        base_adicional += row.get("base_adicional", 0)
-        impuesto_adicional += row.get("impuesto_adicional", 0)
-        total_igtf += row.get("total_igtf", 0)
-        if row.get("nro_comprobante_retencion") and ret_monto != 0:
-            taxes_and_charges_deducted += ret_monto
-            iva_retenido_terceros += row.get("iva_retenido_terceros", 0)
-            anticipo_iva_importacion += row.get("anticipo_iva_importacion", 0)
+        for field in _SUMMABLE_FIELDS:
+            totals[field] += flt(row.get(field))
 
-            bases = {
-                "general": flt(row.get("base_general")),
-                "adicional": flt(row.get("base_adicional")),
-                "reducida": flt(row.get("base_reducida")),
-            }
+        # Retención IVA: solo si tiene comprobante asociado
+        ret_monto: float = flt(row.get("taxes_and_charges_deducted"))
+        if not row.get("nro_comprobante_retencion") or ret_monto == 0:
+            continue
 
-            # Encuentra la base más alta (que asume tiene el impuesto más representativo)
-            if bases["general"] >= bases["adicional"] and bases["general"] >= bases["reducida"]:
-                retencion_general += ret_monto
-            elif bases["adicional"] >= bases["general"] and bases["adicional"] >= bases["reducida"]:
-                retencion_adicional += ret_monto
-            elif bases["reducida"] > 0:
-                retencion_reducida += ret_monto
-            else:
-                retencion_general += ret_monto
+        totals["taxes_and_charges_deducted"] += ret_monto
+        totals["iva_retenido_terceros"] += flt(row.get("iva_retenido_terceros"))
+        totals["anticipo_iva_importacion"] += flt(row.get("anticipo_iva_importacion"))
 
-    return {
-        "grand_total": grand_total,
-        "total_exempt": total_exempt,
-        "base_reducida": base_reducida,
-        "impuesto_reducida": impuesto_reducida,
-        "base_general": base_general,
-        "impuesto_general": impuesto_general,
-        "base_adicional": base_adicional,
-        "impuesto_adicional": impuesto_adicional,
-        "taxes_and_charges_deducted": taxes_and_charges_deducted,
-        "retencion_general": retencion_general,
-        "iva_retenido_terceros": iva_retenido_terceros,
-        "anticipo_iva_importacion": anticipo_iva_importacion,
-        "total_igtf": total_igtf,
-        "retencion_adicional": retencion_adicional,
-        "retencion_reducida": retencion_reducida,
+        # Clasificar retención por la base imponible más alta
+        bases: dict = {
+            "general": flt(row.get("base_general")),
+            "adicional": flt(row.get("base_adicional")),
+            "reducida": flt(row.get("base_reducida")),
+        }
+        max_base: str = max(bases, key=bases.get)
+        if bases[max_base] > 0:
+            totals[f"retencion_{max_base}"] += ret_monto
+        else:
+            totals["retencion_general"] += ret_monto
 
-    }
+    return totals
 
 
-def get_report_summary(totals: dict) -> dict:
-    summary = [
-        {
-            "value": totals.get("grand_total"),
-            "label": "Total Compras",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("total_exempt"),
-            "label": "Total Compras Sin Crédito",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("base_reducida"),
-            "label": "Total Base Reducida",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("impuesto_reducida"),
-            "label": "Total Impuesto Reducido",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("base_general"),
-            "label": "Total Base General",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("impuesto_general"),
-            "label": "Total Impuesto 16%",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("base_adicional"),
-            "label": "Total Base Adicional",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("impuesto_adicional"),
-            "label": "Total Impuesto 31%",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("taxes_and_charges_deducted"),
-            "label": "Total IVA Retenido",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("iva_retenido_terceros"),
-            "label": "IVA Retenido (a terceros)",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("anticipo_iva_importacion"),
-            "label": "Anticipo de IVA (Importación)",
-            "datatype": "Currency"
-        },
-        {
-            "value": totals.get("total_igtf"),
-            "label": "Total IGTF Pagado",
-            "datatype": "Currency"
-        },
+def get_report_summary(totals: dict) -> list[dict]:
+    """Genera el resumen inferior del reporte a partir de los totales."""
+    return [
+        {"value": totals.get(field), "label": label, "datatype": "Currency"}
+        for field, label in _SUMMARY_LABELS
     ]
-
-    return summary
 
 
 def _get_date_range_from_filters(filters: dict) -> tuple[str, str]:
-    """
-    Helper function to determine date range from report filters.
-    Handles both direct date ranges and fiscal period selections.
-    """
-    from_date = filters.get("date_from")
-    to_date = filters.get("to_date")
-    fiscal_year = filters.get("fiscal_year")
-    fiscal_month_name = filters.get("fiscal_month")
-
-    if fiscal_year and fiscal_month_name:
-        try:
-            year = int(fiscal_year)
-            month_mapping = {
-                'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
-                'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
-            }
-            month_num = month_mapping.get(fiscal_month_name)
-            if not month_num:
-                raise ValueError("Invalid month name")
-
-            from_date = date(year, month_num, 1).strftime('%Y-%m-%d')
-            last_day = calendar.monthrange(year, month_num)[1]
-            to_date = date(year, month_num, last_day).strftime('%Y-%m-%d')
-        except (ValueError, TypeError):
-            frappe.throw(_("Valores de Año o Mes Fiscal inválidos."))
+    """Extrae y valida el rango de fechas desde los filtros del reporte."""
+    from_date: str | None = filters.get("from_date")
+    to_date: str | None = filters.get("to_date")
 
     if not from_date or not to_date:
-        frappe.throw(_("Por favor, seleccione un rango de fechas o un período fiscal para generar el archivo."))
+        frappe.throw(_("Por favor, seleccione un rango de fechas para generar el reporte."))
+
+    if getdate(from_date) > getdate(to_date):
+        frappe.throw(_("La Fecha Desde no puede ser posterior a la Fecha Hasta."))
 
     return from_date, to_date
 
 
 @frappe.whitelist()
-def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
+def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
     """
-    Generates an XML string for ISLR retentions based on report filters.
+    Genera un XML de retenciones ISLR para el SENIAT basado en ISLR Withholding Voucher.
+
+    Lee directamente desde ISLR Withholding Voucher Item (fuente de verdad),
+    eliminando la dependencia legacy de Payment Entry Reference.
+
+    Returns:
+        dict con filename y filecontent (base64) para descarga, o None si no hay datos.
     """
     try:
         if not filters:
@@ -408,40 +422,34 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
         from_date: str
         to_date: str
         from_date, to_date = _get_date_range_from_filters(filters)
-        filters["date_from"] = from_date
+        filters["from_date"] = from_date
         filters["to_date"] = to_date
 
-        company_doc = frappe.get_doc("Company", filters.get("company"))
-        company_rif = (company_doc.tax_id or "").replace('-', '')
+        company_doc = frappe.get_cached_doc("Company", filters.get("company"))
+        company_rif: str = (company_doc.tax_id or "").replace('-', '')
         if not company_rif:
             frappe.throw(_("El RIF de la compañía es obligatorio para generar el XML de ISLR."))
 
-        periodo = getdate(from_date).strftime("%Y%m")
+        periodo: str = getdate(from_date).strftime("%Y%m")
 
-        retentions = frappe.db.sql("""
+        retentions: list[dict] = frappe.db.sql("""
             SELECT
                 REPLACE(supp.tax_id, '-', '') AS supplier_rif,
-                pi.bill_no,
-                pi.bill_control,
-                pe.posting_date,
-                ref.islr_concept AS islr_concept,
-                tab.codigo AS codigo_concepto,
-                ali.aliquot AS porcentaje_retencion,
-                ref.islr_base_amount AS monto_operacion,
+                item.doc_no AS bill_no,
+                item.bill_control,
+                item.posting_date AS fecha_operacion,
+                item.code AS codigo_concepto,
+                item.rate AS porcentaje_retencion,
+                item.islr_base_amount AS monto_operacion,
                 supp.type_of_person
-            FROM `tabPayment Entry Reference` AS ref
-            JOIN `tabPayment Entry` AS pe ON ref.parent = pe.name
-            JOIN `tabPurchase Invoice` AS pi ON ref.reference_name = pi.name
-            JOIN `tabSupplier` AS supp ON pi.supplier = supp.name
-            LEFT JOIN `tabTabulator ISLR` AS tab ON ref.islr_concept = tab.name
-            LEFT JOIN `tabTabulator ISLR Aliquots` AS ali ON tab.name = ali.parent AND supp.type_of_person = ali.types_of_person
+            FROM `tabISLR Withholding Voucher Item` AS item
+            INNER JOIN `tabISLR Withholding Voucher` AS voucher
+                ON item.parent = voucher.name AND voucher.docstatus = 1
+            INNER JOIN `tabSupplier` AS supp
+                ON voucher.supplier = supp.name
             WHERE
-                pe.docstatus = 1
-                AND pe.company = %(company)s
-                AND pe.posting_date BETWEEN %(date_from)s AND %(to_date)s
-                AND ref.reference_doctype = 'Purchase Invoice'
-                AND ref.islr_concept IS NOT NULL
-                AND ref.islr_concept != ''
+                voucher.empresa = %(company)s
+                AND voucher.posting_date BETWEEN %(from_date)s AND %(to_date)s
         """, filters, as_dict=True)
 
         if not retentions:
@@ -449,12 +457,12 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
             return None
 
         root = Element("RelacionRetencionesISLR", {"RifAgente": company_rif, "Periodo": periodo})
-        processing_errors = []
+        processing_errors: list[str] = []
 
         for ret in retentions:
             if not ret.codigo_concepto or ret.porcentaje_retencion is None:
-                error_msg = _("No se encontró configuración de alícuota para el concepto '{0}'" \
-                " y tipo de persona '{1}' (Factura: {2}).").format(ret.islr_concept, ret.type_of_person, ret.bill_no or 'N/A')
+                error_msg: str = _("Falta código de concepto o alícuota para la factura '{0}'"
+                    " (tipo persona: '{1}').").format(ret.bill_no or 'N/A', ret.type_of_person or 'N/A')
 
                 if error_msg not in processing_errors:
                     processing_errors.append(error_msg)
@@ -463,8 +471,8 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
             detalle = SubElement(root, "DetalleRetencion")
             SubElement(detalle, "RifRetenido").text = ret.supplier_rif or "N/A"
             SubElement(detalle, "NumeroFactura").text = ret.bill_no or "N/A"
-            SubElement(detalle, "NumeroControl").text = str(ret.bill_control) if ret.bill_control is not None else "N/A"
-            SubElement(detalle, "FechaOperacion").text = getdate(ret.posting_date).strftime("%d/%m/%Y")
+            SubElement(detalle, "NumeroControl").text = str(ret.bill_control) if ret.bill_control else "N/A"
+            SubElement(detalle, "FechaOperacion").text = getdate(ret.fecha_operacion).strftime("%d/%m/%Y")
             SubElement(detalle, "CodigoConcepto").text = ret.codigo_concepto
             SubElement(detalle, "MontoOperacion").text = f"{flt(ret.monto_operacion):.2f}"
             SubElement(detalle, "PorcentajeRetencion").text = f"{flt(ret.porcentaje_retencion)}"
@@ -475,19 +483,27 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> str | None:
                             title=_("Errores de Procesamiento"),
                             indicator="orange")
 
-        # Formatear para una salida legible (pretty print)
-        rough_string = tostring(root, "utf-8")
+        rough_string: bytes = tostring(root, "utf-8")
         reparsed = minidom.parseString(rough_string)
-        pretty_xml_as_string = reparsed.toprettyxml(indent="  ", encoding="UTF-8").decode()
+        pretty_xml: str = reparsed.toprettyxml(indent="  ", encoding="UTF-8").decode()
 
-        return pretty_xml_as_string
+        encoded_content: str = base64.b64encode(pretty_xml.encode('utf-8')).decode('utf-8')
 
+        return {
+            "type": "download",
+            "filename": f"ISLR_Retenciones_XML-{company_doc.abbr}-{periodo}.xml",
+            "filecontent": encoded_content,
+        }
+
+    except frappe.ValidationError:
+        raise
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en generate_xml_islr_file")
-        frappe.throw(_(f"Ocurrió un error al generar el archivo XML de ISLR: {e}"))
+        frappe.throw(_("Ocurrió un error al generar el archivo XML de ISLR: {0}").format(e))
 
 @frappe.whitelist()
 def generate_txt_file(filters: dict | str) -> dict:
+    """Genera archivo TXT de retenciones IVA para el SENIAT (Libro de Compras)."""
 
     try:
         if isinstance(filters, str):
@@ -496,27 +512,24 @@ def generate_txt_file(filters: dict | str) -> dict:
         from_date: str
         to_date: str
         from_date, to_date = _get_date_range_from_filters(filters)
-        filters["date_from"] = from_date
+        filters["from_date"] = from_date
         filters["to_date"] = to_date
 
-        company_doc = frappe.get_doc("Company", filters.get("company"))
-        company_rif = company_doc.tax_id or ""
-        company_rif = company_rif.replace('-', '')
+        company_doc = frappe.get_cached_doc("Company", filters.get("company"))
+        company_rif: str = (company_doc.tax_id or "").replace('-', '')
 
         if not company_rif:
             frappe.throw(_("El RIF de la compañía no está configurado."))
 
         periodo = getdate(from_date).strftime('%Y%m')
         data: list[dict] = get_query_data(filters)
-        invoices_with_voucher = [row for row in data if row.get("nro_comprobante_retencion")]
+        invoices_with_voucher: list[dict] = [row for row in data if row.get("nro_comprobante_retencion")]
 
         if not invoices_with_voucher:
             # Si no hay facturas con comprobante, crea una línea con valores por defecto
             line_data = [
-
-                str(company_rif) or "",
-                str(periodo) or "",
-
+                company_rif,
+                periodo,
             ] + ["0"] * 14
 
             content = "\t".join(line_data) + "\n"
@@ -527,7 +540,8 @@ def generate_txt_file(filters: dict | str) -> dict:
             content_lines = []
             for row in invoices_with_voucher:
 
-                tax_rate = "0"
+                # Determinar alícuota IVA aplicada a la factura
+                tax_rate: str = "0"  # Exento o sin base imponible
                 if flt(row.get("base_general")) != 0:
                     tax_rate = "16"
                 elif flt(row.get("base_reducida")) != 0:
@@ -544,6 +558,19 @@ def generate_txt_file(filters: dict | str) -> dict:
 
                 document_number = row.get("credit_note_no") or row.get("debit_note_no") or row.get("bill_no") or "0"
 
+                # Calcular MontoDocumento = Base + IVA_completo + Exento
+                # (SENIAT requiere el total ANTES de retenciones;
+                #  base_grand_total de ERPNext ya tiene la retención IVA descontada)
+                taxable_base: float = abs(flt(row.get('taxable_base') or 0))
+                total_exempt: float = abs(flt(row.get('total_exempt') or 0))
+                # Sumar IVA desglosado por alícuota (multi-alícuota safe)
+                iva_full: float = (
+                    abs(flt(row.get("impuesto_general") or 0))
+                    + abs(flt(row.get("impuesto_reducida") or 0))
+                    + abs(flt(row.get("impuesto_adicional") or 0))
+                )
+                monto_documento: float = taxable_base + iva_full + total_exempt
+
                 line_data = [
                     str(company_rif),
                     str(periodo),
@@ -553,14 +580,14 @@ def generate_txt_file(filters: dict | str) -> dict:
                     (row.get("tax_id") or "0").replace('-', ''),
                     document_number,
                     row.get("bill_control") or "0",
-                    f"{abs(flt(row.get('grand_total') or 0)):.2f}",
-                    f"{abs(flt(row.get('taxable_base') or 0)):.2f}",
+                    f"{monto_documento:.2f}",
+                    f"{taxable_base:.2f}",
                     f"{abs(flt(row.get('taxes_and_charges_deducted') or 0)):.2f}",
                     row.get("affected_invoice_number") or "0",
                     row.get("nro_comprobante_retencion") or "0",
-                    f"{abs(flt(row.get('total_exempt') or 0)):.2f}",
+                    f"{total_exempt:.2f}",
                     f"{abs(flt(tax_rate)):.2f}",
-                    "0",
+                    "0",  # Campo 16: IVA percibido (no aplica en compras, reservado)
                 ]
                 content_lines.append("\t".join(line_data))
 
@@ -573,6 +600,8 @@ def generate_txt_file(filters: dict | str) -> dict:
             "filecontent": encoded_content
         }
 
+    except frappe.ValidationError:
+        raise
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error en generate_txt_file")
-        frappe.throw(_(f"Ocurrió un error al generar el archivo TXT: {e}"))
+        frappe.throw(_("Ocurrió un error al generar el archivo TXT: {0}").format(e))

@@ -17,6 +17,8 @@ __VE_DOCTYPES__ = [
     "Purchase Order",
     "Purchase Invoice",
     "Purchase Receipt",
+    "VE Purchase Credit Note",
+    "VE Purchase Debit Note",
 ]
 
 
@@ -98,8 +100,8 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         elif tax.charge_type == "ISLR":
 
             if item.idx == 1:
-                tax_base = (self.doc.total * tax.percentage_base) / 100
-                tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting
+                tax_base = (self.doc.total * flt(tax.percentage_base)) / 100
+                tax_amount = ((tax_base * tax.rate) / 100) - flt(tax.subtracting)
             else:
                 tax_amount = 0
 

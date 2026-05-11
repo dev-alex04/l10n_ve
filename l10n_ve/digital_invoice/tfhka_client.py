@@ -361,7 +361,10 @@ class TFHKAClient:
             frappe.logger("l10n_ve").error(f"No se pudo guardar el log TFHKA: {str(e)}")
 
 
-ALLOWED_DOCTYPES: list[str] = ["Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note"]
+ALLOWED_DOCTYPES: list[str] = [
+    "Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note",
+    "VAT Withholding Voucher", "ISLR Withholding Voucher",
+]
 
 
 @frappe.whitelist()
@@ -369,7 +372,8 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     """
     Descarga el PDF de la factura fiscal desde TFHKA
     y retorna el base64 para renderizar en el frontend.
-    Soporta Sales Invoice y VE Sales Credit Note.
+    Soporta Sales Invoice, VE Sales Credit Note, VE Sales Debit Note
+    y VAT Withholding Voucher.
     """
     if doctype not in ALLOWED_DOCTYPES:
         return {"base64": None, "error": f"DocType '{doctype}' no soportado."}
@@ -377,13 +381,19 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     doc = frappe.get_cached_doc(doctype, invoice_name)
     frappe.has_permission(doctype, "read", doc=doc, throw=True)
 
-    if not doc.remarks or '"numeroDocumento"' not in doc.remarks:
+    # VAT/ISLR Withholding Voucher guarda la respuesta HKA en hka_response
+    if doctype in ("VAT Withholding Voucher", "ISLR Withholding Voucher"):
+        raw_hka = doc.hka_response or ""
+    else:
+        raw_hka = doc.remarks or ""
+
+    if not raw_hka or '"numeroDocumento"' not in raw_hka:
         return {"base64": None, "error": "Este documento no tiene datos de facturación digital."}
 
     try:
-        hka_data = json.loads(doc.remarks)
+        hka_data = json.loads(raw_hka)
     except (json.JSONDecodeError, TypeError):
-        return {"base64": None, "error": "El campo remarks no contiene datos HKA válidos."}
+        return {"base64": None, "error": "Los datos HKA no son válidos."}
 
     resultado = (hka_data.get("resultado") or {})
     numero_documento = resultado.get("numeroDocumento")
@@ -391,12 +401,13 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     if not numero_documento:
         return {"base64": None, "error": "No se encontró el número de documento en los datos HKA."}
 
-    # Catálogo 1 SENIAT: 01=Factura, 02=NotaCredito, 03=NotaDebito
-
+    # Catálogo SENIAT: 01=Factura, 02=NC, 03=ND, 05=Retención IVA, 06=Retención ISLR
     document_map = {
         "Sales Invoice": "01",
         "VE Sales Credit Note": "02",
         "VE Sales Debit Note": "03",
+        "VAT Withholding Voucher": "05",
+        "ISLR Withholding Voucher": "06",
     }
 
     tipo_documento = document_map.get(doctype)

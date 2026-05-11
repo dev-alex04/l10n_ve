@@ -1,95 +1,84 @@
+frappe.listview_settings["ISLR Withholding Voucher"] = {
+  hide_name_column: true,
+  has_indicator_for_draft: true,
+  has_indicator_for_cancelled: true,
 
-// Archivo JS para personalizar la vista de lista de ISLR Withholding Voucher
-// Más información: https://frappeframework.com/docs/v15/user/en/desk/views/list-view#listviewsettings
-frappe.listview_settings['ISLR Withholding Voucher'] = {
-    // add fields to fetch
-    // add_fields: ['title', 'public'],
-    // set default filters
-    // filters: [
-    //     ['public', '=', 1]
-    // ],
-    hide_name_column: true, // hide the last column which shows the `name`
-    // hide_name_filter: true,
-    has_indicator_for_draft: true,
-    has_indicator_for_cancelled: true,
-    onload(listview) {
-        // triggers once before the list is loaded
-        // Ejemplo: Añadir un botón
-        // listview.page.add_inner_button(__("Mi Acción"), function() {
-        // 	frappe.msgprint("Acción para ISLR Withholding Voucher");
-        // });
-    },
-    before_render() {
-        // triggers before every render of list records
-    },
+  add_fields: [
+    "voucher_number",
+    "supplier",
+    "digital_invoice_status",
+    "bill_control",
+    "is_declared",
+    "totals_islr_amount",
+  ],
 
-    // get_indicator(doc) {
-    // customize indicator color
-    // Ejemplo: Indicador basado en un campo 'status'
-    // if (doc.status === "Approved") {
-    // 	return [__("Approved"), "green", "status,=,Approved"];
-    // } else if (doc.status === "Pending") {
-    // 	return [__("Pending"), "orange", "status,=,Pending"];
-    // } else {
-    // 	return [__(doc.status), "darkgrey", `status,=,${doc.status}`];
-    // }
-    // },
-    // primary_action() {
-    // triggers when the primary action is clicked
-    // Ejemplo: Acción por defecto
-    // frappe.new_doc('ISLR Withholding Voucher');
-    // },
-    // get_form_link(doc) {
-    // override the form route for this doc
-    // Ejemplo: Ir a una ruta diferente si se cumple una condición
-    // if (doc.custom_condition) {
-    // 	return `/app/custom-route/${doc.name}`;
-    // }
-    // Si retorna null o undefined, usa la ruta estándar
-    // return null;
-    // },
-    // add a custom button for each row
-    // button: {
-    // 	show(doc) {
-    // 		// Mostrar botón solo si se cumple una condición
-    // 		// return doc.status === 'Pending';
-    // 		return true; // Mostrar siempre (ejemplo)
-    // 	},
-    // 	get_label() {
-    // 		return __('Details'); // Etiqueta del botón
-    // 	},
-    // 	get_description(doc) {
-    // 		// Tooltip del botón
-    // 		return __('View Details for 0', [doc.name])
-    // 	},
-    // 	action(doc) {
-    // 		// Acción al hacer clic en el botón
-    // 		frappe.set_route('Form', 'ISLR Withholding Voucher', doc.name);
-    // 	}
-    // },
-    // format how a field value is shown
-    // formatters: {
-    // 	subject(val) { // Asumiendo que tienes un campo 'subject'
-    // 		return val.bold();
-    // 	},
-    // 	status(val) { // Asumiendo que tienes un campo 'status'
-    // 		if (val === "Approved") {
-    // 			return `<span style="color:green">${val}</span>`;
-    // 		} else if (val === "Pending") {
-    // 			return `<span style="color:orange">${val}</span>`;
-    // 		} else {
-    // 			return val;
-    // 		}
-    // 	}
-    // }
-
-    get_indicator: function (doc) {
-        if (doc.docstatus === 0) {
-            return [__("Borrador"), "grey", "docstatus,=,0"];
-        } else if (doc.docstatus === 1) {
-            return [__("Validado"), "blue", "docstatus,=,1"];
-        } else if (doc.docstatus === 2) {
-            return [__("Cancelado"), "red", "docstatus,=,2"];
-        }
+  get_indicator(doc) {
+    // Cancelados
+    if (doc.docstatus === 2) {
+      if (doc.digital_invoice_status === "Voided") {
+        return [__("Anulado"), "red", "digital_invoice_status,=,Voided"];
+      }
+      return [__("Cancelado"), "red", "docstatus,=,2"];
     }
+
+    // Borradores
+    if (doc.docstatus === 0) {
+      return [__("Borrador"), "grey", "docstatus,=,0"];
+    }
+
+    // Aprobados (docstatus === 1)
+    if (doc.digital_invoice_status === "Sent") {
+      if (doc.is_declared) {
+        return [__("Declarado"), "blue", "is_declared,=,1"];
+      }
+      return [__("Emitido"), "green", "digital_invoice_status,=,Sent"];
+    }
+
+    if (doc.digital_invoice_status === "Error") {
+      return [__("Error en emisión"), "red", "digital_invoice_status,=,Error"];
+    }
+
+    if (doc.digital_invoice_status === "Pending") {
+      return [
+        __("Pendiente de emisión"),
+        "orange",
+        "digital_invoice_status,=,Pending",
+      ];
+    }
+
+    // Aprobado sin estado HKA (no emitido aún)
+    return [__("Por Emitir"), "orange", "docstatus,=,1"];
+  },
+
+  onload(listview) {
+    const get_df = frappe.meta.get_docfield.bind(
+      null,
+      "ISLR Withholding Voucher",
+    );
+    listview.columns = [
+      {
+        type: "Subject",
+        df: get_df("voucher_number") || {
+          label: __("No. Comprobante"),
+          fieldname: "voucher_number",
+        },
+      },
+      { type: "Status" },
+      {
+        type: "Field",
+        df: get_df("supplier") || {
+          label: __("Proveedor"),
+          fieldname: "supplier",
+        },
+      },
+      {
+        type: "Field",
+        df: get_df("bill_control") || {
+          label: __("N° Control"),
+          fieldname: "bill_control",
+        },
+      },
+    ];
+    listview.render_header(true);
+  },
 };

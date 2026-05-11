@@ -50,9 +50,6 @@ function _set_header_fields(frm, si) {
 
   if (si.branch) {
     frm.set_value("branch", si.branch);
-    frm.set_df_property("branch", "read_only", 1);
-  } else {
-    frm.set_df_property("branch", "read_only", 0);
   }
 
   if (si.debit_to) {

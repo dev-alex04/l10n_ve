@@ -247,7 +247,7 @@
    "no_copy": 1,
    "oldfieldname": "naming_series",
    "oldfieldtype": "Select",
-   "options": "NC-.YYYY.-",
+   "options": "NC-VENT-.YYYY.-",
    "print_hide": 1,
    "reqd": 1,
    "set_only_once": 1
@@ -274,7 +274,7 @@
   },
   {
    "bold": 1,
-   "description": "Factura de Venta a la que aplica esta Nota de Cr\u00e9dito",
+   "description": "Factura de Venta a la que aplica esta Nota de Crédito",
    "fieldname": "return_against",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -293,7 +293,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "N\u00famero de NC",
+   "label": "Número de NC",
    "no_copy": 1,
    "read_only": 1,
    "search_index": 1
@@ -304,7 +304,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "N\u00famero de Control",
+   "label": "Número de Control",
    "no_copy": 1,
    "read_only": 1,
    "search_index": 1
@@ -315,7 +315,8 @@
    "label": "Sucursal",
    "options": "VE Branch",
    "read_only": 1,
-   "search_index": 1
+   "search_index": 1,
+   "no_copy": 0
   },
   {
    "bold": 1,
@@ -1996,27 +1997,27 @@
   {
    "fieldname": "section_iva_withholding",
    "fieldtype": "Section Break",
-   "label": "Retenci\u00f3n IVA"
+   "label": "Retención IVA"
   },
   {
    "fieldname": "vat_withholding_voucher_number",
    "fieldtype": "Data",
-   "label": "Nro. Comprobante Retenci\u00f3n IVA"
+   "label": "Nro. Comprobante Retención IVA"
   },
   {
    "fieldname": "withholding_date",
    "fieldtype": "Date",
-   "label": "Fecha de Retenci\u00f3n"
+   "label": "Fecha de Retención"
   },
   {
    "fieldname": "voucher_image",
    "fieldtype": "Attach",
-   "label": "Comprobante de Retenci\u00f3n IVA (Archivo)"
+   "label": "Comprobante de Retención IVA (Archivo)"
   },
   {
    "fieldname": "section_islr_withholding",
    "fieldtype": "Section Break",
-   "label": "Retenci\u00f3n ISLR"
+   "label": "Retención ISLR"
   },
   {
    "fieldname": "islr_receipt_number",
@@ -2068,7 +2069,7 @@
   {
    "allow_on_submit": 1,
    "bold": 1,
-   "default": "Error en Facturaci\u00f3n",
+   "default": "Error en Facturación",
    "fieldname": "reason",
    "fieldtype": "Data",
    "in_global_search": 1,

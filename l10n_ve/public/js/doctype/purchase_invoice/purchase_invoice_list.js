@@ -1,8 +1,9 @@
 frappe.listview_settings["Purchase Invoice"] = {
   has_indicator_for_cancelled: true,
+  hide_name_column: true,
   add_fields: [
-    "customer",
-    "customer_name",
+    "supplier",
+    "supplier_name",
     "base_grand_total",
     "outstanding_amount",
     "due_date",
@@ -10,51 +11,68 @@ frappe.listview_settings["Purchase Invoice"] = {
     "currency",
     "is_return",
     "is_debit_note",
-    "is_void",
+    "bill_no",
   ],
+
   get_indicator: function (doc) {
-       const status_colors = {
-      Draft: "red",
-      Unpaid: "orange",
-      Paid: "green",
-      Return: "gray",
-      "Credit Note Issued": "gray",
-      "Unpaid and Discounted": "orange",
-      "Partly Paid and Discounted": "yellow",
-      "Overdue and Discounted": "red",
-      Overdue: "red",
-      "Partly Paid": "yellow",
-      "Internal Transfer": "darkgrey",
-      Cancelled: "red",
-    };
-    let status = __(doc.status);
-    let indicator = status_colors[doc.status];
+    // ── Cancelado ──
+    if (doc.docstatus === 2) {
+      return [__("Cancelado"), "red", "docstatus,=,2"];
+    }
 
+    // ── Borrador ──
+    if (doc.docstatus === 0) {
+      return [__("Borrador"), "red", "docstatus,=,0"];
+    }
+
+    // ── NC / ND internas (is_return / is_debit_note en Purchase Invoice) ──
+    if (doc.is_return) {
+      return [__("Nota de Crédito"), "gray", "is_return,=,1"];
+    }
     if (doc.is_debit_note) {
-    status = "Nota de Debito";
-    indicator = "gray";
-
-    } else if (doc.is_return) {
-      status = "Nota de Credito";
-      indicator = "gray";
+      return [__("Nota de Débito"), "gray", "is_debit_note,=,1"];
     }
 
-    if (doc.is_void) {
-      status = "Anulado";
-      indicator = "red";
+    // ── docstatus === 1: indicador por status ──
+    const status = doc.status || "";
+
+    if (status === "Paid") {
+      return [__("Pago"), "green", "status,=,Paid"];
     }
 
-    return [status, indicator];
+    if (status === "Credit Note Issued") {
+      return [__("NC Aplicada"), "gray", "status,=,Credit Note Issued"];
+    }
+
+    if (status === "Debit Note Issued") {
+      return [__("ND Aplicada"), "gray", "status,=,Debit Note Issued"];
+    }
+
+    if (status === "Partly Paid") {
+      return [__("Pago Parcial"), "yellow", "status,=,Partly Paid"];
+    }
+
+    if (status === "Overdue" || status === "Unpaid") {
+      return [__("Por Pagar"), "orange", "status,=," + status];
+    }
+
+    if (status === "Internal Transfer") {
+      return [__("Transferencia Interna"), "darkgrey", "status,=,Internal Transfer"];
+    }
+
+    // Fallback
+    return [__(status), "orange"];
   },
+
   right_column: "grand_total",
 
   onload: function (listview) {
-    if (frappe.model.can_create("Delivery Note")) {
-      listview.page.add_action_item(__("Delivery Note"), () => {
+    if (frappe.model.can_create("Purchase Receipt")) {
+      listview.page.add_action_item(__("Purchase Receipt"), () => {
         erpnext.bulk_transaction_processing.create(
           listview,
           "Purchase Invoice",
-          "Delivery Note"
+          "Purchase Receipt"
         );
       });
     }
@@ -68,5 +86,16 @@ frappe.listview_settings["Purchase Invoice"] = {
         );
       });
     }
+
+    // Columnas personalizadas: bill_no como Subject, supplier_name, status
+    const get_df = frappe.meta.get_docfield.bind(null, "Purchase Invoice");
+    listview.columns = [
+      { type: "Subject", df: get_df("bill_no") || { label: __("Factura de proveedor No."), fieldname: "bill_no" } },
+      { type: "Tag" },
+      { type: "Status" },
+      { type: "Field", df: get_df("supplier_name") || { label: __("Proveedor"), fieldname: "supplier_name" } },
+      { type: "Field", df: get_df("posting_date") || { label: __("Fecha de Contabilización"), fieldname: "posting_date" } },
+    ];
+    listview.render_header(true);
   },
 };

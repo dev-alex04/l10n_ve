@@ -11,6 +11,7 @@ app_include_js = [
     "/assets/l10n_ve/js/utils/report_view_patch.js",
     "/assets/l10n_ve/js/widgets/number_card_widget.js",
     "/assets/l10n_ve/js/utils/sales_billing_indicators.js",
+    "/assets/l10n_ve/js/utils/fiscal_preview.js",
     "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
     "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
 ]
@@ -135,6 +136,14 @@ doctype_js = {
         "public/js/controllers/taxes_and_totals.js",
     ],
     "VE Sales Credit Note": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
+    ],
+    "VE Purchase Credit Note": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
+    ],
+    "VE Purchase Debit Note": [
         "public/js/controllers/transaction.js",
         "public/js/controllers/taxes_and_totals.js",
     ],
@@ -301,6 +310,18 @@ doc_events = {
     "Purchase Receipt": {
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
+    "VE Purchase Credit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "VE Purchase Debit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "VE Sales Credit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "VE Sales Debit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
     "File": {
         "after_insert": "l10n_ve.overrides.task.sync_attachment_to_project",
     },
@@ -317,7 +338,7 @@ scheduler_events = {
             "l10n_ve.tasks.create_currency_exchange",
             "l10n_ve.tasks.cleanup_resolved_digital_invoice_error_logs",
         ],
-        "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_invoices_to_hka"],
+        "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
         "0 3 1 * *": ["l10n_ve.tasks.purge_old_digital_invoice_success_logs"],
     }
     # "all": [

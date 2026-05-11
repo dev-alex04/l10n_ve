@@ -12,6 +12,8 @@ const __VE_DOCTYPES_JS__ = [
   "Purchase Order",
   "Purchase Invoice",
   "Purchase Receipt",
+  "VE Purchase Credit Note",
+  "VE Purchase Debit Note",
 ];
 
 // ------------------------------------------------------------------ //
@@ -72,12 +74,11 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
   } else if (tax.charge_type == "On Item Quantity") {
     current_tax_amount = tax_rate * item.qty;
   } else if (tax.charge_type == "ISLR") {
+    let tax_amount = 0;
     if (item.idx === 1) {
-      var tax_base = (this.frm.doc.total * tax.percentage_base) / 100;
-    } else {
-      var tax_base = (item.net_amount * tax.percentage_base) / 100;
+      let tax_base = (this.frm.doc.total * flt(tax.percentage_base)) / 100;
+      tax_amount = (tax_base * tax.rate) / 100 - flt(tax.subtracting);
     }
-    let tax_amount = (tax_base * tax.rate) / 100 - tax.subtracting;
     current_tax_amount = tax_amount > 0 ? tax_amount : 0;
   } else if (tax.charge_type == "VAT" && !item.vat_exempt) {
     current_tax_amount = (item.net_amount * tax.rate) / 100;
@@ -388,7 +389,12 @@ const _original_calculate_outstanding_amount =
 erpnext.taxes_and_totals.prototype.calculate_outstanding_amount = function (
   update_paid_amount,
 ) {
-  const ve_invoice_doctypes = ["VE Sales Credit Note", "VE Sales Debit Note"];
+  const ve_invoice_doctypes = [
+    "VE Sales Credit Note",
+    "VE Sales Debit Note",
+    "VE Purchase Credit Note",
+    "VE Purchase Debit Note",
+  ];
 
   if (!ve_invoice_doctypes.includes(this.frm.doc.doctype)) {
     return _original_calculate_outstanding_amount.call(
@@ -442,7 +448,12 @@ erpnext.taxes_and_totals.prototype.calculate_taxes_and_totals = async function (
 ) {
   await _original_calculate_taxes_and_totals.call(this, update_paid_amount);
 
-  const ve_invoice_doctypes = ["VE Sales Credit Note", "VE Sales Debit Note"];
+  const ve_invoice_doctypes = [
+    "VE Sales Credit Note",
+    "VE Sales Debit Note",
+    "VE Purchase Credit Note",
+    "VE Purchase Debit Note",
+  ];
   if (
     ve_invoice_doctypes.includes(this.frm.doc.doctype) &&
     this.frm.doc.docstatus < 2
@@ -474,7 +485,8 @@ function recalculate_ve_document(frm) {
         frappe.flags.round_off_applicable_accounts = [];
       }
 
-      calc.calculate_taxes_and_totals()
+      calc
+        .calculate_taxes_and_totals()
         .then(() => {
           frm.refresh_fields();
         })
