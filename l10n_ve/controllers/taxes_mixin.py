@@ -142,56 +142,35 @@ class TaxesMixin:
             if tax.get("charge_type") != "ISLR"
         ]
 
-        tabulator_name: str = frappe.db.get_value(
-            "Customer", self.customer, "tabulator_islr"
-        ) or ""
-        if not tabulator_name:
-            return
+        islr_row: _dict | None = self._build_islr_tax_row()
+        if islr_row:
+            self.append("taxes", islr_row)
+
+    def _build_islr_tax_row(self) -> _dict | None:
+        """Construye la fila de retención ISLR o retorna None si no aplica."""
+        from l10n_ve.utils.islr import get_islr_aliquot, calculate_islr_amount
+
+        result = get_islr_aliquot(self.customer, self.company)
+        if not result:
+            return None
+
+        aliquot_info, tabulator = result
 
         islr_account: str = frappe.get_cached_value(
             "Company", self.company, "sales_islr_account"
         ) or ""
         if not islr_account:
-            return
+            return None
 
-        tabulator = frappe.get_cached_doc("Tabulator ISLR", tabulator_name)
-        if not tabulator.aliquot:
-            return
-        aliquot_info = tabulator.aliquot[0]
-
-        if not aliquot_info:
-            return
-
-        base_amount: float = flt(self.total)
-        tax_base: float = flt(base_amount * flt(aliquot_info.percentage_base) / 100, 2)
-        islr_amount: float = flt(
-            (tax_base * flt(aliquot_info.aliquot) / 100) - flt(aliquot_info.subtracting), 2
-        )
-
+        islr_amount: float = calculate_islr_amount(flt(self.total), aliquot_info)
         if islr_amount <= 0:
-            return
+            return None
 
-        description: str = f"ISLR {tabulator_name} {tabulator.descripcion} ({flt(aliquot_info.aliquot)}%)"
-        if self.is_return and self.return_against:
-
-            type_doctype: str = (
-                "Sales" if self.doctype in DocumentTransactionType.__SALES_DOCTYPES__
-                else "Purchase"
-            )
-
-            affected_invoice_number: str = frappe.get_cached_value(
-                f"{type_doctype} Invoice",
-                self.return_against,
-                "bill_no"
-            )
-
-            description += f" por Nota de Crédito contra factura {affected_invoice_number}"
-
-        self.append("taxes", _dict({
+        return _dict({
             "charge_type": "ISLR",
             "category": "Total",
             "add_deduct_tax": "Deduct",
-            "description": description,
+            "description": self._build_islr_description(tabulator, aliquot_info),
             "is_tax_withholding_account": True,
             "account_head": islr_account,
             "tax_amount": islr_amount,
@@ -199,7 +178,34 @@ class TaxesMixin:
             "rate": flt(aliquot_info.aliquot),
             "percentage_base": flt(aliquot_info.percentage_base),
             "subtracting": flt(aliquot_info.subtracting),
-        }))
+        })
+
+    def _build_islr_description(self, tabulator, aliquot_info) -> str:
+        """Genera la descripción del concepto ISLR incluyendo NC/ND si aplica."""
+        description: str = (
+            f"ISLR {tabulator.name} {tabulator.descripcion}"
+            f" ({flt(aliquot_info.aliquot)}%)"
+        )
+
+        if self.is_return and self.return_against:
+            type_doctype: str = (
+                "Sales" if self.doctype in DocumentTransactionType.__SALES_DOCTYPES__
+                else "Purchase"
+            )
+            bill_no: str = frappe.get_cached_value(
+                f"{type_doctype} Invoice",
+                self.return_against,
+                "bill_no"
+            ) or self.return_against
+            description += f" por Nota de Crédito contra factura {bill_no}"
+
+        elif getattr(self, "is_debit_note", 0) and self.return_against:
+            bill_no: str = frappe.get_cached_value(
+                "Sales Invoice", self.return_against, "bill_no"
+            ) or self.return_against
+            description += f" por Nota de Débito contra factura {bill_no}"
+
+        return description
 
     # ------------------------------------------------------------------ #
     # Exclusividad NC ↔ ND por factura                                     #
