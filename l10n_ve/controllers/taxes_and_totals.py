@@ -1,13 +1,24 @@
+import json
+
+import frappe
+import erpnext
 from frappe.utils import cint, flt
 
 from erpnext.controllers.taxes_and_totals import calculate_taxes_and_totals
 
 
-__SALES_DOCTYPES__ = [
+__VE_DOCTYPES__ = [
     "Quotation",
     "Sales Order",
     "Sales Invoice",
     "Delivery Note",
+    "VE Sales Credit Note",
+    "VE Sales Debit Note",
+    "Purchase Order",
+    "Purchase Invoice",
+    "Purchase Receipt",
+    "VE Purchase Credit Note",
+    "VE Purchase Debit Note",
 ]
 
 
@@ -15,6 +26,25 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
     def __init__(self, doc) -> None:
         super().__init__(doc)
+
+    def calculate(self) -> None:
+        """
+        ERPNext core solo llama calculate_total_advance() (que a su vez
+        calcula outstanding) para 'Sales Invoice' y 'Purchase Invoice'.
+        Se extiende para que los doctypes venezolanos también lo ejecuten.
+        """
+        super().calculate()
+
+        ve_invoice_doctypes: list = [
+            "VE Sales Debit Note",
+        ]
+        if self.doc.doctype in ve_invoice_doctypes:
+            self.calculate_total_advance()
+
+    def _is_multicurrency(self) -> bool:
+        """Indica si el documento usa moneda diferente a la de la compañía."""
+        company_currency: str = erpnext.get_company_currency(self.doc.company)
+        return self.doc.currency != company_currency
 
     def calculate_total_exempt(self) -> None:
 
@@ -70,8 +100,8 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         elif tax.charge_type == "ISLR":
 
             if item.idx == 1:
-                tax_base = (self.doc.total * tax.percentage_base) / 100
-                tax_amount = ((tax_base * tax.rate) / 100) - tax.subtracting
+                tax_base = (self.doc.total * flt(tax.percentage_base)) / 100
+                tax_amount = ((tax_base * tax.rate) / 100) - flt(tax.subtracting)
             else:
                 tax_amount = 0
 
@@ -101,6 +131,244 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
         return IterableFloat(current_tax_amount)
 
+    # ------------------------------------------------------------------ #
+    # Recálculo de montos base (VEF) — Metodología fiscal venezolana
+    # ------------------------------------------------------------------ #
+
+    def calculate_taxes(self) -> None:
+        """
+        Ejecuta el cálculo estándar de ERPNext y luego recalcula
+        los montos base (VEF) usando la metodología fiscal venezolana:
+        primero se convierte la base a moneda local y después se calcula
+        el impuesto, en vez de calcular en USD y luego convertir.
+        """
+        super().calculate_taxes()
+        self._recalculate_base_tax_amounts_ve()
+
+    def _recalculate_base_tax_amounts_ve(self) -> None:
+        """
+        Recalcula base_tax_amount para cada impuesto calculando
+        directamente sobre la base en moneda local (VEF), eliminando
+        discrepancias de redondeo amplificadas por tasas de cambio altas.
+        """
+        if not self._is_multicurrency():
+            return
+
+        if not self.doc.get("taxes"):
+            return
+
+        conversion_rate: float = flt(self.doc.conversion_rate)
+        if not conversion_rate:
+            return
+
+        base_taxable_vef: float = sum(
+            flt(item.base_net_amount)
+            for item in self.doc.items
+            if not item.get("vat_exempt")
+        )
+
+        for i, tax in enumerate(self.doc.get("taxes")):
+
+            if tax.charge_type == "VAT" and not tax.get("is_tax_withholding_account"):
+                tax.base_tax_amount = flt(
+                    base_taxable_vef * flt(tax.rate) / 100,
+                    tax.precision("base_tax_amount")
+                )
+
+            elif tax.charge_type == "On Net Total":
+                tax.base_tax_amount = flt(
+                    base_taxable_vef * flt(tax.rate) / 100,
+                    tax.precision("base_tax_amount")
+                )
+
+            elif tax.charge_type == "VAT Withholding":
+                total_vat_base: float = sum(
+                    flt(t.base_tax_amount)
+                    for t in self.doc.get("taxes")
+                    if t.charge_type == "VAT"
+                )
+                tax.base_tax_amount = flt(
+                    total_vat_base * flt(tax.rate) / 100,
+                    tax.precision("base_tax_amount")
+                )
+
+            elif tax.charge_type == "ISLR":
+                base_islr_base: float = flt(self.doc.base_total) * flt(tax.percentage_base) / 100
+                base_islr: float = (
+                    (base_islr_base * flt(tax.rate) / 100)
+                    - flt(tax.subtracting)
+                )
+                tax.base_tax_amount = flt(
+                    max(base_islr, 0),
+                    tax.precision("base_tax_amount")
+                )
+
+            elif tax.charge_type == "On Previous Row Amount":
+                prev_idx: int = cint(tax.row_id) - 1
+                if 0 <= prev_idx < len(self.doc.get("taxes")):
+                    prev_tax = self.doc.get("taxes")[prev_idx]
+                    tax.base_tax_amount = flt(
+                        prev_tax.base_tax_amount * flt(tax.rate) / 100,
+                        tax.precision("base_tax_amount")
+                    )
+
+            elif tax.charge_type == "On Previous Row Total":
+                prev_idx = cint(tax.row_id) - 1
+                if 0 <= prev_idx < len(self.doc.get("taxes")):
+                    prev_tax = self.doc.get("taxes")[prev_idx]
+                    tax.base_tax_amount = flt(
+                        prev_tax.base_total * flt(tax.rate) / 100,
+                        tax.precision("base_tax_amount")
+                    )
+
+            # Actualizar monto after discount proporcionalmente
+            if flt(tax.tax_amount) and flt(tax.tax_amount) != flt(tax.tax_amount_after_discount_amount):
+                discount_ratio: float = (
+                    flt(tax.tax_amount_after_discount_amount) / flt(tax.tax_amount)
+                )
+                tax.base_tax_amount_after_discount_amount = flt(
+                    tax.base_tax_amount * discount_ratio,
+                    tax.precision("base_tax_amount_after_discount_amount")
+                )
+            else:
+                tax.base_tax_amount_after_discount_amount = tax.base_tax_amount
+
+            # Recalcular base_total acumulado (misma lógica que set_cumulative_total)
+            if i == 0:
+                base_tax_base = flt(self.doc.base_net_total)
+            else:
+                base_tax_base = self.doc.get("taxes")[i - 1].base_total
+
+            base_tax_for_total: float = tax.base_tax_amount_after_discount_amount
+            base_tax_for_total = self._get_base_tax_for_cumulative_ve(
+                base_tax_for_total, tax
+            )
+
+            if tax.is_tax_withholding_account:
+                if tax.charge_type in ("VAT Withholding", "ISLR") \
+                        and self.doc.doctype in __VE_DOCTYPES__:
+                    tax.base_total = flt(
+                        base_tax_base + base_tax_for_total,
+                        tax.precision("base_total")
+                    )
+                else:
+                    tax.base_total = base_tax_base
+            else:
+                tax.base_total = flt(
+                    base_tax_base + base_tax_for_total,
+                    tax.precision("base_total")
+                )
+
+            self._recalculate_item_wise_tax_detail_ve(tax, base_taxable_vef)
+
+    def _get_base_tax_for_cumulative_ve(
+        self, base_tax_amount: float, tax
+    ) -> float:
+        """
+        Aplica la misma lógica de valuación/deducción que ERPNext
+        pero sobre los montos base recalculados.
+        """
+        if hasattr(tax, "category") and tax.category == "Valuation":
+            return 0
+
+        if hasattr(tax, "add_deduct_tax") and tax.add_deduct_tax == "Deduct":
+            return abs(base_tax_amount) * -1
+
+        return base_tax_amount
+
+    def _recalculate_item_wise_tax_detail_ve(
+        self, tax, base_taxable_vef: float
+    ) -> None:
+        """Recalcula item_wise_tax_detail usando montos base VEF."""
+        if isinstance(tax.item_wise_tax_detail, str):
+            try:
+                tax.item_wise_tax_detail = json.loads(tax.item_wise_tax_detail)
+            except (json.JSONDecodeError, TypeError):
+                return
+
+        if not isinstance(tax.item_wise_tax_detail, dict):
+            return
+
+        if tax.charge_type == "VAT":
+            item_base_by_key: dict[str, float] = {}
+            for item in self.doc.items:
+                if item.get("vat_exempt"):
+                    continue
+                key: str = item.item_code or item.item_name
+                item_base_by_key[key] = (
+                    item_base_by_key.get(key, 0) + flt(item.base_net_amount)
+                )
+
+            for key, rate_info in tax.item_wise_tax_detail.items():
+                if not isinstance(rate_info, list) or len(rate_info) < 2:
+                    continue
+                base_amount: float = item_base_by_key.get(key, 0)
+                rate_info[1] = flt(base_amount * flt(rate_info[0]) / 100)
+
+        elif tax.charge_type == "On Net Total":
+            assigned: bool = False
+            for key, rate_info in tax.item_wise_tax_detail.items():
+                if not isinstance(rate_info, list) or len(rate_info) < 2:
+                    continue
+                if not assigned:
+                    rate_info[1] = flt(base_taxable_vef * flt(rate_info[0]) / 100)
+                    assigned = True
+                else:
+                    rate_info[1] = 0
+
+    # ------------------------------------------------------------------ #
+    # calculate_totals — Recálculo de base_grand_total VE
+    # ------------------------------------------------------------------ #
+
+    def calculate_totals(self) -> None:
+        """
+        Override que mantiene el redirect de VE Sales Credit Note y
+        VE Sales Debit Note. Luego recalcula base_grand_total usando
+        los componentes VEF recalculados con la metodología fiscal venezolana.
+        """
+        es_doc_ve: bool = self.doc.doctype in (
+            "VE Sales Credit Note", "VE Sales Debit Note"
+        )
+        original_doctype: str = self.doc.doctype
+
+        if es_doc_ve:
+            self.doc.doctype = "Sales Invoice"
+            for tax in self.doc.get("taxes", []):
+                if not hasattr(tax, "category") or not tax.category:
+                    tax.category = "Total"
+
+        try:
+            super().calculate_totals()
+        finally:
+            if es_doc_ve:
+                self.doc.doctype = original_doctype
+
+        if not self._is_multicurrency():
+            return
+
+        if self.doc.get("taxes"):
+            last_tax = self.doc.get("taxes")[-1]
+            self.doc.base_grand_total = flt(
+                last_tax.base_total,
+                self.doc.precision("base_grand_total")
+            )
+
+        self.doc.base_total_taxes_and_charges = flt(
+            self.doc.base_grand_total - self.doc.base_net_total,
+            self.doc.precision("base_total_taxes_and_charges")
+        )
+
+        if self.doc.meta.get_field("rounded_total"):
+            self.doc.base_rounded_total = flt(
+                self.doc.base_grand_total,
+                self.doc.precision("base_rounded_total")
+            )
+            self.doc.base_rounding_adjustment = 0
+
+    # ------------------------------------------------------------------ #
+    # set_cumulative_total — Override existente (sin cambios)
+    # ------------------------------------------------------------------ #
+
     def set_cumulative_total(self, row_idx, tax) -> None:
         tax_amount = tax.tax_amount_after_discount_amount
         tax_amount = self.get_tax_amount_if_for_valuation_or_deduction(tax_amount, tax)
@@ -112,14 +380,114 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
         if tax.is_tax_withholding_account:
 
-            # Solo en ventas, se resta la retenciòn de IVA
+            # Se resta la retención de IVA e ISLR
             if tax.charge_type in ("VAT Withholding", "ISLR") \
-                    and self.doc.doctype in __SALES_DOCTYPES__:
+                    and self.doc.doctype in __VE_DOCTYPES__:
 
-                # Se multiplica por -1 para forzar la resta
-                tax.total = flt(tax_base + (tax_amount * -1), tax.precision("total"))
+                # Se asegura que la retención siempre reste, independientemente de su signo original
+                tax.total = flt(tax_base - abs(tax_amount), tax.precision("total"))
 
             else:
                 tax.total = tax_base
         else:
             tax.total = flt(tax_base + tax_amount, tax.precision("total"))
+
+    # ------------------------------------------------------------------ #
+    # calculate_total_advance — Override para evitar errores de redondeo
+    # ------------------------------------------------------------------ #
+
+    def calculate_total_advance(self) -> None:
+        """
+        Sobrescribe la validación de anticipos de ERPNext.
+        En escenarios multimoneda (USD/VEF), ERPNext valida que el anticipo
+        no exceda grand_total * conversion_rate. Sin embargo, en VE el total
+        en VEF (base_grand_total) puede ser ligeramente superior debido al
+        cálculo de impuestos sobre la base convertida.
+        """
+        if self.doc.docstatus != 2:
+            total_allocated_amount = sum(
+                flt(adv.allocated_amount, adv.precision("allocated_amount"))
+                for adv in self.doc.get("advances")
+            )
+
+            self.doc.total_advance = flt(
+                total_allocated_amount, self.doc.precision("total_advance")
+            )
+
+            grand_total = self.doc.rounded_total or self.doc.grand_total
+
+            if self.doc.party_account_currency == self.doc.currency:
+                invoice_total = flt(
+                    grand_total - flt(self.doc.write_off_amount),
+                    self.doc.precision("grand_total"),
+                )
+            else:
+                base_write_off_amount = flt(
+                    flt(self.doc.write_off_amount) * self.doc.conversion_rate,
+                    self.doc.precision("base_write_off_amount"),
+                )
+
+                if self.doc.base_rounded_total:
+                    invoice_total = self.doc.base_rounded_total - base_write_off_amount
+                elif self.doc.base_grand_total:
+                    invoice_total = self.doc.base_grand_total - base_write_off_amount
+                else:
+                    invoice_total = (
+                        flt(
+                            grand_total * self.doc.conversion_rate,
+                            self.doc.precision("base_grand_total"),
+                        )
+                        - base_write_off_amount
+                    )
+
+            if invoice_total > 0 and self.doc.total_advance > invoice_total:
+                if flt(self.doc.total_advance - invoice_total) > 0.01:
+                    from frappe import _
+                    frappe.throw(
+                        _("Advance amount cannot be greater than {0} {1}").format(
+                            self.doc.party_account_currency, invoice_total
+                        )
+                    )
+
+        if self.doc.get("write_off_outstanding_amount_automatically"):
+            self.doc.write_off_amount = 0
+
+        self.calculate_outstanding_amount()
+        self.calculate_write_off_amount()
+
+    def calculate_outstanding_amount(self) -> None:
+        """
+        ERPNext core (taxes_and_totals.py:875) solo calcula outstanding para
+        'Sales Invoice' y 'Purchase Invoice'. La ND venezolana no entra.
+        Se extiende la condición para incluirla.
+        """
+        ve_invoice_doctypes: list = [
+            "VE Sales Debit Note",
+        ]
+
+        if self.doc.doctype not in ve_invoice_doctypes:
+            return super().calculate_outstanding_amount()
+
+        grand_total = self.doc.rounded_total or self.doc.grand_total
+        base_grand_total = self.doc.base_rounded_total or self.doc.base_grand_total
+
+        self.doc.round_floats_in(
+            self.doc, ["grand_total", "total_advance", "write_off_amount"]
+        )
+
+        if self.doc.party_account_currency == self.doc.currency:
+            total_amount_to_pay = flt(
+                grand_total - flt(self.doc.total_advance),
+                self.doc.precision("grand_total"),
+            )
+        else:
+            total_amount_to_pay = flt(
+                flt(base_grand_total, self.doc.precision("base_grand_total"))
+                - flt(self.doc.total_advance),
+                self.doc.precision("base_grand_total"),
+            )
+
+        self.doc.outstanding_amount = flt(
+            total_amount_to_pay,
+            self.doc.precision("outstanding_amount"),
+        )

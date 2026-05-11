@@ -10,10 +10,10 @@ function get_tax_id_config(document_type, nature) {
   const config = {
     RIF: { default: 9 },
     Cedula: {
-      default: [7, 8],
+      default: [6, 8],
     },
     Passport: {
-      default: [8, 9],
+      default: [5, 12],
     },
     DEA: { default: 8 },
   };

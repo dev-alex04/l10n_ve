@@ -1,6 +1,8 @@
+import json
+
 import frappe
 from frappe import _
-from frappe.utils import flt, get_link_to_form, getdate
+from frappe.utils import cint, flt, get_link_to_form, getdate
 
 import erpnext
 from erpnext.stock import get_warehouse_account_map
@@ -15,31 +17,85 @@ from l10n_ve.utils.utils import validate_return_in_same_month
 
 class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
+    def before_cancel(self) -> None:
+        self._block_cancel_if_has_active_notes()
+        self._block_cancel_if_has_withholdings()
+        super().before_cancel()
+
     def on_cancel(self) -> None:
         super().on_cancel()
 
-        # TODO: Mover a una funcion
+    def _block_cancel_if_has_active_notes(self) -> None:
+        """Bloquea la cancelación si la factura tiene NC o ND venezolana activa.
 
-        has_iva_withholding = frappe.db.exists(
+        Regla de negocio: para anular una factura con NC/ND, primero se
+        deben anular los documentos dependientes.
+        """
+        active_nc: dict | None = frappe.db.get_value(
+            "VE Purchase Credit Note",
+            {"return_against": self.name, "docstatus": 1},
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if active_nc:
+            nc_bill: str = active_nc.bill_no or active_nc.name
+            nc_link: str = (
+                f'<a href="/app/ve-purchase-credit-note/{active_nc.name}">'
+                f'{nc_bill}</a>'
+            )
+            frappe.throw(
+                _(
+                    "No se puede anular la factura <b>{0}</b> porque tiene "
+                    "una Nota de Crédito activa: {1}. "
+                    "Anule primero la Nota de Crédito."
+                ).format(self.name, nc_link),
+                title=_("Cancelación Bloqueada — NC Activa"),
+            )
+
+        active_nd: dict | None = frappe.db.get_value(
+            "VE Purchase Debit Note",
+            {"return_against": self.name, "docstatus": 1},
+            ["name", "bill_no"],
+            as_dict=True,
+        )
+        if active_nd:
+            nd_bill: str = active_nd.bill_no or active_nd.name
+            nd_link: str = (
+                f'<a href="/app/ve-purchase-debit-note/{active_nd.name}">'
+                f'{nd_bill}</a>'
+            )
+            frappe.throw(
+                _(
+                    "No se puede anular la factura <b>{0}</b> porque tiene "
+                    "una Nota de Débito activa: {1}. "
+                    "Anule primero la Nota de Débito."
+                ).format(self.name, nd_link),
+                title=_("Cancelación Bloqueada — ND Activa"),
+            )
+
+    def _block_cancel_if_has_withholdings(self) -> None:
+        """Bloquea la cancelación si la factura está en un comprobante de retención activo."""
+        reasons: list[str] = []
+
+        if frappe.db.exists(
             "VAT Withholding Voucher Item",
-            {"purchase_invoice": self.name }
-        )
-
-        has_islr_withholding = frappe.db.exists(
-            "ISLR Withholding Voucher Item",
-            {"purchase_invoice": self.name }
-        )
-
-        reasons = []
-        if has_iva_withholding:
+            {"purchase_invoice": self.name}
+        ):
             reasons.append("un Comprobante de retención de IVA")
 
-        if has_islr_withholding:
+        if frappe.db.exists(
+            "ISLR Withholding Voucher Item",
+            {"purchase_invoice": self.name}
+        ):
             reasons.append("un Comprobante de retención de ISLR")
 
         if reasons:
-            message = "No se puede cancelar esta factura. Está asociada a " + " y a ".join(reasons) + "."
-            frappe.throw(message, frappe.ValidationError)
+            frappe.throw(
+                _("No se puede cancelar esta factura. Está asociada a {0}.").format(
+                    " y a ".join(reasons)
+                ),
+                frappe.ValidationError,
+            )
 
     def before_submit(self) -> None:
         super().before_submit()
@@ -60,9 +116,48 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
     def validate_supplier_invoice(self) -> None:
 
-        if self.bill_date:
-            if getdate(self.bill_date) > getdate(self.posting_date):
-                frappe.throw(_("Supplier Invoice Date cannot be greater than Posting Date"))
+        if self.bill_date and getdate(self.bill_date) > getdate(self.posting_date):
+            frappe.throw(
+                _("La fecha del documento del proveedor ({0}) no puede ser mayor "
+                  "a la fecha de contabilización ({1}).").format(
+                    frappe.format(self.bill_date, {"fieldtype": "Date"}),
+                    frappe.format(self.posting_date, {"fieldtype": "Date"}),
+                )
+            )
+
+    def set_status(self, update: bool = False, status: str | None = None, update_modified: bool = True) -> None:
+        """Extiende set_status para detectar NC/ND venezolanas vinculadas.
+
+        ERPNext core solo busca Purchase Invoice con is_return=1 para marcar
+        'Debit Note Issued'. Aquí se agrega la búsqueda en los DocTypes
+        VE Purchase Credit Note y VE Purchase Debit Note.
+        """
+        super().set_status(update=False, status=status, update_modified=update_modified)
+
+        if (
+            self.status == "Paid"
+            and not cint(self.is_return)
+            and flt(self.outstanding_amount) <= 0
+            and frappe.db.exists(
+                "VE Purchase Credit Note",
+                {"return_against": self.name, "docstatus": 1},
+            )
+        ):
+            self.status = "Credit Note Issued"
+
+        if (
+            self.status not in ("Debit Note Issued",)
+            and not cint(self.is_return)
+            and not cint(self.is_debit_note)
+            and frappe.db.exists(
+                "VE Purchase Debit Note",
+                {"return_against": self.name, "docstatus": 1},
+            )
+        ):
+            self.status = "Debit Note Issued"
+
+        if update:
+            self.db_set("status", self.status, update_modified=update_modified)
 
     def validate_affected_invoice_number(self) -> None:
         # Revisa si hace falta validar con is_return
@@ -399,6 +494,9 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
         valuation_tax = {}
 
         for tax in self.get("taxes"):
+            # Las retenciones se manejan exclusivamente en make_gl_entries_for_tax_withholding
+            if tax.is_tax_withholding_account:
+                continue
 
             amount, base_amount = self.get_tax_amounts(tax, None)
             if tax.category in ("Total", "Valuation and Total") and flt(base_amount):
@@ -503,37 +601,121 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                         )
                     )
 
-    def make_gl_entries_for_tax_withholding(self, gl_entries):
+    def _grand_total_includes_withholding(self) -> bool:
+        """Indica si base_grand_total incluye las retenciones (bruto).
+
+        En Purchase Invoice, calculate_taxes_and_totals deduce las retenciones
+        del grand_total → base_grand_total ya es neto → NO se necesita DR al AP.
+
+        Subclases como VE Purchase Credit Note pueden override este método
+        para retornar True cuando su grand_total es bruto.
         """
-        Tax withholding amount is not part of supplier invoice.
-        Separate supplier GL Entry for correct reporting.
+        return False
+
+    def make_gl_entries_for_tax_withholding(self, gl_entries) -> None:
+        """Genera los asientos contables para retenciones de IVA e ISLR en compras.
+
+        Crea CRÉDITO a la cuenta de retención correspondiente.
+        Opcionalmente crea DÉBITO al AP cuando grand_total incluye las retenciones
+        (caso VE Purchase Credit Note donde grand_total es bruto).
+
+        Flujo Purchase Invoice (grand_total neto = 99):
+          DR Gasto 100 + DR IVA 16 = 116
+          CR AP 99 + CR Ret IVA 12 + CR Ret ISLR 5 = 116 ✅
+
+        Flujo VE Purchase Credit Note (grand_total bruto = 116):
+          DR Gasto 100 + DR IVA 16 + DR AP 12 + DR AP 5 = 133
+          CR AP 116 + CR Ret IVA 12 + CR Ret ISLR 5 = 133 ✅
         """
+        withholding_charge_types: tuple[str, ...] = ("VAT Withholding", "ISLR")
+        needs_ap_debit: bool = self._grand_total_includes_withholding()
 
         for tax in self.get("taxes"):
-            if tax.charge_type != 'VAT Withholding':
+            if tax.charge_type not in withholding_charge_types:
                 continue
 
-            base_tds_amount = abs(tax.base_tax_amount_after_discount_amount)
-            tds_amount = abs(tax.tax_amount_after_discount_amount)
+            base_tds_amount: float = abs(tax.base_tax_amount_after_discount_amount)
+            tds_amount: float = abs(tax.tax_amount_after_discount_amount)
 
-            against_voucher = self.name
-            if self.is_return and self.return_against and not self.update_outstanding_for_self:
-                against_voucher = self.return_against
+            if not flt(base_tds_amount) and not flt(tds_amount):
+                continue
 
-            # Did not use base_grand_total to book rounding loss gle
-            gl = {
-                "account": self.credit_to,
-                "party_type": "Supplier",
-                "party": self.supplier,
-                "due_date": self.due_date,
-                "against": tax.account_head,
-                "debit": base_tds_amount,
-                "debit_in_account_currency": base_tds_amount,
-                "debit_in_transaction_currency": tds_amount,
-                "against_voucher": against_voucher,
-                "against_voucher_type": self.doctype,
-                "project": self.project,
-                "cost_center": self.cost_center,
-            }
+            # DÉBITO a cuenta AP solo cuando grand_total no descuenta retenciones
+            if needs_ap_debit:
+                self.add_supplier_gl_entry(gl_entries, -base_tds_amount, -tds_amount)
 
-            gl_entries.append(self.get_gl_dict(gl, self.party_account_currency, item=self))
+            # CRÉDITO a cuenta de retención (obligación fiscal)
+            account_currency: str = get_account_currency(tax.account_head)
+            gl_entries.append(
+                self.get_gl_dict(
+                    {
+                        "account": tax.account_head,
+                        "against": self.supplier,
+                        "credit": base_tds_amount,
+                        "credit_in_account_currency": base_tds_amount
+                        if account_currency == self.company_currency
+                        else tds_amount,
+                        "credit_in_transaction_currency": tds_amount,
+                        "cost_center": tax.cost_center,
+                    },
+                    account_currency,
+                    item=tax,
+                )
+            )
+
+
+
+@frappe.whitelist()
+def get_tabulators_by_person_type(
+    doctype: str,
+    txt: str,
+    searchfield: str,
+    start: int,
+    page_len: int,
+    filters: dict,
+) -> list[tuple]:
+    """Filtra Tabuladores ISLR que tengan alícuota para el tipo de persona indicado.
+
+    Se usa como query del campo Link en el diálogo de ISLR de Purchase Invoice.
+    Excluye tabuladores cuyos códigos ya están en la factura (existing_codes).
+    """
+    type_of_person: str = filters.get("type_of_person", "")
+    existing_codes: list[str] = filters.get("existing_codes") or []
+
+    # Asegurar que sea una lista (puede llegar como string JSON desde el frontend)
+    if isinstance(existing_codes, str):
+        try:
+            existing_codes = json.loads(existing_codes)
+        except (json.JSONDecodeError, TypeError):
+            existing_codes = [existing_codes] if existing_codes else []
+
+    params: dict = {
+        "type_of_person": type_of_person,
+        "txt": f"%{txt}%",
+        "start": start,
+        "page_len": page_len,
+    }
+
+    exclusion_clause: str = ""
+    if existing_codes:
+        placeholders: list[str] = []
+        for i, code in enumerate(existing_codes):
+            key: str = f"exc_{i}"
+            placeholders.append(f"%({key})s")
+            params[key] = code
+        exclusion_clause = f"AND t.codigo NOT IN ({', '.join(placeholders)})"
+
+    return frappe.db.sql(
+        f"""
+        SELECT DISTINCT t.name, t.codigo, t.descripcion
+        FROM `tabTabulator ISLR` t
+        INNER JOIN `tabTabulator ISLR Aliquots` a ON a.parent = t.name
+        WHERE a.types_of_person = %(type_of_person)s
+            AND a.aliquot > 0
+            AND (t.name LIKE %(txt)s OR t.codigo LIKE %(txt)s OR t.descripcion LIKE %(txt)s)
+            {exclusion_clause}
+        ORDER BY t.codigo
+        LIMIT %(page_len)s OFFSET %(start)s
+        """,
+        params,
+    )

@@ -633,7 +633,7 @@ def set_mode_of_payments(company_name: str = None) -> None:
             mop_name = mode['mode_of_payment']
             mop_type = mode['type']
             mop_visibility_type = mode['visibility_type']
-            
+
             if not frappe.db.exists('Mode of Payment', mop_name):
                 print(f"  + Creando nuevo Modo de Pago: '{mop_name}'")
                 doc = frappe.new_doc('Mode of Payment')
@@ -1473,11 +1473,11 @@ def get_compatible_workspace_name(priorities=None) -> str:
     """
     if not priorities:
         priorities = ["Accounting", "Accounts", "Financial Reports"]
-        
+
     for name in priorities:
         if frappe.db.exists("Workspace", name):
             return name
-    
+
     print(f"  !! No se encontró ningún Workspace compatible ({', '.join(priorities)}).")
     return None
 
@@ -1499,8 +1499,15 @@ def add_reports_to_accounts_workspace() -> None:
         reports_to_add = [
             {
                 "type": "Link",
-                "label": _("Retención de Clientes"),
+                "label": _("Retención de Cliente IVA/ISLR"),
                 "link_to": "Customer Retention",
+                "link_type": "Report",
+                "is_query_report": 1
+            },
+            {
+                "type": "Link",
+                "label": _("Reporte de IVA"),
+                "link_to": "VAT report",
                 "link_type": "Report",
                 "is_query_report": 1
             },
@@ -1542,11 +1549,11 @@ def add_reports_to_accounts_workspace() -> None:
         ]
 
         links_to_move = [r["link_to"] for r in reports_to_add]
-        
+
         initial_links_count = len(workspace.links)
         workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         modified = len(workspace.links) != initial_links_count
-        
+
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = "Reportes Venezuela"
@@ -1587,7 +1594,7 @@ def add_reports_to_accounts_workspace() -> None:
                     block["data"]["links"] = [r for r in reports_to_add if frappe.db.exists("Report", r["link_to"])]
                     modified = True
                     break
-            
+
             if not card_found:
                 print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
                 new_card = {
@@ -1648,11 +1655,11 @@ def add_doctypes_to_accounting_workspace() -> None:
             })
 
         links_to_move = [l["link_to"] for l in links_to_add]
-        
+
         initial_links_count = len(workspace.links)
         workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         modified = len(workspace.links) != initial_links_count
-        
+
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = "Configuración Venezuela"
@@ -1687,7 +1694,7 @@ def add_doctypes_to_accounting_workspace() -> None:
                 block["data"]["links"] = [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 modified = True
                 break
-        
+
         if not card_found:
             print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
             new_card = {
@@ -1700,7 +1707,7 @@ def add_doctypes_to_accounting_workspace() -> None:
             }
             content.append(new_card)
             modified = True
-        
+
         if modified:
             workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
@@ -1753,12 +1760,227 @@ def setup_workspaces() -> None:
     add_reports_to_accounts_workspace()
     add_doctypes_to_accounting_workspace()
     add_vouchers_to_accounts_workspace()
+    add_shortcuts_to_selling_workspace()
+    add_links_to_selling_workspace()
+    add_links_to_buying_workspace()
+
+def add_shortcuts_to_selling_workspace() -> None:
+    """
+    Agrega accesos rápidos (shortcuts) al Workspace de Ventas:
+      - Factura de Venta (Sales Invoice)
+      - Nota de Crédito (VE Sales Credit Note)
+
+    Frappe renderiza la sección "Acceso rápido" desde DOS lugares:
+      1. Tabla hija `shortcuts` (datos del shortcut: label, link_to, type, color)
+      2. Campo JSON `content` (layout: bloques type="shortcut" con shortcut_name = label)
+    Ambos deben estar sincronizados para que aparezca en la UI.
+    """
+    print("Agregando shortcuts al Workspace de Ventas...")
+    try:
+        workspace_name = None
+        for candidate in ("Selling", "Ventas"):
+            if frappe.db.exists("Workspace", candidate):
+                workspace_name = candidate
+                break
+
+        if not workspace_name:
+            print("  !! No se encontró el Workspace 'Selling' / 'Ventas'. Omitiendo.")
+            return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+        print(f"  -> Workspace encontrado: {workspace_name}")
+
+        shortcuts_to_add = [
+            {
+                "label": "Factura de Venta",
+                "link_to": "Sales Invoice",
+                "type": "DocType",
+                "color": "Blue",
+            },
+            {
+                "label": "Nota de Crédito",
+                "link_to": "VE Sales Credit Note",
+                "type": "DocType",
+                "color": "Grey",
+            },
+            {
+                "label": "Nota de Débito",
+                "link_to": "VE Sales Debit Note",
+                "type": "DocType",
+                "color": "Orange",
+            },
+        ]
+
+        # 1. Actualizar tabla hija shortcuts
+        current_shortcut_labels = {s.label for s in workspace.shortcuts}
+        modified = False
+
+        for shortcut in shortcuts_to_add:
+            if not frappe.db.exists("DocType", shortcut["link_to"]):
+                print(f"  -- Omitiendo (DocType no encontrado): {shortcut['link_to']}")
+                continue
+
+            if shortcut["label"] not in current_shortcut_labels:
+                workspace.append("shortcuts", {
+                    "label": shortcut["label"],
+                    "link_to": shortcut["link_to"],
+                    "type": shortcut["type"],
+                    "color": shortcut.get("color", "Grey"),
+                })
+                modified = True
+                print(f"  -> Shortcut (tabla) agregado: {shortcut['label']}")
+            else:
+                print(f"  -- Omitiendo (ya existe en tabla): {shortcut['label']}")
+
+        # 2. Actualizar campo JSON content
+        # En content, los shortcuts son bloques {"type": "shortcut", "data": {"shortcut_name": label, "col": 3}}
+        # y deben estar DESPUÉS del bloque type=header de Quick Access
+        content = json.loads(workspace.content) if workspace.content else []
+
+        existing_shortcut_names = {
+            block["data"]["shortcut_name"]
+            for block in content
+            if block.get("type") == "shortcut"
+        }
+
+        # Encontrar el índice del último shortcut existente para insertar después
+        last_shortcut_idx = -1
+        for i, block in enumerate(content):
+            if block.get("type") == "shortcut":
+                last_shortcut_idx = i
+
+        shortcuts_added_to_content = []
+        for shortcut in shortcuts_to_add:
+            if not frappe.db.exists("DocType", shortcut["link_to"]):
+                continue
+
+            if shortcut["label"] not in existing_shortcut_names:
+                import random
+                import string
+                rand_id = "".join(random.choices(string.ascii_letters + string.digits, k=10))
+                shortcuts_added_to_content.append({
+                    "id": rand_id,
+                    "type": "shortcut",
+                    "data": {
+                        "shortcut_name": shortcut["label"],
+                        "col": 3,
+                    }
+                })
+                print(f"  -> Shortcut (content) agregado: {shortcut['label']}")
+                modified = True
+            else:
+                print(f"  -- Omitiendo (ya existe en content): {shortcut['label']}")
+
+        if shortcuts_added_to_content:
+            insert_at = last_shortcut_idx + 1 if last_shortcut_idx >= 0 else len(content)
+            for i, block in enumerate(shortcuts_added_to_content):
+                content.insert(insert_at + i, block)
+
+        if modified:
+            workspace.content = json.dumps(content)
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Shortcuts agregados al Workspace '{workspace_name}'.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya tenía todos los shortcuts.")
+
+    except Exception as e:
+        print(f"Failure: Error agregando shortcuts al Workspace de Ventas: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_shortcuts_to_selling_workspace')
+
+
+def add_links_to_selling_workspace() -> None:
+    """
+    Agrega Nota de Crédito y Nota de Débito como links en la sección 'Ventas'
+    del Workspace de Ventas, justo después de 'Sales Invoice'.
+
+    Frappe renderiza los links del menú lateral desde la tabla hija `links`.
+    Los links se insertan después de Sales Invoice para mantener el orden lógico:
+      Factura de Venta → Nota de Crédito → Nota de Débito
+    """
+    print("Agregando NC/ND a la sección Ventas del Workspace...")
+    try:
+        workspace_name = None
+        for candidate in ("Selling", "Ventas"):
+            if frappe.db.exists("Workspace", candidate):
+                workspace_name = candidate
+                break
+
+        if not workspace_name:
+            print("  !! No se encontró el Workspace 'Selling' / 'Ventas'. Omitiendo.")
+            return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+
+        links_to_add = [
+            {
+                "label": _("Nota de Crédito"),
+                "link_to": "VE Sales Credit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+            {
+                "label": _("Nota de Débito"),
+                "link_to": "VE Sales Debit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+        ]
+
+        current_links = {l.link_to for l in workspace.links}
+        modified = False
+
+        sales_invoice_idx = None
+        for i, link in enumerate(workspace.links):
+            if link.link_to == "Sales Invoice":
+                sales_invoice_idx = i
+                break
+
+        insert_offset = 1
+        for link_config in links_to_add:
+            if not frappe.db.exists("DocType", link_config["link_to"]):
+                print(f"  -- Omitiendo (DocType no encontrado): {link_config['link_to']}")
+                continue
+
+            if link_config["link_to"] in current_links:
+                print(f"  -- Omitiendo (ya existe): {link_config['label']}")
+                continue
+
+            new_link = workspace.append("links", {})
+            new_link.label = link_config["label"]
+            new_link.type = link_config["type"]
+            new_link.link_type = link_config["link_type"]
+            new_link.link_to = link_config["link_to"]
+
+            if sales_invoice_idx is not None:
+                target_idx = sales_invoice_idx + insert_offset + 1
+                links_list = workspace.links
+                last_link = links_list.pop()
+                links_list.insert(target_idx, last_link)
+                insert_offset += 1
+
+            modified = True
+            print(f"  -> Link agregado: {link_config['label']}")
+
+        if modified:
+            for i, link in enumerate(workspace.links, start=1):
+                link.idx = i
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Links NC/ND agregados al Workspace '{workspace_name}'.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya tenía los links.")
+
+    except Exception as e:
+        print(f"Failure: Error agregando links NC/ND al Workspace: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_links_to_selling_workspace')
 
 def add_vouchers_to_accounts_workspace() -> None:
     """
     Agrega los DocTypes de comprobantes de retención al Workspace 'Accounting'.
     """
     print("Agregando sección Tributos al Workspace de Contabilidad...")
+
     try:
         workspace_name = get_compatible_workspace_name()
         if not workspace_name:
@@ -1769,19 +1991,19 @@ def add_vouchers_to_accounts_workspace() -> None:
 
         links_to_add = [
             {
-                "label": _("Retención de IVA"),
+                "label": _("Comprobantes de Retención de IVA"),
                 "link_to": "VAT Withholding Voucher",
                 "type": "Link",
                 "link_type": "DocType"
             },
             {
-                "label": _("Retención de ISLR"),
+                "label": _("Comprobantes de Retención de ISLR"),
                 "link_to": "ISLR Withholding Voucher",
                 "type": "Link",
                 "link_type": "DocType"
             },
             {
-                "label": _("Declaración de Municipales"),
+                "label": _("Declaración de Impuestos Municipales"),
                 "link_to": "VE Municipality Tax Declaration",
                 "type": "Link",
                 "link_type": "DocType"
@@ -1795,11 +2017,11 @@ def add_vouchers_to_accounts_workspace() -> None:
         ]
 
         links_to_move = [l["link_to"] for l in links_to_add]
-        
+
         initial_links_count = len(workspace.links)
         workspace.set("links", [l for l in workspace.links if l.link_to not in links_to_move])
         modified = len(workspace.links) != initial_links_count
-        
+
         current_links = {l.link_to for l in workspace.links}
 
         card_break_label = _("Tributos")
@@ -1836,7 +2058,7 @@ def add_vouchers_to_accounts_workspace() -> None:
                 block["data"]["links"] = [l for l in links_to_add if frappe.db.exists("DocType", l["link_to"])]
                 modified = True
                 break
-        
+
         if not card_found:
             print(f"  -> Creando nueva tarjeta visual '{custom_card_name}'...")
             new_card = {
@@ -1849,7 +2071,7 @@ def add_vouchers_to_accounts_workspace() -> None:
             }
             content.append(new_card)
             modified = True
-        
+
         if modified:
             workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
@@ -1861,3 +2083,786 @@ def add_vouchers_to_accounts_workspace() -> None:
     except Exception as e:
         print(f"Failure: Error actualizando Comprobantes en Workspace: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_vouchers_to_accounts_workspace')
+
+
+def merge_old_accounts_to_2026(company_name: str = "Galanet Solution C.A.") -> None:
+    """
+    Fase 1: Renombra 11011 (Caja Tesorería Bs) → 1101002 Caja Tesorería Bolívares
+            usando update_account_number (no existe destino, es solo renombrar).
+    Fase 2: Fusiona las 17 cuentas restantes con GL Entries hacia sus equivalentes
+            del plan 2026 usando merge_account de ERPNext, que ejecuta
+            frappe.rename_doc con merge=1 y actualiza TODAS las referencias.
+
+    IMPORTANTE: Ejecutar después de replace_chart_of_accounts y con backup previo.
+    """
+    from erpnext.accounts.doctype.account.account import merge_account, update_account_number
+
+    print("=" * 70)
+    print("MIGRACIÓN CUENTAS ANTIGUAS → PLAN 2026")
+    print("=" * 70)
+
+    if not frappe.db.exists("Company", company_name):
+        print(f"FATAL: No se encontró la compañía '{company_name}'")
+        return
+
+    # ── FASE 1: Renombrar la caja en Bs (no hay destino, solo renumerar) ──
+    print("\n── FASE 1: Renombrar Caja Tesorería Bs ──", flush=True)
+    old_caja_name: str | None = frappe.db.get_value(
+        "Account",
+        {"account_number": "11011", "company": company_name},
+        "name"
+    )
+    if old_caja_name:
+        try:
+            new_name = update_account_number(
+                old_caja_name,
+                "Caja Tesorería Bolívares",
+                "1101002"
+            )
+            frappe.db.commit()
+            gl_caja: int = frappe.db.count("GL Entry", {"account": new_name or old_caja_name})
+            print(f"  ✓ #11011 → #1101002 Caja Tesorería Bolívares ({gl_caja} GL)", flush=True)
+        except Exception as e:
+            print(f"  ✗ #11011 → #1101002: {e}", flush=True)
+            frappe.db.rollback()
+    else:
+        print("  ⏭ #11011 ya no existe o fue renombrada previamente", flush=True)
+
+    # ── FASE 2: Merge de las 17 cuentas restantes ──
+    print("\n── FASE 2: Merge cuentas antiguas → nuevas ──", flush=True)
+
+    merge_map: list[tuple[str, str]] = [
+        ("110111", "1101001"),      # Caja Tesorería Dolares → Caja Tesoreria dolares
+        ("11021", "1102005"),       # Bancamiga Cte 7654 → Bancamiga Bs. Cte 7654 DC-01
+        ("110219", "1102006"),      # Bancamiga HQ Cte 2113 → Bancamiga Bs. Cte 2113 HQ
+        ("110226", "1102037"),      # Bancaribe 1120 → Bancaribe Bs. 1120 DC-01
+        ("11029", "1102022"),       # Bancamiga Cte 1701 → Bancamiga Bs Cte 1701 MIR-01
+        ("11041", "1105001"),       # CxC clientes → Cuentas por Cobrar Clientes
+        ("11072", "1110002"),       # Ret. ISLR Clientes → Retenciones ISLR Clientes
+        ("11073", "1110003"),       # Ret. IVA Clientes → Retencion de IVA Clientes
+        ("21021", "2104001"),       # Anticipo Clientes → Anticipo de Clientes
+        ("21031", "2105001"),       # IVA Débito Fiscal → IVA Debito Fiscal
+        ("210314", "2105005"),      # IGTF por Pagar → IGTF por Pagar
+        ("21033", "2105003"),       # Ret. ISLR Proveedores → Retenciones de ISLR Proveedores
+        ("41011", "4101001"),       # Ingresos Internet → Ingresos Servicios de Internet
+        ("51018", "5101010"),       # Acceso Internet → Acceso a Internet Proveedor Nacional
+        ("620114", "6203009"),      # Ret. Gubernamentales → Retenciones Gubernamentales
+        ("71014", "7101005"),       # Ganancia en Cambio → Ganancia en Cambio
+        ("81017", "8101011"),       # Pérdida en Cambio → Perdida en Cambio
+    ]
+
+    total: int = len(merge_map)
+    ok_count: int = 0
+    err_count: int = 0
+    skip_count: int = 0
+
+    for i, (old_num, new_num) in enumerate(merge_map, 1):
+        pct: float = (i / total) * 100
+
+        old_doc_name: str | None = frappe.db.get_value(
+            "Account",
+            {"account_number": old_num, "company": company_name},
+            "name"
+        )
+        new_doc_name: str | None = frappe.db.get_value(
+            "Account",
+            {"account_number": new_num, "company": company_name},
+            "name"
+        )
+
+        if not old_doc_name:
+            print(f"  [{pct:5.1f}%] {i}/{total} ⏭ #{old_num} ya no existe", flush=True)
+            skip_count += 1
+            continue
+
+        if not new_doc_name:
+            print(f"  [{pct:5.1f}%] {i}/{total} ✗ #{new_num} destino no existe", flush=True)
+            err_count += 1
+            continue
+
+        if old_doc_name == new_doc_name:
+            print(f"  [{pct:5.1f}%] {i}/{total} ⏭ #{old_num} ya es #{new_num}", flush=True)
+            skip_count += 1
+            continue
+
+        gl_count: int = frappe.db.count("GL Entry", {"account": old_doc_name})
+
+        try:
+            merge_account(old_doc_name, new_doc_name)
+            frappe.db.commit()
+            ok_count += 1
+            print(f"  [{pct:5.1f}%] {i}/{total} ✓ #{old_num} → #{new_num} "
+                  f"({gl_count} GL migrados)", flush=True)
+        except Exception as e:
+            err_count += 1
+            print(f"  [{pct:5.1f}%] {i}/{total} ✗ #{old_num} → #{new_num}: {e}", flush=True)
+            frappe.db.rollback()
+
+
+
+    print("\n" + "=" * 70)
+    print("RESUMEN")
+    print("=" * 70)
+    print(f"Fase 1 - Caja Bs renombrada:  {'✓' if old_caja_name else '⏭'}")
+    print(f"Fase 2 - Cuentas fusionadas:  {ok_count}")
+    print(f"Fase 2 - Omitidas:            {skip_count}")
+    print(f"Fase 2 - Errores:             {err_count}")
+
+    # Verificar cuentas antiguas restantes
+    all_old_nums: list[str] = ["11011"] + [m[0] for m in merge_map]
+    remaining: list[dict] = []
+    for old_num in all_old_nums:
+        old_data: dict | None = frappe.db.get_value(
+            "Account",
+            {"account_number": old_num, "company": company_name},
+            ["name", "account_name"],
+            as_dict=True
+        )
+        if old_data:
+            gl: int = frappe.db.count("GL Entry", {"account": old_data["name"]})
+            remaining.append({"num": old_num, "name": old_data["account_name"], "gl": gl})
+
+    if remaining:
+        print(f"\n⚠ {len(remaining)} cuentas antiguas aún existen:")
+        for r in remaining:
+            print(f"  #{r['num']:10s} {r['name']:45s} ({r['gl']} GL)")
+    else:
+        print("\n🎉 Todas las cuentas antiguas fueron migradas exitosamente")
+
+    print("=" * 70)
+
+
+def replace_chart_of_accounts(company_name: str = "Galanet Solution C.A.") -> None:
+    """
+    Reemplaza completamente el plan de cuentas usando plan_cuentas_2026.csv
+    como fuente única de verdad.
+
+    Fases:
+    - Fase 1: Normalizar números existentes (quitar puntos)
+    - Fase 2: Renombrar cuentas comunes (mismo número, diferente nombre)
+    - Fase 3: Crear cuentas nuevas del plan 2026
+    - Fase 4: Desactivar/eliminar cuentas obsoletas (verifica GL Entries)
+    - Fase 5: Reconstruir árbol de cuentas
+
+    IMPORTANTE: Ejecutar fuera de horario laboral y con backup previo.
+    """
+    from erpnext.accounts.doctype.account.account import update_account_number
+
+    print("=" * 70)
+    print("REEMPLAZO PLAN DE CUENTAS 2026")
+    print("=" * 70)
+
+    company_abbr: str = frappe.get_cached_value("Company", company_name, "abbr")
+    if not company_abbr:
+        print(f"FATAL: No se encontró la compañía '{company_name}'")
+        return
+
+    print(f"Compañía: {company_name} ({company_abbr})")
+
+    # --- Cargar CSV definitivo ---
+    base_dir: str = os.path.dirname(__file__)
+    csv_path: str = os.path.join(
+        base_dir, 'resources', 'chart_of_accounts', 'plan_cuentas_2026.csv'
+    )
+
+    target_map: dict[str, dict] = _read_plan_2026_csv(csv_path)
+    if not target_map:
+        print("FATAL: No se pudo leer el CSV del plan 2026")
+        return
+
+    target_nums: set[str] = set(target_map.keys())
+
+    # --- Cargar cuentas actuales del sistema ---
+    current_accounts: list[dict] = frappe.db.get_all(
+        "Account",
+        filters={"company": company_name},
+        fields=["name", "account_number", "account_name",
+                "account_type", "is_group", "parent_account"]
+    )
+    current_map: dict[str, dict] = {}
+    for acc in current_accounts:
+        num_norm: str = (acc.get("account_number") or "").replace(".", "")
+        if num_norm:
+            current_map[num_norm] = acc
+
+    current_nums: set[str] = set(current_map.keys())
+
+    common_nums: set[str] = target_nums & current_nums
+    to_create: set[str] = target_nums - current_nums
+    to_remove: set[str] = current_nums - target_nums
+
+    print(f"\nPlan 2026 (objetivo): {len(target_map)} cuentas")
+    print(f"Sistema actual:       {len(current_map)} cuentas")
+    print(f"En común:             {len(common_nums)}")
+    print(f"Nuevas (a crear):     {len(to_create)}")
+    print(f"Obsoletas (a quitar): {len(to_remove)}")
+
+    # ═══════════════════════════════════════════════════════
+    # FASE 1: Normalizar números (quitar puntos)
+    # ═══════════════════════════════════════════════════════
+    print(f"\n{'─' * 50}")
+    print("FASE 1: Normalizar números de cuenta (quitar puntos)")
+    print(f"{'─' * 50}")
+
+    existing_with_dots: list[dict] = frappe.db.get_all(
+        "Account",
+        filters={"company": company_name, "account_number": ["like", "%.%"]},
+        fields=["name", "account_number", "account_name"]
+    )
+    total_dots: int = len(existing_with_dots)
+    print(f"Cuentas con puntos: {total_dots}")
+
+    norm_ok: int = 0
+    norm_err: int = 0
+
+    for i, acc_doc in enumerate(existing_with_dots, 1):
+        old_number: str = acc_doc["account_number"]
+        new_number: str = old_number.replace(".", "")
+        pct: float = (i / total_dots) * 100
+        try:
+            update_account_number(
+                acc_doc["name"], acc_doc["account_name"], new_number
+            )
+            frappe.db.commit()
+            norm_ok += 1
+            print(f"  [{pct:5.1f}%] {i}/{total_dots} ✓ #{old_number} → #{new_number}", flush=True)
+        except Exception as e:
+            frappe.db.rollback()
+            # Retry: limpiar caché del doc y reintentar
+            try:
+                frappe.clear_document_cache("Account", acc_doc["name"])
+                update_account_number(
+                    acc_doc["name"], acc_doc["account_name"], new_number
+                )
+                frappe.db.commit()
+                norm_ok += 1
+                print(f"  [{pct:5.1f}%] {i}/{total_dots} ✓ #{old_number} → #{new_number} (retry)", flush=True)
+            except Exception as e2:
+                norm_err += 1
+                print(f"  [{pct:5.1f}%] {i}/{total_dots} ✗ #{old_number}: {e2}", flush=True)
+                frappe.db.rollback()
+
+    print(f"\nNormalizados: {norm_ok}, Errores: {norm_err}")
+
+    # ═══════════════════════════════════════════════════════
+    # FASE 2: Renombrar cuentas comunes
+    # ═══════════════════════════════════════════════════════
+    print(f"\n{'─' * 50}")
+    print("FASE 2: Renombrar cuentas comunes")
+    print(f"{'─' * 50}")
+
+    ren_ok: int = 0
+    ren_skip: int = 0
+    ren_err: int = 0
+    sorted_common: list[str] = sorted(common_nums, key=lambda x: (len(x), x))
+    total_common: int = len(sorted_common)
+
+    for i, num in enumerate(sorted_common, 1):
+        target_acc: dict = target_map[num]
+        new_name: str = target_acc["account_name"]
+        new_type: str = target_acc.get("account_type", "")
+
+        current: dict | None = frappe.db.get_value(
+            "Account",
+            {"account_number": num, "company": company_name},
+            ["name", "account_name", "account_type"],
+            as_dict=True
+        )
+        if not current:
+            continue
+
+        needs_rename: bool = current["account_name"] != new_name
+        needs_type: bool = bool(new_type) and current.get("account_type") != new_type
+
+        if not needs_rename and not needs_type:
+            ren_skip += 1
+            continue
+
+        try:
+            if needs_rename:
+                update_account_number(current["name"], new_name, num)
+                frappe.db.commit()
+                print(f"  ✓ #{num}: '{current['account_name']}' → '{new_name}'")
+
+            if needs_type:
+                doc_name: str = frappe.db.get_value(
+                    "Account",
+                    {"account_number": num, "company": company_name},
+                    "name"
+                )
+                if doc_name:
+                    frappe.db.set_value("Account", doc_name, "account_type", new_type)
+                    frappe.db.commit()
+                    print(f"  ✓ #{num}: account_type → '{new_type}'")
+
+            ren_ok += 1
+        except Exception as e:
+            ren_err += 1
+            print(f"  ✗ Error renombrando #{num}: {e}")
+            frappe.db.rollback()
+
+    print(f"  [100%] {total_common}/{total_common} revisadas", flush=True)
+    print(f"Renombrados: {ren_ok}, Sin cambios: {ren_skip}, Errores: {ren_err}")
+
+    # ═══════════════════════════════════════════════════════
+    # FASE 3: Crear cuentas nuevas
+    # ═══════════════════════════════════════════════════════
+    print(f"\n{'─' * 50}")
+    print("FASE 3: Crear cuentas nuevas del plan 2026")
+    print(f"{'─' * 50}")
+
+    sorted_to_create: list[str] = sorted(
+        to_create, key=lambda x: (len(x), x)
+    )
+    print(f"Cuentas nuevas a procesar: {len(sorted_to_create)}")
+
+    new_ok: int = 0
+    new_err: int = 0
+    total_new: int = len(sorted_to_create)
+
+    for i, num in enumerate(sorted_to_create, 1):
+        target_acc = target_map[num]
+        account_name: str = target_acc["account_name"]
+        is_group: int = int(target_acc.get("is_group", "0"))
+        root_type: str = target_acc.get("root_type", "")
+        account_type: str = target_acc.get("account_type", "")
+        parent_number: str = target_acc.get("parent_number", "")
+
+        parent_account: str | None = None
+        if parent_number:
+            parent_account = frappe.db.get_value(
+                "Account",
+                {"account_number": parent_number, "company": company_name},
+                "name"
+            )
+            if not parent_account and parent_number in target_map:
+                parent_name: str = target_map[parent_number]["account_name"]
+                parent_account = frappe.db.get_value(
+                    "Account",
+                    {"account_name": parent_name, "company": company_name,
+                     "is_group": 1},
+                    "name"
+                )
+
+        pct = (i / total_new) * 100
+
+        if frappe.db.get_value(
+            "Account",
+            {"account_number": num, "company": company_name},
+            "name"
+        ):
+            print(f"  [{pct:5.1f}%] {i}/{total_new} ⏭ #{num} ya existe", flush=True)
+            continue
+
+        try:
+            new_acc = frappe.new_doc("Account")
+            new_acc.account_name = account_name
+            new_acc.account_number = num
+            new_acc.company = company_name
+            new_acc.is_group = is_group
+            new_acc.parent_account = parent_account
+
+            if root_type:
+                new_acc.root_type = root_type
+
+            report_type_map: dict[str, str] = {
+                "Asset": "Balance Sheet",
+                "Liability": "Balance Sheet",
+                "Equity": "Balance Sheet",
+                "Income": "Profit and Loss",
+                "Expense": "Profit and Loss",
+            }
+            if root_type in report_type_map:
+                new_acc.report_type = report_type_map[root_type]
+
+            if account_type:
+                new_acc.account_type = account_type
+
+            new_acc.flags.ignore_permissions = True
+            new_acc.flags.ignore_mandatory = True
+            new_acc.insert(ignore_permissions=True)
+            frappe.db.commit()
+
+            new_ok += 1
+            print(f"  [{pct:5.1f}%] {i}/{total_new} ✓ #{num} - {account_name}", flush=True)
+
+        except Exception as e:
+            new_err += 1
+            print(f"  [{pct:5.1f}%] {i}/{total_new} ✗ #{num} - {account_name}: {e}", flush=True)
+            frappe.db.rollback()
+
+    print(f"\nCuentas creadas: {new_ok}, Errores: {new_err}")
+
+    # ═══════════════════════════════════════════════════════
+    # FASE 4: Desactivar/eliminar cuentas obsoletas
+    # ═══════════════════════════════════════════════════════
+    print(f"\n{'─' * 50}")
+    print("FASE 4: Desactivar/eliminar cuentas obsoletas")
+    print(f"{'─' * 50}")
+
+    del_ok: int = 0
+    dis_ok: int = 0
+    del_err: int = 0
+    kept_accounts: list[dict] = []
+
+    # Procesar de más profundo a menos (hojas primero, luego grupos)
+    sorted_to_remove: list[str] = sorted(
+        to_remove, key=lambda x: (-len(x), x)
+    )
+
+    total_remove: int = len(sorted_to_remove)
+
+    for i, num in enumerate(sorted_to_remove, 1):
+        pct = (i / total_remove) * 100
+        acc_data: dict | None = frappe.db.get_value(
+            "Account",
+            {"account_number": num, "company": company_name},
+            ["name", "account_name", "is_group"],
+            as_dict=True
+        )
+        if not acc_data:
+            print(f"  [{pct:5.1f}%] {i}/{total_remove} ⏭ #{num} no encontrada", flush=True)
+            continue
+
+        doc_name: str = acc_data["name"]
+        acc_label: str = acc_data["account_name"]
+
+        has_gl: int = frappe.db.count("GL Entry", {"account": doc_name})
+
+        if has_gl > 0:
+            kept_accounts.append({
+                "num": num,
+                "name": acc_label,
+                "gl_entries": has_gl
+            })
+            print(f"  [{pct:5.1f}%] {i}/{total_remove} ⚠ #{num} CONSERVADA activa ({has_gl} GL)", flush=True)
+        else:
+            try:
+                has_children: int = frappe.db.count(
+                    "Account", {"parent_account": doc_name}
+                )
+                if has_children > 0:
+                    frappe.db.set_value("Account", doc_name, "disabled", 1)
+                    frappe.db.commit()
+                    dis_ok += 1
+                    print(f"  [{pct:5.1f}%] {i}/{total_remove} 🔒 #{num} desactivada (hijos)", flush=True)
+                else:
+                    frappe.delete_doc(
+                        "Account", doc_name,
+                        ignore_permissions=True
+                    )
+                    frappe.db.commit()
+                    del_ok += 1
+                    print(f"  [{pct:5.1f}%] {i}/{total_remove} 🗑 #{num} eliminada", flush=True)
+            except Exception:
+                try:
+                    frappe.db.rollback()
+                    frappe.db.set_value("Account", doc_name, "disabled", 1)
+                    frappe.db.commit()
+                    dis_ok += 1
+                    print(f"  [{pct:5.1f}%] {i}/{total_remove} 🔒 #{num} desactivada (fallback)", flush=True)
+                except Exception as e2:
+                    del_err += 1
+                    print(f"  [{pct:5.1f}%] {i}/{total_remove} ✗ #{num}: {e2}", flush=True)
+                    frappe.db.rollback()
+
+    print(f"\nEliminadas: {del_ok}")
+    print(f"Desactivadas: {dis_ok}")
+    print(f"Errores: {del_err}")
+
+    if kept_accounts:
+        print(f"\n{'─' * 50}")
+        print("CUENTAS CONSERVADAS (tienen GL Entries):")
+        print(f"{'─' * 50}")
+        for acc in sorted(kept_accounts, key=lambda x: x["num"]):
+            print(f"  #{acc['num']:12s} {acc['name']:45s} "
+                  f"({acc['gl_entries']} asientos)")
+
+    # ═══════════════════════════════════════════════════════
+    # FASE 5: Reconstruir árbol
+    # ═══════════════════════════════════════════════════════
+    print(f"\n{'─' * 50}")
+    print("FASE 5: Reconstruir árbol de cuentas")
+    print(f"{'─' * 50}")
+
+    try:
+        from frappe.utils.nestedset import rebuild_tree
+        rebuild_tree("Account", "parent_account")
+        frappe.db.commit()
+        print("  ✅ Árbol reconstruido exitosamente")
+    except Exception as e:
+        print(f"  ❌ Error reconstruyendo árbol: {e}")
+
+    # ═══════════════════════════════════════════════════════
+    # RESUMEN FINAL
+    # ═══════════════════════════════════════════════════════
+    print("\n" + "=" * 70)
+    print("RESUMEN FINAL")
+    print("=" * 70)
+    print(f"Fase 1 - Números normalizados:     {norm_ok}")
+    print(f"Fase 2 - Cuentas renombradas:       {ren_ok}")
+    print(f"Fase 3 - Cuentas creadas:           {new_ok}")
+    print(f"Fase 4 - Cuentas eliminadas:        {del_ok}")
+    print(f"Fase 4 - Cuentas desactivadas:      {dis_ok}")
+    print(f"Fase 4 - Con GL Entries (revisar):  {len(kept_accounts)}")
+    print(f"Total errores:                      "
+          f"{norm_err + ren_err + new_err + del_err}")
+
+    print("\n" + "=" * 70)
+    print("MIGRACIÓN COMPLETADA")
+    print("=" * 70)
+
+    # Ejecutar merge de cuentas antiguas con GL Entries
+    merge_old_accounts_to_2026(company_name)
+
+    _verify_replacement(company_name)
+
+
+def _read_plan_2026_csv(file_path: str) -> dict[str, dict]:
+    """
+    Lee el CSV definitivo plan_cuentas_2026.csv y retorna un mapa
+    {account_number: {account_name, parent_number, is_group, root_type, account_type}}.
+    """
+    result: dict[str, dict] = {}
+
+    with open(file_path, 'r', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            num: str = (row.get("account_number") or "").strip()
+            name: str = (row.get("account_name") or "").strip()
+
+            if not num or not name:
+                continue
+
+            result[num] = {
+                "account_number": num,
+                "account_name": name,
+                "parent_number": (row.get("parent_number") or "").strip(),
+                "is_group": (row.get("is_group") or "0").strip(),
+                "root_type": (row.get("root_type") or "").strip(),
+                "account_type": (row.get("account_type") or "").strip(),
+            }
+
+    return result
+
+
+def _build_account_doc_name(
+    account_number: str, account_name: str, company_abbr: str
+) -> str:
+    """
+    Construye el name del documento Account tal como lo genera ERPNext.
+    Formato: '{account_number} - {account_name} - {company_abbr}'
+    """
+    if account_number:
+        return f"{account_number} - {account_name} - {company_abbr}"
+    return f"{account_name} - {company_abbr}"
+
+
+def _verify_replacement(company_name: str = "Galanet Solution C.A.") -> None:
+    """
+    Ejecuta verificaciones post-reemplazo del plan de cuentas.
+    Muestra resultados con indicadores ✅/❌ en consola.
+    """
+    print("\n" + "=" * 70)
+    print("VERIFICACIÓN POST-MIGRACIÓN")
+    print("=" * 70)
+
+    passed: int = 0
+    failed: int = 0
+
+    # V1: Sin puntos en números de cuenta activas
+    dots_count: int = frappe.db.sql(
+        """SELECT COUNT(*) FROM tabAccount
+           WHERE company = %s AND account_number LIKE '%%.%%'
+           AND IFNULL(disabled, 0) = 0""",
+        company_name
+    )[0][0]
+    if dots_count == 0:
+        print("  ✅ V1: Sin puntos en números de cuenta (activas)")
+        passed += 1
+    else:
+        print(f"  ❌ V1: {dots_count} cuentas activas con puntos")
+        failed += 1
+
+    # V2: Total de cuentas activas ≈ plan 2026 + 1 (1101002 Caja Bs)
+    base_dir_v: str = os.path.dirname(__file__)
+    csv_path_v: str = os.path.join(
+        base_dir_v, 'resources', 'chart_of_accounts', 'plan_cuentas_2026.csv'
+    )
+    csv_count: int = len(_read_plan_2026_csv(csv_path_v))
+    expected_min: int = csv_count
+    expected_max: int = csv_count + 5
+    active_total: int = frappe.db.sql(
+        """SELECT COUNT(*) FROM tabAccount
+           WHERE company = %s AND IFNULL(disabled, 0) = 0""",
+        company_name
+    )[0][0]
+    if expected_min <= active_total <= expected_max:
+        print(f"  ✅ V2: Total activas en rango ({active_total}, "
+              f"esperado {expected_min}-{expected_max})")
+        passed += 1
+    else:
+        print(f"  ❌ V2: Total activas fuera de rango: {active_total} "
+              f"(esperado: {expected_min}-{expected_max})")
+        failed += 1
+
+    # V3: Cuentas renombradas correctamente
+    expected_names: dict[str, str] = {
+        "21": "CORRIENTE",
+        "31": "CAPITAL",
+        "71": "OTROS INGRESOS",
+        "81": "OTROS EGRESOS",
+        "1102": "BANCOS NACIONALES",
+        "1107": "ADELANTOS A PROVEEDORES",
+        "1202": "ACTIVOS TANGIBLES",
+        "2101": "EFECTOS A PAGAR",
+        "2102": "PRESTAMOS BANCARIO CORTO PLAZO",
+        "2103": "CUENTAS POR PAGAR",
+        "6101": "GASTOS DE PERSONAL",
+        "6201": "GASTOS OPERACIONALES",
+    }
+    name_mismatches: list[str] = []
+    for acc_num, expected_name in expected_names.items():
+        actual_name: str | None = frappe.db.get_value(
+            "Account",
+            {"account_number": acc_num, "company": company_name},
+            "account_name"
+        )
+        if actual_name != expected_name:
+            name_mismatches.append(
+                f"#{acc_num}: '{actual_name}' (esperado: '{expected_name}')"
+            )
+
+    if not name_mismatches:
+        print("  ✅ V3: 12 cuentas renombradas correctamente")
+        passed += 1
+    else:
+        print(f"  ❌ V3: {len(name_mismatches)} nombres no coinciden:")
+        for m in name_mismatches:
+            print(f"       - {m}")
+        failed += 1
+
+    # V4: Sin GL Entries huérfanos
+    orphans: int = frappe.db.sql(
+        """SELECT COUNT(DISTINCT gle.account)
+           FROM `tabGL Entry` gle
+           LEFT JOIN tabAccount a ON a.name = gle.account
+           WHERE a.name IS NULL AND gle.company = %s""",
+        company_name
+    )[0][0]
+    if orphans == 0:
+        print("  ✅ V4: Sin GL Entries huérfanos (integridad referencial OK)")
+        passed += 1
+    else:
+        print(f"  ❌ V4: {orphans} cuentas en GL Entry sin Account")
+        failed += 1
+
+    # V5: Sin cuentas huérfanas activas (sin padre y no root)
+    orphan_accounts: int = frappe.db.sql(
+        """SELECT COUNT(*) FROM tabAccount
+           WHERE company = %s
+             AND IFNULL(disabled, 0) = 0
+             AND (parent_account IS NULL OR parent_account = '')
+             AND LENGTH(account_number) > 1""",
+        company_name
+    )[0][0]
+    if orphan_accounts == 0:
+        print("  ✅ V5: Jerarquía correcta (sin cuentas huérfanas activas)")
+        passed += 1
+    else:
+        print(f"  ❌ V5: {orphan_accounts} cuentas activas sin padre")
+        failed += 1
+
+    # Resumen
+    print("\n" + "-" * 40)
+    total_checks: int = passed + failed
+    if failed == 0:
+        print(f"  🎉 {passed}/{total_checks} verificaciones aprobadas")
+    else:
+        print(f"  ⚠️  {passed}/{total_checks} aprobadas, {failed} fallidas")
+    print("=" * 70)
+
+
+def add_links_to_buying_workspace() -> None:
+    """Agrega VE Purchase Credit Note y VE Purchase Debit Note como links
+    en la sección 'Compras' del Workspace de Compras, justo después de
+    'Purchase Invoice'.
+
+    Sigue el mismo patrón de add_links_to_selling_workspace.
+    """
+    print("Agregando NC/ND de Compras al Workspace de Compras...")
+    try:
+        workspace_name = None
+        for candidate in ("Buying", "Compras"):
+            if frappe.db.exists("Workspace", candidate):
+                workspace_name = candidate
+                break
+
+        if not workspace_name:
+            print("  !! No se encontró el Workspace 'Buying' / 'Compras'. Omitiendo.")
+            return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+
+        links_to_add: list[dict] = [
+            {
+                "label": _("Nota de Crédito"),
+                "link_to": "VE Purchase Credit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+            {
+                "label": _("Nota de Débito"),
+                "link_to": "VE Purchase Debit Note",
+                "type": "Link",
+                "link_type": "DocType",
+            },
+        ]
+
+        current_links: set[str] = {link.link_to for link in workspace.links}
+        modified: bool = False
+
+        purchase_invoice_idx: int | None = None
+        for i, link in enumerate(workspace.links):
+            if link.link_to == "Purchase Invoice":
+                purchase_invoice_idx = i
+                break
+
+        insert_offset: int = 1
+        for link_config in links_to_add:
+            if not frappe.db.exists("DocType", link_config["link_to"]):
+                print(f"  -- Omitiendo (DocType no encontrado): {link_config['link_to']}")
+                continue
+
+            if link_config["link_to"] in current_links:
+                print(f"  -- Omitiendo (ya existe): {link_config['label']}")
+                continue
+
+            new_link = workspace.append("links", {})
+            new_link.label = link_config["label"]
+            new_link.type = link_config["type"]
+            new_link.link_type = link_config["link_type"]
+            new_link.link_to = link_config["link_to"]
+
+            if purchase_invoice_idx is not None:
+                target_idx: int = purchase_invoice_idx + insert_offset + 1
+                links_list = workspace.links
+                last_link = links_list.pop()
+                links_list.insert(target_idx, last_link)
+                insert_offset += 1
+
+            modified = True
+            print(f"  -> Link agregado: {link_config['label']}")
+
+        if modified:
+            for i, link in enumerate(workspace.links, start=1):
+                link.idx = i
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Links NC/ND agregados al Workspace '{workspace_name}'.")
+        else:
+            print(f"  -- Workspace '{workspace_name}' ya tenía los links.")
+
+    except Exception as e:
+        print(f"Failure: Error agregando links NC al Workspace de Compras: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en add_links_to_buying_workspace')

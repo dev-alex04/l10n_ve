@@ -10,6 +10,10 @@ app_include_js = [
     "/assets/l10n_ve/js/item_logic/item_logic.js",
     "/assets/l10n_ve/js/utils/report_view_patch.js",
     "/assets/l10n_ve/js/widgets/number_card_widget.js",
+    "/assets/l10n_ve/js/utils/sales_billing_indicators.js",
+    "/assets/l10n_ve/js/utils/fiscal_preview.js",
+    "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
+    "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
 ]
 
 # Apps
@@ -119,13 +123,32 @@ doctype_js = {
         "public/js/doctype/stock_entry/stock_entry.js",
     ],
     "Project": [
-         "public/js/doctype/project/project.js"
+        "public/js/doctype/project/project.js"
     ],
     "Task": [
-         "public/js/doctype/task/task.js"
+        "public/js/doctype/task/task.js"
     ],
     "Installation Note": [
-         "public/js/doctype/installation_note/installation_note.js"
+        "public/js/doctype/installation_note/installation_note.js"
+    ],
+    "VE Sales Debit Note": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
+    ],
+    "VE Sales Credit Note": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
+    ],
+    "VE Purchase Credit Note": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
+    ],
+    "VE Purchase Debit Note": [
+        "public/js/controllers/transaction.js",
+        "public/js/controllers/taxes_and_totals.js",
+    ],
+    "Mode of Payment": [
+         "public/js/doctype/mode_of_payment/mode_of_payment.js"
     ],
 
 }
@@ -257,6 +280,10 @@ override_doctype_class = {
     "Bank Statement Import": "l10n_ve.overrides.bank_statement_import.CustomBankStatementImport",
 }
 
+override_doctype_dashboards = {
+    "Sales Invoice": "l10n_ve.overrides.sales_invoice.get_sales_invoice_dashboard_data",
+}
+
 
 # Document Events
 # ---------------
@@ -287,8 +314,23 @@ doc_events = {
     "Purchase Receipt": {
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
+    "VE Purchase Credit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "VE Purchase Debit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "VE Sales Credit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
+    "VE Sales Debit Note": {
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+    },
     "File": {
         "after_insert": "l10n_ve.overrides.task.sync_attachment_to_project",
+    },
+    "GL Entry": {
+        "on_update": "l10n_ve.overrides.gl_entry.update_ve_outstanding_amount",
     }
 }
 # Scheduled Tasks
@@ -296,8 +338,13 @@ doc_events = {
 
 scheduler_events = {
        "cron": {
-        "0 * * * *": ["l10n_ve.tasks.create_currency_exchange"],
+        "0 * * * *": [
+            "l10n_ve.tasks.create_currency_exchange",
+            "l10n_ve.tasks.cleanup_resolved_digital_invoice_error_logs",
+        ],
+        "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
         "*/15 * * * *": ["l10n_ve.tasks.reset_all_prepared_reports"],
+        "0 3 1 * *": ["l10n_ve.tasks.purge_old_digital_invoice_success_logs"],
     }
 }
 

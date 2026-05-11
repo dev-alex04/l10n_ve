@@ -1,5 +1,6 @@
 import re
 import json
+import unicodedata
 from typing import Optional
 
 import frappe
@@ -60,7 +61,7 @@ def clean_payload(d):
 
 
 class TFHKAPayloadBuilder:
-    def __init__(self, doc, series_doc=None, branch_code: str = "") -> None:
+    def __init__(self, doc, series_doc=None, branch_code: str = "", tasa_fecha: Optional[str] = None) -> None:
         """
         Inicializa el payload builder.
 
@@ -68,10 +69,13 @@ class TFHKAPayloadBuilder:
             doc: Documento de la factura.
             series_doc: Documento de la serie.
             branch_code: Código de la sucursal.
+            tasa_fecha: Fecha de la tasa BCV usada en el documento (YYYY-MM-DD).
+                        Si se omite, se calcula desde posting_date.
         """
         self.doc = doc
         self.series_doc = series_doc
         self.branch_code = branch_code
+        self.tasa_fecha: Optional[str] = tasa_fecha
         self.company_currency: str = frappe.get_cached_value(
             "Company", doc.company, "default_currency"
         ) or "VEF"
@@ -81,6 +85,29 @@ class TFHKAPayloadBuilder:
         self.company_currency = _TFHKA_CURRENCY_MAP.get(
             self.company_currency, self.company_currency
         )
+        self._ensure_billing_address()
+
+    def _ensure_billing_address(self) -> None:
+        """Si la factura no tiene dirección, la busca desde el Customer master."""
+        if self.doc.address_display:
+            return
+
+        from frappe.contacts.doctype.address.address import get_address_display
+
+        billing_address: list = frappe.db.sql("""
+            SELECT a.name
+            FROM `tabAddress` a
+            JOIN `tabDynamic Link` dl ON dl.parent = a.name
+            WHERE dl.link_doctype = 'Customer'
+              AND dl.link_name = %s
+              AND a.address_type = 'Billing'
+            LIMIT 1
+        """, (self.doc.customer,), as_list=True)
+
+        if not billing_address:
+            return
+
+        self.doc.address_display = get_address_display(billing_address[0][0])
 
     def build_payload(self) -> dict:
         self.items_payload = self._build_items()
@@ -121,74 +148,145 @@ class TFHKAPayloadBuilder:
             return "03"
         return "01"
 
-    def _build_identificacion_documento(self) -> dict:
-        tipo_doc = self._get_tipo_documento()
-        posting_date = getdate(self.doc.posting_date).strftime("%d/%m/%Y")
-        due_date = posting_date
-
+    def _format_posting_time(self) -> str:
+        """Formatea la hora de contabilización al formato HH:MM:SS am/pm."""
         raw_time = self.doc.posting_time or "12:00:00"
         try:
             from frappe.utils import get_time
-            time_obj = get_time(str(raw_time)).strftime("%I:%M:%S %p").lower()
+            return get_time(str(raw_time)).strftime("%I:%M:%S %p").lower()
         except Exception:
-            time_obj = str(raw_time).split(".")[0]
+            return str(raw_time).split(".")[0]
 
-        if tipo_doc == "02":
-            numero_documento = self.doc.credit_note_no
-        elif tipo_doc == "03":
-            numero_documento = self.doc.debit_note_no
-        else:
-            numero_documento = self.doc.bill_no
+    def _get_datos_factura_afectada(self) -> tuple[str, str, str]:
+        """
+        Retorna (fecha, monto_fiscal, numero) de la factura original.
+        - monto_fiscal = base_net_total + IVA (excluye retenciones Deduct).
+        - numero = bill_no fiscal de la factura original.
+        """
+        ref = self.doc.return_against
+        numero_afectado: str = ref
+        fecha_afectada: str = ""
+        monto_fiscal: str = "0.00"
 
-        if self.series_doc and getattr(self.series_doc, "operation_mode", "Internal") == "Third Party":
-            numero_documento = ""
-        is_nc_or_nd = tipo_doc in ("02", "03")
+        try:
+            inv = frappe.get_cached_doc("Sales Invoice", ref)
+            fecha_afectada: str = getdate(inv.posting_date).strftime("%d/%m/%Y")
 
-        fecha_afectada = None
-        monto_afectado = None
-        numero_afectado = None
-        if is_nc_or_nd and self.doc.return_against:
-            numero_afectado = self.doc.return_against
-            try:
-                inv_afectada = frappe.get_cached_doc("Sales Invoice", self.doc.return_against)
-                fecha_afectada = getdate(inv_afectada.posting_date).strftime("%d/%m/%Y")
-                monto_afectado = "{:.2f}".format(flt(inv_afectada.base_grand_total))
-                if inv_afectada.bill_no:
-                    numero_afectado = inv_afectada.bill_no
-            except Exception:
-                pass
+            iva_add = sum(
+                flt(t.base_tax_amount)
+                for t in inv.get("taxes", [])
+                if getattr(t, "add_deduct_tax", "") == "Add"
+            )
+            monto_fiscal: str = "{:.2f}".format(flt(inv.base_net_total) + iva_add)
 
-        comentario_afectada = None
-        if is_nc_or_nd:
-            comentario_afectada = "devolucion" if tipo_doc == "02" else "incremento"
+            if not inv.bill_no:
+                frappe.throw(
+                    f"La factura original <b>{ref}</b> no tiene número fiscal "
+                    f"asignado (<b>Número de NC</b>). Verifique que fue emitida "
+                    f"correctamente ante TFHKA."
+                )
+            numero_afectado = inv.bill_no
 
+        except frappe.ValidationError:
+            raise
+        except Exception as e:
+            frappe.throw(
+                f"No se pudo obtener los datos de la factura original "
+                f"<b>{ref}</b>: {e}"
+            )
+
+        return fecha_afectada, monto_fiscal, numero_afectado
+
+    def _validate_motivo_nc(self) -> str:
+        """Retorna el motivo de la NC/ND. Lanza error si está vacío."""
+        motivo: str = (self.doc.get("reason") or "").strip()
+        if not motivo:
+            frappe.throw(
+                "El campo <b>Motivo</b> es obligatorio antes de emitir una "
+                "Nota de Crédito/Débito electrónica. Indique el motivo en el "
+                "formulario de la NC/ND y vuelva a intentarlo."
+            )
+        return motivo
+
+    def _get_serie_factura_afectada(self) -> str:
+        """
+        Consulta el log de facturación digital de la factura original
+        para obtener la serie confirmada por TFHKA.
+        Lanza error si no se encuentra o si no existe log exitoso.
+        """
+        ref = self.doc.return_against
+        serie: str = ""
+        try:
+            log_raw = frappe.db.get_value(
+                "VE Digital Invoice Log",
+                {"sales_invoice": ref, "status": "Success"},
+                "response_received",
+                order_by="creation desc",
+            )
+            if log_raw:
+                resultado = (json.loads(log_raw).get("resultado") or {})
+                serie = resultado.get("serie") or ""
+        except Exception as e:
+            frappe.throw(
+                f"Error al consultar el log de facturación digital "
+                f"para <b>{ref}</b>: {e}"
+            )
+
+        if not serie:
+            frappe.throw(
+                f"No se puede determinar la <b>Serie</b> de la factura original "
+                f"<b>{ref}</b>. La factura debe haber sido emitida electrónicamente "
+                f"(TFHKA) antes de poder crear una Nota de Crédito/Débito. "
+                f"Verifique que exista un log exitoso en <b>VE Digital Invoice Log</b> "
+                f"para dicha factura."
+            )
+        return serie
+
+    def _build_identificacion_documento(self) -> dict:
+        tipo_doc: str = self._get_tipo_documento()
+        is_nc_or_nd: bool = tipo_doc in ("02", "03")
         is_third_party: bool = (
             getattr(self.series_doc, "operation_mode", "Internal") == "Third Party"
         )
 
+        posting_date: str = getdate(self.doc.posting_date).strftime("%d/%m/%Y")
+        numero_documento: str = "" if is_third_party else (self.doc.bill_no or "")
+
+        fecha_afectada = monto_afectado = numero_afectado = comentario_afectada = None
+        serie_factura_afectada: str = ""
+
+        if is_nc_or_nd:
+            comentario_afectada = self._validate_motivo_nc()
+
+        if is_nc_or_nd and self.doc.return_against:
+            fecha_afectada, monto_afectado, numero_afectado = self._get_datos_factura_afectada()
+            serie_factura_afectada = self._get_serie_factura_afectada()
+
         return {
             "TipoDocumento": tipo_doc,
-            "NumeroDocumento": "" if is_third_party else numero_documento,
+            "NumeroDocumento": numero_documento,
             "TipoProveedor": None,
             "TipoTransaccion": None,
             "NumeroPlanillaImportacion": None,
             "NumeroExpedienteImportacion": None,
-            "SerieFacturaAfectada": "" if is_nc_or_nd else None,
+            "SerieFacturaAfectada": serie_factura_afectada if is_nc_or_nd else None,
             "NumeroFacturaAfectada": numero_afectado,
             "FechaFacturaAfectada": fecha_afectada,
             "MontoFacturaAfectada": monto_afectado,
             "ComentarioFacturaAfectada": comentario_afectada,
             "RegimenEspTributacion": None,
             "FechaEmision": posting_date,
-            "FechaVencimiento": due_date,
-            "HoraEmision": time_obj,
+            "FechaVencimiento": posting_date,
+            "HoraEmision": self._format_posting_time(),
             "Anulado": False,
-            "TipoDePago": "Contado" if self.doc.is_pos else "Credito",
+            "TipoDePago": "Contado" if self.doc.get("is_pos") else "Credito",
             "Serie": getattr(self.series_doc, "serie", "") or "",
             "Sucursal": self._resolve_branch_code(),
             "TipoDeVenta": "Interna",
             "Moneda": self.doc.currency,
-            "TransaccionId": "".join(filter(str.isalnum, self.doc.name)) if is_third_party else None,
+            "TransaccionId": (
+                "".join(filter(str.isalnum, self.doc.name)) if is_third_party else None
+            ),
         }
 
 
@@ -225,15 +323,28 @@ class TFHKAPayloadBuilder:
         return {
             "TipoIdentificacion": tipo_id,
             "NumeroIdentificacion": num_id,
-            "RazonSocial": customer.customer_name,
+            "RazonSocial": self._sanitize_razon_social(customer.customer_name),
             "Direccion": direccion,
             "Ubigeo": None,
             "Pais": "VE",
             "Notificar": None,
             "Telefono": [self.doc.contact_mobile],
-            "Correo": [self.doc.contact_email] if self.doc.contact_email else [],
+            "Correo": (
+                [e.strip() for e in self.doc.contact_email.split(",") if e.strip()]
+                if self.doc.contact_email
+                else []
+            ),
             "OtrosEnvios": None
         }
+
+    @staticmethod
+    def _sanitize_razon_social(name: str) -> str:
+        """Limpia la razón social para cumplir con el formato requerido por HKA."""
+        cleaned: str = " ".join((name or "").split())
+        nfkd: str = unicodedata.normalize("NFKD", cleaned)
+        cleaned = "".join(c for c in nfkd if not unicodedata.combining(c))
+        cleaned = re.sub(r"[^A-Za-z0-9 .,\-]", "", cleaned)
+        return cleaned[:300].strip()
 
     @staticmethod
     def _parse_tax_id(tax_id: str) -> tuple:
@@ -251,6 +362,15 @@ class TFHKAPayloadBuilder:
 
         return tipo, numero or "000000000"
 
+    def _get_igtf_rate(self) -> float:
+        """Obtiene la tasa IGTF desde la factura o desde la configuración fiscal."""
+        rate: float = flt(self.doc.get("igtf_rate"))
+        if rate:
+            return rate
+        return flt(
+            frappe.get_cached_doc("Venezuela Account Settings").igtf_rate
+        ) or 3.0
+
     def _get_iva_rate(self) -> float:
         """Extrae la alícuota IVA real desde las filas de impuestos de la factura."""
         for tax in self.doc.get("taxes", []):
@@ -261,10 +381,11 @@ class TFHKAPayloadBuilder:
         return 16.0
 
     def _build_totales(self) -> dict:
-        """Totales principales en VES derivados de USD × TC.
+        """Totales principales en VES usando campos base_* almacenados.
 
-        Se calculan primero en USD (moneda del documento) y luego se
-        multiplican por la tasa de cambio para obtener bolívares.
+        Los montos VEF se leen directamente de base_net_total y
+        base_tax_amount de la factura (fuente de verdad), garantizando
+        que HKA reciba exactamente lo que la factura muestra.
         La fuente USD se almacena en _totales_usd para que
         TotalesOtraMoneda y DetallesItems la reutilicen sin redondeo."""
         def fmt(val):
@@ -272,32 +393,38 @@ class TFHKAPayloadBuilder:
 
         iva_rate = self._get_iva_rate()
         tc: float = flt(self.doc.conversion_rate) if self.doc.conversion_rate else 1.0
-        monto_exento_total_usd = 0.0
-        monto_gravado_total_usd = 0.0
-        total_iva_usd = 0.0
 
-        for item in self.doc.items:
-            is_exempt = item.get("is_exempt", 0) or item.get("vat_exempt", 0)
-            if is_exempt or flt(self.doc.base_total_taxes_and_charges) == 0:
-                monto_exento_total_usd += flt(item.amount)
-            else:
-                monto_gravado_total_usd += flt(item.amount)
-                item_iva_usd = flt(item.amount * (iva_rate / 100), 2)
-                total_iva_usd += item_iva_usd
+        # USD: montos leídos directamente del documento (fuente de verdad).
+        # net_total, total_exempt y tax.tax_amount son calculados por ERPNext
+        # en un solo paso, sin redondeo intermedio por ítem.
+        monto_exento_total_usd: float = flt(self.doc.get("total_exempt", 0.0))
+        subtotal_usd: float = flt(self.doc.net_total)
+        monto_gravado_total_usd: float = flt(subtotal_usd - monto_exento_total_usd)
 
-        subtotal_usd = monto_gravado_total_usd + monto_exento_total_usd
-        monto_total_con_iva_usd = subtotal_usd + total_iva_usd
-        total_igtf_amount = flt(self.doc.get("total_igtf", 0.0))
-        total_igtf_usd = flt(total_igtf_amount / tc, 2) if total_igtf_amount else 0.0
-        total_a_pagar_usd = monto_total_con_iva_usd + total_igtf_usd
+        total_iva_usd: float = 0.0
+        for tax in self.doc.get("taxes", []):
+            if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0:
+                total_iva_usd += flt(tax.tax_amount)
 
-        # VES = USD * TC
-        monto_gravado_total = flt(fmt(monto_gravado_total_usd * tc))
-        monto_exento_total = flt(fmt(monto_exento_total_usd * tc))
-        subtotal = flt(fmt(subtotal_usd * tc))
-        total_iva = flt(fmt(total_iva_usd * tc))
-        monto_total_con_iva = flt(fmt(monto_total_con_iva_usd * tc))
-        total_a_pagar = flt(fmt(total_a_pagar_usd * tc))
+        monto_total_con_iva_usd: float = flt(subtotal_usd + total_iva_usd)
+        total_igtf_amount: float = flt(self.doc.get("total_igtf", 0.0))
+        total_igtf_usd: float = flt(total_igtf_amount / tc, 2) if total_igtf_amount else 0.0
+        total_a_pagar_usd: float = flt(monto_total_con_iva_usd + total_igtf_usd)
+
+        # VES: montos leídos de campos base_* almacenados en la factura.
+        # Evita recalcular desde USD × TC, eliminando diferencias por
+        # redondeo entre la factura y lo enviado a HKA.
+        base_tax_amount_ves: float = 0.0
+        for tax in self.doc.get("taxes", []):
+            if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0:
+                base_tax_amount_ves += flt(tax.base_tax_amount)
+
+        monto_exento_total = flt(flt(self.doc.get("total_exempt", 0.0)) * tc, 2)
+        monto_gravado_total = flt(flt(self.doc.base_net_total) - monto_exento_total, 2)
+        subtotal = flt(self.doc.base_net_total, 2)
+        total_iva = flt(base_tax_amount_ves, 2)
+        monto_total_con_iva = flt(subtotal + total_iva, 2)
+        total_a_pagar = flt(monto_total_con_iva + total_igtf_amount, 2)
 
         self._totales_usd = {
             "subtotal": subtotal_usd,
@@ -306,6 +433,9 @@ class TFHKAPayloadBuilder:
             "total_iva": total_iva_usd,
             "monto_total_con_iva": monto_total_con_iva_usd,
             "total_a_pagar": total_a_pagar_usd,
+            "base_igtf": flt(self.doc.get("base_amount_igtf", 0.0)) / tc if total_igtf_amount and tc > 0 else 0.0,
+            "total_igtf": total_igtf_usd,
+            "igtf_rate": self._get_igtf_rate(),
         }
 
         total_igtf_str = None
@@ -317,13 +447,16 @@ class TFHKAPayloadBuilder:
         except Exception:
             letras = "monto en letras"
 
+        is_nc = bool(self.doc.is_return)
+        descuento_base = flt(self.doc.base_discount_amount)
+
         return {
             "NroItems": str(len(self.doc.items)),
             "MontoGravadoTotal": fmt(monto_gravado_total),
             "MontoExentoTotal": fmt(monto_exento_total),
             "MontoPercibidoTotal": "0.00",
-            "SubtotalAntesDescuento": fmt(subtotal + flt(self.doc.base_discount_amount)),
-            "TotalDescuento": fmt(self.doc.base_discount_amount) if flt(self.doc.base_discount_amount) else None,
+            "SubtotalAntesDescuento": fmt(subtotal + descuento_base),
+            "TotalDescuento": fmt(descuento_base) if descuento_base else ("0.00" if is_nc else None),
             "TotalRecargos": None,
             "Subtotal": fmt(subtotal),
             "TotalIVA": fmt(total_iva),
@@ -358,7 +491,7 @@ class TFHKAPayloadBuilder:
             base_igtf = flt(self.doc.get("base_amount_igtf", 0.0))
             impuestos.append({
                 "CodigoTotalImp": "IGTF",
-                "AlicuotaImp": fmt(self.doc.get("igtf_rate", 3.0)),
+                "AlicuotaImp": fmt(self._get_igtf_rate()),
                 "BaseImponibleImp": fmt(base_igtf),
                 "ValorTotalImp": fmt(self.doc.total_igtf)
             })
@@ -377,7 +510,7 @@ class TFHKAPayloadBuilder:
         def fmt(val): return "{:.2f}".format(flt(val))
         formas = []
 
-        if self.doc.payments:
+        if self.doc.get("payments"):
 
             for p in self.doc.payments:
                 forma_codigo = "01"
@@ -449,6 +582,14 @@ class TFHKAPayloadBuilder:
                 "ValorTotalImp": "00.00"
             })
 
+        if flt(usd.get("total_igtf", 0.0)) > 0:
+            impuestos.append({
+                "CodigoTotalImp": "IGTF",
+                "AlicuotaImp": fmt(usd.get("igtf_rate", 3.0)),
+                "BaseImponibleImp": fmt(usd.get("base_igtf", 0.0)),
+                "ValorTotalImp": fmt(usd.get("total_igtf", 0.0))
+            })
+
         if monto_gravado > 0:
             impuestos.append({
                 "CodigoTotalImp": "G",
@@ -458,6 +599,7 @@ class TFHKAPayloadBuilder:
             })
 
         discount = flt(self.doc.discount_amount)
+        is_nc = bool(self.doc.is_return)
 
         return {
             "Moneda": self.doc.currency,
@@ -470,8 +612,8 @@ class TFHKAPayloadBuilder:
             "TotalIVA": fmt(total_iva),
             "MontoTotalConIVA": fmt(monto_total_con_iva),
             "MontoEnLetras": letras,
-            "SubtotalAntesDescuento": fmt(subtotal + discount) if discount else None,
-            "TotalDescuento": fmt(discount) if discount else None,
+            "SubtotalAntesDescuento": fmt(subtotal + discount) if discount else (fmt(subtotal) if is_nc else None),
+            "TotalDescuento": fmt(discount) if discount else ("0.00" if is_nc else None),
             "TotalRecargos": None,
             "ListaRecargo": None,
             "ListaDescBonificacion": None,
@@ -503,8 +645,8 @@ class TFHKAPayloadBuilder:
 
         for idx, item in enumerate(self.doc.items, start=1):
             is_exempt = item.get("is_exempt", 0) or item.get("vat_exempt", 0)
-            item_amount = flt(fmt(item.amount))
-            item_rate = flt(fmt(item.rate))
+            item_amount = flt(item.amount, 2)
+            item_rate = flt(item.rate, 2)
 
             valor_iva = 0.0
             tasa_iva = "0"
@@ -513,7 +655,7 @@ class TFHKAPayloadBuilder:
             if not is_exempt and flt(self.doc.base_total_taxes_and_charges) > 0:
                 tasa_iva = str(int(iva_rate))
                 codigo_impuesto = "G"
-                valor_iva = flt(fmt(item_amount * (iva_rate / 100)))
+                valor_iva = flt(item_amount * (iva_rate / 100), 2)
 
             cantidad = str(cint(item.qty)) if item.qty == cint(item.qty) else str(item.qty)
 
@@ -550,6 +692,8 @@ class TFHKAPayloadBuilder:
     def _resolve_zona_and_nodo(self) -> tuple:
         """Resuelve Zona (territory del customer) y Nodo (via subscription → router → ISP Nodes).
 
+        Para VE Sales Credit Note (sin campo subscription), intenta heredar
+        la suscripción desde la factura original (return_against).
         Usa get_cached_doc para minimizar queries SQL en envíos masivos.
         """
         zona: Optional[str] = None
@@ -562,6 +706,18 @@ class TFHKAPayloadBuilder:
             return zona, nodo
 
         subscription_name: Optional[str] = self.doc.get("subscription")
+
+        if not subscription_name and self.doc.get("return_against"):
+            si_data = frappe.db.get_value(
+                "Sales Invoice",
+                self.doc.return_against,
+                ["subscription", "bill_no"],
+                as_dict=True,
+            )
+            if si_data:
+                subscription_name = si_data.get("subscription")
+                self._bill_no_original: str = si_data.get("bill_no") or ""
+
         if not subscription_name:
             return zona, nodo
 
@@ -602,7 +758,12 @@ class TFHKAPayloadBuilder:
 
         tasa_bcv: str = ""
         if flt(doc.conversion_rate) > 0:
-            if is_juridical_customer(doc.customer):
+            # tasa_fecha explícita (capturada antes de actualizar posting_date a hoy).
+            # Fallback: si no se proporcionó, se calcula desde posting_date con la
+            # misma regla fiscal (evita romper llamadas que no pasen el parámetro).
+            if self.tasa_fecha:
+                fecha_valor = getdate(self.tasa_fecha)
+            elif is_juridical_customer(doc.customer):
                 fecha_valor = getdate(doc.posting_date)
             else:
                 fecha_valor = getdate(doc.posting_date).replace(day=1)
@@ -654,11 +815,25 @@ class TFHKAPayloadBuilder:
         if not self.nodo:
             frappe.throw("El cliente no tiene asignado un 'Nodo', campo requerido para HKA.")
 
+        serie: str = getattr(self.series_doc, "serie", "") or ""
+        if not serie:
+            frappe.throw(
+                "La serie de facturación no tiene el campo 'Serie' configurado. "
+                "Es obligatorio para la facturación electrónica.",
+                title="Serie Requerida"
+            )
+
         # Construir y retornar el string de diccionario único (modo "PDF")
         # ya que la plantilla de impresión de TFHKA evalúa este string internamente.
+
         dict_pdf = {"DireccionServicio": direccion_servicio}
+        dict_pdf["Serie"] = serie
         dict_pdf["TasaCambio"] = tasa_bcv
         dict_pdf["Periodo"] = periodo if periodo else f"Desde {nota_periodo}"
+
+        bill_no_original: str = getattr(self, "_bill_no_original", "")
+        if bill_no_original:
+            dict_pdf["FacturaOriginal"] = bill_no_original
 
         dict_pdf["Zona"] = self.zona
         dict_pdf["Nodo"] = self.nodo
@@ -668,7 +843,11 @@ class TFHKAPayloadBuilder:
 
         # Convertir a string de python-like dict (con comillas simples) para que el parser
         # de The Factory HKA no falle en su plantilla
-        json_str = json.dumps(dict_pdf, ensure_ascii=False).replace('"', "'")
+        sanitized: dict = {
+            k: v.replace("'", "") if isinstance(v, str) else v
+            for k, v in dict_pdf.items()
+        }
+        json_str = json.dumps(sanitized, ensure_ascii=False).replace('"', "'")
 
         return [
             {"Campo": "PDF", "Valor": json_str}

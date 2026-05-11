@@ -42,12 +42,22 @@ frappe.ui.form.on("Sales Invoice", {
   },
 
   refresh: function (frm) {
+    // Resetear visibilidad del botón primario en cada refresh para evitar que
+    // el hide() de setup_hka_void_banners persista al navegar a otra factura
+    // (problema de SPA: Frappe reutiliza el objeto page entre formularios).
+    frm.page.btn_primary.show();
+
     setup_void_button(frm);
+    setup_hka_void_button(frm);
+    setup_hka_void_banners(frm);
+    setup_hka_voided_consulta_button(frm);
+    setup_replacement_invoice_button(frm);
 
     toggle_vat_withholding_fields(frm);
     toggle_islr_withholding_fields(frm);
     set_sales_invoice_fields(frm);
     print_button_pdf(frm);
+    calculate_base_total_with_vat(frm);
 
     setTimeout(() => {
       // Oculta el botón de impresión principal
@@ -233,15 +243,49 @@ frappe.ui.form.on("Sales Invoice", {
 
     setup_exchange_difference_button(frm);
     setup_hka_consulta_button(frm);
+    render_fiscal_invoice_preview(frm);
+    setup_credit_note_button(frm);
+    setup_debit_note_button(frm);
 
     if (frappe.boot.tfhka_enabled) {
       setup_digital_invoice_button(frm);
+      setup_force_send_hka_button(frm);
     }
+
+    set_ve_form_indicator(frm, { doc_type: "sales_invoice" });
   },
 
   customer: function (frm) {
     toggle_vat_withholding_fields(frm);
     frm.refresh();
+    apply_ve_exchange_rate_from_date(frm);
+  },
+
+  posting_date: function (frm) {
+    apply_ve_exchange_rate_from_date(frm);
+  },
+
+  // Intercepta el reset que hace ERPNext cuando apply_price_list devuelve
+  // plc_conversion_rate calculado con la fecha exacta (no la del 1° del mes).
+  // Solo activa si TFHKA (facturación digital) está habilitado.
+  plc_conversion_rate: function (frm) {
+    if (!frappe.boot.tfhka_enabled) return;
+    const target = frm._l10n_ve_conv_rate;
+    if (!target || frm.doc.docstatus !== 0) return;
+
+    let corrected = false;
+    if (Math.abs(flt(frm.doc.plc_conversion_rate) - target) > 0.0001) {
+      frm.doc.plc_conversion_rate = target;
+      frm.refresh_field("plc_conversion_rate");
+      corrected = true;
+    }
+    if (Math.abs(flt(frm.doc.conversion_rate) - target) > 0.0001) {
+      frm.doc.conversion_rate = target;
+      frm.refresh_field("conversion_rate");
+      corrected = true;
+    }
+    // Marcar como modificado solo si hubo corrección real.
+    if (corrected) frm.dirty();
   },
 
   is_return: function (frm) {
@@ -252,6 +296,9 @@ frappe.ui.form.on("Sales Invoice", {
     toggle_document_number_fields(frm);
   },
 });
+
+// set_ve_form_indicator() — definida en sales_billing_indicators.js (app_include_js)
+// Invocada en refresh con: set_ve_form_indicator(frm, { doc_type: "sales_invoice" })
 
 function toggle_document_number_fields(frm) {
   const is_credit_note = frm.doc.is_return;
@@ -359,6 +406,9 @@ function set_sales_invoice_fields(frm) {
 }
 
 function print_button_pdf(frm) {
+  // Cuando HKA está activo, el PDF se genera desde la imprenta digital
+  if (frappe.boot.tfhka_enabled) return;
+
   if (!frm.custom_buttons["Generar PDF de Factura"]) {
     frm.add_custom_button(__("Generar PDF de Factura"), () => {
       generate_custom_invoice_preview(frm);
@@ -486,7 +536,57 @@ function setup_digital_invoice_button(frm) {
         },
       });
     },
-    __("Acciones"),
+    __("Factura Digital"),
+  );
+}
+
+/**
+ * Botón para forzar el envío a HKA saltando la validación de tasa BCV.
+ * Solo visible para Administrator en facturas aprobadas que no hayan sido
+ * enviadas exitosamente a HKA.
+ * @param {object} frm
+ */
+function setup_force_send_hka_button(frm) {
+  if (
+    frappe.session.user !== "Administrator" ||
+    frm.doc.docstatus !== 1 ||
+    (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
+  ) {
+    return;
+  }
+
+  frm.add_custom_button(
+    __("⚡ Forzar Envío HKA"),
+    function () {
+      frappe.confirm(
+        __(
+          "<b>⚠️ Atención:</b> Esta acción enviará la factura a HKA " +
+            "<b>sin validar la tasa de cambio BCV</b>.<br><br>" +
+            "Solo debe usarse cuando la tasa BCV del documento difiere " +
+            "de la registrada por motivos operativos legítimos.<br><br>" +
+            "¿Desea continuar?",
+        ),
+        function () {
+          frappe.call({
+            method:
+              "l10n_ve.digital_invoice.tfhka_integration.send_invoice_manually",
+            args: { invoice_name: frm.doc.name, force: 1 },
+            freeze: true,
+            freeze_message: __("Enviando a HKA (forzado)..."),
+            callback: function (r) {
+              if (!r.exc) {
+                frappe.show_alert({
+                  message: __("Factura enviada exitosamente a HKA"),
+                  indicator: "green",
+                });
+                frm.reload_doc();
+              }
+            },
+          });
+        },
+      );
+    },
+    __("Factura Digital"),
   );
 }
 
@@ -548,6 +648,9 @@ function show_hka_preview_dialog(frm, d) {
             </div>
           </div>
           <div style="text-align:right;">
+            <p style="font-size:10px;opacity:0.75;margin:0 0 3px;letter-spacing:0.5px;">
+              1 USD = Bs. ${frappe.utils.escape_html(d.tasa_bcv)}
+            </p>
             <p class="hka-preview__total-bs">Bs. ${frappe.utils.escape_html(d.total_bs)}</p>
             <p class="hka-preview__total-bs-label">Bolívares Digitales</p>
           </div>
@@ -734,11 +837,326 @@ function setup_hka_consulta_button(frm) {
     const url = (data && data.resultado && data.resultado.urlConsulta) || "";
     if (!url) return;
 
-    frm.add_custom_button(__("Consultar en TFHKA"), function () {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }, __("Acciones"));
-
+    frm.add_custom_button(
+      __("Consultar en TFHKA"),
+      function () {
+        window.open(url, "_blank", "noopener,noreferrer");
+      },
+      __("Factura Digital"),
+    );
   } catch (e) {
     // remarks no es JSON válido, ignorar silenciosamente
   }
+}
+
+/**
+ * Obtiene y aplica la tasa de cambio venezolana correcta para el cliente.
+ *
+ * Regla fiscal: Jurídico → fecha exacta del posting_date.
+ *               Natural  → primer día del mes del posting_date.
+ *
+ * Sincronización: se usa frappe.after_ajax() para garantizar que la
+ * aplicación de la tasa VE ocurre DESPUÉS de que ERPNext complete su
+ * propia cadena async (get_due_date → currency → get_exchange_rate).
+ * El handler de `plc_conversion_rate` actúa como guardia de segundo
+ * nivel ante cualquier reset posterior de ERPNext.
+ *
+ * Los valores se asignan directamente en frm.doc para evitar disparar
+ * `apply_price_list` (que sobrescribiría la tasa con la fecha exacta).
+ * Los totales en BS se recalculan vía `_calculate_taxes_and_totals`.
+ *
+ * @param {object} frm - Instancia del formulario Frappe.
+ */
+function apply_ve_exchange_rate_from_date(frm) {
+  if (!frappe.boot.tfhka_enabled) return;
+
+  // Limpia el flag previo para evitar que un cambio Natural→Jurídico
+  // deje un target obsoleto activo en el handler de plc_conversion_rate.
+  frm._l10n_ve_conv_rate = null;
+
+  if (!frm.doc.customer || !frm.doc.posting_date || frm.doc.docstatus !== 0)
+    return;
+
+  const company_currency = erpnext.get_currency(frm.doc.company);
+  if (!frm.doc.currency || frm.doc.currency === company_currency) return;
+
+  // Capturamos los valores actuales para validar que no cambiaron
+  // entre el disparo del evento y la resolución del after_ajax.
+  const captured_customer = frm.doc.customer;
+  const captured_date = frm.doc.posting_date;
+  const captured_currency = frm.doc.currency;
+
+  // frappe.after_ajax() ejecuta el callback una vez que todas las
+  // llamadas ajax en vuelo del framework hayan completado, eliminando
+  // la necesidad de un setTimeout arbitrario.
+  frappe.after_ajax(function () {
+    // Verificar que el formulario no cambió mientras esperábamos
+    if (
+      frm.doc.customer !== captured_customer ||
+      frm.doc.posting_date !== captured_date ||
+      frm.doc.currency !== captured_currency ||
+      frm.doc.docstatus !== 0
+    )
+      return;
+
+    frappe.call({
+      method: "l10n_ve.utils.utils.get_ve_exchange_rate_for_customer",
+      args: {
+        customer: frm.doc.customer,
+        date: frm.doc.posting_date,
+        from_currency: frm.doc.currency,
+      },
+      callback: function (r) {
+        if (!r.message) return;
+        const rate = flt(r.message);
+        if (rate <= 0) return;
+
+        // Guarda el target para que el handler de plc_conversion_rate
+        // pueda interceptar cualquier reset posterior de ERPNext.
+        frm._l10n_ve_conv_rate = rate;
+
+        // Asignación directa: evita disparar apply_price_list (que
+        // devuelve plc_conversion_rate con la fecha exacta y resetea
+        // conversion_rate via el evento plc_conversion_rate()).
+        frm.doc.conversion_rate = rate;
+        frm.doc.plc_conversion_rate = rate;
+        frm.refresh_field("conversion_rate");
+        frm.refresh_field("plc_conversion_rate");
+
+        // Recalcula los campos base_* (base_grand_total, base_taxes, etc.)
+        // usando la función pura de JS del controlador (sin llamadas al backend).
+        if (
+          frm.cscript &&
+          typeof frm.cscript._calculate_taxes_and_totals === "function"
+        ) {
+          frm.cscript._calculate_taxes_and_totals();
+        }
+
+        frm.dirty();
+      },
+    });
+  });
+}
+
+/**
+ * Oculta el botón nativo de ERPNext "Devolución / Nota de Crédito"
+ * y lo reemplaza con "Nota de Crédito" que abre directamente el DocType
+ * VE Sales Credit Note pre-llenado con los datos de la factura actual.
+ * @param {object} frm
+ */
+function setup_credit_note_button(frm) {
+  // El controller de ERPNext (extend_cscript) agrega "Return / Credit Note"
+  // DESPUÉS de nuestro refresh. Usamos un timeout para removerlo siempre.
+  setTimeout(() => {
+    frm.page.remove_inner_button(__("Return / Credit Note"), __("Create"));
+  }, 500);
+  setTimeout(() => {
+    frm.page.remove_inner_button(__("Return / Credit Note"), __("Create"));
+  }, 1500);
+
+  if (
+    frm.doc.docstatus !== 1 ||
+    frm.doc.is_return ||
+    frm.doc.status === "Credit Note Issued" ||
+    frm.doc.status === "Debit Note Issued"
+  )
+    return;
+
+  frm.add_custom_button(
+    __("Nota de Crédito"),
+    function () {
+      frappe.route_options = {
+        return_against: frm.doc.name,
+        company: frm.doc.company,
+        customer: frm.doc.customer,
+      };
+      frappe.new_doc("VE Sales Credit Note");
+    },
+    __("Create"),
+  );
+}
+
+/**
+ * Botón "Nota de Débito" en el grupo "Create" de la Factura de Venta.
+ * Redirige al formulario de VE Sales Debit Note pre-llenado con los datos
+ * de la factura actual. Solo visible cuando la factura está aprobada y no
+ * es una NC ni una ND.
+ * @param {object} frm
+ */
+function setup_debit_note_button(frm) {
+  if (
+    frm.doc.docstatus !== 1 ||
+    frm.doc.is_return ||
+    frm.doc.is_debit_note ||
+    frm.doc.status === "Debit Note Issued" ||
+    frm.doc.status === "Credit Note Issued"
+  )
+    return;
+
+  frm.add_custom_button(
+    __("Nota de Débito"),
+    function () {
+      frappe.route_options = {
+        return_against: frm.doc.name,
+        company: frm.doc.company,
+        customer: frm.doc.customer,
+      };
+      frappe.new_doc("VE Sales Debit Note");
+    },
+    __("Create"),
+  );
+}
+
+/**
+ * Botón "Anular en HKA" para facturas emitidas ante la imprenta digital.
+ * Solo visible cuando docstatus === 1 y la factura tiene bill_no.
+ * Abre un diálogo para capturar motivo, fecha y hora de anulación,
+ * luego llama al endpoint backend que anula en HKA y cancela en Frappe.
+ * @param {object} frm
+ */
+function setup_hka_void_button(frm) {
+  if (frm.doc.docstatus !== 1 || !frm.doc.bill_no) return;
+
+  frm.add_custom_button(
+    __("Anular Factura de Venta"),
+    function () {
+      const today = frappe.datetime.get_today();
+      const now = frappe.datetime.now_time();
+
+      const dialog = new frappe.ui.Dialog({
+        title: __("Anular Factura en HKA"),
+        fields: [
+          {
+            label: __("Motivo de Anulación"),
+            fieldname: "reason",
+            fieldtype: "Small Text",
+            reqd: 1,
+            description: __(
+              "Indique el motivo de la anulación. Será enviado a la imprenta digital.",
+            ),
+          },
+          {
+            label: __("Fecha de Anulación"),
+            fieldname: "void_date",
+            fieldtype: "Date",
+            default: today,
+            reqd: 1,
+            read_only: 1,
+          },
+          {
+            label: __("Hora de Anulación"),
+            fieldname: "void_time",
+            fieldtype: "Time",
+            default: now,
+            reqd: 1,
+            read_only: 1,
+          },
+        ],
+        primary_action_label: __("Confirmar Anulación"),
+        primary_action(values) {
+          dialog.hide();
+
+          // Convertir YYYY-MM-DD → DD/MM/YYYY (formato requerido por TFHKA)
+          const date_parts = values.void_date.split("-");
+          const formatted_date = `${date_parts[2]}/${date_parts[1]}/${date_parts[0]}`;
+
+          frappe.call({
+            method: "l10n_ve.overrides.sales_invoice.void_sales_invoice",
+            args: {
+              docname: frm.doc.name,
+              reason: values.reason,
+              void_date: formatted_date,
+              void_time: values.void_time,
+            },
+            freeze: true,
+            freeze_message: __("Anulando en HKA y sistema..."),
+            callback(r) {
+              if (!r.exc) {
+                frappe.show_alert({
+                  message: __(
+                    "Factura anulada correctamente en HKA y en el sistema.",
+                  ),
+                  indicator: "green",
+                });
+                frm.reload_doc();
+              }
+            },
+          });
+        },
+      });
+
+      dialog.show();
+    },
+    __("Factura Digital"),
+  );
+}
+
+/**
+ * Muestra banners informativos cuando una factura fue anulada ante HKA.
+ * - Banner rojo con el motivo de anulación.
+ * - Oculta el botón "Amend" para evitar enmendar documentos anulados fiscalmente.
+ * @param {object} frm
+ */
+function setup_hka_void_banners(frm) {
+  if (frm.doc.docstatus !== 2 || !frm.doc.bill_no || !frm.doc.avoid_reason) {
+    return;
+  }
+
+  frm.set_intro(
+    __(
+      "🚫 Esta factura fue <b>anulada ante HKA</b> (N° {0}). " +
+        "No puede ser corregida ni enmendada. " +
+        "Cree una nueva factura si es necesario.",
+      [frm.doc.bill_no],
+    ),
+    "red",
+  );
+
+  frm.page.btn_primary.hide();
+}
+
+/**
+ * Botón "Ver Documento Anulado en HKA" para facturas canceladas
+ * que fueron anuladas en la imprenta digital.
+ * Abre la URL de consulta del documento en el portal TFHKA.
+ * @param {object} frm
+ */
+function setup_hka_voided_consulta_button(frm) {
+  if (frm.doc.docstatus !== 2 || !frm.doc.bill_no || !frm.doc.remarks) {
+    return;
+  }
+
+  try {
+    const hka_data = JSON.parse(frm.doc.remarks);
+    const url = hka_data.resultado && hka_data.resultado.urlConsulta;
+    if (!url) return;
+
+    frm.add_custom_button(
+      __("Ver Documento Anulado en HKA"),
+      function () {
+        window.open(url, "_blank", "noopener,noreferrer");
+      },
+      __("Factura Digital"),
+    );
+  } catch (_) {
+    // remarks no es JSON válido, ignorar silenciosamente
+  }
+}
+
+/**
+ * Botón "Generar Factura de Reemplazo" para facturas anuladas ante HKA.
+ * Solo visible cuando docstatus === 2 e is_void === 1.
+ * Usa get_mapped_doc para crear un borrador con los mismos datos
+ * de la factura original pero con fecha, tasa y campos fiscales limpios.
+ * @param {object} frm
+ */
+function setup_replacement_invoice_button(frm) {
+  if (frm.doc.docstatus !== 2 || !frm.doc.is_void) return;
+
+  frm.add_custom_button(__("Generar Factura de Reemplazo"), function () {
+    frappe.model.open_mapped_doc({
+      method: "l10n_ve.overrides.sales_invoice.make_replacement_invoice",
+      frm: frm,
+    });
+  });
 }

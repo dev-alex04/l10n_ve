@@ -342,3 +342,175 @@ def reset_all_prepared_reports() -> None:
 
     except Exception as e:
         frappe.log_error(str(e), "[l10n_ve] Error en reset_all_prepared_reports")
+
+
+def cleanup_resolved_digital_invoice_error_logs() -> None:
+    """Elimina logs de error HKA que ya no aportan valor diagnóstico.
+
+    Ejecuta 7 estrategias de limpieza en orden y reporta el resultado.
+    """
+    strategies: dict[str, int] = {
+        "resueltos_por_log": _cleanup_resolved_by_success_log(),
+        "resueltos_por_bill_no": _cleanup_resolved_by_bill_no(),
+        "resumenes": _cleanup_batch_summaries(),
+        "tracebacks": _cleanup_resolved_tracebacks(),
+        "canceladas": _cleanup_cancelled_invoice_logs(),
+        "infra": _cleanup_stale_infra_logs(),
+        "duplicados": _cleanup_duplicate_error_logs(),
+    }
+
+    total_deleted: int = sum(strategies.values())
+    if total_deleted:
+        frappe.db.commit()
+        detail: str = ", ".join(
+            f"{k}: {v}" for k, v in strategies.items() if v
+        )
+        frappe.logger("tfhka").info(
+            f"Limpieza de logs: {total_deleted} eliminados ({detail})"
+        )
+
+
+def _delete_logs(names: list[str]) -> int:
+    """Elimina logs por lista de names y retorna la cantidad eliminada."""
+    if not names:
+        return 0
+    frappe.db.delete("VE Digital Invoice Log", {"name": ["in", names]})
+    return len(names)
+
+
+def _cleanup_resolved_by_success_log() -> int:
+    """A) Logs de error cuya factura ya tiene un log exitoso."""
+    rows: list[dict] = frappe.db.sql("""
+        SELECT err.name
+        FROM `tabVE Digital Invoice Log` err
+        INNER JOIN `tabVE Digital Invoice Log` ok
+            ON ok.sales_invoice = err.sales_invoice
+            AND ok.document_type = err.document_type
+            AND ok.status = 'Success'
+        WHERE err.status = 'Error'
+    """, as_dict=True)
+    return _delete_logs([r.name for r in rows])
+
+
+def _cleanup_resolved_by_bill_no() -> int:
+    """B) Logs con sales_invoice NULL cuya factura ya tiene bill_no o fue cancelada."""
+    rows: list[dict] = frappe.db.sql("""
+        SELECT log.name
+        FROM `tabVE Digital Invoice Log` log
+        JOIN `tabSales Invoice` si
+            ON si.name = SUBSTRING_INDEX(
+                SUBSTRING_INDEX(log.notes, ': ', 1),
+                'Error enviando ', -1
+            )
+        WHERE log.status = 'Error'
+          AND log.sales_invoice IS NULL
+          AND log.notes LIKE 'Error enviando ACC-%%'
+          AND (
+              (si.bill_no IS NOT NULL AND si.bill_no != '')
+              OR si.docstatus = 2
+          )
+    """, as_dict=True)
+    return _delete_logs([r.name for r in rows])
+
+
+def _cleanup_batch_summaries() -> int:
+    """C) Resúmenes redundantes ('Completado: X exitosas, Y con error')."""
+    rows: list[dict] = frappe.db.sql("""
+        SELECT name
+        FROM `tabVE Digital Invoice Log`
+        WHERE status != 'Success'
+          AND notes LIKE 'Completado:%%'
+    """, as_dict=True)
+    return _delete_logs([r.name for r in rows])
+
+
+def _cleanup_resolved_tracebacks() -> int:
+    """D) Tracebacks cuya factura ya tiene bill_no (resuelta por reintento).
+
+    El JOIN usa LIKE bilateral, así que se limita a logs de los últimos
+    7 días para evitar full scan sobre tablas grandes.
+    """
+    rows: list[dict] = frappe.db.sql("""
+        SELECT log.name
+        FROM `tabVE Digital Invoice Log` log
+        JOIN `tabSales Invoice` si
+            ON log.notes LIKE CONCAT('%%', si.name, '%%')
+        WHERE log.status = 'Error'
+          AND log.sales_invoice IS NULL
+          AND log.notes LIKE 'Traceback%%'
+          AND log.creation >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          AND si.bill_no IS NOT NULL AND si.bill_no != ''
+          AND si.posting_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    """, as_dict=True)
+    return _delete_logs([r.name for r in rows])
+
+
+def _cleanup_cancelled_invoice_logs() -> int:
+    """E) Logs de facturas canceladas (nunca se procesarán)."""
+    rows: list[dict] = frappe.db.sql("""
+        SELECT log.name
+        FROM `tabVE Digital Invoice Log` log
+        JOIN `tabSales Invoice` si ON si.name = log.sales_invoice
+        WHERE log.status = 'Error'
+          AND si.docstatus = 2
+    """, as_dict=True)
+    return _delete_logs([r.name for r in rows])
+
+
+def _cleanup_stale_infra_logs() -> int:
+    """F) Errores de infraestructura antiguos (auth, notes vacío)."""
+    rows: list[dict] = frappe.db.sql("""
+        SELECT name
+        FROM `tabVE Digital Invoice Log`
+        WHERE status = 'Error'
+          AND sales_invoice IS NULL
+          AND (notes IS NULL OR notes = '')
+    """, as_dict=True)
+    return _delete_logs([r.name for r in rows])
+
+
+def _cleanup_duplicate_error_logs() -> int:
+    """G) Deduplicación: conserva solo el log más reciente por factura."""
+    rows: list[dict] = frappe.db.sql("""
+        SELECT log.name
+        FROM `tabVE Digital Invoice Log` log
+        INNER JOIN (
+            SELECT
+                SUBSTRING_INDEX(
+                    SUBSTRING_INDEX(notes, ': ', 1),
+                    'Error enviando ', -1
+                ) AS factura,
+                MAX(creation) AS ultima
+            FROM `tabVE Digital Invoice Log`
+            WHERE status = 'Error'
+              AND notes LIKE 'Error enviando ACC-%%'
+            GROUP BY factura
+            HAVING COUNT(*) > 1
+        ) dup ON log.notes LIKE CONCAT('Error enviando ', dup.factura, ':%%')
+              AND log.creation < dup.ultima
+        WHERE log.status = 'Error'
+          AND log.notes LIKE 'Error enviando ACC-%%'
+    """, as_dict=True)
+    return _delete_logs([r.name for r in rows])
+
+
+def purge_old_digital_invoice_success_logs() -> None:
+    """Elimina logs de éxito del mes anterior. Se ejecuta el 1 de cada mes."""
+    first_of_current_month: str = getdate(nowdate()).replace(day=1).isoformat()
+
+    count: int = frappe.db.count(
+        "VE Digital Invoice Log",
+        {"status": "Success", "creation": ["<", first_of_current_month]},
+    )
+
+    if not count:
+        return
+
+    frappe.db.delete(
+        "VE Digital Invoice Log",
+        {"status": "Success", "creation": ["<", first_of_current_month]},
+    )
+    frappe.db.commit()
+    frappe.logger("tfhka").info(
+        f"Purga mensual: {count} logs de éxito anteriores a {first_of_current_month} eliminados"
+    )

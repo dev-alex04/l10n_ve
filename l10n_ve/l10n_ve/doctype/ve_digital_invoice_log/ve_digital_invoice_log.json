@@ -13,28 +13,41 @@
   "section_break_payload",
   "payload_sent",
   "column_break_payload",
-  "response_received"
+  "response_received",
+  "document_type"
  ],
  "fields": [
   {
-   "fieldname": "sales_invoice",
-   "fieldtype": "Link",
+   "default": "Sales Invoice",
+   "fieldname": "document_type",
+   "fieldtype": "Select",
    "in_list_view": 1,
-   "label": "Sales Invoice",
-   "options": "Sales Invoice",
+   "label": "Tipo de Documento",
+   "options": "Sales Invoice\nVE Sales Credit Note\nVE Sales Debit Note\nVAT Withholding Voucher\nISLR Withholding Voucher"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Factura / Documento",
+   "options": "document_type",
    "read_only": 1
   },
   {
    "fieldname": "endpoint",
    "fieldtype": "Data",
+   "in_filter": 1,
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Endpoint",
    "read_only": 1
   },
   {
    "fieldname": "status",
    "fieldtype": "Select",
+   "in_filter": 1,
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Status",
    "options": "\nSuccess\nError",
    "read_only": 1
@@ -72,10 +85,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-27 00:02:49.834491",
+ "modified": "2026-04-11 08:13:40.907290",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Digital Invoice Log",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

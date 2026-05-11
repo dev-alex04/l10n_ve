@@ -9,7 +9,7 @@ from frappe.model.document import Document
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
     get_outstanding_reference_documents as original_get_outstanding_reference_documents,
     PaymentEntry,
-    get_payment_entry,
+    get_payment_entry as _original_get_payment_entry,
     validate_inclusive_tax,
 )
 
@@ -35,6 +35,12 @@ class CustomPaymentEntry(PaymentEntry):
         if received_amount is None:
             received_amount = flt(self.received_amount)
         return super().allocate_amount_to_references(paid_amount, received_amount, allocate_payment_amount)
+
+    def get_valid_reference_doctypes(self) -> tuple:
+        """Extiende los doctypes de referencia válidos para incluir ND."""
+        valid: tuple = super().get_valid_reference_doctypes() or ()
+        ve_doctypes: tuple = ("VE Sales Debit Note",)
+        return valid + tuple(dt for dt in ve_doctypes if dt not in valid)
 
     def validate(self) -> None:
         super().validate()
@@ -292,12 +298,17 @@ class CustomPaymentEntry(PaymentEntry):
                 total_igtf = current_total_igtf + reference_total_igtf
                 base_amount_igtf = current_base_amount_igtf + reference_base_amount_igtf
 
+            update_values = {
+                'total_igtf': total_igtf,
+                'base_amount_igtf': base_amount_igtf,
+            }
+
+            if frappe.get_meta(reference.reference_doctype).has_field('igtf_rate'):
+                update_values['igtf_rate'] = self.igtf_rate
+
             frappe.db.set_value(reference.reference_doctype,
                                 reference.reference_name,
-                                {
-                                    'total_igtf': total_igtf,
-                                    'base_amount_igtf': base_amount_igtf,
-                                })
+                                update_values)
 
     def validate_reference_no(self) -> None:
         """
@@ -684,7 +695,6 @@ class CustomPaymentEntry(PaymentEntry):
         self.transaction_exchange_rate = self.exchange_rate
 
 
-get_payment_entry_copy = get_payment_entry
 @frappe.whitelist()
 def get_payment_entry(
     dt,
@@ -699,7 +709,13 @@ def get_payment_entry(
     created_from_payment_request=False,
 ) -> PaymentEntry:
 
-    payment_entry: PaymentEntry = get_payment_entry_copy(
+    # ERPNext no reconoce DocTypes custom en set_party_type() ni
+    # set_payment_type(). Para la ND forzamos los valores correctos.
+    if dt == "VE Sales Debit Note":
+        party_type = party_type or "Customer"
+        payment_type = payment_type or "Receive"
+
+    payment_entry: PaymentEntry = _original_get_payment_entry(
         dt,
         dn,
         party_amount=party_amount,
@@ -711,6 +727,13 @@ def get_payment_entry(
         ignore_permissions=ignore_permissions,
         created_from_payment_request=created_from_payment_request,
     )
+
+    # ERPNext usa get_party_account() genérica para DocTypes desconocidos,
+    # lo cual podría devolver una cuenta AR distinta a la de la ND.
+    if dt == "VE Sales Debit Note":
+        nd_doc = frappe.get_cached_doc("VE Sales Debit Note", dn)
+        if nd_doc.debit_to and payment_entry.paid_from != nd_doc.debit_to:
+            payment_entry.paid_from = nd_doc.debit_to
 
     igtf_rate: float = frappe.db.get_single_value(
       "Venezuela Account Settings",
@@ -835,14 +858,18 @@ def get_branch_payment_mode_account(branch: str, mode_of_payment: str) -> str | 
 def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters):
     if isinstance(filters, str):
         filters = json.loads(filters)
+    elif not filters:
+        filters = {}
 
-    """Obtiene los modos de pago configurados para una sucursal."""
+    """Obtiene los modos de pago (y si aplican IGTF) configurados para una sucursal."""
     branch = filters.get("branch")
     if not branch:
         # Retornar todos los modos de pago si no hay sucursal
         return frappe.db.sql("""
-            SELECT name FROM `tabMode of Payment`
+            SELECT name, is_igtf_applicable
+            FROM `tabMode of Payment`
             WHERE name LIKE %(txt)s
+            AND enabled = 1
             ORDER BY name
             LIMIT %(start)s, %(page_len)s
         """, {
@@ -853,10 +880,13 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
 
     # Obtener modos de pago de la tabla hija de la sucursal
     return frappe.db.sql("""
-        SELECT vbpm.mode_of_payment
+        SELECT 
+            vbpm.mode_of_payment, mop.is_igtf_applicable
         FROM `tabVE Branch Payment Modes` vbpm
+        INNER JOIN `tabMode of Payment` mop ON mop.name = vbpm.mode_of_payment
         WHERE vbpm.parent = %(branch)s
         AND vbpm.mode_of_payment LIKE %(txt)s
+        AND mop.enabled = 1
         ORDER BY vbpm.mode_of_payment
         LIMIT %(start)s, %(page_len)s
     """, {

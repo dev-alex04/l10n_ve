@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:branch_name",
  "creation": "2025-12-28 18:40:55.061056",
@@ -163,7 +164,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-04-01 05:46:17.230590",
+ "modified": "2026-04-17 09:49:10.228916",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",
@@ -227,5 +228,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "branch_name"
+ "title_field": "branch_name",
+ "track_changes": 1
 }

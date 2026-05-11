@@ -11,7 +11,7 @@
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Company",
-   "mandatory": 0,
+   "mandatory": 1,
    "options": "Company",
    "wildcard_filter": 0
   },
