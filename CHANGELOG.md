@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.21] - 2026-05-11
+
+### ✨ Funcionalidades (Features)
+- **Integración de Sucursales:** Soporte para VE Branch en Notas de Crédito, Notas de Débito y filtros específicos dentro del Libro de Compras.
+- **Gestión de Notas de Débito (ND):** Soporte integral para ND en comprobantes de IVA/ISLR, incluyendo bloqueo de cancelación y optimización en el reporte de compras.
+- **Integración ISLR con TFHKA:** Implementación completa para la emisión, anulación y previsualización de comprobantes de retención ISLR mediante TFHKA.
+- **Centralización de ISLR:** Unificación de la lógica de retención ISLR directamente en la Factura de Compra con soporte para esquemas multi-concepto.
+- **Cumplimiento Fiscal SENIAT:** Implementación del formato fiscal oficial para el Libro de Compras, incluyendo validaciones de fechas y generación de archivos TXT/XML.
+- **Estabilización de Notas de Crédito (NC):** Mejora del ciclo de vida de NC de compras mediante el uso de reconciliación nativa y corrección en los asientos contables (GL) de retenciones.
+- **Mejoras en Retención de IVA:** Incorporación de validaciones para evitar duplicados e indicadores específicos para protocolos HKA.
+- **Suite de Pruebas:** Adición de tests unitarios para garantizar la integridad de los cálculos de retenciones IVA e ISLR.
+
+### 🐛 Correcciones (Fixes)
+- **Cálculo de Impuestos:** Corrección en el manejo de IVA con alícuotas múltiples y atomización de correlativos para evitar conflictos.
+- **Validación SENIAT:** Ajuste en los generadores de archivos XML y TXT para asegurar la validación exitosa en el portal del SENIAT.
+- **Reportes Fiscales:** Corrección en la integración de Notas de Crédito de compras dentro del Libro de Compras y los archivos de exportación ISLR.
+- **Robustez de Datos:** Implementación de fallbacks defensivos en las descripciones de retención de ISLR cuando el número de factura no está presente.
+- **Sincronización de Comprobantes:** Alineación técnica entre los vouchers de retención de ISLR e IVA para mantener consistencia en los datos fiscales.
+
+---
+
 ## [v1.0.20] - 2026-05-08
 
 ### ✨ Funcionalidades (Features)
