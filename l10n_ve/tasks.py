@@ -340,8 +340,8 @@ def reset_all_prepared_reports() -> None:
             f"reporte(s) reseteado(s): {reportes_afectados}"
         )
 
-    except Exception as e:
-        frappe.log_error(str(e), "[l10n_ve] Error en reset_all_prepared_reports")
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "[l10n_ve] Error en reset_all_prepared_reports")
 
 
 def cleanup_resolved_digital_invoice_error_logs() -> None:
