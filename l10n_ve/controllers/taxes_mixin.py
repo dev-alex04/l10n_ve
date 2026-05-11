@@ -196,13 +196,13 @@ class TaxesMixin:
                 f"{type_doctype} Invoice",
                 self.return_against,
                 "bill_no"
-            )
+            ) or self.return_against
             description += f" por Nota de Crédito contra factura {bill_no}"
 
         elif getattr(self, "is_debit_note", 0) and self.return_against:
             bill_no: str = frappe.get_cached_value(
                 "Sales Invoice", self.return_against, "bill_no"
-            )
+            ) or self.return_against
             description += f" por Nota de Débito contra factura {bill_no}"
 
         return description
