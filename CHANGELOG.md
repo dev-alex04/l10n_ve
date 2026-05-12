@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.23] - 2026-05-12
+
+### ✨ Funcionalidades (Features)
+- Se incorporó una nueva suite de pruebas unitarias dedicada a la validación de los cálculos fiscales para Venezuela (VE), mejorando la confiabilidad de la lógica tributaria.
+
+### 🐛 Correcciones (Fixes)
+- Corrección en el pipeline de Integración Continua (CI) mediante el ajuste en la instalación de `mariadb-client` y la actualización de las dependencias del workflow (57c2250).
+
+---
+
 ## [v1.0.22] - 2026-05-11
 
 ### ✨ Funcionalidades (Features)
