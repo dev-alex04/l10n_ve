@@ -3,11 +3,12 @@ from unittest.mock import patch
 
 import frappe
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
+from l10n_ve.tests.helpers import MockDoc
 
 
-def _make_base_doc(**overrides) -> frappe._dict:
+def _make_base_doc(**overrides) -> MockDoc:
     """Construye un mock de Sales Invoice con los campos mínimos requeridos."""
-    doc = frappe._dict({
+    data = {
         "name": "INV-00001",
         "is_return": 0,
         "is_debit_note": 0,
@@ -54,9 +55,9 @@ def _make_base_doc(**overrides) -> frappe._dict:
             })
         ],
         "payments": [],
-    })
-    doc.update(overrides)
-    return doc
+    }
+    data.update(overrides)
+    return MockDoc(data)
 
 
 def _mock_customer(*_args, **_kwargs):
