@@ -138,7 +138,7 @@ def get_activities_from_sales_invoices(from_date, to_date, company, municipality
         branch_filter = " AND si.branch = %(branch)s"
         query_args["branch"] = branch
 
-    invoice_items = frappe.db.sql(f"""
+    base_query = """
         SELECT 
             it.economic_activity as economic_activity,
             SUM(sii.base_amount) as taxable_base
@@ -149,11 +149,16 @@ def get_activities_from_sales_invoices(from_date, to_date, company, municipality
             si.docstatus = 1 
             AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
             AND si.company = %(company)s
-            {branch_filter}
             AND it.economic_activity IS NOT NULL
             AND it.economic_activity != ''
-        GROUP BY it.economic_activity
-    """, query_args, as_dict=True)
+    """
+
+    if branch_filter:
+        base_query += branch_filter
+
+    base_query += " GROUP BY it.economic_activity"
+
+    invoice_items = frappe.db.sql(base_query, query_args, as_dict=True)
 
     if not invoice_items:
         return []

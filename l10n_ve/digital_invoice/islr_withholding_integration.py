@@ -129,13 +129,13 @@ def process_islr_voucher(
     try:
         client = TFHKAClient()
         response: dict = client.emitir_documento(payload)
-    except Exception as e:
-        error_msg = f"Error de conexión con TFHKA: {str(e)}"
+    except Exception:
+        error_msg = f"Error de conexión con TFHKA: {frappe.get_traceback()}"
         _log_retention_request(
             endpoint="Emision ISLR",
             voucher_name=voucher_name,
             payload=payload,
-            response={"error": True, "message": str(e)},
+            response={"error": True, "message": frappe.get_traceback()},
             status="Error",
             notes=error_msg,
             document_type=_ISLR_DOCTYPE,

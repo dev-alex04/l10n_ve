@@ -134,7 +134,7 @@ def get_conatel_data(company, from_date, to_date, branch=None):
             branch_filter = "AND si.branch = %s"
             query_filters.append(branch)
 
-    items = frappe.db.sql(f"""
+    base_query = """
         SELECT 
             'Total Facturado' as item_code,
             'Resumen de Ventas del Periodo' as item_name,
@@ -146,8 +146,12 @@ def get_conatel_data(company, from_date, to_date, branch=None):
             si.docstatus = 1 
             AND si.company = %s
             AND si.posting_date BETWEEN %s AND %s
-            {branch_filter}
-    """, tuple(query_filters), as_dict=True)
+    """
+
+    if branch_filter:
+        base_query += " " + branch_filter
+
+    items = frappe.db.sql(base_query, tuple(query_filters), as_dict=True)
     
     if items and not items[0].get('invoice_count'):
         items = []
