@@ -115,7 +115,7 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
     @patch("l10n_ve.digital_invoice.payload_builder.frappe.get_cached_value", return_value="USD")
     def test_nota_credito_tipo_documento(self, _mock_val, _mock_doc):
         """Verifica que una nota de crédito genera tipo '02'."""
-        doc = _make_base_doc(is_return=1, credit_note_no="NC-00001", bill_no=None)
+        doc = _make_base_doc(is_return=1, credit_note_no="NC-00001", bill_no=None, reason="Devolución de mercancía")
         builder = TFHKAPayloadBuilder(doc)
         payload = builder.build_payload()
 
@@ -127,7 +127,7 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
     @patch("l10n_ve.digital_invoice.payload_builder.frappe.get_cached_value", return_value="USD")
     def test_nota_debito_tipo_documento(self, _mock_val, _mock_doc):
         """Verifica que una nota de débito genera tipo '03'."""
-        doc = _make_base_doc(is_debit_note=1, debit_note_no="ND-00001", bill_no=None)
+        doc = _make_base_doc(is_debit_note=1, debit_note_no="ND-00001", bill_no=None, reason="Ajuste de precio")
         builder = TFHKAPayloadBuilder(doc)
         payload = builder.build_payload()
 

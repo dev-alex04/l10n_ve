@@ -92,6 +92,10 @@ class MockDoc:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    def __getattr__(self, key: str):
+        """Retorna None para atributos inexistentes (simula frappe._dict)."""
+        return None
+
     def get(self, key: str, default=None):
         """Simula frappe.Document.get()."""
         return getattr(self, key, default)
