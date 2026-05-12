@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.26] - 2026-05-12
+
+### 🐛 Correcciones (Fixes)
+- **Seguridad:** Se eliminó el uso de f-strings en consultas SQL para prevenir vulnerabilidades de inyección, asegurando el manejo correcto de parámetros en la base de datos. 457db6b
+- **Logging:** Optimización del rastreo de errores en el módulo TFHKA mediante la implementación de `frappe.get_traceback()`, mejorando la capacidad de depuración técnica. 457db6b
+
+---
+
 ## [v1.0.25] - 2026-05-12
 
 ### 🐛 Correcciones (Fixes)
