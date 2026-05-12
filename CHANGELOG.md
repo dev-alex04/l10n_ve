@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.27] - 2026-05-12
+
+### 🐛 Correcciones (Fixes)
+- Se renombró el método `_build_islr_tax_row` en el flujo de compras para evitar conflictos técnicos por sobreescritura de métodos, asegurando la integridad del cálculo de retenciones ISLR. [d971627]
+
+---
+
 ## [v1.0.26] - 2026-05-12
 
 ### 🐛 Correcciones (Fixes)
