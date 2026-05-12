@@ -403,7 +403,7 @@ class TaxesMixin:
             )
             return
 
-        tax_row: dict = self._build_islr_tax_row(
+        tax_row: dict = self._build_purchase_islr_tax_row(
             tabulator, aliquot_info, islr_amount, islr_account
         )
         self.append("taxes", tax_row)
@@ -523,7 +523,7 @@ class TaxesMixin:
             - flt(aliquot_info.subtracting), 2
         )
 
-    def _build_islr_tax_row(
+    def _build_purchase_islr_tax_row(
         self, tabulator, aliquot_info, islr_amount: float, islr_account: str
     ) -> dict:
         """Construye el diccionario para la fila ISLR en Purchase Taxes and Charges."""
