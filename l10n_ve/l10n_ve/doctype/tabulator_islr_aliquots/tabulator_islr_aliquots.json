@@ -1,0 +1,70 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "autoname": "autoincrement",
+ "creation": "2025-08-16 12:36:06.377289",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "types_of_person",
+  "payments_greater_than_bs",
+  "percentage_base",
+  "aliquot",
+  "subtracting"
+ ],
+ "fields": [
+  {
+   "fieldname": "types_of_person",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Types of person",
+   "options": "Non-domiciled natural person\nNatural person domiciled\nNon-domiciled legal entity\nDomiciled legal entity",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:['Natural person domiciled', 'Domiciled legal entity'].includes(doc.types_of_person)",
+   "fieldname": "payments_greater_than_bs",
+   "fieldtype": "Float",
+   "label": "Payments greater than bs",
+   "precision": "3"
+  },
+  {
+   "fieldname": "percentage_base",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Percentage base",
+   "precision": "2"
+  },
+  {
+   "fieldname": "aliquot",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Aliquot",
+   "precision": "2"
+  },
+  {
+   "fieldname": "subtracting",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Subtracting",
+   "precision": "2",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-08-16 15:20:01.171042",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "Tabulator ISLR Aliquots",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

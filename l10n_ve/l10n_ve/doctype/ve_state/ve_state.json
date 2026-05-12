@@ -1,0 +1,104 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-10-22 11:54:30.091604",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "country",
+  "column_break_fbfe",
+  "section_break_vodn",
+  "state",
+  "column_break_vcdq",
+  "capital"
+ ],
+ "fields": [
+  {
+   "fieldname": "country",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Country",
+   "options": "Country",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_fbfe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "State",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "section_break_vodn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_vcdq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "capital",
+   "fieldtype": "Data",
+   "label": "Capital"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-18 11:14:17.078953",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VE State",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "state",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "state"
+}

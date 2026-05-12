@@ -1,0 +1,113 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:TFHKA-LOG-{YYYY}-{MM}-{####}",
+ "creation": "2026-03-24 13:07:34.841949",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sales_invoice",
+  "endpoint",
+  "status",
+  "notes",
+  "section_break_payload",
+  "payload_sent",
+  "column_break_payload",
+  "response_received",
+  "document_type"
+ ],
+ "fields": [
+  {
+   "default": "Sales Invoice",
+   "fieldname": "document_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Tipo de Documento",
+   "options": "Sales Invoice\nVE Sales Credit Note\nVE Sales Debit Note\nVAT Withholding Voucher\nISLR Withholding Voucher"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Factura / Documento",
+   "options": "document_type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "endpoint",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Endpoint",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "\nSuccess\nError",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_payload",
+   "fieldtype": "Section Break",
+   "label": "Payload"
+  },
+  {
+   "fieldname": "payload_sent",
+   "fieldtype": "Code",
+   "label": "Payload Sent",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_payload",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "response_received",
+   "fieldtype": "Code",
+   "label": "Response Received",
+   "options": "JSON",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-11 08:13:40.907290",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VE Digital Invoice Log",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

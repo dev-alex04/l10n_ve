@@ -1,0 +1,347 @@
+{
+    "actions": [],
+    "allow_events_in_timeline": 1,
+    "allow_import": 1,
+    "allow_rename": 1,
+    "autoname": "naming_series:",
+    "creation": "2025-11-17 13:48:59.560477",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "section_break_hdjl",
+        "naming_series",
+        "company",
+        "tax_id",
+        "branch",
+        "municipality_id",
+        "column_break_jnzv",
+        "num_license_economic",
+        "legal_representative",
+        "legal_representative_id",
+        "column_break_issh",
+        "declaration_year",
+        "declaration_month",
+        "declaration_date",
+        "amended_from",
+        "section_break_ezhq",
+        "state",
+        "municipality",
+        "parish",
+        "sector",
+        "column_break_wvbz",
+        "address_line1",
+        "phone",
+        "email_id",
+        "section_break_drsg",
+        "rate",
+        "column_break_mofy",
+        "currency",
+        "section_break_deau",
+        "municipality_declaration_data",
+        "section_break_wcah",
+        "column_break_dbfq",
+        "column_break_gtdr",
+        "column_break_vedd",
+        "tax_amount",
+        "total_pay",
+        "tab_break_zkgp",
+        "section_break_rnga",
+        "num_declaration",
+        "declaration_document"
+    ],
+    "fields": [
+        {
+            "fieldname": "section_break_hdjl",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "company",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Company",
+            "options": "Company",
+            "reqd": 1,
+            "search_index": 1
+        },
+        {
+            "fieldname": "municipality",
+            "fieldtype": "Data",
+            "label": "Municipality",
+            "read_only": 1
+        },
+        {
+            "fieldname": "section_break_deau",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "column_break_issh",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "num_license_economic",
+            "fieldtype": "Data",
+            "label": "Economic Activity License Number",
+            "read_only": 1
+        },
+        {
+            "fieldname": "tax_id",
+            "fieldtype": "Data",
+            "label": "RIF",
+            "read_only": 1
+        },
+        {
+            "fieldname": "declaration_date",
+            "fieldtype": "Date",
+            "label": "Declaration Date",
+            "reqd": 1
+        },
+        {
+            "fieldname": "section_break_wcah",
+            "fieldtype": "Section Break"
+        },
+        {
+            "default": "0",
+            "fieldname": "tax_amount",
+            "fieldtype": "Currency",
+            "label": "Tax amount",
+            "precision": "2",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "total_pay",
+            "fieldtype": "Currency",
+            "label": "Total to pay",
+            "precision": "2",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_dbfq",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "column_break_vedd",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "state",
+            "fieldtype": "Data",
+            "label": "State",
+            "read_only": 1
+        },
+        {
+            "fieldname": "amended_from",
+            "fieldtype": "Link",
+            "label": "Amended From",
+            "no_copy": 1,
+            "options": "VE Municipality Tax Declaration",
+            "print_hide": 1,
+            "read_only": 1,
+            "search_index": 1
+        },
+        {
+            "fieldname": "rate",
+            "fieldtype": "Float",
+            "label": "Exchange Rate (VEF)",
+            "precision": "9",
+            "read_only": 1
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "section_break_drsg",
+            "fieldtype": "Section Break",
+            "label": "Tax Amount"
+        },
+        {
+            "fieldname": "column_break_mofy",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "currency",
+            "fieldtype": "Link",
+            "label": "Currency",
+            "options": "Currency",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_gtdr",
+            "fieldtype": "Column Break"
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "section_break_ezhq",
+            "fieldtype": "Section Break",
+            "label": "Address"
+        },
+        {
+            "fieldname": "address_line1",
+            "fieldtype": "Data",
+            "label": "Address",
+            "width": "100"
+        },
+        {
+            "fieldname": "column_break_wvbz",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "parish",
+            "fieldtype": "Data",
+            "label": "Parish",
+            "read_only": 1
+        },
+        {
+            "fieldname": "sector",
+            "fieldtype": "Data",
+            "label": "Sector"
+        },
+        {
+            "fieldname": "column_break_jnzv",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "legal_representative",
+            "fieldtype": "Data",
+            "label": "Legal Representative",
+            "read_only": 1
+        },
+        {
+            "fieldname": "legal_representative_id",
+            "fieldtype": "Data",
+            "label": "ID representative legal",
+            "read_only": 1
+        },
+        {
+            "fieldname": "phone",
+            "fieldtype": "Data",
+            "label": "Phone"
+        },
+        {
+            "fieldname": "email_id",
+            "fieldtype": "Data",
+            "label": "Email Address"
+        },
+        {
+            "fieldname": "branch",
+            "fieldtype": "Link",
+            "label": "VE Branch",
+            "options": "VE Branch"
+        },
+        {
+            "fieldname": "municipality_id",
+            "fieldtype": "Link",
+            "hidden": 1,
+            "label": "Municipality",
+            "options": "VE Municipality",
+            "read_only": 1
+        },
+        {
+            "fieldname": "tab_break_zkgp",
+            "fieldtype": "Tab Break",
+            "label": "Declaration"
+        },
+        {
+            "fieldname": "declaration_document",
+            "fieldtype": "Attach",
+            "label": "Declaration Document"
+        },
+        {
+            "fieldname": "num_declaration",
+            "fieldtype": "Data",
+            "label": "N\u00b0 Declaration"
+        },
+        {
+            "fieldname": "section_break_rnga",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "municipality_declaration_data",
+            "fieldtype": "Table",
+            "label": "Municipal Declaration Data",
+            "options": "VE Municipality Declaration Data"
+        },
+        {
+            "fieldname": "declaration_month",
+            "fieldtype": "Select",
+            "label": "Declaration Month",
+            "options": "\nEnero\nFebrero\nMarzo\nAbril\nMayo\nJunio\nJulio\nAgosto\nSeptiembre\nOctubre\nNoviembre\nDiciembre",
+            "reqd": 1,
+            "search_index": 1
+        },
+        {
+            "fieldname": "declaration_year",
+            "fieldtype": "Int",
+            "label": "Declaration Year",
+            "reqd": 1
+        },
+        {
+            "fieldname": "naming_series",
+            "fieldtype": "Autocomplete",
+            "hidden": 1,
+            "label": "Naming Series"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "is_submittable": 1,
+    "links": [],
+    "modified": "2025-11-21 14:32:09.129743",
+    "modified_by": "Administrator",
+    "module": "L10N Ve",
+    "name": "VE Municipality Tax Declaration",
+    "naming_rule": "By \"Naming Series\" field",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "amend": 1,
+            "cancel": 1,
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Accounts Manager",
+            "share": 1,
+            "submit": 1,
+            "write": 1
+        },
+        {
+            "amend": 1,
+            "cancel": 1,
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "submit": 1,
+            "write": 1
+        },
+        {
+            "amend": 1,
+            "cancel": 1,
+            "create": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Accounts User",
+            "share": 1,
+            "submit": 1
+        },
+        {
+            "read": 1,
+            "role": "All"
+        }
+    ],
+    "row_format": "Dynamic",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1
+}

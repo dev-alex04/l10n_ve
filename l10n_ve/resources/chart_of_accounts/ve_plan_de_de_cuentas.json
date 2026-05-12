@@ -1,0 +1,594 @@
+{
+    "country_code": "ve",
+    "name": "Plan de Cuentas Venezuela",
+    "tree": {
+        "ACTIVO": {
+            "root_type": "Asset",
+            "account_number": "1",
+            "ACTIVO CIRCULANTE": {
+                "account_number": "1.1.1",
+                "CAJA MONEDA NACIONAL": {
+                    "account_number": "1.1.1.1",
+                    "CAJA PRINCIPAL": { "account_type": "Cash", "account_number": "1.1.1.1.01" },
+                    "CAJA CHICA BS": { "account_type": "Cash", "account_number": "1.1.1.1.02" },
+                    "CAJA CHICA USD": { "account_type": "Cash", "account_number": "1.1.1.1.03" },
+                    "CAJA ACCIONISTAS": { "account_type": "Cash", "account_number": "1.1.1.1.04" }
+                },
+                "BANCOS": {
+                    "account_number": "1.1.2",
+                    "BANCO NACIONALES":{
+                        "account_number": "1.1.2.1",
+                        "BANCO DE VENEZUELA": { "account_type": "Bank", "account_number": "1.1.2.1.01" },
+                        "BANCO MERCANTIL": { "account_type": "Bank", "account_number": "1.1.2.1.02" },
+                        "BOD": { "account_type": "Bank", "account_number": "1.1.2.1.03" },
+                        "BANCO PLAZA": { "account_type": "Bank", "account_number": "1.1.2.1.04" },
+                        "BANCARIBE": { "account_type": "Bank", "account_number": "1.1.2.1.05" }
+                    },
+                    "BANCOS EN EL EXTERIOR":{
+                        "account_number": "1.1.2.2",
+                        "INTERNATIONAL BANK": { "account_type": "Bank", "account_number": "1.1.2.2.01" }
+                    },
+                    "INVERSIONES EN BONOS":{
+                        "account_number": "1.1.2.3",
+                        "INVERSIONES EN BONOS": { "account_type": "Bank", "account_number": "1.1.2.3.01" }
+                    },
+                    "PLAZOS FIJOS":{
+                        "account_number": "1.1.2.4",
+                        "CERTIFICADOS A PLAZOS FIJOS": { "account_type": "Bank", "account_number": "1.1.2.4.01" }
+                    }
+                },
+                "CUENTAS POR COBRAR": {
+                    "account_number": "1.1.3",
+                    "CUENTAS POR COBRAR COMERCIALES":{
+                        "account_number": "1.1.3.1",
+                        "CUENTAS POR COBRAR COMERCIALES": { "account_type": "Receivable", "account_number": "1.1.3.1.01" }
+                    },
+                    "CUENTAS POR COBRAR EMPLEADOS":{
+                        "account_number": "1.1.3.2",
+                        "PRESTAMO A EMPLEADOS": { "account_type": "Receivable", "account_number": "1.1.3.2.01" }
+                    },
+                    "CUENTAS POR COBRAR COMPAÑIAS RELACIONADAS":{
+                        "account_number": "1.1.3.3",
+                        "CUENTAS POR COBRAR COMPAÑIAS RELACIONADAS": { "account_type": "Receivable", "account_number": "1.1.3.3.01" }
+                    },
+                    "ANTICIPOS OTORGADOS":{
+                        "account_number": "1.1.3.4",
+                        "ANTICIPO A PROVEEDORES NACIONALES": { "account_type": "Receivable", "account_number": "1.1.3.4.01" },
+                        "ANTICIPO A PROVEEDORES EXTERIOR": { "account_type": "Receivable", "account_number": "1.1.3.4.02" },
+                        "ANTICIPO A CONTRATISTAS": { "account_type": "Receivable", "account_number": "1.1.3.4.03" }
+                    },
+                    "CUENTAS POR COBRAR ACCIONISTAS":{
+                        "account_number": "1.1.3.5",
+                        "CUENTAS POR COBRAR ACCIONISTAS": { "account_type": "Receivable", "account_number": "1.1.3.5.01" }
+                    }
+                },
+                "INVENTARIOS": {
+                    "account_number": "1.1.5",
+                    "INVENTARIOS":{
+                        "account_number": "1.1.5.1",
+                        "INVENTARIO DE MERCANCIA": { "account_type": "Stock", "account_number": "1.1.5.1.01" },
+                        "COMPRA DE MERCANCIA EN EL EXTERIOR": { "account_type": "Stock", "account_number": "1.1.5.1.02" },
+                        "COSTO DE NACIONALIZACIÓN DE EQUIPOS": { "account_type": "Stock", "account_number": "1.1.5.1.03" },
+                        "COMPRA DE EQUIPOS NACIONALES": { "account_type": "Stock", "account_number": "1.1.5.1.04" },
+                        "INVENTARIO FINAL DE EQUIPOS": { "account_type": "Stock", "account_number": "1.1.5.1.05" },
+                        "DIFERENCIAL CAMBIARIO": { "account_type": "Stock", "account_number": "1.1.5.1.06" },
+                        "INVENTARIO DE OBRAS EN PROCESO": { "account_type": "Stock", "account_number": "1.1.5.1.07" }
+                    }
+                }
+            },
+            "PREPAGADOS": {
+                "account_number": "1.2",
+                "PREPAGADOS": {
+                    "account_number": "1.2.1",
+                    "IMPUESTOS PREPAGADOS": {
+                        "account_number": "1.2.1.1",
+                        "IVA CREDITO FISCAL": { "account_type": "Tax", "account_number": "1.2.1.1.01" },
+                        "IVA RETENIDO POR TERCEROS": { "account_type": "Tax", "account_number": "1.2.1.1.02" },
+                        "IVA RETENIDO PENDIENTE POR APLICAR": { "account_type": "Tax", "account_number": "1.2.1.1.03" },
+                        "IVA EXCEDENTE DE CREDITOS FISCALES": { "account_type": "Tax", "account_number": "1.2.1.1.04" },
+                        "ISLR RETENIDO POR BANCOS": { "account_type": "Tax", "account_number": "1.2.1.1.05" },
+                        "ISLR RETENIDO POR CLIENTES": { "account_type": "Tax", "account_number": "1.2.1.1.06" },
+                        "ISLR EXCEDENTE DE CREDITOS FISCALES": { "account_type": "Tax", "account_number": "1.2.1.1.07" },
+                        "PATENTE EXCEDENTE DE CREDITOS FISCALES": { "account_type": "Tax", "account_number": "1.2.1.1.08" },
+                        "ISLR ESTIMADA": { "account_type": "Tax", "account_number": "1.2.1.1.09" }
+                    },
+                    "OTROS PREPAGADOS":{
+                        "account_number": "1.2.1.2",
+                        "SEGUROS PAGADOS PORANTICIPADO": { "account_type": "Current Asset", "account_number": "1.2.1.2.01" },
+                        "OTROS PREPAGADOS": { "account_type": "Current Asset", "account_number": "1.2.1.2.02" }
+                    }
+                }
+            },
+            "ACTIVO FIJO": {
+                "account_number": "1.3",
+                "ACTIVO FIJO":{
+                    "account_number": "1.3.1",
+                    "TERRENOS": {
+                        "account_number": "1.3.1.1",
+                        "TERRENOS": { "account_type": "Fixed Asset", "account_number": "1.3.1.1.01" }
+                    },
+                    "INMUEBLES": {
+                        "account_number": "1.3.1.2",
+                        "INMUEBLES": { "account_type": "Fixed Asset", "account_number": "1.3.1.2.01" },
+                        "DEPRECIACION ACUMULADA INMUEBLES": { "account_type": "Accumulated Depreciation", "account_number": "1.3.1.2.02" }
+                    },
+                    "VEHICULOS": {
+                        "account_number": "1.3.1.3",
+                        "VEHICULOS": { "account_type": "Fixed Asset", "account_number": "1.3.1.3.01" },
+                        "DEPRECIACION ACUMULADA VEHICULOS": { "account_type": "Accumulated Depreciation", "account_number": "1.3.1.3.02" }
+                    },
+                    "MUEBLES Y ENSERES": {
+                        "account_number": "1.3.1.4",
+                        "MUEBLES Y ENSERES": { "account_type": "Fixed Asset", "account_number": "1.3.1.4.01" },
+                        "DEPRECIACION ACUMULADA MUEBLES Y ENSERES": { "account_type": "Accumulated Depreciation", "account_number": "1.3.1.4.02" }
+                    },
+                    "MOBILIARIOS Y EQUIPOS": {
+                        "account_number": "1.3.1.5",
+                        "MOBILIARIOS Y EQUIPOS": { "account_type": "Fixed Asset", "account_number": "1.3.1.5.01" },
+                        "DEPRECIACION ACUMULADA MOBILIARIOS Y EQUIPOS": { "account_type": "Accumulated Depreciation", "account_number": "1.3.1.5.02" }
+                    },
+                    "EQUIPOS DE COMPUTACION": {
+                        "account_number": "1.3.1.6",
+                        "EQUIPOS DE COMPUTACION": { "account_type": "Fixed Asset", "account_number": "1.3.1.6.01" },
+                        "DEPRECIACION ACUMULADA EQUIPOS DE COMPUTACION": { "account_type": "Accumulated Depreciation", "account_number": "1.3.1.6.02" }
+                    },
+                    "LICENCIAS Y SOFTWARE": {
+                        "account_number": "1.3.1.7",
+                        "LICENCIAS Y SOFTWARE": { "account_type": "Fixed Asset", "account_number": "1.3.1.7.01" },
+                        "DEPRECIACION ACUMULADA LICENCIAS Y SOFTWARE": { "account_type": "Accumulated Depreciation", "account_number": "1.3.1.7.02" }
+                    },
+                    "MEJORAS A PROPIEDAD ARRENDADA": {
+                        "account_number": "1.3.1.8",
+                        "MEJORAS A PROPIEDAD ARRENDADA": { "account_type": "Fixed Asset", "account_number": "1.3.1.8.01" },
+                        "DEPRECIACION ACUMULADA MEJORAS A PROPIEDAD ARRENDADA": { "account_type": "Accumulated Depreciation", "account_number": "1.3.1.8.02" }
+                    },
+                    "EQUIPOS PARA CONSTRUCCION": {
+                        "account_number": "1.3.1.9",
+                        "EQUIPOS PARA CONSTRUCCION": { "account_type": "Fixed Asset", "account_number": "1.3.1.9.01" },
+                        "DEPRECIACION ACUMULADA EQUIPOS PARA CONSTRUCCION": { "account_type": "Accumulated Depreciation", "account_number": "1.3.1.9.02" },
+                        "OBRAS EN PROCESO": { "account_type": "Capital Work in Progress", "account_number": "1.3.1.9.03" }
+                    }
+                }
+            },
+            "INTANGIBLES": {
+                "account_number": "1.4",
+                "INTANGIBLES":{
+                    "account_number": "1.4.1",
+                    "INTANGIBLES":{
+                        "account_number": "1.4.1.1",
+                        "GASTOS ETAPA PREOPERATIVA": { "account_type": "Fixed Asset", "account_number": "1.4.1.1.01" }
+                    }
+                }
+            },
+            "DEPOSITOS EN GARANTÍA": {
+                "account_number": "1.5",
+                "DEPOSITOS EN GARANTÍA":{
+                    "account_number": "1.5.1",
+                    "DEPOSITOS EN GARANTÍA":{
+                        "account_number": "1.5.1.1",
+                        "DEPOSITOS EN GARANTÍA": { "account_type": "Current Asset", "account_number": "1.5.1.1.01" }
+                    }
+                }
+            },
+            "CUENTA DE ORDEN ACTIVA": {
+                "account_number": "1.6",
+                "CUENTA DE ORDEN ACTIVA":{
+                    "account_number": "1.6.1",
+                    "CUENTA DE ORDEN ACTIVA":{
+                        "account_number": "1.6.1.1",
+                        "CUENTA DE ORDEN ACTIVA": { "account_type": "Temporary", "account_number": "1.6.1.1.01" }
+                    }
+                }
+            }
+        },
+        "PASIVO": {
+            "root_type": "Liability",
+            "account_number": "2",
+            "PASIVO CIRCULANTE": {
+                "account_number": "2.1",
+                "OBLIGACIONES BANCARIAS": {
+                    "account_number": "2.1.1",
+                    "FINANCIAMIENTOS BANCARIOS (CREDITOS O PAGARES)":{
+                        "account_number": "2.1.1.1",
+                        "PAGARE BANCO NACIONAL DE CREDITO": { "account_type": "Payable", "account_number": "2.1.1.1.01" }
+                    },
+                    "TARJETAS DE CREDITO CORPORATIVAS":{
+                        "account_number": "2.1.1.2",
+                        "TARJETAS DE CREDITO CORPORATIVAS": { "account_type": "Payable", "account_number": "2.1.1.2.01" }
+                    }
+                },
+                "CUENTAS POR PAGAR": {
+                    "account_number": "2.1.2",
+                    "CUENTAS POR PAGAR":{
+                        "account_number": "2.1.2.1",
+                        "CUENTAS POR PAGAR COMERCIALES": { "account_type": "Payable", "account_number": "2.1.2.1.01" },
+                        "CUENTAS POR PAGAR EMPLEADOS": { "account_type": "Payable", "account_number": "2.1.2.1.02" },
+                        "CUENTAS POR PAGAR COMPAÑÍAS RELACIONADAS": { "account_type": "Payable", "account_number": "2.1.2.1.03" },
+                        "CUENTAS POR PAGAR PROVEEDORES EXTERIOR": { "account_type": "Payable", "account_number": "2.1.2.1.04" },
+                        "CUENTAS POR PAGAR CONTRATISTAS": { "account_type": "Payable", "account_number": "2.1.2.1.05" },
+                        "CUENTAS POR PAGAR SUBCONTRATISTAS INTERNOS": { "account_type": "Payable", "account_number": "2.1.2.1.06" },
+                        "CUENTAS POR PAGAR SUBCONTRATISTAS EXTERNOS": { "account_type": "Payable", "account_number": "2.1.2.1.07" },
+                        "GASTOS ACUMULADOS POR PAGAR": { "account_type": "Payable", "account_number": "2.1.2.1.08" },
+                        "ANTICIPOS DE CLIENTES": { "account_type": "Payable", "account_number": "2.1.2.1.09" },
+                        "OTRAS CUENTAS POR PAGAR": { "account_type": "Payable", "account_number": "2.1.2.1.1" }
+                    },
+                    "RETENCIONES DE NÓMINA":{
+                        "account_number": "2.1.2.2",
+                        "S.S.O. RETENIDO A EMPLEADOS": { "account_type": "Payable", "account_number": "2.1.2.2.01" },
+                        "LPH RETENIDO A EMPLEADOS": { "account_type": "Payable", "account_number": "2.1.2.2.02" },
+                        "INCES RETENIDO A EMPLEADOS": { "account_type": "Payable", "account_number": "2.1.2.2.03" },
+                        "ISLR RETENIDO A EMPLEADOS": { "account_type": "Payable", "account_number": "2.1.2.2.04" },
+                        "CUOTA SINDICAL RETENIDA A EMPLEADOS": { "account_type": "Payable", "account_number": "2.1.2.2.05" },
+                        "IGTF POR ENTERAR": { "account_type": "Tax", "account_number": "2.1.2.2.06" }
+                    },
+                    "CONTRIBUCIONES SOCIALES POR PAGAR":{
+                        "account_number": "2.1.2.3",
+                        "SSO POR PAGAR": { "account_type": "Payable", "account_number": "2.1.2.3.01" },
+                        "LPH POR PAGAR": { "account_type": "Payable", "account_number": "2.1.2.3.02" },
+                        "INCES POR PAGAR": { "account_type": "Payable", "account_number": "2.1.2.3.03" }
+                    },
+                    "IMPUESTOS POR PAGAR":{
+                        "account_number": "2.1.2.4",
+                        "IVA DEBITO FISCAL": { "account_type": "Tax", "account_number": "2.1.2.4.01" },
+                        "IVA POR PAGAR": { "account_type": "Tax", "account_number": "2.1.2.4.03" },
+                        "IVA RETENCIONES A PROVEEDORES": { "account_type": "Tax", "account_number": "2.1.2.4.04" },
+                        "ISLR POR PAGAR": { "account_type": "Tax", "account_number": "2.1.2.4.05" },
+                        "ISLR RETENCIONES A PROVEEDORES": { "account_type": "Tax", "account_number": "2.1.2.4.06" },
+                        "PATENTE POR PAGAR": { "account_type": "Tax", "account_number": "2.1.2.4.07" },
+                        "DERECHO DEFRENTE POR PAGAR": { "account_type": "Tax", "account_number": "2.1.2.4.08" },
+                        "OTROS IMPUESTOS POR PAGAR": { "account_type": "Tax", "account_number": "2.1.2.4.09" }
+                    }
+                }
+            },
+            "PASIVO LARGO PLAZO": {
+                "account_number": "2.2",
+                "PASIVO LARGO PLAZO":{
+                    "account_number": "2.2.1",
+                    "CUENTAS POR PAGAR ACCIONISTAS":{
+                        "account_number": "2.2.1.1",
+                        "CUENTAS POR PAGAR ACCIONISTAS": { "account_type": "Payable", "account_number": "2.2.1.1.01" }
+                    },
+                    "PASIVOS LABORALES":{
+                        "account_number": "2.2.1.2",
+                        "PRESTACIONES SOCIALES": { "account_type": "Payable", "account_number": "2.2.1.2.01" },
+                        "ANTICIPO PRESTACIONES SOCIALES": { "account_type": "Payable", "account_number": "2.2.1.2.02" },
+                        "INTERESES PRESTACIONES SOCIALES": { "account_type": "Payable", "account_number": "2.2.1.2.03" }
+                    }
+                }
+            },
+            "CUENTA DE ORDEN PASIVA":{
+                "account_number": "2.6.1",
+                "CUENTA DE ORDEN PASIVA":{
+                    "account_number": "2.6.1.1",
+                    "CUENTA DE ORDEN PASIVA":{ "account_type": "Temporary", "account_number": "2.6.1.1.01" }
+                }
+            }
+        },
+        "PATRIMONIO": {
+            "root_type": "Equity",
+            "account_number": "3",
+            "PATRIMONIO": {
+                "account_number": "3.1",
+                "CAPITAL SOCIAL": {
+                    "account_number": "3.1.1",
+                    "CAPITAL SOCIAL":{
+                        "account_number": "3.1.1.1",
+                        "CAPITAL SOCIAL SUSCRITO": { "account_type": "Equity", "account_number": "3.1.1.1.01" },
+                        "CAPITAL SOCIAL SUSCRITO Y NO PAGADO": { "account_type": "Equity", "account_number": "3.1.1.1.02" }
+                    },
+                    "RESERVAS":{
+                        "account_number": "3.1.1.2",
+                        "RESERVA LEGAL": { "account_type": "Equity", "account_number": "3.1.1.2.01" },
+                        "OTRAS RESERVAS": { "account_type": "Equity", "account_number": "3.1.1.2.02" }
+                    },
+                    "UTILIDADES NO DISTRIBUIDAS":{
+                        "account_number": "3.1.1.3",
+                        "RESULTADO ACUMULADO": { "account_type": "Equity", "account_number": "3.1.1.3.01" },
+                        "RESULTADOS DEL EJERCICIO": { "account_type": "Equity", "account_number": "3.1.1.3.02" }
+                    }
+                }
+            }
+        },
+        "INGRESOS": {
+            "root_type": "Income",
+            "account_number": "4",
+            "INGRESOS": {
+                "account_number": "4.1",
+                "INGRESOS": {
+                    "account_number": "4.1.1",
+                    "INGRESOS POR VENTAS":{
+                        "account_number": "4.1.1.1",
+                        "INGRESOS POR VENTAS": { "account_type": "Income Account", "account_number": "4.1.1.1.01" },
+                        "INGRESOS POR SERVICIOS": { "account_type": "Income Account", "account_number": "4.1.1.1.02" }
+                    }
+                },
+                "OTROS INGRESOS":{
+                    "account_number": "4.1.2",
+                    "INGRESOS FINANCIEROS":{
+                        "account_number": "4.1.2.1",
+                        "INTERESES BANCARIOS": { "account_type": "Direct Income", "account_number": "4.1.2.1.01" },
+                        "INTERESES BANCARIOS EXTERIOR": { "account_type": "Direct Income", "account_number": "4.1.2.1.02" },
+                        "INTERESES SOBRE PLAZO FIJO": { "account_type": "Direct Income", "account_number": "4.1.2.1.03" },
+                        "INGRESO POR DIFERENCIAL CAMBIARIO": { "account_type": "Direct Income", "account_number": "4.1.2.1.04" }
+                    },
+                    "OTROS INGRESOS":{
+                        "account_number": "4.1.2.2",
+                        "OTROS INGRESOS": { "account_type": "Direct Income", "account_number": "4.1.2.2.01" }
+                    }
+                }
+            }
+        },
+        "COSTOS": {
+            "root_type": "Expense",
+            "account_number": "5",
+            "COSTO DE VENTAS": {
+                "account_number": "5.1",
+                "COSTO DE VENTAS": {
+                    "account_number": "5.1.1",
+                    "COSTO DE VENTAS":{
+                        "account_number": "5.1.1.1",
+                        "COSTO DE VENTAS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.1.1.01" },
+                        "COMPRA MATERIALES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.1.1.02" },
+                        "COMPRA DE MERCANCIA": { "account_type": "Cost of Goods Sold", "account_number": "5.1.1.1.03" }
+                    },
+                    "TRANSPORTE DE MATERIALES/FLETE":{
+                        "account_number": "5.1.1.2",
+                        "TRANSPORTE/FLETE": { "account_type": "Cost of Goods Sold", "account_number": "5.1.1.2.01" }
+                    }
+                },
+                "COSTO DE OBRA": {
+                    "account_number": "5.1.2",
+                    "ALQUILERES DE EQUIPOS PARA LA CONSTRUCCION":{
+                        "account_number": "5.1.2.1",
+                        "ALQUILER DE EQUIPOS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.2.1.01" }
+                    },
+                    "COMPRA DE EQUIPOS":{
+                        "account_number": "5.1.2.2",
+                        "COMPRA DE EQUIPOS NACIONALES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.2.2.01" },
+                        "COMPRA DE EQUIPOS EXTERIOR": { "account_type": "Cost of Goods Sold", "account_number": "5.1.2.2.02" },
+                        "COSTO DE NACIONALIZACION EQUIPO COMPRADOS EXTERIOR": { "account_type": "Cost of Goods Sold", "account_number": "5.1.2.2.03" },
+                        "TRANSPORTE/FLETE DE EQUIPO COMPRADO": { "account_type": "Cost of Goods Sold", "account_number": "5.1.2.2.04" }
+                    },
+                    "MANTENIMIENTO DE EQUIPO":{
+                        "account_number": "5.1.2.30",
+                        "MANTENIMIENTO DE EQUIPO": { "account_type": "Cost of Goods Sold", "account_number": "5.1.2.30.01" }
+                    }
+                },
+                "MANODEOBRA": {
+                    "account_number": "5.1.3",
+                    "MANO DE OBRA DIRECTA (OBREROS)":{
+                        "account_number": "5.1.3.1",
+                        "NOMINA SEMANAL": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.01" },
+                        "BONO ALIMENTICIO": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.02" },
+                        "UTILIDADES Y VACACIONES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.03" },
+                        "LIQUIDACIONES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.04" },
+                        "PRESTACIONES SOCIALES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.05" },
+                        "SEGURO POLIZA/SERVICIO FUNERARIO": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.06" },
+                        "UTILES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.07" },
+                        "GASTOS MEDICOS, EXAMENES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.08" },
+                        "GASTOS ABOGADOS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.09" },
+                        "PRESTAMOS A OBREROS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.1" },
+                        "PAGO CUOTA SINDICAL": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.11" },
+                        "BANAVIH Y IVSS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.12" },
+                        "UNIFORME Y EQUIPO DEPROTECCION": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.1.13" }
+                    },
+                    "MANO DE OBRA INDIRECTA CONTRATISTAS":{
+                        "account_number": "5.1.3.2",
+                        "NOMINA SEMANAL": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.01" },
+                        "BONO ALIMENTICIO": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.02" },
+                        "UTILIDADES Y VACACIONES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.03" },
+                        "LIQUIDACIONES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.04" },
+                        "PRESTACIONES SOCIALES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.05" },
+                        "SEGURO POLIZA/SERVICIO FUNERARIO": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.06" },
+                        "UTILES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.07" },
+                        "GASTOS MEDICOS,EXAMENES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.08" },
+                        "GASTOS ABOGADOS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.09" },
+                        "PAGO CUOTA SINDICAL": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.11" },
+                        "UNIFORME Y EQUIPO DE PROTECCION": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.4.13" },
+                        "OBRAS PRELIMINARES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.01" },
+                        "MOVIMIENTO DE TIERRA": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.02" },
+                        "ESTRUCTURAS CONCRETO INFRAESTRUCTURA": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.03" },
+                        "ESTRUCTURAS CONCRETOS SUPER ESTRUCTURA": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.04" },
+                        "ENCOFRADOS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.05" },
+                        "ESTRUCTURA METALICA": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.06" },
+                        "ALBAÑILERIA, TABIQUERIA, TECHOS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.07" },
+                        "REVESTIMIENTOS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.08" },
+                        "HERRERRIA, LATONERIA": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.09" },
+                        "CARPINTERIA": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.1" },
+                        "VIDRIOS, VENTANERIAS DE ALUMINIO": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.11" },
+                        "CERRAJERIA": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.12" },
+                        "INSTALACIONES ELECTRICAS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.13" },
+                        "INSTALACIONES DE SEGURIDAD Y COMUNICACIONES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.14" },
+                        "INSTALACIONES SANITARIAS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.15" },
+                        "INSTALACIONES MECANICAS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.16" },
+                        "PINTURAS": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.17" },
+                        "IMPERMEABILIZACION Y AISLAMIENTO": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.18" },
+                        "OBRASEXTERIORES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.19" },
+                        "OBRAS FINALES": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.2.2" }
+                    },
+                    "EMPRESAS CONTRATISTAS":{
+                        "account_number": "5.1.3.5",
+                        "CAMION CISTERNA AGUA": { "account_type": "Cost of Goods Sold", "account_number": "5.1.3.5.02" }
+                    }
+                }
+            }
+        },
+        "GASTOS": {
+            "root_type": "Expense",
+            "account_number": "6",
+            "GASTOS": {
+                "account_number": "6.1",
+                "NÓMINA": {
+                    "account_number": "6.1.1",
+                    "NÓMINA PERSONAL OBRERO":{
+                        "account_number": "6.1.1.1",
+                        "SUELDOS Y SALARIOS": { "account_type": "Expense Account", "account_number": "6.1.1.1.01" },
+                        "COMISIONES Y BONIFICACIONES": { "account_type": "Expense Account", "account_number": "6.1.1.1.02" },
+                        "VACACIONES": { "account_type": "Expense Account", "account_number": "6.1.1.1.03" },
+                        "UTILIDADES": { "account_type": "Expense Account", "account_number": "6.1.1.1.04" },
+                        "PRESTACIONES SOCIALES": { "account_type": "Expense Account", "account_number": "6.1.1.1.05" },
+                        "INTERESES SOBRE PRESTACIONES SOCIALES": { "account_type": "Expense Account", "account_number": "6.1.1.1.06" },
+                        "CESTATICKETS": { "account_type": "Expense Account", "account_number": "6.1.1.1.07" },
+                        "UNIFORMES": { "account_type": "Expense Account", "account_number": "6.1.1.1.08" },
+                        "EXAMEN PREEMPLEO/GASTOS DE RECLUTAMIENTO": { "account_type": "Expense Account", "account_number": "6.1.1.1.09" },
+                        "ENTRENAMIENTOS": { "account_type": "Expense Account", "account_number": "6.1.1.1.1" },
+                        "OTRAS ASIGNACIONES DEL PERSONAL": { "account_type": "Expense Account", "account_number": "6.1.1.1.11" }
+                    },
+                    "NÓMINA PERSONAL ADMINISTRATIVO":{
+                        "account_number": "6.1.1.2",
+                        "SUELDOS Y SALARIOS": { "account_type": "Expense Account", "account_number": "6.1.1.2.01" },
+                        "COMISIONES Y BONIFICACIONES": { "account_type": "Expense Account", "account_number": "6.1.1.2.02" },
+                        "VACACIONES": { "account_type": "Expense Account", "account_number": "6.1.1.2.03" },
+                        "UTILIDADES": { "account_type": "Expense Account", "account_number": "6.1.1.2.04" },
+                        "PRESTACIONES SOCIALES": { "account_type": "Expense Account", "account_number": "6.1.1.2.05" },
+                        "INTERESES SOBREPRESTACIONES SOCIALES": { "account_type": "Expense Account", "account_number": "6.1.1.2.06" },
+                        "CESTATICKETS": { "account_type": "Expense Account", "account_number": "6.1.1.2.07" },
+                        "UNIFORMES": { "account_type": "Expense Account", "account_number": "6.1.1.2.08" },
+                        "EXAMEN PREEMPLEO/GASTOS DERECLUTAMIENTO": { "account_type": "Expense Account", "account_number": "6.1.1.2.09" },
+                        "ENTRENAMIENTOS": { "account_type": "Expense Account", "account_number": "6.1.1.2.1" },
+                        "OTRAS ASIGNACIONES DEL PERSONAL": { "account_type": "Expense Account", "account_number": "6.1.1.2.11" }
+                    },
+                    "NÓMINA DIRECTORES":{
+                        "account_number": "6.1.1.3",
+                        "SUELDOS Y SALARIOS": { "account_type": "Expense Account", "account_number": "6.1.1.3.01" },
+                        "BONIFICACIONES": { "account_type": "Expense Account", "account_number": "6.1.1.3.02" },
+                        "PRESTACIONES SOCIALES": { "account_type": "Expense Account", "account_number": "6.1.1.3.03" },
+                        "INTERESES SOBREPRESTACIONES SOCIALES": { "account_type": "Expense Account", "account_number": "6.1.1.3.04" }
+                    },
+                    "CONTRIBUCIONES SOCIALES":{
+                        "account_number": "6.1.1.4",
+                        "SSO": { "account_type": "Expense Account", "account_number": "6.1.1.4.01" },
+                        "LPH": { "account_type": "Expense Account", "account_number": "6.1.1.4.02" },
+                        "INCES": { "account_type": "Expense Account", "account_number": "6.1.1.4.03" }
+                    }
+                },
+                "GASTOS OPERATIVOS": {
+                    "account_number": "6.1.2",
+                    "GASTOS OPERATIVOS":{
+                        "account_number": "6.1.2.1",
+                        "GASTOS OPERATIVOS": { "account_type": "Expense Account", "account_number": "6.1.2.1.01" },
+                        "ALQUILERES": { "account_type": "Expense Account", "account_number": "6.1.2.1.02" },
+                        "CONDOMINIOS": { "account_type": "Expense Account", "account_number": "6.1.2.1.03" },
+                        "SERVICIOS BÁSICOS": { "account_type": "Expense Account", "account_number": "6.1.2.1.04" },
+                        "ARTÍCULOS Y GASTOS DE LIMPIEZA": { "account_type": "Expense Account", "account_number": "6.1.2.1.05" }
+                    },
+                    "HONORARIOS PROFESIONALES":{
+                        "account_number": "6.1.2.2",
+                        "HONORARIOS CONTADORES": { "account_type": "Expense Account", "account_number": "6.1.2.2.01" },
+                        "HONORARIOS GESTORES": { "account_type": "Expense Account", "account_number": "6.1.2.2.02" },
+                        "HONORARIOS ABOGADOS": { "account_type": "Expense Account", "account_number": "6.1.2.2.03" },
+                        "SOPORTE TÉCNICO": { "account_type": "Expense Account", "account_number": "6.1.2.2.04" },
+                        "OTROS HONORARIOS": { "account_type": "Expense Account", "account_number": "6.1.2.2.05" },
+                        "HONORARIOS POR VALUCIONES": { "account_type": "Expense Account", "account_number": "6.1.2.2.06" }
+                    },
+                    "PUBLICIDAD Y MERCADEO":{
+                        "account_number": "6.1.2.3",
+                        "PUBLICIDAD EN MEDIOS AUDIOVISUALES": { "account_type": "Expense Account", "account_number": "6.1.2.3.01" },
+                        "GASTOS DE MERCADEO": { "account_type": "Expense Account", "account_number": "6.1.2.3.02" },
+                        "RELACIONES PÚBLICAS": { "account_type": "Expense Account", "account_number": "6.1.2.3.03" },
+                        "GASTOS DE REPRESENTACIÓN": { "account_type": "Expense Account", "account_number": "6.1.2.3.04" },
+                        "OTROS GASTOS DE PUBLICIDAD Y MERCADEO": { "account_type": "Expense Account", "account_number": "6.1.2.3.05" }
+                    }
+                },
+                "GASTOS ADMINISTRATIVOS": {
+                    "account_number": "6.1.3",
+                    "GASTOS ADMINISTRATIVOS":{
+                        "account_number": "6.1.3.1",
+                        "ARTÍCULOS DE OFICINA": { "account_type": "Expense Account", "account_number": "6.1.3.1.01" },
+                        "SERVICIOS BÁSICOS": { "account_type": "Expense Account", "account_number": "6.1.3.1.02" },
+                        "ARTÍCULOS Y GASTOS DE LIMPIEZA": { "account_type": "Expense Account", "account_number": "6.1.3.1.03" },
+                        "TRÁMITES LEGALES": { "account_type": "Expense Account", "account_number": "6.1.3.1.04" },
+                        "MANTENIMIENTO Y REPARACIONES DE LAS INSTALACIONES": { "account_type": "Expense Account", "account_number": "6.1.3.1.05" },
+                        "ENVÍOS Y ENCOMIENDAS": { "account_type": "Expense Account", "account_number": "6.1.3.1.06" },
+                        "ESTACIONAMIENTOS": { "account_type": "Expense Account", "account_number": "6.1.3.1.07" },
+                        "PÓLIZAS DE SEGURO": { "account_type": "Expense Account", "account_number": "6.1.3.1.08" },
+                        "OTROS GASTOS": { "account_type": "Expense Account", "account_number": "6.1.3.1.09" }
+                    }
+                },
+                "GASTOS DE VIAJES": {
+                    "account_number": "6.1.4",
+                    "GASTOS DE VIAJES":{
+                        "account_number": "6.1.4.1",
+                        "BOLETOS NACIONALES": { "account_type": "Expense Account", "account_number": "6.1.4.1.01" },
+                        "BOLETOS INTERNACIONALES": { "account_type": "Expense Account", "account_number": "6.1.4.1.02" },
+                        "VIÁTICOS NACIONALES": { "account_type": "Expense Account", "account_number": "6.1.4.1.03" },
+                        "VIÁTICOS INTERNACIONALES": { "account_type": "Expense Account", "account_number": "6.1.4.1.04" },
+                        "HOSPEDAJE NACIONAL": { "account_type": "Expense Account", "account_number": "6.1.4.1.05" },
+                        "HOSPEDAJE INTERNACIONAL": { "account_type": "Expense Account", "account_number": "6.1.4.1.06" }
+                    }
+                },
+                "GASTO DE DEPRECIACIÓN Y AMORTIZACIONES": {
+                    "account_number": "6.1.5",
+                    "GASTO DE DEPRECIACIÓN Y AMORTIZACIONES":{
+                        "account_number": "6.1.5.1",
+                        "GASTO DE DEPRECIACIÓN MOBILIARIO Y EQUIPOS": { "account_type": "Depreciation", "account_number": "6.1.5.1.01" },
+                        "GASTO DE AMOTIZACION": { "account_type": "Depreciation", "account_number": "6.1.5.1.02" }
+                    }
+                },
+                "GASTOS O INGRESOS FINANCIEROS": {
+                    "account_number": "6.1.6",
+                    "GASTOS BANCARIOS":{
+                        "account_number": "6.1.6.1",
+                        "COMISIONES BANCARIAS": { "account_type": "Expense Account", "account_number": "6.1.6.1.01" },
+                        "INTERESES FINANCIAMIENTOS": { "account_type": "Expense Account", "account_number": "6.1.6.1.02" }
+                    },
+                    "INGRESO POR INTERESES":{
+                        "account_number": "6.1.6.2",
+                        "INGRESO POR INTERESES": { "account_type": "Direct Income", "account_number": "6.1.6.2.01" },
+                        "INGRESO POR COLOCACIONES": { "account_type": "Direct Income", "account_number": "6.1.6.2.02" }
+                    }
+                },
+                "OTROS EGRESOS": {
+                    "account_number": "6.1.7",
+                    "OTROS EGRESOS":{
+                        "account_number": "6.1.7.1",
+                        "DONACIONES": { "account_type": "Expense Account", "account_number": "6.1.7.1.01" },
+                        "MULTAS Y REPAROS": { "account_type": "Expense Account", "account_number": "6.1.7.1.02" },
+                        "PÉRDIDA ENVENTA DE CRÉDITOSFISCALES": { "account_type": "Expense Account", "account_number": "6.1.7.1.03" },
+                        "IGTF GASTOS": { "account_type": "Tax", "account_number": "6.1.7.1.04" }
+                    }
+                },
+                "OTROS INGRESOS": {
+                    "account_number": "6.1.8",
+                    "OTROS INGRESOS":{
+                        "account_number": "6.1.8.1",
+                        "GANANCIA EN COMPRA DE CRÉDITOSFISCALES": { "account_type": "Direct Income", "account_number": "6.1.8.1.01" },
+                        "GANANCIA EN VENTA DE ACTIVO FIJO": { "account_type": "Direct Income", "account_number": "6.1.8.1.02" }
+                    }
+                },
+                "IMPUESTOS": {
+                    "account_number": "6.1.9",
+                    "IMPUESTOS":{
+                        "account_number": "6.1.9.1",
+                        "IMPUESTO SOBRE LA RENTA": { "account_type": "Tax", "account_number": "6.1.9.1.01" },
+                        "PATENTE DE INDUSTRIA Y COMERCIO": { "account_type": "Tax", "account_number": "6.1.9.1.02" },
+                        "TRANSFERENCIAS ENTRE CUENTAS": { "account_type": "Temporary", "account_number": "6.1.9.1.1" }
+                    }
+                }
+            }
+        },
+        "CUENTAS DE ORDEN": {
+            "root_type": "Expense",
+            "account_number": "8",
+            "CUENTAS DE ORDEN DEUDORAS": {
+                "account_number": "8.1",
+                "CUENTAS DE ORDEN POR CONTRA": {
+                    "account_number": "8.1.3",
+                    "GARANTIA DE TÍTULOS VALORES": {
+                        "account_number": "8.1.3.1"
+                    },
+                    "GARANTÍAS HIPOTECARIAS": {
+                        "account_number": "8.1.3.2"
+                    },
+                    "DIFERENCIAL CAMBIARIO": {
+                        "account_number": "8.1.3.3",
+                        "PERDIDA CAMBIARIA": {
+                            "account_type": "Expense Account",
+                            "account_number": "8.1.3.3.01"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

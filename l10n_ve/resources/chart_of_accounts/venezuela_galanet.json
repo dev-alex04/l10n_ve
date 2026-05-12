@@ -1,0 +1,2109 @@
+{
+    "country_code": "ve",
+    "name": "Plan de Cuentas Galanet",
+    "tree": {
+        "ACTIVO": {
+            "account_number": "1",
+            "root_type": "Asset",
+            "ACTIVOS CORRIENTES": {
+                "account_number": "1.1",
+                "CAJAS": {
+                    "account_number": "1.1.01",
+                    "Caja Tesorería": {
+                        "account_number": "1.1.01.1",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Caja Tesorería Dolares": {
+                        "account_number": "1.1.01.11",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Caja Anzoategui": {
+                        "account_number": "1.1.01.2",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Caja Maracay": {
+                        "account_number": "1.1.01.3",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Caja Puente": {
+                        "account_number": "1.1.01.4",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    }
+                },
+                "BANCOS": {
+                    "account_number": "1.1.02",
+                    "Bancamiga Moneda Nacional  Cte 7654": {
+                        "account_number": "1.1.02.1",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1719 Suc. Cumaná Sucre": {
+                        "account_number": "1.1.02.10",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1735 Suc. Margarita Nva Esparta": {
+                        "account_number": "1.1.02.11",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1768 Suc. Colonia Tovar": {
+                        "account_number": "1.1.02.12",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1792 Suc. Barquisimeto Lara": {
+                        "account_number": "1.1.02.13",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1818 Suc. Maturín Monagas": {
+                        "account_number": "1.1.02.14",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1834 Suc. Valera Trujillo": {
+                        "account_number": "1.1.02.15",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1677 Suc. Maracay": {
+                        "account_number": "1.1.02.16",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Banco Venezolano de Crédito Cte 1413": {
+                        "account_number": "1.1.02.17",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Banco Mercantil Cte 0185": {
+                        "account_number": "1.1.02.18",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga HQ Cte 2113": {
+                        "account_number": "1.1.02.19",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Banco de Venezuela Cte. 1347": {
+                        "account_number": "1.1.02.2",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Cte 0252 Suc. Bolívar": {
+                        "account_number": "1.1.02.20",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Cte 0245 Suc. Margarita Nva Esparta": {
+                        "account_number": "1.1.02.21",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 7146 Suc Trujillo": {
+                        "account_number": "1.1.02.22",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Traslados Entre Cuentas": {
+                        "account_number": "1.1.02.220",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Mercantil HQ Bs Cte 9678": {
+                        "account_number": "1.1.02.23",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "R4 Banco Microfinanciero Tecno Forza": {
+                        "account_number": "1.1.02.24",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "R4 Banco Microfinanciero Caracas 0684": {
+                        "account_number": "1.1.02.25",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe 1120": {
+                        "account_number": "1.1.02.26",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Colonia Tovar 2127": {
+                        "account_number": "1.1.02.27",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "R4 Banco Microfinanciero HQ 3427": {
+                        "account_number": "1.1.02.28",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Mercantil Caracas 9724": {
+                        "account_number": "1.1.02.29",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Banco Exterior Cte 7712": {
+                        "account_number": "1.1.02.3",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Banco Microfonanciero R4 Bs. Cte. 0692": {
+                        "account_number": "1.1.02.30",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 0703": {
+                        "account_number": "1.1.02.32",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 0745": {
+                        "account_number": "1.1.02.33",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 0752": {
+                        "account_number": "1.1.02.34",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 3415": {
+                        "account_number": "1.1.02.35",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 3407": {
+                        "account_number": "1.1.02.36",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Bs. HQ 2240": {
+                        "account_number": "1.1.02.38",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Bs. Freenetwork Bqto. Oeste LAR-04 2259": {
+                        "account_number": "1.1.02.39",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Banco Plaza Cte 6920": {
+                        "account_number": "1.1.02.4",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Bs. Tecno Forza DC-02 2232": {
+                        "account_number": "1.1.02.40",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Bs. Pronet FastNetwork DC-03 2313": {
+                        "account_number": "1.1.02.41",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Bs. LAR-01 2224": {
+                        "account_number": "1.1.02.42",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Bs. Red Soporte Bqto Oeste LAR-05 2267": {
+                        "account_number": "1.1.02.43",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Bs. Pronet FastNetwork (Carora Lara/Carache) LAR-06 2275": {
+                        "account_number": "1.1.02.44",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Bs. Pronet FastNetwork (Carora Lara/ Carache) LAR-07 / LAR-08 2283": {
+                        "account_number": "1.1.02.45",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancaribe Bs. App Net El Tocuyo LAR-09 2305": {
+                        "account_number": "1.1.02.46",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 2393 Guarenas": {
+                        "account_number": "1.1.02.47",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 2720 El Tocuyo": {
+                        "account_number": "1.1.02.48",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 4495 Optitech Maracay": {
+                        "account_number": "1.1.02.49",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 6315 Supplytel Maracay": {
+                        "account_number": "1.1.02.50",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 9353 Ocumare": {
+                        "account_number": "1.1.02.51",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Mercantil Bs Cte 9694 Barquisimeto": {
+                        "account_number": "1.1.02.52",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Banco Plaza Cash Cte 2639 Caracas": {
+                        "account_number": "1.1.02.54",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Bs. administracion 0691": {
+                        "account_number": "1.1.02.55",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Mercantil Administracion 9910": {
+                        "account_number": "1.1.02.56",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1644 Suc. San Antonio": {
+                        "account_number": "1.1.02.6",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1651 Suc. Trujillo": {
+                        "account_number": "1.1.02.7",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1685 Suc. Anzoategui": {
+                        "account_number": "1.1.02.8",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    },
+                    "Bancamiga Bs Cte 1701 Suc. Los teques": {
+                        "account_number": "1.1.02.9",
+                        "account_type": "Bank",
+                        "account_currency": "VEF"
+                    }
+                },
+                "BANCOS MONEDA EXTRANJERA": {
+                    "account_number": "1.1.03",
+                    "Bancamiga Internacional Cash Cte 6357": {
+                        "account_number": "1.1.03.1",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7604 Suc. Barquisimeto Lara": {
+                        "account_number": "1.1.03.10",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7612 Suc. Maturín Monagas": {
+                        "account_number": "1.1.03.11",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7638 Suc. Valera Trujillo": {
+                        "account_number": "1.1.03.12",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7471 Suc. UTP Service Maracay": {
+                        "account_number": "1.1.03.13",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Banesco Panamá USD Cte 4146": {
+                        "account_number": "1.1.03.14",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Mercantil Caracas Cash 7532": {
+                        "account_number": "1.1.03.15",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga  Cash Cte 6646": {
+                        "account_number": "1.1.03.16",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancaribe Cash DC-01 6647": {
+                        "account_number": "1.1.03.17",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Bs Cte 3805 Euro": {
+                        "account_number": "1.1.03.18",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Internaiconal  USD Cte. 7847": {
+                        "account_number": "1.1.03.2",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7455 Suc. San Antonio": {
+                        "account_number": "1.1.03.3",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7463 Suc. Guarenas Guatire": {
+                        "account_number": "1.1.03.4",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7489 Suc. Anzoategui": {
+                        "account_number": "1.1.03.5",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7505 Suc. Los Teques": {
+                        "account_number": "1.1.03.6",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7521 Suc. Cumaná Sucre": {
+                        "account_number": "1.1.03.7",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7547 Suc. Margarita Nva Esparta": {
+                        "account_number": "1.1.03.8",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    },
+                    "Bancamiga Cash Cte 7562 Suc. Colonia Tovar": {
+                        "account_number": "1.1.03.9",
+                        "account_type": "Bank",
+                        "account_currency": "USD"
+                    }
+                },
+                "EFECTOS POR COBRAR": {
+                    "account_number": "1.1.04",
+                    "Cuentas por cobrar clientes": {
+                        "account_number": "1.1.04.1",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Provisión Cuentas Incobrables Nacionales": {
+                        "account_number": "1.1.04.14",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por Cobrar Migración Sistema": {
+                        "account_number": "1.1.04.15",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Anzoátegui ANZ-01": {
+                        "account_number": "1.1.04.16",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participacion Aragua ARA-01": {
+                        "account_number": "1.1.04.17",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participacion Aragua ARA-02": {
+                        "account_number": "1.1.04.18",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participacion Distrito Capital DC-01": {
+                        "account_number": "1.1.04.19",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas Por Cobrar Moneda Extranjera": {
+                        "account_number": "1.1.04.2",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participacion Lara LAR-01": {
+                        "account_number": "1.1.04.20",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participacion Miranda MIR-01": {
+                        "account_number": "1.1.04.21",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participacion Miranda MIR-02": {
+                        "account_number": "1.1.04.22",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participacion Nueva Esparta NUE-01": {
+                        "account_number": "1.1.04.23",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participacion Trujillo TRU-01": {
+                        "account_number": "1.1.04.24",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participacion Tecno Forza": {
+                        "account_number": "1.1.04.25",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participacion Bolivar": {
+                        "account_number": "1.1.04.26",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar clientes ANZ-01": {
+                        "account_number": "1.1.04.27",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar clientes LAR-01": {
+                        "account_number": "1.1.04.28",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar clientes ARA-01": {
+                        "account_number": "1.1.04.29",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar Empleados": {
+                        "account_number": "1.1.04.3",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar clientes ARA-02": {
+                        "account_number": "1.1.04.30",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar clientes TRU-01": {
+                        "account_number": "1.1.04.31",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar clientes MIR-01": {
+                        "account_number": "1.1.04.32",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar clientes MIR-02": {
+                        "account_number": "1.1.04.33",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar clientes NUE-01": {
+                        "account_number": "1.1.04.34",
+                        "account_type": "Receivable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas Por Cobrar Accionistas": {
+                        "account_number": "1.1.04.4",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro HCM Por Cobrar Empleados": {
+                        "account_number": "1.1.04.5",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas Por Cobrar Directores": {
+                        "account_number": "1.1.04.6",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar Manuel San Martin": {
+                        "account_number": "1.1.04.7",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por cobrar intercompañia": {
+                        "account_number": "1.1.04.8",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Otras cuentas por cobrar": {
+                        "account_number": "1.1.04.9",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    }
+                },
+                "CUENTAS POR COBRAR": {
+                    "account_number": "1.1.05",
+                    "Anticipo Proveedores": {
+                        "account_number": "1.1.05.1",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    }
+                },
+                "IMPUESTOS PAGADOS POR ANTICIPADO": {
+                    "account_number": "1.1.07",
+                    "Anticipo de ISLR": {
+                        "account_number": "1.1.07.1",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Retención ISLR Clientes": {
+                        "account_number": "1.1.07.2",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Retencion de IVA Clientes": {
+                        "account_number": "1.1.07.3",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Iva Crédito Fiscal": {
+                        "account_number": "1.1.07.4",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Excedente Crédito Fiscal": {
+                        "account_number": "1.1.07.5",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    }
+                },
+                "INVENTARIOS": {
+                    "account_number": "1.1.08",
+                    "Seguros HCM pagados por anticipado": {
+                        "account_number": "1.1.08.1",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Recibos Pendientes": {
+                        "account_number": "1.1.08.10",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Pagos Pendientes": {
+                        "account_number": "1.1.08.11",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta Transitoria": {
+                        "account_number": "1.1.08.12",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta Transitoria (Otras)": {
+                        "account_number": "1.1.08.16",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Anticipo Prestaciones Sociales": {
+                        "account_number": "1.1.08.17",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Otros gastos prepagados": {
+                        "account_number": "1.1.08.8",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Transferencia de liquidez": {
+                        "account_number": "1.1.08.9",
+                        "account_type": "Current Asset",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "ACTIVOS NO CORRIENTES": {
+                "account_number": "1.2",
+                "PROPIEDAD, PLANTA Y EQUIPO": {
+                    "account_number": "1.2.02",
+                    "Depreciación Acum. Equipo de Oficina": {
+                        "account_number": "1.2.02.10",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Equipos de Computación": {
+                        "account_number": "1.2.02.11",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Acum. Equipos de Computación": {
+                        "account_number": "1.2.02.12",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Licencia y Software": {
+                        "account_number": "1.2.02.13",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Amortización Acum. Licencia y Software": {
+                        "account_number": "1.2.02.14",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Construcciones en proceso": {
+                        "account_number": "1.2.02.25",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Inversiones Financieras": {
+                        "account_number": "1.2.02.26",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Muebles y Enseres": {
+                        "account_number": "1.2.02.7",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Acum. Muebles y Enseres": {
+                        "account_number": "1.2.02.8",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    },
+                    "Equipo de Oficina": {
+                        "account_number": "1.2.02.9",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "CARGOS DIFERIDOS": {
+                "account_number": "1.3",
+                "CARGOS DIFERIDOS": {
+                    "account_number": "1.3.01",
+                    "Mejoras Propiedad Arrendada": {
+                        "account_number": "1.3.01.1",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "OTROS ACTIVOS": {
+                "account_number": "1.4",
+                "OTROS ACTIVOS": {
+                    "account_number": "1.4.01",
+                    "Depósitos en Garantía": {
+                        "account_number": "1.4.01.1",
+                        "account_type": "Fixed Asset",
+                        "account_currency": "VEF"
+                    }
+                }
+            }
+        },
+        "PASIVO": {
+            "account_number": "2",
+            "root_type": "Liability",
+            "PASIVO CORRIENTE": {
+                "account_number": "2.1",
+                "CUENTAS POR PAGAR": {
+                    "account_number": "2.1.01",
+                    "Cuentas por Pagar Proveedores": {
+                        "account_number": "2.1.01.2",
+                        "account_type": "Payable",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por Pagar Accionistas": {
+                        "account_number": "2.1.01.3",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por Pagar Intercompañía": {
+                        "account_number": "2.1.01.4",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Otras cuentas por pagar": {
+                        "account_number": "2.1.01.7",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por Pagar Migración Sistema": {
+                        "account_number": "2.1.01.9",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    }
+                },
+                "ANTICIPOS DE CLIENTES": {
+                    "account_number": "2.1.02",
+                    "Anticipo Clientes": {
+                        "account_number": "2.1.02.1",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Depósitos y operaciones por identificar": {
+                        "account_number": "2.1.02.2",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    }
+                },
+                "IMPUESTOS POR PAGAR": {
+                    "account_number": "2.1.03",
+                    "IVA Debito Fiscal": {
+                        "account_number": "2.1.03.1",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Tacer 0.5% Anual por Pagar": {
+                        "account_number": "2.1.03.10",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Fondo Nacional Antidrogas (FONA)": {
+                        "account_number": "2.1.03.11",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "FONACIT": {
+                        "account_number": "2.1.03.12",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Protección a Pensiones por Pagar": {
+                        "account_number": "2.1.03.13",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "IGTF por Pagar": {
+                        "account_number": "2.1.03.14",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "ISLR Por Pagar": {
+                        "account_number": "2.1.03.15",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Impuesto Grandes Patrimonio": {
+                        "account_number": "2.1.03.16",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Retenciones de IVA Proveedores": {
+                        "account_number": "2.1.03.2",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Retenciones de ISLR Proveedores": {
+                        "account_number": "2.1.03.3",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Patente Municipal por Pagar": {
+                        "account_number": "2.1.03.4",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Fidetel Art. 151 0.5%": {
+                        "account_number": "2.1.03.5",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Conatel RF - 005 0.5%": {
+                        "account_number": "2.1.03.6",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Conatel RF - 007 1% por Pagar": {
+                        "account_number": "2.1.03.7",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Conatel RF - 006 2.3%": {
+                        "account_number": "2.1.03.8",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Fondo Nacional del Deporte por Pagar": {
+                        "account_number": "2.1.03.9",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "GASTOS ACUMULADOS POR PAGAR": {
+                "account_number": "2.2",
+                "GASTOS ACUMULADOS POR PAGAR": {
+                    "account_number": "2.2.01",
+                    "Nomina por Pagar": {
+                        "account_number": "2.2.01.1",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas por Pagar Seguros": {
+                        "account_number": "2.2.01.10",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Prestamos Bancarios": {
+                        "account_number": "2.2.01.12",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Intereses de Prestaciones Sociales": {
+                        "account_number": "2.2.01.2",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Vacaciones": {
+                        "account_number": "2.2.01.3",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Utilidades": {
+                        "account_number": "2.2.01.4",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Vacacional": {
+                        "account_number": "2.2.01.5",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro Social Obligatorio (S.S.O)": {
+                        "account_number": "2.2.01.6",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Ley de Política Habitacional (FAOV)": {
+                        "account_number": "2.2.01.7",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "INCES": {
+                        "account_number": "2.2.01.8",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    }
+                },
+                "RESERVAS Y PROVISIONES": {
+                    "account_number": "2.2.02",
+                    "Provisión Fonacit": {
+                        "account_number": "2.2.02.03",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "PRESTACIONES SOCIALES": {
+                "account_number": "2.3",
+                "PRESTACIONES SOCIALES": {
+                    "account_number": "2.3.01",
+                    "Prestaciones Sociales LOTTT Lit. C": {
+                        "account_number": "2.3.01.1",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Prestaciones Sociales Por Pagar": {
+                        "account_number": "2.3.01.2",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Anticipo Prestaciones Sociales": {
+                        "account_number": "2.3.01.3",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "OTROS PASIVOS": {
+                "account_number": "2.4",
+                "OTROS PASIVOS": {
+                    "account_number": "2.4.01",
+                    "Cuentas en Participación San Antonio": {
+                        "account_number": "2.4.01.1",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Ocumare": {
+                        "account_number": "2.4.01.10",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Caracas": {
+                        "account_number": "2.4.01.11",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Bolivar": {
+                        "account_number": "2.4.01.12",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Edo. Sucre": {
+                        "account_number": "2.4.01.13",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas de participación Tecno Forza": {
+                        "account_number": "2.4.01.2",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participación Maracay": {
+                        "account_number": "2.4.01.3",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuenta en Participación Anzoategui": {
+                        "account_number": "2.4.01.4",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Los Teques": {
+                        "account_number": "2.4.01.5",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Barquisimeto": {
+                        "account_number": "2.4.01.6",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Trujillo": {
+                        "account_number": "2.4.01.7",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Colonia Tovar": {
+                        "account_number": "2.4.01.8",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    },
+                    "Cuentas en Participación Margarita": {
+                        "account_number": "2.4.01.9",
+                        "account_type": "Current Liability",
+                        "account_currency": "VEF"
+                    }
+                }
+            }
+        },
+        "PATRIMONIO": {
+            "account_number": "3",
+            "root_type": "Equity",
+            "CAPITAL Y RESERVAS": {
+                "account_number": "3.1",
+                "UTILIDADES NO DISTRIBUIDAS": {
+                    "account_number": "3.1.01",
+                    "Capital Social": {
+                        "account_number": "3.1.01.1",
+                        "account_type": "Equity",
+                        "account_currency": "VEF"
+                    },
+                    "Resultado de Ejercicios Anteriores": {
+                        "account_number": "3.1.01.2",
+                        "account_type": "Equity",
+                        "account_currency": "VEF"
+                    },
+                    "Resultado del Ejercicio": {
+                        "account_number": "3.1.01.3",
+                        "account_type": "Equity",
+                        "account_currency": "VEF"
+                    },
+                    "Ganancia del Año Actual": {
+                        "account_number": "3.1.01.4",
+                        "account_type": "Equity",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "RESERVAS": {
+                "account_number": "3.2",
+                "RESERVAS": {
+                    "account_number": "3.2.01",
+                    "Reserva Legal": {
+                        "account_number": "3.2.01.1",
+                        "account_type": "Equity",
+                        "account_currency": "VEF"
+                    },
+                    "Aporte Futuras Capitalizaciones": {
+                        "account_number": "3.2.01.2",
+                        "account_type": "Equity",
+                        "account_currency": "VEF"
+                    }
+                }
+            }
+        },
+        "INGRESOS": {
+            "account_number": "4",
+            "root_type": "Income",
+            "INGRESOS OPERACIONALES": {
+                "account_number": "4.1",
+                "INGRESOS POR VENTAS": {
+                    "account_number": "4.1.01",
+                    "Ingresos Servicios de Internet": {
+                        "account_number": "4.1.01.1",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Ingresos Servicios Transmisión de Datos": {
+                        "account_number": "4.1.01.2",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Ingresos Por Costos de Instalación": {
+                        "account_number": "4.1.01.3",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Devoluciones y Ajustes por Ventas": {
+                        "account_number": "4.1.01.4",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Descuentos en Ventas": {
+                        "account_number": "4.1.01.5",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    }
+                }
+            }
+        },
+        "COSTOS DE VENTAS": {
+            "account_number": "5",
+            "root_type": "Expense",
+            "COSTOS DE VENTAS": {
+                "account_number": "5.1",
+                "COSTOS DE VENTAS": {
+                    "account_number": "5.1.01",
+                    "Compra de Materiales Clientes": {
+                        "account_number": "5.1.01.1",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Flete Internacional": {
+                        "account_number": "5.1.01.10",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro de Mercancía": {
+                        "account_number": "5.1.01.11",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Flete Nacional": {
+                        "account_number": "5.1.01.12",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos Agente Aduanal": {
+                        "account_number": "5.1.01.13",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Aranceles y Otros Gastos de Importación": {
+                        "account_number": "5.1.01.14",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Mantenimiento de Red": {
+                        "account_number": "5.1.01.15",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Viáticos Mantenimiento de Red": {
+                        "account_number": "5.1.01.16",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Descuentos y Devoluciones": {
+                        "account_number": "5.1.01.17",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos de Importación": {
+                        "account_number": "5.1.01.18",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Cross Conexión": {
+                        "account_number": "5.1.01.19",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Compras de Equipos Importados": {
+                        "account_number": "5.1.01.2",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Hosting Servidor": {
+                        "account_number": "5.1.01.20",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Compras de Materiales Redes": {
+                        "account_number": "5.1.01.3",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Devoluciones y Ajustes en Compras": {
+                        "account_number": "5.1.01.4",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Instalaciones": {
+                        "account_number": "5.1.01.5",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Mantenimiento de Clientes": {
+                        "account_number": "5.1.01.6",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Acceso a Internet Proveedor Internacional": {
+                        "account_number": "5.1.01.7",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Acceso a Internet Proveedor Nacional": {
+                        "account_number": "5.1.01.8",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Alquiler de Espacios Antenas (Puntos de Repetición)": {
+                        "account_number": "5.1.01.9",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "COSTOS LABORALES": {
+                "account_number": "5.2",
+                "COSTOS LABORALES": {
+                    "account_number": "5.2.01",
+                    "Sueldos y Salarios": {
+                        "account_number": "5.2.01.1",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Comisiones en Ventas": {
+                        "account_number": "5.2.01.10",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Uniformes Personal": {
+                        "account_number": "5.2.01.11",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Bonificación por Producción": {
+                        "account_number": "5.2.01.12",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Complementario Cestatickets": {
+                        "account_number": "5.2.01.13",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Prestaciones Sociales": {
+                        "account_number": "5.2.01.2",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Intereses de Prestaciones Sociales": {
+                        "account_number": "5.2.01.3",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Vacacional": {
+                        "account_number": "5.2.01.4",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Utilidades": {
+                        "account_number": "5.2.01.5",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Vacaciones": {
+                        "account_number": "5.2.01.6",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Bono de Alimentación": {
+                        "account_number": "5.2.01.7",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Nocturno": {
+                        "account_number": "5.2.01.8",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Guardería Infantil": {
+                        "account_number": "5.2.01.9",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "OTROS COSTOS DE VENTAS": {
+                "account_number": "5.3",
+                "OTROS COSTOS DE VENTAS": {
+                    "account_number": "5.3.01",
+                    "Selección de Personal": {
+                        "account_number": "5.3.01.1",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Encomiendas": {
+                        "account_number": "5.3.01.10",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos Reembolsables": {
+                        "account_number": "5.3.01.11",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Transporte de Mercancía": {
+                        "account_number": "5.3.01.12",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Servicios Contratados": {
+                        "account_number": "5.3.01.13",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Refrigerios y comidas al Personal": {
+                        "account_number": "5.3.01.14",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro de Vehículo": {
+                        "account_number": "5.3.01.15",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Alquiler de Oficina": {
+                        "account_number": "5.3.01.16",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Data Center": {
+                        "account_number": "5.3.01.17",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Alquiler de Equipos": {
+                        "account_number": "5.3.01.18",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Costo uso de Red Data": {
+                        "account_number": "5.3.01.19",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos Médicos de Personal": {
+                        "account_number": "5.3.01.2",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Alquiler Espacio Fibra": {
+                        "account_number": "5.3.01.20",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Mantenimiento de Vehiculos": {
+                        "account_number": "5.3.01.21",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Formación Profesional": {
+                        "account_number": "5.3.01.3",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Costos Servicios Broadcasting": {
+                        "account_number": "5.3.01.4",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Boletos Aéreos": {
+                        "account_number": "5.3.01.5",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Taxi y/ó Traslado": {
+                        "account_number": "5.3.01.6",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Reparación y Mantenimiento Equipos de Oficina": {
+                        "account_number": "5.3.01.8",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    },
+                    "Viáticos": {
+                        "account_number": "5.3.01.9",
+                        "account_type": "Cost of Goods Sold",
+                        "account_currency": "VEF"
+                    }
+                }
+            }
+        },
+        "GASTOS": {
+            "account_number": "6",
+            "root_type": "Expense",
+            "GASTOS DE VENTAS": {
+                "account_number": "6.1",
+                "GASTOS DE VENTAS": {
+                    "account_number": "6.1.01",
+                    "Sueldos y Salarios": {
+                        "account_number": "6.1.01.1",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Paro Forzoso (P.F.)": {
+                        "account_number": "6.1.01.10",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Ley de política Habitacional (FAOV)": {
+                        "account_number": "6.1.01.11",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "INCES": {
+                        "account_number": "6.1.01.12",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Agua Potable": {
+                        "account_number": "6.1.01.13",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Entretenimiento al Personal": {
+                        "account_number": "6.1.01.14",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Asignación Directivos": {
+                        "account_number": "6.1.01.15",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Único": {
+                        "account_number": "6.1.01.16",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Nocturno": {
+                        "account_number": "6.1.01.17",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Horas Extras": {
+                        "account_number": "6.1.01.18",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Días Feriados": {
+                        "account_number": "6.1.01.19",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Prestaciones Sociales": {
+                        "account_number": "6.1.01.2",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Bonificación Directivos": {
+                        "account_number": "6.1.01.20",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Selección de Personal": {
+                        "account_number": "6.1.01.21",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos Médicos de Personal": {
+                        "account_number": "6.1.01.22",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Uniformes Para el Personal": {
+                        "account_number": "6.1.01.23",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Formación Profesional": {
+                        "account_number": "6.1.01.24",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Obsequios al Personal": {
+                        "account_number": "6.1.01.25",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Bonificación por Producción": {
+                        "account_number": "6.1.01.26",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Sueldos y Salarios Directivos": {
+                        "account_number": "6.1.01.27",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Intereses Prestaciones Sociales Directivos": {
+                        "account_number": "6.1.01.29",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Intereses Prestaciones Sociales": {
+                        "account_number": "6.1.01.3",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Vacaciones Directivos": {
+                        "account_number": "6.1.01.30",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Vacacional Directivos": {
+                        "account_number": "6.1.01.31",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Utilidades  Directivos": {
+                        "account_number": "6.1.01.32",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Alimentación Directivos": {
+                        "account_number": "6.1.01.33",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Guardias Operativas": {
+                        "account_number": "6.1.01.34",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Complementario Cestatickets": {
+                        "account_number": "6.1.01.35",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Vacaciones": {
+                        "account_number": "6.1.01.4",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Bono Vacacional": {
+                        "account_number": "6.1.01.5",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Utilidades": {
+                        "account_number": "6.1.01.6",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Bono de Alimentación": {
+                        "account_number": "6.1.01.7",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Guardería Infantil": {
+                        "account_number": "6.1.01.8",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro Social Obligatorio ( S.S.O.)": {
+                        "account_number": "6.1.01.9",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    }
+                }
+            },
+            "GASTOS DE ADMINISTRACION": {
+                "account_number": "6.2",
+                "GASTOS DE ADMINISTRACION": {
+                    "account_number": "6.2.01",
+                    "Egresos servicios gerenciales": {
+                        "account_number": "6.2.01.1",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Conatel RF - 006 2,3%": {
+                        "account_number": "6.2.01.10",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Fondo Nacional del Deporte": {
+                        "account_number": "6.2.01.11",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Fonacit": {
+                        "account_number": "6.2.01.12",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Impuesto Sobre La Renta": {
+                        "account_number": "6.2.01.13",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Retenciones Gubernamentales": {
+                        "account_number": "6.2.01.14",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Provisión de ONA": {
+                        "account_number": "6.2.01.15",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Multas y Recargos": {
+                        "account_number": "6.2.01.16",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Impuesto sobre el patrimonio": {
+                        "account_number": "6.2.01.17",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Impuesto LOCTI": {
+                        "account_number": "6.2.01.18",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Antenas": {
+                        "account_number": "6.2.01.19",
+                        "account_type": "Accumulated Depreciation",
+                        "account_currency": "VEF"
+                    },
+                    "Asesoría Jurídica": {
+                        "account_number": "6.2.01.2",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Vehículos": {
+                        "account_number": "6.2.01.20",
+                        "account_type": "Accumulated Depreciation",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Maquinarias": {
+                        "account_number": "6.2.01.21",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Muebles y Enseres": {
+                        "account_number": "6.2.01.22",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Equipo de Oficina": {
+                        "account_number": "6.2.01.23",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Instalaciones": {
+                        "account_number": "6.2.01.24",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Equipos de Computación": {
+                        "account_number": "6.2.01.25",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Licencia y Software": {
+                        "account_number": "6.2.01.26",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Depreciación Red de Fibra Óptica": {
+                        "account_number": "6.2.01.27",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Electricidad": {
+                        "account_number": "6.2.01.28",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Telefonía Fija": {
+                        "account_number": "6.2.01.29",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Asesoría Financiera": {
+                        "account_number": "6.2.01.3",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Televisión Por Suscripción": {
+                        "account_number": "6.2.01.30",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Aseo Urbano": {
+                        "account_number": "6.2.01.31",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Papelería": {
+                        "account_number": "6.2.01.32",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Internet": {
+                        "account_number": "6.2.01.33",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Encomiendas": {
+                        "account_number": "6.2.01.34",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Alquiler de Oficina": {
+                        "account_number": "6.2.01.35",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Telefonía Celular": {
+                        "account_number": "6.2.01.36",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos de Viajes": {
+                        "account_number": "6.2.01.37",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos de Representación": {
+                        "account_number": "6.2.01.38",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos TDC Corporativa": {
+                        "account_number": "6.2.01.39",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Asesoría Técnica": {
+                        "account_number": "6.2.01.4",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Artículos de Oficina": {
+                        "account_number": "6.2.01.40",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Artículos de Limpieza": {
+                        "account_number": "6.2.01.41",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro HCM": {
+                        "account_number": "6.2.01.42",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro de Vehículos": {
+                        "account_number": "6.2.01.43",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Formación Profesional": {
+                        "account_number": "6.2.01.44",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Limpieza y Aseo de Oficina": {
+                        "account_number": "6.2.01.46",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Estacionamiento": {
+                        "account_number": "6.2.01.47",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos Varios": {
+                        "account_number": "6.2.01.48",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Amortizaciones": {
+                        "account_number": "6.2.01.49",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Asesoría Constitución": {
+                        "account_number": "6.2.01.5",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Taxi y/ó Traslado": {
+                        "account_number": "6.2.01.50",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro Funerario": {
+                        "account_number": "6.2.01.51",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Sistemas": {
+                        "account_number": "6.2.01.52",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Servicio Nacional de Contratistas": {
+                        "account_number": "6.2.01.53",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos de Notaria y Registro": {
+                        "account_number": "6.2.01.55",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Timbre Fiscal": {
+                        "account_number": "6.2.01.56",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Mobiliario y Equipo de Oficina": {
+                        "account_number": "6.2.01.57",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Seguros varios": {
+                        "account_number": "6.2.01.58",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Patente Municipal": {
+                        "account_number": "6.2.01.6",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Condominio": {
+                        "account_number": "6.2.01.60",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Reparación y Mantenimiento de Oficina": {
+                        "account_number": "6.2.01.61",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Papelería y Artículos de Oficina": {
+                        "account_number": "6.2.01.62",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Refrigerios y Comidas al Personal": {
+                        "account_number": "6.2.01.63",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Entretenimiento al Personal": {
+                        "account_number": "6.2.01.64",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Viáticos": {
+                        "account_number": "6.2.01.65",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Boletos Aéreos": {
+                        "account_number": "6.2.01.66",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Comida TDC Corporativa": {
+                        "account_number": "6.2.01.67",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Otros Gastos TDC Corporativa": {
+                        "account_number": "6.2.01.68",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Atención al Cliente y Proveedor": {
+                        "account_number": "6.2.01.69",
+                        "account_type": "Equity",
+                        "account_currency": "VEF"
+                    },
+                    "FideteL Art. 151 0,5%": {
+                        "account_number": "6.2.01.7",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Atención al Empleado": {
+                        "account_number": "6.2.01.70",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Equipos Menores de Computación": {
+                        "account_number": "6.2.01.72",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Amortización Seguro HCM": {
+                        "account_number": "6.2.01.73",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro de Vehículo": {
+                        "account_number": "6.2.01.74",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Provisión Cuentas Incobrables": {
+                        "account_number": "6.2.01.75",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Provisión Otras Contingencias": {
+                        "account_number": "6.2.01.76",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Provisión Gastos No Deducibles": {
+                        "account_number": "6.2.01.77",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos No Deducibles": {
+                        "account_number": "6.2.01.78",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Seguro HCM No Deducible": {
+                        "account_number": "6.2.01.79",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Conatel RF - 005 0,5%": {
+                        "account_number": "6.2.01.8",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Boletos Aéreos No Deducible": {
+                        "account_number": "6.2.01.80",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gasto Impuesto 1*1000": {
+                        "account_number": "6.2.01.81",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Perdida por Cuentas Incobrables": {
+                        "account_number": "6.2.01.82",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gasolina": {
+                        "account_number": "6.2.01.83",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Tacer 0.5% Anual": {
+                        "account_number": "6.2.01.84",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Protección a  Pensiones": {
+                        "account_number": "6.2.01.85",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Publicidad y Propaganda": {
+                        "account_number": "6.2.01.86",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos de personal temporal": {
+                        "account_number": "6.2.01.87",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Conatel RF - 007 1%": {
+                        "account_number": "6.2.01.9",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    }
+                }
+            }
+        },
+        "OTROS INGRESOS": {
+            "account_number": "7",
+            "root_type": "Income",
+            "INGRESOS NO OPERACIONALES": {
+                "account_number": "7.1",
+                "INGRESOS NO OPERACIONALES": {
+                    "account_number": "7.1.01",
+                    "Ingresos Financieros": {
+                        "account_number": "7.1.01.1",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Asistencia Técnica": {
+                        "account_number": "7.1.01.10",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Otros ingresos asistencia técnica equipos": {
+                        "account_number": "7.1.01.11",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Alquileres Ganados": {
+                        "account_number": "7.1.01.2",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Ganancia en Venta de Activos Fijos": {
+                        "account_number": "7.1.01.3",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Ganancia Diferencia en Cambio": {
+                        "account_number": "7.1.01.4",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Otros Ingresos Extraordinarios": {
+                        "account_number": "7.1.01.5",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Impuesto Diferido (Ingreso)": {
+                        "account_number": "7.1.01.6",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Fee administrativo internet": {
+                        "account_number": "7.1.01.7",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Ingresos servicios gerenciales": {
+                        "account_number": "7.1.01.8",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    },
+                    "Otros Ingresos asistencia técnica de RED Data": {
+                        "account_number": "7.1.01.9",
+                        "account_type": "Income Account",
+                        "account_currency": "VEF"
+                    }
+                }
+            }
+        },
+        "OTROS EGRESOS": {
+            "account_number": "8",
+            "root_type": "Expense",
+            "EGRESOS NO OPERACIONALES": {
+                "account_number": "8.1",
+                "EGRESOS NO OPERACIONALES": {
+                    "account_number": "8.1.01",
+                    "Egresos Financieros": {
+                        "account_number": "8.1.01.1",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Impuesto Diferido (Egreso)": {
+                        "account_number": "8.1.01.10",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Gastos de Intereses": {
+                        "account_number": "8.1.01.11",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Egresos Fee administrativo internet data": {
+                        "account_number": "8.1.01.12",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Diferencia en reconversión": {
+                        "account_number": "8.1.01.13",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Comisiones Bancarias": {
+                        "account_number": "8.1.01.2",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Pérdida en Venta de Activo Fijos": {
+                        "account_number": "8.1.01.3",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Pérdida en Robos y Accidentes": {
+                        "account_number": "8.1.01.4",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Desincorporación de Activos Obsoletos": {
+                        "account_number": "8.1.01.5",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Intereses Bancarios Pagados": {
+                        "account_number": "8.1.01.6",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Perdida en Cambio": {
+                        "account_number": "8.1.01.7",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Diferencia en Cobros": {
+                        "account_number": "8.1.01.8",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    },
+                    "Otros Egresos": {
+                        "account_number": "8.1.01.9",
+                        "account_type": "Expense Account",
+                        "account_currency": "VEF"
+                    }
+                }
+            }
+        }
+    },
+    "is_allied_client_chart": 1
+}

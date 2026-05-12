@@ -1,0 +1,163 @@
+frappe.ui.form.on("Company", {
+  refresh: function (frm) {
+    get_address_link(frm);
+    reorganize_customer_fields(frm);
+    if (frm.is_new()) {
+      frm.set_value("nature_of_the_taxpayer", "");
+      frm.set_value("type_of_person", "");
+    }
+
+    frm.set_query("custom_company_primary_address", function () {
+      return {
+        filters: {
+          link_doctype: "Company",
+          link_name: frm.doc.name,
+        },
+      };
+    });
+
+    for (const account_name of [
+      "sales_vat_account",
+      "sales_igtf_account",
+      "sales_islr_account",
+      "purchase_vat_account",
+      "purchase_islr_account",
+      "purchase_igtf_account",
+      "sales_vat_withholding_account",
+      "purchase_vat_withholding_account",
+    ]) {
+      frm.set_query(account_name, function (doc, cdt, cdn) {
+        return {
+          filters: {
+            is_group: false,
+            company: doc.company,
+          },
+        };
+      });
+    }
+
+    set_df_company_fields(frm);
+  },
+
+  custom_company_primary_address: function (frm) {
+    if (frm.doc.custom_company_primary_address) {
+      frappe.db
+        .get_doc("Address", frm.doc.custom_company_primary_address)
+        .then((address) => {
+          if (address.phone) {
+            frm.set_value("phone_no", address.phone);
+          }
+          if (address.email_id) {
+            frm.set_value("email", address.email_id);
+          }
+        });
+    }
+  },
+
+  nature_of_the_taxpayer: function (frm) {
+    set_person_type_filter(frm);
+    build_rif(frm);
+  },
+
+  type_of_person: function (frm) {},
+
+  tax_id: function (frm) {
+    build_rif(frm);
+  },
+
+  legal_representative_id: function (frm) {
+    validate_cedula(frm, "legal_representative_id");
+  },
+
+  create_chart_of_accounts_based_on: function (frm) {
+    set_df_company_fields(frm);
+  },
+
+  parent_company: function (frm) {
+    set_df_company_fields(frm);
+  },
+});
+
+erpnext.company.set_custom_query = function (frm, v) {
+  var filters = {
+    company: frm.doc.name,
+    is_group: 0,
+  };
+
+  frm.set_query(v[0], function () {
+    return {
+      filters: filters,
+    };
+  });
+};
+
+erpnext.company.set_chart_of_accounts_options = function (doc) {
+  var selected_value = doc.chart_of_accounts;
+  if (doc.country) {
+    return frappe.call({
+      method:
+        "erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts.get_charts_for_country",
+      args: {
+        country: doc.country,
+        with_standard: true,
+      },
+      callback: function (r) {
+        if (!r.message.length) {
+          return;
+        }
+
+        if (!r.exc) {
+          set_field_options(
+            "chart_of_accounts",
+            [""].concat(r.message).join("\n")
+          );
+          if (in_list(r.message, selected_value)) {
+            cur_frm.set_value("chart_of_accounts", selected_value);
+          }
+        }
+      },
+    });
+  }
+};
+// Se utiliza 'var' para sobreescribir la función existente en ERPNext y evitar su doble ejecución.
+var set_df_company_fields = function (frm) {
+  if (!frm.is_new()) {
+    return;
+  }
+
+  // Si hay empresa padre, el plan de cuentas se hereda y no es requerido
+  const has_parent = !!frm.doc.parent_company;
+  const is_standard_template =
+    frm.doc.create_chart_of_accounts_based_on === "Standard Template";
+  const is_existing_company =
+    frm.doc.create_chart_of_accounts_based_on === "Existing Company";
+
+  frm.set_df_property("create_chart_of_accounts_based_on", "reqd", !has_parent);
+
+  // chart_of_accounts solo es requerido si es "Standard Template" Y no hay empresa padre
+  frm.set_df_property(
+    "chart_of_accounts",
+    {
+      "reqd": is_standard_template && !has_parent,
+      "hidden": has_parent || is_existing_company
+    }
+  );
+
+  frm.set_df_property("existing_company", "reqd", is_existing_company);
+};
+
+function reorganize_customer_fields(frm) {
+  let num_license_wrapper = frm.get_field("num_license_economic").$wrapper;
+  let municipality_wrapper = frm.get_field("municipality").$wrapper;
+  let is_special_taxpayer_wrapper = frm.get_field(
+    "is_special_taxpayer"
+  ).$wrapper;
+
+  num_license_wrapper.insertAfter(is_special_taxpayer_wrapper);
+  municipality_wrapper.insertAfter(num_license_wrapper);
+}
+
+// Override de la función de ERPNext - delega a nuestra lógica centralizada
+var disable_coa_fields = function (frm, bool = true) {
+  set_df_company_fields(frm);
+};
