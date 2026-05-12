@@ -37,6 +37,11 @@ def _get_vat_voucher_instance(**overrides) -> VATWithholdingVoucher:
     doc.flags = frappe._dict()
     doc.meta = MagicMock()
 
+    # Child table requerido por validate_withholding_amount()
+    doc.vat_withholding_voucher_item = [
+        frappe._dict({"tax_amount_vat": overrides.get("totals_tax_amount_vat", 150.0)}),
+    ]
+
     for key, value in overrides.items():
         setattr(doc, key, value)
 

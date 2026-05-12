@@ -35,6 +35,11 @@ def _get_islr_voucher_instance(**overrides) -> ISLRWithholdingVoucher:
     doc.flags = frappe._dict()
     doc.meta = MagicMock()
 
+    # Child table requerido por validate_withholding_amount()
+    doc.islr_withholding_voucher_item = [
+        frappe._dict({"islr_amount": overrides.get("totals_islr_amount", 100.0)}),
+    ]
+
     for key, value in overrides.items():
         setattr(doc, key, value)
 
