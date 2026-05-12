@@ -57,7 +57,7 @@ def _make_base_doc(**overrides) -> MockDoc:
         "payments": [],
     }
     data.update(overrides)
-    return MockDoc(data)
+    return MockDoc(**data)
 
 
 def _mock_customer(*_args, **_kwargs):
