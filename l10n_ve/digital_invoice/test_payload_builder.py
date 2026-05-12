@@ -43,6 +43,10 @@ def _make_base_doc(**overrides) -> MockDoc:
                 "account_head": "IVA 16% - TC",
                 "description": "IVA 16%",
                 "rate": 16.0,
+                "charge_type": "VAT",
+                "tax_amount": 16.0,
+                "base_tax_amount": 16.0,
+                "add_deduct_tax": "Add",
             })
         ],
         "items": [
@@ -159,7 +163,7 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
              self._COMMON_PATCHES["zona_nodo"], \
              self._COMMON_PATCHES["tfhka_code"]:
             payload = self._build(
-                is_return=1, credit_note_no="NC-00001", bill_no=None,
+                is_return=1, bill_no="NC-00001",
                 reason="Devolución de mercancía",
             )
 
