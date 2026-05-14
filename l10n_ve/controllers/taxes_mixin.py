@@ -222,7 +222,7 @@ class TaxesMixin:
             return None
 
         islr_amount: float = calculate_islr_amount(
-            flt(self.total), aliquot_info,
+            flt(self.net_total), aliquot_info,
             conversion_rate=flt(self.conversion_rate) or 1.0
         )
         if islr_amount <= 0:
@@ -520,7 +520,7 @@ class TaxesMixin:
         """
         from l10n_ve.utils.islr import calculate_islr_amount
         return calculate_islr_amount(
-            flt(self.total), aliquot_info,
+            flt(self.net_total), aliquot_info,
             conversion_rate=flt(self.conversion_rate) or 1.0
         )
 

@@ -72,11 +72,7 @@ def calculate_islr_amount(
     Returns:
         Monto ISLR redondeado a 2 decimales, mínimo 0.
     """
-    tax_base: float = flt(total) * flt(aliquot_info.percentage_base) / 100
-    sustraendo_ref: float = (
-        flt(aliquot_info.subtracting) / flt(conversion_rate)
-        if flt(conversion_rate) > 0 else 0
-    )
+    tax_base: float = flt(flt(total) * flt(aliquot_info.percentage_base) / 100, 2)
+    sustraendo_ref: float = flt(aliquot_info.subtracting / conversion_rate, 2) if conversion_rate > 0 else 0.0
     islr: float = (tax_base * flt(aliquot_info.aliquot) / 100) - sustraendo_ref
     return flt(max(islr, 0), 2)
-
