@@ -31,6 +31,8 @@ from l10n_ve.tests.helpers import MockDoc, make_mock_tax
 
 def _make_sales_mixin(**overrides) -> MockDoc:
     """Crea un mock de Sales Invoice con TaxesMixin habilitado."""
+    import types
+
     defaults: dict = {
         "doctype": "Sales Invoice",
         "company": "Test Company",
@@ -52,6 +54,15 @@ def _make_sales_mixin(**overrides) -> MockDoc:
         setattr(obj, table, current)
 
     obj.append = _append
+
+    # Bindear métodos del mixin que MockDoc no hereda
+    # (MockDoc.__getattr__ retorna None para atributos inexistentes)
+    obj._build_islr_tax_row = types.MethodType(
+        TaxesMixin._build_islr_tax_row, obj
+    )
+    obj._build_islr_description = types.MethodType(
+        TaxesMixin._build_islr_description, obj
+    )
     return obj
 
 
