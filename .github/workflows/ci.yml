@@ -100,9 +100,61 @@ jobs:
           CI: 'Yes'
 
       - name: Run Tests
+        id: tests
         working-directory: /home/runner/frappe-bench
         run: |
           bench --site test_site set-config allow_tests true
-          bench --site test_site run-tests --app l10n_ve --skip-test-records
+          bench --site test_site run-tests --app l10n_ve --skip-test-records 2>&1 | tee /tmp/test_output.txt
         env:
           TYPE: server
+
+      - name: Notify Telegram on Test Failure
+        if: failure() && steps.tests.outcome == 'failure'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "⏭️  Secrets de Telegram no configurados, omitiendo notificación."
+            exit 0
+          fi
+
+          APP_NAME="l10n_ve"
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          ACTOR="${{ github.actor }}"
+
+          # Extraer últimas 40 líneas del output de tests (errores + resumen)
+          if [ -f /tmp/test_output.txt ]; then
+            TEST_OUTPUT=$(tail -40 /tmp/test_output.txt | head -c 2000)
+          else
+            TEST_OUTPUT="No se pudo capturar el output de los tests."
+          fi
+
+          MESSAGE=$(printf "🔴 Tests FALLIDOS — %s\n👤 %s\n🌿 Branch: %s\n🔗 PR: #%s\n\n📋 Output:\n\`\`\`\n%s\n\`\`\`\n\n🔍 %s" \
+            "$APP_NAME" "$ACTOR" "$BRANCH" "$PR_NUMBER" "$TEST_OUTPUT" "$RUN_URL")
+
+          PAYLOAD=$(jq -n \
+            --arg chat_id "$TELEGRAM_CHAT_ID" \
+            --arg text "$MESSAGE" \
+            --arg parse_mode "Markdown" \
+            '{chat_id: $chat_id, text: $text, parse_mode: $parse_mode, disable_web_page_preview: true}')
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          echo "Telegram HTTP: ${HTTP_CODE}"
+          if [ "$HTTP_CODE" != "200" ]; then
+            # Reintentar sin Markdown si falla el parseo
+            PAYLOAD_PLAIN=$(jq -n \
+              --arg chat_id "$TELEGRAM_CHAT_ID" \
+              --arg text "$MESSAGE" \
+              '{chat_id: $chat_id, text: $text, disable_web_page_preview: true}')
+            curl -s -o /dev/null \
+              -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD_PLAIN"
+          fi
