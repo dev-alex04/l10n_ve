@@ -103,6 +103,7 @@ jobs:
         id: tests
         working-directory: /home/runner/frappe-bench
         run: |
+          set -o pipefail
           bench --site test_site set-config allow_tests true
           bench --site test_site run-tests --app l10n_ve --skip-test-records 2>&1 | tee /tmp/test_output.txt
         env:
