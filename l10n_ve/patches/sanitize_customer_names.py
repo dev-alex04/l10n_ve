@@ -223,40 +223,18 @@ def _fix_manual_renames() -> None:
 
             is_case_only: bool = old_name.lower() == new_name.lower()
             if is_case_only:
-                # Case-only rename: frappe.rename_doc falla por un bug
-                # de collation case-insensitive en validate_rename.
-                # SQL directo: actualizar PK y todos los Link fields que
-                # rename_doc habría actualizado automáticamente.
-                frappe.db.sql(
-                    "UPDATE `tabCustomer` SET name = %s WHERE name = %s",
-                    (new_name, old_name),
+                # Case-only rename: frappe.rename_doc falla por bug de
+                # collation case-insensitive en validate_rename.
+                # Workaround: double-rename con nombre temporal para que
+                # rename_doc actualice todos los Link fields automáticamente.
+                temp_name: str = f"{old_name}__temp_rename"
+                frappe.rename_doc(
+                    "Customer", old_name, temp_name,
+                    merge=False, force=True,
                 )
-                # Link fields en documentos contables
-                for table in (
-                    "tabGL Entry",
-                    "tabPayment Ledger Entry",
-                ):
-                    frappe.db.sql(
-                        f"UPDATE `{table}` SET party = %s "
-                        "WHERE party_type = 'Customer' AND party = %s",
-                        (new_name, old_name),
-                    )
-                # Link fields en documentos fiscales (campo customer)
-                for table in (
-                    "tabSales Invoice",
-                    "tabVE Sales Credit Note",
-                    "tabVE Sales Debit Note",
-                ):
-                    frappe.db.sql(
-                        f"UPDATE `{table}` SET customer = %s "
-                        "WHERE customer = %s",
-                        (new_name, old_name),
-                    )
-                # Payment Entry usa party, no customer
-                frappe.db.sql(
-                    "UPDATE `tabPayment Entry` SET party = %s "
-                    "WHERE party_type = 'Customer' AND party = %s",
-                    (new_name, old_name),
+                frappe.rename_doc(
+                    "Customer", temp_name, new_name,
+                    merge=False, force=True,
                 )
             else:
                 frappe.rename_doc(
@@ -404,6 +382,9 @@ def _update_customer_name_snapshots(
     # tabGL Entry — campo `against` es Text, almacena el Customer PK viejo.
     # Actualizar por old_customer_name (si era igual al PK)
     # y por old_pk (si el PK difería del customer_name).
+    # NOTA: `against` puede contener valores separados por comas en Journal
+    # Entries compuestos. Para Sales Invoices (scope de este patch) siempre
+    # es un valor único. Si se extiende a JE, considerar usar LIKE/REPLACE.
     against_values_to_fix: list[str] = [old_customer_name]
     if old_pk and old_pk != old_customer_name:
         against_values_to_fix.append(old_pk)
