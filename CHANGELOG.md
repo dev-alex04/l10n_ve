@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.29] - 2026-05-14
+
+### 🐛 Correcciones (Fixes)
+- Se implementó el saneamiento de datos maestros de clientes y la lógica de reconciliación entre el Libro Mayor (GL) y el Libro de Ventas [f5d198d].
+
+---
+
 ## [v1.0.28] - 2026-05-14
 
 ### ✨ Funcionalidades (Features)
