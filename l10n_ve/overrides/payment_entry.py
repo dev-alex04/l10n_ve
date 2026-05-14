@@ -94,15 +94,17 @@ class CustomPaymentEntry(PaymentEntry):
             "Sales Invoice",
             filters={"name": ["in", si_refs]},
             fields=["name", "bill_no", "bill_control", "remarks"],
+            ignore_permissions=True,
         )
 
         for si_data in hka_invoices:
             if not si_data.remarks or "imprentaDigital" not in si_data.remarks:
                 continue
 
-            si_link: str = (
-                f'<a href="/app/sales-invoice/{si_data.name}">'
-                f'{si_data.bill_no or si_data.name}</a>'
+            si_link: str = frappe.utils.get_link_to_form(
+                "Sales Invoice",
+                si_data.name,
+                label=si_data.bill_no or si_data.name,
             )
             frappe.throw(
                 _(
