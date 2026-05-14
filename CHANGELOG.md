@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.28] - 2026-05-14
+
+### ✨ Funcionalidades (Features)
+* Implementación de protección HKA en el proceso de cancelación de pagos y renombre de componentes ISLR para mayor consistencia.
+* Integración de notificaciones automáticas vía Telegram en el pipeline de CI para alertar sobre fallos en la ejecución de pruebas.
+
+### 🐛 Correcciones (Fixes)
+* Ajustes en la lógica de `payment_entry` siguiendo revisiones de código, incluyendo el uso de `ignore_permissions=True` y `get_link_to_form()`.
+* Mejora en la confiabilidad del CI mediante la configuración de `pipefail` para asegurar la correcta propagación de códigos de error durante los tests.
+* Corrección en el descubrimiento de pruebas unitarias (`test_hka`, `test_islr_mixin`) y actualización de mocks para validaciones de ISLR.
+* Inclusión de 8 nuevos casos de prueba específicos para la validación de la lógica de protección HKA.
+
+---
+
 ## [v1.0.27] - 2026-05-12
 
 ### 🐛 Correcciones (Fixes)
