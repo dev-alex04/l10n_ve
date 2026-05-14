@@ -52,21 +52,31 @@ def get_islr_aliquot(
     return aliquot_info, tabulator
 
 
-def calculate_islr_amount(total: float, aliquot_info) -> float:
+def calculate_islr_amount(
+    total: float, aliquot_info, conversion_rate: float = 1.0
+) -> float:
     """Calcula el monto ISLR basándose en la alícuota del tabulador.
 
     Fórmula fiscal venezolana:
         base = total × (percentage_base / 100)
-        islr = (base × aliquot / 100) − sustraendo
+        sustraendo_ref = sustraendo_bs / conversion_rate
+        islr = (base × aliquot / 100) − sustraendo_ref
 
     Args:
         total: Monto base de la factura (net_total en moneda de referencia).
         aliquot_info: Fila de Tabulator ISLR Aliquots con percentage_base,
-                      aliquot y subtracting.
+                      aliquot y subtracting (en Bs).
+        conversion_rate: Tasa de cambio para convertir el sustraendo de Bs
+                         a moneda de referencia.
 
     Returns:
         Monto ISLR redondeado a 2 decimales, mínimo 0.
     """
     tax_base: float = flt(total) * flt(aliquot_info.percentage_base) / 100
-    islr: float = (tax_base * flt(aliquot_info.aliquot) / 100) - flt(aliquot_info.subtracting)
+    sustraendo_ref: float = (
+        flt(aliquot_info.subtracting) / flt(conversion_rate)
+        if flt(conversion_rate) > 0 else 0
+    )
+    islr: float = (tax_base * flt(aliquot_info.aliquot) / 100) - sustraendo_ref
     return flt(max(islr, 0), 2)
+
