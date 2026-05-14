@@ -341,6 +341,7 @@ scheduler_events = {
         "0 * * * *": [
             "l10n_ve.tasks.create_currency_exchange",
             "l10n_ve.tasks.cleanup_resolved_digital_invoice_error_logs",
+            "l10n_ve.digital_invoice.reconciliation.reconcile_hka_fiscal_fields",
         ],
         "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
         "*/15 * * * *": ["l10n_ve.tasks.reset_all_prepared_reports"],

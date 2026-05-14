@@ -497,6 +497,30 @@ def _handle_hka_response(
             json.dumps(response, indent=2, ensure_ascii=False),
             update_modified=True
         )
+
+        # Verificación post-guardado: asegurar que bill_no y bill_control
+        # quedaron persistidos. Previene el bug donde remarks se guarda
+        # pero los campos fiscales quedan vacíos.
+        saved_fields: dict = frappe.db.get_value(
+            doc.doctype, doc.name,
+            ["bill_no", "bill_control"],
+            as_dict=True,
+        ) or {}
+        post_fixes: dict = {}
+        if not saved_fields.get("bill_no") and numero_documento:
+            post_fixes["bill_no"] = numero_documento
+        if not saved_fields.get("bill_control") and control:
+            post_fixes["bill_control"] = control
+        if post_fixes:
+            frappe.db.set_value(
+                doc.doctype, doc.name, post_fixes,
+                update_modified=True,
+            )
+            frappe.logger("l10n_ve").warning(
+                f"{doc.doctype} {doc.name}: Corrección post-guardado "
+                f"de campos fiscales: {post_fixes}"
+            )
+
         _log_request("Emision", doc.name, payload, response, "Success", doctype=doc.doctype)
         return True
 
