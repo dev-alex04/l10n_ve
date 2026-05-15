@@ -221,7 +221,10 @@ class TaxesMixin:
         if not islr_account:
             return None
 
-        islr_amount: float = calculate_islr_amount(flt(self.total), aliquot_info)
+        islr_amount: float = calculate_islr_amount(
+            flt(self.net_total), aliquot_info,
+            conversion_rate=flt(self.conversion_rate) or 1.0
+        )
         if islr_amount <= 0:
             return None
 
@@ -403,7 +406,7 @@ class TaxesMixin:
             )
             return
 
-        tax_row: dict = self._build_islr_tax_row(
+        tax_row: dict = self._build_purchase_islr_tax_row(
             tabulator, aliquot_info, islr_amount, islr_account
         )
         self.append("taxes", tax_row)
@@ -512,18 +515,16 @@ class TaxesMixin:
     def _calculate_islr_amount(self, aliquot_info) -> float:
         """Calcula el monto de retención ISLR sobre la base imponible.
 
-        Fórmula: (total × %base / 100 × alícuota / 100) - sustraendo
+        Fórmula: (total × %base / 100 × alícuota / 100) - sustraendo_ref
+        El sustraendo está en Bs y se convierte a moneda de referencia.
         """
-        base_amount: float = flt(self.total)
-        tax_base: float = flt(
-            base_amount * flt(aliquot_info.percentage_base) / 100, 2
-        )
-        return flt(
-            (tax_base * flt(aliquot_info.aliquot) / 100)
-            - flt(aliquot_info.subtracting), 2
+        from l10n_ve.utils.islr import calculate_islr_amount
+        return calculate_islr_amount(
+            flt(self.net_total), aliquot_info,
+            conversion_rate=flt(self.conversion_rate) or 1.0
         )
 
-    def _build_islr_tax_row(
+    def _build_purchase_islr_tax_row(
         self, tabulator, aliquot_info, islr_amount: float, islr_account: str
     ) -> dict:
         """Construye el diccionario para la fila ISLR en Purchase Taxes and Charges."""

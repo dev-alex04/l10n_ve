@@ -47,6 +47,16 @@ class TestCalculateISLRAmount(FrappeTestCase):
 
         self.assertEqual(result, 2816.66)
 
+    def test_islr_with_conversion_rate(self) -> None:
+        """total=100 USD, base=100%, alícuota=34%, sustraendo=583.34 VEF, tasa=50.0.
+        sustraendo_ref = 583.34 / 50.0 = 11.6668
+        islr = (100 * 34%) - 11.6668 = 34 - 11.6668 = 22.3332 -> 22.33"""
+        aliquot = make_mock_aliquot(100, 34, 583.34)
+
+        result: float = calculate_islr_amount(100, aliquot, conversion_rate=50.0)
+
+        self.assertEqual(result, 22.33)
+
     # ─────────────────────────────────────────────
     # Edge cases
     # ─────────────────────────────────────────────

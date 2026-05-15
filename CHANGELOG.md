@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.31] - 2026-05-14
+
+### 🐛 Correcciones (Fixes)
+- **Cálculo de ISLR:** Se corrigió un error en la lógica de cálculo que omitía la conversión del sustraendo a la moneda base antes de realizar la resta, garantizando la precisión de los montos resultantes. [52744da]
+
+---
+
+## [v1.0.30] - 2026-05-14
+
+### 🐛 Correcciones (Fixes)
+- Se aplicaron diversas correcciones técnicas en el módulo del **libro de venta** para mejorar la integridad y precisión de los registros (8a8fd8e).
+
+---
+
+## [v1.0.29] - 2026-05-14
+
+### 🐛 Correcciones (Fixes)
+- Se implementó el saneamiento de datos maestros de clientes y la lógica de reconciliación entre el Libro Mayor (GL) y el Libro de Ventas [f5d198d].
+
+---
+
+## [v1.0.28] - 2026-05-14
+
+### ✨ Funcionalidades (Features)
+* Implementación de protección HKA en el proceso de cancelación de pagos y renombre de componentes ISLR para mayor consistencia.
+* Integración de notificaciones automáticas vía Telegram en el pipeline de CI para alertar sobre fallos en la ejecución de pruebas.
+
+### 🐛 Correcciones (Fixes)
+* Ajustes en la lógica de `payment_entry` siguiendo revisiones de código, incluyendo el uso de `ignore_permissions=True` y `get_link_to_form()`.
+* Mejora en la confiabilidad del CI mediante la configuración de `pipefail` para asegurar la correcta propagación de códigos de error durante los tests.
+* Corrección en el descubrimiento de pruebas unitarias (`test_hka`, `test_islr_mixin`) y actualización de mocks para validaciones de ISLR.
+* Inclusión de 8 nuevos casos de prueba específicos para la validación de la lógica de protección HKA.
+
+---
+
+## [v1.0.27] - 2026-05-12
+
+### 🐛 Correcciones (Fixes)
+- Se renombró el método `_build_islr_tax_row` en el flujo de compras para evitar conflictos técnicos por sobreescritura de métodos, asegurando la integridad del cálculo de retenciones ISLR. [d971627]
+
+---
+
 ## [v1.0.26] - 2026-05-12
 
 ### 🐛 Correcciones (Fixes)

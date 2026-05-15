@@ -59,10 +59,63 @@ class CustomPaymentEntry(PaymentEntry):
         self._show_unallocated_amount_message()
         self.set_igtf_on_invoices()
 
+    def before_cancel(self) -> None:
+        self._block_cancel_if_invoice_sent_to_hka()
+        super().before_cancel()
+
     def on_cancel(self) -> None:
         super().on_cancel()
 
         self.set_igtf_on_invoices(is_cancelled=True)
+
+    def _block_cancel_if_invoice_sent_to_hka(self) -> None:
+        """
+        Bloquea la cancelación del Payment Entry si alguna de sus
+        referencias es una Sales Invoice que ya fue enviada a la
+        imprenta digital (TFHKA/HKA).
+
+        Regla de negocio: una vez que la factura fue reportada al
+        SENIAT vía HKA, modificar su outstanding cancelando pagos
+        genera inconsistencia fiscal. La reversión debe hacerse
+        mediante Nota de Crédito.
+
+        Discriminador: el campo remarks contiene JSON de respuesta HKA
+        con la clave 'imprentaDigital'. Facturas con numeración interna
+        (bill_no asignado manualmente) NO son bloqueadas.
+        """
+        si_refs: list[str] = [
+            ref.reference_name for ref in self.get("references") or []
+            if ref.reference_doctype == "Sales Invoice"
+        ]
+        if not si_refs:
+            return
+
+        hka_invoices: list[dict] = frappe.get_all(
+            "Sales Invoice",
+            filters={"name": ["in", si_refs]},
+            fields=["name", "bill_no", "bill_control", "remarks"],
+            ignore_permissions=True,
+        )
+
+        for si_data in hka_invoices:
+            if not si_data.remarks or "imprentaDigital" not in si_data.remarks:
+                continue
+
+            si_link: str = frappe.utils.get_link_to_form(
+                "Sales Invoice",
+                si_data.name,
+                label=si_data.bill_no or si_data.name,
+            )
+            frappe.throw(
+                _(
+                    "No se puede cancelar este pago porque la factura {0} "
+                    "(Control: <b>{1}</b>) ya fue enviada a la imprenta "
+                    "digital (TFHKA). Cancelar el pago descuadraría el "
+                    "monto pendiente reportado al SENIAT.<br><br>"
+                    "Para revertir, emita una <b>Nota de Crédito</b>."
+                ).format(si_link, si_data.bill_control or "—"),
+                title=_("Cancelación Bloqueada — Factura Digital"),
+            )
 
     def _show_unallocated_amount_message(self) -> None:
 
