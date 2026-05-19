@@ -321,7 +321,12 @@ Facturas posteriores usan base_* almacenados directamente."""
 
 
 def _get_cte() -> str:
-    """CTE InvoiceData: incluye base_net_total para el cálculo nuevo."""
+    """CTE InvoiceData: incluye base_net_total para el cálculo nuevo.
+
+    Extrae la serie fiscal directamente del JSON de TFHKA almacenado en remarks
+    (campo hka_serie) como fallback cuando VE Digital Billing Series no cubre
+    el rango del número de control.
+    """
     return """
         WITH InvoiceData AS (
 
@@ -338,7 +343,8 @@ def _get_cte() -> str:
                 siv.base_net_total,
                 siv.total_exempt,
                 siv.base_amount_igtf,
-                siv.total_igtf
+                siv.total_igtf,
+                JSON_UNQUOTE(JSON_EXTRACT(siv.remarks, '$.resultado.serie')) AS hka_serie
             FROM `tabSales Invoice` siv
             WHERE siv.company = %(company)s
                 AND siv.is_return = 0
@@ -363,7 +369,8 @@ def _get_cte() -> str:
                 nc.base_net_total,
                 nc.total_exempt,
                 0 AS base_amount_igtf,
-                0 AS total_igtf
+                0 AS total_igtf,
+                JSON_UNQUOTE(JSON_EXTRACT(nc.remarks, '$.resultado.serie')) AS hka_serie
             FROM `tabVE Sales Credit Note` nc
             LEFT JOIN `tabSales Invoice` si_orig ON si_orig.name = nc.return_against
             WHERE nc.company = %(company)s
@@ -388,7 +395,8 @@ def _get_cte() -> str:
                 nd.base_net_total,
                 nd.total_exempt,
                 nd.base_amount_igtf,
-                nd.total_igtf
+                nd.total_igtf,
+                JSON_UNQUOTE(JSON_EXTRACT(nd.remarks, '$.resultado.serie')) AS hka_serie
             FROM `tabVE Sales Debit Note` nd
             LEFT JOIN `tabSales Invoice` si_orig ON si_orig.name = nd.return_against
             WHERE nd.company = %(company)s
@@ -412,7 +420,7 @@ def _get_common_columns() -> str:
             CASE WHEN siv.is_void = 1 THEN 'ANULADO' ELSE siv.customer END AS customer_name,
             siv.bill_no,
             siv.bill_control,
-            MAX(vdbs.serie) AS fiscal_series,
+            COALESCE(MAX(vdbs.serie), MAX(siv.hka_serie)) AS fiscal_series,
             siv.credit_note_no,
             siv.debit_note_no,
             siv.affected_invoice_number,  
