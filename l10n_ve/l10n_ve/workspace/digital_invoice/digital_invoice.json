@@ -63,7 +63,17 @@
     "public": 1,
     "quick_lists": [],
     "restrict_to_domain": "",
-    "roles": [],
+    "roles": [
+        {
+            "role": "System Manager"
+        },
+        {
+            "role": "Accounts Manager"
+        },
+        {
+            "role": "Accounts User"
+        }
+    ],
     "sequence_id": 999.0,
     "shortcuts": [
         {
