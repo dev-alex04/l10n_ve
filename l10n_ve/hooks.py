@@ -331,6 +331,12 @@ doc_events = {
     },
     "GL Entry": {
         "on_update": "l10n_ve.overrides.gl_entry.update_ve_outstanding_amount",
+    },
+    "User Permission": {
+        "on_change": "l10n_ve.permissions.clear_ve_branch_cache",
+    },
+    "VE Branch": {
+        "on_change": "l10n_ve.permissions.clear_ve_branch_cache",
     }
 }
 # Scheduled Tasks
@@ -476,3 +482,41 @@ fixtures = [
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+
+# Registros Dinamicos de Permisos de Sucursal (VE Branch)
+permission_query_conditions = {}
+has_permission = {}
+
+def _register_ve_branch_restrictions() -> None:
+    """
+    Busca dinamicamente todos los DocTypes del sistema que se enlazan con VE Branch
+    y registra las funciones de intercepcion de permisos de forma segura para evitar
+    romper la instalacion inicial del sitio.
+    """
+    try:
+        import frappe
+        if frappe.db and frappe.db.exists("DocType", "DocField"):
+            # 1. Buscar DocTypes con campos Link estandar a VE Branch
+            std_doctypes = frappe.db.sql("""
+                SELECT DISTINCT parent FROM tabDocField 
+                WHERE fieldtype='Link' AND options='VE Branch'
+            """, as_dict=True)
+            
+            # 2. Buscar DocTypes con campos Link personalizados a VE Branch
+            cust_doctypes = frappe.db.sql("""
+                SELECT DISTINCT dt AS parent FROM `tabCustom Field` 
+                WHERE fieldtype='Link' AND options='VE Branch'
+            """, as_dict=True)
+            
+            all_dt = {d.parent for d in (std_doctypes + cust_doctypes)}
+            all_dt.add("VE Branch") # Registrar tambien a si mismo
+            
+            for dt in all_dt:
+                permission_query_conditions[dt] = "l10n_ve.permissions.get_ve_branch_permission_query"
+                has_permission[dt] = "l10n_ve.permissions.has_ve_branch_permission"
+    except Exception:
+        # Silenciar excepciones durante bench new-site o restauraciones iniciales
+        pass
+
+_register_ve_branch_restrictions()
+

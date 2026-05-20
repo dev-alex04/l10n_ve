@@ -97,6 +97,7 @@ frappe.ui.form.on("VE Branch", {
               r.message.mode_of_payments.forEach(d => frm.add_child("mode_of_payments", d));
               frm.refresh_field("mode_of_payments");
             }
+
           }
         },
       });
