@@ -8,6 +8,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "gesti\u00f3n_tab",
   "is_group",
   "section_break_dlfm",
   "branch_name",
@@ -25,10 +26,13 @@
   "state",
   "column_break_wqrp",
   "municipality",
-  "section_break_ekjt",
-  "users",
   "section_break_nzdv",
-  "mode_of_payments"
+  "mode_of_payments",
+  "acceso_tab",
+  "roles_y_permisos_section",
+  "roles",
+  "section_break_ekjt",
+  "users"
  ],
  "fields": [
   {
@@ -158,13 +162,34 @@
    "fieldtype": "Link",
    "label": "State",
    "options": "VE State"
+  },
+  {
+   "fieldname": "roles_y_permisos_section",
+   "fieldtype": "Section Break",
+   "label": "Roles"
+  },
+  {
+   "fieldname": "roles",
+   "fieldtype": "Table",
+   "label": "Roles",
+   "options": "VE Branch Roles"
+  },
+  {
+   "fieldname": "acceso_tab",
+   "fieldtype": "Tab Break",
+   "label": "Acceso"
+  },
+  {
+   "fieldname": "gesti\u00f3n_tab",
+   "fieldtype": "Tab Break",
+   "label": "Gesti\u00f3n"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-04-17 09:49:10.228916",
+ "modified": "2026-05-20 06:26:53.956699",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",

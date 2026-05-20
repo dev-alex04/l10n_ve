@@ -16,12 +16,14 @@ class VEBranch(NestedSet):
 
     def validate(self) -> None:
         self.validate_unique_users()
+        self.validate_unique_roles()
         self.validate_payment_modes()
 
     def on_update(self) -> None:
         super().on_update()
         self.sync_user_permissions()
         self.propagate_users_to_children()
+        self.propagate_roles_to_children()
 
         if self.municipality:
             self.check_municipality_taxes()
@@ -57,7 +59,7 @@ class VEBranch(NestedSet):
         old_users = set()
         if old_doc:
             old_users = {row.user for row in old_doc.get("users", []) if row.user}
-        
+
         new_users = {row.user for row in self.get("users", []) if row.user}
 
         users_to_add = new_users - old_users
@@ -72,22 +74,22 @@ class VEBranch(NestedSet):
 
         for child_name in children:
             child_doc = frappe.get_doc("VE Branch", child_name)
-            child_users = {row.user for row in child_doc.get("users", []) if row.user}
-            dirty = False
+            child_users: set[str] = {row.user for row in child_doc.get("users", []) if row.user}
+            modified: bool = False
 
             for user in users_to_add:
                 if user not in child_users:
                     child_doc.append("users", {"user": user})
-                    dirty = True
-            
-            if users_to_remove:
-                original_count = len(child_doc.users)
-                child_doc.users = [row for row in child_doc.users if row.user not in users_to_remove]
-                
-                if len(child_doc.users) != original_count:
-                    dirty = True
+                    modified = True
 
-            if dirty:
+            if users_to_remove:
+                before_count: int = len(child_doc.users)
+                child_doc.users = [row for row in child_doc.users if row.user not in users_to_remove]
+
+                if len(child_doc.users) != before_count:
+                    modified = True
+
+            if modified:
                 child_doc.save(ignore_permissions=True)
 
     def inherit_from_parent_if_applicable(self) -> None:
@@ -107,7 +109,7 @@ class VEBranch(NestedSet):
         if not (is_new_with_parent or parent_has_changed):
             return
 
-        if self.users or self.mode_of_payments:
+        if self.users or self.mode_of_payments or self.roles:
             return
 
         if not self.parent_ve_branch:
@@ -120,6 +122,9 @@ class VEBranch(NestedSet):
 
         for user_row in parent.get("users", []):
             self.append("users", {"user": user_row.user})
+
+        for role_row in parent.get("roles", []):
+            self.append("roles", {"role": role_row.role})
 
         for payment_row in parent.get("mode_of_payments", []):
             self.append("mode_of_payments", {
@@ -135,10 +140,11 @@ class VEBranch(NestedSet):
         if not parent_branch:
             return {}
 
-        parent = frappe.get_doc("VE Branch", parent_branch)
+        parent = frappe.get_cached_doc("VE Branch", parent_branch)
 
         return {
             "users": [d.as_dict() for d in parent.users],
+            "roles": [d.as_dict() for d in parent.roles],
             "mode_of_payments": [d.as_dict() for d in parent.mode_of_payments]
         }
 
@@ -238,7 +244,7 @@ class VEBranch(NestedSet):
 
             # If none of the above relationships exist, it's an invalid duplicate assignment
             frappe.throw(
-                _("El usuario {0} ya está asignado a la sucursal {1}. " 
+                _("El usuario {0} ya está asignado a la sucursal {1}. "
                   "Solo se permite repetir usuarios entre ramas relacionadas "
                   "(Ancestros, Descendientes o Hermanas).").format(
                     frappe.bold(user), frappe.bold(other_branch)
@@ -247,24 +253,88 @@ class VEBranch(NestedSet):
 
     def get_default_payment_mode(self) -> _dict:
         """Obtiene el modo de pago predeterminado de la sucursal."""
-
         default_payment_mode = next(
             (row for row in self.get("mode_of_payments", []) if row.is_default),
             None
         )
 
+        if not default_payment_mode:
+            frappe.throw(
+                _("La sucursal {0} no tiene un modo de pago predeterminado.").format(
+                    frappe.bold(self.name)
+                )
+            )
+
         return _dict(default_payment_mode.as_dict())
 
-    def check_municipality_taxes(self):
-        exists = frappe.db.exists("VE Municipality Taxes", {"municipality": self.municipality})
-
-        if not exists:
+    def check_municipality_taxes(self) -> None:
+        """Verifica y crea impuestos municipales si no existen."""
+        if not frappe.db.exists("VE Municipality Taxes", {"municipality": self.municipality}):
             frappe.enqueue(
                 method='l10n_ve.setup.create_municipality_taxes_for_municipality',
                 queue='long',
                 timeout=600,
                 municipality_doc_name=self.municipality
             )
+
+    def validate_unique_roles(self) -> None:
+        """Valida que no haya roles duplicados en la misma sucursal."""
+        roles = [row.role for row in self.get("roles", []) if row.role]
+        if not roles:
+            return
+
+        seen = set()
+        for role in roles:
+            if role in seen:
+                frappe.throw(
+                    _("El rol {0} está asignado varias veces en esta sucursal.").format(
+                        frappe.bold(role)
+                    )
+                )
+            seen.add(role)
+
+    def propagate_roles_to_children(self) -> None:
+        """Propaga adiciones y eliminaciones de roles a las sucursales hijas."""
+        old_doc = self.get_doc_before_save()
+        old_roles = set()
+        if old_doc:
+            old_roles = {row.role for row in old_doc.get("roles", []) if row.role}
+
+        new_roles = {row.role for row in self.get("roles", []) if row.role}
+
+        roles_to_add = new_roles - old_roles
+        roles_to_remove = old_roles - new_roles
+
+        if not roles_to_add and not roles_to_remove:
+            return
+
+        children = frappe.get_all("VE Branch",
+                                filters={"parent_ve_branch": self.name},
+                                pluck="name"
+                                )
+
+        if not children:
+            return
+
+        for child_name in children:
+            child_doc = frappe.get_doc("VE Branch", child_name)
+            child_roles: set[str] = {row.role for row in child_doc.get("roles", []) if row.role}
+            modified: bool = False
+
+            for role in roles_to_add:
+                if role not in child_roles:
+                    child_doc.append("roles", {"role": role})
+                    modified = True
+
+            if roles_to_remove:
+                before_count: int = len(child_doc.roles)
+                child_doc.roles = [row for row in child_doc.roles if row.role not in roles_to_remove]
+
+                if len(child_doc.roles) != before_count:
+                    modified = True
+
+            if modified:
+                child_doc.save(ignore_permissions=True)
 
 
 @frappe.whitelist()
