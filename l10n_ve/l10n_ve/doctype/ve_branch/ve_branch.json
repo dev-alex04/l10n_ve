@@ -166,11 +166,13 @@
   {
    "fieldname": "roles_y_permisos_section",
    "fieldtype": "Section Break",
+   "hidden": 1,
    "label": "Roles"
   },
   {
    "fieldname": "roles",
    "fieldtype": "Table",
+   "hidden": 1,
    "label": "Roles",
    "options": "VE Branch Roles"
   },
@@ -202,6 +204,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "ignore_user_permissions": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -212,6 +215,7 @@
   {
    "email": 1,
    "export": 1,
+   "ignore_user_permissions": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -224,6 +228,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "ignore_user_permissions": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -237,6 +242,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "ignore_user_permissions": 1,
    "print": 1,
    "read": 1,
    "report": 1,

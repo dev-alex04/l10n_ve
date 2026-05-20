@@ -16,14 +16,12 @@ class VEBranch(NestedSet):
 
     def validate(self) -> None:
         self.validate_unique_users()
-        self.validate_unique_roles()
         self.validate_payment_modes()
 
     def on_update(self) -> None:
         super().on_update()
         self.sync_user_permissions()
         self.propagate_users_to_children()
-        self.propagate_roles_to_children()
 
         if self.municipality:
             self.check_municipality_taxes()
@@ -109,7 +107,7 @@ class VEBranch(NestedSet):
         if not (is_new_with_parent or parent_has_changed):
             return
 
-        if self.users or self.mode_of_payments or self.roles:
+        if self.users or self.mode_of_payments:
             return
 
         if not self.parent_ve_branch:
@@ -122,9 +120,6 @@ class VEBranch(NestedSet):
 
         for user_row in parent.get("users", []):
             self.append("users", {"user": user_row.user})
-
-        for role_row in parent.get("roles", []):
-            self.append("roles", {"role": role_row.role})
 
         for payment_row in parent.get("mode_of_payments", []):
             self.append("mode_of_payments", {
@@ -144,7 +139,6 @@ class VEBranch(NestedSet):
 
         return {
             "users": [d.as_dict() for d in parent.users],
-            "roles": [d.as_dict() for d in parent.roles],
             "mode_of_payments": [d.as_dict() for d in parent.mode_of_payments]
         }
 
@@ -276,65 +270,6 @@ class VEBranch(NestedSet):
                 timeout=600,
                 municipality_doc_name=self.municipality
             )
-
-    def validate_unique_roles(self) -> None:
-        """Valida que no haya roles duplicados en la misma sucursal."""
-        roles = [row.role for row in self.get("roles", []) if row.role]
-        if not roles:
-            return
-
-        seen = set()
-        for role in roles:
-            if role in seen:
-                frappe.throw(
-                    _("El rol {0} está asignado varias veces en esta sucursal.").format(
-                        frappe.bold(role)
-                    )
-                )
-            seen.add(role)
-
-    def propagate_roles_to_children(self) -> None:
-        """Propaga adiciones y eliminaciones de roles a las sucursales hijas."""
-        old_doc = self.get_doc_before_save()
-        old_roles = set()
-        if old_doc:
-            old_roles = {row.role for row in old_doc.get("roles", []) if row.role}
-
-        new_roles = {row.role for row in self.get("roles", []) if row.role}
-
-        roles_to_add = new_roles - old_roles
-        roles_to_remove = old_roles - new_roles
-
-        if not roles_to_add and not roles_to_remove:
-            return
-
-        children = frappe.get_all("VE Branch",
-                                filters={"parent_ve_branch": self.name},
-                                pluck="name"
-                                )
-
-        if not children:
-            return
-
-        for child_name in children:
-            child_doc = frappe.get_doc("VE Branch", child_name)
-            child_roles: set[str] = {row.role for row in child_doc.get("roles", []) if row.role}
-            modified: bool = False
-
-            for role in roles_to_add:
-                if role not in child_roles:
-                    child_doc.append("roles", {"role": role})
-                    modified = True
-
-            if roles_to_remove:
-                before_count: int = len(child_doc.roles)
-                child_doc.roles = [row for row in child_doc.roles if row.role not in roles_to_remove]
-
-                if len(child_doc.roles) != before_count:
-                    modified = True
-
-            if modified:
-                child_doc.save(ignore_permissions=True)
 
 
 @frappe.whitelist()

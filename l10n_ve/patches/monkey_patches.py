@@ -112,6 +112,13 @@ def apply_post_db_patches() -> None:
     except Exception as e:
         log_patch_error('report_session_patch', e)
 
+
+    # Capa 3: aplica el monkeypatch de get_user_permissions
+    try:
+        import l10n_ve.patches.frappe.user_permissions_patch
+    except Exception as e:
+        log_patch_error('user_permissions_patch', e)
+
 # Attempt to apply patches immediately.
 try:
     apply_post_db_patches()
