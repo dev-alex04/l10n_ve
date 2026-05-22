@@ -130,6 +130,7 @@
   {
    "fieldname": "cost_center",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Centro de costos",
    "options": "Cost Center"
   },
@@ -191,7 +192,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-05-20 06:26:53.956699",
+ "modified": "2026-05-21 11:14:18.993370",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",
@@ -204,7 +205,6 @@
    "delete": 1,
    "email": 1,
    "export": 1,
-   "ignore_user_permissions": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -215,7 +215,6 @@
   {
    "email": 1,
    "export": 1,
-   "ignore_user_permissions": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -228,7 +227,6 @@
    "delete": 1,
    "email": 1,
    "export": 1,
-   "ignore_user_permissions": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -242,7 +240,6 @@
    "delete": 1,
    "email": 1,
    "export": 1,
-   "ignore_user_permissions": 1,
    "print": 1,
    "read": 1,
    "report": 1,
