@@ -1,0 +1,96 @@
+<style>
+    .report-header {
+        margin-bottom: 20px;
+    }
+
+    .company-name {
+        font-weight: bold;
+        font-size: 14pt;
+        text-transform: uppercase;
+    }
+
+    .rif {
+        font-size: 11pt;
+        margin-bottom: 10px;
+    }
+
+    .report-title {
+        text-align: center;
+        font-weight: bold;
+        font-size: 13pt;
+        margin-top: 15px;
+        text-decoration: underline;
+    }
+
+    .report-period {
+        text-align: center;
+        font-size: 10pt;
+        margin-bottom: 20px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 8.5pt;
+    }
+
+    th {
+        border-top: 1px solid black;
+        border-bottom: 1px solid black;
+        padding: 5px;
+        text-align: left;
+    }
+
+    td {
+        padding: 3px 5px;
+    }
+
+    .text-right {
+        text-align: right;
+    }
+
+    .group-row {
+        font-weight: bold;
+    }
+
+    .total-row {
+        font-weight: bold;
+        border-top: 1px solid #ccc;
+    }
+</style>
+
+<div class="report-header">
+    <div class="company-name">{{ filters.company }}</div>
+    <div class="rif">R.I.F.: {{ frappe.db.get_value("Company", filters.company, "tax_id") or "J-00000000-0" }}</div>
+</div>
+
+<div class="report-title">BALANCE DE COMPROBACIÓN</div>
+<div class="report-period">
+    Al: {{ frappe.utils.formatdate(filters.to_date) }} EXPRESADO EN BOLÍVARES
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Cuenta Contable</th>
+            <th class="text-right">Saldo Inicial</th>
+            <th class="text-right">Debe</th>
+            <th class="text-right">Haber</th>
+            <th class="text-right">Saldo a la fecha</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in data %}
+        {# Identificamos si es una fila de "Total" o de "Grupo" para aplicar estilos #}
+        <tr class="{{ 'total-row' if 'Total' in row.account else ('group-row' if row.is_group else '') }}">
+            <td style="{{ 'padding-left: 20px;' if not row.is_group and 'Total' not in row.account else '' }}">
+                {{ row.account }}
+            </td>
+            <td class="text-right">{{ format_currency(row.opening_balance) }}</td>
+            <td class="text-right">{{ format_currency(row.debit) }}</td>
+            <td class="text-right">{{ format_currency(row.credit) }}</td>
+            <td class="text-right">{{ format_currency(row.closing_balance) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
