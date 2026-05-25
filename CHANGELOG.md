@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.1] - 2026-05-25
+
+### 🐛 Correcciones (Fixes)
+- Se refactorizó el sistema de permisos para eliminar la inspección frágil del stack en `user_permissions_patch` y `permissions`, mejorando la estabilidad y robustez del código. [0fb9714]
+
+---
+
+## [v1.1.0] - 2026-05-20
+
+### ✨ Funcionalidades (Features)
+- Implementación de un sistema de validación, herencia y propagación de roles en el módulo `ve_branch`.
+- Consolidación de la intercepción de permisos para VE Branch junto con la aplicación de tipado estricto para mejorar la seguridad y mantenibilidad del código.
+- Refuerzo de seguridad en el Workspace de Facturación Digital, restringiendo el acceso exclusivamente a roles administrativos del área de contabilidad.
+
+---
+
 ## [v1.0.31] - 2026-05-14
 
 ### 🐛 Correcciones (Fixes)
