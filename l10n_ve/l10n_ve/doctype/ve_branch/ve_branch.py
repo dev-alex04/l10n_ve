@@ -169,13 +169,13 @@ class VEBranch(NestedSet):
 
 
     def validate_unique_users(self) -> None:
-        """Valida que un usuario no esté asignado a más de una sucursal y no esté duplicado en la misma."""
-        users = [row.user for row in self.get("users", []) if row.user]
+        """Valida que un usuario no esté duplicado dentro de la misma sucursal."""
+        users: list[str] = [row.user for row in self.get("users", []) if row.user]
         if not users:
             return
 
         if len(users) != len(set(users)):
-            seen = set()
+            seen: set[str] = set()
             for user in users:
                 if user in seen:
                     frappe.throw(
@@ -184,66 +184,6 @@ class VEBranch(NestedSet):
                         )
                     )
                 seen.add(user)
-
-        existing_assignments = frappe.get_all(
-            "VE Branch Users",
-            filters={"user": ["in", users], "parent": ["!=", self.name], "parenttype": "VE Branch"},
-            fields=["user", "parent"],
-        )
-
-        if not existing_assignments:
-            return
-
-        other_branch_names = list(set(d.parent for d in existing_assignments))
-        other_branches_info = frappe.get_all(
-            "VE Branch",
-            filters={"name": ["in", other_branch_names]},
-            fields=["name", "parent_ve_branch"],
-        )
-        other_branches_parent_map = {b.name: b.parent_ve_branch for b in other_branches_info}
-
-        current_branch_parent = self.parent_ve_branch
-
-        # Get all ancestors of current branch for relationship check
-        my_ancestors = set()
-        curr = self.parent_ve_branch
-        while curr:
-            my_ancestors.add(curr)
-            curr = frappe.get_cached_value("VE Branch", curr, "parent_ve_branch")
-
-        for assignment in existing_assignments:
-            user = assignment.user
-            other_branch = assignment.parent
-
-            # Check if the other branch is an ancestor
-            if other_branch in my_ancestors:
-                continue
-
-            # Check if current branch is an ancestor of the other branch (i.e., other is a descendant)
-            is_descendant = False
-            curr_other = other_branches_parent_map.get(other_branch)
-            while curr_other:
-                if curr_other == self.name:
-                    is_descendant = True
-                    break
-                curr_other = frappe.get_cached_value("VE Branch", curr_other, "parent_ve_branch")
-
-            if is_descendant:
-                continue
-
-            # Check if they are siblings (share the same immediate parent)
-            other_branch_parent = other_branches_parent_map.get(other_branch)
-            if current_branch_parent and other_branch_parent == current_branch_parent:
-                continue
-
-            # If none of the above relationships exist, it's an invalid duplicate assignment
-            frappe.throw(
-                _("El usuario {0} ya está asignado a la sucursal {1}. "
-                  "Solo se permite repetir usuarios entre ramas relacionadas "
-                  "(Ancestros, Descendientes o Hermanas).").format(
-                    frappe.bold(user), frappe.bold(other_branch)
-                )
-            )
 
     def get_default_payment_mode(self) -> _dict:
         """Obtiene el modo de pago predeterminado de la sucursal."""
