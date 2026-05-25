@@ -24,30 +24,17 @@ def apply():
             
         # Hacer una copia superficial para evitar mutar el objeto en caché en memoria directamente
         user_permissions: Dict[str, List[Dict[str, Any]]] = dict(original_perms) if original_perms else {}
-            
-        # Detectar el doctype consultado inspeccionando el stack de ejecucion
-        import inspect
-        frame: Any = inspect.currentframe()
-        active_doctype: Union[str, None] = None
-        while frame:
-            # Buscar DatabaseQuery en el stack
-            self_obj: Any = frame.f_locals.get('self')
-            if self_obj and self_obj.__class__.__name__ == 'DatabaseQuery':
-                active_doctype = getattr(self_obj, 'doctype', None)
-                break
-            frame = frame.f_back
-            
-        # Si la consulta activa es sobre VE Branch, incluimos los ancestros
-        include_ancestors = active_doctype == "VE Branch"
-        
-        # Importar dinamicamente para evitar importacion circular
+
+        # Incluir ancestros siempre para que los selectores Link de VE Branch muestren
+        # la jerarquía completa. El filtrado real por DocType lo maneja
+        # permission_query_conditions en permissions.py.
         from l10n_ve.permissions import get_allowed_branches
-        allowed = get_allowed_branches(user, include_ancestors=include_ancestors)
-        
+        allowed: List[str] = get_allowed_branches(user, include_ancestors=True)
+
         if allowed:
             new_ve_branch_perms = [{"doc": branch, "applicable_for": None} for branch in allowed]
             user_permissions["VE Branch"] = new_ve_branch_perms
-            
+
         return user_permissions
 
     # Reemplazar en ambos lugares para interceptar cualquier tipo de importación

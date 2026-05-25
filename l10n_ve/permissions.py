@@ -87,16 +87,6 @@ def get_ve_branch_permission_query(user: str, doctype: str = None) -> str:
     Frappe le pasa el doctype de forma nativa como argumento clave-valor (doctype=self.doctype).
     """
     if not doctype:
-        # Detectar doctype desde el stack de ejecucion
-        import inspect
-        frame = inspect.currentframe()
-        while frame:
-            if 'self' in frame.f_locals and frame.f_locals['self'].__class__.__name__ == 'DatabaseQuery':
-                doctype = frame.f_locals['self'].doctype
-                break
-            frame = frame.f_back
-            
-    if not doctype:
         return ""
         
     if not user:
