@@ -11,47 +11,55 @@ def is_admin_user(user: str) -> bool:
     return "System Manager" in frappe.get_roles(user)
 
 def get_allowed_branches(user: str = None, include_ancestors: bool = False) -> List[str]:
-    """
-    Retorna la lista expandida de sucursales (con hijas) para el usuario.
-    Usa la cache de Redis para responder inmediatamente sin consultar la base de datos.
+    """Retorna la lista de sucursales permitidas para el usuario.
+
+    Incluye siempre los descendientes (vía lft/rgt) de cada sucursal asignada
+    en User Permission. Si include_ancestors=True, también devuelve los
+    ancestros de cada sucursal asignada — necesario para renderizar la vista
+    de árbol de VE Branch con el path completo. En cualquier otro contexto
+    debe usarse include_ancestors=False para no exponer ramas no permitidas.
+
+    Usa la caché de Redis para responder sin consultar la base de datos.
+    En developer_mode no se escribe ni se lee caché.
     """
     if not user:
         user = frappe.session.user
-        
+
     if is_admin_user(user):
         all_branches = frappe.cache().get_value("all_ve_branches")
         if all_branches is None:
             all_branches = frappe.get_all("VE Branch", pluck="name")
             frappe.cache().set_value("all_ve_branches", all_branches)
         return all_branches
-        
+
+    use_cache: bool = not frappe.conf.get("developer_mode")
     cache_key: str = f"allowed_ve_branches:{user}:{'1' if include_ancestors else '0'}"
-    allowed: Union[List[str], None] = None
-    if not frappe.conf.get("developer_mode"):
-        allowed = frappe.cache().get_value(cache_key)
-        
-    if allowed is not None:
-        return allowed
-        
+    if use_cache:
+        allowed: Union[List[str], None] = frappe.cache().get_value(cache_key)
+        if allowed is not None:
+            return allowed
+
     # Consultar base de datos si no esta en cache
     direct_branches: List[str] = frappe.get_all(
         "User Permission",
         filters={"user": user, "allow": "VE Branch"},
         pluck="for_value"
     )
-    
+
     if not direct_branches:
-        frappe.cache().set_value(cache_key, [])
+        if use_cache:
+            frappe.cache().set_value(cache_key, [])
         return []
-        
+
     # Obtener limites jerarquicos de las sucursales asignadas (Nested Set: lft, rgt)
     branch_limits: List[Dict[str, int]] = frappe.db.sql("""
         SELECT name, lft, rgt FROM `tabVE Branch`
         WHERE name IN %(branches)s
     """, {"branches": tuple(direct_branches)}, as_dict=True)
-    
+
     if not branch_limits:
-        frappe.cache().set_value(cache_key, [])
+        if use_cache:
+            frappe.cache().set_value(cache_key, [])
         return []
         
     or_conditions: List[str] = []
@@ -72,13 +80,14 @@ def get_allowed_branches(user: str = None, include_ancestors: bool = False) -> L
             query_args[rgt_anc_key] = branch["rgt"]
         
     where_clause: str = " OR ".join(or_conditions)
-    
+
     all_allowed: List[str] = frappe.db.sql(f"""
         SELECT name FROM `tabVE Branch`
         WHERE {where_clause}
     """, query_args, pluck="name")
-    
-    frappe.cache().set_value(cache_key, all_allowed)
+
+    if use_cache:
+        frappe.cache().set_value(cache_key, all_allowed)
     return all_allowed
 
 def _is_ve_branch_tree_context() -> bool:
@@ -87,17 +96,44 @@ def _is_ve_branch_tree_context() -> bool:
     Diferencia entre contextos donde se necesitan ancestros (vista de árbol) y
     contextos donde solo deben verse sucursales con permiso explícito (Link
     dropdowns, list view, etc).
+
+    Se valida tanto `form_dict.cmd` como `request.path` para evitar que un
+    cliente malicioso force el modo árbol con `?cmd=...` sobre otro endpoint.
+    En developer_mode se emite un log cuando una consulta sobre VE Branch no
+    matchea ningún patrón conocido, para detectar cambios entre versiones de
+    Frappe (el endpoint exacto de carga inicial del árbol ha variado).
     """
     form_dict = getattr(frappe.local, "form_dict", None) or {}
     cmd: str = (form_dict.get("cmd") or "").lower()
+    doctype: str = form_dict.get("doctype") or ""
 
-    if "treeview.get_children" in cmd and form_dict.get("doctype") == "VE Branch":
+    request = getattr(frappe.local, "request", None)
+    path: str = (getattr(request, "path", "") or "").lower()
+
+    # Patrón 1: expansión de nodos vía treeview.get_children. Validamos cmd y path
+    # para descartar spoofing de cmd contra otro endpoint.
+    if (
+        "treeview.get_children" in cmd
+        and doctype == "VE Branch"
+        and "treeview" in path
+    ):
         return True
 
-    if cmd == "frappe.client.get_list" and form_dict.get("doctype") == "VE Branch":
+    # Patrón 2: carga inicial del árbol vía get_list con filtros propios del árbol.
+    # El filtro is_root/parent_ve_branch ya es suficientemente específico — no
+    # exigimos coincidencia de path para no romper si Frappe cambia el endpoint.
+    if cmd == "frappe.client.get_list" and doctype == "VE Branch":
         filters: str = str(form_dict.get("filters") or "")
         if "is_root" in filters or "parent_ve_branch" in filters:
             return True
+
+    # Diagnóstico para developer_mode: si la consulta es sobre VE Branch y no
+    # matcheamos ningún patrón conocido, dejar rastro para revisar.
+    if doctype == "VE Branch" and frappe.conf.get("developer_mode"):
+        frappe.logger("l10n_ve.permissions").debug(
+            f"_is_ve_branch_tree_context: unmatched VE Branch query "
+            f"cmd={cmd!r} path={path!r} filters={form_dict.get('filters')!r}"
+        )
 
     return False
 
