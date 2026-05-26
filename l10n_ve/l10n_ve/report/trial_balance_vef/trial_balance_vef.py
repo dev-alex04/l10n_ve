@@ -26,7 +26,7 @@ def get_data(filters):
     # 1. Obtener todas las cuentas ordenadas por su código (lft) para mantener la jerarquía
     accounts = frappe.get_all("Account", 
         filters={"company": company},
-        fields=["name", "account_name", "is_group", "lft", "rgt"],
+        fields=["name", "account_name", "account_number", "is_group", "parent_account", "lft", "rgt"],
         order_by="lft"
     )
 
@@ -48,10 +48,21 @@ def get_data(filters):
     # Mapa para búsqueda rápida de saldos en cuentas hojas
     gl_map = {d.account: d for d in gl_entries}
 
-    data = []
-    
-    # 3. Consolidar balances recursivamente en memoria (Python)
+    # Construir un mapa de parent -> children para poder recorrer de manera eficiente
+    children_map = {}
     for acc in accounts:
+        parent = acc.parent_account
+        if parent:
+            if parent not in children_map:
+                children_map[parent] = []
+            children_map[parent].append(acc)
+
+    # Identificar las cuentas raíz (aquellas que no tienen padre en el mapa de cuentas del reporte)
+    roots = [acc for acc in accounts if not acc.parent_account or acc.parent_account not in account_map]
+
+    data = []
+
+    def traverse_account(acc):
         opening = 0.0
         debit = 0.0
         credit = 0.0
@@ -66,15 +77,62 @@ def get_data(filters):
 
         closing = opening + debit - credit
 
-        # Solo agregamos si hay movimiento/saldo o si el filtro indica mostrar cuentas en cero
-        if filters.get("show_zero_values") or opening or debit or credit or closing:
-            data.append({
+        # Solo procesamos si hay movimiento/saldo o si se muestra en cero
+        has_movement = (abs(opening) > 0.005 or abs(debit) > 0.005 or abs(credit) > 0.005 or abs(closing) > 0.005)
+        
+        if not (filters.get("show_zero_values") or has_movement):
+            return 0.0, 0.0, 0.0, 0.0
+
+        if acc.is_group:
+            # Fila de Cabecera: Cuenta Contable en negrita, sin valores numéricos
+            header_row = {
                 "account": acc.name,
+                "account_number": acc.account_number or "",
+                "account_name": acc.account_name,
+                "opening_balance": None,
+                "debit": None,
+                "credit": None,
+                "closing_balance": None,
+                "is_group": 1,
+                "is_header": 1
+            }
+            data.append(header_row)
+
+            # Recorrer hijos
+            children = children_map.get(acc.name, [])
+            for child in children:
+                traverse_account(child)
+
+            # Fila de Total: consolidada de los hijos
+            total_row = {
+                "account": f"Total de {acc.account_number or ''} {acc.account_name}",
+                "account_number": "",
+                "account_name": f"Total de {acc.account_number or ''} {acc.account_name}",
                 "opening_balance": opening,
                 "debit": debit,
                 "credit": credit,
                 "closing_balance": closing,
-                "is_group": acc.is_group
-            })
+                "is_group": 1,
+                "is_total": 1
+            }
+            data.append(total_row)
+        else:
+            # Fila de Hoja con sus valores
+            leaf_row = {
+                "account": acc.name,
+                "account_number": acc.account_number or "",
+                "account_name": acc.account_name,
+                "opening_balance": opening,
+                "debit": debit,
+                "credit": credit,
+                "closing_balance": closing,
+                "is_group": 0
+            }
+            data.append(leaf_row)
+
+        return opening, debit, credit, closing
+
+    for root in roots:
+        traverse_account(root)
 
     return data

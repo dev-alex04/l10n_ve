@@ -1,4 +1,4 @@
-frappe.query_reports["trial_balance_vef"] = {
+frappe.query_reports["trial balance VEF"] = {
     "filters": [
         {
             "fieldname": "company",
@@ -31,22 +31,44 @@ frappe.query_reports["trial_balance_vef"] = {
     ],
 
     "formatter": function (value, row, column, data, default_formatter) {
+        if (!data) return default_formatter(value, row, column, data);
+
+        // Si es una fila de cabecera de grupo, ocultamos los valores numéricos
+        if (data.is_header && column.fieldname !== "account") {
+            return "";
+        }
+
         value = default_formatter(value, row, column, data);
 
-        // Si la fila actual es un grupo (Activo, Pasivo, etc.)
-        if (data && data.is_group) {
-            // Aplicar negrita a toda la fila
-            value = $(`<span>${value}</span>`).css("font-weight", "bold");
+        let is_group = data.is_group;
+        let is_negative = column.fieldtype === "Currency" && data[column.fieldname] < 0;
 
-            // Si es la columna de nombre de cuenta, le damos un poco de indentación manual si quieres
-            if (column.fieldname === "account") {
-                $(value).css("color", "var(--text-color)"); // Mantiene el contraste según el tema activo
+        // Estilos para la columna de cuenta
+        if (column.fieldname === "account") {
+            let text = "";
+
+            if (data.is_header) {
+                let num = data.account_number ? `<span style="display: inline-block; width: 80px; font-weight: bold;">${data.account_number}</span>` : "";
+                text = `${num}<span style="font-weight: bold;">${data.account_name}</span>`;
+                value = `<span>${text}</span>`;
+            } else if (data.is_total) {
+                text = `<span style="font-weight: bold; margin-left: 80px;">${data.account_name}</span>`;
+                value = `<span>${text}</span>`;
+            } else {
+                let num = data.account_number ? `<span style="display: inline-block; width: 80px;">${data.account_number}</span>` : "";
+                text = `${num}<span>${data.account_name}</span>`;
+                value = `<span>${text}</span>`;
             }
         }
 
-        // Colorear saldos negativos en rojo (opcional, muy contable)
-        if (column.fieldtype === "Currency" && data && data[column.fieldname] < 0) {
-            value = $(`<span>${value}</span>`).css("color", "red");
+        // Si la fila actual es un grupo (cabecera o total)
+        if (is_group) {
+            value = `<span style="font-weight: bold;">${value}</span>`;
+        }
+
+        // Colorear saldos negativos en rojo
+        if (is_negative) {
+            value = `<span style="color: red;">${value}</span>`;
         }
 
         return value;

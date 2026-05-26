@@ -1,96 +1,240 @@
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
 <style>
-    .report-header {
-        margin-bottom: 20px;
+    /* Reset and Premium Typography */
+    body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b; /* Slate 800 */
+        margin: 0;
+        padding: 0;
+        background-color: #fff;
+        -webkit-print-color-adjust: exact;
+    }
+    
+    .report-container {
+        padding: 15px;
     }
 
+    /* Header Table - Business Central Style */
+    .header-table {
+        width: 100%;
+        border-collapse: collapse;
+        border: none;
+        margin-bottom: 25px;
+    }
+    
+    .header-table td {
+        border: none !important;
+        padding: 0 !important;
+        background-color: transparent !important;
+    }
+    
+    .header-left {
+        text-align: left;
+        vertical-align: top;
+    }
+    
+    .header-right {
+        text-align: right;
+        vertical-align: top;
+        font-size: 8.5pt;
+        color: #64748b; /* Slate 500 */
+        line-height: 1.5;
+    }
+    
     .company-name {
-        font-weight: bold;
-        font-size: 14pt;
+        font-size: 10.5pt;
+        font-weight: 700;
+        color: #0f172a; /* Slate 900 */
         text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0;
     }
-
+    
     .rif {
-        font-size: 11pt;
-        margin-bottom: 10px;
+        font-size: 8.5pt;
+        color: #64748b;
+        margin-top: 2px;
+        font-weight: 500;
     }
-
+    
     .report-title {
-        text-align: center;
-        font-weight: bold;
-        font-size: 13pt;
+        font-size: 14pt;
+        font-weight: 800;
+        color: #0f172a;
         margin-top: 15px;
-        text-decoration: underline;
+        letter-spacing: -0.3px;
+        text-transform: none;
     }
-
+    
     .report-period {
-        text-align: center;
-        font-size: 10pt;
-        margin-bottom: 20px;
+        font-size: 9.5pt;
+        font-weight: 600;
+        color: #475569; /* Slate 600 */
+        margin-top: 4px;
     }
 
-    table {
+    /* Table Styles */
+    table.report-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 8.5pt;
+        margin-top: 20px;
     }
 
-    th {
-        border-top: 1px solid black;
-        border-bottom: 1px solid black;
-        padding: 5px;
-        text-align: left;
+    table.report-table th {
+        border-top: 1px solid #0f172a !important;
+        border-bottom: 1px solid #0f172a !important;
+        border-left: none !important;
+        border-right: none !important;
+        padding: 8px 6px;
+        font-weight: 700;
+        color: #0f172a;
+        text-transform: none;
+        font-size: 8.5pt;
+        background-color: transparent !important;
     }
 
-    td {
-        padding: 3px 5px;
+    table.report-table td {
+        padding: 6px;
+        vertical-align: middle;
+        border: none !important;
     }
 
     .text-right {
         text-align: right;
     }
 
-    .group-row {
-        font-weight: bold;
+    .text-left {
+        text-align: left;
+    }
+
+    /* Account Alignment */
+    .acc-num {
+        display: inline-block;
+        width: 85px;
+        font-weight: inherit;
+    }
+
+    .acc-name {
+        font-weight: inherit;
+    }
+
+    /* Row types and professional shading */
+    .header-row {
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .header-row td {
+        padding-top: 14px;
+        padding-bottom: 6px;
+        font-size: 8.5pt;
     }
 
     .total-row {
-        font-weight: bold;
-        border-top: 1px solid #ccc;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .total-row td {
+        padding-top: 8px;
+        padding-bottom: 8px;
+        border-top: 1px solid #0f172a !important;
+        border-bottom: 1px solid #0f172a !important;
+        background-color: #f8fafc !important; /* Slate 50 */
+    }
+
+    .leaf-row {
+        font-weight: 400;
+        color: #334155; /* Slate 700 */
+    }
+
+    .leaf-row td {
+        border-bottom: 1px solid #f1f5f9 !important; /* Very subtle line */
+    }
+
+    .negative-val {
+        color: #df2020;
+        font-weight: inherit;
     }
 </style>
 
-<div class="report-header">
-    <div class="company-name">{{ filters.company }}</div>
-    <div class="rif">R.I.F.: {{ frappe.db.get_value("Company", filters.company, "tax_id") or "J-00000000-0" }}</div>
-</div>
+<div class="report-container">
+    {%
+        var format_val = function(val) {
+            if (val === null || val === undefined || val === "") return "";
+            var formatted = format_currency(val);
+            if (val < -0.005) {
+                return '<span class="negative-val">' + formatted + '</span>';
+            }
+            return formatted;
+        };
+    %}
 
-<div class="report-title">BALANCE DE COMPROBACIÓN</div>
-<div class="report-period">
-    Al: {{ frappe.utils.formatdate(filters.to_date) }} EXPRESADO EN BOLÍVARES
-</div>
-
-<table>
-    <thead>
+    <table class="header-table">
         <tr>
-            <th>Cuenta Contable</th>
-            <th class="text-right">Saldo Inicial</th>
-            <th class="text-right">Debe</th>
-            <th class="text-right">Haber</th>
-            <th class="text-right">Saldo a la fecha</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for row in data %}
-        {# Identificamos si es una fila de "Total" o de "Grupo" para aplicar estilos #}
-        <tr class="{{ 'total-row' if 'Total' in row.account else ('group-row' if row.is_group else '') }}">
-            <td style="{{ 'padding-left: 20px;' if not row.is_group and 'Total' not in row.account else '' }}">
-                {{ row.account }}
+            <td class="header-left">
+                <div class="company-name">{%= filters.company %}</div>
+                <div class="rif">R.I.F.: {%= (frappe.model.get_doc("Company", filters.company) || {}).tax_id || "J-30909786-5" %}</div>
+                <div class="report-title">Balance de Comprobación Detallado</div>
+                <div class="report-period">
+                    Período: {%= filters.from_date ? filters.from_date.split("-").reverse().join("/") : "" %} al {%= filters.to_date ? filters.to_date.split("-").reverse().join("/") : "" %}
+                </div>
             </td>
-            <td class="text-right">{{ format_currency(row.opening_balance) }}</td>
-            <td class="text-right">{{ format_currency(row.debit) }}</td>
-            <td class="text-right">{{ format_currency(row.credit) }}</td>
-            <td class="text-right">{{ format_currency(row.closing_balance) }}</td>
+            <td class="header-right">
+                <div>{%= new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %}</div>
+                <div style="font-weight: 600; color: #334155; margin-top: 4px;">Expresado en Bolívares (VEF)</div>
+                <div style="margin-top: 10px; font-style: italic;">Incluye cuentas con saldo o movimientos</div>
+            </td>
         </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    </table>
+
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th class="text-left">Cuenta Contable</th>
+                <th class="text-right" style="width: 120px;">Saldo Inicial</th>
+                <th class="text-right" style="width: 120px;">Debe</th>
+                <th class="text-right" style="width: 120px;">Haber</th>
+                <th class="text-right" style="width: 140px;">
+                    Saldo a la fecha {%= filters.to_date ? filters.to_date.split("-").reverse().join("/") : "" %}
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for (var i=0, l=data.length; i<l; i++) {
+                var row = data[i]; %}
+            {% if (row.is_header) { %}
+            <tr class="header-row">
+                <td colspan="5">
+                    <span class="acc-num">{%= row.account_number || "" %}</span>
+                    <span class="acc-name">{%= row.account_name || "" %}</span>
+                </td>
+            </tr>
+            {% } else if (row.is_total) { %}
+            <tr class="total-row">
+                <td style="padding-left: 91px;">
+                    {%= row.account_name || "" %}
+                </td>
+                <td class="text-right">{%= format_val(row.opening_balance) %}</td>
+                <td class="text-right">{%= format_val(row.debit) %}</td>
+                <td class="text-right">{%= format_val(row.credit) %}</td>
+                <td class="text-right">{%= format_val(row.closing_balance) %}</td>
+            </tr>
+            {% } else { %}
+            <tr class="leaf-row">
+                <td>
+                    <span class="acc-num">{%= row.account_number || "" %}</span>
+                    <span class="acc-name">{%= row.account_name || "" %}</span>
+                </td>
+                <td class="text-right">{%= format_val(row.opening_balance) %}</td>
+                <td class="text-right">{%= format_val(row.debit) %}</td>
+                <td class="text-right">{%= format_val(row.credit) %}</td>
+                <td class="text-right">{%= format_val(row.closing_balance) %}</td>
+            </tr>
+            {% } %}
+            {% } %}
+        </tbody>
+    </table>
+</div>

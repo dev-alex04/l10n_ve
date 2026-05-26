@@ -19,7 +19,7 @@
  "prepared_report": 0,
  "ref_doctype": "GL Entry",
  "report_name": "trial balance VEF",
- "report_type": "Report Builder",
+ "report_type": "Script Report",
  "roles": [
   {
    "role": "Accounts User"
