@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.2.0] - 2026-05-26
+
+### ✨ Funcionalidades (Features)
+- **Reporte de Balance de Comprobación VEF**: Creación e implementación del nuevo reporte `trial_balance_vef`.
+- **Tarjetas Gerenciales**: Implementación de tarjetas de visualización para montos de gestión y limpieza de componentes numéricos.
+- **Optimización de Reportes**: Mejora en el rendimiento y optimización del balance de comprobación en bolívares (VEF).
+
+---
+
 ## [v1.1.3] - 2026-05-25
 
 ### 🐛 Correcciones (Fixes)
