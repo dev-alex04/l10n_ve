@@ -423,7 +423,7 @@ def _get_common_columns() -> str:
             COALESCE(MAX(vdbs.serie), MAX(siv.hka_serie)) AS fiscal_series,
             siv.credit_note_no,
             siv.debit_note_no,
-            siv.affected_invoice_number,  
+            siv.affected_invoice_number,
             siv.vat_withholding_voucher_number,
             DATE_FORMAT(siv.withholding_date, '%%d/%%m/%%Y') AS withholding_date,
             CASE
