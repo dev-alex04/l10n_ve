@@ -81,6 +81,27 @@ def get_allowed_branches(user: str = None, include_ancestors: bool = False) -> L
     frappe.cache().set_value(cache_key, all_allowed)
     return all_allowed
 
+def _is_ve_branch_tree_context() -> bool:
+    """True si la consulta proviene de la vista de árbol de VE Branch.
+
+    Diferencia entre contextos donde se necesitan ancestros (vista de árbol) y
+    contextos donde solo deben verse sucursales con permiso explícito (Link
+    dropdowns, list view, etc).
+    """
+    form_dict = getattr(frappe.local, "form_dict", None) or {}
+    cmd: str = (form_dict.get("cmd") or "").lower()
+
+    if "treeview.get_children" in cmd and form_dict.get("doctype") == "VE Branch":
+        return True
+
+    if cmd == "frappe.client.get_list" and form_dict.get("doctype") == "VE Branch":
+        filters: str = str(form_dict.get("filters") or "")
+        if "is_root" in filters or "parent_ve_branch" in filters:
+            return True
+
+    return False
+
+
 def get_ve_branch_permission_query(user: str, doctype: str = None) -> str:
     """
     Funcion principal de intercepcion de consultas SQL para el hook de Frappe.
@@ -88,14 +109,16 @@ def get_ve_branch_permission_query(user: str, doctype: str = None) -> str:
     """
     if not doctype:
         return ""
-        
+
     if not user:
         user = frappe.session.user
-        
+
     if is_admin_user(user):
         return ""
-        
-    include_ancestors: bool = doctype == "VE Branch"
+
+    # Solo se incluyen ancestros cuando se está pintando la vista de árbol de VE Branch.
+    # En cualquier otro contexto (dropdown, list view), el filtro es estricto.
+    include_ancestors: bool = doctype == "VE Branch" and _is_ve_branch_tree_context()
     allowed: List[str] = get_allowed_branches(user, include_ancestors=include_ancestors)
     
     if not allowed:
@@ -128,9 +151,10 @@ def has_ve_branch_permission(doc: Any, ptype: str = "read", user: str = None) ->
         
     if is_admin_user(user):
         return True
-        
-    include_ancestors: bool = doc.doctype == "VE Branch"
-    allowed: List[str] = get_allowed_branches(user, include_ancestors=include_ancestors)
+
+    # Estricto: si el usuario intenta abrir un ancestro al que no tiene permiso
+    # explícito, debe ser bloqueado aunque la vista de árbol lo muestre.
+    allowed: List[str] = get_allowed_branches(user, include_ancestors=False)
     if not allowed:
         return False
         
