@@ -6,7 +6,7 @@ def execute():
     con IGTF confirmados, y limpia cualquier valor residual en facturas sin pagos activos.
     """
     for doctype in ["Sales Invoice", "Purchase Invoice"]:
-        if not frappe.db.has_column(doctype, "total_igtf"):
+        if not frappe.db.has_column(doctype, "total_igtf") or not frappe.db.has_column(doctype, "base_amount_igtf"):
             continue
 
         frappe.db.sql(f"""
@@ -15,7 +15,7 @@ def execute():
                 SELECT 
                     per.reference_name,
                     SUM(per.allocated_amount) as base_igtf,
-                    SUM((per.allocated_amount * IFNULL(pe.igtf_rate, 3)) / 100) as total_igtf
+                    SUM((per.allocated_amount * COALESCE(NULLIF(pe.igtf_rate, 0), 3)) / 100) as total_igtf
                 FROM `tabPayment Entry Reference` per
                 JOIN `tabPayment Entry` pe ON pe.name = per.parent
                 WHERE per.reference_doctype = '{doctype}'
