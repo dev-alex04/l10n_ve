@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.3.1] - 2026-05-26
+
+### 🐛 Correcciones (Fixes)
+- **Permisos:** Se restauró la visibilidad estricta de VE Branch fuera de la jerarquía del árbol para asegurar el control de acceso correcto. b6ce7ce
+
+---
+
+## [v1.3.0] - 2026-05-26
+
+### ✨ Funcionalidades (Features)
+- Implementación de la lógica para retornar la lista de sucursales permitidas asociadas al usuario. [2ec1e6a]
+
+---
+
+## [v1.2.0] - 2026-05-26
+
+### ✨ Funcionalidades (Features)
+- **Reporte de Balance de Comprobación VEF**: Creación e implementación del nuevo reporte `trial_balance_vef`.
+- **Tarjetas Gerenciales**: Implementación de tarjetas de visualización para montos de gestión y limpieza de componentes numéricos.
+- **Optimización de Reportes**: Mejora en el rendimiento y optimización del balance de comprobación en bolívares (VEF).
+
+---
+
+## [v1.1.3] - 2026-05-25
+
+### 🐛 Correcciones (Fixes)
+- Se habilitó la capacidad de asignar usuarios a múltiples sucursales de manera simultánea dentro del módulo de sucursales (`ve_branch`) [8420314].
+
+---
+
+## [v1.1.2] - 2026-05-25
+
+### 🐛 Correcciones (Fixes)
+- **Gestión de sucursales:** Se habilitó la posibilidad de asignar usuarios a múltiples sucursales de forma simultánea, corrigiendo la limitación previa en el módulo de sucursales. [b09508e]
+
+---
+
 ## [v1.1.1] - 2026-05-25
 
 ### 🐛 Correcciones (Fixes)
