@@ -21,7 +21,7 @@ def execute():
                 WHERE per.reference_doctype = '{doctype}'
                   AND pe.docstatus = 1
                   AND EXISTS (
-                      SELECT 1 FROM `tabPayment Entry Tax` pet 
+                      SELECT 1 FROM `tabAdvance Taxes and Charges` pet 
                       WHERE pet.parent = pe.name AND pet.charge_type = 'IGTF'
                   )
                 GROUP BY per.reference_name
