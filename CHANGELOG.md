@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.5.0] - 2026-05-29
+
+### ✨ Funcionalidades (Features)
+- Implementación de nuevas métricas y tarjetas de indicadores en el tablero (dashboard) para el perfil de gerencia, enfocadas en la visualización del estatus financiero. 9d7bded
+
+### 🐛 Correcciones (Fixes)
+- Optimización de consultas en el backend para las tarjetas numéricas mediante la integración de mecanismos de caché y filtros estrictos por `root_type` para mejorar el rendimiento. cacef1d
+
+---
+
 ## [v1.4.0] - 2026-05-29
 
 ### ✨ Funcionalidades (Features)
