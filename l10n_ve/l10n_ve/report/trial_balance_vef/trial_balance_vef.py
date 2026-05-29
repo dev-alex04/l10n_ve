@@ -1,5 +1,9 @@
 import frappe
-from frappe.utils import flt
+from frappe.utils import flt, print_format
+from urllib.parse import urlparse
+from frappe.utils.pdf import get_pdf
+from frappe.core.doctype.access_log.access_log import make_access_log
+
 
 def execute(filters=None):
     columns = get_columns()
@@ -24,9 +28,9 @@ def get_data(filters):
         return []
 
     # 1. Obtener todas las cuentas ordenadas por su código (lft) para mantener la jerarquía
-    accounts = frappe.get_all("Account", 
+    accounts = frappe.get_all("Account",
         filters={"company": company},
-        fields=["name", "account_name", "account_number", "is_group", "parent_account", "lft", "rgt"],
+        fields=["name", "account_name", "account_number", "is_group", "parent_account", "lft", "rgt", "root_type"],
         order_by="lft"
     )
 
@@ -35,7 +39,7 @@ def get_data(filters):
 
     # 2. Obtener los saldos consolidados de GL Entry en una sola consulta
     gl_entries = frappe.db.sql("""
-        SELECT 
+        SELECT
             account,
             SUM(CASE WHEN posting_date < %(from_date)s THEN debit - credit ELSE 0 END) as opening,
             SUM(CASE WHEN posting_date BETWEEN %(from_date)s AND %(to_date)s THEN debit ELSE 0 END) as debit,
@@ -79,7 +83,7 @@ def get_data(filters):
 
         # Solo procesamos si hay movimiento/saldo o si se muestra en cero
         has_movement = (abs(opening) > 0.005 or abs(debit) > 0.005 or abs(credit) > 0.005 or abs(closing) > 0.005)
-        
+
         if not (filters.get("show_zero_values") or has_movement):
             return 0.0, 0.0, 0.0, 0.0
 
@@ -94,7 +98,8 @@ def get_data(filters):
                 "credit": None,
                 "closing_balance": None,
                 "is_group": 1,
-                "is_header": 1
+                "is_header": 1,
+                "root_type": acc.root_type
             }
             data.append(header_row)
 
@@ -113,7 +118,8 @@ def get_data(filters):
                 "credit": credit,
                 "closing_balance": closing,
                 "is_group": 1,
-                "is_total": 1
+                "is_total": 1,
+                "root_type": acc.root_type
             }
             data.append(total_row)
         else:
@@ -126,7 +132,8 @@ def get_data(filters):
                 "debit": debit,
                 "credit": credit,
                 "closing_balance": closing,
-                "is_group": 0
+                "is_group": 0,
+                "root_type": acc.root_type
             }
             data.append(leaf_row)
 
@@ -136,3 +143,52 @@ def get_data(filters):
         traverse_account(root)
 
     return data
+
+
+@frappe.whitelist()
+def custom_report_to_pdf(html, orientation="Landscape"):
+	make_access_log(file_type="PDF", method="PDF", page=html)
+	frappe.local.response.filename = "report.pdf"
+
+	try:
+		frappe.local.response.filecontent = get_pdf(
+			html,
+			{
+				"orientation": orientation,
+				"proxy": "http://0.0.0.0:0",
+				"bypass-proxy-for": urlparse(frappe.utils.get_url(allow_header_override=False)).hostname,
+				"load-error-handling": "ignore",
+			},
+		)
+	except OSError as e:
+		if any(err in str(e) for err in ("ConnectionRefusedError", "Exit with code 1")):
+			try:
+				frappe.local.response.filecontent = get_pdf(
+					html,
+					{
+						"orientation": orientation,
+						"load-error-handling": "ignore",
+					},
+				)
+			except Exception as ex:
+				frappe.log_error(
+					title="Custom PDF Print Retry Error",
+					message=f"Error in custom_report_to_pdf retry:\n{frappe.get_traceback()}"
+				)
+				raise ex
+		else:
+			frappe.log_error(
+				title="Custom PDF Print Error",
+				message=f"Error in custom_report_to_pdf:\n{frappe.get_traceback()}"
+			)
+			raise e
+	except Exception as e:
+		frappe.log_error(
+			title="Custom PDF Print General Error",
+			message=f"General error in custom_report_to_pdf:\n{frappe.get_traceback()}"
+		)
+		raise e
+
+	frappe.local.response.type = "pdf"
+
+print_format.report_to_pdf = custom_report_to_pdf
