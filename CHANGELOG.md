@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.4.0] - 2026-05-29
+
+### ✨ Funcionalidades (Features)
+- Implementación de totales generales en el reporte de balance de comprobación (c51bdd7).
+
+### 🐛 Correcciones (Fixes)
+- Corrección de errores en la generación y formato de impresión para reportes PDF (c51bdd7).
+
+---
+
 ## [v1.3.1] - 2026-05-26
 
 ### 🐛 Correcciones (Fixes)
