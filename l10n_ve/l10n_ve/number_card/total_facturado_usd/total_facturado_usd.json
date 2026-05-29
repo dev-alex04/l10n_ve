@@ -1,7 +1,7 @@
 {
  "aggregate_function_based_on": "base_total_with_vat",
  "creation": "2026-05-21 08:39:34.994503",
- "currency": "VEF",
+ "currency": "USD",
  "docstatus": 0,
  "doctype": "Number Card",
  "document_type": "Sales Invoice",
@@ -12,6 +12,7 @@
  "is_public": 0,
  "is_standard": 1,
  "label": "Total Facturado USD",
+ "method": "l10n_ve.utils.utils.get_total_facturado_usd",
  "modified": "2026-05-22 22:38:44.028737",
  "modified_by": "Administrator",
  "module": "L10N Ve",
@@ -22,5 +23,5 @@
  "show_full_number": 0,
  "show_percentage_stats": 1,
  "stats_time_interval": "Weekly",
- "type": "Document Type"
+ "type": "Custom"
 }
