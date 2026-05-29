@@ -619,3 +619,267 @@ def is_period_open(voucher_date, period_type="IVA"):
         return today <= limit_date
     
     return False
+
+
+    elif period_type == "ISLR":
+        limit_date = get_last_day_of_month(v_date)
+        return today <= limit_date
+    
+    return False
+
+
+def _get_cached_rate(date_str, cache):
+    """Helper local para almacenar en caché las tasas de cambio y evitar la consulta N+1 en bucles."""
+    if date_str not in cache:
+        cache[date_str] = get_exchange_rate(date_str, "USD") or 1.0
+    return cache[date_str]
+
+
+@frappe.whitelist()
+def get_disponible_usd():
+    """Calcula los fondos disponibles sumando cuentas de Caja y Banco con moneda USD."""
+    accounts = frappe.get_all("Account", filters={
+        "account_currency": "USD",
+        "account_type": ["in", ["Bank", "Cash"]],
+        "is_group": 0
+    }, pluck="name")
+    if not accounts:
+        return 0.0
+    # Refactorizado de frappe.db.get_value con SUM a consulta SQL directa para compatibilidad y robustez
+    result = frappe.db.sql("""
+        SELECT SUM(debit_in_account_currency - credit_in_account_currency)
+        FROM `tabGL Entry`
+        WHERE account IN %s AND docstatus = 1
+    """, (tuple(accounts),))
+    balance = result[0][0] if result and result[0][0] is not None else 0.0
+    return float(balance)
+
+
+@frappe.whitelist()
+def get_gastos_usd_mes():
+    """Calcula la sumatoria de gastos del mes corriente expresada en USD, optimizado con caché."""
+    from frappe.utils import get_first_day, get_last_day, nowdate
+    today = nowdate()
+    first_day = get_first_day(today)
+    last_day = get_last_day(today)
+    
+    accounts = frappe.get_all("Account", filters={"root_type": "Expense", "is_group": 0}, pluck="name")
+    if not accounts:
+        return 0.0
+        
+    gl_entries = frappe.get_all("GL Entry", filters={
+        "account": ["in", accounts],
+        "docstatus": 1,
+        "posting_date": ["between", [first_day, last_day]]
+    }, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+    
+    total_usd = 0.0
+    rates_cache = {}
+    for entry in gl_entries:
+        if entry.account_currency == "USD":
+            total_usd += (entry.debit_in_account_currency - entry.credit_in_account_currency)
+        else:
+            date_str = str(entry.posting_date)
+            rate = _get_cached_rate(date_str, rates_cache)
+            total_usd += (entry.debit - entry.credit) / rate
+    return float(total_usd)
+
+
+@frappe.whitelist()
+def get_gastos_usd_ano():
+    """Calcula la sumatoria de gastos del año corriente expresada en USD, optimizado con caché."""
+    from frappe.utils import nowdate
+    today = nowdate()
+    year_start = f"{today[:4]}-01-01"
+    year_end = f"{today[:4]}-12-31"
+    
+    accounts = frappe.get_all("Account", filters={"root_type": "Expense", "is_group": 0}, pluck="name")
+    if not accounts:
+        return 0.0
+        
+    gl_entries = frappe.get_all("GL Entry", filters={
+        "account": ["in", accounts],
+        "docstatus": 1,
+        "posting_date": ["between", [year_start, year_end]]
+    }, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+    
+    total_usd = 0.0
+    rates_cache = {}
+    for entry in gl_entries:
+        if entry.account_currency == "USD":
+            total_usd += (entry.debit_in_account_currency - entry.credit_in_account_currency)
+        else:
+            date_str = str(entry.posting_date)
+            rate = _get_cached_rate(date_str, rates_cache)
+            total_usd += (entry.debit - entry.credit) / rate
+    return float(total_usd)
+
+
+@frappe.whitelist()
+def get_retencion_islr_usd():
+    """Calcula retenciones de ISLR de clientes en el mes (filtrado de precisión por root_type='Asset')."""
+    from frappe.utils import get_first_day, get_last_day, nowdate
+    today = nowdate()
+    first_day = get_first_day(today)
+    last_day = get_last_day(today)
+    
+    # Filtrado explícito de precisión contable por root_type 'Asset'
+    accounts = frappe.get_all("Account", filters={
+        "account_name": ["like", "%islr%"],
+        "root_type": "Asset",
+        "is_group": 0
+    }, pluck="name")
+    if not accounts:
+        return 0.0
+        
+    gl_entries = frappe.get_all("GL Entry", filters={
+        "account": ["in", accounts],
+        "docstatus": 1,
+        "posting_date": ["between", [first_day, last_day]]
+    }, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+    
+    total_usd = 0.0
+    rates_cache = {}
+    for entry in gl_entries:
+        amount = entry.debit - entry.credit
+        if entry.account_currency == "USD":
+            amount_usd = entry.debit_in_account_currency - entry.credit_in_account_currency
+        else:
+            date_str = str(entry.posting_date)
+            rate = _get_cached_rate(date_str, rates_cache)
+            amount_usd = amount / rate
+        total_usd += amount_usd
+    return float(total_usd)
+
+
+@frappe.whitelist()
+def get_retencion_iva_usd():
+    """Calcula retenciones de IVA de clientes en el mes (filtrado de precisión por root_type='Asset')."""
+    from frappe.utils import get_first_day, get_last_day, nowdate
+    today = nowdate()
+    first_day = get_first_day(today)
+    last_day = get_last_day(today)
+    
+    # Filtrado explícito de precisión contable por root_type 'Asset'
+    accounts = frappe.get_all("Account", filters={
+        "account_name": ["like", "%iva%"],
+        "root_type": "Asset",
+        "is_group": 0
+    }, pluck="name")
+    if not accounts:
+        return 0.0
+        
+    gl_entries = frappe.get_all("GL Entry", filters={
+        "account": ["in", accounts],
+        "docstatus": 1,
+        "posting_date": ["between", [first_day, last_day]]
+    }, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+    
+    total_usd = 0.0
+    rates_cache = {}
+    for entry in gl_entries:
+        amount = entry.debit - entry.credit
+        if entry.account_currency == "USD":
+            amount_usd = entry.debit_in_account_currency - entry.credit_in_account_currency
+        else:
+            date_str = str(entry.posting_date)
+            rate = _get_cached_rate(date_str, rates_cache)
+            amount_usd = amount / rate
+        total_usd += amount_usd
+    return float(total_usd)
+
+
+@frappe.whitelist()
+def get_pendiente_cobrar_usd():
+    """Calcula el saldo pendiente por cobrar consolidado (A/R) en USD, optimizado con caché."""
+    accounts = frappe.get_all("Account", filters={"account_type": "Receivable", "is_group": 0}, pluck="name")
+    if not accounts:
+        return 0.0
+        
+    gl_entries = frappe.get_all("GL Entry", filters={
+        "account": ["in", accounts],
+        "docstatus": 1
+    }, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+    
+    total_usd = 0.0
+    rates_cache = {}
+    for entry in gl_entries:
+        amount = entry.debit - entry.credit
+        if entry.account_currency == "USD":
+            amount_usd = entry.debit_in_account_currency - entry.credit_in_account_currency
+        else:
+            date_str = str(entry.posting_date)
+            rate = _get_cached_rate(date_str, rates_cache)
+            amount_usd = amount / rate
+        total_usd += amount_usd
+    return float(total_usd)
+
+
+@frappe.whitelist()
+def get_igtf_usd():
+    """Calcula el pasivo acumulado por pagar del IGTF en USD (filtrado de precisión por root_type='Liability')."""
+    accounts = frappe.get_all("Account", filters={
+        "account_name": ["like", "%igtf%"],
+        "root_type": "Liability",
+        "is_group": 0
+    }, pluck="name")
+    if not accounts:
+        return 0.0
+        
+    gl_entries = frappe.get_all("GL Entry", filters={
+        "account": ["in", accounts],
+        "docstatus": 1
+    }, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+    
+    total_usd = 0.0
+    rates_cache = {}
+    for entry in gl_entries:
+        amount = entry.credit - entry.debit
+        if entry.account_currency == "USD":
+            amount_usd = entry.credit_in_account_currency - entry.debit_in_account_currency
+        else:
+            date_str = str(entry.posting_date)
+            rate = _get_cached_rate(date_str, rates_cache)
+            amount_usd = amount / rate
+        total_usd += amount_usd
+    return float(total_usd)
+
+
+@frappe.whitelist()
+def get_total_facturado_usd():
+    """Calcula el total facturado bruto en USD en el mes corriente, optimizado con caché."""
+    from frappe.utils import get_first_day, get_last_day, nowdate
+    today = nowdate()
+    first_day = get_first_day(today)
+    last_day = get_last_day(today)
+    
+    invoices = frappe.get_all("Sales Invoice", filters={
+        "docstatus": 1,
+        "posting_date": ["between", [first_day, last_day]]
+    }, fields=["grand_total", "currency", "posting_date"])
+    
+    total_usd = 0.0
+    rates_cache = {}
+    for inv in invoices:
+        if inv.currency == "USD":
+            total_usd += inv.grand_total
+        else:
+            date_str = str(inv.posting_date)
+            rate = _get_cached_rate(date_str, rates_cache)
+            total_usd += inv.grand_total / rate
+    return float(total_usd)
+
+
+@frappe.whitelist()
+def get_usd_factura_de_venta():
+    """Retorna la cantidad de facturas de venta registradas en USD durante el mes corriente."""
+    from frappe.utils import get_first_day, get_last_day, nowdate
+    today = nowdate()
+    first_day = get_first_day(today)
+    last_day = get_last_day(today)
+    
+    return frappe.db.count("Sales Invoice", filters={
+        "currency": "USD",
+        "docstatus": 1,
+        "posting_date": ["between", [first_day, last_day]]
+    })

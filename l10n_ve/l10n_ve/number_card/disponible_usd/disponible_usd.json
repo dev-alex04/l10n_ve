@@ -1,0 +1,23 @@
+{
+ "creation": "2026-05-28 18:53:33.844241",
+ "currency": "USD",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "GL Entry",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Disponible USD",
+ "method": "l10n_ve.utils.utils.get_disponible_usd",
+ "modified": "2026-05-28 18:53:33.844241",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "Disponible USD",
+ "owner": "Administrator",
+ "report_function": "Sum",
+ "show_full_number": 0,
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Daily",
+ "type": "Custom"
+}
