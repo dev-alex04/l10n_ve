@@ -58,6 +58,9 @@ page_js = {
 
 # include js in doctype views
 doctype_js = {
+    "Journal Entry": [
+        "public/js/doctype/journal_entry/journal_entry.js",
+    ],
     "Bank Statement Import": [
         "public/js/doctype/bank_statement_import/bank_statement_import.js",
     ],

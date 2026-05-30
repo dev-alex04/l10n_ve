@@ -621,13 +621,6 @@ def is_period_open(voucher_date, period_type="IVA"):
     return False
 
 
-    elif period_type == "ISLR":
-        limit_date = get_last_day_of_month(v_date)
-        return today <= limit_date
-    
-    return False
-
-
 def _get_cached_rate(date_str, cache):
     """Helper local para almacenar en caché las tasas de cambio y evitar la consulta N+1 en bucles."""
     if date_str not in cache:
