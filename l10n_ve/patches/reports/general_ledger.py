@@ -209,12 +209,11 @@ def custom_get_accountwise_gle(filters, accounting_dimensions, gl_entries, gle_m
         if data[key].against_voucher and gle.against_voucher:
             data[key].against_voucher += ", " + gle.against_voucher
 
-    from_date, to_date = frappe.utils.getdate(filters.from_date), frappe.utils.getdate(filters.to_date)
+    from_date, to_date = frappe.utils.getdate(filters.get("from_date")), frappe.utils.getdate(filters.get("to_date"))
     show_opening_entries = filters.get("show_opening_entries")
 
     for gle in gl_entries:
         group_by_value = gle.get(group_by)
-        gle.voucher_type = gle.voucher_type
 
         if gle.posting_date < from_date or (cstr(gle.is_opening) == "Yes" and not show_opening_entries):
             if not group_by_voucher_consolidated:
@@ -255,7 +254,7 @@ def custom_get_accountwise_gle(filters, accounting_dimensions, gl_entries, gle_m
 
                 key = tuple(keylist)
                 if key not in consolidated_gle:
-                    consolidated_gle.setdefault(key, gle)
+                    consolidated_gle[key] = copy.copy(gle)
                 else:
                     update_value_in_dict(consolidated_gle, key, gle)
 

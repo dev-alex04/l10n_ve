@@ -1,13 +1,17 @@
 frappe.ui.form.on("Journal Entry", {
     validate: function(frm) {
-        var has_error = false;
+        var errors = [];
         $.each(frm.doc.accounts || [], function(i, d) {
             if (flt(d.debit) > 0 && flt(d.credit) > 0) {
-                frappe.msgprint(__("Fila {0}: No se permite registrar montos tanto en el Debe como en el Haber simultáneamente en la misma cuenta contable.", [d.idx]));
-                has_error = true;
+                errors.push("Fila " + d.idx + ": No se permite registrar montos tanto en el Debe como en el Haber simultáneamente en la misma cuenta contable.");
             }
         });
-        if (has_error) {
+        if (errors.length > 0) {
+            frappe.msgprint({
+                title: "Error de Validación",
+                indicator: "red",
+                message: errors.join("<br>")
+            });
             frappe.validated = false;
         }
     }
