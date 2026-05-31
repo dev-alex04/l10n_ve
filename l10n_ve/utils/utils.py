@@ -617,14 +617,7 @@ def is_period_open(voucher_date, period_type="IVA"):
     elif period_type == "ISLR":
         limit_date = get_last_day_of_month(v_date)
         return today <= limit_date
-    
-    return False
 
-
-    elif period_type == "ISLR":
-        limit_date = get_last_day_of_month(v_date)
-        return today <= limit_date
-    
     return False
 
 
