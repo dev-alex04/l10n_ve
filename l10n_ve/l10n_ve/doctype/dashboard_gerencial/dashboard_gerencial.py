@@ -207,74 +207,130 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
             igtf_por_pagar_usd += amount_usd
 
     # --- Gastos USD (Mes) ---
-    accounts_exp = frappe.get_all("Account", filters={"company": company, "root_type": "Expense", "is_group": 0}, pluck="name")
     gastos_usd_mes = 0.0
-    if accounts_exp:
-        gle_filters = {
-            "account": ["in", accounts_exp],
+    if frappe.db.exists("DocType", "Expense"):
+        exp_filters = {
             "docstatus": 1,
-            "posting_date": ["between", [from_date, to_date]]
+            "company": company,
+            "expense_date": ["between", [from_date, to_date]]
         }
-        if cost_center:
-            gle_filters["cost_center"] = cost_center
         if branch:
-            # Filter by branch via Purchase Invoice branch
-            purchases_b = frappe.get_all("Purchase Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
-            gle_filters["voucher_no"] = ["in", purchases_b] if purchases_b else ["in", [""]]
+            exp_filters["branch"] = branch
+        
+        expenses_raw = frappe.db.sql("""
+            SELECT SUM(
+                CASE WHEN spending_currency = 'USD' THEN total_exchange
+                WHEN usd_reference_rate > 0 THEN total / usd_reference_rate
+                ELSE total
+                END
+            ) as total_spent
+            FROM `tabExpense`
+            WHERE docstatus = 1 AND company = %s AND expense_date BETWEEN %s AND %s
+            """ + (" AND branch = %s" if branch else ""), 
+            (company, from_date, to_date, branch) if branch else (company, from_date, to_date))
+        
+        gastos_usd_mes = flt(expenses_raw[0][0]) if expenses_raw and expenses_raw[0][0] is not None else 0.0
+    else:
+        accounts_exp = frappe.get_all("Account", filters={"company": company, "root_type": "Expense", "is_group": 0}, pluck="name")
+        if accounts_exp:
+            gle_filters = {
+                "account": ["in", accounts_exp],
+                "docstatus": 1,
+                "posting_date": ["between", [from_date, to_date]]
+            }
+            if cost_center:
+                gle_filters["cost_center"] = cost_center
+            if branch:
+                purchases_b = frappe.get_all("Purchase Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
+                gle_filters["voucher_no"] = ["in", purchases_b] if purchases_b else ["in", [""]]
 
-        gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
-        for entry in gl_entries:
-            amount = flt(entry.debit) - flt(entry.credit)
-            if entry.account_currency == "USD":
-                amount_usd = flt(entry.debit_in_account_currency) - flt(entry.credit_in_account_currency)
-            else:
-                date_str = str(entry.posting_date)
-                rate = _get_cached_rate(date_str, rates_cache)
-                amount_usd = amount / rate
-            gastos_usd_mes += amount_usd
+            gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+            for entry in gl_entries:
+                amount = flt(entry.debit) - flt(entry.credit)
+                if entry.account_currency == "USD":
+                    amount_usd = flt(entry.debit_in_account_currency) - flt(entry.credit_in_account_currency)
+                else:
+                    date_str = str(entry.posting_date)
+                    rate = _get_cached_rate(date_str, rates_cache)
+                    amount_usd = amount / rate
+                gastos_usd_mes += amount_usd
 
     # --- Gastos USD (Año) ---
     year_start = f"{from_date[:4]}-01-01"
     year_end = f"{to_date[:4]}-12-31"
     gastos_usd_ano = 0.0
-    if accounts_exp:
-        gle_filters = {
-            "account": ["in", accounts_exp],
-            "docstatus": 1,
-            "posting_date": ["between", [year_start, year_end]]
-        }
-        if cost_center:
-            gle_filters["cost_center"] = cost_center
-        if branch:
-            purchases_b = frappe.get_all("Purchase Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
-            gle_filters["voucher_no"] = ["in", purchases_b] if purchases_b else ["in", [""]]
+    if frappe.db.exists("DocType", "Expense"):
+        expenses_raw = frappe.db.sql("""
+            SELECT SUM(
+                CASE WHEN spending_currency = 'USD' THEN total_exchange
+                WHEN usd_reference_rate > 0 THEN total / usd_reference_rate
+                ELSE total
+                END
+            ) as total_spent
+            FROM `tabExpense`
+            WHERE docstatus = 1 AND company = %s AND expense_date BETWEEN %s AND %s
+            """ + (" AND branch = %s" if branch else ""), 
+            (company, year_start, year_end, branch) if branch else (company, year_start, year_end))
+        
+        gastos_usd_ano = flt(expenses_raw[0][0]) if expenses_raw and expenses_raw[0][0] is not None else 0.0
+    else:
+        accounts_exp = frappe.get_all("Account", filters={"company": company, "root_type": "Expense", "is_group": 0}, pluck="name")
+        if accounts_exp:
+            gle_filters = {
+                "account": ["in", accounts_exp],
+                "docstatus": 1,
+                "posting_date": ["between", [year_start, year_end]]
+            }
+            if cost_center:
+                gle_filters["cost_center"] = cost_center
+            if branch:
+                purchases_b = frappe.get_all("Purchase Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
+                gle_filters["voucher_no"] = ["in", purchases_b] if purchases_b else ["in", [""]]
 
-        gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
-        for entry in gl_entries:
-            amount = flt(entry.debit) - flt(entry.credit)
-            if entry.account_currency == "USD":
-                amount_usd = flt(entry.debit_in_account_currency) - flt(entry.credit_in_account_currency)
-            else:
-                date_str = str(entry.posting_date)
-                rate = _get_cached_rate(date_str, rates_cache)
-                amount_usd = amount / rate
-            gastos_usd_ano += amount_usd
+            gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+            for entry in gl_entries:
+                amount = flt(entry.debit) - flt(entry.credit)
+                if entry.account_currency == "USD":
+                    amount_usd = flt(entry.debit_in_account_currency) - flt(entry.credit_in_account_currency)
+                else:
+                    date_str = str(entry.posting_date)
+                    rate = _get_cached_rate(date_str, rates_cache)
+                    amount_usd = amount / rate
+                gastos_usd_ano += amount_usd
 
     # --- Disponible USD ---
+    # Retrieve all Bank/Cash accounts for the company
     accounts_disp = frappe.get_all("Account", filters={
         "company": company,
-        "account_currency": "USD",
         "account_type": ["in", ["Bank", "Cash"]],
         "is_group": 0
-    }, pluck="name")
+    }, fields=["name", "account_currency", "account_name"])
+    
     disponible_usd = 0.0
     if accounts_disp:
-        result = frappe.db.sql("""
-            SELECT SUM(debit_in_account_currency - credit_in_account_currency)
-            FROM `tabGL Entry`
-            WHERE account IN %s AND docstatus = 1 AND posting_date <= %s
-        """, (tuple(accounts_disp), to_date))
-        disponible_usd = flt(result[0][0]) if result and result[0][0] is not None else 0.0
+        from l10n_ve.utils.utils import get_exchange_rate
+        rate_today = flt(get_exchange_rate(to_date, "USD")) or 1.0
+        
+        for acc in accounts_disp:
+            # Query GL balance in VEF and in account currency
+            result = frappe.db.sql("""
+                SELECT 
+                    SUM(debit - credit) as balance_vef,
+                    SUM(debit_in_account_currency - credit_in_account_currency) as balance_foreign
+                FROM `tabGL Entry`
+                WHERE account = %s AND docstatus = 1 AND posting_date <= %s
+            """, (acc.name, to_date), as_dict=True)
+            
+            if result and result[0]:
+                b_vef = flt(result[0].balance_vef)
+                b_foreign = flt(result[0].balance_foreign)
+                
+                if acc.account_currency == "USD" or "usd" in str(acc.account_name).lower():
+                    # Direct USD balance
+                    disponible_usd += b_foreign if b_foreign != 0 else (b_vef / rate_today)
+                else:
+                    # Convert VEF balance to USD equivalent using the date's rate
+                    disponible_usd += b_vef / rate_today
 
     # ═════════════════════════════════════════════════════════════════════════
     # 2. TABLA: RESUMEN FINANCIERO POR SUCURSAL
