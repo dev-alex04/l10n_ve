@@ -227,7 +227,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
             FROM `tabExpense`
             WHERE docstatus = 1 AND company = %s AND expense_date BETWEEN %s AND %s
             """ + (" AND branch = %s" if branch else ""), 
-            (company, from_date, to_date, branch) if branch else (company, from_date, to_date))
+            (company, from_date, to_date, branch) if branch else (company, from_date, to_date), as_dict=True)
         
         expenses_usd_month = flt(expenses_raw[0].total_spent) if expenses_raw and expenses_raw[0].total_spent is not None else 0.0
     else:
@@ -270,7 +270,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
             FROM `tabExpense`
             WHERE docstatus = 1 AND company = %s AND expense_date BETWEEN %s AND %s
             """ + (" AND branch = %s" if branch else ""), 
-            (company, year_start, year_end, branch) if branch else (company, year_start, year_end))
+            (company, year_start, year_end, branch) if branch else (company, year_start, year_end), as_dict=True)
         
         expenses_usd_year = flt(expenses_raw[0].total_spent) if expenses_raw and expenses_raw[0].total_spent is not None else 0.0
     else:
