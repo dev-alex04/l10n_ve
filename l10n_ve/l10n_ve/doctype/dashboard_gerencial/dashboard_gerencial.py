@@ -333,10 +333,16 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     # ═════════════════════════════════════════════════════════════════════════
     branch_rows = []
     
+    # ═════════════════════════════════════════════════════════════════════════
+    # 2. TABLE: FINANCIAL SUMMARY BY BRANCH
+    # ═════════════════════════════════════════════════════════════════════════
+    branch_rows = []
+    
     # Get all branches
     branches = frappe.get_all("VE Branch", filters={"company": company} if frappe.get_meta("VE Branch").has_field("company") else {}, fields=["name"])
+    branch_names = {b["name"] for b in branches}
     if branch:
-        branches = [{"name": branch}]
+        branch_names = {branch}
 
     # Retrieve expenses via tabExpense
     expenses_by_branch = {}
@@ -354,33 +360,53 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
         """, (company, from_date, to_date), as_dict=True)
         expenses_by_branch = {r.branch: flt(r.total_spent) for r in expenses_raw if r.branch}
 
-    for b in branches:
-        b_name = b["name"]
-        b_si_filters = si_filters.copy()
-        b_si_filters["branch"] = b_name
+    # 1. Single bulk query of all invoices of the company during the period
+    all_invoices = frappe.get_all(
+        "Sales Invoice",
+        filters=si_filters,
+        fields=["name", "grand_total", "total_taxes_and_charges", "bill_control", "currency", "posting_date", "branch"]
+    )
 
-        b_invoices = frappe.get_all("Sales Invoice", filters=b_si_filters, fields=["name", "grand_total", "total_taxes_and_charges", "bill_control", "currency", "posting_date"])
-        
-        invoice_names = [inv.name for inv in b_invoices]
-        withholdings_by_invoice = {}
-        if invoice_names:
-            taxes_raw = frappe.db.get_all("Sales Taxes and Charges",
-                filters={
-                    "parent": ["in", invoice_names],
-                    "is_tax_withholding_account": 1
-                },
-                fields=["parent", "account_head", "tax_amount"]
-            )
-            for t in taxes_raw:
-                inv_name = t.parent
-                if inv_name not in withholdings_by_invoice:
-                    withholdings_by_invoice[inv_name] = {"vat": 0.0, "islr": 0.0}
-                
-                ac_lower = str(t.account_head).lower()
-                if "iva" in ac_lower:
-                    withholdings_by_invoice[inv_name]["vat"] += flt(t.tax_amount)
-                elif "islr" in ac_lower:
-                    withholdings_by_invoice[inv_name]["islr"] += flt(t.tax_amount)
+    # 2. Single bulk query of all withholdings for these invoices
+    invoice_names = [inv.name for inv in all_invoices]
+    withholdings_by_invoice = {}
+    if invoice_names:
+        taxes_raw = frappe.db.get_all(
+            "Sales Taxes and Charges",
+            filters={
+                "parent": ["in", invoice_names],
+                "is_tax_withholding_account": 1
+            },
+            fields=["parent", "account_head", "tax_amount"]
+        )
+        for t in taxes_raw:
+            inv_name = t.parent
+            if inv_name not in withholdings_by_invoice:
+                withholdings_by_invoice[inv_name] = {"vat": 0.0, "islr": 0.0}
+            
+            ac_lower = str(t.account_head).lower()
+            if "iva" in ac_lower:
+                withholdings_by_invoice[inv_name]["vat"] += flt(t.tax_amount)
+            elif "islr" in ac_lower:
+                withholdings_by_invoice[inv_name]["islr"] += flt(t.tax_amount)
+
+    # 3. Group invoices by branch in memory
+    invoices_by_branch = {}
+    for inv in all_invoices:
+        b_name = inv.branch if (inv.branch and inv.branch in branch_names) else "Sin Sucursal"
+        if b_name not in invoices_by_branch:
+            invoices_by_branch[b_name] = []
+        invoices_by_branch[b_name].append(inv)
+
+    # Determine branches to display in the table
+    all_table_branches = list(branch_names)
+    if "Sin Sucursal" in invoices_by_branch or not branch:
+        if "Sin Sucursal" not in all_table_branches:
+            all_table_branches.append("Sin Sucursal")
+
+    # 4. Process metrics in a unified way
+    for b_name in all_table_branches:
+        b_invoices = invoices_by_branch.get(b_name, [])
 
         payment_order = 0.0
         payment_order_vat = 0.0
@@ -417,92 +443,11 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
 
         vat_after_withholding = vat_billed - vat_withholding
         availability = (billed - vat_billed) - islr_withholding
-        spent = flt(expenses_by_branch.get(b_name, 0.0))
+        spent = flt(expenses_by_branch.get(b_name, 0.0)) if b_name != "Sin Sucursal" else 0.0
         profit = availability - spent
 
         branch_rows.append({
             "branch": b_name,
-            "pending_to_collect": pending_to_collect,
-            "payment_order": payment_order,
-            "payment_order_vat": payment_order_vat,
-            "billed": billed,
-            "vat": vat_billed,
-            "vat_after_withholding": vat_after_withholding,
-            "vat_withholding": vat_withholding,
-            "islr_withholding": islr_withholding,
-            "availability": availability,
-            "spent": spent,
-            "profit": profit
-        })
-
-    # 3. Process unassigned invoices (without a branch or with a non-existent branch)
-    processed_branches = [b["name"] for b in branches]
-    
-    # Get all invoices for the whole company
-    all_invoices = frappe.get_all("Sales Invoice", filters=si_filters, fields=["name", "grand_total", "total_taxes_and_charges", "bill_control", "currency", "posting_date", "branch"])
-    unassigned_invoices = [inv for inv in all_invoices if not inv.branch or inv.branch not in processed_branches]
-    
-    if unassigned_invoices:
-        unassigned_names = [inv.name for inv in unassigned_invoices]
-        withholdings_by_invoice = {}
-        if unassigned_names:
-            taxes_raw = frappe.db.get_all("Sales Taxes and Charges",
-                filters={
-                    "parent": ["in", unassigned_names],
-                    "is_tax_withholding_account": 1
-                },
-                fields=["parent", "account_head", "tax_amount"]
-            )
-            for t in taxes_raw:
-                inv_name = t.parent
-                if inv_name not in withholdings_by_invoice:
-                    withholdings_by_invoice[inv_name] = {"vat": 0.0, "islr": 0.0}
-                ac_lower = str(t.account_head).lower()
-                if "iva" in ac_lower:
-                    withholdings_by_invoice[inv_name]["vat"] += flt(t.tax_amount)
-                elif "islr" in ac_lower:
-                    withholdings_by_invoice[inv_name]["islr"] += flt(t.tax_amount)
-
-        payment_order = 0.0
-        payment_order_vat = 0.0
-        billed = 0.0
-        vat_billed = 0.0
-        vat_withholding = 0.0
-        islr_withholding = 0.0
-        pending_to_collect = 0.0
-
-        for inv in unassigned_invoices:
-            is_usd = (inv.currency == "USD")
-            rate = 1.0 if is_usd else _get_cached_rate(str(inv.posting_date), rates_cache)
-
-            inv_withholdings = withholdings_by_invoice.get(inv.name, {"vat": 0.0, "islr": 0.0})
-            raw_vat_withholding = inv_withholdings["vat"]
-            raw_islr_withholding = inv_withholdings["islr"]
-
-            g_total_usd = flt(inv.grand_total) if is_usd else flt(inv.grand_total) / rate
-            tax_usd = flt(inv.total_taxes_and_charges) if is_usd else flt(inv.total_taxes_and_charges) / rate
-            ret_iva_usd = flt(raw_vat_withholding) if is_usd else flt(raw_vat_withholding) / rate
-            ret_islr_usd = flt(raw_islr_withholding) if is_usd else flt(raw_islr_withholding) / rate
-
-            payment_order += g_total_usd
-            payment_order_vat += tax_usd
-
-            has_control = (inv.bill_control is not None and str(inv.bill_control).strip() != "")
-            if has_control:
-                billed += g_total_usd
-                vat_billed += tax_usd
-                vat_withholding += ret_iva_usd
-                islr_withholding += ret_islr_usd
-            else:
-                pending_to_collect += g_total_usd
-
-        vat_after_withholding = vat_billed - vat_withholding
-        availability = (billed - vat_billed) - islr_withholding
-        spent = 0.0
-        profit = availability - spent
-
-        branch_rows.append({
-            "branch": "Sin Sucursal",
             "pending_to_collect": pending_to_collect,
             "payment_order": payment_order,
             "payment_order_vat": payment_order_vat,

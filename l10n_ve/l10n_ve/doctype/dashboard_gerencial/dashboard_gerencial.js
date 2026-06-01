@@ -508,7 +508,7 @@ function render_branch_table_rows(rows) {
 
         return `
             <tr>
-                <td><strong>${r.branch}</strong></td>
+                <td><strong>${frappe.utils.escape_html(r.branch)}</strong></td>
                 <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.pending_to_collect, "USD")}</td>
                 <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_currency_ve(r.payment_order, "USD")}</td>
                 <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.payment_order_vat, "USD")}</td>
