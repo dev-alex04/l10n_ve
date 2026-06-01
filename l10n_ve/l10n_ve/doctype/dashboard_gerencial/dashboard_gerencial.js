@@ -1,7 +1,7 @@
 // -*- coding: utf-8 -*-
 // Form script for Dashboard Gerencial Single DocType
 
-frappe.ui.form.on('DashboardGerencial', {
+frappe.ui.form.on('Dashboard Gerencial', {
     onload: function(frm) {
         // Redirect to standard Single DocType route if opened as a generic new document
         if (frm.is_new()) {
