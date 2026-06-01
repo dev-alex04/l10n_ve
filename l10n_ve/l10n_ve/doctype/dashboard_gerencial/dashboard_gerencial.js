@@ -285,10 +285,10 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Total Facturado USD</span>
                         <i class="fa fa-dollar dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.total_facturado_usd, "USD")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.total_billed_usd, "USD")}</div>
                     <div class="dg-card-subtext">
-                        <span>Monto Base: ${format_currency_ve(data.total_facturado_usd - data.impuestos_usd, "USD")}</span>
-                        <span>Impuesto: ${format_currency_ve(data.impuestos_usd, "USD")}</span>
+                        <span>Monto Base: ${format_currency_ve(data.total_billed_usd - data.taxes_usd, "USD")}</span>
+                        <span>Impuesto: ${format_currency_ve(data.taxes_usd, "USD")}</span>
                     </div>
                 </div>
 
@@ -298,7 +298,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Total Facturado BS</span>
                         <i class="fa fa-bank dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.total_facturado_bs, "VEF")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.total_billed_bs, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Monto bruto facturado en bolívares</span>
                     </div>
@@ -310,7 +310,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Cantidad de ventas</span>
                         <i class="fa fa-shopping-bag dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${data.cantidad_de_ventas}</div>
+                    <div class="dg-card-value">${data.sales_count}</div>
                     <div class="dg-card-subtext">
                         <span>Facturas emitidas en el periodo</span>
                     </div>
@@ -322,7 +322,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">USD Facturas de venta</span>
                         <i class="fa fa-file-text dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${data.usd_factura_de_venta}</div>
+                    <div class="dg-card-value">${data.usd_sales_invoices_count}</div>
                     <div class="dg-card-subtext">
                         <span>Facturas emitidas nativas en USD</span>
                     </div>
@@ -340,7 +340,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Total Cobrado Bs</span>
                         <i class="fa fa-arrow-up dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.cobrado, "VEF")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.collected_amount, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Recaudación real cobrada en bolívares</span>
                     </div>
@@ -352,7 +352,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Pendiente por Cobrar</span>
                         <i class="fa fa-exclamation-circle dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.pendiente_por_cobrar_usd, "USD")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.pending_to_collect_usd, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Cuentas por cobrar (A/R) en USD</span>
                     </div>
@@ -364,7 +364,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Impuestos USD</span>
                         <i class="fa fa-percent dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.impuestos_usd, "USD")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.taxes_usd, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Débito fiscal (IVA) estimado en USD</span>
                     </div>
@@ -376,7 +376,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Retención IVA Clientes</span>
                         <i class="fa fa-gavel dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.retencion_iva_clientes_usd, "USD")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.client_vat_withholding_usd, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Anticipos de IVA retenidos por clientes</span>
                     </div>
@@ -388,7 +388,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Retención ISLR Clientes</span>
                         <i class="fa fa-balance-scale dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.retencion_islr_clientes_usd, "USD")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.client_islr_withholding_usd, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Anticipos de ISLR retenidos por clientes</span>
                     </div>
@@ -400,7 +400,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">IGTF por Pagar USD</span>
                         <i class="fa fa-university dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.igtf_por_pagar_usd, "USD")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.igtf_payable_usd, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Impuesto a grandes transacciones financieras</span>
                     </div>
@@ -418,7 +418,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Gastos USD (Mes)</span>
                         <i class="fa fa-arrow-down dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.gastos_usd_mes, "USD")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.expenses_usd_month, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Egresos acumulados en el periodo</span>
                     </div>
@@ -430,7 +430,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Gastos USD (Año)</span>
                         <i class="fa fa-calendar dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.gastos_usd_ano, "USD")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.expenses_usd_year, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Egresos del año fiscal corriente</span>
                     </div>
@@ -442,7 +442,7 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Disponible USD</span>
                         <i class="fa fa-check-circle dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${format_currency_ve(data.disponible_usd, "USD")}</div>
+                    <div class="dg-card-value">${format_currency_ve(data.available_usd, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Fondos consolidados en Cajas y Bancos USD</span>
                     </div>
@@ -493,32 +493,32 @@ function render_branch_table_rows(rows) {
     let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_disp = 0, t_spent = 0, t_util = 0;
 
     let rows_html = rows.map(r => {
-        t_cobrar += r.por_cobrar;
-        t_op += r.orden_de_pago;
-        t_iva_op += r.iva_orden;
-        t_fact += r.facturado;
-        t_iva += r.iva;
-        t_neto += r.iva_desp_retencion;
-        t_ret_iva += r.ret_iva;
-        t_ret_islr += r.ret_islr;
-        t_disp += r.disponibilidad;
+        t_cobrar += r.pending_to_collect;
+        t_op += r.payment_order;
+        t_iva_op += r.payment_order_vat;
+        t_fact += r.billed;
+        t_iva += r.vat;
+        t_neto += r.vat_after_withholding;
+        t_ret_iva += r.vat_withholding;
+        t_ret_islr += r.islr_withholding;
+        t_disp += r.availability;
         t_spent += r.spent;
-        t_util += r.utilidad;
+        t_util += r.profit;
 
         return `
             <tr>
                 <td><strong>${r.branch}</strong></td>
-                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.por_cobrar, "USD")}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_currency_ve(r.orden_de_pago, "USD")}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.iva_orden, "USD")}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_currency_ve(r.facturado, "USD")}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.iva, "USD")}</td>
-                <td style="text-align: right; font-weight: 600;">${format_currency_ve(r.iva_desp_retencion, "USD")}</td>
-                <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_currency_ve(r.ret_iva, "USD")}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.ret_islr, "USD")}</td>
-                <td style="text-align: right; font-weight: 700; color: ${r.disponibilidad >= 0 ? '#10b981' : '#ef4444'};">${format_currency_ve(r.disponibilidad, "USD")}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.pending_to_collect, "USD")}</td>
+                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_currency_ve(r.payment_order, "USD")}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.payment_order_vat, "USD")}</td>
+                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_currency_ve(r.billed, "USD")}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.vat, "USD")}</td>
+                <td style="text-align: right; font-weight: 600;">${format_currency_ve(r.vat_after_withholding, "USD")}</td>
+                <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_currency_ve(r.vat_withholding, "USD")}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.islr_withholding, "USD")}</td>
+                <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_currency_ve(r.availability, "USD")}</td>
                 <td style="text-align: right; font-weight: 600; color: #ef4444;">${format_currency_ve(r.spent, "USD")}</td>
-                <td style="text-align: right; font-weight: 700; color: ${r.utilidad >= 0 ? '#10b981' : '#ef4444'};">${format_currency_ve(r.utilidad, "USD")}</td>
+                <td style="text-align: right; font-weight: 700; color: ${r.profit >= 0 ? '#10b981' : '#ef4444'};">${format_currency_ve(r.profit, "USD")}</td>
             </tr>
         `;
     }).join("");

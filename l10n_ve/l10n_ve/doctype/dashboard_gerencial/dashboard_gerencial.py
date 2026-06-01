@@ -27,10 +27,10 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     rates_cache = {}
 
     # ═════════════════════════════════════════════════════════════════════════
-    # 1. METRICAS: CARDS
+    # 1. METRICS: CARDS
     # ═════════════════════════════════════════════════════════════════════════
 
-    # --- Cantidad de ventas ---
+    # --- Sales count ---
     si_filters = {
         "docstatus": 1,
         "company": company,
@@ -41,9 +41,9 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     if cost_center:
         si_filters["name"] = ["in", frappe.get_all("Sales Invoice Item", filters={"cost_center": cost_center}, pluck="parent")]
 
-    cantidad_de_ventas = frappe.db.count("Sales Invoice", si_filters)
+    sales_count = frappe.db.count("Sales Invoice", si_filters)
 
-    # --- Cobrado VEF ---
+    # --- Collected amount (VEF) ---
     pe_filters = {
         "docstatus": 1,
         "company": company,
@@ -54,39 +54,39 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     if cost_center:
         pe_filters["name"] = ["in", frappe.get_all("GL Entry", filters={"voucher_type": "Payment Entry", "cost_center": cost_center}, pluck="voucher_no")]
 
-    cobrado_raw = frappe.get_all("Payment Entry", filters=pe_filters, fields=["SUM(base_received_amount) as total"])
-    cobrado = flt(cobrado_raw[0].total) if cobrado_raw and cobrado_raw[0].total else 0.0
+    collected_raw = frappe.get_all("Payment Entry", filters=pe_filters, fields=["SUM(base_received_amount) as total"])
+    collected_amount = flt(collected_raw[0].total) if collected_raw and collected_raw[0].total else 0.0
 
-    # --- Total Facturado USD & VEF/BS ---
+    # --- Total Billed USD & Billed BS ---
     invoices = frappe.get_all("Sales Invoice", filters=si_filters, fields=["grand_total", "base_grand_total", "currency", "posting_date", "total_taxes_and_charges"])
     
-    total_facturado_usd = 0.0
-    total_facturado_bs = 0.0
-    impuestos_usd = 0.0
+    total_billed_usd = 0.0
+    total_billed_bs = 0.0
+    taxes_usd = 0.0
 
     for inv in invoices:
-        total_facturado_bs += flt(inv.base_grand_total)
+        total_billed_bs += flt(inv.base_grand_total)
         
-        # Facturado USD conversion
+        # Converted or native USD billed
         if inv.currency == "USD":
-            total_facturado_usd += flt(inv.grand_total)
+            total_billed_usd += flt(inv.grand_total)
             if inv.total_taxes_and_charges:
-                impuestos_usd += flt(inv.total_taxes_and_charges)
+                taxes_usd += flt(inv.total_taxes_and_charges)
         else:
             date_str = str(inv.posting_date)
             rate = _get_cached_rate(date_str, rates_cache)
-            total_facturado_usd += flt(inv.grand_total) / rate
+            total_billed_usd += flt(inv.grand_total) / rate
             if inv.total_taxes_and_charges:
-                impuestos_usd += flt(inv.total_taxes_and_charges) / rate
+                taxes_usd += flt(inv.total_taxes_and_charges) / rate
 
-    # --- USD Factura de venta (Count) ---
+    # --- USD Sales Invoices Count ---
     usd_si_filters = si_filters.copy()
     usd_si_filters["currency"] = "USD"
-    usd_factura_de_venta = frappe.db.count("Sales Invoice", usd_si_filters)
+    usd_sales_invoices_count = frappe.db.count("Sales Invoice", usd_si_filters)
 
-    # --- Pendiente por Cobrar USD ---
+    # --- Pending to Collect USD (Accounts Receivable) ---
     accounts_rec = frappe.get_all("Account", filters={"company": company, "account_type": "Receivable", "is_group": 0}, pluck="name")
-    pendiente_por_cobrar_usd = 0.0
+    pending_to_collect_usd = 0.0
     if accounts_rec:
         gle_filters = {
             "account": ["in", accounts_rec],
@@ -108,16 +108,16 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
                 date_str = str(entry.posting_date)
                 rate = _get_cached_rate(date_str, rates_cache)
                 amount_usd = amount / rate
-            pendiente_por_cobrar_usd += amount_usd
+            pending_to_collect_usd += amount_usd
 
-    # --- Retenciones IVA Clientes USD ---
+    # --- Client VAT Withholding USD ---
     accounts_iva = frappe.get_all("Account", filters={
         "company": company,
         "account_name": ["like", "%iva%"],
         "root_type": "Asset",
         "is_group": 0
     }, pluck="name")
-    retencion_iva_clientes_usd = 0.0
+    client_vat_withholding_usd = 0.0
     if accounts_iva:
         gle_filters = {
             "account": ["in", accounts_iva],
@@ -140,16 +140,16 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
                 date_str = str(entry.posting_date)
                 rate = _get_cached_rate(date_str, rates_cache)
                 amount_usd = amount / rate
-            retencion_iva_clientes_usd += amount_usd
+            client_vat_withholding_usd += amount_usd
 
-    # --- Retenciones ISLR Clientes USD ---
+    # --- Client ISLR Withholding USD ---
     accounts_islr = frappe.get_all("Account", filters={
         "company": company,
         "account_name": ["like", "%islr%"],
         "root_type": "Asset",
         "is_group": 0
     }, pluck="name")
-    retencion_islr_clientes_usd = 0.0
+    client_islr_withholding_usd = 0.0
     if accounts_islr:
         gle_filters = {
             "account": ["in", accounts_islr],
@@ -172,16 +172,16 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
                 date_str = str(entry.posting_date)
                 rate = _get_cached_rate(date_str, rates_cache)
                 amount_usd = amount / rate
-            retencion_islr_clientes_usd += amount_usd
+            client_islr_withholding_usd += amount_usd
 
-    # --- IGTF por Pagar USD ---
+    # --- IGTF Payable USD ---
     accounts_igtf = frappe.get_all("Account", filters={
         "company": company,
         "account_name": ["like", "%igtf%"],
         "root_type": "Liability",
         "is_group": 0
     }, pluck="name")
-    igtf_por_pagar_usd = 0.0
+    igtf_payable_usd = 0.0
     if accounts_igtf:
         gle_filters = {
             "account": ["in", accounts_igtf],
@@ -204,10 +204,10 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
                 date_str = str(entry.posting_date)
                 rate = _get_cached_rate(date_str, rates_cache)
                 amount_usd = amount / rate
-            igtf_por_pagar_usd += amount_usd
+            igtf_payable_usd += amount_usd
 
-    # --- Gastos USD (Mes) ---
-    gastos_usd_mes = 0.0
+    # --- Expenses USD (Month) ---
+    expenses_usd_month = 0.0
     if frappe.db.exists("DocType", "Expense"):
         exp_filters = {
             "docstatus": 1,
@@ -229,7 +229,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
             """ + (" AND branch = %s" if branch else ""), 
             (company, from_date, to_date, branch) if branch else (company, from_date, to_date))
         
-        gastos_usd_mes = flt(expenses_raw[0][0]) if expenses_raw and expenses_raw[0][0] is not None else 0.0
+        expenses_usd_month = flt(expenses_raw[0].total_spent) if expenses_raw and expenses_raw[0].total_spent is not None else 0.0
     else:
         accounts_exp = frappe.get_all("Account", filters={"company": company, "root_type": "Expense", "is_group": 0}, pluck="name")
         if accounts_exp:
@@ -253,12 +253,12 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
                     date_str = str(entry.posting_date)
                     rate = _get_cached_rate(date_str, rates_cache)
                     amount_usd = amount / rate
-                gastos_usd_mes += amount_usd
+                expenses_usd_month += amount_usd
 
-    # --- Gastos USD (Año) ---
+    # --- Expenses USD (Year) ---
     year_start = f"{from_date[:4]}-01-01"
     year_end = f"{to_date[:4]}-12-31"
-    gastos_usd_ano = 0.0
+    expenses_usd_year = 0.0
     if frappe.db.exists("DocType", "Expense"):
         expenses_raw = frappe.db.sql("""
             SELECT SUM(
@@ -272,7 +272,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
             """ + (" AND branch = %s" if branch else ""), 
             (company, year_start, year_end, branch) if branch else (company, year_start, year_end))
         
-        gastos_usd_ano = flt(expenses_raw[0][0]) if expenses_raw and expenses_raw[0][0] is not None else 0.0
+        expenses_usd_year = flt(expenses_raw[0].total_spent) if expenses_raw and expenses_raw[0].total_spent is not None else 0.0
     else:
         accounts_exp = frappe.get_all("Account", filters={"company": company, "root_type": "Expense", "is_group": 0}, pluck="name")
         if accounts_exp:
@@ -296,23 +296,21 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
                     date_str = str(entry.posting_date)
                     rate = _get_cached_rate(date_str, rates_cache)
                     amount_usd = amount / rate
-                gastos_usd_ano += amount_usd
+                expenses_usd_year += amount_usd
 
-    # --- Disponible USD ---
-    # Retrieve all Bank/Cash accounts for the company
+    # --- Available USD (Cash & Bank) ---
     accounts_disp = frappe.get_all("Account", filters={
         "company": company,
         "account_type": ["in", ["Bank", "Cash"]],
         "is_group": 0
     }, fields=["name", "account_currency", "account_name"])
     
-    disponible_usd = 0.0
+    available_usd = 0.0
     if accounts_disp:
         from l10n_ve.utils.utils import get_exchange_rate
         rate_today = flt(get_exchange_rate(to_date, "USD")) or 1.0
         
         for acc in accounts_disp:
-            # Query GL balance in VEF and in account currency
             result = frappe.db.sql("""
                 SELECT 
                     SUM(debit - credit) as balance_vef,
@@ -326,35 +324,23 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
                 b_foreign = flt(result[0].balance_foreign)
                 
                 if acc.account_currency == "USD" or "usd" in str(acc.account_name).lower():
-                    # Direct USD balance
-                    disponible_usd += b_foreign if b_foreign != 0 else (b_vef / rate_today)
+                    available_usd += b_foreign if b_foreign != 0 else (b_vef / rate_today)
                 else:
-                    # Convert VEF balance to USD equivalent using the date's rate
-                    disponible_usd += b_vef / rate_today
+                    available_usd += b_vef / rate_today
 
     # ═════════════════════════════════════════════════════════════════════════
-    # 2. TABLA: RESUMEN FINANCIERO POR SUCURSAL
+    # 2. TABLE: FINANCIAL SUMMARY BY BRANCH
     # ═════════════════════════════════════════════════════════════════════════
     branch_rows = []
     
-    # Obtener todas las sucursales (VE Branch)
+    # Get all branches
     branches = frappe.get_all("VE Branch", filters={"company": company} if frappe.get_meta("VE Branch").has_field("company") else {}, fields=["name"])
-    
-    # Si se filtró por una sucursal, solo mostramos esa
     if branch:
         branches = [{"name": branch}]
 
-    # Si hay un DocType Expense, obtenemos sus gastos por sucursal
+    # Retrieve expenses via tabExpense
     expenses_by_branch = {}
     if frappe.db.exists("DocType", "Expense"):
-        exp_filters = {
-            "docstatus": 1,
-            "company": company,
-            "expense_date": ["between", [from_date, to_date]]
-        }
-        if branch:
-            exp_filters["branch"] = branch
-        
         expenses_raw = frappe.db.sql("""
             SELECT branch, SUM(
                 CASE WHEN spending_currency = 'USD' THEN total_exchange
@@ -370,14 +356,11 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
 
     for b in branches:
         b_name = b["name"]
-        
-        # Filtros de facturas para la sucursal
         b_si_filters = si_filters.copy()
         b_si_filters["branch"] = b_name
 
         b_invoices = frappe.get_all("Sales Invoice", filters=b_si_filters, fields=["name", "grand_total", "total_taxes_and_charges", "bill_control", "currency", "posting_date"])
         
-        # Pre-fetch withholdings for all invoices of this branch to optimize DB queries
         invoice_names = [inv.name for inv in b_invoices]
         withholdings_by_invoice = {}
         if invoice_names:
@@ -399,20 +382,18 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
                 elif "islr" in ac_lower:
                     withholdings_by_invoice[inv_name]["islr"] += flt(t.tax_amount)
 
-        orden_de_pago = 0.0
-        iva_orden = 0.0
-        facturado = 0.0
-        iva_facturado = 0.0
-        ret_iva = 0.0
-        ret_islr = 0.0
-        por_cobrar = 0.0
+        payment_order = 0.0
+        payment_order_vat = 0.0
+        billed = 0.0
+        vat_billed = 0.0
+        vat_withholding = 0.0
+        islr_withholding = 0.0
+        pending_to_collect = 0.0
 
         for inv in b_invoices:
-            # Conversion a USD o usar nativo
             is_usd = (inv.currency == "USD")
             rate = 1.0 if is_usd else _get_cached_rate(str(inv.posting_date), rates_cache)
 
-            # Get pre-fetched withholdings for this invoice
             inv_withholdings = withholdings_by_invoice.get(inv.name, {"vat": 0.0, "islr": 0.0})
             raw_vat_withholding = inv_withholdings["vat"]
             raw_islr_withholding = inv_withholdings["islr"]
@@ -422,54 +403,51 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
             ret_iva_usd = flt(raw_vat_withholding) if is_usd else flt(raw_vat_withholding) / rate
             ret_islr_usd = flt(raw_islr_withholding) if is_usd else flt(raw_islr_withholding) / rate
 
-            # OP total
-            orden_de_pago += g_total_usd
-            iva_orden += tax_usd
+            payment_order += g_total_usd
+            payment_order_vat += tax_usd
 
             has_control = (inv.bill_control is not None and str(inv.bill_control).strip() != "")
-            
             if has_control:
-                facturado += g_total_usd
-                iva_facturado += tax_usd
-                ret_iva += ret_iva_usd
-                ret_islr += ret_islr_usd
+                billed += g_total_usd
+                vat_billed += tax_usd
+                vat_withholding += ret_iva_usd
+                islr_withholding += ret_islr_usd
             else:
-                por_cobrar += g_total_usd
+                pending_to_collect += g_total_usd
 
-        iva_desp_reten = iva_facturado - ret_iva
-        disponibilidad = (facturado - iva_facturado) - ret_islr
+        vat_after_withholding = vat_billed - vat_withholding
+        availability = (billed - vat_billed) - islr_withholding
         spent = flt(expenses_by_branch.get(b_name, 0.0))
-        utilidad = disponibilidad - spent
+        profit = availability - spent
 
         branch_rows.append({
             "branch": b_name,
-            "por_cobrar": por_cobrar,
-            "orden_de_pago": orden_de_pago,
-            "iva_orden": iva_orden,
-            "facturado": facturado,
-            "iva": iva_facturado,
-            "iva_desp_retencion": iva_desp_reten,
-            "ret_iva": ret_iva,
-            "ret_islr": ret_islr,
-            "disponibilidad": disponibilidad,
+            "pending_to_collect": pending_to_collect,
+            "payment_order": payment_order,
+            "payment_order_vat": payment_order_vat,
+            "billed": billed,
+            "vat": vat_billed,
+            "vat_after_withholding": vat_after_withholding,
+            "vat_withholding": vat_withholding,
+            "islr_withholding": islr_withholding,
+            "availability": availability,
             "spent": spent,
-            "utilidad": utilidad
+            "profit": profit
         })
 
-    # Ordenar y retornar
     return {
-        "cantidad_de_ventas": cantidad_de_ventas,
-        "cobrado": cobrado,
-        "total_facturado_usd": total_facturado_usd,
-        "usd_factura_de_venta": usd_factura_de_venta,
-        "impuestos_usd": impuestos_usd,
-        "total_facturado_bs": total_facturado_bs,
-        "pendiente_por_cobrar_usd": pendiente_por_cobrar_usd,
-        "retencion_iva_clientes_usd": retencion_iva_clientes_usd,
-        "retencion_islr_clientes_usd": retencion_islr_clientes_usd,
-        "igtf_por_pagar_usd": igtf_por_pagar_usd,
-        "gastos_usd_mes": gastos_usd_mes,
-        "gastos_usd_ano": gastos_usd_ano,
-        "disponible_usd": disponible_usd,
+        "sales_count": sales_count,
+        "collected_amount": collected_amount,
+        "total_billed_usd": total_billed_usd,
+        "usd_sales_invoices_count": usd_sales_invoices_count,
+        "taxes_usd": taxes_usd,
+        "total_billed_bs": total_billed_bs,
+        "pending_to_collect_usd": pending_to_collect_usd,
+        "client_vat_withholding_usd": client_vat_withholding_usd,
+        "client_islr_withholding_usd": client_islr_withholding_usd,
+        "igtf_payable_usd": igtf_payable_usd,
+        "expenses_usd_month": expenses_usd_month,
+        "expenses_usd_year": expenses_usd_year,
+        "available_usd": available_usd,
         "branch_financial_summary": branch_rows
     }
