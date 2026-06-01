@@ -70,17 +70,24 @@ def custom_report_to_pdf(html, orientation="Landscape"):
 	except Exception:
 		pass
 
-	# Strategy 2: With explicit proxy bypass for the server's own hostname
+	# Strategy 2: With explicit proxy bypass for local and server hostnames
 	try:
 		from urllib.parse import urlparse
+		bypass_hosts = {"127.0.0.1", "localhost", "api.local"}
+		for allow_header in (True, False):
+			try:
+				h = urlparse(frappe.utils.get_url(allow_header_override=allow_header)).hostname
+				if h:
+					bypass_hosts.add(h)
+			except Exception:
+				pass
 
-		hostname = urlparse(frappe.utils.get_url(allow_header_override=False)).hostname
 		frappe.local.response.filecontent = get_pdf(
 			html,
 			{
 				"orientation": orientation,
 				"proxy": "http://0.0.0.0:0",
-				"bypass-proxy-for": hostname,
+				"bypass-proxy-for": list(bypass_hosts),
 				"load-error-handling": "skip",
 				"no-stop-slow-scripts": "",
 				"disable-javascript": "",

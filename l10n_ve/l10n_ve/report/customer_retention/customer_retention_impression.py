@@ -232,4 +232,4 @@ def get_customer_retention_pdf(filters=None):
 
     frappe.response['filename'] = 'Retencion_Clientes.pdf'
     frappe.response['filecontent'] = pdf
-    frappe.response['type'] = 'binary'
+    frappe.response['type'] = 'download'

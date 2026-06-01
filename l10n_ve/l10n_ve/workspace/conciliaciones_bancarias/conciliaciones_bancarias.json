@@ -1,0 +1,158 @@
+{
+    "charts": [],
+    "content": "[{\"id\":\"cb_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Conciliaciones Bancarias</b></span>\",\"col\":12}},{\"id\":\"cb_sc_import\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Importar Extracto\",\"col\":3}},{\"id\":\"cb_sc_reconcile\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Conciliar Banco\",\"col\":3}},{\"id\":\"cb_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cb_links_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documentos y Catálogos</b></span>\",\"col\":12}},{\"id\":\"cb_card_tools\",\"type\":\"card\",\"data\":{\"card_name\":\"Herramientas de Conciliación\",\"col\":4}},{\"id\":\"cb_card_records\",\"type\":\"card\",\"data\":{\"card_name\":\"Registros Bancarios\",\"col\":4}},{\"id\":\"cb_card_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Informes de Conciliación\",\"col\":4}}]",
+    "creation": "2026-06-01 11:00:00.000000",
+    "custom_blocks": [],
+    "docstatus": 0,
+    "doctype": "Workspace",
+    "for_user": "",
+    "hide_custom": 0,
+    "icon": "list-alt",
+    "idx": 0,
+    "is_hidden": 0,
+    "label": "Conciliaciones Bancarias",
+    "links": [
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Herramientas de Conciliación",
+            "link_count": 2,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Herramienta de Conciliación Bancaria",
+            "link_count": 0,
+            "link_to": "Bank Reconciliation Tool",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Importación de Extracto Bancario",
+            "link_count": 0,
+            "link_to": "Bank Statement Import",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Registros Bancarios",
+            "link_count": 3,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Transacciones Bancarias",
+            "link_count": 0,
+            "link_to": "Bank Transaction",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Conciliación Bancaria (Clearance)",
+            "link_count": 0,
+            "link_to": "Bank Clearance",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Cuentas Bancarias",
+            "link_count": 0,
+            "link_to": "Bank Account",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Informes de Conciliación",
+            "link_count": 2,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Estado de Conciliación Bancaria",
+            "link_count": 0,
+            "link_to": "Bank Reconciliation Statement",
+            "link_type": "Report",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Resumen de Conciliación Bancaria",
+            "link_count": 0,
+            "link_to": "Bank Clearance Summary",
+            "link_type": "Report",
+            "onboard": 1,
+            "type": "Link"
+        }
+    ],
+    "modified": "2026-06-01 11:00:00.000000",
+    "modified_by": "Administrator",
+    "name": "Conciliaciones Bancarias",
+    "number_cards": [],
+    "owner": "Administrator",
+    "parent_page": "Administración",
+    "public": 1,
+    "quick_lists": [],
+    "restrict_to_domain": "",
+    "roles": [
+        {
+            "role": "System Manager"
+        },
+        {
+            "role": "Accounts Manager"
+        },
+        {
+            "role": "Accounts User"
+        }
+    ],
+    "sequence_id": 11.0,
+    "shortcuts": [
+        {
+            "color": "Blue",
+            "format": "{}",
+            "label": "Importar Extracto",
+            "link_to": "Bank Statement Import",
+            "stats_filter": "{}",
+            "type": "DocType"
+        },
+        {
+            "color": "Green",
+            "format": "{}",
+            "label": "Conciliar Banco",
+            "link_to": "Bank Reconciliation Tool",
+            "stats_filter": "{}",
+            "type": "DocType"
+        }
+    ],
+    "title": "Conciliaciones Bancarias",
+    "type": "Workspace"
+}
