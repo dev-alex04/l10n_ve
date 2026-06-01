@@ -238,11 +238,11 @@ function render_premium_dashboard(frm, data) {
                     padding-bottom: 8px;
                 }
                 .dg-table-card {
-                    background: var(--card-bg, #ffffff);
-                    border: 1px solid var(--border-color, #e2e8f0);
+                    background: #151922 !important;
+                    border: 1px solid #2d3748 !important;
                     border-radius: 14px;
                     padding: 24px;
-                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+                    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
                     margin-bottom: 30px;
                 }
                 .dg-table {
@@ -251,19 +251,20 @@ function render_premium_dashboard(frm, data) {
                     border-collapse: collapse;
                 }
                 .dg-table th {
-                    background: var(--subtle-bg, #f7fafc) !important;
+                    background: #1f2733 !important;
                     font-size: 11px;
                     text-transform: uppercase;
                     letter-spacing: 0.8px;
                     font-weight: 700;
-                    padding: 12px 14px !important;
-                    border: 1px solid var(--border-color) !important;
-                    color: var(--text-muted) !important;
+                    padding: 14px 16px !important;
+                    border: 1px solid #2d3748 !important;
+                    color: #cbd5e0 !important;
                 }
                 .dg-table td {
-                    padding: 12px 14px !important;
+                    padding: 14px 16px !important;
                     font-size: 13px;
-                    border: 1px solid var(--border-color) !important;
+                    border: 1px solid #2d3748 !important;
+                    color: #e2e8f0 !important;
                 }
                 .dg-badge {
                     display: inline-block;
@@ -525,7 +526,7 @@ function render_branch_table_rows(rows) {
 
     // Agregar fila de totales
     const total_row = `
-        <tr style="background: var(--subtle-bg, #f7fafc); border-top: 2px solid var(--border-color); font-weight: 700;">
+        <tr style="background: #1f2733 !important; border-top: 2px solid #2d3748 !important; font-weight: 700; color: #ffffff !important;">
             <td><strong>TOTAL</strong></td>
             <td style="text-align: right;">${format_currency_ve(t_cobrar, "USD")}</td>
             <td style="text-align: right; color: #3b82f6;">${format_currency_ve(t_op, "USD")}</td>
