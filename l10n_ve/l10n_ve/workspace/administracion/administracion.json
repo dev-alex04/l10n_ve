@@ -89,30 +89,34 @@
     "shortcuts": [
         {
             "color": "Blue",
-            "format": "{:}",
+            "format": "{}",
             "label": "Clientes",
             "link_to": "Customer",
+            "stats_filter": "{}",
             "type": "DocType"
         },
         {
             "color": "Orange",
-            "format": "{:}",
+            "format": "{}",
             "label": "Proveedores",
             "link_to": "Supplier",
+            "stats_filter": "{}",
             "type": "DocType"
         },
         {
             "color": "Green",
-            "format": "{:}",
+            "format": "{}",
             "label": "Inventario",
             "link_to": "Item",
+            "stats_filter": "{}",
             "type": "DocType"
         },
         {
             "color": "Grey",
-            "format": "{:}",
+            "format": "{}",
             "label": "Bancos",
             "link_to": "Bank Account",
+            "stats_filter": "{}",
             "type": "DocType"
         }
     ],
