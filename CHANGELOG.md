@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.6.1] - 2026-06-02
+
+### 🐛 Correcciones (Fixes)
+- Se integró una lista blanca (whitelist) para los DocTypes de sucursales en la subconsulta `_get_gl_entries` del dashboard, asegurando que los registros contables se filtren y muestren correctamente. a80fe27
+
+---
+
 ## [v1.6.0] - 2026-06-02
 
 ### ✨ Funcionalidades (Features)
