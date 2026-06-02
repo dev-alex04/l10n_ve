@@ -501,12 +501,15 @@ def get_exchange_rate(date: str, from_currency: str) -> float:
     if not date or not from_currency or not to_currency:
         return 0
 
-    cache_field: str = f"{date}|{from_currency}|{to_currency}"
+    # Normalizar la fecha a 'YYYY-MM-DD' para que un str y un date/datetime
+    # de la misma fecha compartan la misma clave de caché.
+    date_str: str = str(getdate(date))
+    cache_field: str = f"{date_str}|{from_currency}|{to_currency}"
     cached = frappe.cache().hget(EXCHANGE_RATE_CACHE_KEY, cache_field)
     if cached is not None:
-        return cached
+        return flt(cached)
 
-    rate: float = _query_exchange_rate(str(date), from_currency, to_currency)
+    rate: float = _query_exchange_rate(date_str, from_currency, to_currency)
 
     # Solo se cachean tasas válidas (>0). Una fecha sin tasa aún no se cachea
     # para que vuelva a consultarse en cuanto el BCV la cargue (el insert
