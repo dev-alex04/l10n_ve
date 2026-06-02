@@ -16,6 +16,44 @@ def _get_cached_rate(date_str, cache):
     return cache[date_str]
 
 
+def _get_gl_entries(accounts, from_date, to_date, cost_center=None, branch=None, branch_doctypes=None):
+    """Fetch GL Entry rows for the given accounts and date range.
+
+    When a branch is given, the voucher documents are filtered with a DB-side
+    subquery instead of loading every voucher name into Python and passing a
+    huge IN list (which blows up memory and can exceed max_allowed_packet).
+    branch_doctypes lists the voucher DocTypes that carry the branch field.
+    """
+    conditions = [
+        "gle.account IN %(accounts)s",
+        "gle.docstatus = 1",
+        "gle.posting_date BETWEEN %(from_date)s AND %(to_date)s",
+    ]
+    params = {"accounts": tuple(accounts), "from_date": from_date, "to_date": to_date}
+
+    if cost_center:
+        conditions.append("gle.cost_center = %(cost_center)s")
+        params["cost_center"] = cost_center
+
+    if branch and branch_doctypes:
+        params["branch"] = branch
+        subqueries = " UNION ".join(
+            "SELECT name FROM `tab{0}` WHERE branch = %(branch)s AND docstatus = 1".format(dt)
+            for dt in branch_doctypes
+        )
+        conditions.append("gle.voucher_no IN ({0})".format(subqueries))
+
+    query = """
+        SELECT
+            gle.debit, gle.credit, gle.account_currency,
+            gle.debit_in_account_currency, gle.credit_in_account_currency, gle.posting_date
+        FROM `tabGL Entry` gle
+        WHERE {0}
+    """.format(" AND ".join(conditions))
+
+    return frappe.db.sql(query, params, as_dict=True)
+
+
 @frappe.whitelist()
 def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=None):
     """Calculates all metrics and table rows for the Dashboard Gerencial."""
@@ -88,18 +126,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     accounts_rec = frappe.get_all("Account", filters={"company": company, "account_type": "Receivable", "is_group": 0}, pluck="name")
     pending_to_collect_usd = 0.0
     if accounts_rec:
-        gle_filters = {
-            "account": ["in", accounts_rec],
-            "docstatus": 1,
-            "posting_date": ["between", [from_date, to_date]]
-        }
-        if cost_center:
-            gle_filters["cost_center"] = cost_center
-        if branch:
-            invoices_b = frappe.get_all("Sales Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
-            gle_filters["voucher_no"] = ["in", invoices_b] if invoices_b else ["in", [""]]
-        
-        gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+        gl_entries = _get_gl_entries(accounts_rec, from_date, to_date, cost_center, branch, ["Sales Invoice"])
         for entry in gl_entries:
             amount = flt(entry.debit) - flt(entry.credit)
             if entry.account_currency == "USD":
@@ -119,19 +146,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     }, pluck="name")
     client_vat_withholding_usd = 0.0
     if accounts_iva:
-        gle_filters = {
-            "account": ["in", accounts_iva],
-            "docstatus": 1,
-            "posting_date": ["between", [from_date, to_date]]
-        }
-        if cost_center:
-            gle_filters["cost_center"] = cost_center
-        if branch:
-            invoices_b = frappe.get_all("Sales Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
-            payments_b = frappe.get_all("Payment Entry", filters={"branch": branch, "docstatus": 1}, pluck="name")
-            gle_filters["voucher_no"] = ["in", invoices_b + payments_b] if (invoices_b or payments_b) else ["in", [""]]
-
-        gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+        gl_entries = _get_gl_entries(accounts_iva, from_date, to_date, cost_center, branch, ["Sales Invoice", "Payment Entry"])
         for entry in gl_entries:
             amount = flt(entry.debit) - flt(entry.credit)
             if entry.account_currency == "USD":
@@ -151,19 +166,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     }, pluck="name")
     client_islr_withholding_usd = 0.0
     if accounts_islr:
-        gle_filters = {
-            "account": ["in", accounts_islr],
-            "docstatus": 1,
-            "posting_date": ["between", [from_date, to_date]]
-        }
-        if cost_center:
-            gle_filters["cost_center"] = cost_center
-        if branch:
-            invoices_b = frappe.get_all("Sales Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
-            payments_b = frappe.get_all("Payment Entry", filters={"branch": branch, "docstatus": 1}, pluck="name")
-            gle_filters["voucher_no"] = ["in", invoices_b + payments_b] if (invoices_b or payments_b) else ["in", [""]]
-
-        gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+        gl_entries = _get_gl_entries(accounts_islr, from_date, to_date, cost_center, branch, ["Sales Invoice", "Payment Entry"])
         for entry in gl_entries:
             amount = flt(entry.debit) - flt(entry.credit)
             if entry.account_currency == "USD":
@@ -183,19 +186,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     }, pluck="name")
     igtf_payable_usd = 0.0
     if accounts_igtf:
-        gle_filters = {
-            "account": ["in", accounts_igtf],
-            "docstatus": 1,
-            "posting_date": ["between", [from_date, to_date]]
-        }
-        if cost_center:
-            gle_filters["cost_center"] = cost_center
-        if branch:
-            invoices_b = frappe.get_all("Sales Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
-            payments_b = frappe.get_all("Payment Entry", filters={"branch": branch, "docstatus": 1}, pluck="name")
-            gle_filters["voucher_no"] = ["in", invoices_b + payments_b] if (invoices_b or payments_b) else ["in", [""]]
-
-        gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+        gl_entries = _get_gl_entries(accounts_igtf, from_date, to_date, cost_center, branch, ["Sales Invoice", "Payment Entry"])
         for entry in gl_entries:
             amount = flt(entry.credit) - flt(entry.debit)
             if entry.account_currency == "USD":
@@ -233,18 +224,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     else:
         accounts_exp = frappe.get_all("Account", filters={"company": company, "root_type": "Expense", "is_group": 0}, pluck="name")
         if accounts_exp:
-            gle_filters = {
-                "account": ["in", accounts_exp],
-                "docstatus": 1,
-                "posting_date": ["between", [from_date, to_date]]
-            }
-            if cost_center:
-                gle_filters["cost_center"] = cost_center
-            if branch:
-                purchases_b = frappe.get_all("Purchase Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
-                gle_filters["voucher_no"] = ["in", purchases_b] if purchases_b else ["in", [""]]
-
-            gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+            gl_entries = _get_gl_entries(accounts_exp, from_date, to_date, cost_center, branch, ["Purchase Invoice"])
             for entry in gl_entries:
                 amount = flt(entry.debit) - flt(entry.credit)
                 if entry.account_currency == "USD":
@@ -276,18 +256,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     else:
         accounts_exp = frappe.get_all("Account", filters={"company": company, "root_type": "Expense", "is_group": 0}, pluck="name")
         if accounts_exp:
-            gle_filters = {
-                "account": ["in", accounts_exp],
-                "docstatus": 1,
-                "posting_date": ["between", [year_start, year_end]]
-            }
-            if cost_center:
-                gle_filters["cost_center"] = cost_center
-            if branch:
-                purchases_b = frappe.get_all("Purchase Invoice", filters={"branch": branch, "docstatus": 1}, pluck="name")
-                gle_filters["voucher_no"] = ["in", purchases_b] if purchases_b else ["in", [""]]
-
-            gl_entries = frappe.get_all("GL Entry", filters=gle_filters, fields=["debit", "credit", "account_currency", "debit_in_account_currency", "credit_in_account_currency", "posting_date"])
+            gl_entries = _get_gl_entries(accounts_exp, year_start, year_end, cost_center, branch, ["Purchase Invoice"])
             for entry in gl_entries:
                 amount = flt(entry.debit) - flt(entry.credit)
                 if entry.account_currency == "USD":
