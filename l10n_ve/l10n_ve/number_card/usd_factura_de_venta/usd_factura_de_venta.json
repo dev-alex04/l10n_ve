@@ -1,7 +1,7 @@
 {
  "aggregate_function_based_on": "",
  "creation": "2026-05-22 23:12:53.613112",
- "currency": "VEF",
+ "currency": "USD",
  "docstatus": 0,
  "doctype": "Number Card",
  "document_type": "GL Entry",
@@ -12,7 +12,7 @@
  "is_public": 1,
  "is_standard": 1,
  "label": "USD Factura de venta",
- "method": "mi_Metodo",
+ "method": "l10n_ve.utils.utils.get_usd_factura_de_venta",
  "modified": "2026-05-22 23:13:13.460093",
  "modified_by": "Administrator",
  "module": "L10N Ve",
