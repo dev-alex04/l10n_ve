@@ -4,6 +4,11 @@ from frappe.model.document import Document
 from frappe.utils import getdate, flt, get_first_day, get_last_day, nowdate
 from urllib.parse import urlparse
 
+# DocTypes permitidos para el filtrado de vouchers por sucursal. Protege el
+# nombre de tabla que se interpola en la subconsulta de _get_gl_entries.
+ALLOWED_BRANCH_DOCTYPES = {"Sales Invoice", "Payment Entry", "Purchase Invoice"}
+
+
 class DashboardGerencial(Document):
     pass
 
@@ -36,6 +41,9 @@ def _get_gl_entries(accounts, from_date, to_date, cost_center=None, branch=None,
         params["cost_center"] = cost_center
 
     if branch and branch_doctypes:
+        invalid = [dt for dt in branch_doctypes if dt not in ALLOWED_BRANCH_DOCTYPES]
+        if invalid:
+            frappe.throw("DocType no permitido para filtrado por sucursal: {0}".format(", ".join(invalid)))
         params["branch"] = branch
         subqueries = " UNION ".join(
             "SELECT name FROM `tab{0}` WHERE branch = %(branch)s AND docstatus = 1".format(dt)
