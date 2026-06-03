@@ -163,7 +163,7 @@
             "is_query_report": 1,
             "label": "Reporte de IGTF Recibido",
             "link_count": 0,
-            "link_to": "igtf_received",
+            "link_to": "IGTF received",
             "link_type": "Report",
             "onboard": 0,
             "type": "Link"
@@ -227,7 +227,7 @@
             "color": "Grey",
             "format": "{}",
             "label": "Reporte de IGTF",
-            "link_to": "igtf_received",
+            "link_to": "IGTF received",
             "stats_filter": "{}",
             "type": "Report"
         }
