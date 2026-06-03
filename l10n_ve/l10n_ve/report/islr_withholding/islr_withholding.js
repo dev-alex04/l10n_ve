@@ -32,12 +32,20 @@ frappe.query_reports["ISLR Withholding"] = {
 			"fieldtype": "Date",
 			"default": frappe.datetime.get_today(),
 			"reqd": 0
+		},
+		{
+			"fieldname": "group_by",
+			"label": __("Agrupar Por"),
+			"fieldtype": "Select",
+			"options": ["Detalle", "Por Proveedor", "Por Concepto"],
+			"default": "Detalle",
+			"reqd": 1
 		}
 	],
 	"formatter": function (value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
 
-		if (column.fieldname == "parent" && value) {
+		if (column.fieldname == "parent" && value && data && data.parent) {
 			value = `
                 <button class="btn btn-xs btn-default" 
                     onclick="frappe.set_route('Form', 'ISLR Withholding Voucher', '${data.parent}')"

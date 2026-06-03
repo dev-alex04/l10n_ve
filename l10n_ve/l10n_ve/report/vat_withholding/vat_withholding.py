@@ -18,10 +18,10 @@ def get_columns():
         {"fieldname": "posting_date", "label": _("Fecha Factura"), "fieldtype": "Date", "width": "auto"},
         {"fieldname": "tax_withholding_category", "label": _("Impuesto"), "fieldtype": "Data", "width": "auto"},
         {"fieldname": "issue_date", "label": _("Fecha Emisión"), "fieldtype": "Date", "width": "auto"},
-        {"fieldname": "voucher_number", "label": _("Documento Retención"), "fieldtype": "Data", "width": "auto"},
+        {"fieldname": "voucher_number", "label": _("Número de Comprobante"), "fieldtype": "Data", "width": "auto"},
         {"fieldname": "total", "label": _("Base Imponible Bs"), "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "tax_amount_vat", "label": _("Monto Retención Bs"), "fieldtype": "Currency", "width": "auto"},
-        {"fieldname": "parent", "label": _("URL Retención"), "fieldtype": "Link", "options": "VAT Withholding Voucher", "width": "auto"},
+        {"fieldname": "parent", "label": _("Documento Retención"), "fieldtype": "Link", "options": "VAT Withholding Voucher", "width": "auto"},
 		{"fieldname": "status", "label": _("Estado del Documento"), "fieldtype": "Data", "width": "auto"},
 		{"fieldname": "declared_status", "label": _("Estado del Comprobante"), "fieldtype": "Data", "width": "auto"}
     ]

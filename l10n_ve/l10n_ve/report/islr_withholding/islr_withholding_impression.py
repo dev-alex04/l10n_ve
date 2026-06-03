@@ -29,6 +29,7 @@ def download_custom_excel(filters=None):
         filters = json.loads(filters)
 
     data = get_data(filters)
+    group_by = filters.get("group_by") or "Detalle"
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -50,17 +51,35 @@ def download_custom_excel(filters=None):
     ws["A3"] = f"Dirección: {company_details.get('address')}"
     ws["A4"] = f"Fecha de Emisión: {formatdate(nowdate())}"
 
-    ws.merge_cells('A5:M5')
-    ws["A5"] = "REPORTE DETALLADO DE RETENCIONES ISLR"
+    # Determine headers and colspan based on group_by
+    if group_by == "Por Proveedor":
+        headers = ["RIF Proveedor", "Nombre Proveedor", "Base Imponible Bs", "Monto Retenido Bs"]
+        merge_range = "A5:D5"
+        total_col_label = 2
+        total_col_base = 3
+        total_col_ret = 4
+    elif group_by == "Por Concepto":
+        headers = ["Código Concepto", "Concepto de Retención", "Base Imponible Bs", "Monto Retenido Bs"]
+        merge_range = "A5:D5"
+        total_col_label = 2
+        total_col_base = 3
+        total_col_ret = 4
+    else:
+        headers = [
+            "RIF Proveedor", "Nombre Proveedor", "Nro. Factura", "Nro. Control", "Fecha Factura", 
+            "Código Concepto", "Concepto de Retención", "Fecha Emisión", "Nro. Retención", "Factura Compra",
+            "Base Imponible Bs", "Monto Retenido Bs", "Estado del Documento", "Estado del Comprobante"
+        ]
+        merge_range = "A5:N5"
+        total_col_label = 10
+        total_col_base = 11
+        total_col_ret = 12
+
+    ws.merge_cells(merge_range)
+    ws["A5"] = f"REPORTE DE RETENCIONES ISLR - {group_by.upper()}"
     ws["A5"].font = bold_font
     ws["A5"].alignment = center_align
     ws["A5"].fill = green_fill
-
-    headers = [
-        "RIF Proveedor", "Nombre Proveedor", "Nro. Factura", "Nro. Control", "Fecha Factura", 
-        "Impuesto", "Fecha Emisión", "Nro. Retención", "Factura Compra",
-        "Base Imponible Bs", "Monto Retenido Bs", "Estado del Documento", "Estado del Comprobantes"
-    ]
 
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=6, column=col_num, value=header)
@@ -73,31 +92,42 @@ def download_custom_excel(filters=None):
     total_ret = 0
 
     for d in data:
-        ws.cell(row=row_num, column=1, value=d.tax_id)
-        ws.cell(row=row_num, column=2, value=d.supplier)
-        ws.cell(row=row_num, column=3, value=d.doc_no)
-        ws.cell(row=row_num, column=4, value=d.bill_control)
-        
-        cell_f_date = ws.cell(row=row_num, column=5, value=d.bill_date)
-        cell_f_date.number_format = 'DD-MM-YYYY'
-        
-        ws.cell(row=row_num, column=6, value=d.tax_description)
-        
-        cell_p_date = ws.cell(row=row_num, column=7, value=d.posting_date)
-        cell_p_date.number_format = 'DD-MM-YYYY'
-        
-        ws.cell(row=row_num, column=8, value=d.voucher_no)
-        ws.cell(row=row_num, column=9, value=d.purchase_invoice)
-        
-        cell_base = ws.cell(row=row_num, column=10, value=d.islr_base_amount)
-        cell_base.number_format = '#,##0.00'
-        
-        cell_ret = ws.cell(row=row_num, column=11, value=d.islr_amount)
-        cell_ret.number_format = '#,##0.00'
-        
-        ws.cell(row=row_num, column=12, value=d.status)
-        ws.cell(row=row_num, column=13, value=d.declared_status)
+        if group_by == "Por Proveedor":
+            ws.cell(row=row_num, column=1, value=d.tax_id)
+            ws.cell(row=row_num, column=2, value=d.supplier)
+            cell_base = ws.cell(row=row_num, column=3, value=d.islr_base_amount)
+            cell_ret = ws.cell(row=row_num, column=4, value=d.islr_amount)
+        elif group_by == "Por Concepto":
+            ws.cell(row=row_num, column=1, value=d.concept_code)
+            ws.cell(row=row_num, column=2, value=d.concept_description)
+            cell_base = ws.cell(row=row_num, column=3, value=d.islr_base_amount)
+            cell_ret = ws.cell(row=row_num, column=4, value=d.islr_amount)
+        else:
+            ws.cell(row=row_num, column=1, value=d.tax_id)
+            ws.cell(row=row_num, column=2, value=d.supplier)
+            ws.cell(row=row_num, column=3, value=d.doc_no)
+            ws.cell(row=row_num, column=4, value=d.bill_control)
+            
+            cell_f_date = ws.cell(row=row_num, column=5, value=d.bill_date)
+            cell_f_date.number_format = 'DD-MM-YYYY'
+            
+            ws.cell(row=row_num, column=6, value=d.concept_code)
+            ws.cell(row=row_num, column=7, value=d.concept_description)
+            
+            cell_p_date = ws.cell(row=row_num, column=8, value=d.posting_date)
+            cell_p_date.number_format = 'DD-MM-YYYY'
+            
+            ws.cell(row=row_num, column=9, value=d.voucher_no)
+            ws.cell(row=row_num, column=10, value=d.purchase_invoice)
+            
+            cell_base = ws.cell(row=row_num, column=11, value=d.islr_base_amount)
+            cell_ret = ws.cell(row=row_num, column=12, value=d.islr_amount)
+            
+            ws.cell(row=row_num, column=13, value=d.status)
+            ws.cell(row=row_num, column=14, value=d.declared_status)
 
+        cell_base.number_format = '#,##0.00'
+        cell_ret.number_format = '#,##0.00'
         
         total_base += (d.islr_base_amount or 0)
         total_ret += (d.islr_amount or 0)
@@ -105,13 +135,13 @@ def download_custom_excel(filters=None):
 
     # Fila de Totales
     row_num += 1
-    ws.cell(row=row_num, column=9, value="TOTALES:").font = bold_font
+    ws.cell(row=row_num, column=total_col_label, value="TOTALES:").font = bold_font
     
-    cell_total_base = ws.cell(row=row_num, column=10, value=total_base)
+    cell_total_base = ws.cell(row=row_num, column=total_col_base, value=total_base)
     cell_total_base.number_format = '#,##0.00'
     cell_total_base.font = bold_font
 
-    cell_total_ret = ws.cell(row=row_num, column=11, value=total_ret)
+    cell_total_ret = ws.cell(row=row_num, column=total_col_ret, value=total_ret)
     cell_total_ret.number_format = '#,##0.00'
     cell_total_ret.font = bold_font
 
@@ -129,6 +159,7 @@ def download_custom_pdf(filters=None):
         filters = json.loads(filters)
 
     data = get_data(filters)
+    group_by = filters.get("group_by") or "Detalle"
     company_name = filters.get("company")
     company_details = _get_company_details(company_name)
     currency = frappe.get_cached_value('Company', company_name, 'default_currency')
@@ -140,8 +171,8 @@ def download_custom_pdf(filters=None):
     for d in data:
         d["base_f"] = fmt_money(d.islr_base_amount, currency=currency)
         d["ret_f"] = fmt_money(d.islr_amount, currency=currency)
-        d["f_date"] = formatdate(d.bill_date)
-        d["p_date"] = formatdate(d.posting_date)
+        d["f_date"] = formatdate(d.bill_date) if d.get("bill_date") else ""
+        d["p_date"] = formatdate(d.posting_date) if d.get("posting_date") else ""
 
     html_content = """
     <!DOCTYPE html>
@@ -149,11 +180,11 @@ def download_custom_pdf(filters=None):
     <head>
         <meta charset="utf-8">
         <style>
-            body { font-family: sans-serif; font-size: 6.5pt; margin: 0; }
+            body { font-family: sans-serif; font-size: 7pt; margin: 0; }
             .company-details { margin-bottom: 8px; line-height: 1.2; }
             .company-name { font-size: 9pt; font-weight: bold; }
             table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            th, td { border: 0.5pt solid #000; padding: 2px; word-wrap: break-word; }
+            th, td { border: 0.5pt solid #000; padding: 3px; word-wrap: break-word; }
             th { background-color: #D8E4BC; font-weight: bold; text-align: center; }
             .text-right { text-align: right; }
             .text-center { text-align: center; }
@@ -168,47 +199,81 @@ def download_custom_pdf(filters=None):
             <div>Fecha de Emisión: {{ print_date }}</div>
         </div>
 
-        <div class="title-row">REPORTE DETALLADO DE RETENCIONES ISLR</div>
+        <div class="title-row">REPORTE DE RETENCIONES ISLR - {{ group_by.upper() }}</div>
 
         <table>
             <thead>
                 <tr>
-                    <th style="width: 8%;">RIF</th>
-                    <th style="width: 14%;">Proveedor</th>
-                    <th style="width: 8%;">Nro. Factura</th>
-                    <th style="width: 8%;">Nro. Control</th>
-                    <th style="width: 7%;">Fecha Fact.</th>
-                    <th style="width: 10%;">Impuesto</th>
-                    <th style="width: 7%;">Fecha Emis.</th>
-                    <th style="width: 10%;">Nro. Retención</th>
-                    <th style="width: 10%;">Base Imp. Bs</th>
-                    <th style="width: 10%;">Monto Ret. Bs</th>
-                    <th style="width: 8%;">Estado del Documento</th>
-                    <th style="width: 8%;">Estado del Comprobante</th>
+                    {% if group_by == 'Por Proveedor' %}
+                        <th style="width: 25%;">RIF Proveedor</th>
+                        <th style="width: 35%;">Nombre Proveedor</th>
+                        <th style="width: 20%;">Base Imp. Bs</th>
+                        <th style="width: 20%;">Monto Ret. Bs</th>
+                    {% elif group_by == 'Por Concepto' %}
+                        <th style="width: 25%;">Código Concepto</th>
+                        <th style="width: 35%;">Concepto de Retención</th>
+                        <th style="width: 20%;">Base Imp. Bs</th>
+                        <th style="width: 20%;">Monto Ret. Bs</th>
+                    {% else %}
+                        <th style="width: 8%;">RIF</th>
+                        <th style="width: 12%;">Proveedor</th>
+                        <th style="width: 7%;">Factura</th>
+                        <th style="width: 7%;">Control</th>
+                        <th style="width: 7%;">Fecha Fact.</th>
+                        <th style="width: 6%;">Código</th>
+                        <th style="width: 12%;">Concepto</th>
+                        <th style="width: 7%;">Fecha Emis.</th>
+                        <th style="width: 8%;">Nro. Ret.</th>
+                        <th style="width: 8%;">Factura Compra</th>
+                        <th style="width: 9%;">Base Imp. Bs</th>
+                        <th style="width: 9%;">Monto Ret. Bs</th>
+                        <th style="width: 6%;">Doc. Estado</th>
+                        <th style="width: 6%;">Comp. Estado</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for row in data %}
                 <tr>
-                    <td class="text-center">{{ row.tax_id }}</td>
-                    <td>{{ row.supplier }}</td>
-                    <td class="text-center">{{ row.doc_no }}</td>
-                    <td class="text-center">{{ row.bill_control }}</td>
-                    <td class="text-center">{{ row.f_date }}</td>
-                    <td>{{ row.tax_description or '' }}</td>
-                    <td class="text-center">{{ row.p_date }}</td>
-                    <td class="text-center">{{ row.voucher_no }}</td>
-                    <td class="text-right">{{ row.base_f }}</td>
-                    <td class="text-right">{{ row.ret_f }}</td>
-                    <td class="text-center">{{ row.status }}</td>
-                    <td class="text-center">{{ row.declared_status }}</td>
+                    {% if group_by == 'Por Proveedor' %}
+                        <td class="text-center">{{ row.tax_id }}</td>
+                        <td>{{ row.supplier }}</td>
+                        <td class="text-right">{{ row.base_f }}</td>
+                        <td class="text-right">{{ row.ret_f }}</td>
+                    {% elif group_by == 'Por Concepto' %}
+                        <td class="text-center">{{ row.concept_code }}</td>
+                        <td>{{ row.concept_description }}</td>
+                        <td class="text-right">{{ row.base_f }}</td>
+                        <td class="text-right">{{ row.ret_f }}</td>
+                    {% else %}
+                        <td class="text-center">{{ row.tax_id }}</td>
+                        <td>{{ row.supplier }}</td>
+                        <td class="text-center">{{ row.doc_no }}</td>
+                        <td class="text-center">{{ row.bill_control }}</td>
+                        <td class="text-center">{{ row.f_date }}</td>
+                        <td class="text-center">{{ row.concept_code }}</td>
+                        <td>{{ row.concept_description or '' }}</td>
+                        <td class="text-center">{{ row.p_date }}</td>
+                        <td class="text-center">{{ row.voucher_no }}</td>
+                        <td class="text-center">{{ row.purchase_invoice }}</td>
+                        <td class="text-right">{{ row.base_f }}</td>
+                        <td class="text-right">{{ row.ret_f }}</td>
+                        <td class="text-center">{{ row.status }}</td>
+                        <td class="text-center">{{ row.declared_status }}</td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
                 <tr style="font-weight: bold; background-color: #f2f2f2;">
-                    <td colspan="8" class="text-right">TOTALES</td>
-                    <td class="text-right">{{ total_base_f }}</td>
-                    <td class="text-right">{{ total_ret_f }}</td>
-                    <td colspan="2"></td>
+                    {% if group_by == 'Por Proveedor' or group_by == 'Por Concepto' %}
+                        <td colspan="2" class="text-right">TOTALES</td>
+                        <td class="text-right">{{ total_base_f }}</td>
+                        <td class="text-right">{{ total_ret_f }}</td>
+                    {% else %}
+                        <td colspan="10" class="text-right">TOTALES</td>
+                        <td class="text-right">{{ total_base_f }}</td>
+                        <td class="text-right">{{ total_ret_f }}</td>
+                        <td colspan="2"></td>
+                    {% endif %}
                 </tr>
             </tbody>
         </table>
@@ -222,6 +287,7 @@ def download_custom_pdf(filters=None):
         "company_address": company_details.get("address"),
         "print_date": formatdate(nowdate()),
         "data": data,
+        "group_by": group_by,
         "total_base_f": fmt_money(total_base, currency=currency),
         "total_ret_f": fmt_money(total_ret, currency=currency)
     }
