@@ -152,6 +152,22 @@ function render_premium_dashboard(frm, data) {
                     padding: 10px 0 30px 0;
                     color: var(--text-color);
                 }
+                .dg-exchange-rate-banner {
+                    background: #1a202c !important;
+                    border: 1px solid #2d3748 !important;
+                    border-radius: 8px;
+                    padding: 12px 20px;
+                    margin-bottom: 24px;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    font-size: 13px;
+                    color: #cbd5e0 !important;
+                }
+                .dg-exchange-rate-banner i {
+                    color: #3182ce !important;
+                    font-size: 16px;
+                }
                 .dg-card-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -166,7 +182,7 @@ function render_premium_dashboard(frm, data) {
                     display: flex;
                     flex-direction: column;
                     justify-content: space-between;
-                    min-height: 155px;
+                    min-height: 175px;
                     border: none !important;
                     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
                     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -199,9 +215,16 @@ function render_premium_dashboard(frm, data) {
                 .dg-card-value {
                     font-size: 32px !important;
                     font-weight: 800 !important;
-                    margin: 8px 0;
+                    margin: 8px 0 0 0;
                     letter-spacing: -0.5px;
                     color: #ffffff !important;
+                }
+                .dg-card-equivalent {
+                    font-size: 15px !important;
+                    font-weight: 600 !important;
+                    color: rgba(255, 255, 255, 0.75) !important;
+                    margin-top: 2px;
+                    margin-bottom: 8px;
                 }
                 .dg-card-subtext {
                     font-size: 12px;
@@ -275,6 +298,11 @@ function render_premium_dashboard(frm, data) {
                 }
             </style>
 
+            <div class="dg-exchange-rate-banner">
+                <i class="fa fa-info-circle"></i>
+                <span>Tasa de cambio de referencia: <strong>1 USD = ${format_currency_ve(data.exchange_rate, "VEF")}</strong> (al ${frappe.datetime.str_to_user(frm.doc.to_date)})</span>
+            </div>
+
             <!-- SECCIÓN 1: FACTURACIÓN Y VENTAS -->
             <h6 class="dg-section-title">
                 <i class="fa fa-shopping-cart" style="color: #2b6cb0;"></i> Facturación y Ventas
@@ -287,9 +315,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-dollar dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.total_billed_usd, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.total_billed_usd * data.exchange_rate, "VEF")}</div>
                     <div class="dg-card-subtext">
-                        <span>Monto Base: ${format_currency_ve(data.total_billed_usd - data.taxes_usd, "USD")}</span>
-                        <span>Impuesto: ${format_currency_ve(data.taxes_usd, "USD")}</span>
+                        <span>Monto Base: ${format_currency_ve(data.total_billed_usd - data.taxes_usd, "USD")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve((data.total_billed_usd - data.taxes_usd) * data.exchange_rate, "VEF")})</span></span>
+                        <span>Impuesto: ${format_currency_ve(data.taxes_usd, "USD")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.taxes_usd * data.exchange_rate, "VEF")})</span></span>
                     </div>
                 </div>
 
@@ -300,8 +329,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-bank dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.total_billed_bs, "VEF")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.total_billed_bs / data.exchange_rate, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Monto bruto facturado en bolívares</span>
+                        <span>Equiv. USD: ${format_currency_ve(data.total_billed_bs / data.exchange_rate, "USD")}</span>
                     </div>
                 </div>
 
@@ -342,8 +373,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-arrow-up dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.collected_amount, "VEF")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.collected_amount / data.exchange_rate, "USD")}</div>
                     <div class="dg-card-subtext">
                         <span>Recaudación real cobrada en bolívares</span>
+                        <span>Equiv. USD: ${format_currency_ve(data.collected_amount / data.exchange_rate, "USD")}</span>
                     </div>
                 </div>
 
@@ -354,8 +387,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-exclamation-circle dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.pending_to_collect_usd, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.pending_to_collect_usd * data.exchange_rate, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Cuentas por cobrar (A/R) en USD</span>
+                        <span>Equiv. Bs: ${format_currency_ve(data.pending_to_collect_usd * data.exchange_rate, "VEF")}</span>
                     </div>
                 </div>
 
@@ -366,8 +401,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-percent dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.taxes_usd, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.taxes_usd * data.exchange_rate, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Débito fiscal (IVA) estimado en USD</span>
+                        <span>Equiv. Bs: ${format_currency_ve(data.taxes_usd * data.exchange_rate, "VEF")}</span>
                     </div>
                 </div>
 
@@ -378,8 +415,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-gavel dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.client_vat_withholding_usd, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.client_vat_withholding_usd * data.exchange_rate, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Anticipos de IVA retenidos por clientes</span>
+                        <span>Equiv. Bs: ${format_currency_ve(data.client_vat_withholding_usd * data.exchange_rate, "VEF")}</span>
                     </div>
                 </div>
 
@@ -390,8 +429,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-balance-scale dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.client_islr_withholding_usd, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.client_islr_withholding_usd * data.exchange_rate, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Anticipos de ISLR retenidos por clientes</span>
+                        <span>Equiv. Bs: ${format_currency_ve(data.client_islr_withholding_usd * data.exchange_rate, "VEF")}</span>
                     </div>
                 </div>
 
@@ -402,8 +443,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-university dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.igtf_payable_usd, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.igtf_payable_usd * data.exchange_rate, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Impuesto a grandes transacciones financieras</span>
+                        <span>Equiv. Bs: ${format_currency_ve(data.igtf_payable_usd * data.exchange_rate, "VEF")}</span>
                     </div>
                 </div>
             </div>
@@ -420,8 +463,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-arrow-down dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.expenses_usd_month, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.expenses_usd_month * data.exchange_rate, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Egresos acumulados en el periodo</span>
+                        <span>Equiv. Bs: ${format_currency_ve(data.expenses_usd_month * data.exchange_rate, "VEF")}</span>
                     </div>
                 </div>
 
@@ -432,8 +477,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-calendar dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.expenses_usd_year, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.expenses_usd_year * data.exchange_rate, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Egresos del año fiscal corriente</span>
+                        <span>Equiv. Bs: ${format_currency_ve(data.expenses_usd_year * data.exchange_rate, "VEF")}</span>
                     </div>
                 </div>
 
@@ -444,8 +491,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-check-circle dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.available_usd, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.available_usd * data.exchange_rate, "VEF")}</div>
                     <div class="dg-card-subtext">
                         <span>Fondos consolidados en Cajas y Bancos USD</span>
+                        <span>Equiv. Bs: ${format_currency_ve(data.available_usd * data.exchange_rate, "VEF")}</span>
                     </div>
                 </div>
             </div>
@@ -454,7 +503,7 @@ function render_premium_dashboard(frm, data) {
             <div class="dg-table-card">
                 <h6 class="dg-section-title" style="border: none; padding-bottom: 0; margin-bottom: 20px;">
                     <i class="fa fa-table dg-primary-icon"></i> Resumen Financiero por Sucursal
-                    <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(Valores expresados en USD)</span>
+                    <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(Valores expresados en USD y su equivalente en Bs. abajo)</span>
                 </h6>
                 <div style="overflow-x: auto;">
                     <table class="dg-table table table-bordered">
@@ -475,7 +524,7 @@ function render_premium_dashboard(frm, data) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${render_branch_table_rows(data.branch_financial_summary)}
+                            ${render_branch_table_rows(data.branch_financial_summary, data.exchange_rate)}
                         </tbody>
                     </table>
                 </div>
@@ -486,10 +535,17 @@ function render_premium_dashboard(frm, data) {
     frm.fields_dict.dashboard_html.$wrapper.html(html);
 }
 
-function render_branch_table_rows(rows) {
+function render_branch_table_rows(rows, exchange_rate) {
     if (!rows || rows.length === 0) {
         return `<tr><td colspan="12" class="text-center" style="padding: 20px; color: var(--text-muted);">No se encontraron registros financieros para las sucursales.</td></tr>`;
     }
+
+    const rate = exchange_rate || 1.0;
+    const format_table_cell = (usd_val, r) => {
+        const usd_str = format_currency_ve(usd_val, "USD");
+        const bs_str = format_currency_ve(usd_val * r, "VEF");
+        return `<div>${usd_str}</div><div style="font-size: 10.5px; color: #a0aec0; font-weight: normal; margin-top: 2px;">${bs_str}</div>`;
+    };
 
     let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_disp = 0, t_spent = 0, t_util = 0;
 
@@ -509,17 +565,17 @@ function render_branch_table_rows(rows) {
         return `
             <tr>
                 <td><strong>${frappe.utils.escape_html(r.branch)}</strong></td>
-                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.pending_to_collect, "USD")}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_currency_ve(r.payment_order, "USD")}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.payment_order_vat, "USD")}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_currency_ve(r.billed, "USD")}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.vat, "USD")}</td>
-                <td style="text-align: right; font-weight: 600;">${format_currency_ve(r.vat_after_withholding, "USD")}</td>
-                <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_currency_ve(r.vat_withholding, "USD")}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_currency_ve(r.islr_withholding, "USD")}</td>
-                <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_currency_ve(r.availability, "USD")}</td>
-                <td style="text-align: right; font-weight: 600; color: #ef4444;">${format_currency_ve(r.spent, "USD")}</td>
-                <td style="text-align: right; font-weight: 700; color: ${r.profit >= 0 ? '#10b981' : '#ef4444'};">${format_currency_ve(r.profit, "USD")}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.pending_to_collect, rate)}</td>
+                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.payment_order, rate)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.payment_order_vat, rate)}</td>
+                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.billed, rate)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.vat, rate)}</td>
+                <td style="text-align: right; font-weight: 600;">${format_table_cell(r.vat_after_withholding, rate)}</td>
+                <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_table_cell(r.vat_withholding, rate)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.islr_withholding, rate)}</td>
+                <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.availability, rate)}</td>
+                <td style="text-align: right; font-weight: 600; color: #ef4444;">${format_table_cell(r.spent, rate)}</td>
+                <td style="text-align: right; font-weight: 700; color: ${r.profit >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.profit, rate)}</td>
             </tr>
         `;
     }).join("");
@@ -528,17 +584,17 @@ function render_branch_table_rows(rows) {
     const total_row = `
         <tr style="background: #1f2733 !important; border-top: 2px solid #2d3748 !important; font-weight: 700; color: #ffffff !important;">
             <td><strong>TOTAL</strong></td>
-            <td style="text-align: right;">${format_currency_ve(t_cobrar, "USD")}</td>
-            <td style="text-align: right; color: #3b82f6;">${format_currency_ve(t_op, "USD")}</td>
-            <td style="text-align: right;">${format_currency_ve(t_iva_op, "USD")}</td>
-            <td style="text-align: right; color: #3b82f6;">${format_currency_ve(t_fact, "USD")}</td>
-            <td style="text-align: right;">${format_currency_ve(t_iva, "USD")}</td>
-            <td style="text-align: right;">${format_currency_ve(t_neto, "USD")}</td>
-            <td style="text-align: right; color: #8b5cf6;">${format_currency_ve(t_ret_iva, "USD")}</td>
-            <td style="text-align: right;">${format_currency_ve(t_ret_islr, "USD")}</td>
-            <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_currency_ve(t_disp, "USD")}</td>
-            <td style="text-align: right; color: #ef4444;">${format_currency_ve(t_spent, "USD")}</td>
-            <td style="text-align: right; color: ${t_util >= 0 ? '#10b981' : '#ef4444'};">${format_currency_ve(t_util, "USD")}</td>
+            <td style="text-align: right;">${format_table_cell(t_cobrar, rate)}</td>
+            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_op, rate)}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva_op, rate)}</td>
+            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_fact, rate)}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva, rate)}</td>
+            <td style="text-align: right;">${format_table_cell(t_neto, rate)}</td>
+            <td style="text-align: right; color: #8b5cf6;">${format_table_cell(t_ret_iva, rate)}</td>
+            <td style="text-align: right;">${format_table_cell(t_ret_islr, rate)}</td>
+            <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_disp, rate)}</td>
+            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_spent, rate)}</td>
+            <td style="text-align: right; color: ${t_util >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_util, rate)}</td>
         </tr>
     `;
 
