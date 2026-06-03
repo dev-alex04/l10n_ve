@@ -340,7 +340,10 @@ doc_events = {
     },
     "VE Branch": {
         "on_change": "l10n_ve.permissions.clear_ve_branch_cache",
-    }
+    },
+    "Currency Exchange": {
+        "on_change": "l10n_ve.utils.utils.clear_exchange_rate_cache",
+    },
 }
 # Scheduled Tasks
 # ---------------
