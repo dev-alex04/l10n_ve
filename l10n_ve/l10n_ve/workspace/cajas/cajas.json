@@ -195,9 +195,10 @@
         },
         {
             "color": "Grey",
+            "format": "{}",
             "label": "Depósitos",
-            "type": "URL",
-            "url": "#"
+            "link_to": "VE Deposit",
+            "type": "DocType"
         }
     ],
     "title": "Cajas",
