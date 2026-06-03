@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.7.0] - 2026-06-03
+
+### ✨ Funcionalidades (Features)
+- Implementación de un sistema de caché para la función `get_exchange_rate` basado en fecha y moneda, que incluye lógica de invalidación para optimizar el rendimiento. b53b894
+- Normalización de fechas en las claves de caché para garantizar la consistencia y correcta recuperación de los datos almacenados. e9359ed
+
+---
+
 ## [v1.6.1] - 2026-06-02
 
 ### 🐛 Correcciones (Fixes)
