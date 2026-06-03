@@ -16,7 +16,7 @@
             "hidden": 0,
             "is_query_report": 0,
             "label": "Administración",
-            "link_count": 4,
+            "link_count": 5,
             "onboard": 0,
             "type": "Card Break"
         },
@@ -60,6 +60,17 @@
             "label": "Bancos",
             "link_count": 0,
             "link_to": "Bank Account",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Dashboard Gerencial",
+            "link_count": 0,
+            "link_to": "Dashboard Gerencial",
             "link_type": "DocType",
             "onboard": 1,
             "type": "Link"
