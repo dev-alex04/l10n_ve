@@ -342,9 +342,7 @@ doc_events = {
         "on_change": "l10n_ve.permissions.clear_ve_branch_cache",
     },
     "Currency Exchange": {
-        "after_insert": "l10n_ve.utils.utils.clear_exchange_rate_cache",
-        "on_update": "l10n_ve.utils.utils.clear_exchange_rate_cache",
-        "on_trash": "l10n_ve.utils.utils.clear_exchange_rate_cache",
+        "on_change": "l10n_ve.utils.utils.clear_exchange_rate_cache",
     },
 }
 # Scheduled Tasks
