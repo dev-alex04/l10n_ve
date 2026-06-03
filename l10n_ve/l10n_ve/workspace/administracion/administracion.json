@@ -100,8 +100,8 @@
             "is_query_report": 0,
             "label": "Conciliaciones Cajas",
             "link_count": 0,
-            "link_to": "#",
-            "link_type": "URL",
+            "link_to": "Cajas",
+            "link_type": "Page",
             "onboard": 0,
             "type": "Link"
         },
