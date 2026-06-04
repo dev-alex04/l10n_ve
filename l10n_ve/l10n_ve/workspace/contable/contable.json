@@ -191,15 +191,15 @@
             "color": "Green",
             "format": "{}",
             "label": "Plan de Cuentas",
-            "link_to": "Plan de Cuentas",
-            "type": "Page"
+            "link_to": "Account",
+            "type": "DocType"
         },
         {
             "color": "Orange",
             "format": "{}",
             "label": "Centros de Costo",
-            "link_to": "Chart of Cost Centers",
-            "type": "Page"
+            "link_to": "Cost Center",
+            "type": "DocType"
         },
         {
             "color": "Grey",
