@@ -28,6 +28,20 @@
    "label": "To Date",
    "mandatory": 1,
    "wildcard_filter": 0
+  },
+  {
+   "fieldname": "excedente_anterior",
+   "fieldtype": "Currency",
+   "label": "Excedente Crédito Mes Anterior (Bs)",
+   "mandatory": 0,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "retenciones_anteriores",
+   "fieldtype": "Currency",
+   "label": "Retenciones Acumuladas Mes Anterior (Bs)",
+   "mandatory": 0,
+   "wildcard_filter": 0
   }
  ],
  "idx": 0,
@@ -40,7 +54,7 @@
  "owner": "Administrator",
  "prepared_report": 0,
  "ref_doctype": "Company",
- "report_name": "iva_forma_30",
+ "report_name": "IVA Forma 30",
  "report_type": "Script Report",
  "roles": [
   {

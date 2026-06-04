@@ -24,6 +24,18 @@ frappe.query_reports["iva_forma_30"] = {
 			"fieldtype": "Date",
 			"default": frappe.datetime.month_end(),
 			"reqd": 1
+		},
+		{
+			"fieldname": "excedente_anterior",
+			"label": __("Excedente Crédito Mes Anterior (Bs)"),
+			"fieldtype": "Currency",
+			"default": 0.0
+		},
+		{
+			"fieldname": "retenciones_anteriores",
+			"label": __("Retenciones Acumuladas Mes Anterior (Bs)"),
+			"fieldtype": "Currency",
+			"default": 0.0
 		}
 	],
 	"onload": function(report) {
@@ -39,6 +51,24 @@ frappe.query_reports["iva_forma_30"] = {
 			report.set_filter_value("from_date", from_date);
 			report.set_filter_value("to_date", to_date);
 			report.refresh();
+		});
+
+		report.page.add_inner_button(__("Exportar Excel"), function() {
+			var filters = report.get_values();
+			if(filters) {
+				window.open('/api/method/l10n_ve.l10n_ve.report.iva_forma_30.iva_forma_30_impression.get_iva_forma_30_excel?filters=' + encodeURIComponent(JSON.stringify(filters)));
+			} else {
+				frappe.msgprint(__("Por favor genere el reporte primero."));
+			}
+		});
+
+		report.page.add_inner_button(__("Exportar PDF"), function() {
+			var filters = report.get_values();
+			if(filters) {
+				window.open('/api/method/l10n_ve.l10n_ve.report.iva_forma_30.iva_forma_30_impression.get_iva_forma_30_pdf?filters=' + encodeURIComponent(JSON.stringify(filters)));
+			} else {
+				frappe.msgprint(__("Por favor genere el reporte primero."));
+			}
 		});
 	}
 };

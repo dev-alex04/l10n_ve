@@ -1,0 +1,366 @@
+<style>
+    body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 7.5pt;
+        color: #000;
+        margin: 0;
+        padding: 0;
+        background-color: #fff;
+        -webkit-print-color-adjust: exact;
+    }
+    
+    .report-container {
+        padding: 10px;
+    }
+    
+    /* Seniat Form Style Header */
+    .seniat-header {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 12px;
+    }
+    
+    .seniat-header td {
+        border: 2px solid #000 !important;
+        padding: 8px !important;
+        font-weight: 700;
+        color: #000;
+        vertical-align: middle;
+    }
+    
+    .company-title {
+        font-size: 11pt;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .rif-label {
+        width: 100px;
+        text-align: center;
+        background-color: #f1f5f9 !important;
+        font-size: 8pt;
+    }
+    
+    .rif-value {
+        width: 100px;
+        text-align: center;
+        font-size: 9.5pt;
+    }
+    
+    /* Main Form Table */
+    table.seniat-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 5px;
+        margin-bottom: 15px;
+        border: 2px solid #000 !important;
+    }
+    
+    table.seniat-table tr {
+        border-bottom: 1px solid #000 !important;
+    }
+    
+    table.seniat-table td {
+        padding: 4px 5px;
+        vertical-align: middle;
+        font-size: 7.5pt;
+        border-top: 1px solid #000 !important;
+        border-bottom: 1px solid #000 !important;
+        border-left: none !important;
+        border-right: none !important;
+    }
+    
+    /* Header Row (Section separators like DEBITOS FISCALES, CREDITOS FISCALES, etc.) */
+    .header-row {
+        background-color: #e2e8f0 !important;
+        font-weight: 700;
+        text-align: center;
+        font-size: 8pt;
+        text-transform: uppercase;
+        color: #000;
+    }
+    
+    .header-row td {
+        border-top: 2px solid #000 !important;
+        border-bottom: 2px solid #000 !important;
+        padding: 6px 5px !important;
+    }
+    
+    /* Text Styles */
+    .total-row {
+        font-weight: 700 !important;
+    }
+    
+    /* Column alignments & widths */
+    .row-no-cell {
+        width: 25px;
+        text-align: center;
+        font-weight: 700;
+        font-size: 7.5pt;
+        border-left: 2px solid #000 !important;
+        border-right: 1.5px solid #000 !important;
+    }
+    
+    .concept-cell {
+        text-align: left;
+        font-size: 7.5pt;
+        border-right: 1.5px solid #000 !important;
+    }
+    
+    /* Active Box & Value styling matching official form */
+    .active-box {
+        width: 35px;
+        text-align: center;
+        font-size: 7.5pt;
+        font-weight: 700;
+        background-color: #e2e8f0 !important; /* solid light gray */
+        border: 1.5px solid #000 !important;
+    }
+    
+    .active-value {
+        width: 125px;
+        text-align: right;
+        font-size: 7.5pt;
+        background-color: #fff !important;
+        border: 1.5px solid #000 !important;
+        white-space: nowrap;
+        padding-right: 6px !important;
+    }
+    
+    /* Empty placeholders to maintain table structure without gridlines */
+    .empty-cell {
+        border-left: none !important;
+        border-right: none !important;
+    }
+    
+    /* Outer right border of table */
+    .border-right-outer {
+        border-right: 2px solid #000 !important;
+    }
+    
+    /* Page Breaks for clean PDF output */
+    tr, td, th {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+</style>
+
+<div class="report-container">
+    {%
+        var format_val = function(val, is_box) {
+            if (val === null || val === undefined || val === "") return "";
+            if (val === 0 || val === 0.0) {
+                return is_box ? "" : "-";
+            }
+            return format_currency(val);
+        };
+        var company_rif = (frappe.model.get_doc("Company", filters.company) || {}).tax_id || "J-00000000-0";
+        var company_name = filters.company;
+        
+        // Clean RIF presentation
+        var rif_letter = "J";
+        var rif_number = company_rif;
+        if (company_rif && company_rif.includes("-")) {
+            var parts = company_rif.split("-");
+            rif_letter = parts[0];
+            rif_number = parts.slice(1).join("-");
+        } else if (company_rif && company_rif.length > 1) {
+            rif_letter = company_rif.substring(0, 1);
+            rif_number = company_rif.substring(1);
+        }
+
+        // Mapping function to fit the 7-column SENIAT grid
+        var get_row_boxes = function(row) {
+            var box1 = row.box_base || "";
+            var val1 = (box1 !== "") ? row.base_amount : null;
+            
+            var box2 = "";
+            var box3 = "";
+            var val2 = null;
+            
+            var r_no = parseInt(row.row_no);
+            
+            if (r_no >= 1 && r_no <= 6) {
+                box2 = row.box_rate || "";
+                box3 = row.box_tax || "";
+                if (r_no === 1) {
+                    box2 = row.box_tax || "0";
+                    box3 = "";
+                } else if (r_no === 2) {
+                    box2 = row.box_rate || "9";
+                    box3 = "";
+                }
+                val2 = (box3 !== "") ? row.tax_amount : null;
+            } 
+            else if (r_no >= 7 && r_no <= 9) {
+                box3 = row.box_tax || "";
+                val2 = row.tax_amount;
+            }
+            else if (r_no === 10) {
+                box2 = row.box_tax || "0";
+            }
+            else if (r_no >= 11 && r_no <= 17) {
+                box2 = row.box_rate || "";
+                box3 = row.box_tax || "";
+                val2 = (box3 !== "") ? row.tax_amount : null;
+            }
+            else if (r_no >= 18 && r_no <= 28) {
+                box3 = row.box_tax || "";
+                val2 = row.tax_amount;
+            }
+            else if (r_no >= 29 && r_no <= 31) {
+                box2 = row.box_tax || "";
+            }
+            else if (r_no === 32) {
+                box3 = row.box_tax || "78";
+                val2 = row.tax_amount;
+            }
+            else if (r_no >= 33 && r_no <= 37) {
+                box2 = row.box_tax || "";
+            }
+            else if (r_no === 38) {
+                box3 = row.box_tax || "55";
+                val2 = row.tax_amount;
+            }
+            else if (r_no === 39) {
+                box2 = row.box_tax || "";
+            }
+            else if (r_no === 40) {
+                box3 = row.box_tax || "56";
+                val2 = row.tax_amount;
+            }
+            else if (r_no >= 41 && r_no <= 45) {
+                box2 = row.box_tax || "";
+            }
+            else if (r_no === 46) {
+                box3 = row.box_tax || "58";
+                val2 = row.tax_amount;
+            }
+            else if (r_no === 47) {
+                box3 = row.box_tax || "1";
+                val2 = row.tax_amount;
+            }
+            else if (r_no === 48) {
+                box3 = row.box_tax || "90";
+                val2 = row.tax_amount;
+            }
+            
+            return {
+                box1: box1,
+                val1: val1,
+                box2: box2,
+                box3: box3,
+                val2: val2
+            };
+        };
+    %}
+
+    <!-- Seniat style header -->
+    <table class="seniat-header">
+        <tr>
+            <td class="company-title" colspan="4">
+                {%= company_name %}
+            </td>
+            <td class="rif-label">RIF</td>
+            <td class="rif-value">{%= rif_letter %}</td>
+        </tr>
+        <tr>
+            <td colspan="4" style="text-align: center; font-size: 8.5pt; font-weight: 600; color: #000;">
+                DECLARACIÓN DEL IMPUESTO AL VALOR AGREGADO (FORMA 30)
+            </td>
+            <td class="rif-label">RIF NRO.</td>
+            <td class="rif-value">{%= rif_number %}</td>
+        </tr>
+    </table>
+
+    <table class="seniat-table">
+        <tbody>
+            {% for (var i=0, l=data.length; i<l; i++) {
+                var row = data[i]; %}
+                
+                {% if (row.is_header) { %}
+                    <tr class="header-row">
+                        {% if (row.concept.indexOf("AUTOLIQUIDACION") !== -1) { %}
+                            <td colspan="7" class="border-right-outer" style="text-align: center; font-weight: bold; border-left: 2px solid #000 !important;">
+                                AUTOLIQUIDACION
+                            </td>
+                        {% } else { %}
+                            <td class="row-no-cell" style="border-right: none !important;"></td>
+                            <td class="concept-cell" style="text-align: center; border-right: 1.5px solid #000 !important; font-weight: bold;">{%= row.concept %}</td>
+                            <td colspan="2" style="text-align: center; border-right: 1.5px solid #000 !important; font-weight: bold;">{%= row.box_base %}</td>
+                            <td style="text-align: center; border-right: 1.5px solid #000 !important;"></td>
+                            <td colspan="2" class="border-right-outer" style="text-align: center; font-weight: bold;">{%= row.box_tax %}</td>
+                        {% } %}
+                    </tr>
+                {% } else { 
+                    var boxes = get_row_boxes(row); %}
+                    <tr class="{%= row.is_total ? 'total-row' : '' %}">
+                        <!-- 1. Row No -->
+                        <td class="row-no-cell">{%= row.row_no %}</td>
+                        
+                        <!-- 2. Concept -->
+                        <td class="concept-cell {%= row.is_total ? 'total-row' : '' %}">
+                            {% if (row.is_total) { %}
+                                <b>{%= row.concept %}</b>
+                            {% } else { %}
+                                {%= row.concept %}
+                            {% } %}
+                        </td>
+                        
+                        <!-- 3. Box 1 -->
+                        {% if (boxes.box1 !== "") { %}
+                            <td class="active-box">{%= boxes.box1 %}</td>
+                        {% } else { %}
+                            <td class="empty-cell" style="width: 35px;"></td>
+                        {% } %}
+
+                        <!-- 4. Value 1 -->
+                        {% if (boxes.box1 !== "") { %}
+                            <td class="active-value">
+                                {% if (row.is_total) { %}
+                                    <b>{%= format_val(boxes.val1, false) %}</b>
+                                {% } else { %}
+                                    {%= format_val(boxes.val1, false) %}
+                                {% } %}
+                            </td>
+                        {% } else { %}
+                            <td class="empty-cell" style="width: 125px;"></td>
+                        {% } %}
+
+                        <!-- 5. Box 2 -->
+                        {% if (boxes.box2 !== "") { %}
+                            <td class="active-box">{%= boxes.box2 %}</td>
+                        {% } else { %}
+                            <td class="empty-cell" style="width: 35px;"></td>
+                        {% } %}
+
+                        <!-- 6. Box 3 -->
+                        {% if (boxes.box3 !== "") { %}
+                            <td class="active-box">{%= boxes.box3 %}</td>
+                        {% } else { %}
+                            <td class="empty-cell" style="width: 35px;"></td>
+                        {% } %}
+
+                        <!-- 7. Value 2 -->
+                        {% if (boxes.box3 !== "") { %}
+                            <td class="active-value border-right-outer">
+                                {% if (row.is_total) { %}
+                                    <b>{%= format_val(boxes.val2, false) %}</b>
+                                {% } else { %}
+                                    {%= format_val(boxes.val2, false) %}
+                                {% } %}
+                            </td>
+                        {% } else { %}
+                            <td class="empty-cell border-right-outer" style="width: 125px;"></td>
+                        {% } %}
+                    </tr>
+                {% } %}
+            {% } %}
+        </tbody>
+    </table>
+    
+    <div style="font-size: 7pt; text-align: right; color: #000; font-style: italic; margin-top: 10px;">
+        Expresado en Bolívares (VES) &nbsp;|&nbsp; Generado en base a Libros de Compras y Ventas de {%= filters.from_date.split("-").reverse().join("/") %} al {%= filters.to_date.split("-").reverse().join("/") %}
+    </div>
+</div>
