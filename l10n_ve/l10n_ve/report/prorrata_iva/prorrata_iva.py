@@ -27,7 +27,7 @@ def get_data(filters):
     filters["company_currency"] = company_currency
 
     # 1. Obtener Ventas
-    sales_data, _ = get_sales_data(filters)
+    sales_data, adjustment_data = get_sales_data(filters)
     
     sales_exempt = 0.0
     sales_export = 0.0
