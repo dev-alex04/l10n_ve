@@ -1,0 +1,414 @@
+<!-- Copyright (c) 2026, DominaERP and contributors -->
+<!-- For license information, please see license.txt -->
+
+<style>
+    @media print {
+        @page {
+            size: landscape;
+            margin: 8mm 12mm 8mm 12mm;
+        }
+        .page-container {
+            page-break-after: always;
+        }
+        .page-container:last-child {
+            page-break-after: avoid;
+        }
+    }
+    
+    body {
+        font-family: "Outfit", "Inter", "Helvetica Neue", Arial, sans-serif;
+        color: #1a1a1a;
+        font-size: 10px;
+        background-color: #fff;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .page-container {
+        background-color: #fff;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+    
+    .report-header {
+        width: 100%;
+        margin-bottom: 5px;
+        border-collapse: collapse;
+    }
+    
+    .report-header td {
+        border: none;
+        padding: 2px 0;
+    }
+    
+    .company-title {
+        font-size: 13px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .report-title-container {
+        text-align: center;
+        margin-bottom: 12px;
+        margin-top: -10px;
+    }
+    
+    .report-title {
+        font-size: 14px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #000;
+    }
+    
+    .meta-line {
+        font-size: 10px;
+        font-weight: 500;
+        margin-top: 3px;
+        color: #333;
+    }
+    
+    .account-group-header {
+        font-size: 11px;
+        font-weight: bold;
+        margin-top: 15px;
+        margin-bottom: 8px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 4px;
+        display: flex;
+    }
+    
+    .account-code {
+        width: 25%;
+    }
+    
+    .account-desc {
+        width: 75%;
+    }
+    
+    .ledger-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 2px;
+    }
+    
+    .ledger-table th {
+        font-size: 10px;
+        font-weight: bold;
+        border-bottom: 1.5px solid #000;
+        border-top: 1.5px solid #000;
+        padding: 5px 3px;
+        text-align: left;
+        text-transform: uppercase;
+    }
+    
+    .ledger-table td {
+        padding: 4px 3px;
+        vertical-align: top;
+        line-height: 1.25;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .text-right {
+        text-align: right;
+    }
+    
+    .text-center {
+        text-align: center;
+    }
+    
+    .bold {
+        font-weight: bold;
+    }
+    
+    .double-line-second {
+        font-size: 8.5px;
+        color: #444;
+        font-weight: normal;
+        margin-top: 2px;
+    }
+    
+    .totals-row td {
+        border-top: 1.5px solid #000;
+        border-bottom: 2px double #000;
+        font-weight: bold;
+        background-color: #fafafa;
+        padding: 6px 3px;
+    }
+    
+    .van-vienen-row td {
+        border-top: 1.5px solid #000;
+        border-bottom: 1.5px solid #000;
+        font-weight: bold;
+        font-style: italic;
+        background-color: #f5f5f5;
+        padding: 5px 3px;
+    }
+</style>
+
+<div id="ledger-report-container"></div>
+
+<script>
+(function() {
+    const filters = {{ filters | json }};
+    const data = {{ data | json }};
+    const report = {{ report | json }} || {};
+    
+    const company_name = filters.company || "";
+    const company_rif = (report.report_summary && report.report_summary.company_rif) || "";
+    const from_date = filters.from_date || "";
+    const to_date = filters.to_date || "";
+    
+    // Agrupar filas planas en estructura jerárquica por cuenta
+    let accounts = [];
+    let currentAccount = null;
+    
+    for (let row of data) {
+        if (row.is_header) {
+            currentAccount = {
+                number: row.account_number,
+                name: row.account_name,
+                opening_balance: 0.0,
+                entries: [],
+                total_debit: 0.0,
+                total_credit: 0.0,
+                final_balance: 0.0
+            };
+            accounts.push(currentAccount);
+        } else if (row.is_opening) {
+            if (currentAccount) {
+                currentAccount.opening_balance = row.balance;
+            }
+        } else if (row.is_total) {
+            if (currentAccount) {
+                currentAccount.total_debit = row.debit;
+                currentAccount.total_credit = row.credit;
+                currentAccount.final_balance = row.balance;
+            }
+        } else if (row.is_spacer) {
+            // Ignorar espaciadores
+        } else {
+            if (currentAccount) {
+                currentAccount.entries.push(row);
+            }
+        }
+    }
+    
+    // Formateadores estándar
+    function formatCurrency(val) {
+        if (val === undefined || val === null || isNaN(val)) return "0,00";
+        let formatted = Math.abs(val).toFixed(2)
+            .replace('.', ',')
+            .replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+        if (val < 0) {
+            return `(${formatted})`;
+        }
+        return formatted;
+    }
+    
+    function formatDate(dateStr) {
+        if (!dateStr) return "";
+        let parts = dateStr.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+        }
+        return dateStr;
+    }
+    
+    function getTodayDateTime() {
+        let now = new Date();
+        let day = String(now.getDate()).padStart(2, '0');
+        let month = String(now.getMonth() + 1).padStart(2, '0');
+        let year = now.getFullYear();
+        let hours = now.getHours();
+        let minutes = String(now.getMinutes()).padStart(2, '0');
+        let ampm = hours >= 12 ? 'p.m.' : 'a.m.';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        return `Emitido el ${day}/${month}/${year} a las ${hours}:${minutes} ${ampm}`;
+    }
+
+    const emit_time = getTodayDateTime();
+    let container = document.getElementById("ledger-report-container");
+    let html = "";
+    let global_page_num = 1;
+    
+    // Definir filas físicas por página (horizontal)
+    const rows_per_page = 14; 
+    
+    for (let acc of accounts) {
+        let entries = acc.entries;
+        let total_pages = Math.max(1, Math.ceil(entries.length / rows_per_page));
+        
+        let running_bal = acc.opening_balance;
+        let page_cum_debit = 0.0;
+        let page_cum_credit = 0.0;
+        
+        for (let p = 0; p < total_pages; p++) {
+            let start = p * rows_per_page;
+            let end = Math.min(start + rows_per_page, entries.length);
+            let page_entries = entries.slice(start, end);
+            
+            // Totales específicos de esta página física
+            let page_debit_sum = 0.0;
+            let page_credit_sum = 0.0;
+            for (let ent of page_entries) {
+                page_debit_sum += ent.debit;
+                page_credit_sum += ent.credit;
+            }
+            
+            page_cum_debit += page_debit_sum;
+            page_cum_credit += page_credit_sum;
+            
+            html += `<div class="page-container">`;
+            
+            // Membrete del reporte
+            html += `
+                <table class="report-header">
+                    <tr>
+                        <td style="width: 40%; line-height: 1.35; vertical-align: top;">
+                            <div class="company-title">${company_name}</div>
+                            <div class="bold">RIF: ${company_rif}</div>
+                        </td>
+                        <td style="width: 20%;"></td>
+                        <td style="width: 40%; text-align: right; vertical-align: top; line-height: 1.35;">
+                            <div>Pág. ${global_page_num}</div>
+                            <div style="font-size: 8px; color: #555;">${emit_time}</div>
+                        </td>
+                    </tr>
+                </table>
+                
+                <div class="report-title-container">
+                    <div class="report-title">Mayor Analítico</div>
+                    <div class="meta-line">Desde el ${formatDate(from_date)} hasta el ${formatDate(to_date)}</div>
+                </div>
+                
+                <div class="account-group-header">
+                    <span class="account-code">Código: <span class="bold" style="font-size: 12px; font-family: monospace;">${acc.number}</span></span>
+                    <span class="account-desc">Descripción: <span class="bold" style="font-size: 11px;">${acc.name}</span></span>
+                </div>
+                
+                <table class="ledger-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 8%;">Fecha</th>
+                            <th style="width: 14%;">Número de Comprob.</th>
+                            <th style="width: 10%;">Aux.</th>
+                            <th style="width: 8%;">Ref.</th>
+                            <th style="width: 32%;">Descripción / Glosa</th>
+                            <th style="width: 10%; text-align: right;">Monto Debe</th>
+                            <th style="width: 10%; text-align: right;">Monto Haber</th>
+                            <th style="width: 10%; text-align: right;">Saldo</th>
+                            <th style="width: 8%; text-align: center;">Fecha Asiento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            // Fila de saldo inicial / arrastre
+            if (p === 0) {
+                html += `
+                    <tr>
+                        <td style="font-size: 9px; font-weight: bold;">${formatDate(from_date)}</td>
+                        <td class="bold" style="font-size: 9px;">SALDO INICIAL</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td class="text-right">0,00</td>
+                        <td class="text-right">0,00</td>
+                        <td class="text-right bold">${formatCurrency(acc.opening_balance)}</td>
+                        <td class="text-center" style="font-size: 9px; font-weight: bold;">${formatDate(from_date)}</td>
+                    </tr>
+                `;
+            } else {
+                html += `
+                    <tr class="van-vienen-row">
+                        <td></td>
+                        <td class="bold">VIENEN:</td>
+                        <td></td>
+                        <td></td>
+                        <td>Arrastre de folio anterior</td>
+                        <td class="text-right">${formatCurrency(page_cum_debit - page_debit_sum)}</td>
+                        <td class="text-right">${formatCurrency(page_cum_credit - page_credit_sum)}</td>
+                        <td class="text-right">${formatCurrency(running_bal)}</td>
+                        <td></td>
+                    </tr>
+                `;
+            }
+            
+            // Renderizar transacciones
+            for (let ent of page_entries) {
+                running_bal += (ent.debit - ent.credit);
+                
+                // Formatear el Auxiliar (con prefijos de ceros)
+                let padded_ref = ent.ref_code ? ("00000" + ent.ref_code).slice(-8) : "";
+                
+                html += `
+                    <tr>
+                        <td style="font-size: 9px; padding-top: 5px; font-family: monospace;">${formatDate(ent.posting_date)}</td>
+                        <td style="font-size: 9px; padding-top: 5px;" class="bold">
+                            ${ent.voucher_no}
+                            <div class="double-line-second" style="font-family: monospace;">${ent.party || ""}</div>
+                        </td>
+                        <td style="font-size: 9px; padding-top: 5px;">
+                            ${padded_ref}
+                            <div class="double-line-second" style="font-family: monospace;">${ent.party || ""}</div>
+                        </td>
+                        <td style="font-size: 9px; padding-top: 5px; font-family: monospace;">${ent.ref_code}</td>
+                        <td style="font-size: 9px; padding-top: 5px; line-height: 1.2;">
+                            ${ent.remarks || ""}
+                            ${ent.party_name ? `<span style="font-style: italic; color: #555;"><br>Tercero: ${ent.party_name}</span>` : ""}
+                        </td>
+                        <td class="text-right" style="padding-top: 5px; font-family: monospace;">${formatCurrency(ent.debit)}</td>
+                        <td class="text-right" style="padding-top: 5px; font-family: monospace;">${formatCurrency(ent.credit)}</td>
+                        <td class="text-right bold" style="padding-top: 5px; font-family: monospace;">${formatCurrency(running_bal)}</td>
+                        <td class="text-center" style="font-size: 9px; padding-top: 5px; font-family: monospace;">${formatDate(ent.posting_date)}</td>
+                    </tr>
+                `;
+            }
+            
+            // Fila de cierre (VAN o TOTAL)
+            if (p < total_pages - 1) {
+                html += `
+                    <tr class="van-vienen-row">
+                        <td></td>
+                        <td class="bold">VAN:</td>
+                        <td></td>
+                        <td></td>
+                        <td>Suma para el siguiente folio</td>
+                        <td class="text-right">${formatCurrency(page_cum_debit)}</td>
+                        <td class="text-right">${formatCurrency(page_cum_credit)}</td>
+                        <td class="text-right">${formatCurrency(running_bal)}</td>
+                        <td></td>
+                    </tr>
+                `;
+            } else {
+                html += `
+                    <tr class="totals-row">
+                        <td></td>
+                        <td class="bold">TOTAL CUENTA:</td>
+                        <td></td>
+                        <td></td>
+                        <td>Acumulado del período</td>
+                        <td class="text-right">${formatCurrency(acc.total_debit)}</td>
+                        <td class="text-right">${formatCurrency(acc.total_credit)}</td>
+                        <td class="text-right bold">${formatCurrency(acc.final_balance)}</td>
+                        <td></td>
+                    </tr>
+                `;
+            }
+            
+            html += `
+                    </tbody>
+                </table>
+            </div>
+            `;
+            
+            global_page_num++;
+        }
+    }
+    
+    container.innerHTML = html;
+})();
+</script>
