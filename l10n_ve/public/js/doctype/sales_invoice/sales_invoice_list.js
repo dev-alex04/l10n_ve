@@ -88,7 +88,7 @@ frappe.listview_settings["Sales Invoice"] = {
 
       const invoices_with_withholding = [];
       (this.data || []).forEach((doc) => {
-        if (doc.docstatus === 1 && flt(doc.total_withholding) > 0) {
+        if (doc.docstatus === 1 && flt(doc.total_withholding) !== 0) {
           invoices_with_withholding.push(doc.name);
         }
       });

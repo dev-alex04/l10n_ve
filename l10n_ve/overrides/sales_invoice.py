@@ -1387,6 +1387,9 @@ def get_withholding_types(invoice_names: str) -> dict:
     if not names:
         return {}
 
+    for name in names:
+        frappe.has_permission("Sales Invoice", ptype="read", doc=name, throw=True)
+
     rows: list[dict] = frappe.db.sql(
         """
         SELECT parent, charge_type

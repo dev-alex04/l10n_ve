@@ -92,7 +92,7 @@ function _sales_invoice_indicator(doc) {
     withholding_warning =
       (has_vat && !doc.vat_withholding_voucher_number) ||
       (has_islr && !doc.islr_receipt_number);
-  } else if (flt(doc.total_withholding) > 0) {
+  } else if (flt(doc.total_withholding) !== 0) {
     // List view: sin acceso a taxes, usar heurística con campos del padre
     withholding_warning =
       !doc.vat_withholding_voucher_number && !doc.islr_receipt_number;
