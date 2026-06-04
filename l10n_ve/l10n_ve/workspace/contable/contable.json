@@ -1,6 +1,6 @@
 {
     "charts": [],
-    "content": "[{\"id\":\"acc_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Contabilidad</b></span>\",\"col\":12}},{\"id\":\"acc_sc_journal\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Asiento de Diario\",\"col\":3}},{\"id\":\"acc_sc_coa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Plan de Cuentas\",\"col\":3}},{\"id\":\"acc_sc_cc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Centros de Costo\",\"col\":3}},{\"id\":\"acc_sc_asset\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Activos Fijos\",\"col\":3}},{\"id\":\"acc_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"acc_links_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documentos y Reportes</b></span>\",\"col\":12}},{\"id\":\"acc_card_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Reportes Financieros VEN-NIF\",\"col\":4}},{\"id\":\"acc_card_books\",\"type\":\"card\",\"data\":{\"card_name\":\"Libros Contables Oficiales\",\"col\":4}},{\"id\":\"acc_card_config\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuración y Notas\",\"col\":4}}]",
+    "content": "[{\"id\":\"acc_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Contable</b></span>\",\"col\":12}},{\"id\":\"acc_sc_journal\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Asiento de Diario\",\"col\":3}},{\"id\":\"acc_sc_coa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Plan de Cuentas\",\"col\":3}},{\"id\":\"acc_sc_cc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Centros de Costo\",\"col\":3}},{\"id\":\"acc_sc_asset\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Activos Fijos\",\"col\":3}},{\"id\":\"acc_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"acc_links_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documentos y Reportes</b></span>\",\"col\":12}},{\"id\":\"acc_card_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Reportes Financieros VEN-NIF\",\"col\":4}},{\"id\":\"acc_card_books\",\"type\":\"card\",\"data\":{\"card_name\":\"Libros Contables Oficiales\",\"col\":4}},{\"id\":\"acc_card_config\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuración y Notas\",\"col\":4}}]",
     "creation": "2026-06-03 12:00:00.000000",
     "custom_blocks": [],
     "docstatus": 0,
@@ -10,7 +10,7 @@
     "icon": "book",
     "idx": 0,
     "is_hidden": 0,
-    "label": "Contabilidad",
+    "label": "Contable",
     "links": [
         {
             "hidden": 0,
@@ -149,7 +149,7 @@
     ],
     "modified": "2026-06-03 12:00:00.000000",
     "modified_by": "Administrator",
-    "name": "Contabilidad",
+    "name": "Contable",
     "number_cards": [],
     "owner": "Administrator",
     "parent_page": "Administración",
@@ -198,6 +198,6 @@
             "type": "DocType"
         }
     ],
-    "title": "Contabilidad",
+    "title": "Contable",
     "type": "Workspace"
 }
