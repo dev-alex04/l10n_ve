@@ -156,7 +156,15 @@
     const report = {{ report | json }} || {};
     
     const company_name = filters.company || "";
-    const company_rif = (report.report_summary && report.report_summary.company_rif) || "";
+    let company_rif = "";
+    if (data && data.length > 0) {
+        for (let row of data) {
+            if (row.company_rif) {
+                company_rif = row.company_rif;
+                break;
+            }
+        }
+    }
     const from_date = filters.from_date || "";
     const to_date = filters.to_date || "";
     

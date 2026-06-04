@@ -104,7 +104,8 @@ def execute(filters=None):
             "posting_date_ref": "",
             "is_header": 1,
             "account_number": acc_number,
-            "account_name": acc_name
+            "account_name": acc_name,
+            "company_rif": company_rif
         })
         
         # Opening balance row
@@ -120,7 +121,8 @@ def execute(filters=None):
             "posting_date_ref": from_date,
             "is_opening": 1,
             "account_number": acc_number,
-            "account_name": acc_name
+            "account_name": acc_name,
+            "company_rif": company_rif
         })
         
         running_balance = opening_bal
@@ -157,7 +159,8 @@ def execute(filters=None):
                 "balance": running_balance,
                 "posting_date_ref": entry.posting_date,
                 "account_number": acc_number,
-                "account_name": acc_name
+                "account_name": acc_name,
+                "company_rif": company_rif
             })
             
         # Total row for the account
@@ -173,21 +176,16 @@ def execute(filters=None):
             "posting_date_ref": "",
             "is_total": 1,
             "account_number": acc_number,
-            "account_name": acc_name
+            "account_name": acc_name,
+            "company_rif": company_rif
         })
         
         # Spacer row
         data.append({
             "posting_date": "", "voucher_no": "", "party": "", "ref_code": "", "remarks": "",
-            "debit": 0, "credit": 0, "balance": 0, "posting_date_ref": "", "is_spacer": 1
+            "debit": 0, "credit": 0, "balance": 0, "posting_date_ref": "", "is_spacer": 1,
+            "company_rif": company_rif
         })
         
-    # Meta data for template
-    report_summary = {
-        "company_rif": company_rif,
-        "company_name": company,
-        "from_date": from_date,
-        "to_date": to_date
-    }
-        
-    return columns, data, None, None, report_summary
+    return columns, data, None, None, None
+
