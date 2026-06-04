@@ -100,7 +100,7 @@
             "is_query_report": 1,
             "label": "Balance de Comprobación",
             "link_count": 0,
-            "link_to": "Balance de Comprobación",
+            "link_to": "trial_balance_vef",
             "link_type": "Report",
             "onboard": 1,
             "type": "Link"
