@@ -32,6 +32,14 @@ frappe.query_reports["ve_analytical_ledger"] = {
 			"options": "Cost Center"
 		}
 	],
+	"onload": function (report) {
+		report.page.add_inner_button(__("Exportar PDF"), function () {
+			report.pdf_report({
+				orientation: "Landscape",
+				include_filters: true
+			});
+		});
+	},
 	"formatter": function (value, row, column, data, default_formatter) {
 		if (!data) return default_formatter(value, row, column, data);
 
