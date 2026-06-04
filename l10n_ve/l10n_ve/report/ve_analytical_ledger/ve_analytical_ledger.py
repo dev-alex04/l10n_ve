@@ -12,6 +12,7 @@ def execute(filters=None):
     from_date = filters.get("from_date")
     to_date = filters.get("to_date")
     cost_center = filters.get("cost_center")
+    account = filters.get("account")
     
     # RIF de la Empresa
     company_rif = frappe.db.get_value("Company", company, "tax_id") or ""
@@ -35,6 +36,13 @@ def execute(filters=None):
         cc_cond = " AND cost_center = %s"
         cc_args = [cost_center]
 
+    # Pre-calculate Account condition
+    acc_cond = ""
+    acc_args = []
+    if account:
+        acc_cond = " AND account = %s"
+        acc_args = [account]
+
     # Fetch accounts metadata
     accounts_raw = frappe.db.get_all("Account", fields=["name", "account_number", "account_name"])
     accounts_meta = {
@@ -50,20 +58,20 @@ def execute(filters=None):
     init_query = f"""
         SELECT account, SUM(debit - credit) as balance
         FROM `tabGL Entry`
-        WHERE company = %s AND docstatus = 1 AND posting_date < %s {cc_cond}
+        WHERE company = %s AND docstatus = 1 AND posting_date < %s {cc_cond} {acc_cond}
         GROUP BY account
     """
-    init_balances_raw = frappe.db.sql(init_query, tuple([company, from_date] + cc_args), as_dict=True)
+    init_balances_raw = frappe.db.sql(init_query, tuple([company, from_date] + cc_args + acc_args), as_dict=True)
     init_balances = {b.account: float(b.balance) for b in init_balances_raw}
     
     # 2. Fetch all GL entries in date range
     entries_query = f"""
         SELECT name as gle_id, posting_date, voucher_no, account, remarks, debit, credit, party, party_type
         FROM `tabGL Entry`
-        WHERE company = %s AND docstatus = 1 AND posting_date >= %s AND posting_date <= %s {cc_cond}
+        WHERE company = %s AND docstatus = 1 AND posting_date >= %s AND posting_date <= %s {cc_cond} {acc_cond}
         ORDER BY account, posting_date, creation
     """
-    entries = frappe.db.sql(entries_query, tuple([company, from_date, to_date] + cc_args), as_dict=True)
+    entries = frappe.db.sql(entries_query, tuple([company, from_date, to_date] + cc_args + acc_args), as_dict=True)
     
     # Group entries by account
     account_entries = {}

@@ -30,6 +30,21 @@ frappe.query_reports["ve_analytical_ledger"] = {
 			"label": __("Centro de Costo"),
 			"fieldtype": "Link",
 			"options": "Cost Center"
+		},
+		{
+			"fieldname": "account",
+			"label": __("Cuenta Contable"),
+			"fieldtype": "Link",
+			"options": "Account",
+			"get_query": function () {
+				var company = frappe.query_report.get_filter_value('company');
+				return {
+					filters: {
+						company: company,
+						is_group: 0
+					}
+				};
+			}
 		}
 	],
 	"onload": function (report) {
