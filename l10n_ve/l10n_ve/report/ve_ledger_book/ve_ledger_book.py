@@ -13,19 +13,13 @@ def execute(filters=None):
     to_date = filters.get("to_date")
     cost_center = filters.get("cost_center")
     
-    # RIF de la Empresa
-    company_rif = frappe.db.get_value("Company", company, "tax_id") or ""
-    
     columns = [
-        {"fieldname": "posting_date", "label": _("Fecha"), "fieldtype": "Date", "width": 90},
-        {"fieldname": "voucher_no", "label": _("Número de Comprob."), "fieldtype": "Data", "width": 130},
-        {"fieldname": "party", "label": _("Auxiliar"), "fieldtype": "Data", "width": 100},
-        {"fieldname": "ref_code", "label": _("Ref."), "fieldtype": "Data", "width": 80},
-        {"fieldname": "remarks", "label": _("Descripción"), "fieldtype": "Data", "width": 250},
-        {"fieldname": "debit", "label": _("Monto Debe"), "fieldtype": "Currency", "width": 110},
-        {"fieldname": "credit", "label": _("Monto Haber"), "fieldtype": "Currency", "width": 110},
-        {"fieldname": "balance", "label": _("Saldo"), "fieldtype": "Currency", "width": 120},
-        {"fieldname": "posting_date_ref", "label": _("Fecha del Asiento"), "fieldtype": "Date", "width": 90}
+        {"fieldname": "posting_date", "label": _("Fecha"), "fieldtype": "Date", "width": 100},
+        {"fieldname": "reference", "label": _("Referencia / Comprobante"), "fieldtype": "Data", "width": 180},
+        {"fieldname": "remarks", "label": _("Glosa / Detalle"), "fieldtype": "Data", "width": 250},
+        {"fieldname": "debit", "label": _("Débito (Debe)"), "fieldtype": "Currency", "width": 120},
+        {"fieldname": "credit", "label": _("Crédito (Haber)"), "fieldtype": "Currency", "width": 120},
+        {"fieldname": "balance", "label": _("Saldo"), "fieldtype": "Currency", "width": 130}
     ]
     
     # Pre-calculate CC condition
@@ -34,17 +28,6 @@ def execute(filters=None):
     if cost_center:
         cc_cond = " AND cost_center = %s"
         cc_args = [cost_center]
-
-    # Fetch accounts metadata
-    accounts_raw = frappe.db.get_all("Account", fields=["name", "account_number", "account_name"])
-    accounts_meta = {
-        a.name: {"number": a.account_number or "", "name": a.account_name or ""}
-        for a in accounts_raw
-    }
-
-    # Fetch suppliers and customers names/codes
-    suppliers = {s.name: s.supplier_name for s in frappe.db.get_all("Supplier", fields=["name", "supplier_name"])}
-    customers = {c.name: c.customer_name for c in frappe.db.get_all("Customer", fields=["name", "customer_name"])}
 
     # 1. Fetch beginning balances (before from_date)
     init_query = f"""
@@ -58,7 +41,7 @@ def execute(filters=None):
     
     # 2. Fetch all GL entries in date range
     entries_query = f"""
-        SELECT name as gle_id, posting_date, voucher_no, account, remarks, debit, credit, party, party_type
+        SELECT posting_date, voucher_no, account, remarks, debit, credit
         FROM `tabGL Entry`
         WHERE company = %s AND docstatus = 1 AND posting_date >= %s AND posting_date <= %s {cc_cond}
         ORDER BY account, posting_date, creation
@@ -75,52 +58,33 @@ def execute(filters=None):
     # Get all active accounts in the period or with opening balance
     all_accounts = set(init_balances.keys()) | set(account_entries.keys())
     
-    # We want to sort accounts by their account number/code
-    def get_account_sort_key(acc_name):
-        meta = accounts_meta.get(acc_name, {})
-        return meta.get("number") or acc_name
-
-    sorted_accounts = sorted(all_accounts, key=get_account_sort_key)
-    
     data = []
     
-    for acc in sorted_accounts:
+    # Sort accounts by name or code to display sequentially
+    for acc in sorted(all_accounts):
         acc_entries = account_entries.get(acc, [])
         opening_bal = init_balances.get(acc, 0.0)
-        
-        acc_number = accounts_meta.get(acc, {}).get("number") or ""
-        acc_name = accounts_meta.get(acc, {}).get("name") or acc
         
         # Header row for the account
         data.append({
             "posting_date": "",
-            "voucher_no": "",
-            "party": "",
-            "ref_code": "",
+            "reference": f"CUENTA: {acc}",
             "remarks": "",
             "debit": 0.0,
             "credit": 0.0,
             "balance": 0.0,
-            "posting_date_ref": "",
-            "is_header": 1,
-            "account_number": acc_number,
-            "account_name": acc_name
+            "is_header": 1
         })
         
         # Opening balance row
         data.append({
             "posting_date": from_date,
-            "voucher_no": _("SALDO INICIAL"),
-            "party": "",
-            "ref_code": "",
+            "reference": _("SALDO INICIAL"),
             "remarks": "",
             "debit": 0.0,
             "credit": 0.0,
             "balance": opening_bal,
-            "posting_date_ref": from_date,
-            "is_opening": 1,
-            "account_number": acc_number,
-            "account_name": acc_name
+            "is_opening": 1
         })
         
         running_balance = opening_bal
@@ -135,59 +99,27 @@ def execute(filters=None):
             total_debit += deb
             total_credit += cred
             
-            # Formatear Ref. (quitar prefijo GLE-)
-            ref_val = entry.gle_id.replace("GLE-", "") if entry.gle_id else ""
-            
-            # Nombre de tercero
-            p_name = ""
-            if entry.party_type == "Supplier":
-                p_name = suppliers.get(entry.party, "")
-            elif entry.party_type == "Customer":
-                p_name = customers.get(entry.party, "")
-            
             data.append({
                 "posting_date": entry.posting_date,
-                "voucher_no": entry.voucher_no,
-                "party": entry.party or "",
-                "party_name": p_name,
-                "ref_code": ref_val,
+                "reference": entry.voucher_no,
                 "remarks": entry.remarks,
                 "debit": deb,
                 "credit": cred,
-                "balance": running_balance,
-                "posting_date_ref": entry.posting_date,
-                "account_number": acc_number,
-                "account_name": acc_name
+                "balance": running_balance
             })
             
         # Total row for the account
         data.append({
             "posting_date": "",
-            "voucher_no": _("Total Cuenta"),
-            "party": "",
-            "ref_code": "",
+            "reference": _("  Total Cuenta"),
             "remarks": "",
             "debit": total_debit,
             "credit": total_credit,
             "balance": running_balance,
-            "posting_date_ref": "",
-            "is_total": 1,
-            "account_number": acc_number,
-            "account_name": acc_name
+            "is_total": 1
         })
         
         # Spacer row
-        data.append({
-            "posting_date": "", "voucher_no": "", "party": "", "ref_code": "", "remarks": "",
-            "debit": 0, "credit": 0, "balance": 0, "posting_date_ref": "", "is_spacer": 1
-        })
+        data.append({"posting_date": "", "reference": "", "remarks": "", "debit": 0, "credit": 0, "balance": 0})
         
-    # Meta data for template
-    report_summary = {
-        "company_rif": company_rif,
-        "company_name": company,
-        "from_date": from_date,
-        "to_date": to_date
-    }
-        
-    return columns, data, None, None, report_summary
+    return columns, data, None, None, None
