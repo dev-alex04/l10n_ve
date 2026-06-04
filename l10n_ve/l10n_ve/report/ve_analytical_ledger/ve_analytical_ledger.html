@@ -147,13 +147,7 @@
     }
 </style>
 
-<div id="ledger-report-container"></div>
-
-<script>
-(function() {
-    var filters = {{ filters | json }};
-    var data = {{ data | json }};
-    
+{%
     var company_name = filters.company || "";
     var company_rif = "";
     if (data && data.length > 0) {
@@ -205,7 +199,7 @@
     }
     
     // Formateadores estándar
-    function formatCurrency(val) {
+    var formatCurrency = function(val) {
         if (val === undefined || val === null || isNaN(val)) return "0,00";
         var formatted = Math.abs(val).toFixed(2)
             .replace('.', ',')
@@ -214,18 +208,18 @@
             return "(" + formatted + ")";
         }
         return formatted;
-    }
+    };
     
-    function formatDate(dateStr) {
+    var formatDate = function(dateStr) {
         if (!dateStr) return "";
         var parts = dateStr.split('-');
         if (parts.length === 3) {
             return parts[2] + "/" + parts[1] + "/" + parts[0].slice(-2);
         }
         return dateStr;
-    }
+    };
     
-    function getTodayDateTime() {
+    var getTodayDateTime = function() {
         var now = new Date();
         var day = ("0" + now.getDate()).slice(-2);
         var month = ("0" + (now.getMonth() + 1)).slice(-2);
@@ -236,10 +230,9 @@
         hours = hours % 12;
         hours = hours ? hours : 12;
         return "Emitido el " + day + "/" + month + "/" + year + " a las " + hours + ":" + minutes + " " + ampm;
-    }
+    };
 
     var emit_time = getTodayDateTime();
-    var container = document.getElementById("ledger-report-container");
     var html = "";
     var global_page_num = 1;
     
@@ -402,7 +395,7 @@
         }
     }
     
-    container.innerHTML = html;
-})();
-</script>
+    print(html);
+%}
+
 
