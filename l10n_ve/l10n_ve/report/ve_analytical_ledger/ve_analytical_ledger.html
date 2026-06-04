@@ -162,7 +162,7 @@
     var from_date = filters.from_date || "";
     var to_date = filters.to_date || "";
     
-    // Agrupar filas planas en estructura jerárquica por cuenta
+    /* Agrupar filas planas en estructura jerárquica por cuenta */
     var accounts = [];
     var currentAccount = null;
     
@@ -190,7 +190,7 @@
                 currentAccount.final_balance = row.balance;
             }
         } else if (row.is_spacer) {
-            // Ignorar espaciadores
+            /* Ignorar espaciadores */
         } else {
             if (currentAccount) {
                 currentAccount.entries.push(row);
@@ -198,7 +198,7 @@
         }
     }
     
-    // Formateadores estándar
+    /* Formateadores estándar */
     var formatCurrency = function(val) {
         if (val === undefined || val === null || isNaN(val)) return "0,00";
         var formatted = Math.abs(val).toFixed(2)
@@ -236,7 +236,7 @@
     var html = "";
     var global_page_num = 1;
     
-    // Definir filas físicas por página (horizontal)
+    /* Definir filas físicas por página (horizontal) */
     var rows_per_page = 14; 
     
     for (var a_idx = 0; a_idx < accounts.length; a_idx++) {
@@ -253,7 +253,7 @@
             var end = Math.min(start + rows_per_page, entries.length);
             var page_entries = entries.slice(start, end);
             
-            // Totales específicos de esta página física
+            /* Totales específicos de esta página física */
             var page_debit_sum = 0.0;
             var page_credit_sum = 0.0;
             for (var pe_idx = 0; pe_idx < page_entries.length; pe_idx++) {
@@ -267,7 +267,7 @@
             
             html += '<div class="page-container">';
             
-            // Membrete del reporte
+            /* Membrete del reporte */
             html += '<table class="report-header">' +
                     '<tr>' +
                         '<td style="width: 40%; line-height: 1.35; vertical-align: top;">' +
@@ -305,7 +305,7 @@
                     '</thead>' +
                     '<tbody>';
             
-            // Fila de saldo inicial / arrastre
+            /* Fila de saldo inicial / arrastre */
             if (p === 0) {
                 html += '<tr>' +
                         '<td style="font-size: 9px; font-weight: bold;">' + formatDate(from_date) + '</td>' +
@@ -332,12 +332,12 @@
                     '</tr>';
             }
             
-            // Renderizar transacciones
+            /* Renderizar transacciones */
             for (var e_idx = 0; e_idx < page_entries.length; e_idx++) {
                 var ent = page_entries[e_idx];
                 running_bal += (ent.debit - ent.credit);
                 
-                // Formatear el Auxiliar (con prefijos de ceros)
+                /* Formatear el Auxiliar (con prefijos de ceros) */
                 var padded_ref = ent.ref_code ? ("00000" + ent.ref_code).slice(-8) : "";
                 
                 html += '<tr>' +
@@ -362,7 +362,7 @@
                     '</tr>';
             }
             
-            // Fila de cierre (VAN o TOTAL)
+            /* Fila de cierre (VAN o TOTAL) */
             if (p < total_pages - 1) {
                 html += '<tr class="van-vienen-row">' +
                         '<td></td>' +
@@ -395,7 +395,6 @@
         }
     }
     
-    print(html);
-%}
+    print(html);%}
 
 
