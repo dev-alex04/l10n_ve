@@ -18,6 +18,7 @@ frappe.listview_settings["Sales Invoice"] = {
     "bill_no",
     "total_withholding",
     "vat_withholding_voucher_number",
+    "islr_receipt_number",
   ],
 
   get_indicator: function (doc) {
@@ -81,16 +82,62 @@ frappe.listview_settings["Sales Invoice"] = {
     ];
     listview.render_header(true);
 
-    // Tooltip para el ⚠️ de comprobante faltante
     const original_render = listview.render_list;
     listview.render_list = function () {
       original_render.call(this);
-      this.$result
-        .find(".indicator-pill")
-        .filter(function () {
-          return $(this).text().includes("⚠️");
-        })
-        .attr("title", "Falta comprobante de retención de IVA");
+
+      const invoices_with_withholding = [];
+      (this.data || []).forEach((doc) => {
+        if (doc.docstatus === 1 && flt(doc.total_withholding) !== 0) {
+          invoices_with_withholding.push(doc.name);
+        }
+      });
+
+      if (!invoices_with_withholding.length) return;
+
+      frappe.xcall(
+        "l10n_ve.overrides.sales_invoice.get_withholding_types",
+        { invoice_names: JSON.stringify(invoices_with_withholding) }
+      ).then((result) => {
+        if (!result) return;
+
+        listview.$result.find(".list-row").each(function () {
+          const $row = $(this);
+          const name = $row.find(".list-row-checkbox").attr("data-name");
+          if (!name) return;
+
+          const doc = listview.data.find((d) => d.name === name);
+          if (!doc || doc.docstatus !== 1) return;
+
+          const info = result[name];
+          const $pills = $row.find(".indicator-pill");
+
+          let should_warn = false;
+          if (info) {
+            should_warn =
+              (info.has_vat && !doc.vat_withholding_voucher_number) ||
+              (info.has_islr && !doc.islr_receipt_number);
+          }
+
+          $pills.each(function () {
+            const $pill = $(this);
+            const $target = $pill.find(".ellipsis").length ? $pill.find(".ellipsis") : $pill;
+            const text = $target.text();
+
+            if (should_warn) {
+              if (!text.includes("⚠️")) {
+                $target.text(text.trimEnd() + " ⚠️");
+              }
+              $pill.attr("title", __("Falta comprobante de retención"));
+            } else {
+              if (text.includes("⚠️")) {
+                $target.text(text.replace(" ⚠️", ""));
+              }
+              $pill.removeAttr("title");
+            }
+          });
+        });
+      });
     };
   },
 };
