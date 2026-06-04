@@ -47,7 +47,7 @@
  "module": "L10N Ve",
  "name": "ve_analytical_ledger",
  "owner": "Administrator",
- "prepared_report": 0,
+ "prepared_report": 1,
  "ref_doctype": "GL Entry",
  "report_name": "ve_analytical_ledger",
  "report_type": "Script Report",
