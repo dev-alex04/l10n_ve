@@ -56,7 +56,7 @@ frappe.query_reports["ve_balance_sheet"] = {
 
 			try {
 				report.pdf_report({
-					orientation: "Landscape",
+					orientation: "Portrait",
 					include_filters: true
 				});
 			} catch (err) {

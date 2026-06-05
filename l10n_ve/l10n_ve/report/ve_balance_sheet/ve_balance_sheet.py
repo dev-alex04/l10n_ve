@@ -106,17 +106,4 @@ def execute(filters=None):
             </div>
         """
         
-    # Append signatures section
-    message += """
-        <div class='report-signatures' style='margin-top: 50px; display: flex; justify-content: space-around; font-size: 13px;'>
-            <div style='text-align: center; border-top: 1px solid #718096; width: 200px; padding-top: 5px;'>
-                <b>Firma de la Gerencia</b>
-            </div>
-            <div style='text-align: center; border-top: 1px solid #718096; width: 200px; padding-top: 5px;'>
-                <b>Firma del Contador</b><br>
-                <span>C.P.C.</span>
-            </div>
-        </div>
-    """
-    
     return columns, data, message, None, None
