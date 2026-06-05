@@ -5,7 +5,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from frappe.utils import fmt_money, formatdate, nowdate
-from frappe.utils.pdf import get_pdf
+from l10n_ve.utils.pdf_utils import safe_get_pdf
 from l10n_ve.l10n_ve.report.iva_forma_30.iva_forma_30 import get_data
 
 def format_val(val, company_currency):
@@ -391,7 +391,7 @@ def get_iva_forma_30_pdf(filters=None):
     }
     
     final_html = frappe.render_template(html_content, context)
-    pdf_content = get_pdf(final_html, {
+    pdf_content = safe_get_pdf(final_html, {
         "orientation": "Portrait",
         "margin-top": "10mm",
         "margin-bottom": "10mm",

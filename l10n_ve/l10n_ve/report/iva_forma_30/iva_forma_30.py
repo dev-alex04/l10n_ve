@@ -31,6 +31,10 @@ def get_data(filters):
     company_currency = frappe.get_cached_value("Company", filters.get("company"), "default_currency")
     filters["company_currency"] = company_currency
 
+    # Obtain the company tax_id (RIF) server-side to avoid relying on client cache
+    company_tax_id = frappe.get_cached_value("Company", filters.get("company"), "tax_id") or "J-00000000-0"
+    filters["company_tax_id"] = company_tax_id
+
     # 1. Obtener datos de Libro de Ventas
     sales_data, adjustment_data = get_sales_data(filters)
     

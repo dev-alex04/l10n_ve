@@ -155,7 +155,7 @@
             }
             return format_currency(val);
         };
-        var company_rif = (frappe.model.get_doc("Company", filters.company) || {}).tax_id || "J-00000000-0";
+        var company_rif = filters.company_tax_id || "J-00000000-0";
         var company_name = filters.company;
         
         // Clean RIF presentation

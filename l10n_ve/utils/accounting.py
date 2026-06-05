@@ -75,7 +75,7 @@ def get_disclosure_note(company, to_date, section):
     
     if not fiscal_year:
         # Fallback al año actual si no se encuentra
-        fiscal_year = to_date[:4]
+        fiscal_year = to_date[:4] if to_date else frappe.utils.nowdate()[:4]
         
     note = frappe.db.get_value("VE Disclosure Note", {
         "company": company,

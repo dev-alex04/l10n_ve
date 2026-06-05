@@ -72,7 +72,7 @@ class VEDeposit(Document):
             je.multi_currency = 1
             
         # Get default cost center for the company
-        default_cost_center = frappe.db.get_value("Company", self.company, "cost_center")
+        default_cost_center = frappe.db.get_value("Company", self.company, "default_cost_center")
         
         # 1. Debit row (destination bank/cash account)
         dest_line = {
