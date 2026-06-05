@@ -174,7 +174,7 @@
     "name": "Contable",
     "number_cards": [],
     "owner": "Administrator",
-    "parent_page": "",
+    "parent_page": "Accounting",
     "public": 1,
     "quick_lists": [],
     "restrict_to_domain": "",
