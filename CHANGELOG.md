@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.8.0] - 2026-06-05
+
+### ✨ Funcionalidades (Features)
+- Integración del módulo completo de Administración que incluye gestión de Clientes, Proveedores, Inventario, Bancos y Cajas (Ingresos, Egresos y Transferencias).
+- Implementación de reportes financieros bajo normativa VEN-NIF y libros oficiales requeridos por el SENIAT.
+- Nuevo reporte de Mayor Analítico independiente con soporte para consultas de gran volumen mediante prepared_report y filtros de Cuenta Contable para optimizar el rendimiento de PDF.
+- Reestructuración de los Estados de Resultados y Situación Financiera a formato vertical de 3 columnas y diseño horizontal (landscape) con indentación jerárquica.
+- Implementación del módulo tributario con reportes de IVA Forma 30, Prorrata y gestión de retenciones (IVA, ISLR, Municipales).
+- Rediseño de la plantilla de impresión oficial de 7 columnas del SENIAT con exportación directa a PDF y Excel para la declaración de IVA.
+- Incorporación de montos equivalentes en divisas (USD/Bs) en tarjetas y tablas de resumen del Dashboard Gerencial.
+- Reorganización integral de los espacios de trabajo (Workspaces) para Contabilidad, Tributos y Administración, optimizando la jerarquía de navegación y acceso a reportes.
+- Implementación de descripción automática en reportes y restauración de la cuadrícula estándar para el registro de asientos contables.
+
+### 🐛 Correcciones (Fixes)
+- Corrección de errores de desconexión en la base de datos al procesar impresiones PDF y mejora en la seguridad de los filtros en plantillas.
+- Resolución de crashes de compilación en microtemplate.js y fallos silenciosos en el frontend del Mayor Analítico.
+- Ajuste de compatibilidad del JavaScript de plantillas al estándar ES5 para asegurar el correcto funcionamiento con wkhtmltopdf.
+- Robustecimiento del proceso de exportación a PDF mediante el saneamiento de filtros vacíos para evitar TypeErrors.
+- Corrección del orden de argumentos SQL en funciones de balances jerárquicos y solución a errores RPC en el módulo tributario.
+- Ajustes de sintaxis en consultas de facturación y corrección de enlaces rotos en los accesos directos de la barra lateral.
+- Normalización de nombres de archivos y carpetas para evitar conflictos con caracteres especiales y tildes en el sistema de archivos.
+- Protección de la función de traducción global para evitar sobreescritura de cadenas en reportes de Prorrata IVA.
+
+---
+
 ## [v1.7.2] - 2026-06-04
 
 ### 🐛 Correcciones (Fixes)
