@@ -1,164 +1,168 @@
 <style>
-    /* Reset and Premium Typography */
+    @media print {
+        @page {
+            size: letter portrait;
+            margin: 12mm 15mm 12mm 15mm;
+        }
+        .report-container {
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background-color: #fff !important;
+        }
+    }
+    
+    @media screen {
+        body {
+            background-color: #f1f5f9;
+            padding: 30px 15px;
+        }
+        .report-container {
+            max-width: 8.5in;
+            margin: 0 auto 30px auto;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            padding: 40px !important;
+            background-color: #fff;
+        }
+    }
+    
     body {
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        color: #1e293b; /* Slate 800 */
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
+        font-size: 9px;
+        background-color: #fff;
         margin: 0;
         padding: 0;
-        background-color: #fff;
-        -webkit-print-color-adjust: exact;
+        line-height: 1.45;
     }
-
-    .report-container {
-        padding: 15px;
-    }
-
-    /* Header Table - Business Central Style */
-    .header-table {
+    
+    .report-header {
         width: 100%;
+        margin-bottom: 8px;
         border-collapse: collapse;
-        border: none;
-        margin-bottom: 25px;
     }
-
-    .header-table td {
+    
+    .report-header td {
         border: none !important;
         padding: 0 !important;
         background-color: transparent !important;
     }
-
-    .header-left {
+    
+    .title-badge {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #84cc16; /* Verde Galanet */
+        border-radius: 0 4px 4px 0;
+        padding: 10px 14px;
         text-align: left;
-        vertical-align: top;
+        margin: 15px 0 20px 0;
     }
-
-    .header-right {
-        text-align: right;
-        vertical-align: top;
-        font-size: 8.5pt;
-        color: #64748b; /* Slate 500 */
-        line-height: 1.5;
+    
+    .title-badge h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: #0f172a;
     }
-
-    .company-name {
-        font-size: 10.5pt;
-        font-weight: 700;
-        color: #0f172a; /* Slate 900 */
+    
+    .title-badge p {
+        margin: 4px 0 0 0;
+        font-size: 7.5px;
+        font-weight: 600;
+        color: #64748b;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin: 0;
     }
-
-    .rif {
-        font-size: 8.5pt;
-        color: #64748b;
-        margin-top: 2px;
-        font-weight: 500;
-    }
-
-    .report-title {
-        font-size: 14pt;
-        font-weight: 800;
-        color: #0f172a;
-        margin-top: 15px;
-        letter-spacing: -0.3px;
-        text-transform: none;
-    }
-
-    .report-period {
-        font-size: 9.5pt;
-        font-weight: 600;
-        color: #475569; /* Slate 600 */
-        margin-top: 4px;
-    }
-
-    /* Table Styles */
-    table.report-table {
+    
+    .ledger-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 8.5pt;
-        margin-top: 20px;
+        margin-top: 15px;
     }
-
-    table.report-table th {
-        border-top: 1px solid #0f172a !important;
-        border-bottom: 1px solid #0f172a !important;
-        border-left: none !important;
-        border-right: none !important;
-        padding: 8px 6px;
-        font-weight: 700;
-        color: #0f172a;
-        text-transform: none;
-        font-size: 8.5pt;
-        background-color: transparent !important;
+    
+    thead {
+        display: table-header-group;
     }
-
-    table.report-table td {
-        padding: 6px;
-        vertical-align: middle;
-        border: none !important;
-    }
-
-    /* Evitar que las filas y celdas se corten entre páginas */
-    tr, td, th {
+    
+    tr, td {
         page-break-inside: avoid !important;
-        break-inside: avoid !important;
     }
-
+    
+    .ledger-table th {
+        font-size: 8px;
+        font-weight: 700;
+        color: #1e293b;
+        background-color: #f8fafc;
+        border-top: 2px solid #1e293b;
+        border-bottom: 2px solid #84cc16; /* Verde Galanet bottom line */
+        padding: 8px 6px;
+        text-align: left;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .ledger-table td {
+        padding: 7px 6px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9 !important;
+        line-height: 1.4;
+        color: #334155;
+    }
+    
+    .ledger-table tr.leaf-row:nth-child(even) {
+        background-color: #f8fafc;
+    }
+    
     .text-right {
         text-align: right;
         white-space: nowrap !important;
     }
-
-    .text-left {
-        text-align: left;
+    
+    .bold {
+        font-weight: bold;
     }
-
-    /* Account Alignment */
-    .acc-num {
+    
+    .indent-line {
+        border-left: 1.5px solid #cbd5e1;
+        padding-left: 8px;
         display: inline-block;
-        width: 85px;
-        font-weight: inherit;
     }
-
-    .acc-name {
-        font-weight: inherit;
-    }
-
-    /* Row types and professional shading */
-    .header-row {
+    
+    .group-header-row td {
         font-weight: 700;
         color: #0f172a;
+        background-color: #f1f5f9;
+        padding-top: 9px;
+        padding-bottom: 9px;
+        font-size: 9px;
+        border-top: 1px solid #e2e8f0;
+        border-bottom: 1px solid #cbd5e1;
     }
-
-    .header-row td {
-        padding-top: 14px;
-        padding-bottom: 6px;
-        font-size: 8.5pt;
-    }
-
-    .total-row {
+    
+    .totals-row td {
         font-weight: 700;
+        background-color: #f8fafc;
+        border-top: 1.5px solid #84cc16;
+        border-bottom: 1.5px solid #cbd5e1;
         color: #0f172a;
+        padding: 8px 6px;
+        font-size: 8.5px;
     }
-
-    .total-row td {
-        padding-top: 8px;
-        padding-bottom: 8px;
-        border-top: 1px solid #0f172a !important;
-        border-bottom: 1px solid #0f172a !important;
-        background-color: #f8fafc !important; /* Slate 50 */
+    
+    .grand-totals-row td {
+        font-weight: 800;
+        background-color: #f1f5f9;
+        border-top: 2px solid #1e293b;
+        border-bottom: 4px double #1e293b;
+        color: #0f172a;
+        padding: 10px 6px;
+        font-size: 9px;
     }
-
-    .leaf-row {
-        font-weight: 400;
-        color: #334155; /* Slate 700 */
-    }
-
-    .leaf-row td {
-        border-bottom: 1px solid #f1f5f9 !important; /* Very subtle line */
-    }
-
+    
     .negative-val {
         color: #df2020;
         font-weight: inherit;
@@ -177,25 +181,32 @@
         };
     %}
 
-    <table class="header-table">
+    {%
+        var company_name = (filters && filters.company) || "";
+        var comp_doc = (company_name && typeof frappe !== "undefined" && frappe.model && frappe.model.get_doc) ? frappe.model.get_doc("Company", company_name) : null;
+        var company_logo = (comp_doc && comp_doc.company_logo) || "/files/galanet_logo.jpg";
+        var company_rif = (comp_doc && comp_doc.tax_id) || "";
+    %}
+    <table class="report-header" style="width: 100%; border-collapse: collapse; margin-bottom: 5px;">
         <tr>
-            <td class="header-left">
-                <div class="company-name">{%= filters.company %}</div>
-                <div class="rif">R.I.F.: {%= (frappe.model.get_doc("Company", filters.company) || {}).tax_id || "J-30909786-5" %}</div>
-                <div class="report-title">Balance de Comprobación Detallado</div>
-                <div class="report-period">
-                    Período: {%= filters.from_date ? filters.from_date.split("-").reverse().join("/") : "" %} al {%= filters.to_date ? filters.to_date.split("-").reverse().join("/") : "" %}
-                </div>
+            <td style="width: 45%; vertical-align: middle; border: none; padding: 0;">
+                <img src="{%= company_logo %}" style="max-height: 40px; display: block;" alt="Logo">
             </td>
-            <td class="header-right">
-                <div>{%= new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %}</div>
-                <div style="font-weight: 600; color: #334155; margin-top: 4px;">Expresado en Bolívares (VEF)</div>
-                <div style="margin-top: 10px; font-style: italic;">Incluye cuentas con saldo o movimientos</div>
+            <td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #334155; line-height: 1.35;">
+                <div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">{%= company_name %}</div>
+                <div style="font-size: 8px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: {%= company_rif %}</div>
+                <div style="font-size: 8px; color: #64748b; margin-top: 2px;">{%= new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %}</div>
             </td>
         </tr>
     </table>
+    <div style="width: 100%; height: 3px; background: linear-gradient(90deg, #84cc16 0%, #1e293b 100%); margin-top: 5px; margin-bottom: 10px;"></div>
+    
+    <div class="title-badge">
+        <h1>Balance de Comprobación Detallado</h1>
+        <p>Período: {%= (filters && filters.from_date) ? filters.from_date.split("-").reverse().join("/") : "" %} al {%= (filters && filters.to_date) ? filters.to_date.split("-").reverse().join("/") : "" %} &nbsp;|&nbsp; Expresado en Bolívares (VEF) &nbsp;|&nbsp; Incluye cuentas con saldo o movimientos</p>
+    </div>
 
-    <table class="report-table">
+    <table class="ledger-table">
         <thead>
             <tr>
                 <th class="text-left">Cuenta Contable</th>
@@ -203,35 +214,50 @@
                 <th class="text-right" style="width: 120px;">Debe</th>
                 <th class="text-right" style="width: 120px;">Haber</th>
                 <th class="text-right" style="width: 140px;">
-                    Saldo a la fecha {%= filters.to_date ? filters.to_date.split("-").reverse().join("/") : "" %}
+                    Saldo a la fecha {%= (filters && filters.to_date) ? filters.to_date.split("-").reverse().join("/") : "" %}
                 </th>
             </tr>
         </thead>
         <tbody>
             {% for (var i=0, l=data.length; i<l; i++) {
                 var row = data[i]; %}
-            {% if (row.is_header) { %}
-            <tr class="header-row">
+            {% if (row.is_header) { 
+                var acc_html = row.account_name;
+                if (row.indent > 0) {
+                    acc_html = '<span class="indent-line" style="margin-left: ' + (row.indent * 10) + 'px;">' + row.account_name + '</span>';
+                }
+            %}
+            <tr class="group-header-row">
                 <td colspan="5">
                     <span class="acc-num">{%= row.account_number || "" %}</span>
-                    <span class="acc-name">{%= row.account_name || "" %}</span>
+                    {%= acc_html %}
                 </td>
             </tr>
-            {% } else if (row.is_total) { %}
-            <tr class="total-row">
-                <td style="padding-left: 91px;">
-                    {%= row.account_name || "" %}
+            {% } else if (row.is_total) { 
+                var acc_html = row.account_name;
+                if (row.indent > 0) {
+                    acc_html = '<span class="indent-line" style="margin-left: ' + (row.indent * 10) + 'px;">' + row.account_name + '</span>';
+                }
+            %}
+            <tr class="totals-row">
+                <td>
+                    {%= acc_html %}
                 </td>
                 <td class="text-right">{%= format_val(row.opening_balance) %}</td>
                 <td class="text-right">{%= format_val(row.debit) %}</td>
                 <td class="text-right">{%= format_val(row.credit) %}</td>
                 <td class="text-right">{%= format_val(row.closing_balance) %}</td>
             </tr>
-            {% } else { %}
+            {% } else { 
+                var acc_html = row.account_name;
+                if (row.indent > 0) {
+                    acc_html = '<span class="indent-line" style="margin-left: ' + (row.indent * 10) + 'px;">' + row.account_name + '</span>';
+                }
+            %}
             <tr class="leaf-row">
                 <td>
                     <span class="acc-num">{%= row.account_number || "" %}</span>
-                    <span class="acc-name">{%= row.account_name || "" %}</span>
+                    {%= acc_html %}
                 </td>
                 <td class="text-right">{%= format_val(row.opening_balance) %}</td>
                 <td class="text-right">{%= format_val(row.debit) %}</td>

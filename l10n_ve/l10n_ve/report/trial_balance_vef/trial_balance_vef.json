@@ -14,11 +14,11 @@
  "modified": "2026-05-16 09:03:38.816204",
  "modified_by": "Administrator",
  "module": "L10N Ve",
- "name": "trial balance VEF",
+ "name": "trial_balance_vef",
  "owner": "Administrator",
  "prepared_report": 0,
  "ref_doctype": "GL Entry",
- "report_name": "trial balance VEF",
+ "report_name": "trial_balance_vef",
  "report_type": "Script Report",
  "roles": [
   {

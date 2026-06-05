@@ -3,6 +3,11 @@ import frappe
 from frappe import _
 import os
 
+# Caché Redis de tasas de cambio, indexado por (fecha, moneda_origen, moneda_destino).
+# Se invalida por completo cuando cambia cualquier 'Currency Exchange'
+# (ver clear_exchange_rate_cache + doc_events/tasks.py).
+EXCHANGE_RATE_CACHE_KEY: str = "l10n_ve_exchange_rate"
+
 from frappe.utils import (
     getdate,
     get_first_day,
@@ -19,11 +24,6 @@ import erpnext
 
 _JURIDICAL_NATURES: tuple[str, ...] = ("Juridical", "Government", "Communal", "Educational")
 _NATURAL_NATURES: tuple[str, ...] = ("Venezuelan", "Extranjero", "Passport")
-
-# Caché Redis de tasas de cambio, indexado por (fecha, moneda_origen, moneda_destino).
-# Se invalida por completo cuando cambia cualquier 'Currency Exchange'
-# (ver clear_exchange_rate_cache + doc_events/tasks.py).
-EXCHANGE_RATE_CACHE_KEY: str = "l10n_ve_exchange_rate"
 
 
 @frappe.whitelist()
@@ -510,19 +510,15 @@ def get_exchange_rate(date: str, from_currency: str) -> float:
         return flt(cached)
 
     rate: float = _query_exchange_rate(date_str, from_currency, to_currency)
-
     # Solo se cachean tasas válidas (>0). Una fecha sin tasa aún no se cachea
     # para que vuelva a consultarse en cuanto el BCV la cargue (el insert
     # invalida el caché igualmente, pero esto evita servir ceros transitorios).
     if rate:
         frappe.cache().hset(EXCHANGE_RATE_CACHE_KEY, cache_field, rate)
-
     return rate
-
 
 def _query_exchange_rate(date: str, from_currency: str, to_currency: str) -> float:
     """Consulta la tasa en la BDD (sin caché).
-
     Busca primero la tasa más reciente en o antes de la fecha solicitada.
     Si no existe, busca la más próxima posterior como fallback.
     Usa SQL directo para evitar problemas con 'date' como keyword reservada
@@ -559,10 +555,8 @@ def _query_exchange_rate(date: str, from_currency: str, to_currency: str) -> flo
 
     return flt(result[0][0]) if result else 0
 
-
 def clear_exchange_rate_cache(doc=None, method=None) -> None:
     """Invalida el caché de tasas de cambio.
-
     Se invoca desde los doc_events de 'Currency Exchange' (alta/edición/baja
     manual) y desde la tarea de sincronización BCV (que actualiza vía
     frappe.db.set_value, el cual NO dispara doc_events). Borra todo el hash:

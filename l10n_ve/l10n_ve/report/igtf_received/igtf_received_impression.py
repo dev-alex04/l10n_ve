@@ -218,4 +218,4 @@ def download_custom_pdf(filters=None):
 
 	frappe.local.response.filename = "Reporte_IGTF_Percibido.pdf"
 	frappe.local.response.filecontent = pdf_content
-	frappe.local.response.type = "pdf"
+	frappe.local.response.type = "download"

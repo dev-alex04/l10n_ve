@@ -119,6 +119,14 @@ def apply_post_db_patches() -> None:
     except Exception as e:
         log_patch_error('user_permissions_patch', e)
 
+    # Capa 4: aplica el monkeypatch global de report_to_pdf para evitar HostNotFoundError
+    try:
+        from frappe.utils import print_format
+        from l10n_ve.utils.pdf_utils import custom_report_to_pdf
+        print_format.report_to_pdf = custom_report_to_pdf
+    except Exception as e:
+        log_patch_error('custom_report_to_pdf_patch', e)
+
 # Attempt to apply patches immediately.
 try:
     apply_post_db_patches()

@@ -71,6 +71,8 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     from_date = str(from_date)
     to_date = str(to_date)
     rates_cache = {}
+    from l10n_ve.utils.utils import get_exchange_rate
+    rate_today = flt(get_exchange_rate(to_date, "USD")) or 1.0
 
     # ═════════════════════════════════════════════════════════════════════════
     # 1. METRICS: CARDS
@@ -284,9 +286,6 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     
     available_usd = 0.0
     if accounts_disp:
-        from l10n_ve.utils.utils import get_exchange_rate
-        rate_today = flt(get_exchange_rate(to_date, "USD")) or 1.0
-        
         for acc in accounts_disp:
             result = frappe.db.sql("""
                 SELECT 
@@ -452,5 +451,6 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
         "expenses_usd_month": expenses_usd_month,
         "expenses_usd_year": expenses_usd_year,
         "available_usd": available_usd,
+        "exchange_rate": rate_today,
         "branch_financial_summary": branch_rows
     }
