@@ -3,6 +3,11 @@ import frappe
 from frappe import _
 import os
 
+# Caché Redis de tasas de cambio, indexado por (fecha, moneda_origen, moneda_destino).
+# Se invalida por completo cuando cambia cualquier 'Currency Exchange'
+# (ver clear_exchange_rate_cache + doc_events/tasks.py).
+EXCHANGE_RATE_CACHE_KEY: str = "l10n_ve_exchange_rate"
+
 from frappe.utils import (
     getdate,
     get_first_day,
@@ -10,7 +15,8 @@ from frappe.utils import (
     get_link_to_form as link_to_form,
     nowdate,
     add_months,
-    add_days
+    add_days,
+    flt,
 )
 
 import erpnext
@@ -482,10 +488,11 @@ def get_url_to_list(doctype: str) -> str:
 def get_exchange_rate(date: str, from_currency: str) -> float:
     """Obtiene la tasa de cambio para una fecha y moneda específica.
 
-    Busca primero la tasa más reciente en o antes de la fecha solicitada.
-    Si no existe, busca la más próxima posterior como fallback.
-    Usa SQL directo para evitar problemas con 'date' como keyword reservada
-    en MariaDB al usarla en ORDER BY vía frappe.db.get_value.
+    El resultado se cachea en Redis indexado por (fecha, origen, destino):
+    la misma fecha + moneda se sirve desde caché sin pegar a la BDD. El caché
+    se invalida por completo al crear/editar/borrar un 'Currency Exchange'
+    (ver clear_exchange_rate_cache), de modo que tras actualizar la tasa la
+    siguiente consulta hace UN solo query a la BDD y vuelve a guardar.
     """
     to_currency = frappe.defaults.get_defaults().get("currency")
     if from_currency == to_currency:
@@ -494,6 +501,29 @@ def get_exchange_rate(date: str, from_currency: str) -> float:
     if not date or not from_currency or not to_currency:
         return 0
 
+    # Normalizar la fecha a 'YYYY-MM-DD' para que un str y un date/datetime
+    # de la misma fecha compartan la misma clave de caché.
+    date_str: str = str(getdate(date))
+    cache_field: str = f"{date_str}|{from_currency}|{to_currency}"
+    cached = frappe.cache().hget(EXCHANGE_RATE_CACHE_KEY, cache_field)
+    if cached is not None:
+        return flt(cached)
+
+    rate: float = _query_exchange_rate(date_str, from_currency, to_currency)
+    # Solo se cachean tasas válidas (>0). Una fecha sin tasa aún no se cachea
+    # para que vuelva a consultarse en cuanto el BCV la cargue (el insert
+    # invalida el caché igualmente, pero esto evita servir ceros transitorios).
+    if rate:
+        frappe.cache().hset(EXCHANGE_RATE_CACHE_KEY, cache_field, rate)
+    return rate
+
+def _query_exchange_rate(date: str, from_currency: str, to_currency: str) -> float:
+    """Consulta la tasa en la BDD (sin caché).
+    Busca primero la tasa más reciente en o antes de la fecha solicitada.
+    Si no existe, busca la más próxima posterior como fallback.
+    Usa SQL directo para evitar problemas con 'date' como keyword reservada
+    en MariaDB al usarla en ORDER BY vía frappe.db.get_value.
+    """
     result = frappe.db.sql(
         """
         SELECT `exchange_rate`
@@ -508,7 +538,7 @@ def get_exchange_rate(date: str, from_currency: str) -> float:
     )
 
     if result:
-        return result[0][0]
+        return flt(result[0][0])
 
     result = frappe.db.sql(
         """
@@ -523,7 +553,17 @@ def get_exchange_rate(date: str, from_currency: str) -> float:
         (date, from_currency, to_currency),
     )
 
-    return result[0][0] if result else 0
+    return flt(result[0][0]) if result else 0
+
+def clear_exchange_rate_cache(doc=None, method=None) -> None:
+    """Invalida el caché de tasas de cambio.
+    Se invoca desde los doc_events de 'Currency Exchange' (alta/edición/baja
+    manual) y desde la tarea de sincronización BCV (que actualiza vía
+    frappe.db.set_value, el cual NO dispara doc_events). Borra todo el hash:
+    al cambiar una tasa, las consultas con fallback de otras fechas también
+    podrían variar, así que se recalculan todas bajo demanda.
+    """
+    frappe.cache().delete_key(EXCHANGE_RATE_CACHE_KEY)
 
 
 @frappe.whitelist()
@@ -875,4 +915,3 @@ def get_usd_factura_de_venta():
         "currency": "USD",
         "docstatus": 1,
         "posting_date": ["between", [first_day, last_day]]
-    })

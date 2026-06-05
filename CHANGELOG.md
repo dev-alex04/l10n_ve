@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.7.2] - 2026-06-04
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la advertencia de retenciones faltantes y se resolvió el error de duplicación de registros en la vista de lista (b0b6daa).
+
+---
+
+## [v1.7.1] - 2026-06-03
+
+### ✨ Funcionalidades (Features)
+- Refactorización del módulo de tipo de cambio para integrar la lógica de conversión de moneda mediante el evento on_change, permitiendo una actualización reactiva de los valores.
+
+---
+
+## [v1.7.0] - 2026-06-03
+
+### ✨ Funcionalidades (Features)
+- Implementación de un sistema de caché para la función `get_exchange_rate` basado en fecha y moneda, que incluye lógica de invalidación para optimizar el rendimiento. b53b894
+- Normalización de fechas en las claves de caché para garantizar la consistencia y correcta recuperación de los datos almacenados. e9359ed
+
+---
+
+## [v1.6.1] - 2026-06-02
+
+### 🐛 Correcciones (Fixes)
+- Se integró una lista blanca (whitelist) para los DocTypes de sucursales en la subconsulta `_get_gl_entries` del dashboard, asegurando que los registros contables se filtren y muestren correctamente. a80fe27
+
+---
+
+## [v1.6.0] - 2026-06-02
+
+### ✨ Funcionalidades (Features)
+- Implementación del nuevo DocType **Dashboard Gerencial**, que integra un resumen financiero personalizado y 13 tarjetas de métricas clave para la toma de decisiones. [0a23e0b]
+- Optimización crítica de rendimiento en la carga de datos del dashboard mediante el uso de subconsultas SQL, evitando desbordamientos en cláusulas IN al filtrar vouchers por sucursal. [7f3c65d]
+- Mejora de eficiencia en la capa de datos eliminando consultas N+1 a través de agrupamiento en memoria y optimización de procesos de renderizado. [54b141e]
+- Adición de una fila virtual "Sin Sucursal" en las tablas de resumen, garantizando que la sumatoria de las tablas coincida exactamente con los valores de las tarjetas informativas. [ad84414]
+- Refactorización integral del backend: traducción de todas las variables internas, claves JSON y argumentos de funciones al estándar de la industria (Inglés). [6a48b42]
+- Actualización de estilos en tablas de sucursales para asegurar compatibilidad visual con el tema Dark Mode Premium. [2f788a2]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la precisión de los cálculos de gastos mensuales y anuales, así como en la consolidación de disponibilidad de USD en bancos y caja. [c9c91ad]
+- Implementación de saneamiento (sanitization) en el renderizado de nombres de sucursales para prevenir vulnerabilidades de Cross-Site Scripting (XSS). [54b141e]
+- Resolución de excepción `AttributeError` en consultas de la tabla de gastos mediante la implementación correcta de `as_dict=True` en las peticiones SQL. [f4d5632]
+- Corrección en el binding de manejadores de eventos en scripts de formulario, asegurando que los triggers reconozcan nombres con espacios exactos. [e9fa08a]
+
+---
+
 ## [v1.5.0] - 2026-05-29
 
 ### ✨ Funcionalidades (Features)
