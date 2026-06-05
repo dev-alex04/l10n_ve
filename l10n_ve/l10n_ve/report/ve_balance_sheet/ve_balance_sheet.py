@@ -63,9 +63,14 @@ def execute(filters=None):
             "account": acc.account,
             "account_name": acc.account_name,
             "account_number": acc.account_number,
+            "parent_account": acc.parent_account,
             "is_group": acc.is_group,
             "is_header": (depth == 0),
             "is_total": (acc.is_group == 1 and depth > 0),
+            "root_type": acc.root_type,
+            "depth": depth,
+            "lft": acc.lft,
+            "rgt": acc.rgt,
         }
         
         # Determine signs: Asset accounts typically positive, Liability/Equity typically negative in raw GL but positive in Balance Sheet presentation
