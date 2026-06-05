@@ -28,8 +28,8 @@ def get_hierarchical_balances(company, to_date, from_date=None, cost_center=None
         if isinstance(root_types, str):
             root_types = [root_types]
         root_type_cond = " AND parent.root_type IN ({})".format(", ".join(["%s"] * len(root_types)))
-        # Prepend root types to the main query arguments
-        query_args = list(root_types) + args + [company]
+        # Correct order: args (for gl_cond) + [company] + list(root_types)
+        query_args = args + [company] + list(root_types)
     else:
         query_args = args + [company]
         
