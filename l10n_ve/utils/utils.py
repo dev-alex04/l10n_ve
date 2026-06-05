@@ -915,3 +915,4 @@ def get_usd_factura_de_venta():
         "currency": "USD",
         "docstatus": 1,
         "posting_date": ["between", [first_day, last_day]]
+    })
