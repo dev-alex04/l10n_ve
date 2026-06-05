@@ -31,6 +31,14 @@
    "fieldtype": "Link",
    "label": "Centro de Costo",
    "options": "Cost Center"
+  },
+  {
+   "default": "Detallado",
+   "fieldname": "presentation",
+   "fieldtype": "Select",
+   "label": "Presentación / Nivel",
+   "mandatory": 1,
+   "options": "Detallado\n1° Nivel\n2° Nivel\n3° Nivel\n4° Nivel"
   }
  ],
  "idx": 0,

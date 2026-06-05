@@ -1,8 +1,5 @@
 import frappe
-from frappe.utils import flt, print_format
-from urllib.parse import urlparse
-from frappe.utils.pdf import get_pdf
-from frappe.core.doctype.access_log.access_log import make_access_log
+from frappe.utils import flt
 
 
 def execute(filters=None):
@@ -66,7 +63,7 @@ def get_data(filters):
 
     data = []
 
-    def traverse_account(acc):
+    def traverse_account(acc, depth=0):
         opening = 0.0
         debit = 0.0
         credit = 0.0
@@ -99,14 +96,15 @@ def get_data(filters):
                 "closing_balance": None,
                 "is_group": 1,
                 "is_header": 1,
-                "root_type": acc.root_type
+                "root_type": acc.root_type,
+                "indent": depth
             }
             data.append(header_row)
 
             # Recorrer hijos
             children = children_map.get(acc.name, [])
             for child in children:
-                traverse_account(child)
+                traverse_account(child, depth + 1)
 
             # Fila de Total: consolidada de los hijos
             total_row = {
@@ -119,7 +117,8 @@ def get_data(filters):
                 "closing_balance": closing,
                 "is_group": 1,
                 "is_total": 1,
-                "root_type": acc.root_type
+                "root_type": acc.root_type,
+                "indent": depth
             }
             data.append(total_row)
         else:
@@ -133,62 +132,14 @@ def get_data(filters):
                 "credit": credit,
                 "closing_balance": closing,
                 "is_group": 0,
-                "root_type": acc.root_type
+                "root_type": acc.root_type,
+                "indent": depth
             }
             data.append(leaf_row)
 
         return opening, debit, credit, closing
 
     for root in roots:
-        traverse_account(root)
+        traverse_account(root, 0)
 
     return data
-
-
-@frappe.whitelist()
-def custom_report_to_pdf(html, orientation="Landscape"):
-	make_access_log(file_type="PDF", method="PDF", page=html)
-	frappe.local.response.filename = "report.pdf"
-
-	try:
-		frappe.local.response.filecontent = get_pdf(
-			html,
-			{
-				"orientation": orientation,
-				"proxy": "http://0.0.0.0:0",
-				"bypass-proxy-for": urlparse(frappe.utils.get_url(allow_header_override=False)).hostname,
-				"load-error-handling": "ignore",
-			},
-		)
-	except OSError as e:
-		if any(err in str(e) for err in ("ConnectionRefusedError", "Exit with code 1")):
-			try:
-				frappe.local.response.filecontent = get_pdf(
-					html,
-					{
-						"orientation": orientation,
-						"load-error-handling": "ignore",
-					},
-				)
-			except Exception as ex:
-				frappe.log_error(
-					title="Custom PDF Print Retry Error",
-					message=f"Error in custom_report_to_pdf retry:\n{frappe.get_traceback()}"
-				)
-				raise ex
-		else:
-			frappe.log_error(
-				title="Custom PDF Print Error",
-				message=f"Error in custom_report_to_pdf:\n{frappe.get_traceback()}"
-			)
-			raise e
-	except Exception as e:
-		frappe.log_error(
-			title="Custom PDF Print General Error",
-			message=f"General error in custom_report_to_pdf:\n{frappe.get_traceback()}"
-		)
-		raise e
-
-	frappe.local.response.type = "pdf"
-
-print_format.report_to_pdf = custom_report_to_pdf

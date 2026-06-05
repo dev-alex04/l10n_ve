@@ -29,8 +29,8 @@
   {
    "fieldname": "presentation",
    "fieldtype": "Select",
-   "label": "Presentación",
-   "options": "Detallado\nResumido",
+   "label": "Presentación / Nivel",
+   "options": "Detallado\nResumido\n1° Nivel\n2° Nivel\n3° Nivel",
    "default": "Detallado",
    "mandatory": 1
   }

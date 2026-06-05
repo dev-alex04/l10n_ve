@@ -4,79 +4,102 @@
 <style>
     @media print {
         @page {
-            size: landscape;
-            margin: 8mm 12mm 8mm 12mm;
+            size: letter landscape;
+            margin: 10mm 12mm 10mm 12mm;
         }
         .page-container {
-            page-break-after: always;
+            page-break-before: always;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background-color: #fff !important;
         }
-        .page-container:last-child {
-            page-break-after: avoid;
+        .page-container:first-child {
+            page-break-before: avoid;
+        }
+    }
+    
+    @media screen {
+        body {
+            background-color: #f1f5f9;
+            padding: 30px 15px;
+        }
+        .page-container {
+            max-width: 11in;
+            margin: 0 auto 30px auto;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            padding: 40px !important;
+            background-color: #fff;
         }
     }
     
     body {
-        font-family: "Outfit", "Inter", "Helvetica Neue", Arial, sans-serif;
-        color: #1a1a1a;
-        font-size: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
+        font-size: 8.5px;
         background-color: #fff;
         margin: 0;
         padding: 0;
+        line-height: 1.4;
     }
     
     .page-container {
         background-color: #fff;
-        padding: 10px;
+        padding: 15px;
         box-sizing: border-box;
     }
     
     .report-header {
         width: 100%;
-        margin-bottom: 5px;
+        margin-bottom: 8px;
         border-collapse: collapse;
     }
     
     .report-header td {
-        border: none;
-        padding: 2px 0;
+        border: none !important;
+        padding: 0 !important;
+        background-color: transparent !important;
     }
     
-    .company-title {
-        font-size: 13px;
-        font-weight: bold;
+    .title-badge {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #84cc16; /* Verde Galanet */
+        border-radius: 0 4px 4px 0;
+        padding: 10px 14px;
+        text-align: left;
+        margin: 15px 0 20px 0;
+    }
+    
+    .title-badge h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: #0f172a;
+    }
+    
+    .title-badge p {
+        margin: 4px 0 0 0;
+        font-size: 7.5px;
+        font-weight: 600;
+        color: #64748b;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
     
-    .report-title-container {
-        text-align: center;
-        margin-bottom: 12px;
-        margin-top: -10px;
-    }
-    
-    .report-title {
-        font-size: 14px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        color: #000;
-    }
-    
-    .meta-line {
-        font-size: 10px;
-        font-weight: 500;
-        margin-top: 3px;
-        color: #333;
-    }
-    
     .account-group-header {
-        font-size: 11px;
+        font-size: 10px;
         font-weight: bold;
         margin-top: 15px;
         margin-bottom: 8px;
-        border-bottom: 2px solid #000;
-        padding-bottom: 4px;
+        border-bottom: 2px solid #1e293b;
+        padding-bottom: 6px;
         display: flex;
+        color: #0f172a;
     }
     
     .account-code {
@@ -94,20 +117,24 @@
     }
     
     .ledger-table th {
-        font-size: 10px;
-        font-weight: bold;
-        border-bottom: 1.5px solid #000;
-        border-top: 1.5px solid #000;
-        padding: 5px 3px;
+        font-size: 8px;
+        font-weight: 700;
+        color: #1e293b;
+        background-color: #f8fafc;
+        border-top: 2px solid #1e293b;
+        border-bottom: 2px solid #84cc16; /* Verde Galanet bottom line */
+        padding: 6px 4px;
         text-align: left;
         text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     
     .ledger-table td {
-        padding: 4px 3px;
+        padding: 5px 4px;
         vertical-align: top;
-        line-height: 1.25;
-        border-bottom: 1px solid #f0f0f0;
+        line-height: 1.3;
+        border-bottom: 1px solid #f1f5f9;
+        color: #334155;
     }
     
     .text-right {
@@ -123,33 +150,37 @@
     }
     
     .double-line-second {
-        font-size: 8.5px;
-        color: #444;
+        font-size: 7.5px;
+        color: #64748b;
         font-weight: normal;
         margin-top: 2px;
     }
     
     .totals-row td {
-        border-top: 1.5px solid #000;
-        border-bottom: 2px double #000;
+        border-top: 1.5px solid #1e293b;
+        border-bottom: 4px double #1e293b;
         font-weight: bold;
-        background-color: #fafafa;
-        padding: 6px 3px;
+        background-color: #f8fafc;
+        padding: 8px 4px;
+        color: #0f172a;
     }
     
     .van-vienen-row td {
-        border-top: 1.5px solid #000;
-        border-bottom: 1.5px solid #000;
+        border-top: 1.5px solid #cbd5e1;
+        border-bottom: 1.5px solid #cbd5e1;
         font-weight: bold;
         font-style: italic;
-        background-color: #f5f5f5;
-        padding: 5px 3px;
+        background-color: #f8fafc;
+        padding: 6px 4px;
+        color: #475569;
     }
 </style>
 
 {%
-    var company_name = filters.company || "";
+    var company_name = (filters && filters.company) || "";
     var company_rif = "";
+    var comp_doc = (company_name && typeof frappe !== "undefined" && frappe.model && frappe.model.get_doc) ? frappe.model.get_doc("Company", company_name) : null;
+    var company_logo = (comp_doc && comp_doc.company_logo) || "/files/galanet_logo.jpg";
     if (data && data.length > 0) {
         for (var idx = 0; idx < data.length; idx++) {
             var row = data[idx];
@@ -159,8 +190,11 @@
             }
         }
     }
-    var from_date = filters.from_date || "";
-    var to_date = filters.to_date || "";
+    if (!company_rif && comp_doc) {
+        company_rif = comp_doc.tax_id || "";
+    }
+    var from_date = (filters && filters.from_date) || "";
+    var to_date = (filters && filters.to_date) || "";
     
     /* Agrupar filas planas en estructura jerárquica por cuenta */
     var accounts = [];
@@ -266,28 +300,27 @@
             page_cum_credit += page_credit_sum;
             
             html += '<div class="page-container">';
-            
-            /* Membrete del reporte */
+                  /* Membrete del reporte */
             html += '<table class="report-header">' +
                     '<tr>' +
-                        '<td style="width: 40%; line-height: 1.35; vertical-align: top;">' +
-                            '<div class="company-title">' + company_name + '</div>' +
-                            '<div class="bold">RIF: ' + company_rif + '</div>' +
+                        '<td style="width: 45%; vertical-align: middle; border: none; padding: 0;">' +
+                            '<img src="' + company_logo + '" style="max-height: 38px; display: block;" alt="Logo">' +
                         '</td>' +
-                        '<td style="width: 20%;"></td>' +
-                        '<td style="width: 40%; text-align: right; vertical-align: top; line-height: 1.35;">' +
-                            '<div>Pág. ' + global_page_num + '</div>' +
-                            '<div style="font-size: 8px; color: #555;">' + emit_time + '</div>' +
+                        '<td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif; color: #334155; line-height: 1.35;">' +
+                            '<div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">' + company_name + '</div>' +
+                            '<div style="font-size: 8px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: ' + company_rif + '</div>' +
+                            '<div style="font-size: 8px; color: #64748b; margin-top: 2px;">Pág. ' + global_page_num + ' | ' + emit_time + '</div>' +
                         '</td>' +
                     '</tr>' +
                 '</table>' +
-                '<div class="report-title-container">' +
-                    '<div class="report-title">Mayor Analítico</div>' +
-                    '<div class="meta-line">Desde el ' + formatDate(from_date) + ' hasta el ' + formatDate(to_date) + '</div>' +
+                '<div style="width: 100%; height: 3px; background: linear-gradient(90deg, #84cc16 0%, #1e293b 100%); margin-top: 5px; margin-bottom: 10px;"></div>' +
+                '<div class="title-badge">' +
+                    '<h1>Mayor Analítico</h1>' +
+                    '<p>Desde el ' + formatDate(from_date) + ' hasta el ' + formatDate(to_date) + ' &nbsp;|&nbsp; Expresado en Bolívares (VEF)</p>' +
                 '</div>' +
                 '<div class="account-group-header">' +
-                    '<span class="account-code">Código: <span class="bold" style="font-size: 12px; font-family: monospace;">' + acc.number + '</span></span>' +
-                    '<span class="account-desc">Descripción: <span class="bold" style="font-size: 11px;">' + acc.name + '</span></span>' +
+                    '<span class="account-code">Código: <span class="bold" style="font-size: 11px; font-family: monospace;">' + acc.number + '</span></span>' +
+                    '<span class="account-desc">Descripción: <span class="bold" style="font-size: 10px;">' + acc.name + '</span></span>' +
                 '</div>' +
                 '<table class="ledger-table">' +
                     '<thead>' +
