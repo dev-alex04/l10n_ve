@@ -112,6 +112,13 @@ def apply_post_db_patches() -> None:
     except Exception as e:
         log_patch_error('report_session_patch', e)
 
+    # Capa 5: aplica el monkeypatch de exportación de reportes a Excel con diseño profesional
+    try:
+        from l10n_ve.patches.frappe.report_export_patch import apply as apply_export_patch
+        apply_export_patch()
+    except Exception as e:
+        log_patch_error('report_export_patch', e)
+
 
     # Capa 3: aplica el monkeypatch de get_user_permissions
     try:
