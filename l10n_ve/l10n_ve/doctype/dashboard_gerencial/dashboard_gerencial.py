@@ -106,14 +106,16 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     collected_amount = flt(collected_raw[0].total) if collected_raw and collected_raw[0].total else 0.0
 
     # --- Total Billed USD & Billed BS ---
-    invoices = frappe.get_all("Sales Invoice", filters=si_filters, fields=["grand_total", "base_grand_total", "currency", "posting_date", "total_taxes_and_charges"])
+    invoices = frappe.get_all("Sales Invoice", filters=si_filters, fields=["grand_total", "base_grand_total", "currency", "posting_date", "total_taxes_and_charges", "base_total_taxes_and_charges"])
     
     total_billed_usd = 0.0
     total_billed_bs = 0.0
     taxes_usd = 0.0
+    taxes_vef = 0.0
 
     for inv in invoices:
         total_billed_bs += flt(inv.base_grand_total)
+        taxes_vef += flt(inv.base_total_taxes_and_charges)
         
         # Converted or native USD billed
         if inv.currency == "USD":
@@ -443,6 +445,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
         "total_billed_usd": total_billed_usd,
         "usd_sales_invoices_count": usd_sales_invoices_count,
         "taxes_usd": taxes_usd,
+        "taxes_vef": taxes_vef,
         "total_billed_bs": total_billed_bs,
         "pending_to_collect_usd": pending_to_collect_usd,
         "client_vat_withholding_usd": client_vat_withholding_usd,

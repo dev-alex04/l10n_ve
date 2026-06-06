@@ -153,8 +153,8 @@ function render_premium_dashboard(frm, data) {
                     color: var(--text-color);
                 }
                 .dg-exchange-rate-banner {
-                    background: #1a202c !important;
-                    border: 1px solid #2d3748 !important;
+                    background: #1e293b !important;
+                    border: 1px solid #334155 !important;
                     border-radius: 8px;
                     padding: 12px 20px;
                     margin-bottom: 24px;
@@ -165,7 +165,7 @@ function render_premium_dashboard(frm, data) {
                     color: #cbd5e0 !important;
                 }
                 .dg-exchange-rate-banner i {
-                    color: #3182ce !important;
+                    color: #3b82f6 !important;
                     font-size: 16px;
                 }
                 .dg-card-grid {
@@ -175,6 +175,8 @@ function render_premium_dashboard(frm, data) {
                     margin-bottom: 35px;
                 }
                 .dg-card {
+                    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+                    border: 1px solid #334155 !important;
                     border-radius: 12px;
                     padding: 24px;
                     position: relative;
@@ -182,14 +184,14 @@ function render_premium_dashboard(frm, data) {
                     display: flex;
                     flex-direction: column;
                     justify-content: space-between;
-                    min-height: 175px;
-                    border: none !important;
-                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+                    min-height: 180px;
+                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -1px rgba(0,0,0,0.1);
                     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
                 }
                 .dg-card:hover {
                     transform: translateY(-4px);
-                    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2), 0 4px 6px -2px rgba(0,0,0,0.1);
+                    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -2px rgba(0,0,0,0.2);
+                    border-color: #475569 !important;
                 }
                 .dg-card-header {
                     display: flex;
@@ -202,18 +204,18 @@ function render_premium_dashboard(frm, data) {
                     text-transform: uppercase;
                     letter-spacing: 0.8px;
                     font-weight: 700;
-                    color: rgba(255, 255, 255, 0.85) !important;
+                    color: #94a3b8 !important;
                 }
                 .dg-card-icon {
                     font-size: 36px !important;
-                    opacity: 0.2;
+                    opacity: 0.12;
                     position: absolute;
                     right: 20px;
                     top: 20px;
                     color: #ffffff !important;
                 }
                 .dg-card-value {
-                    font-size: 32px !important;
+                    font-size: 30px !important;
                     font-weight: 800 !important;
                     margin: 8px 0 0 0;
                     letter-spacing: -0.5px;
@@ -222,47 +224,54 @@ function render_premium_dashboard(frm, data) {
                 .dg-card-equivalent {
                     font-size: 15px !important;
                     font-weight: 600 !important;
-                    color: rgba(255, 255, 255, 0.75) !important;
+                    color: #3b82f6 !important;
                     margin-top: 2px;
                     margin-bottom: 8px;
                 }
+                .dg-card-green .dg-card-equivalent, .dg-card-deepgreen .dg-card-equivalent {
+                    color: #10b981 !important;
+                }
+                .dg-card-red .dg-card-equivalent, .dg-card-pink .dg-card-equivalent {
+                    color: #ef4444 !important;
+                }
                 .dg-card-subtext {
                     font-size: 12px;
-                    color: rgba(255, 255, 255, 0.8) !important;
+                    color: #94a3b8 !important;
                     display: flex;
                     flex-direction: column;
                     gap: 3px;
-                    border-top: 1px solid rgba(255, 255, 255, 0.15);
+                    border-top: 1px solid rgba(255, 255, 255, 0.08);
                     padding-top: 8px;
                     margin-top: 6px;
                 }
                 
-                /* Solid Color Backing */
-                .dg-card-grey { background: #4a5568 !important; }
-                .dg-card-red { background: #e53e3e !important; }
-                .dg-card-teal { background: #319795 !important; }
-                .dg-card-green { background: #38a169 !important; }
-                .dg-card-blue { background: #2b6cb0 !important; }
-                .dg-card-orange { background: #dd6b20 !important; }
-                .dg-card-purple { background: #6b46c1 !important; }
-                .dg-card-pink { background: #b83280 !important; }
-                .dg-card-indigo { background: #4c51bf !important; }
-                .dg-card-deepgreen { background: #22543d !important; }
+                /* Premium Card Border Accents (Slate background for all) */
+                .dg-card-grey { border-top: 4px solid #64748b !important; }
+                .dg-card-red { border-top: 4px solid #ef4444 !important; }
+                .dg-card-teal { border-top: 4px solid #06b6d4 !important; }
+                .dg-card-green { border-top: 4px solid #10b981 !important; }
+                .dg-card-blue { border-top: 4px solid #3b82f6 !important; }
+                .dg-card-orange { border-top: 4px solid #f97316 !important; }
+                .dg-card-purple { border-top: 4px solid #8b5cf6 !important; }
+                .dg-card-pink { border-top: 4px solid #ec4899 !important; }
+                .dg-card-indigo { border-top: 4px solid #6366f1 !important; }
+                .dg-card-deepgreen { border-top: 4px solid #059669 !important; }
                 
                 .dg-section-title {
-                    font-size: 15px;
+                    font-size: 16px;
                     font-weight: 700;
-                    margin-bottom: 18px;
+                    margin-top: 15px;
+                    margin-bottom: 20px;
                     display: flex;
                     align-items: center;
                     gap: 8px;
                     color: var(--text-color);
-                    border-bottom: 2px solid var(--border-color);
-                    padding-bottom: 8px;
+                    border-bottom: 1px solid var(--border-color);
+                    padding-bottom: 10px;
                 }
                 .dg-table-card {
-                    background: #151922 !important;
-                    border: 1px solid #2d3748 !important;
+                    background: #1e293b !important;
+                    border: 1px solid #334155 !important;
                     border-radius: 14px;
                     padding: 24px;
                     box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
@@ -274,20 +283,20 @@ function render_premium_dashboard(frm, data) {
                     border-collapse: collapse;
                 }
                 .dg-table th {
-                    background: #1f2733 !important;
+                    background: #0f172a !important;
                     font-size: 11px;
                     text-transform: uppercase;
                     letter-spacing: 0.8px;
                     font-weight: 700;
                     padding: 14px 16px !important;
-                    border: 1px solid #2d3748 !important;
-                    color: #cbd5e0 !important;
+                    border: 1px solid #334155 !important;
+                    color: #94a3b8 !important;
                 }
                 .dg-table td {
                     padding: 14px 16px !important;
                     font-size: 13px;
-                    border: 1px solid #2d3748 !important;
-                    color: #e2e8f0 !important;
+                    border: 1px solid #334155 !important;
+                    color: #cbd5e0 !important;
                 }
                 .dg-badge {
                     display: inline-block;
@@ -305,7 +314,7 @@ function render_premium_dashboard(frm, data) {
 
             <!-- SECCIÓN 1: FACTURACIÓN Y VENTAS -->
             <h6 class="dg-section-title">
-                <i class="fa fa-shopping-cart" style="color: #2b6cb0;"></i> Facturación y Ventas
+                <i class="fa fa-shopping-cart" style="color: #3b82f6;"></i> Facturación y Ventas
             </h6>
             <div class="dg-card-grid">
                 <!-- Total Facturado USD -->
@@ -315,10 +324,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-dollar dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.total_billed_usd, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.total_billed_usd * data.exchange_rate, "VEF")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.total_billed_bs, "VEF")}</div>
                     <div class="dg-card-subtext">
-                        <span>Monto Base: ${format_currency_ve(data.total_billed_usd - data.taxes_usd, "USD")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve((data.total_billed_usd - data.taxes_usd) * data.exchange_rate, "VEF")})</span></span>
-                        <span>Impuesto: ${format_currency_ve(data.taxes_usd, "USD")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.taxes_usd * data.exchange_rate, "VEF")})</span></span>
+                        <span>Monto Base: ${format_currency_ve(data.total_billed_usd - data.taxes_usd, "USD")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.total_billed_bs - data.taxes_vef, "VEF")})</span></span>
+                        <span>Impuesto: ${format_currency_ve(data.taxes_usd, "USD")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.taxes_vef, "VEF")})</span></span>
                     </div>
                 </div>
 
@@ -329,10 +338,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-bank dg-card-icon"></i>
                     </div>
                     <div class="dg-card-value">${format_currency_ve(data.total_billed_bs, "VEF")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.total_billed_bs / data.exchange_rate, "USD")}</div>
+                    <div class="dg-card-equivalent">${format_currency_ve(data.total_billed_usd, "USD")}</div>
                     <div class="dg-card-subtext">
-                        <span>Monto bruto facturado en bolívares</span>
-                        <span>Equiv. USD: ${format_currency_ve(data.total_billed_bs / data.exchange_rate, "USD")}</span>
+                        <span>Monto Base: ${format_currency_ve(data.total_billed_bs - data.taxes_vef, "VEF")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.total_billed_usd - data.taxes_usd, "USD")})</span></span>
+                        <span>Impuesto: ${format_currency_ve(data.taxes_vef, "VEF")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.taxes_usd, "USD")})</span></span>
                     </div>
                 </div>
 
