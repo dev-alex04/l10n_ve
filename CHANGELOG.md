@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.9.0] - 2026-06-07
+
+### ✨ Funcionalidades (Features)
+- **Reestructuración del Dashboard Gerencial**: Se rediseñó la disposición de las tarjetas de métricas, moviéndolas sobre la tabla principal, y se implementó la lógica para calcular sumatorias directamente desde los datos de la tabla (1d37631, cfd8ad1).
+- **Nuevo Diseño Premium**: Actualización visual del dashboard utilizando un tema "premium slate" para mejorar la experiencia de usuario (845a520).
+- **Soporte para IGTF**: Adición de columnas y tarjetas específicas para el seguimiento del Impuesto a las Grandes Transacciones Financieras (1d37631).
+- **Plantillas de Impresión**: Incorporación de plantillas HTML personalizadas para la generación de reportes de localización (22938fa).
+- **Optimización de Exportación**: Implementación de un parche optimizado para la exportación a Excel en los módulos de contabilidad y localización venezolana (2c07f9c).
+- **Etiquetado Beta**: Inclusión de etiquetas (BETA) en los módulos de administración para identificar funciones en periodo de prueba (cfd8ad1).
+
+### 🐛 Correcciones (Fixes)
+- **Consistencia Financiera**: Alineación de los cálculos financieros entre el panel gerencial y el panel ISP para asegurar la integridad de la información (171606c).
+- **Refactor de Reportes**: Ajustes técnicos en la generación de libros contables y exportaciones a Excel basados en revisiones de calidad (c7136b2).
+- **Equivalencias de Facturación**: Corrección en el cálculo y visualización de equivalentes de facturación dentro del nuevo tema del dashboard (845a520).
+
+---
+
 ## [v1.8.0] - 2026-06-05
 
 ### ✨ Funcionalidades (Features)
