@@ -398,41 +398,8 @@ function render_premium_dashboard(frm, data) {
                 <span>Tasa de cambio de referencia (según fecha fin): <strong>1 USD = ${format_currency_ve(data.exchange_rate, "VEF")}</strong> (al ${frappe.datetime.str_to_user(frm.doc.to_date)})</span>
             </div>
 
-            <!-- SECCIÓN 1: CUADRO RESUMEN FINANCIERO POR SUCURSAL -->
-            <div class="dg-table-card">
-                <h6 class="dg-section-title" style="border: none; padding-bottom: 0; margin-bottom: 20px; margin-top: 0;">
-                    <i class="fa fa-table dg-primary-icon"></i> Resumen Financiero por Sucursal
-                    <span class="dg-help-tip" data-tooltip="Consolidado financiero del periodo por sucursal (ingresos, egresos, impuestos y utilidad neta).">?</span>
-                    <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(Valores expresados en USD y su equivalente en Bs. abajo)</span>
-                </h6>
-                <div style="overflow-x: auto;">
-                    <table class="dg-table table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Sucursal</th>
-                                <th style="text-align: right;">Por cobrar <span class="dg-help-tip" data-tooltip="Monto total de facturas que aún no tienen un número de control fiscal asignado.">?</span></th>
-                                <th style="text-align: right;">Orden de Pago <span class="dg-help-tip" data-tooltip="Sumatoria de todas las facturas de venta registradas (tanto controladas como pendientes de número de control).">?</span></th>
-                                <th style="text-align: right;">IVA Orden de Pago <span class="dg-help-tip" data-tooltip="Sumatoria del IVA de todas las facturas de venta del periodo.">?</span></th>
-                                <th style="text-align: right;">Facturado <span class="dg-help-tip" data-tooltip="Monto total de facturas que ya tienen un número de control fiscal asignado.">?</span></th>
-                                <th style="text-align: right;">IVA</th>
-                                <th style="text-align: right;">IVA desp. Retención</th>
-                                <th style="text-align: right;">Ret. IVA</th>
-                                <th style="text-align: right;">Ret. ISLR</th>
-                                <th style="text-align: right;">IGTF <span class="dg-help-tip" data-tooltip="Impuesto a las grandes transacciones financieras acumulado en el periodo.">?</span></th>
-                                <th style="text-align: right;">Disponibilidad <span class="dg-help-tip" data-tooltip="Monto disponible calculado: (Facturado - IVA) - Retención de ISLR.">?</span></th>
-                                <th style="text-align: right;">Gastos</th>
-                                <th style="text-align: right;">Utilidad <span class="dg-help-tip" data-tooltip="Utilidad neta calculada de la sucursal: Disponibilidad - Gastos.">?</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${render_branch_table_rows(data.branch_financial_summary, data.exchange_rate)}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
             <!-- SECCIÓN 2: TARJETAS DE RESUMEN (Consolidadas a partir de los totales de la tabla) -->
-            <h6 class="dg-section-title">
+            <h6 class="dg-section-title" style="margin-top: 0;">
                 <i class="fa fa-th-large" style="color: #3b82f6;"></i> Resumen
             </h6>
             
@@ -459,26 +426,6 @@ function render_premium_dashboard(frm, data) {
                     <div class="dg-card-equivalent">${get_card_vals(t_cobrar).vef}</div>
                 </div>
 
-                <!-- Orden de Pago -->
-                <div class="dg-card dg-card-blue">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Orden de Pago</span>
-                        <i class="fa fa-file-text dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${get_card_vals(t_op).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_op).vef}</div>
-                </div>
-
-                <!-- IVA Orden de Pago -->
-                <div class="dg-card dg-card-orange">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">IVA Orden de Pago</span>
-                        <i class="fa fa-percent dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${get_card_vals(t_iva_op).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_iva_op).vef}</div>
-                </div>
-
                 <!-- Facturado -->
                 <div class="dg-card dg-card-teal">
                     <div class="dg-card-header">
@@ -497,36 +444,6 @@ function render_premium_dashboard(frm, data) {
                     </div>
                     <div class="dg-card-value">${get_card_vals(t_iva).usd}</div>
                     <div class="dg-card-equivalent">${get_card_vals(t_iva).vef}</div>
-                </div>
-
-                <!-- IVA desp. Retención -->
-                <div class="dg-card dg-card-indigo">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">IVA desp. Retención</span>
-                        <i class="fa fa-shield dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${get_card_vals(t_neto).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_neto).vef}</div>
-                </div>
-
-                <!-- Ret. IVA -->
-                <div class="dg-card dg-card-purple">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Ret. IVA</span>
-                        <i class="fa fa-gavel dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${get_card_vals(t_ret_iva).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_ret_iva).vef}</div>
-                </div>
-
-                <!-- Ret. ISLR -->
-                <div class="dg-card dg-card-orange">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Ret. ISLR</span>
-                        <i class="fa fa-balance-scale dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${get_card_vals(t_ret_islr).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_ret_islr).vef}</div>
                 </div>
 
                 <!-- IGTF -->
@@ -567,6 +484,39 @@ function render_premium_dashboard(frm, data) {
                     </div>
                     <div class="dg-card-value">${get_card_vals(t_util).usd}</div>
                     <div class="dg-card-equivalent">${get_card_vals(t_util).vef}</div>
+                </div>
+            </div>
+
+            <!-- SECCIÓN 1: CUADRO RESUMEN FINANCIERO POR SUCURSAL -->
+            <div class="dg-table-card">
+                <h6 class="dg-section-title" style="border: none; padding-bottom: 0; margin-bottom: 20px; margin-top: 0;">
+                    <i class="fa fa-table dg-primary-icon"></i> Resumen Financiero por Sucursal
+                    <span class="dg-help-tip" data-tooltip="Consolidado financiero del periodo por sucursal (ingresos, egresos, impuestos y utilidad neta).">?</span>
+                    <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(Valores expresados en USD y su equivalente en Bs. abajo)</span>
+                </h6>
+                <div style="overflow-x: auto;">
+                    <table class="dg-table table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Sucursal</th>
+                                <th style="text-align: right;">Por cobrar <span class="dg-help-tip" data-tooltip="Monto total de facturas que aún no tienen un número de control fiscal asignado.">?</span></th>
+                                <th style="text-align: right;">Orden de Pago <span class="dg-help-tip" data-tooltip="Sumatoria de todas las facturas de venta registradas (tanto controladas como pendientes de número de control).">?</span></th>
+                                <th style="text-align: right;">IVA Orden de Pago <span class="dg-help-tip" data-tooltip="Sumatoria del IVA de todas las facturas de venta del periodo.">?</span></th>
+                                <th style="text-align: right;">Facturado <span class="dg-help-tip" data-tooltip="Monto total de facturas que ya tienen un número de control fiscal asignado.">?</span></th>
+                                <th style="text-align: right;">IVA</th>
+                                <th style="text-align: right;">IVA desp. Retención</th>
+                                <th style="text-align: right;">Ret. IVA</th>
+                                <th style="text-align: right;">Ret. ISLR</th>
+                                <th style="text-align: right;">IGTF <span class="dg-help-tip" data-tooltip="Impuesto a las grandes transacciones financieras acumulado en el periodo.">?</span></th>
+                                <th style="text-align: right;">Disponibilidad <span class="dg-help-tip" data-tooltip="Monto disponible calculado: (Facturado - IVA) - Retención de ISLR.">?</span></th>
+                                <th style="text-align: right;">Gastos</th>
+                                <th style="text-align: right;">Utilidad <span class="dg-help-tip" data-tooltip="Utilidad neta calculada de la sucursal: Disponibilidad - Gastos.">?</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${render_branch_table_rows(data.branch_financial_summary, data.exchange_rate)}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
