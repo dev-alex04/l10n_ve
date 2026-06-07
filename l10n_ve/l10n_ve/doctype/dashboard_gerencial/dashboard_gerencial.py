@@ -70,6 +70,9 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
 
     from_date = str(from_date)
     to_date = str(to_date)
+    
+    if getdate(from_date) > getdate(to_date):
+        frappe.throw("La Fecha de Inicio no puede ser posterior a la Fecha Fin.")
     rates_cache = {}
     from l10n_ve.utils.utils import get_exchange_rate
     rate_today = flt(get_exchange_rate(to_date, "USD")) or 1.0
@@ -338,6 +341,39 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
         """, (company, from_date, to_date), as_dict=True)
         expenses_by_branch = {r.branch: flt(r.total_spent) for r in expenses_raw if r.branch}
 
+    # Retrieve IGTF per branch
+    igtf_by_branch = {}
+    if accounts_igtf:
+        # Group by branch for Sales Invoice IGTF
+        si_igtf = frappe.db.sql("""
+            SELECT si.branch, gle.credit, gle.debit, gle.account_currency, gle.posting_date
+            FROM `tabGL Entry` gle
+            JOIN `tabSales Invoice` si ON gle.voucher_no = si.name
+            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s
+        """, (tuple(accounts_igtf), from_date, to_date), as_dict=True)
+        
+        # Group by branch for Payment Entry IGTF
+        pe_igtf = frappe.db.sql("""
+            SELECT pe.branch, gle.credit, gle.debit, gle.account_currency, gle.posting_date
+            FROM `tabGL Entry` gle
+            JOIN `tabPayment Entry` pe ON gle.voucher_no = pe.name
+            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s
+        """, (tuple(accounts_igtf), from_date, to_date), as_dict=True)
+
+        for rows in (si_igtf, pe_igtf):
+            for r in rows:
+                b = r.branch or "Sin Sucursal"
+                if b not in igtf_by_branch:
+                    igtf_by_branch[b] = 0.0
+                amount = flt(r.credit) - flt(r.debit)
+                if r.account_currency == "USD":
+                    amount_usd = amount
+                else:
+                    date_str = str(r.posting_date)
+                    rate = _get_cached_rate(date_str, rates_cache)
+                    amount_usd = amount / rate
+                igtf_by_branch[b] += amount_usd
+
     # 1. Single bulk query of all invoices of the company during the period
     all_invoices = frappe.get_all(
         "Sales Invoice",
@@ -421,6 +457,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
 
         vat_after_withholding = vat_billed - vat_withholding
         availability = (billed - vat_billed) - islr_withholding
+        igtf_val = flt(igtf_by_branch.get(b_name, 0.0))
         spent = flt(expenses_by_branch.get(b_name, 0.0)) if b_name != "Sin Sucursal" else 0.0
         profit = availability - spent
 
@@ -434,6 +471,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
             "vat_after_withholding": vat_after_withholding,
             "vat_withholding": vat_withholding,
             "islr_withholding": islr_withholding,
+            "igtf": igtf_val,
             "availability": availability,
             "spent": spent,
             "profit": profit

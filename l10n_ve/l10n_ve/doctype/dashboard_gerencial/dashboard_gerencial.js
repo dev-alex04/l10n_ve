@@ -4,7 +4,7 @@
 frappe.ui.form.on('Dashboard Gerencial', {
     onload: function(frm) {
         // Redirect to standard Single DocType route if opened as a generic new document
-        if (frm.is_new()) {
+        if (frm.is_new() && frm.doc.name !== 'Dashboard Gerencial') {
             frappe.set_route('Form', 'Dashboard Gerencial', 'Dashboard Gerencial');
             return;
         }
@@ -22,6 +22,15 @@ frappe.ui.form.on('Dashboard Gerencial', {
         // Set default company
         if (!frm.doc.company) {
             frm.doc.company = frappe.defaults.get_user_default('company');
+            changed = true;
+        }
+        // Always clear branch and cost center filters on initial page load to show consolidated data
+        if (frm.doc.branch) {
+            frm.doc.branch = '';
+            changed = true;
+        }
+        if (frm.doc.cost_center) {
+            frm.doc.cost_center = '';
             changed = true;
         }
         if (changed) {
@@ -84,9 +93,23 @@ frappe.ui.form.on('Dashboard Gerencial', {
     },
 
     render_dashboard: function(frm) {
-        if (!frm.fields_dict.dashboard_html || !frm.fields_dict.dashboard_html.$wrapper) {
+        if (!frm.fields_dict.dashboard_html) {
             return;
         }
+
+        if (!frm.fields_dict.dashboard_html.$wrapper) {
+            if (!frm.render_retry_count) {
+                frm.render_retry_count = 0;
+            }
+            if (frm.render_retry_count < 10) {
+                frm.render_retry_count++;
+                setTimeout(() => {
+                    frm.trigger('render_dashboard');
+                }, 100);
+            }
+            return;
+        }
+        frm.render_retry_count = 0; // Reset count on success
 
         if (!frm.doc.company || !frm.doc.from_date || !frm.doc.to_date) {
             frm.fields_dict.dashboard_html.$wrapper.html(`
@@ -95,6 +118,22 @@ frappe.ui.form.on('Dashboard Gerencial', {
                     <p>Por favor seleccione los filtros obligatorios (Empresa, Fecha Inicio y Fecha Fin) para mostrar el panel.</p>
                 </div>
             `);
+            return;
+        }
+
+        // Validación: fecha inicio no puede ser posterior a fecha fin
+        if (frm.doc.from_date > frm.doc.to_date) {
+            frm.fields_dict.dashboard_html.$wrapper.html(`
+                <div style="padding: 40px; text-align: center; color: var(--red-500); font-size: 14px;">
+                    <i class="fa fa-exclamation-triangle fa-2x" style="margin-bottom: 10px;"></i>
+                    <p>Error: La Fecha de Inicio no puede ser posterior a la Fecha Fin.</p>
+                </div>
+            `);
+            frappe.msgprint({
+                title: __('Rango de Fechas Inválido'),
+                indicator: 'red',
+                message: __('La Fecha de Inicio no puede ser posterior a la Fecha Fin.')
+            });
             return;
         }
 
@@ -144,6 +183,36 @@ function format_currency_ve(val, currency = "USD") {
 }
 
 function render_premium_dashboard(frm, data) {
+    if (!frm.fields_dict.dashboard_html || !frm.fields_dict.dashboard_html.$wrapper) {
+        return;
+    }
+
+    const rate = data.exchange_rate || 1.0;
+
+    // Calculate sums from table rows to drive both the table totals and the summary cards
+    let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_igtf = 0, t_disp = 0, t_spent = 0, t_util = 0;
+    (data.branch_financial_summary || []).forEach(r => {
+        t_cobrar += r.pending_to_collect || 0;
+        t_op += r.payment_order || 0;
+        t_iva_op += r.payment_order_vat || 0;
+        t_fact += r.billed || 0;
+        t_iva += r.vat || 0;
+        t_neto += r.vat_after_withholding || 0;
+        t_ret_iva += r.vat_withholding || 0;
+        t_ret_islr += r.islr_withholding || 0;
+        t_igtf += r.igtf || 0;
+        t_disp += r.availability || 0;
+        t_spent += r.spent || 0;
+        t_util += r.profit || 0;
+    });
+
+    const get_card_vals = (usd_val) => {
+        return {
+            usd: format_currency_ve(usd_val, "USD"),
+            vef: format_currency_ve(usd_val * rate, "VEF")
+        };
+    };
+
     const html = `
         <div class="dashboard-gerencial-container">
             <style>
@@ -170,21 +239,21 @@ function render_premium_dashboard(frm, data) {
                 }
                 .dg-card-grid {
                     display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-                    gap: 20px;
+                    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                    gap: 16px;
                     margin-bottom: 35px;
                 }
                 .dg-card {
                     background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
                     border: 1px solid #334155 !important;
                     border-radius: 12px;
-                    padding: 24px;
+                    padding: 18px;
                     position: relative;
                     overflow: hidden;
                     display: flex;
                     flex-direction: column;
                     justify-content: space-between;
-                    min-height: 180px;
+                    min-height: 130px;
                     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -1px rgba(0,0,0,0.1);
                     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
                 }
@@ -197,52 +266,42 @@ function render_premium_dashboard(frm, data) {
                     display: flex;
                     justify-content: space-between;
                     align-items: flex-start;
-                    margin-bottom: 8px;
+                    margin-bottom: 4px;
                 }
                 .dg-card-title {
-                    font-size: 11px;
+                    font-size: 10.5px;
                     text-transform: uppercase;
                     letter-spacing: 0.8px;
                     font-weight: 700;
                     color: #94a3b8 !important;
                 }
                 .dg-card-icon {
-                    font-size: 36px !important;
+                    font-size: 28px !important;
                     opacity: 0.12;
                     position: absolute;
-                    right: 20px;
-                    top: 20px;
+                    right: 15px;
+                    top: 15px;
                     color: #ffffff !important;
                 }
                 .dg-card-value {
-                    font-size: 30px !important;
+                    font-size: 22px !important;
                     font-weight: 800 !important;
-                    margin: 8px 0 0 0;
+                    margin: 4px 0 0 0;
                     letter-spacing: -0.5px;
                     color: #ffffff !important;
                 }
                 .dg-card-equivalent {
-                    font-size: 15px !important;
+                    font-size: 13.5px !important;
                     font-weight: 600 !important;
-                    color: #3b82f6 !important;
                     margin-top: 2px;
-                    margin-bottom: 8px;
-                }
-                .dg-card-green .dg-card-equivalent, .dg-card-deepgreen .dg-card-equivalent {
-                    color: #10b981 !important;
-                }
-                .dg-card-red .dg-card-equivalent, .dg-card-pink .dg-card-equivalent {
-                    color: #ef4444 !important;
+                    margin-bottom: 4px;
                 }
                 .dg-card-subtext {
-                    font-size: 12px;
+                    font-size: 11px;
                     color: #94a3b8 !important;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 3px;
                     border-top: 1px solid rgba(255, 255, 255, 0.08);
-                    padding-top: 8px;
-                    margin-top: 6px;
+                    padding-top: 6px;
+                    margin-top: 4px;
                 }
                 
                 /* Premium Card Border Accents (Slate background for all) */
@@ -256,6 +315,13 @@ function render_premium_dashboard(frm, data) {
                 .dg-card-pink { border-top: 4px solid #ec4899 !important; }
                 .dg-card-indigo { border-top: 4px solid #6366f1 !important; }
                 .dg-card-deepgreen { border-top: 4px solid #059669 !important; }
+                
+                .dg-card-green .dg-card-equivalent, .dg-card-deepgreen .dg-card-equivalent { color: #10b981 !important; }
+                .dg-card-red .dg-card-equivalent, .dg-card-pink .dg-card-equivalent { color: #ef4444 !important; }
+                .dg-card-blue .dg-card-equivalent, .dg-card-teal .dg-card-equivalent { color: #3b82f6 !important; }
+                .dg-card-orange .dg-card-equivalent { color: #f97316 !important; }
+                .dg-card-purple .dg-card-equivalent, .dg-card-indigo .dg-card-equivalent { color: #8b5cf6 !important; }
+                .dg-card-grey .dg-card-equivalent { color: #94a3b8 !important; }
                 
                 .dg-section-title {
                     font-size: 16px;
@@ -305,213 +371,38 @@ function render_premium_dashboard(frm, data) {
                     font-size: 11px;
                     font-weight: 600;
                 }
+                .dg-help-tip {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 50%;
+                    background-color: rgba(255, 255, 255, 0.15);
+                    color: #cbd5e0;
+                    font-size: 9.5px;
+                    font-weight: bold;
+                    cursor: help;
+                    margin-left: 5px;
+                    vertical-align: middle;
+                    transition: all 0.2s ease;
+                }
+                .dg-help-tip:hover {
+                    background-color: #3b82f6;
+                    color: #ffffff;
+                }
             </style>
-
+            
             <div class="dg-exchange-rate-banner">
                 <i class="fa fa-info-circle"></i>
-                <span>Tasa de cambio de referencia: <strong>1 USD = ${format_currency_ve(data.exchange_rate, "VEF")}</strong> (al ${frappe.datetime.str_to_user(frm.doc.to_date)})</span>
+                <span>Tasa de cambio de referencia (según fecha fin): <strong>1 USD = ${format_currency_ve(data.exchange_rate, "VEF")}</strong> (al ${frappe.datetime.str_to_user(frm.doc.to_date)})</span>
             </div>
 
-            <!-- SECCIÓN 1: FACTURACIÓN Y VENTAS -->
-            <h6 class="dg-section-title">
-                <i class="fa fa-shopping-cart" style="color: #3b82f6;"></i> Facturación y Ventas
-            </h6>
-            <div class="dg-card-grid">
-                <!-- Total Facturado USD -->
-                <div class="dg-card dg-card-blue">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Total Facturado USD</span>
-                        <i class="fa fa-dollar dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.total_billed_usd, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.total_billed_bs, "VEF")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Monto Base: ${format_currency_ve(data.total_billed_usd - data.taxes_usd, "USD")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.total_billed_bs - data.taxes_vef, "VEF")})</span></span>
-                        <span>Impuesto: ${format_currency_ve(data.taxes_usd, "USD")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.taxes_vef, "VEF")})</span></span>
-                    </div>
-                </div>
-
-                <!-- Total Facturado BS -->
-                <div class="dg-card dg-card-grey">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Total Facturado BS</span>
-                        <i class="fa fa-bank dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.total_billed_bs, "VEF")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.total_billed_usd, "USD")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Monto Base: ${format_currency_ve(data.total_billed_bs - data.taxes_vef, "VEF")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.total_billed_usd - data.taxes_usd, "USD")})</span></span>
-                        <span>Impuesto: ${format_currency_ve(data.taxes_vef, "VEF")} <span style="opacity: 0.8; font-size: 11px;">(${format_currency_ve(data.taxes_usd, "USD")})</span></span>
-                    </div>
-                </div>
-
-                <!-- Cantidad de Ventas -->
-                <div class="dg-card dg-card-purple">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Cantidad de ventas</span>
-                        <i class="fa fa-shopping-bag dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${data.sales_count}</div>
-                    <div class="dg-card-subtext">
-                        <span>Facturas emitidas en el periodo</span>
-                    </div>
-                </div>
-
-                <!-- USD Facturas de Venta -->
-                <div class="dg-card dg-card-teal">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">USD Facturas de venta</span>
-                        <i class="fa fa-file-text dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${data.usd_sales_invoices_count}</div>
-                    <div class="dg-card-subtext">
-                        <span>Facturas emitidas nativas en USD</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SECCIÓN 2: COBROS, IMPUESTOS Y RETENCIONES -->
-            <h6 class="dg-section-title">
-                <i class="fa fa-shield" style="color: #38a169;"></i> Cobros, Impuestos y Retenciones
-            </h6>
-            <div class="dg-card-grid">
-                <!-- Cobrado VEF -->
-                <div class="dg-card dg-card-green">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Total Cobrado Bs</span>
-                        <i class="fa fa-arrow-up dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.collected_amount, "VEF")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.collected_amount / data.exchange_rate, "USD")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Recaudación real cobrada en bolívares</span>
-                        <span>Equiv. USD: ${format_currency_ve(data.collected_amount / data.exchange_rate, "USD")}</span>
-                    </div>
-                </div>
-
-                <!-- Pendiente por Cobrar USD -->
-                <div class="dg-card dg-card-red">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Pendiente por Cobrar</span>
-                        <i class="fa fa-exclamation-circle dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.pending_to_collect_usd, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.pending_to_collect_usd * data.exchange_rate, "VEF")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Cuentas por cobrar (A/R) en USD</span>
-                        <span>Equiv. Bs: ${format_currency_ve(data.pending_to_collect_usd * data.exchange_rate, "VEF")}</span>
-                    </div>
-                </div>
-
-                <!-- Impuestos USD -->
-                <div class="dg-card dg-card-orange">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Impuestos USD</span>
-                        <i class="fa fa-percent dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.taxes_usd, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.taxes_usd * data.exchange_rate, "VEF")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Débito fiscal (IVA) estimado en USD</span>
-                        <span>Equiv. Bs: ${format_currency_ve(data.taxes_usd * data.exchange_rate, "VEF")}</span>
-                    </div>
-                </div>
-
-                <!-- Retención IVA Clientes -->
-                <div class="dg-card dg-card-teal">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Retención IVA Clientes</span>
-                        <i class="fa fa-gavel dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.client_vat_withholding_usd, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.client_vat_withholding_usd * data.exchange_rate, "VEF")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Anticipos de IVA retenidos por clientes</span>
-                        <span>Equiv. Bs: ${format_currency_ve(data.client_vat_withholding_usd * data.exchange_rate, "VEF")}</span>
-                    </div>
-                </div>
-
-                <!-- Retención ISLR Clientes -->
-                <div class="dg-card dg-card-orange">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Retención ISLR Clientes</span>
-                        <i class="fa fa-balance-scale dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.client_islr_withholding_usd, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.client_islr_withholding_usd * data.exchange_rate, "VEF")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Anticipos de ISLR retenidos por clientes</span>
-                        <span>Equiv. Bs: ${format_currency_ve(data.client_islr_withholding_usd * data.exchange_rate, "VEF")}</span>
-                    </div>
-                </div>
-
-                <!-- IGTF por Pagar USD -->
-                <div class="dg-card dg-card-red">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">IGTF por Pagar USD</span>
-                        <i class="fa fa-university dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.igtf_payable_usd, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.igtf_payable_usd * data.exchange_rate, "VEF")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Impuesto a grandes transacciones financieras</span>
-                        <span>Equiv. Bs: ${format_currency_ve(data.igtf_payable_usd * data.exchange_rate, "VEF")}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SECCIÓN 3: CAJA, EGRESOS Y DISPONIBILIDAD -->
-            <h6 class="dg-section-title">
-                <i class="fa fa-piggy-bank" style="color: #dd6b20;"></i> Caja, Egresos y Disponibilidad
-            </h6>
-            <div class="dg-card-grid">
-                <!-- Gastos USD (Mes) -->
-                <div class="dg-card dg-card-pink">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Gastos USD (Mes)</span>
-                        <i class="fa fa-arrow-down dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.expenses_usd_month, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.expenses_usd_month * data.exchange_rate, "VEF")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Egresos acumulados en el periodo</span>
-                        <span>Equiv. Bs: ${format_currency_ve(data.expenses_usd_month * data.exchange_rate, "VEF")}</span>
-                    </div>
-                </div>
-
-                <!-- Gastos USD (Año) -->
-                <div class="dg-card dg-card-indigo">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Gastos USD (Año)</span>
-                        <i class="fa fa-calendar dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.expenses_usd_year, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.expenses_usd_year * data.exchange_rate, "VEF")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Egresos del año fiscal corriente</span>
-                        <span>Equiv. Bs: ${format_currency_ve(data.expenses_usd_year * data.exchange_rate, "VEF")}</span>
-                    </div>
-                </div>
-
-                <!-- Disponible USD -->
-                <div class="dg-card dg-card-deepgreen">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Disponible USD</span>
-                        <i class="fa fa-check-circle dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${format_currency_ve(data.available_usd, "USD")}</div>
-                    <div class="dg-card-equivalent">${format_currency_ve(data.available_usd * data.exchange_rate, "VEF")}</div>
-                    <div class="dg-card-subtext">
-                        <span>Fondos consolidados en Cajas y Bancos USD</span>
-                        <span>Equiv. Bs: ${format_currency_ve(data.available_usd * data.exchange_rate, "VEF")}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SECCIÓN 4: TABLA RESUMEN FINANCIERO POR SUCURSAL -->
+            <!-- SECCIÓN 1: CUADRO RESUMEN FINANCIERO POR SUCURSAL -->
             <div class="dg-table-card">
-                <h6 class="dg-section-title" style="border: none; padding-bottom: 0; margin-bottom: 20px;">
+                <h6 class="dg-section-title" style="border: none; padding-bottom: 0; margin-bottom: 20px; margin-top: 0;">
                     <i class="fa fa-table dg-primary-icon"></i> Resumen Financiero por Sucursal
+                    <span class="dg-help-tip" data-tooltip="Consolidado financiero del periodo por sucursal (ingresos, egresos, impuestos y utilidad neta).">?</span>
                     <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(Valores expresados en USD y su equivalente en Bs. abajo)</span>
                 </h6>
                 <div style="overflow-x: auto;">
@@ -519,17 +410,18 @@ function render_premium_dashboard(frm, data) {
                         <thead>
                             <tr>
                                 <th>Sucursal</th>
-                                <th style="text-align: right;">Por cobrar</th>
-                                <th style="text-align: right;">Orden de Pago</th>
-                                <th style="text-align: right;">IVA Orden de Pago</th>
-                                <th style="text-align: right;">Facturado</th>
+                                <th style="text-align: right;">Por cobrar <span class="dg-help-tip" data-tooltip="Monto total de facturas que aún no tienen un número de control fiscal asignado.">?</span></th>
+                                <th style="text-align: right;">Orden de Pago <span class="dg-help-tip" data-tooltip="Sumatoria de todas las facturas de venta registradas (tanto controladas como pendientes de número de control).">?</span></th>
+                                <th style="text-align: right;">IVA Orden de Pago <span class="dg-help-tip" data-tooltip="Sumatoria del IVA de todas las facturas de venta del periodo.">?</span></th>
+                                <th style="text-align: right;">Facturado <span class="dg-help-tip" data-tooltip="Monto total de facturas que ya tienen un número de control fiscal asignado.">?</span></th>
                                 <th style="text-align: right;">IVA</th>
                                 <th style="text-align: right;">IVA desp. Retención</th>
                                 <th style="text-align: right;">Ret. IVA</th>
                                 <th style="text-align: right;">Ret. ISLR</th>
-                                <th style="text-align: right;">Disponibilidad</th>
+                                <th style="text-align: right;">IGTF <span class="dg-help-tip" data-tooltip="Impuesto a las grandes transacciones financieras acumulado en el periodo.">?</span></th>
+                                <th style="text-align: right;">Disponibilidad <span class="dg-help-tip" data-tooltip="Monto disponible calculado: (Facturado - IVA) - Retención de ISLR.">?</span></th>
                                 <th style="text-align: right;">Gastos</th>
-                                <th style="text-align: right;">Utilidad</th>
+                                <th style="text-align: right;">Utilidad <span class="dg-help-tip" data-tooltip="Utilidad neta calculada de la sucursal: Disponibilidad - Gastos.">?</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -538,15 +430,209 @@ function render_premium_dashboard(frm, data) {
                     </table>
                 </div>
             </div>
+
+            <!-- SECCIÓN 2: TARJETAS DE RESUMEN (Consolidadas a partir de los totales de la tabla) -->
+            <h6 class="dg-section-title">
+                <i class="fa fa-th-large" style="color: #3b82f6;"></i> Resumen
+            </h6>
+            
+            <div class="dg-card-grid">
+                <!-- Cantidad de Ventas -->
+                <div id="dg-sales-count-card" class="dg-card dg-card-purple" style="cursor: pointer;">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">Cantidad de ventas</span>
+                        <i class="fa fa-shopping-bag dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${data.sales_count}</div>
+                    <div class="dg-card-subtext">
+                        <span>Facturas emitidas en el periodo seleccionado</span>
+                    </div>
+                </div>
+
+                <!-- Por cobrar -->
+                <div class="dg-card dg-card-grey">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">Por cobrar</span>
+                        <i class="fa fa-clock-o dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_cobrar).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_cobrar).vef}</div>
+                </div>
+
+                <!-- Orden de Pago -->
+                <div class="dg-card dg-card-blue">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">Orden de Pago</span>
+                        <i class="fa fa-file-text dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_op).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_op).vef}</div>
+                </div>
+
+                <!-- IVA Orden de Pago -->
+                <div class="dg-card dg-card-orange">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">IVA Orden de Pago</span>
+                        <i class="fa fa-percent dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_iva_op).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_iva_op).vef}</div>
+                </div>
+
+                <!-- Facturado -->
+                <div class="dg-card dg-card-teal">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">Facturado</span>
+                        <i class="fa fa-dollar dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_fact).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_fact).vef}</div>
+                </div>
+
+                <!-- IVA -->
+                <div class="dg-card dg-card-orange">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">IVA</span>
+                        <i class="fa fa-percent dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_iva).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_iva).vef}</div>
+                </div>
+
+                <!-- IVA desp. Retención -->
+                <div class="dg-card dg-card-indigo">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">IVA desp. Retención</span>
+                        <i class="fa fa-shield dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_neto).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_neto).vef}</div>
+                </div>
+
+                <!-- Ret. IVA -->
+                <div class="dg-card dg-card-purple">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">Ret. IVA</span>
+                        <i class="fa fa-gavel dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_ret_iva).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_ret_iva).vef}</div>
+                </div>
+
+                <!-- Ret. ISLR -->
+                <div class="dg-card dg-card-orange">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">Ret. ISLR</span>
+                        <i class="fa fa-balance-scale dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_ret_islr).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_ret_islr).vef}</div>
+                </div>
+
+                <!-- IGTF -->
+                <div class="dg-card dg-card-red">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">IGTF</span>
+                        <i class="fa fa-university dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_igtf).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_igtf).vef}</div>
+                </div>
+
+                <!-- Disponibilidad -->
+                <div class="dg-card dg-card-green">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">Disponibilidad</span>
+                        <i class="fa fa-check-circle dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_disp).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_disp).vef}</div>
+                </div>
+
+                <!-- Gastos -->
+                <div class="dg-card dg-card-pink">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">Gastos</span>
+                        <i class="fa fa-arrow-down dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_spent).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_spent).vef}</div>
+                </div>
+
+                <!-- Utilidad -->
+                <div class="dg-card dg-card-deepgreen">
+                    <div class="dg-card-header">
+                        <span class="dg-card-title">Utilidad</span>
+                        <i class="fa fa-line-chart dg-card-icon"></i>
+                    </div>
+                    <div class="dg-card-value">${get_card_vals(t_util).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_util).vef}</div>
+                </div>
+            </div>
         </div>
     `;
 
     frm.fields_dict.dashboard_html.$wrapper.html(html);
+
+    // Bind clean jQuery click event to navigate to Sales Invoices list view
+    frm.fields_dict.dashboard_html.$wrapper.find('#dg-sales-count-card').on('click', function() {
+        const filters = {
+            docstatus: 1,
+            company: frm.doc.company,
+            posting_date: ['between', [frm.doc.from_date, frm.doc.to_date]]
+        };
+        if (frm.doc.branch) {
+            filters.branch = frm.doc.branch;
+        }
+        frappe.set_route('List', 'Sales Invoice', filters);
+    });
+
+    // Create or locate the global tooltip element at the body level (immune to overflow: auto clipping)
+    if ($('#dg-tooltip-container').length === 0) {
+        $('body').append(`
+            <div id="dg-tooltip-container" style="
+                position: absolute;
+                display: none;
+                background: #0f172a;
+                color: #f1f5f9;
+                border: 1px solid #475569;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 11.5px;
+                max-width: 250px;
+                z-index: 999999;
+                box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
+                pointer-events: none;
+                line-height: 1.4;
+                font-family: sans-serif;
+            "></div>
+        `);
+    }
+
+    // Bind clean tooltip events using event delegation/direct mapping on the dashboard wrapper
+    const $tooltip = $('#dg-tooltip-container');
+    frm.fields_dict.dashboard_html.$wrapper.find('.dg-help-tip').on('mouseenter', function(e) {
+        const text = $(this).attr('data-tooltip');
+        if (!text) return;
+
+        $tooltip.text(text).show();
+
+        const offset = $(this).offset();
+        const width = $tooltip.outerWidth();
+        const height = $tooltip.outerHeight();
+
+        $tooltip.css({
+            top: (offset.top - height - 8) + 'px',
+            left: (offset.left - (width / 2) + ($(this).outerWidth() / 2)) + 'px'
+        });
+    }).on('mouseleave', function() {
+        $tooltip.hide();
+    });
 }
 
 function render_branch_table_rows(rows, exchange_rate) {
     if (!rows || rows.length === 0) {
-        return `<tr><td colspan="12" class="text-center" style="padding: 20px; color: var(--text-muted);">No se encontraron registros financieros para las sucursales.</td></tr>`;
+        return `<tr><td colspan="13" class="text-center" style="padding: 20px; color: var(--text-muted);">No se encontraron registros financieros para las sucursales.</td></tr>`;
     }
 
     const rate = exchange_rate || 1.0;
@@ -556,20 +642,21 @@ function render_branch_table_rows(rows, exchange_rate) {
         return `<div>${usd_str}</div><div style="font-size: 10.5px; color: #a0aec0; font-weight: normal; margin-top: 2px;">${bs_str}</div>`;
     };
 
-    let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_disp = 0, t_spent = 0, t_util = 0;
+    let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_igtf = 0, t_disp = 0, t_spent = 0, t_util = 0;
 
     let rows_html = rows.map(r => {
-        t_cobrar += r.pending_to_collect;
-        t_op += r.payment_order;
-        t_iva_op += r.payment_order_vat;
-        t_fact += r.billed;
-        t_iva += r.vat;
-        t_neto += r.vat_after_withholding;
-        t_ret_iva += r.vat_withholding;
-        t_ret_islr += r.islr_withholding;
-        t_disp += r.availability;
-        t_spent += r.spent;
-        t_util += r.profit;
+        t_cobrar += r.pending_to_collect || 0;
+        t_op += r.payment_order || 0;
+        t_iva_op += r.payment_order_vat || 0;
+        t_fact += r.billed || 0;
+        t_iva += r.vat || 0;
+        t_neto += r.vat_after_withholding || 0;
+        t_ret_iva += r.vat_withholding || 0;
+        t_ret_islr += r.islr_withholding || 0;
+        t_igtf += r.igtf || 0;
+        t_disp += r.availability || 0;
+        t_spent += r.spent || 0;
+        t_util += r.profit || 0;
 
         return `
             <tr>
@@ -582,6 +669,7 @@ function render_branch_table_rows(rows, exchange_rate) {
                 <td style="text-align: right; font-weight: 600;">${format_table_cell(r.vat_after_withholding, rate)}</td>
                 <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_table_cell(r.vat_withholding, rate)}</td>
                 <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.islr_withholding, rate)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.igtf, rate)}</td>
                 <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.availability, rate)}</td>
                 <td style="text-align: right; font-weight: 600; color: #ef4444;">${format_table_cell(r.spent, rate)}</td>
                 <td style="text-align: right; font-weight: 700; color: ${r.profit >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.profit, rate)}</td>
@@ -601,6 +689,7 @@ function render_branch_table_rows(rows, exchange_rate) {
             <td style="text-align: right;">${format_table_cell(t_neto, rate)}</td>
             <td style="text-align: right; color: #8b5cf6;">${format_table_cell(t_ret_iva, rate)}</td>
             <td style="text-align: right;">${format_table_cell(t_ret_islr, rate)}</td>
+            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_igtf, rate)}</td>
             <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_disp, rate)}</td>
             <td style="text-align: right; color: #ef4444;">${format_table_cell(t_spent, rate)}</td>
             <td style="text-align: right; color: ${t_util >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_util, rate)}</td>
