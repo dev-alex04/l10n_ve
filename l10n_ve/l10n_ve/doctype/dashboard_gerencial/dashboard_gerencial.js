@@ -508,7 +508,9 @@ function render_premium_dashboard(frm, data) {
                                 <th style="text-align: right;">Ret. IVA</th>
                                 <th style="text-align: right;">Ret. ISLR</th>
                                 <th style="text-align: right;">IGTF <span class="dg-help-tip" data-tooltip="Impuesto a las grandes transacciones financieras acumulado en el periodo.">?</span></th>
-                                <th style="text-align: right;">Disponibilidad <span class="dg-help-tip" data-tooltip="Monto disponible calculado: (Facturado - IVA) - Retención de ISLR.">?</span></th>
+                                <th style="text-align: right;">Ganancia Cambiaria <span class="dg-help-tip" data-tooltip="Ganancia por diferencial cambiario asociada a las facturas del período.">?</span></th>
+                                <th style="text-align: right;">Pérdida Cambiaria <span class="dg-help-tip" data-tooltip="Pérdida por diferencial cambiario asociada a las facturas del período.">?</span></th>
+                                <th style="text-align: right;">Disponibilidad <span class="dg-help-tip" data-tooltip="Monto disponible calculado: (Facturado - IVA) - Retención de ISLR - Pérdida Cambiaria + Ganancia Cambiaria.">?</span></th>
                                 <th style="text-align: right;">Gastos</th>
                                 <th style="text-align: right;">Utilidad <span class="dg-help-tip" data-tooltip="Utilidad neta calculada de la sucursal: Disponibilidad - Gastos.">?</span></th>
                             </tr>
@@ -592,7 +594,7 @@ function render_branch_table_rows(rows, exchange_rate) {
         return `<div>${usd_str}</div><div style="font-size: 10.5px; color: #a0aec0; font-weight: normal; margin-top: 2px;">${bs_str}</div>`;
     };
 
-    let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_igtf = 0, t_disp = 0, t_spent = 0, t_util = 0;
+    let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_igtf = 0, t_ganancia = 0, t_perdida = 0, t_disp = 0, t_spent = 0, t_util = 0;
 
     let rows_html = rows.map(r => {
         t_cobrar += r.pending_to_collect || 0;
@@ -604,6 +606,8 @@ function render_branch_table_rows(rows, exchange_rate) {
         t_ret_iva += r.vat_withholding || 0;
         t_ret_islr += r.islr_withholding || 0;
         t_igtf += r.igtf || 0;
+        t_ganancia += r.ganancia || 0;
+        t_perdida += r.perdida || 0;
         t_disp += r.availability || 0;
         t_spent += r.spent || 0;
         t_util += r.profit || 0;
@@ -620,6 +624,8 @@ function render_branch_table_rows(rows, exchange_rate) {
                 <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_table_cell(r.vat_withholding, rate)}</td>
                 <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.islr_withholding, rate)}</td>
                 <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.igtf, rate)}</td>
+                <td style="text-align: right; color: ${(r.ganancia || 0) > 0 ? '#10b981' : 'var(--text-muted)'};">${format_table_cell(r.ganancia, rate)}</td>
+                <td style="text-align: right; color: ${(r.perdida || 0) > 0 ? '#ef4444' : 'var(--text-muted)'};">${format_table_cell(r.perdida, rate)}</td>
                 <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.availability, rate)}</td>
                 <td style="text-align: right; font-weight: 600; color: #ef4444;">${format_table_cell(r.spent, rate)}</td>
                 <td style="text-align: right; font-weight: 700; color: ${r.profit >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.profit, rate)}</td>
@@ -640,6 +646,8 @@ function render_branch_table_rows(rows, exchange_rate) {
             <td style="text-align: right; color: #8b5cf6;">${format_table_cell(t_ret_iva, rate)}</td>
             <td style="text-align: right;">${format_table_cell(t_ret_islr, rate)}</td>
             <td style="text-align: right; color: #ef4444;">${format_table_cell(t_igtf, rate)}</td>
+            <td style="text-align: right; color: #10b981;">${format_table_cell(t_ganancia, rate)}</td>
+            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_perdida, rate)}</td>
             <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_disp, rate)}</td>
             <td style="text-align: right; color: #ef4444;">${format_table_cell(t_spent, rate)}</td>
             <td style="text-align: right; color: ${t_util >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_util, rate)}</td>
