@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.10.0] - 2026-06-07
+
+### ✨ Funcionalidades (Features)
+- Implementación de reporte gerencial jerárquico en moneda local (bolívares) e integración de zona HKA vinculada a la dirección para la localización de Venezuela (l10n_ve).
+- Mejora en la interfaz y usabilidad de la vista de lista de impuestos municipales.
+
+### 🐛 Correcciones (Fixes)
+- Corrección de seguridad en el Dashboard: se restringió la visualización de IGTF, FX y Gastos aplicando un filtrado estricto por sucursal permitida para el usuario.
+
+---
+
 ## [v1.9.0] - 2026-06-07
 
 ### ✨ Funcionalidades (Features)
