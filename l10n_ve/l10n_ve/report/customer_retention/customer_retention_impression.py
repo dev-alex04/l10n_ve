@@ -6,7 +6,7 @@ import io
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from frappe.utils import formatdate, nowdate, flt
-from frappe.utils.pdf import get_pdf
+from l10n_ve.utils.pdf_utils import safe_get_pdf
 
 from l10n_ve.l10n_ve.report.customer_retention.customer_retention import get_columns, get_data
 
@@ -228,7 +228,7 @@ def get_customer_retention_pdf(filters=None):
     </html>
     """
 
-    pdf = get_pdf(html_content)
+    pdf = safe_get_pdf(html_content)
 
     frappe.response['filename'] = 'Retencion_Clientes.pdf'
     frappe.response['filecontent'] = pdf
