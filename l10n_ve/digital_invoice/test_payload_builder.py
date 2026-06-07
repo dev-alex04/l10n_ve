@@ -2,8 +2,13 @@ import unittest
 from unittest.mock import patch
 
 import frappe
-from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
+from l10n_ve.digital_invoice.payload_builder import (
+    TFHKAPayloadBuilder,
+    resolve_zone_from_address,
+)
 from l10n_ve.tests.helpers import MockDoc
+
+_PB = "l10n_ve.digital_invoice.payload_builder"
 
 
 def _make_base_doc(**overrides) -> MockDoc:
@@ -264,6 +269,46 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
         self.assertEqual(len(formas), 1)
         self.assertEqual(formas[0]["monto"], "116.00")
 
+    # ── Resolución de Zona/Nodo (sin mockear _resolve_zona_and_nodo) ──
+
+    def test_resolve_zone_uses_territory_when_present(self):
+        """Con territory en el Customer, se usa ese valor y no se invoca el fallback."""
+        customer = frappe._dict({"territory": "Zona Test", "internet_services": []})
+        with self._COMMON_PATCHES["get_cached_value"]:
+            builder = TFHKAPayloadBuilder(
+                _make_base_doc(subscription=None), series_doc=_make_series_doc()
+            )
+        with patch(f"{_PB}.frappe.get_cached_doc", return_value=customer), \
+             patch(f"{_PB}.resolve_zone_from_address") as m_fallback:
+            zone, _node = builder._resolve_zona_and_nodo()
+        self.assertEqual(zone, "Zona Test")
+        m_fallback.assert_not_called()
+
+    def test_resolve_zone_falls_back_to_municipality(self):
+        """Sin territory, la Zona cae al municipio vía resolve_zone_from_address."""
+        customer = frappe._dict({"territory": "", "internet_services": []})
+        with self._COMMON_PATCHES["get_cached_value"]:
+            builder = TFHKAPayloadBuilder(
+                _make_base_doc(subscription=None), series_doc=_make_series_doc()
+            )
+        with patch(f"{_PB}.frappe.get_cached_doc", return_value=customer), \
+             patch(f"{_PB}.resolve_zone_from_address", return_value="Libertador") as m_fallback:
+            zone, _node = builder._resolve_zona_and_nodo()
+        self.assertEqual(zone, "Libertador")
+        m_fallback.assert_called_once()
+
+    def test_empty_zone_without_municipality_raises(self):
+        """Sin territory ni municipio, la validación lanza el throw de Zona (genera el log de error)."""
+        with self._COMMON_PATCHES["get_cached_value"]:
+            builder = TFHKAPayloadBuilder(
+                _make_base_doc(conversion_rate=0, subscription=None),
+                series_doc=_make_series_doc(),
+            )
+        builder.zona = None
+        builder.nodo = "NODO-01"
+        with self.assertRaisesRegex(frappe.ValidationError, "Zona"):
+            builder._build_info_adicional()
+
     # ── Parse Tax ID (estáticos, sin patches) ─────────────────────
 
     def test_parse_tax_id_con_guion(self):
@@ -289,3 +334,44 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
         tipo, num = TFHKAPayloadBuilder._parse_tax_id("G-20000001-0")
         self.assertEqual(tipo, "G")
         self.assertEqual(num, "200000010")
+
+
+class TestResolveZoneFromAddress(unittest.TestCase):
+    """Tests del fallback de Zona: municipio (legible) de la dirección del cliente."""
+
+    _PATH = "l10n_ve.digital_invoice.payload_builder.frappe"
+
+    def test_with_customer_address_returns_readable_municipality(self):
+        """Con customer_address explícito: parish → municipality → nombre legible."""
+        with patch(f"{self._PATH}.get_cached_value",
+                   side_effect=["VE-PARISH-hash", "VE-MUNI-hash", "Libertador"]):
+            zone = resolve_zone_from_address("Customer A", "ADDR-001")
+        self.assertEqual(zone, "Libertador")
+
+    def test_without_customer_address_uses_billing_address(self):
+        """Sin customer_address: busca el Billing Address del Customer vía SQL."""
+        with patch(f"{self._PATH}.db.sql", return_value=[["ADDR-BILL"]]) as m_sql, \
+             patch(f"{self._PATH}.get_cached_value",
+                   side_effect=["VE-PARISH", "VE-MUNI", "Chacao"]):
+            zone = resolve_zone_from_address("Customer A", None)
+        self.assertEqual(zone, "Chacao")
+        m_sql.assert_called_once()
+
+    def test_without_billing_address_returns_none(self):
+        """Sin customer_address y sin Billing Address → None (mantiene el throw aguas arriba)."""
+        with patch(f"{self._PATH}.db.sql", return_value=[]):
+            zone = resolve_zone_from_address("Customer A", None)
+        self.assertIsNone(zone)
+
+    def test_without_parish_returns_none(self):
+        """Dirección sin parish → None."""
+        with patch(f"{self._PATH}.get_cached_value", return_value=None):
+            zone = resolve_zone_from_address("Customer A", "ADDR-001")
+        self.assertIsNone(zone)
+
+    def test_parish_without_municipality_returns_none(self):
+        """Parish existe pero no tiene municipio asignado → None."""
+        with patch(f"{self._PATH}.get_cached_value",
+                   side_effect=["VE-PARISH", None]):
+            zone = resolve_zone_from_address("Customer A", "ADDR-001")
+        self.assertIsNone(zone)

@@ -5,7 +5,7 @@ import time
 import frappe
 from frappe.utils import flt, getdate, cint, today
 
-from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
+from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder, resolve_zone_from_address
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 from l10n_ve.utils.utils import is_juridical_customer
 
@@ -804,7 +804,9 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     else:
         fecha_bcv = getdate(doc.posting_date).replace(day=1)
 
-    zona: str = customer.territory or ""
+    zona: str = customer.territory or resolve_zone_from_address(
+        doc.customer, doc.get("customer_address")
+    ) or ""
     nodo: str = ""
     subscription_name: str = doc.get("subscription") or ""
     if subscription_name:
