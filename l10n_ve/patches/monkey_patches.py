@@ -1,14 +1,14 @@
 import frappe
 
 def log_patch_error(patch_name: str, error: Exception) -> None:
-    """Registra el error solo si no es un RuntimeError (DB no vinculada) o si la DB está lista."""
+    """Log the error only if it is not a RuntimeError (DB not connected) or if DB is ready."""
     if isinstance(error, RuntimeError):
         return
     
-    print(f"ERROR!!!: No se pudo cargar el parche {patch_name}. Error: {error}")
+    print(f"ERROR!!!: Failed to load patch {patch_name}. Error: {error}")
     if frappe.local and getattr(frappe.local, "db", None):
         try:
-            frappe.log_error(frappe.get_traceback(), f'Error al cargar el parche: {patch_name}')
+            frappe.log_error(frappe.get_traceback(), f'Error loading patch: {patch_name}')
         except Exception:
             pass
 
@@ -98,28 +98,35 @@ def apply_post_db_patches() -> None:
     except Exception as e:
         log_patch_error('l10n_ve.patches.reports.accounts_receivable', e)
 
-    # Capa 1: red de seguridad — resetea cualquier prepared_report que quedó en DB
+    # Layer 1: Safety net - reset any prepared_report stuck in the database
     try:
         from l10n_ve.tasks import reset_all_prepared_reports
         reset_all_prepared_reports()
     except Exception as e:
         log_patch_error('reset_all_prepared_reports', e)
 
-    # Capa 2: suprime el timer de Frappe que activa prepared_report en BD
+    # Layer 2: Suppress Frappe's timer that activates prepared_report
     try:
         from l10n_ve.patches.frappe.report_session_patch import apply as apply_session_patch
         apply_session_patch()
     except Exception as e:
         log_patch_error('report_session_patch', e)
 
+    # Layer 5: Apply monkeypatch for Excel report export with professional styling
+    try:
+        from l10n_ve.patches.frappe.report_export_patch import apply as apply_export_patch
+        apply_export_patch()
+    except Exception as e:
+        log_patch_error('report_export_patch', e)
 
-    # Capa 3: aplica el monkeypatch de get_user_permissions
+
+    # Layer 3: Apply monkeypatch for get_user_permissions
     try:
         import l10n_ve.patches.frappe.user_permissions_patch
     except Exception as e:
         log_patch_error('user_permissions_patch', e)
 
-    # Capa 4: aplica el monkeypatch global de report_to_pdf para evitar HostNotFoundError
+    # Layer 4: Apply global monkeypatch for report_to_pdf to prevent HostNotFoundError
     try:
         from frappe.utils import print_format
         from l10n_ve.utils.pdf_utils import custom_report_to_pdf

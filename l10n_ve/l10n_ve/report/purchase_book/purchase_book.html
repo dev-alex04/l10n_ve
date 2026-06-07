@@ -1,0 +1,360 @@
+<style>
+    @media print {
+        @page {
+            size: letter landscape;
+            margin: 6mm 8mm 6mm 8mm;
+        }
+        .report-container {
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background-color: #fff !important;
+        }
+    }
+    
+    @media screen {
+        body {
+            background-color: #f1f5f9;
+            padding: 30px 15px;
+        }
+        .report-container {
+            max-width: 13in;
+            margin: 0 auto 30px auto;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            padding: 25px !important;
+            background-color: #fff;
+        }
+    }
+    
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
+        font-size: 7.5px;
+        background-color: #fff;
+        margin: 0;
+        padding: 0;
+        line-height: 1.3;
+    }
+    
+    .report-header {
+        width: 100%;
+        margin-bottom: 5px;
+        border-collapse: collapse;
+    }
+    
+    .report-header td {
+        border: none !important;
+        padding: 0 !important;
+        background-color: transparent !important;
+    }
+    
+    .title-badge {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #84cc16; /* Galanet Green */
+        border-radius: 0 4px 4px 0;
+        padding: 8px 12px;
+        text-align: left;
+        margin: 10px 0 15px 0;
+    }
+    
+    .title-badge h1 {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #0f172a;
+    }
+    
+    .title-badge p {
+        margin: 3px 0 0 0;
+        font-size: 7px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .ledger-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    
+    thead {
+        display: table-header-group;
+    }
+    
+    tr, td {
+        page-break-inside: avoid !important;
+    }
+    
+    .ledger-table th {
+        font-size: 7px;
+        font-weight: 700;
+        color: #1e293b;
+        background-color: #f8fafc;
+        border-top: 1.5px solid #1e293b;
+        border-bottom: 1.5px solid #84cc16;
+        padding: 5px 3px;
+        text-align: left;
+        text-transform: uppercase;
+        letter-spacing: 0.2px;
+    }
+    
+    .ledger-table td {
+        padding: 5px 3px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9 !important;
+        line-height: 1.3;
+        color: #334155;
+    }
+    
+    .ledger-table tr.leaf-row:nth-child(even) {
+        background-color: #f8fafc;
+    }
+    
+    .text-right {
+        text-align: right;
+        white-space: nowrap !important;
+    }
+    
+    .text-center {
+        text-align: center;
+    }
+    
+    .bold {
+        font-weight: bold;
+    }
+    
+    .totals-row td {
+        font-weight: 700;
+        background-color: #f8fafc;
+        border-top: 1.5px solid #84cc16;
+        border-bottom: 1.5px solid #cbd5e1;
+        color: #0f172a;
+        padding: 6px 3px;
+        font-size: 7.5px;
+    }
+    
+    .negative-val {
+        color: #df2020;
+        font-weight: inherit;
+    }
+    
+    .summary-card {
+        margin-top: 15px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        background-color: #f8fafc;
+        padding: 10px;
+    }
+    
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+    }
+    
+    .summary-item {
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 4px;
+    }
+    
+    .summary-label {
+        font-size: 6.5px;
+        color: #64748b;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+    
+    .summary-value {
+        font-size: 8px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-top: 1px;
+    }
+</style>
+
+<div class="report-container">
+    {%
+        var format_val = function(val) {
+            if (val === null || val === undefined || val === "") return "";
+            var formatted = format_currency(val);
+            if (val < -0.005) {
+                return '<span class="negative-val">' + formatted + '</span>';
+            }
+            return formatted;
+        };
+    %}
+
+    {%
+        var company_name = (filters && filters.company) || "";
+        var comp_info = (typeof report !== "undefined" && report && report.company_info) || {};
+        var company_logo = comp_info.company_logo || "/files/galanet_logo.jpg";
+        var company_rif = comp_info.tax_id || "";
+    %}
+    <table class="report-header" style="width: 100%; border-collapse: collapse; margin-bottom: 5px;">
+        <tr>
+            <td style="width: 45%; vertical-align: middle; border: none; padding: 0;">
+                <img src="{%= company_logo %}" style="max-height: 35px; display: block;" alt="Logo">
+            </td>
+            <td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #334155; line-height: 1.3;">
+                <div style="font-size: 10px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">{%= company_name %}</div>
+                <div style="font-size: 7.5px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: {%= company_rif %}</div>
+                <div style="font-size: 7.5px; color: #64748b; margin-top: 2px;">{%= new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %}</div>
+            </td>
+        </tr>
+    </table>
+    <div style="width: 100%; height: 2px; background: linear-gradient(90deg, #84cc16 0%, #1e293b 100%); margin-top: 3px; margin-bottom: 8px;"></div>
+    
+    <div class="title-badge">
+        <h1>Libro de Compras</h1>
+        <p>Período: {%= (filters && filters.from_date) ? filters.from_date.split("-").reverse().join("/") : "" %} al {%= (filters && filters.to_date) ? filters.to_date.split("-").reverse().join("/") : "" %} &nbsp;|&nbsp; Expresado en Bolívares (VEF)</p>
+    </div>
+
+    <table class="ledger-table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>RIF</th>
+                <th>Proveedor</th>
+                <th>Factura</th>
+                <th>Control</th>
+                <th>Nota Cred.</th>
+                <th>Nota Deb.</th>
+                <th>Afecta</th>
+                <th>Total Compras</th>
+                <th>Sin Crédito</th>
+                <th>Base (8%)</th>
+                <th>IVA (8%)</th>
+                <th>Base (16%)</th>
+                <th>IVA (16%)</th>
+                <th>Base (31%)</th>
+                <th>IVA (31%)</th>
+                <th>IGTF Pagado</th>
+                <th>Nro. Comprob.</th>
+                <th>IVA Retenido</th>
+                <th>% Ret.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% 
+                var sum_grand_total = 0.0;
+                var sum_total_exempt = 0.0;
+                var sum_base_reducida = 0.0;
+                var sum_impuesto_reducida = 0.0;
+                var sum_base_general = 0.0;
+                var sum_impuesto_general = 0.0;
+                var sum_base_adicional = 0.0;
+                var sum_impuesto_adicional = 0.0;
+                var sum_total_igtf = 0.0;
+                var sum_iva_retenido = 0.0;
+
+                for (var i=0, l=data.length; i<l; i++) {
+                    var row = data[i]; 
+                    
+                    sum_grand_total += (row.grand_total || 0.0);
+                    sum_total_exempt += (row.total_exempt || 0.0);
+                    sum_base_reducida += (row.base_reducida || 0.0);
+                    sum_impuesto_reducida += (row.impuesto_reducida || 0.0);
+                    sum_base_general += (row.base_general || 0.0);
+                    sum_impuesto_general += (row.impuesto_general || 0.0);
+                    sum_base_adicional += (row.base_adicional || 0.0);
+                    sum_impuesto_adicional += (row.impuesto_adicional || 0.0);
+                    sum_total_igtf += (row.total_igtf || 0.0);
+                    sum_iva_retenido += (row.taxes_and_charges_deducted || 0.0);
+            %}
+            <tr class="leaf-row">
+                <td class="text-center">{%= row.bill_date || "" %}</td>
+                <td>{%= row.tax_id || "" %}</td>
+                <td style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{%= row.supplier_name || "" %}</td>
+                <td>{%= row.bill_no || "" %}</td>
+                <td>{%= row.bill_control || "" %}</td>
+                <td>{%= row.credit_note_no || "" %}</td>
+                <td>{%= row.debit_note_no || "" %}</td>
+                <td>{%= row.affected_invoice_number || "" %}</td>
+                <td class="text-right">{%= format_val(row.grand_total) %}</td>
+                <td class="text-right">{%= format_val(row.total_exempt) %}</td>
+                <td class="text-right">{%= format_val(row.base_reducida) %}</td>
+                <td class="text-right">{%= format_val(row.impuesto_reducida) %}</td>
+                <td class="text-right">{%= format_val(row.base_general) %}</td>
+                <td class="text-right">{%= format_val(row.impuesto_general) %}</td>
+                <td class="text-right">{%= format_val(row.base_adicional) %}</td>
+                <td class="text-right">{%= format_val(row.impuesto_adicional) %}</td>
+                <td class="text-right">{%= format_val(row.total_igtf) %}</td>
+                <td>{%= row.nro_comprobante_retencion || "" %}</td>
+                <td class="text-right">{%= format_val(row.taxes_and_charges_deducted) %}</td>
+                <td class="text-right">{%= row.porcentaje_ret ? (row.porcentaje_ret + "%") : "" %}</td>
+            </tr>
+            {% } %}
+            <tr class="totals-row">
+                <td colspan="8">TOTALES GENERALES</td>
+                <td class="text-right">{%= format_val(sum_grand_total) %}</td>
+                <td class="text-right">{%= format_val(sum_total_exempt) %}</td>
+                <td class="text-right">{%= format_val(sum_base_reducida) %}</td>
+                <td class="text-right">{%= format_val(sum_impuesto_reducida) %}</td>
+                <td class="text-right">{%= format_val(sum_base_general) %}</td>
+                <td class="text-right">{%= format_val(sum_impuesto_general) %}</td>
+                <td class="text-right">{%= format_val(sum_base_adicional) %}</td>
+                <td class="text-right">{%= format_val(sum_impuesto_adicional) %}</td>
+                <td class="text-right">{%= format_val(sum_total_igtf) %}</td>
+                <td></td>
+                <td class="text-right">{%= format_val(sum_iva_retenido) %}</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Resumen del reporte (Report Summary Box) -->
+    <div class="summary-card">
+        <h4 style="margin: 0 0 8px 0; font-size: 8px; font-weight: 800; text-transform: uppercase; border-bottom: 1.5px solid #84cc16; padding-bottom: 3px; color: #1e293b;">
+            Resumen del Libro de Compras
+        </h4>
+        <div class="summary-grid">
+            <div class="summary-item">
+                <div class="summary-label">Total Compras</div>
+                <div class="summary-value">{%= format_val(sum_grand_total) %}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Compras No Gravadas (Exento)</div>
+                <div class="summary-value">{%= format_val(sum_total_exempt) %}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Base General (16%)</div>
+                <div class="summary-value">{%= format_val(sum_base_general) %}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Impuesto General (16%)</div>
+                <div class="summary-value">{%= format_val(sum_impuesto_general) %}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Base Reducida (8%)</div>
+                <div class="summary-value">{%= format_val(sum_base_reducida) %}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Impuesto Reducido (8%)</div>
+                <div class="summary-value">{%= format_val(sum_impuesto_reducida) %}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Base Adicional (31%)</div>
+                <div class="summary-value">{%= format_val(sum_base_adicional) %}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Impuesto Adicional (31%)</div>
+                <div class="summary-value">{%= format_val(sum_impuesto_adicional) %}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Total IVA Retenido</div>
+                <div class="summary-value">{%= format_val(sum_iva_retenido) %}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Total IGTF Pagado</div>
+                <div class="summary-value">{%= format_val(sum_total_igtf) %}</div>
+            </div>
+        </div>
+    </div>
+</div>
