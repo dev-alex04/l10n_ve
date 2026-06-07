@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.10.1] - 2026-06-07
+
+### 🐛 Correcciones (Fixes)
+- Se implementó el uso de `safe_get_pdf` para asegurar la correcta generación y descarga de reportes en formato PDF, específicamente para los módulos de Customer Retention e IGTF. [31cb9c7]
+
+---
+
 ## [v1.10.0] - 2026-06-07
 
 ### ✨ Funcionalidades (Features)
