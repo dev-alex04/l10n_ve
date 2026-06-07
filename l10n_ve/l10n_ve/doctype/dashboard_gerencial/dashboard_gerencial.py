@@ -158,6 +158,13 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     # Restringir la DATA a las sucursales del universo (seguridad + selección)
     if universe is not None:
         si_filters["branch"] = ["in", (list(universe) or ["__no_access__"])]
+    # Tupla y fragmentos SQL para filtrar las queries crudas (IGTF/FX/Gastos) por
+    # sucursal permitida. Sin esto, un usuario restringido vería el FX/IGTF de
+    # sucursales fuera de su alcance (p. ej. agregado en "Sin Sucursal").
+    universe_param = (tuple(universe) or ("__no_access__",)) if universe is not None else None
+    sql_branch_si = " AND si.branch IN %s" if universe is not None else ""
+    sql_branch_pe = " AND pe.branch IN %s" if universe is not None else ""
+    sql_branch_exp = " AND branch IN %s" if universe is not None else ""
 
     sales_count = frappe.db.count("Sales Invoice", si_filters)
 
@@ -185,7 +192,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     expenses_by_branch = {}
     expenses_vef_by_branch = {}
     if frappe.db.exists("DocType", "Expense"):
-        expenses_raw = frappe.db.sql("""
+        expenses_raw = frappe.db.sql(f"""
             SELECT branch, SUM(
                 CASE WHEN spending_currency = 'USD' THEN total_exchange
                 WHEN usd_reference_rate > 0 THEN total / usd_reference_rate
@@ -194,9 +201,9 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
             ) as total_spent,
             SUM(total) as total_spent_vef
             FROM `tabExpense`
-            WHERE docstatus = 1 AND company = %s AND expense_date BETWEEN %s AND %s
+            WHERE docstatus = 1 AND company = %s AND expense_date BETWEEN %s AND %s{sql_branch_exp}
             GROUP BY branch
-        """, (company, from_date, to_date), as_dict=True)
+        """, (company, from_date, to_date) + ((universe_param,) if universe is not None else ()), as_dict=True)
         expenses_by_branch = {r.branch: flt(r.total_spent) for r in expenses_raw if r.branch}
         expenses_vef_by_branch = {r.branch: flt(r.total_spent_vef) for r in expenses_raw if r.branch}
 
@@ -205,20 +212,20 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     igtf_vef_by_branch = {}
     if accounts_igtf:
         # Group by branch for Sales Invoice IGTF
-        si_igtf = frappe.db.sql("""
+        si_igtf = frappe.db.sql(f"""
             SELECT si.branch, gle.credit, gle.debit, gle.account_currency, gle.posting_date
             FROM `tabGL Entry` gle
             JOIN `tabSales Invoice` si ON gle.voucher_no = si.name
-            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s
-        """, (tuple(accounts_igtf), from_date, to_date), as_dict=True)
-        
+            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s{sql_branch_si}
+        """, (tuple(accounts_igtf), from_date, to_date) + ((universe_param,) if universe is not None else ()), as_dict=True)
+
         # Group by branch for Payment Entry IGTF
-        pe_igtf = frappe.db.sql("""
+        pe_igtf = frappe.db.sql(f"""
             SELECT pe.branch, gle.credit, gle.debit, gle.account_currency, gle.posting_date
             FROM `tabGL Entry` gle
             JOIN `tabPayment Entry` pe ON gle.voucher_no = pe.name
-            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s
-        """, (tuple(accounts_igtf), from_date, to_date), as_dict=True)
+            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s{sql_branch_pe}
+        """, (tuple(accounts_igtf), from_date, to_date) + ((universe_param,) if universe is not None else ()), as_dict=True)
 
         for rows in (si_igtf, pe_igtf):
             for r in rows:
@@ -250,8 +257,10 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     perdida_by_branch = {}
     ganancia_vef_by_branch = {}
     perdida_vef_by_branch = {}
-    fx_cond = "AND si_fx.branch = %(branch)s" if branch else ""
-    fx_params = {"company": company, "from_date": from_date, "to_date": to_date, "branch": branch}
+    fx_cond = "AND si_fx.branch IN %(branches)s" if universe is not None else ""
+    fx_params = {"company": company, "from_date": from_date, "to_date": to_date}
+    if universe is not None:
+        fx_params["branches"] = universe_param
 
     fx_ref = frappe.db.sql("""
         SELECT si_fx.branch AS branch,
