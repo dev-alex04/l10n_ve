@@ -60,6 +60,34 @@ def clean_payload(d):
         return d
 
 
+def resolve_zone_from_address(customer_name: str, customer_address: Optional[str] = None) -> Optional[str]:
+    """Fallback de Zona: nombre legible del municipio de la dirección (no el name/hash).
+
+    Cadena: Address.parish → VE Parish.municipality → VE Municipality.municipality.
+    """
+    if not customer_address:
+        rows = frappe.db.sql("""
+            SELECT a.name
+            FROM `tabAddress` a
+            JOIN `tabDynamic Link` dl ON dl.parent = a.name
+            WHERE dl.link_doctype = 'Customer'
+              AND dl.link_name = %s
+              AND a.address_type = 'Billing'
+            LIMIT 1
+        """, (customer_name,), as_list=True)
+        if not rows:
+            return None
+        customer_address = rows[0][0]
+
+    parish = frappe.get_cached_value("Address", customer_address, "parish")
+    if not parish:
+        return None
+    muni_id = frappe.get_cached_value("VE Parish", parish, "municipality")
+    if not muni_id:
+        return None
+    return frappe.get_cached_value("VE Municipality", muni_id, "municipality") or None
+
+
 class TFHKAPayloadBuilder:
     def __init__(self, doc, series_doc=None, branch_code: str = "", tasa_fecha: Optional[str] = None) -> None:
         """
@@ -704,6 +732,9 @@ class TFHKAPayloadBuilder:
             zona = customer_doc.territory
         except Exception:
             return zona, nodo
+
+        if not zona:
+            zona = resolve_zone_from_address(self.doc.customer, self.doc.get("customer_address"))
 
         subscription_name: Optional[str] = self.doc.get("subscription")
 

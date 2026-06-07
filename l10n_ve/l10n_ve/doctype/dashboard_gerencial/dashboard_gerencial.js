@@ -191,25 +191,29 @@ function render_premium_dashboard(frm, data) {
 
     // Calculate sums from table rows to drive both the table totals and the summary cards
     let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_igtf = 0, t_disp = 0, t_spent = 0, t_util = 0;
+    // Bs nativo para las tarjetas (mismos campos *_vef que la tabla)
+    let v_cobrar = 0, v_fact = 0, v_iva = 0, v_igtf = 0, v_disp = 0, v_spent = 0, v_util = 0;
     (data.branch_financial_summary || []).forEach(r => {
-        t_cobrar += r.pending_to_collect || 0;
+        // Solo raíces (indent 0): la tabla es un árbol y los padres ya consolidan a sus hijos.
+        if ((r.indent || 0) !== 0) return;
+        t_cobrar += r.pending_to_collect || 0;   v_cobrar += r.pending_to_collect_vef || 0;
         t_op += r.payment_order || 0;
         t_iva_op += r.payment_order_vat || 0;
-        t_fact += r.billed || 0;
-        t_iva += r.vat || 0;
+        t_fact += r.billed || 0;                  v_fact += r.billed_vef || 0;
+        t_iva += r.vat || 0;                       v_iva += r.vat_vef || 0;
         t_neto += r.vat_after_withholding || 0;
         t_ret_iva += r.vat_withholding || 0;
         t_ret_islr += r.islr_withholding || 0;
-        t_igtf += r.igtf || 0;
-        t_disp += r.availability || 0;
-        t_spent += r.spent || 0;
-        t_util += r.profit || 0;
+        t_igtf += r.igtf || 0;                     v_igtf += r.igtf_vef || 0;
+        t_disp += r.availability || 0;             v_disp += r.availability_vef || 0;
+        t_spent += r.spent || 0;                   v_spent += r.spent_vef || 0;
+        t_util += r.profit || 0;                   v_util += r.profit_vef || 0;
     });
 
-    const get_card_vals = (usd_val) => {
+    const get_card_vals = (usd_val, vef_val) => {
         return {
             usd: format_currency_ve(usd_val, "USD"),
-            vef: format_currency_ve(usd_val * rate, "VEF")
+            vef: format_currency_ve(vef_val, "VEF")
         };
     };
 
@@ -422,8 +426,8 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Por cobrar</span>
                         <i class="fa fa-clock-o dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_cobrar).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_cobrar).vef}</div>
+                    <div class="dg-card-value">${get_card_vals(t_cobrar, v_cobrar).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_cobrar, v_cobrar).vef}</div>
                 </div>
 
                 <!-- Facturado -->
@@ -432,8 +436,8 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Facturado</span>
                         <i class="fa fa-dollar dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_fact).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_fact).vef}</div>
+                    <div class="dg-card-value">${get_card_vals(t_fact, v_fact).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_fact, v_fact).vef}</div>
                 </div>
 
                 <!-- IVA -->
@@ -442,8 +446,8 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">IVA</span>
                         <i class="fa fa-percent dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_iva).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_iva).vef}</div>
+                    <div class="dg-card-value">${get_card_vals(t_iva, v_iva).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_iva, v_iva).vef}</div>
                 </div>
 
                 <!-- IGTF -->
@@ -452,8 +456,8 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">IGTF</span>
                         <i class="fa fa-university dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_igtf).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_igtf).vef}</div>
+                    <div class="dg-card-value">${get_card_vals(t_igtf, v_igtf).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_igtf, v_igtf).vef}</div>
                 </div>
 
                 <!-- Disponibilidad -->
@@ -462,8 +466,8 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Disponibilidad</span>
                         <i class="fa fa-check-circle dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_disp).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_disp).vef}</div>
+                    <div class="dg-card-value">${get_card_vals(t_disp, v_disp).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_disp, v_disp).vef}</div>
                 </div>
 
                 <!-- Gastos -->
@@ -472,8 +476,8 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Gastos</span>
                         <i class="fa fa-arrow-down dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_spent).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_spent).vef}</div>
+                    <div class="dg-card-value">${get_card_vals(t_spent, v_spent).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_spent, v_spent).vef}</div>
                 </div>
 
                 <!-- Utilidad -->
@@ -482,8 +486,8 @@ function render_premium_dashboard(frm, data) {
                         <span class="dg-card-title">Utilidad</span>
                         <i class="fa fa-line-chart dg-card-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_util).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_util).vef}</div>
+                    <div class="dg-card-value">${get_card_vals(t_util, v_util).usd}</div>
+                    <div class="dg-card-equivalent">${get_card_vals(t_util, v_util).vef}</div>
                 </div>
             </div>
 
@@ -584,51 +588,63 @@ function render_premium_dashboard(frm, data) {
 
 function render_branch_table_rows(rows, exchange_rate) {
     if (!rows || rows.length === 0) {
-        return `<tr><td colspan="13" class="text-center" style="padding: 20px; color: var(--text-muted);">No se encontraron registros financieros para las sucursales.</td></tr>`;
+        return `<tr><td colspan="15" class="text-center" style="padding: 20px; color: var(--text-muted);">No se encontraron registros financieros para las sucursales.</td></tr>`;
     }
 
-    const rate = exchange_rate || 1.0;
-    const format_table_cell = (usd_val, r) => {
+    // Bs NATIVO: el backend ya entrega cada columna en su bolívar real (campos *_vef);
+    // no se reconvierte por la tasa de hoy (por eso cuadra con el panel ISP).
+    const format_table_cell = (usd_val, vef_val) => {
         const usd_str = format_currency_ve(usd_val, "USD");
-        const bs_str = format_currency_ve(usd_val * r, "VEF");
+        const bs_str = format_currency_ve(vef_val, "VEF");
         return `<div>${usd_str}</div><div style="font-size: 10.5px; color: #a0aec0; font-weight: normal; margin-top: 2px;">${bs_str}</div>`;
     };
 
     let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_igtf = 0, t_ganancia = 0, t_perdida = 0, t_disp = 0, t_spent = 0, t_util = 0;
+    let v_cobrar = 0, v_op = 0, v_iva_op = 0, v_fact = 0, v_iva = 0, v_neto = 0, v_ret_iva = 0, v_ret_islr = 0, v_igtf = 0, v_ganancia = 0, v_perdida = 0, v_disp = 0, v_spent = 0, v_util = 0;
 
     let rows_html = rows.map(r => {
-        t_cobrar += r.pending_to_collect || 0;
-        t_op += r.payment_order || 0;
-        t_iva_op += r.payment_order_vat || 0;
-        t_fact += r.billed || 0;
-        t_iva += r.vat || 0;
-        t_neto += r.vat_after_withholding || 0;
-        t_ret_iva += r.vat_withholding || 0;
-        t_ret_islr += r.islr_withholding || 0;
-        t_igtf += r.igtf || 0;
-        t_ganancia += r.ganancia || 0;
-        t_perdida += r.perdida || 0;
-        t_disp += r.availability || 0;
-        t_spent += r.spent || 0;
-        t_util += r.profit || 0;
+        // El TOTAL suma SOLO las raíces (indent 0) para no duplicar padres con hijos.
+        if ((r.indent || 0) === 0) {
+            t_cobrar += r.pending_to_collect || 0;      v_cobrar += r.pending_to_collect_vef || 0;
+            t_op += r.payment_order || 0;               v_op += r.payment_order_vef || 0;
+            t_iva_op += r.payment_order_vat || 0;       v_iva_op += r.payment_order_vat_vef || 0;
+            t_fact += r.billed || 0;                    v_fact += r.billed_vef || 0;
+            t_iva += r.vat || 0;                        v_iva += r.vat_vef || 0;
+            t_neto += r.vat_after_withholding || 0;     v_neto += r.vat_after_withholding_vef || 0;
+            t_ret_iva += r.vat_withholding || 0;        v_ret_iva += r.vat_withholding_vef || 0;
+            t_ret_islr += r.islr_withholding || 0;      v_ret_islr += r.islr_withholding_vef || 0;
+            t_igtf += r.igtf || 0;                      v_igtf += r.igtf_vef || 0;
+            t_ganancia += r.ganancia || 0;              v_ganancia += r.ganancia_vef || 0;
+            t_perdida += r.perdida || 0;                v_perdida += r.perdida_vef || 0;
+            t_disp += r.availability || 0;              v_disp += r.availability_vef || 0;
+            t_spent += r.spent || 0;                    v_spent += r.spent_vef || 0;
+            t_util += r.profit || 0;                    v_util += r.profit_vef || 0;
+        }
 
+        const indent = (r.indent || 0) * 24;
+        const name_html = frappe.utils.escape_html(r.branch);
+        // Sangría con un span interno (margin): el CSS .dg-table td usa padding !important
+        // y pisaría un padding-left en la celda.
+        const branch_label = r.is_group
+            ? `<span style="margin-left: ${indent}px;"><strong>${name_html}</strong></span>`
+            : `<span style="margin-left: ${indent}px; opacity: 0.85;">${name_html}</span>`;
         return `
             <tr>
-                <td><strong>${frappe.utils.escape_html(r.branch)}</strong></td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.pending_to_collect, rate)}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.payment_order, rate)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.payment_order_vat, rate)}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.billed, rate)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.vat, rate)}</td>
-                <td style="text-align: right; font-weight: 600;">${format_table_cell(r.vat_after_withholding, rate)}</td>
-                <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_table_cell(r.vat_withholding, rate)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.islr_withholding, rate)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.igtf, rate)}</td>
-                <td style="text-align: right; color: ${(r.ganancia || 0) > 0 ? '#10b981' : 'var(--text-muted)'};">${format_table_cell(r.ganancia, rate)}</td>
-                <td style="text-align: right; color: ${(r.perdida || 0) > 0 ? '#ef4444' : 'var(--text-muted)'};">${format_table_cell(r.perdida, rate)}</td>
-                <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.availability, rate)}</td>
-                <td style="text-align: right; font-weight: 600; color: #ef4444;">${format_table_cell(r.spent, rate)}</td>
-                <td style="text-align: right; font-weight: 700; color: ${r.profit >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.profit, rate)}</td>
+                <td>${branch_label}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.pending_to_collect, r.pending_to_collect_vef)}</td>
+                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.payment_order, r.payment_order_vef)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.payment_order_vat, r.payment_order_vat_vef)}</td>
+                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.billed, r.billed_vef)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.vat, r.vat_vef)}</td>
+                <td style="text-align: right; font-weight: 600;">${format_table_cell(r.vat_after_withholding, r.vat_after_withholding_vef)}</td>
+                <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_table_cell(r.vat_withholding, r.vat_withholding_vef)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.islr_withholding, r.islr_withholding_vef)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.igtf, r.igtf_vef)}</td>
+                <td style="text-align: right; color: ${(r.ganancia || 0) > 0 ? '#10b981' : 'var(--text-muted)'};">${format_table_cell(r.ganancia, r.ganancia_vef)}</td>
+                <td style="text-align: right; color: ${(r.perdida || 0) > 0 ? '#ef4444' : 'var(--text-muted)'};">${format_table_cell(r.perdida, r.perdida_vef)}</td>
+                <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.availability, r.availability_vef)}</td>
+                <td style="text-align: right; font-weight: 600; color: #ef4444;">${format_table_cell(r.spent, r.spent_vef)}</td>
+                <td style="text-align: right; font-weight: 700; color: ${r.profit >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.profit, r.profit_vef)}</td>
             </tr>
         `;
     }).join("");
@@ -637,20 +653,20 @@ function render_branch_table_rows(rows, exchange_rate) {
     const total_row = `
         <tr style="background: #1f2733 !important; border-top: 2px solid #2d3748 !important; font-weight: 700; color: #ffffff !important;">
             <td><strong>TOTAL</strong></td>
-            <td style="text-align: right;">${format_table_cell(t_cobrar, rate)}</td>
-            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_op, rate)}</td>
-            <td style="text-align: right;">${format_table_cell(t_iva_op, rate)}</td>
-            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_fact, rate)}</td>
-            <td style="text-align: right;">${format_table_cell(t_iva, rate)}</td>
-            <td style="text-align: right;">${format_table_cell(t_neto, rate)}</td>
-            <td style="text-align: right; color: #8b5cf6;">${format_table_cell(t_ret_iva, rate)}</td>
-            <td style="text-align: right;">${format_table_cell(t_ret_islr, rate)}</td>
-            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_igtf, rate)}</td>
-            <td style="text-align: right; color: #10b981;">${format_table_cell(t_ganancia, rate)}</td>
-            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_perdida, rate)}</td>
-            <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_disp, rate)}</td>
-            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_spent, rate)}</td>
-            <td style="text-align: right; color: ${t_util >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_util, rate)}</td>
+            <td style="text-align: right;">${format_table_cell(t_cobrar, v_cobrar)}</td>
+            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_op, v_op)}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva_op, v_iva_op)}</td>
+            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_fact, v_fact)}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva, v_iva)}</td>
+            <td style="text-align: right;">${format_table_cell(t_neto, v_neto)}</td>
+            <td style="text-align: right; color: #8b5cf6;">${format_table_cell(t_ret_iva, v_ret_iva)}</td>
+            <td style="text-align: right;">${format_table_cell(t_ret_islr, v_ret_islr)}</td>
+            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_igtf, v_igtf)}</td>
+            <td style="text-align: right; color: #10b981;">${format_table_cell(t_ganancia, v_ganancia)}</td>
+            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_perdida, v_perdida)}</td>
+            <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_disp, v_disp)}</td>
+            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_spent, v_spent)}</td>
+            <td style="text-align: right; color: ${t_util >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_util, v_util)}</td>
         </tr>
     `;
 

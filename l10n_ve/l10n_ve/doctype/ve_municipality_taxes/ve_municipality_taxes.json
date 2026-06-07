@@ -7,9 +7,13 @@
  "engine": "InnoDB",
  "field_order": [
   "state",
+  "column_break_zizo",
   "municipality",
+  "section_break_dhfu",
   "economic_activity",
+  "column_break_mcgr",
   "aliquot",
+  "column_break_jdrd",
   "mt_tcmmv"
  ],
  "fields": [
@@ -34,26 +38,45 @@
   {
    "fieldname": "aliquot",
    "fieldtype": "Float",
+   "in_list_view": 1,
    "label": "Aliquot",
    "precision": "2"
   },
   {
    "fieldname": "mt_tcmmv",
    "fieldtype": "Float",
+   "in_list_view": 1,
    "label": "M.T. (TCMMV)"
   },
   {
    "fieldname": "state",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "State",
    "options": "VE State",
    "reqd": 1
+  },
+  {
+   "fieldname": "column_break_zizo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_dhfu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_mcgr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_jdrd",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-18 11:06:22.829209",
+ "modified": "2026-06-03 19:59:12.028030",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Municipality Taxes",
