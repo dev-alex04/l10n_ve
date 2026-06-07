@@ -1,4 +1,4 @@
-frappe.query_reports["trial balance VEF"] = {
+frappe.query_reports["trial_balance_vef"] = {
     "filters": [
         {
             "fieldname": "company",

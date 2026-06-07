@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.10.1] - 2026-06-07
+
+### 🐛 Correcciones (Fixes)
+- Se implementó el uso de `safe_get_pdf` para asegurar la correcta generación y descarga de reportes en formato PDF, específicamente para los módulos de Customer Retention e IGTF. [31cb9c7]
+
+---
+
+## [v1.10.0] - 2026-06-07
+
+### ✨ Funcionalidades (Features)
+- Implementación de reporte gerencial jerárquico en moneda local (bolívares) e integración de zona HKA vinculada a la dirección para la localización de Venezuela (l10n_ve).
+- Mejora en la interfaz y usabilidad de la vista de lista de impuestos municipales.
+
+### 🐛 Correcciones (Fixes)
+- Corrección de seguridad en el Dashboard: se restringió la visualización de IGTF, FX y Gastos aplicando un filtrado estricto por sucursal permitida para el usuario.
+
+---
+
+## [v1.9.0] - 2026-06-07
+
+### ✨ Funcionalidades (Features)
+- **Reestructuración del Dashboard Gerencial**: Se rediseñó la disposición de las tarjetas de métricas, moviéndolas sobre la tabla principal, y se implementó la lógica para calcular sumatorias directamente desde los datos de la tabla (1d37631, cfd8ad1).
+- **Nuevo Diseño Premium**: Actualización visual del dashboard utilizando un tema "premium slate" para mejorar la experiencia de usuario (845a520).
+- **Soporte para IGTF**: Adición de columnas y tarjetas específicas para el seguimiento del Impuesto a las Grandes Transacciones Financieras (1d37631).
+- **Plantillas de Impresión**: Incorporación de plantillas HTML personalizadas para la generación de reportes de localización (22938fa).
+- **Optimización de Exportación**: Implementación de un parche optimizado para la exportación a Excel en los módulos de contabilidad y localización venezolana (2c07f9c).
+- **Etiquetado Beta**: Inclusión de etiquetas (BETA) en los módulos de administración para identificar funciones en periodo de prueba (cfd8ad1).
+
+### 🐛 Correcciones (Fixes)
+- **Consistencia Financiera**: Alineación de los cálculos financieros entre el panel gerencial y el panel ISP para asegurar la integridad de la información (171606c).
+- **Refactor de Reportes**: Ajustes técnicos en la generación de libros contables y exportaciones a Excel basados en revisiones de calidad (c7136b2).
+- **Equivalencias de Facturación**: Corrección en el cálculo y visualización de equivalentes de facturación dentro del nuevo tema del dashboard (845a520).
+
+---
+
+## [v1.8.0] - 2026-06-05
+
+### ✨ Funcionalidades (Features)
+- Integración del módulo completo de Administración que incluye gestión de Clientes, Proveedores, Inventario, Bancos y Cajas (Ingresos, Egresos y Transferencias).
+- Implementación de reportes financieros bajo normativa VEN-NIF y libros oficiales requeridos por el SENIAT.
+- Nuevo reporte de Mayor Analítico independiente con soporte para consultas de gran volumen mediante prepared_report y filtros de Cuenta Contable para optimizar el rendimiento de PDF.
+- Reestructuración de los Estados de Resultados y Situación Financiera a formato vertical de 3 columnas y diseño horizontal (landscape) con indentación jerárquica.
+- Implementación del módulo tributario con reportes de IVA Forma 30, Prorrata y gestión de retenciones (IVA, ISLR, Municipales).
+- Rediseño de la plantilla de impresión oficial de 7 columnas del SENIAT con exportación directa a PDF y Excel para la declaración de IVA.
+- Incorporación de montos equivalentes en divisas (USD/Bs) en tarjetas y tablas de resumen del Dashboard Gerencial.
+- Reorganización integral de los espacios de trabajo (Workspaces) para Contabilidad, Tributos y Administración, optimizando la jerarquía de navegación y acceso a reportes.
+- Implementación de descripción automática en reportes y restauración de la cuadrícula estándar para el registro de asientos contables.
+
+### 🐛 Correcciones (Fixes)
+- Corrección de errores de desconexión en la base de datos al procesar impresiones PDF y mejora en la seguridad de los filtros en plantillas.
+- Resolución de crashes de compilación en microtemplate.js y fallos silenciosos en el frontend del Mayor Analítico.
+- Ajuste de compatibilidad del JavaScript de plantillas al estándar ES5 para asegurar el correcto funcionamiento con wkhtmltopdf.
+- Robustecimiento del proceso de exportación a PDF mediante el saneamiento de filtros vacíos para evitar TypeErrors.
+- Corrección del orden de argumentos SQL en funciones de balances jerárquicos y solución a errores RPC en el módulo tributario.
+- Ajustes de sintaxis en consultas de facturación y corrección de enlaces rotos en los accesos directos de la barra lateral.
+- Normalización de nombres de archivos y carpetas para evitar conflictos con caracteres especiales y tildes en el sistema de archivos.
+- Protección de la función de traducción global para evitar sobreescritura de cadenas en reportes de Prorrata IVA.
+
+---
+
+## [v1.7.2] - 2026-06-04
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la advertencia de retenciones faltantes y se resolvió el error de duplicación de registros en la vista de lista (b0b6daa).
+
+---
+
 ## [v1.7.1] - 2026-06-03
 
 ### ✨ Funcionalidades (Features)

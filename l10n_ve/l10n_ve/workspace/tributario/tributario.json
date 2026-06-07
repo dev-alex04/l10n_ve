@@ -1,0 +1,237 @@
+{
+    "charts": [],
+    "content": "[{\"id\":\"trib_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Tributario</b></span>\",\"col\":12}},{\"id\":\"trib_sc_purchase\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Libro de Compras\",\"col\":3}},{\"id\":\"trib_sc_sales\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Libro de Ventas\",\"col\":3}},{\"id\":\"trib_sc_forma30\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Resumen de IVA Forma 30\",\"col\":3}},{\"id\":\"trib_sc_prorrata\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Prorrata IVA\",\"col\":3}},{\"id\":\"trib_sc_igtf\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reporte de IGTF\",\"col\":3}},{\"id\":\"trib_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"trib_links_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documentos y Configuración</b></span>\",\"col\":12}},{\"id\":\"trib_card_docs\",\"type\":\"card\",\"data\":{\"card_name\":\"Documentos Fiscales\",\"col\":4}},{\"id\":\"trib_card_config\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuración\",\"col\":4}},{\"id\":\"trib_card_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Reportes\",\"col\":4}}]",
+    "creation": "2026-06-02 12:00:00.000000",
+    "custom_blocks": [],
+    "docstatus": 0,
+    "doctype": "Workspace",
+    "for_user": "",
+    "hide_custom": 0,
+    "icon": "chart",
+    "idx": 0,
+    "is_hidden": 0,
+    "label": "Tributario",
+    "links": [
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Documentos Fiscales",
+            "link_count": 3,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Retención IVA Compras",
+            "link_count": 0,
+            "link_to": "VAT Withholding Voucher",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Retención ISLR Compras",
+            "link_count": 0,
+            "link_to": "ISLR Withholding Voucher",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Impuestos Municipales",
+            "link_count": 0,
+            "link_to": "VE Municipality Tax Declaration",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Configuración",
+            "link_count": 3,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Tasas de Impuestos",
+            "link_count": 0,
+            "link_to": "Taxes Rates",
+            "link_type": "DocType",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Unidades Tributarias",
+            "link_count": 0,
+            "link_to": "Tax Unit",
+            "link_type": "DocType",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Actividades Económicas",
+            "link_count": 0,
+            "link_to": "VE Economic Activity",
+            "link_type": "DocType",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Reportes",
+            "link_count": 6,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Libro de Compras",
+            "link_count": 0,
+            "link_to": "purchase_book",
+            "link_type": "Report",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Libro de Ventas",
+            "link_count": 0,
+            "link_to": "Sales book",
+            "link_type": "Report",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Retenciones IVA Clientes",
+            "link_count": 0,
+            "link_to": "Customer Retention",
+            "link_type": "Report",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Retenciones IVA Proveedores",
+            "link_count": 0,
+            "link_to": "VAT Withholding",
+            "link_type": "Report",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Retenciones ISLR Proveedores",
+            "link_count": 0,
+            "link_to": "ISLR Withholding",
+            "link_type": "Report",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Reporte de IGTF Recibido",
+            "link_count": 0,
+            "link_to": "IGTF received",
+            "link_type": "Report",
+            "onboard": 0,
+            "type": "Link"
+        }
+    ],
+    "modified": "2026-06-02 12:00:00.000000",
+    "modified_by": "Administrator",
+    "name": "Tributario",
+    "number_cards": [],
+    "owner": "Administrator",
+    "parent_page": "",
+    "public": 1,
+    "quick_lists": [],
+    "restrict_to_domain": "",
+    "roles": [
+        {
+            "role": "System Manager"
+        },
+        {
+            "role": "Accounts Manager"
+        },
+        {
+            "role": "Accounts User"
+        }
+    ],
+    "sequence_id": 2.0,
+    "shortcuts": [
+        {
+            "color": "Blue",
+            "format": "{}",
+            "label": "Libro de Compras",
+            "link_to": "purchase_book",
+            "stats_filter": "{}",
+            "type": "Report"
+        },
+        {
+            "color": "Green",
+            "format": "{}",
+            "label": "Libro de Ventas",
+            "link_to": "Sales book",
+            "stats_filter": "{}",
+            "type": "Report"
+        },
+        {
+            "color": "Orange",
+            "format": "{}",
+            "label": "Resumen de IVA Forma 30",
+            "link_to": "iva_forma_30",
+            "stats_filter": "{}",
+            "type": "Report"
+        },
+        {
+            "color": "Red",
+            "format": "{}",
+            "label": "Prorrata IVA",
+            "link_to": "prorrata_iva",
+            "stats_filter": "{}",
+            "type": "Report"
+        },
+        {
+            "color": "Grey",
+            "format": "{}",
+            "label": "Reporte de IGTF",
+            "link_to": "IGTF received",
+            "stats_filter": "{}",
+            "type": "Report"
+        }
+    ],
+    "title": "Tributario",
+    "type": "Workspace"
+}

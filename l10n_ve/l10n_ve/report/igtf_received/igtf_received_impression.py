@@ -9,7 +9,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from l10n_ve.l10n_ve.report.igtf_received.igtf_received import get_data
 from frappe.utils import fmt_money, formatdate, nowdate
-from frappe.utils.pdf import get_pdf
+from l10n_ve.utils.pdf_utils import safe_get_pdf
 
 def _get_company_details(company_name):
 	"""
@@ -214,8 +214,8 @@ def download_custom_pdf(filters=None):
 	}
 
 	final_html = frappe.render_template(html_content, context)
-	pdf_content = get_pdf(final_html)
+	pdf_content = safe_get_pdf(final_html)
 
 	frappe.local.response.filename = "Reporte_IGTF_Percibido.pdf"
 	frappe.local.response.filecontent = pdf_content
-	frappe.local.response.type = "pdf"
+	frappe.local.response.type = "download"
