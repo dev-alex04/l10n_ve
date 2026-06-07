@@ -43,7 +43,7 @@ def _patched_export_query(form_params, csv_params, populate_response=True):
         # Apply premium styling
         try:
             content = apply_professional_styling(content, report_name)
-        except Exception as e:
+        except Exception:
             # If formatting fails, log error but allow downloading unstyled file
             frappe.log_error(
                 title=f"Excel Styling Error: {report_name}",
@@ -56,7 +56,7 @@ def _patched_export_query(form_params, csv_params, populate_response=True):
         from frappe.desk.utils import provide_binary_file
         provide_binary_file(report_name_out, file_extension, content)
         
-    except Exception as e:
+    except Exception:
         # ABSOLUTE SAFETY NET: On any unhandled exception, log error and download original unstyled file.
         try:
             frappe.log_error(
@@ -203,7 +203,7 @@ def apply_professional_styling(content: bytes, report_name: str) -> bytes:
         ws.row_dimensions[1].height = 24
         
         # Subtitle with generation date
-        generated_on = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        generated_on = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
         ws.cell(row=2, column=1).value = f"Generado: {generated_on} | Localización Venezuela"
         ws.cell(row=2, column=1).font = subtitle_font
         ws.row_dimensions[2].height = 16
@@ -251,7 +251,7 @@ def apply_professional_styling(content: bytes, report_name: str) -> bytes:
             last_row = list(ws.iter_rows(min_row=last_row_idx, max_row=last_row_idx))[0]
             ws.row_dimensions[last_row_idx].height = 21
             
-            first_val = str(last_row[0].value or '')
+            first_val = str(last_row[0].value or '') if len(last_row) > 0 else ''
             second_val = str(last_row[1].value or '') if len(last_row) > 1 else ''
             is_totals_row = (
                 "total" in first_val.lower() or 
@@ -326,7 +326,7 @@ def apply_professional_styling(content: bytes, report_name: str) -> bytes:
         else:
             # Iterate and format all cells sequentially (for small/medium reports)
             for r_idx, row in enumerate(ws.iter_rows(min_row=header_row_idx + 1), start=header_row_idx + 1):
-                first_val = str(row[0].value or '')
+                first_val = str(row[0].value or '') if len(row) > 0 else ''
                 second_val = str(row[1].value or '') if len(row) > 1 else ''
                 
                 is_totals_row = (

@@ -169,9 +169,9 @@
 
     {%
         var company_name = (filters && filters.company) || "";
-        var comp_doc = (company_name && typeof frappe !== "undefined" && frappe.model && frappe.model.get_doc) ? frappe.model.get_doc("Company", company_name) : null;
-        var company_logo = (comp_doc && comp_doc.company_logo) || "/files/galanet_logo.jpg";
-        var company_rif = (comp_doc && comp_doc.tax_id) || "";
+        var comp_info = (typeof report !== "undefined" && report && report.company_info) || {};
+        var company_logo = comp_info.company_logo || "/files/galanet_logo.jpg";
+        var company_rif = comp_info.tax_id || "";
     %}
     <table class="report-header" style="width: 100%; border-collapse: collapse; margin-bottom: 5px;">
         <tr>

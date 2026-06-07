@@ -27,6 +27,17 @@ function download_base64_file(filename, base64Content, mimeType) {
   document.body.removeChild(a);
 }
 
+function _load_company_info(report) {
+  const company = report && report.get_filter_value && report.get_filter_value("company");
+  if (!company) {
+    if (report) report.company_info = null;
+    return;
+  }
+  frappe.db.get_value("Company", company, ["company_logo", "tax_id"]).then((r) => {
+    report.company_info = (r && r.message) || {};
+  });
+}
+
 frappe.query_reports["purchase_book"] = {
   filters: [
     {
@@ -36,6 +47,7 @@ frappe.query_reports["purchase_book"] = {
       options: "Company",
       reqd: 1,
       default: frappe.defaults.get_user_default("Company"),
+      on_change: () => _load_company_info(frappe.query_report),
     },
     {
       fieldname: "from_date",
@@ -61,6 +73,8 @@ frappe.query_reports["purchase_book"] = {
   ],
 
   onload: function (report) {
+    _load_company_info(report);
+
     // Botón: Formato Detallado (formato actual)
     report.page.add_inner_button(
       __("Formato Detallado"),
