@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.0.1] - 2026-06-08
+
+### 🐛 Correcciones (Fixes)
+- **Dashboard**: Se optimizó el proceso de exportación mediante el uso de recursos nativos y se implementó la validación obligatoria de permisos de lectura para asegurar la integridad del acceso a los datos. [f0f2f10]
+
+---
+
 ## [v2.0.0] - 2026-06-08
 
 ### ✨ Funcionalidades (Features)
