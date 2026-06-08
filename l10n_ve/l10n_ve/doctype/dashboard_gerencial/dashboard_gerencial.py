@@ -497,3 +497,724 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
         "exchange_rate": rate_today,
         "branch_financial_summary": branch_financial_summary
     }
+
+
+def format_currency_ve_py(val, currency="USD"):
+    symbol = "REF " if currency == "USD" else "Bs. "
+    try:
+        val_str = "{:,.2f}".format(flt(val))
+        parts = val_str.split('.')
+        integer_part = parts[0].replace(',', '.')
+        decimal_part = parts[1]
+        return f"{symbol}{integer_part},{decimal_part}"
+    except Exception:
+        return f"{symbol}{flt(val):.2f}"
+
+
+def _draw_excel_card(ws, start_col, start_row, label, usd_val, vef_val, accent_color, is_qty=False):
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    
+    end_col = start_col + 4
+    end_row = start_row + 2
+    
+    thin_border_side = Side(style='thin', color="CBD5E1")
+    thick_top_side = Side(style='medium', color=accent_color)
+    
+    card_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    
+    label_font = Font(name="Segoe UI", size=8.5, bold=True, color=accent_color)
+    val_font = Font(name="Segoe UI", size=13.5, bold=True, color="0F172A")
+    sub_font = Font(name="Segoe UI", size=9, italic=True, color="64748B")
+    
+    align_center = Alignment(horizontal="center", vertical="center")
+    
+    # Merge cells for each row inside the card
+    ws.merge_cells(start_row=start_row, start_column=start_col, end_row=start_row, end_column=end_col)
+    lbl_cell = ws.cell(row=start_row, column=start_col, value=label.upper())
+    lbl_cell.font = label_font
+    lbl_cell.alignment = align_center
+    
+    ws.merge_cells(start_row=start_row+1, start_column=start_col, end_row=start_row+1, end_column=end_col)
+    val_cell = ws.cell(row=start_row+1, column=start_col, value=usd_val)
+    val_cell.font = val_font
+    val_cell.alignment = align_center
+    if is_qty:
+        val_cell.number_format = '#,##0'
+    else:
+        val_cell.number_format = '"REF "#,##0.00;("REF "#,##0.00);"-"'
+        
+    ws.merge_cells(start_row=start_row+2, start_column=start_col, end_row=start_row+2, end_column=end_col)
+    if is_qty:
+        sub_cell = ws.cell(row=start_row+2, column=start_col, value="Facturas del período")
+        sub_cell.font = sub_font
+        sub_cell.alignment = align_center
+    else:
+        sub_cell = ws.cell(row=start_row+2, column=start_col, value=vef_val)
+        sub_cell.font = sub_font
+        sub_cell.alignment = align_center
+        sub_cell.number_format = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"'
+        
+    for r in range(start_row, start_row + 3):
+        for c in range(start_col, start_col + 5):
+            cell = ws.cell(row=r, column=c)
+            cell.fill = card_fill
+            
+            border_kwargs = {}
+            if c == start_col:
+                border_kwargs["left"] = thin_border_side
+            if c == end_col:
+                border_kwargs["right"] = thin_border_side
+            if r == start_row:
+                border_kwargs["top"] = thick_top_side
+            if r == end_row:
+                border_kwargs["bottom"] = thin_border_side
+                
+            cell.border = Border(**border_kwargs)
+
+
+
+def _get_company_details(company_name):
+    if not company_name:
+        return {"name": "EMPRESA", "rif": "", "address": ""}
+    company_doc = frappe.get_cached_doc("Company", company_name)
+    company_rif = company_doc.get("tax_id") or ""
+    company_address = ""
+    if company_doc.get("custom_company_primary_address"):
+        try:
+            address_doc = frappe.get_cached_doc("Address", company_doc.get("custom_company_primary_address"))
+            company_address = address_doc.address_line1
+        except Exception:
+            pass
+    return {"name": company_name, "rif": company_rif, "address": company_address}
+
+
+@frappe.whitelist()
+def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
+    # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
+    frappe.get_doc("Dashboard Gerencial").check_permission("read")
+    from l10n_ve.utils.pdf_utils import safe_get_pdf
+    from frappe.utils import formatdate, nowdate
+    
+    data = get_dashboard_data(company, from_date, to_date, branch, cost_center)
+    rate_today = data.get("exchange_rate", 1.0)
+    company_details = _get_company_details(company)
+    
+    summary_data = []
+    t_cobrar = t_op = t_iva_op = t_fact = t_iva = t_neto = t_ret_iva = t_ret_islr = t_igtf = t_disp = t_spent = t_util = 0.0
+    v_cobrar = v_op = v_iva_op = v_fact = v_iva = v_neto = v_ret_iva = v_ret_islr = v_igtf = v_disp = v_spent = v_util = 0.0
+
+    for r in data.get("branch_financial_summary") or []:
+        if flt(r.get("indent", 0)) == 0.0:
+            t_cobrar += flt(r.get("pending_to_collect", 0))
+            v_cobrar += flt(r.get("pending_to_collect_vef", 0))
+            t_op += flt(r.get("payment_order", 0))
+            v_op += flt(r.get("payment_order_vef", 0))
+            t_iva_op += flt(r.get("payment_order_vat", 0))
+            v_iva_op += flt(r.get("payment_order_vat_vef", 0))
+            t_fact += flt(r.get("billed", 0))
+            v_fact += flt(r.get("billed_vef", 0))
+            t_iva += flt(r.get("vat", 0))
+            v_iva += flt(r.get("vat_vef", 0))
+            t_neto += flt(r.get("vat_after_withholding", 0))
+            v_neto += flt(r.get("vat_after_withholding_vef", 0))
+            t_ret_iva += flt(r.get("vat_withholding", 0))
+            v_ret_iva += flt(r.get("vat_withholding_vef", 0))
+            t_ret_islr += flt(r.get("islr_withholding", 0))
+            v_ret_islr += flt(r.get("islr_withholding_vef", 0))
+            t_igtf += flt(r.get("igtf", 0))
+            v_igtf += flt(r.get("igtf_vef", 0))
+            t_disp += flt(r.get("availability", 0))
+            v_disp += flt(r.get("availability_vef", 0))
+            t_spent += flt(r.get("spent", 0))
+            v_spent += flt(r.get("spent_vef", 0))
+            t_util += flt(r.get("profit", 0))
+            v_util += flt(r.get("profit_vef", 0))
+
+        summary_data.append({
+            "branch": r.get("branch"),
+            "indent": r.get("indent", 0),
+            "is_group": r.get("is_group", False),
+            "is_total": False,
+            "availability": r.get("availability", 0),
+            "profit": r.get("profit", 0),
+            "pending_to_collect_f": format_currency_ve_py(r.get("pending_to_collect", 0), "USD"),
+            "pending_to_collect_vef_f": format_currency_ve_py(r.get("pending_to_collect_vef", 0), "VEF"),
+            "payment_order_f": format_currency_ve_py(r.get("payment_order", 0), "USD"),
+            "payment_order_vef_f": format_currency_ve_py(r.get("payment_order_vef", 0), "VEF"),
+            "payment_order_vat_f": format_currency_ve_py(r.get("payment_order_vat", 0), "USD"),
+            "payment_order_vat_vef_f": format_currency_ve_py(r.get("payment_order_vat_vef", 0), "VEF"),
+            "billed_f": format_currency_ve_py(r.get("billed", 0), "USD"),
+            "billed_vef_f": format_currency_ve_py(r.get("billed_vef", 0), "VEF"),
+            "vat_f": format_currency_ve_py(r.get("vat", 0), "USD"),
+            "vat_vef_f": format_currency_ve_py(r.get("vat_vef", 0), "VEF"),
+            "vat_after_withholding_f": format_currency_ve_py(r.get("vat_after_withholding", 0), "USD"),
+            "vat_after_withholding_vef_f": format_currency_ve_py(r.get("vat_after_withholding_vef", 0), "VEF"),
+            "vat_withholding_f": format_currency_ve_py(r.get("vat_withholding", 0), "USD"),
+            "vat_withholding_vef_f": format_currency_ve_py(r.get("vat_withholding_vef", 0), "VEF"),
+            "islr_withholding_f": format_currency_ve_py(r.get("islr_withholding", 0), "USD"),
+            "islr_withholding_vef_f": format_currency_ve_py(r.get("islr_withholding_vef", 0), "VEF"),
+            "igtf_f": format_currency_ve_py(r.get("igtf", 0), "USD"),
+            "igtf_vef_f": format_currency_ve_py(r.get("igtf_vef", 0), "VEF"),
+            "availability_f": format_currency_ve_py(r.get("availability", 0), "USD"),
+            "availability_vef_f": format_currency_ve_py(r.get("availability_vef", 0), "VEF"),
+            "spent_f": format_currency_ve_py(r.get("spent", 0), "USD"),
+            "spent_vef_f": format_currency_ve_py(r.get("spent_vef", 0), "VEF"),
+            "profit_f": format_currency_ve_py(r.get("profit", 0), "USD"),
+            "profit_vef_f": format_currency_ve_py(r.get("profit_vef", 0), "VEF"),
+        })
+
+    summary_data.append({
+        "branch": "TOTAL",
+        "indent": 0,
+        "is_group": False,
+        "is_total": True,
+        "availability": t_disp,
+        "profit": t_util,
+        "pending_to_collect_f": format_currency_ve_py(t_cobrar, "USD"),
+        "pending_to_collect_vef_f": format_currency_ve_py(v_cobrar, "VEF"),
+        "payment_order_f": format_currency_ve_py(t_op, "USD"),
+        "payment_order_vef_f": format_currency_ve_py(v_op, "VEF"),
+        "payment_order_vat_f": format_currency_ve_py(t_iva_op, "USD"),
+        "payment_order_vat_vef_f": format_currency_ve_py(v_iva_op, "VEF"),
+        "billed_f": format_currency_ve_py(t_fact, "USD"),
+        "billed_vef_f": format_currency_ve_py(v_fact, "VEF"),
+        "vat_f": format_currency_ve_py(t_iva, "USD"),
+        "vat_vef_f": format_currency_ve_py(v_iva, "VEF"),
+        "vat_after_withholding_f": format_currency_ve_py(t_neto, "USD"),
+        "vat_after_withholding_vef_f": format_currency_ve_py(v_neto, "VEF"),
+        "vat_withholding_f": format_currency_ve_py(t_ret_iva, "USD"),
+        "vat_withholding_vef_f": format_currency_ve_py(v_ret_iva, "VEF"),
+        "islr_withholding_f": format_currency_ve_py(t_ret_islr, "USD"),
+        "islr_withholding_vef_f": format_currency_ve_py(v_ret_islr, "VEF"),
+        "igtf_f": format_currency_ve_py(t_igtf, "USD"),
+        "igtf_vef_f": format_currency_ve_py(v_igtf, "VEF"),
+        "availability_f": format_currency_ve_py(t_disp, "USD"),
+        "availability_vef_f": format_currency_ve_py(v_disp, "VEF"),
+        "spent_f": format_currency_ve_py(t_spent, "USD"),
+        "spent_vef_f": format_currency_ve_py(v_spent, "VEF"),
+        "profit_f": format_currency_ve_py(t_util, "USD"),
+        "profit_vef_f": format_currency_ve_py(v_util, "VEF"),
+    })
+
+    html_template = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 7.5pt; margin: 0; color: #1e293b; }
+            .header-container { margin-bottom: 15px; }
+            .company-name { font-size: 13pt; font-weight: bold; color: #0f172a; text-transform: uppercase; }
+            .company-info { font-size: 8.5pt; color: #475569; margin-top: 3px; }
+            .title-banner { background-color: #0f172a; color: #ffffff; text-align: center; font-weight: bold; padding: 8px; margin: 15px 0; font-size: 11pt; border-radius: 4px; letter-spacing: 0.5px; }
+            .filters-banner { font-size: 8.5pt; color: #1e293b; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-bottom: 15px; }
+            .filter-item { display: inline-block; margin-right: 20px; }
+            .filter-item strong { color: #475569; }
+            
+            /* Mini cards layout */
+            .cards-container { display: table; width: 100%; table-layout: fixed; margin-bottom: 15px; }
+            .cards-row { display: table-row; }
+            .card-cell { display: table-cell; padding: 4px; }
+            .mini-card { background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; text-align: left; }
+            .mini-card-label { font-size: 6.5pt; text-transform: uppercase; font-weight: bold; color: #64748b; margin-bottom: 2px; }
+            .mini-card-value { font-size: 10.5pt; font-weight: bold; color: #0f172a; }
+            .mini-card-subtext { font-size: 7.5pt; color: #64748b; margin-top: 1px; }
+            
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 7pt; }
+            th, td { border: 1px solid #cbd5e1; padding: 6px 4px; vertical-align: middle; }
+            th { background-color: #0f172a; color: #ffffff; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 6.5pt; letter-spacing: 0.5px; }
+            .branch-col { font-weight: 600; text-align: left; }
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
+            
+            .row-even { background-color: #ffffff; }
+            .row-odd { background-color: #f8fafc; }
+            .row-group { font-weight: bold; background-color: #f1f5f9; }
+            .row-total { background-color: #e2e8f0; font-weight: bold; border-top: 2px solid #0f172a; border-bottom: 2px double #0f172a; color: #0f172a; }
+            
+            .currency-usd { font-weight: 600; color: #1e293b; }
+            .currency-vef { font-size: 6.5pt; color: #64748b; margin-top: 2px; }
+        </style>
+    </head>
+    <body>
+        <div class="header-container">
+            <div class="company-name">{{ company_name }}</div>
+            <div class="company-info">R.I.F.: {{ company_rif }} | Dirección: {{ company_address }}</div>
+            <div class="company-info">Fecha de Emisión: {{ print_date }}</div>
+        </div>
+
+        <div class="title-banner">DASHBOARD GERENCIAL - RESUMEN FINANCIERO</div>
+
+        <div class="filters-banner">
+            <div class="filter-item"><strong>Periodo:</strong> Desde {{ from_date }} Hasta {{ to_date }}</div>
+            {% if branch %}
+            <div class="filter-item"><strong>Sucursal:</strong> {{ branch }}</div>
+            {% endif %}
+            {% if cost_center %}
+            <div class="filter-item"><strong>Centro de Costo:</strong> {{ cost_center }}</div>
+            {% endif %}
+        </div>
+
+        <!-- Mini tarjetas de Resumen -->
+        <div class="cards-container">
+            <div class="cards-row">
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #8b5cf6;">
+                        <div class="mini-card-label">Cantidad de Ventas</div>
+                        <div class="mini-card-value">{{ sales_count }}</div>
+                        <div class="mini-card-subtext">&nbsp;</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #64748b;">
+                        <div class="mini-card-label">Por Cobrar</div>
+                        <div class="mini-card-value">{{ t_cobrar_f }}</div>
+                        <div class="mini-card-subtext">{{ t_cobrar_vef_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #06b6d4;">
+                        <div class="mini-card-label">Facturado</div>
+                        <div class="mini-card-value">{{ t_fact_f }}</div>
+                        <div class="mini-card-subtext">{{ t_fact_vef_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #f97316;">
+                        <div class="mini-card-label">IVA</div>
+                        <div class="mini-card-value">{{ t_iva_f }}</div>
+                        <div class="mini-card-subtext">{{ t_iva_vef_f }}</div>
+                    </div>
+                </div>
+            </div>
+            <div style="height: 6px;"></div>
+            <div class="cards-row">
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #ef4444;">
+                        <div class="mini-card-label">IGTF</div>
+                        <div class="mini-card-value">{{ t_igtf_f }}</div>
+                        <div class="mini-card-subtext">{{ t_igtf_vef_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #10b981;">
+                        <div class="mini-card-label">Disponibilidad</div>
+                        <div class="mini-card-value" style="color: {% if t_disp >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_disp_f }}</div>
+                        <div class="mini-card-subtext" style="color: {% if t_disp >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_disp_vef_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #ec4899;">
+                        <div class="mini-card-label">Gastos</div>
+                        <div class="mini-card-value" style="color: #dc2626;">{{ t_spent_f }}</div>
+                        <div class="mini-card-subtext" style="color: #dc2626;">{{ t_spent_vef_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #059669;">
+                        <div class="mini-card-label">Utilidad</div>
+                        <div class="mini-card-value" style="color: {% if t_util >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_util_f }}</div>
+                        <div class="mini-card-subtext" style="color: {% if t_util >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_util_vef_f }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="font-size: 9pt; font-weight: bold; color: #0f172a; margin-top: 15px; margin-bottom: 5px; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px;">
+            Resumen Financiero por Sucursal
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 13%;">Sucursal</th>
+                    <th style="width: 7.2%;">Por Cobrar</th>
+                    <th style="width: 7.2%;">Orden de Pago</th>
+                    <th style="width: 7.2%;">IVA Orden Pago</th>
+                    <th style="width: 7.2%;">Facturado</th>
+                    <th style="width: 7.2%;">IVA</th>
+                    <th style="width: 7.2%;">IVA desp. Ret.</th>
+                    <th style="width: 7.2%;">Ret. IVA</th>
+                    <th style="width: 7.2%;">Ret. ISLR</th>
+                    <th style="width: 7.2%;">IGTF</th>
+                    <th style="width: 7.2%;">Disponibilidad</th>
+                    <th style="width: 7.2%;">Gastos</th>
+                    <th style="width: 7.2%;">Utilidad</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in summary %}
+                <tr class="{% if r.is_total %}row-total{% elif r.is_group %}row-group{% else %}{{ loop.cycle('row-even', 'row-odd') }}{% endif %}">
+                    <td class="branch-col">
+                        {% if r.indent > 0 %}
+                            {% for i in range(r.indent) %}&nbsp;&nbsp;&nbsp;&nbsp;{% endfor %}
+                        {% endif %}
+                        {{ r.branch }}
+                    </td>
+                    <td class="text-right">
+                        <div class="currency-usd">{{ r.pending_to_collect_f }}</div>
+                        <div class="currency-vef">{{ r.pending_to_collect_vef_f }}</div>
+                    </td>
+                    <td class="text-right" style="color: #2563eb;">
+                        <div class="currency-usd" style="color: #2563eb;">{{ r.payment_order_f }}</div>
+                        <div class="currency-vef">{{ r.payment_order_vef_f }}</div>
+                    </td>
+                    <td class="text-right">
+                        <div class="currency-usd">{{ r.payment_order_vat_f }}</div>
+                        <div class="currency-vef">{{ r.payment_order_vat_vef_f }}</div>
+                    </td>
+                    <td class="text-right" style="color: #2563eb;">
+                        <div class="currency-usd" style="color: #2563eb;">{{ r.billed_f }}</div>
+                        <div class="currency-vef">{{ r.billed_vef_f }}</div>
+                    </td>
+                    <td class="text-right">
+                        <div class="currency-usd">{{ r.vat_f }}</div>
+                        <div class="currency-vef">{{ r.vat_vef_f }}</div>
+                    </td>
+                    <td class="text-right">
+                        <div class="currency-usd">{{ r.vat_after_withholding_f }}</div>
+                        <div class="currency-vef">{{ r.vat_after_withholding_vef_f }}</div>
+                    </td>
+                    <td class="text-right" style="color: #7c3aed;">
+                        <div class="currency-usd" style="color: #7c3aed;">{{ r.vat_withholding_f }}</div>
+                        <div class="currency-vef">{{ r.vat_withholding_vef_f }}</div>
+                    </td>
+                    <td class="text-right">
+                        <div class="currency-usd">{{ r.islr_withholding_f }}</div>
+                        <div class="currency-vef">{{ r.islr_withholding_vef_f }}</div>
+                    </td>
+                    <td class="text-right" style="color: #dc2626;">
+                        <div class="currency-usd" style="color: #dc2626;">{{ r.igtf_f }}</div>
+                        <div class="currency-vef">{{ r.igtf_vef_f }}</div>
+                    </td>
+                    <td class="text-right" style="color: {% if r.availability >= 0 %}#059669{% else %}#dc2626{% endif %}; font-weight: bold;">
+                        <div class="currency-usd" style="color: {% if r.availability >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ r.availability_f }}</div>
+                        <div class="currency-vef">{{ r.availability_vef_f }}</div>
+                    </td>
+                    <td class="text-right" style="color: #dc2626;">
+                        <div class="currency-usd" style="color: #dc2626;">{{ r.spent_f }}</div>
+                        <div class="currency-vef">{{ r.spent_vef_f }}</div>
+                    </td>
+                    <td class="text-right" style="color: {% if r.profit >= 0 %}#059669{% else %}#dc2626{% endif %}; font-weight: bold;">
+                        <div class="currency-usd" style="color: {% if r.profit >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ r.profit_f }}</div>
+                        <div class="currency-vef">{{ r.profit_vef_f }}</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+    
+    context = {
+        "company_name": company_details.get("name"),
+        "company_rif": company_details.get("rif"),
+        "company_address": company_details.get("address"),
+        "print_date": formatdate(nowdate()),
+        "from_date": formatdate(from_date),
+        "to_date": formatdate(to_date),
+        "exchange_rate_f": format_currency_ve_py(rate_today, "VEF"),
+        "branch": branch,
+        "cost_center": cost_center,
+        "summary": summary_data,
+        "sales_count": data.get("sales_count", 0),
+        "t_cobrar": t_cobrar,
+        "t_cobrar_f": format_currency_ve_py(t_cobrar, "USD"),
+        "t_cobrar_vef_f": format_currency_ve_py(v_cobrar, "VEF"),
+        "t_fact": t_fact,
+        "t_fact_f": format_currency_ve_py(t_fact, "USD"),
+        "t_fact_vef_f": format_currency_ve_py(v_fact, "VEF"),
+        "t_iva": t_iva,
+        "t_iva_f": format_currency_ve_py(t_iva, "USD"),
+        "t_iva_vef_f": format_currency_ve_py(v_iva, "VEF"),
+        "t_igtf": t_igtf,
+        "t_igtf_f": format_currency_ve_py(t_igtf, "USD"),
+        "t_igtf_vef_f": format_currency_ve_py(v_igtf, "VEF"),
+        "t_disp": t_disp,
+        "t_disp_f": format_currency_ve_py(t_disp, "USD"),
+        "t_disp_vef_f": format_currency_ve_py(v_disp, "VEF"),
+        "t_spent": t_spent,
+        "t_spent_f": format_currency_ve_py(t_spent, "USD"),
+        "t_spent_vef_f": format_currency_ve_py(v_spent, "VEF"),
+        "t_util": t_util,
+        "t_util_f": format_currency_ve_py(t_util, "USD"),
+        "t_util_vef_f": format_currency_ve_py(v_util, "VEF")
+    }
+    
+    final_html = frappe.render_template(html_template, context)
+    pdf_content = safe_get_pdf(final_html, {"orientation": "Landscape"})
+    
+    frappe.local.response.filename = f"Dashboard_Gerencial_{nowdate()}.pdf"
+    frappe.local.response.filecontent = pdf_content
+    frappe.local.response.type = "download"
+
+
+@frappe.whitelist()
+def download_excel(company, from_date, to_date, branch=None, cost_center=None):
+    # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
+    frappe.get_doc("Dashboard Gerencial").check_permission("read")
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils import get_column_letter
+    from frappe.utils import formatdate, nowdate
+    
+    data = get_dashboard_data(company, from_date, to_date, branch, cost_center)
+    company_details = _get_company_details(company)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Resumen Financiero"
+    
+    ws.views.sheetView[0].showGridLines = True
+    
+    font_family = "Segoe UI"
+    
+    title_font = Font(name=font_family, size=15, bold=True, color="0F172A")
+    subtitle_font = Font(name=font_family, size=9.5, italic=True, color="475569")
+    filter_val_font = Font(name=font_family, size=9, italic=True, color="1E293B")
+    
+    header_font = Font(name=font_family, size=10, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+    
+    data_font = Font(name=font_family, size=10, color="1E293B")
+    group_font = Font(name=font_family, size=10, bold=True, color="0F172A")
+    total_font = Font(name=font_family, size=10, bold=True, color="0F172A")
+    
+    zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    total_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+    group_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+    
+    thin_grid = Side(style='thin', color="E2E8F0")
+    thin_accent = Side(style='thin', color="475569")
+    double_accent = Side(style='double', color="0F172A")
+    
+    data_border = Border(left=thin_grid, right=thin_grid, top=thin_grid, bottom=thin_grid)
+    total_border = Border(left=thin_grid, right=thin_grid, top=thin_accent, bottom=double_accent)
+    
+    align_left = Alignment(horizontal="left", vertical="center")
+    align_right = Alignment(horizontal="right", vertical="center")
+    align_center = Alignment(horizontal="center", vertical="center")
+    
+    ws.cell(row=1, column=1).value = company_details.get("name").upper()
+    ws.cell(row=1, column=1).font = title_font
+    ws.row_dimensions[1].height = 24
+    
+    generated_on = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+    ws.cell(row=2, column=1).value = f"Dashboard Gerencial - Resumen Financiero por Sucursal | Generado: {generated_on}"
+    ws.cell(row=2, column=1).font = subtitle_font
+    ws.row_dimensions[2].height = 16
+    
+    filters_text = f"Periodo: Desde {formatdate(from_date)} Hasta {formatdate(to_date)}"
+    if branch:
+        filters_text += f" | Sucursal: {branch}"
+    if cost_center:
+        filters_text += f" | Centro de Costo: {cost_center}"
+    ws.cell(row=3, column=1).value = filters_text
+    ws.cell(row=3, column=1).font = filter_val_font
+    ws.row_dimensions[3].height = 18
+    
+    for c in range(1, 26):
+        ws.cell(row=4, column=c).border = Border(bottom=thin_accent)
+    ws.row_dimensions[4].height = 10
+    
+    # Pre-calcular totales de branches raíz (indent == 0) para las tarjetas y fila final
+    t_cobrar = t_op = t_iva_op = t_fact = t_iva = t_neto = t_ret_iva = t_ret_islr = t_igtf = t_disp = t_spent = t_util = 0.0
+    v_cobrar = v_op = v_iva_op = v_fact = v_iva = v_neto = v_ret_iva = v_ret_islr = v_igtf = v_disp = v_spent = v_util = 0.0
+    for r in data.get("branch_financial_summary") or []:
+        if flt(r.get("indent", 0)) == 0.0:
+            t_cobrar += flt(r.get("pending_to_collect", 0))
+            v_cobrar += flt(r.get("pending_to_collect_vef", 0))
+            t_op += flt(r.get("payment_order", 0))
+            v_op += flt(r.get("payment_order_vef", 0))
+            t_iva_op += flt(r.get("payment_order_vat", 0))
+            v_iva_op += flt(r.get("payment_order_vat_vef", 0))
+            t_fact += flt(r.get("billed", 0))
+            v_fact += flt(r.get("billed_vef", 0))
+            t_iva += flt(r.get("vat", 0))
+            v_iva += flt(r.get("vat_vef", 0))
+            t_neto += flt(r.get("vat_after_withholding", 0))
+            v_neto += flt(r.get("vat_after_withholding_vef", 0))
+            t_ret_iva += flt(r.get("vat_withholding", 0))
+            v_ret_iva += flt(r.get("vat_withholding_vef", 0))
+            t_ret_islr += flt(r.get("islr_withholding", 0))
+            v_ret_islr += flt(r.get("islr_withholding_vef", 0))
+            t_igtf += flt(r.get("igtf", 0))
+            v_igtf += flt(r.get("igtf_vef", 0))
+            t_disp += flt(r.get("availability", 0))
+            v_disp += flt(r.get("availability_vef", 0))
+            t_spent += flt(r.get("spent", 0))
+            v_spent += flt(r.get("spent_vef", 0))
+            t_util += flt(r.get("profit", 0))
+            v_util += flt(r.get("profit_vef", 0))
+
+    # Dibujar mini tarjetas (2 filas de 4 tarjetas cada una)
+    # Fila 1 de Tarjetas (Filas 5 a 7)
+    # 1. Cantidad de ventas
+    _draw_excel_card(ws, start_col=2, start_row=5, label="Cantidad de ventas", usd_val=data.get("sales_count", 0), vef_val=None, accent_color="8B5CF6", is_qty=True)
+    # 2. Por cobrar
+    _draw_excel_card(ws, start_col=8, start_row=5, label="Por cobrar", usd_val=t_cobrar, vef_val=v_cobrar, accent_color="64748B")
+    # 3. Facturado
+    _draw_excel_card(ws, start_col=14, start_row=5, label="Facturado", usd_val=t_fact, vef_val=v_fact, accent_color="06B6D4")
+    # 4. IVA
+    _draw_excel_card(ws, start_col=20, start_row=5, label="IVA", usd_val=t_iva, vef_val=v_iva, accent_color="F97316")
+    
+    ws.row_dimensions[5].height = 16
+    ws.row_dimensions[6].height = 22
+    ws.row_dimensions[7].height = 18
+    
+    # Separador (Fila 8)
+    ws.row_dimensions[8].height = 10
+    
+    # Fila 2 de Tarjetas (Filas 9 a 11)
+    # 5. IGTF
+    _draw_excel_card(ws, start_col=2, start_row=9, label="IGTF", usd_val=t_igtf, vef_val=v_igtf, accent_color="EF4444")
+    # 6. Disponibilidad
+    _draw_excel_card(ws, start_col=8, start_row=9, label="Disponibilidad", usd_val=t_disp, vef_val=v_disp, accent_color="10B981")
+    # 7. Gastos
+    _draw_excel_card(ws, start_col=14, start_row=9, label="Gastos", usd_val=t_spent, vef_val=v_spent, accent_color="EC4899")
+    # 8. Utilidad
+    _draw_excel_card(ws, start_col=20, start_row=9, label="Utilidad", usd_val=t_util, vef_val=v_util, accent_color="059669")
+    
+    ws.row_dimensions[9].height = 16
+    ws.row_dimensions[10].height = 22
+    ws.row_dimensions[11].height = 18
+    
+    # Separador (Fila 12)
+    ws.row_dimensions[12].height = 12
+    
+    # Título de Sección "Resumen Financiero por Sucursal" (Fila 13)
+    ws.row_dimensions[13].height = 22
+    ws.merge_cells(start_row=13, start_column=1, end_row=13, end_column=25)
+    title_cell = ws.cell(row=13, column=1, value="RESUMEN FINANCIERO POR SUCURSAL")
+    title_cell.font = Font(name=font_family, size=11, bold=True, color="0F172A")
+    title_cell.alignment = align_left
+    
+    title_border_side = Side(style='thin', color="CBD5E1")
+    for col_idx in range(1, 26):
+        ws.cell(row=13, column=col_idx).border = Border(bottom=title_border_side)
+        
+    # Separador (Fila 14)
+    ws.row_dimensions[14].height = 8
+    
+    headers = [
+        "Sucursal",
+        "Por cobrar (USD)", "Por cobrar (Bs.)",
+        "Orden de Pago (USD)", "Orden de Pago (Bs.)",
+        "IVA Orden de Pago (USD)", "IVA Orden de Pago (Bs.)",
+        "Facturado (USD)", "Facturado (Bs.)",
+        "IVA (USD)", "IVA (Bs.)",
+        "IVA desp. Retención (USD)", "IVA desp. Retención (Bs.)",
+        "Ret. IVA (USD)", "Ret. IVA (Bs.)",
+        "Ret. ISLR (USD)", "Ret. ISLR (Bs.)",
+        "IGTF (USD)", "IGTF (Bs.)",
+        "Disponibilidad (USD)", "Disponibilidad (Bs.)",
+        "Gastos (USD)", "Gastos (Bs.)",
+        "Utilidad (USD)", "Utilidad (Bs.)"
+    ]
+    
+    # Cabeceras de la tabla (Fila 15)
+    ws.row_dimensions[15].height = 28
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=15, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = align_center
+        cell.border = Border(left=thin_grid, right=thin_grid, top=thin_accent, bottom=thin_accent)
+        
+    row_num = 16
+    for r in data.get("branch_financial_summary") or []:
+        is_grp = r.get("is_group", False)
+        indent = r.get("indent", 0)
+        branch_name = "    " * indent + str(r.get("branch") or "")
+        
+        row_fill = group_fill if is_grp else (zebra_fill if row_num % 2 == 0 else PatternFill(fill_type=None))
+        row_font = group_font if is_grp else data_font
+        
+        ws.row_dimensions[row_num].height = 20
+        
+        cell = ws.cell(row=row_num, column=1, value=branch_name)
+        cell.font = row_font
+        cell.alignment = align_left
+        cell.border = data_border
+        if row_fill.fill_type:
+            cell.fill = row_fill
+            
+        col_vals = [
+            r.get("pending_to_collect", 0), flt(r.get("pending_to_collect_vef", 0)),
+            r.get("payment_order", 0), flt(r.get("payment_order_vef", 0)),
+            r.get("payment_order_vat", 0), flt(r.get("payment_order_vat_vef", 0)),
+            r.get("billed", 0), flt(r.get("billed_vef", 0)),
+            r.get("vat", 0), flt(r.get("vat_vef", 0)),
+            r.get("vat_after_withholding", 0), flt(r.get("vat_after_withholding_vef", 0)),
+            r.get("vat_withholding", 0), flt(r.get("vat_withholding_vef", 0)),
+            r.get("islr_withholding", 0), flt(r.get("islr_withholding_vef", 0)),
+            r.get("igtf", 0), flt(r.get("igtf_vef", 0)),
+            r.get("availability", 0), flt(r.get("availability_vef", 0)),
+            r.get("spent", 0), flt(r.get("spent_vef", 0)),
+            r.get("profit", 0), flt(r.get("profit_vef", 0)),
+        ]
+        
+        for idx, val in enumerate(col_vals, 2):
+            cell = ws.cell(row=row_num, column=idx, value=val)
+            cell.font = row_font
+            cell.alignment = align_right
+            cell.border = data_border
+            cell.number_format = '#,##0.00;(#,##0.00);"-"'
+            if row_fill.fill_type:
+                cell.fill = row_fill
+                
+        row_num += 1
+        
+    # Fila de TOTAL final
+    ws.row_dimensions[row_num].height = 22
+    cell = ws.cell(row=row_num, column=1, value="TOTAL")
+    cell.font = total_font
+    cell.alignment = align_left
+    cell.border = total_border
+    cell.fill = total_fill
+    
+    total_vals = [
+        t_cobrar, v_cobrar,
+        t_op, v_op,
+        t_iva_op, v_iva_op,
+        t_fact, v_fact,
+        t_iva, v_iva,
+        t_neto, v_neto,
+        t_ret_iva, v_ret_iva,
+        t_ret_islr, v_ret_islr,
+        t_igtf, v_igtf,
+        t_disp, v_disp,
+        t_spent, v_spent,
+        t_util, v_util,
+    ]
+    
+    for idx, val in enumerate(total_vals, 2):
+        cell = ws.cell(row=row_num, column=idx, value=val)
+        cell.font = total_font
+        cell.alignment = align_right
+        cell.border = total_border
+        cell.number_format = '#,##0.00;(#,##0.00);"-"'
+        cell.fill = total_fill
+        
+    # Ajustar ancho de columnas escaneando desde la cabecera de la tabla (fila 15) en adelante
+    for col_idx in range(1, 26):
+        col_letter = get_column_letter(col_idx)
+        max_len = 0
+        for r in range(15, row_num + 1):
+            cell_val = ws.cell(row=r, column=col_idx).value
+            if cell_val is not None:
+                val_str = f"{cell_val:,.2f}" if isinstance(cell_val, (int, float)) else str(cell_val)
+                if len(val_str) > max_len:
+                    max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    content = out.read()
+    
+    frappe.local.response.filename = f"Dashboard_Gerencial_{nowdate()}.xlsx"
+    frappe.local.response.filecontent = content
+    frappe.local.response.type = "binary"

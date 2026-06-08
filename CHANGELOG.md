@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.0.1] - 2026-06-08
+
+### 🐛 Correcciones (Fixes)
+- **Dashboard**: Se optimizó el proceso de exportación mediante el uso de recursos nativos y se implementó la validación obligatoria de permisos de lectura para asegurar la integridad del acceso a los datos. [f0f2f10]
+
+---
+
+## [v2.0.0] - 2026-06-08
+
+### ✨ Funcionalidades (Features)
+- Implementación de la obligatoriedad del centro de costos a nivel de sucursal para asegurar la integridad de los datos contables. [25a8b25]
+
+---
+
+## [v1.11.0] - 2026-06-08
+
+### ✨ Funcionalidades (Features)
+- Se integraron mini tarjetas informativas al reporte exportable de Excel del dashboard. ef30b5b
+
+### 🐛 Correcciones (Fixes)
+- Corrección en la lógica de sumatoria de los totales para asegurar la precisión de los datos presentados. ef30b5b
+
+---
+
 ## [v1.10.1] - 2026-06-07
 
 ### 🐛 Correcciones (Fixes)
