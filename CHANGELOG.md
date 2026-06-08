@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.0.0] - 2026-06-08
+
+### ✨ Funcionalidades (Features)
+- Implementación de la obligatoriedad del centro de costos a nivel de sucursal para asegurar la integridad de los datos contables. [25a8b25]
+
+---
+
 ## [v1.11.0] - 2026-06-08
 
 ### ✨ Funcionalidades (Features)
