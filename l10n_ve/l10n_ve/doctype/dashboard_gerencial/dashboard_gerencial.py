@@ -590,6 +590,8 @@ def _get_company_details(company_name):
 
 @frappe.whitelist()
 def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
+    # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
+    frappe.get_doc("Dashboard Gerencial").check_permission("read")
     from l10n_ve.utils.pdf_utils import safe_get_pdf
     from frappe.utils import formatdate, nowdate
     
@@ -599,21 +601,34 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
     
     summary_data = []
     t_cobrar = t_op = t_iva_op = t_fact = t_iva = t_neto = t_ret_iva = t_ret_islr = t_igtf = t_disp = t_spent = t_util = 0.0
-    
+    v_cobrar = v_op = v_iva_op = v_fact = v_iva = v_neto = v_ret_iva = v_ret_islr = v_igtf = v_disp = v_spent = v_util = 0.0
+
     for r in data.get("branch_financial_summary") or []:
         if flt(r.get("indent", 0)) == 0.0:
             t_cobrar += flt(r.get("pending_to_collect", 0))
+            v_cobrar += flt(r.get("pending_to_collect_vef", 0))
             t_op += flt(r.get("payment_order", 0))
+            v_op += flt(r.get("payment_order_vef", 0))
             t_iva_op += flt(r.get("payment_order_vat", 0))
+            v_iva_op += flt(r.get("payment_order_vat_vef", 0))
             t_fact += flt(r.get("billed", 0))
+            v_fact += flt(r.get("billed_vef", 0))
             t_iva += flt(r.get("vat", 0))
+            v_iva += flt(r.get("vat_vef", 0))
             t_neto += flt(r.get("vat_after_withholding", 0))
+            v_neto += flt(r.get("vat_after_withholding_vef", 0))
             t_ret_iva += flt(r.get("vat_withholding", 0))
+            v_ret_iva += flt(r.get("vat_withholding_vef", 0))
             t_ret_islr += flt(r.get("islr_withholding", 0))
+            v_ret_islr += flt(r.get("islr_withholding_vef", 0))
             t_igtf += flt(r.get("igtf", 0))
+            v_igtf += flt(r.get("igtf_vef", 0))
             t_disp += flt(r.get("availability", 0))
+            v_disp += flt(r.get("availability_vef", 0))
             t_spent += flt(r.get("spent", 0))
+            v_spent += flt(r.get("spent_vef", 0))
             t_util += flt(r.get("profit", 0))
+            v_util += flt(r.get("profit_vef", 0))
 
         summary_data.append({
             "branch": r.get("branch"),
@@ -623,29 +638,29 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
             "availability": r.get("availability", 0),
             "profit": r.get("profit", 0),
             "pending_to_collect_f": format_currency_ve_py(r.get("pending_to_collect", 0), "USD"),
-            "pending_to_collect_vef_f": format_currency_ve_py(flt(r.get("pending_to_collect", 0)) * rate_today, "VEF"),
+            "pending_to_collect_vef_f": format_currency_ve_py(r.get("pending_to_collect_vef", 0), "VEF"),
             "payment_order_f": format_currency_ve_py(r.get("payment_order", 0), "USD"),
-            "payment_order_vef_f": format_currency_ve_py(flt(r.get("payment_order", 0)) * rate_today, "VEF"),
+            "payment_order_vef_f": format_currency_ve_py(r.get("payment_order_vef", 0), "VEF"),
             "payment_order_vat_f": format_currency_ve_py(r.get("payment_order_vat", 0), "USD"),
-            "payment_order_vat_vef_f": format_currency_ve_py(flt(r.get("payment_order_vat", 0)) * rate_today, "VEF"),
+            "payment_order_vat_vef_f": format_currency_ve_py(r.get("payment_order_vat_vef", 0), "VEF"),
             "billed_f": format_currency_ve_py(r.get("billed", 0), "USD"),
-            "billed_vef_f": format_currency_ve_py(flt(r.get("billed", 0)) * rate_today, "VEF"),
+            "billed_vef_f": format_currency_ve_py(r.get("billed_vef", 0), "VEF"),
             "vat_f": format_currency_ve_py(r.get("vat", 0), "USD"),
-            "vat_vef_f": format_currency_ve_py(flt(r.get("vat", 0)) * rate_today, "VEF"),
+            "vat_vef_f": format_currency_ve_py(r.get("vat_vef", 0), "VEF"),
             "vat_after_withholding_f": format_currency_ve_py(r.get("vat_after_withholding", 0), "USD"),
-            "vat_after_withholding_vef_f": format_currency_ve_py(flt(r.get("vat_after_withholding", 0)) * rate_today, "VEF"),
+            "vat_after_withholding_vef_f": format_currency_ve_py(r.get("vat_after_withholding_vef", 0), "VEF"),
             "vat_withholding_f": format_currency_ve_py(r.get("vat_withholding", 0), "USD"),
-            "vat_withholding_vef_f": format_currency_ve_py(flt(r.get("vat_withholding", 0)) * rate_today, "VEF"),
+            "vat_withholding_vef_f": format_currency_ve_py(r.get("vat_withholding_vef", 0), "VEF"),
             "islr_withholding_f": format_currency_ve_py(r.get("islr_withholding", 0), "USD"),
-            "islr_withholding_vef_f": format_currency_ve_py(flt(r.get("islr_withholding", 0)) * rate_today, "VEF"),
+            "islr_withholding_vef_f": format_currency_ve_py(r.get("islr_withholding_vef", 0), "VEF"),
             "igtf_f": format_currency_ve_py(r.get("igtf", 0), "USD"),
-            "igtf_vef_f": format_currency_ve_py(flt(r.get("igtf", 0)) * rate_today, "VEF"),
+            "igtf_vef_f": format_currency_ve_py(r.get("igtf_vef", 0), "VEF"),
             "availability_f": format_currency_ve_py(r.get("availability", 0), "USD"),
-            "availability_vef_f": format_currency_ve_py(flt(r.get("availability", 0)) * rate_today, "VEF"),
+            "availability_vef_f": format_currency_ve_py(r.get("availability_vef", 0), "VEF"),
             "spent_f": format_currency_ve_py(r.get("spent", 0), "USD"),
-            "spent_vef_f": format_currency_ve_py(flt(r.get("spent", 0)) * rate_today, "VEF"),
+            "spent_vef_f": format_currency_ve_py(r.get("spent_vef", 0), "VEF"),
             "profit_f": format_currency_ve_py(r.get("profit", 0), "USD"),
-            "profit_vef_f": format_currency_ve_py(flt(r.get("profit", 0)) * rate_today, "VEF"),
+            "profit_vef_f": format_currency_ve_py(r.get("profit_vef", 0), "VEF"),
         })
 
     summary_data.append({
@@ -656,29 +671,29 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
         "availability": t_disp,
         "profit": t_util,
         "pending_to_collect_f": format_currency_ve_py(t_cobrar, "USD"),
-        "pending_to_collect_vef_f": format_currency_ve_py(t_cobrar * rate_today, "VEF"),
+        "pending_to_collect_vef_f": format_currency_ve_py(v_cobrar, "VEF"),
         "payment_order_f": format_currency_ve_py(t_op, "USD"),
-        "payment_order_vef_f": format_currency_ve_py(t_op * rate_today, "VEF"),
+        "payment_order_vef_f": format_currency_ve_py(v_op, "VEF"),
         "payment_order_vat_f": format_currency_ve_py(t_iva_op, "USD"),
-        "payment_order_vat_vef_f": format_currency_ve_py(t_iva_op * rate_today, "VEF"),
+        "payment_order_vat_vef_f": format_currency_ve_py(v_iva_op, "VEF"),
         "billed_f": format_currency_ve_py(t_fact, "USD"),
-        "billed_vef_f": format_currency_ve_py(t_fact * rate_today, "VEF"),
+        "billed_vef_f": format_currency_ve_py(v_fact, "VEF"),
         "vat_f": format_currency_ve_py(t_iva, "USD"),
-        "vat_vef_f": format_currency_ve_py(t_iva * rate_today, "VEF"),
+        "vat_vef_f": format_currency_ve_py(v_iva, "VEF"),
         "vat_after_withholding_f": format_currency_ve_py(t_neto, "USD"),
-        "vat_after_withholding_vef_f": format_currency_ve_py(t_neto * rate_today, "VEF"),
+        "vat_after_withholding_vef_f": format_currency_ve_py(v_neto, "VEF"),
         "vat_withholding_f": format_currency_ve_py(t_ret_iva, "USD"),
-        "vat_withholding_vef_f": format_currency_ve_py(t_ret_iva * rate_today, "VEF"),
+        "vat_withholding_vef_f": format_currency_ve_py(v_ret_iva, "VEF"),
         "islr_withholding_f": format_currency_ve_py(t_ret_islr, "USD"),
-        "islr_withholding_vef_f": format_currency_ve_py(t_ret_islr * rate_today, "VEF"),
+        "islr_withholding_vef_f": format_currency_ve_py(v_ret_islr, "VEF"),
         "igtf_f": format_currency_ve_py(t_igtf, "USD"),
-        "igtf_vef_f": format_currency_ve_py(t_igtf * rate_today, "VEF"),
+        "igtf_vef_f": format_currency_ve_py(v_igtf, "VEF"),
         "availability_f": format_currency_ve_py(t_disp, "USD"),
-        "availability_vef_f": format_currency_ve_py(t_disp * rate_today, "VEF"),
+        "availability_vef_f": format_currency_ve_py(v_disp, "VEF"),
         "spent_f": format_currency_ve_py(t_spent, "USD"),
-        "spent_vef_f": format_currency_ve_py(t_spent * rate_today, "VEF"),
+        "spent_vef_f": format_currency_ve_py(v_spent, "VEF"),
         "profit_f": format_currency_ve_py(t_util, "USD"),
-        "profit_vef_f": format_currency_ve_py(t_util * rate_today, "VEF"),
+        "profit_vef_f": format_currency_ve_py(v_util, "VEF"),
     })
 
     html_template = """
@@ -906,25 +921,25 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
         "sales_count": data.get("sales_count", 0),
         "t_cobrar": t_cobrar,
         "t_cobrar_f": format_currency_ve_py(t_cobrar, "USD"),
-        "t_cobrar_vef_f": format_currency_ve_py(t_cobrar * rate_today, "VEF"),
+        "t_cobrar_vef_f": format_currency_ve_py(v_cobrar, "VEF"),
         "t_fact": t_fact,
         "t_fact_f": format_currency_ve_py(t_fact, "USD"),
-        "t_fact_vef_f": format_currency_ve_py(t_fact * rate_today, "VEF"),
+        "t_fact_vef_f": format_currency_ve_py(v_fact, "VEF"),
         "t_iva": t_iva,
         "t_iva_f": format_currency_ve_py(t_iva, "USD"),
-        "t_iva_vef_f": format_currency_ve_py(t_iva * rate_today, "VEF"),
+        "t_iva_vef_f": format_currency_ve_py(v_iva, "VEF"),
         "t_igtf": t_igtf,
         "t_igtf_f": format_currency_ve_py(t_igtf, "USD"),
-        "t_igtf_vef_f": format_currency_ve_py(t_igtf * rate_today, "VEF"),
+        "t_igtf_vef_f": format_currency_ve_py(v_igtf, "VEF"),
         "t_disp": t_disp,
         "t_disp_f": format_currency_ve_py(t_disp, "USD"),
-        "t_disp_vef_f": format_currency_ve_py(t_disp * rate_today, "VEF"),
+        "t_disp_vef_f": format_currency_ve_py(v_disp, "VEF"),
         "t_spent": t_spent,
         "t_spent_f": format_currency_ve_py(t_spent, "USD"),
-        "t_spent_vef_f": format_currency_ve_py(t_spent * rate_today, "VEF"),
+        "t_spent_vef_f": format_currency_ve_py(v_spent, "VEF"),
         "t_util": t_util,
         "t_util_f": format_currency_ve_py(t_util, "USD"),
-        "t_util_vef_f": format_currency_ve_py(t_util * rate_today, "VEF")
+        "t_util_vef_f": format_currency_ve_py(v_util, "VEF")
     }
     
     final_html = frappe.render_template(html_template, context)
@@ -937,6 +952,8 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
 
 @frappe.whitelist()
 def download_excel(company, from_date, to_date, branch=None, cost_center=None):
+    # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
+    frappe.get_doc("Dashboard Gerencial").check_permission("read")
     import io
     import openpyxl
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -944,9 +961,8 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
     from frappe.utils import formatdate, nowdate
     
     data = get_dashboard_data(company, from_date, to_date, branch, cost_center)
-    rate_today = data.get("exchange_rate", 1.0)
     company_details = _get_company_details(company)
-    
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Resumen Financiero"
@@ -1005,31 +1021,44 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
     
     # Pre-calcular totales de branches raíz (indent == 0) para las tarjetas y fila final
     t_cobrar = t_op = t_iva_op = t_fact = t_iva = t_neto = t_ret_iva = t_ret_islr = t_igtf = t_disp = t_spent = t_util = 0.0
+    v_cobrar = v_op = v_iva_op = v_fact = v_iva = v_neto = v_ret_iva = v_ret_islr = v_igtf = v_disp = v_spent = v_util = 0.0
     for r in data.get("branch_financial_summary") or []:
         if flt(r.get("indent", 0)) == 0.0:
             t_cobrar += flt(r.get("pending_to_collect", 0))
+            v_cobrar += flt(r.get("pending_to_collect_vef", 0))
             t_op += flt(r.get("payment_order", 0))
+            v_op += flt(r.get("payment_order_vef", 0))
             t_iva_op += flt(r.get("payment_order_vat", 0))
+            v_iva_op += flt(r.get("payment_order_vat_vef", 0))
             t_fact += flt(r.get("billed", 0))
+            v_fact += flt(r.get("billed_vef", 0))
             t_iva += flt(r.get("vat", 0))
+            v_iva += flt(r.get("vat_vef", 0))
             t_neto += flt(r.get("vat_after_withholding", 0))
+            v_neto += flt(r.get("vat_after_withholding_vef", 0))
             t_ret_iva += flt(r.get("vat_withholding", 0))
+            v_ret_iva += flt(r.get("vat_withholding_vef", 0))
             t_ret_islr += flt(r.get("islr_withholding", 0))
+            v_ret_islr += flt(r.get("islr_withholding_vef", 0))
             t_igtf += flt(r.get("igtf", 0))
+            v_igtf += flt(r.get("igtf_vef", 0))
             t_disp += flt(r.get("availability", 0))
+            v_disp += flt(r.get("availability_vef", 0))
             t_spent += flt(r.get("spent", 0))
+            v_spent += flt(r.get("spent_vef", 0))
             t_util += flt(r.get("profit", 0))
-            
+            v_util += flt(r.get("profit_vef", 0))
+
     # Dibujar mini tarjetas (2 filas de 4 tarjetas cada una)
     # Fila 1 de Tarjetas (Filas 5 a 7)
     # 1. Cantidad de ventas
     _draw_excel_card(ws, start_col=2, start_row=5, label="Cantidad de ventas", usd_val=data.get("sales_count", 0), vef_val=None, accent_color="8B5CF6", is_qty=True)
     # 2. Por cobrar
-    _draw_excel_card(ws, start_col=8, start_row=5, label="Por cobrar", usd_val=t_cobrar, vef_val=t_cobrar * rate_today, accent_color="64748B")
+    _draw_excel_card(ws, start_col=8, start_row=5, label="Por cobrar", usd_val=t_cobrar, vef_val=v_cobrar, accent_color="64748B")
     # 3. Facturado
-    _draw_excel_card(ws, start_col=14, start_row=5, label="Facturado", usd_val=t_fact, vef_val=t_fact * rate_today, accent_color="06B6D4")
+    _draw_excel_card(ws, start_col=14, start_row=5, label="Facturado", usd_val=t_fact, vef_val=v_fact, accent_color="06B6D4")
     # 4. IVA
-    _draw_excel_card(ws, start_col=20, start_row=5, label="IVA", usd_val=t_iva, vef_val=t_iva * rate_today, accent_color="F97316")
+    _draw_excel_card(ws, start_col=20, start_row=5, label="IVA", usd_val=t_iva, vef_val=v_iva, accent_color="F97316")
     
     ws.row_dimensions[5].height = 16
     ws.row_dimensions[6].height = 22
@@ -1040,13 +1069,13 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
     
     # Fila 2 de Tarjetas (Filas 9 a 11)
     # 5. IGTF
-    _draw_excel_card(ws, start_col=2, start_row=9, label="IGTF", usd_val=t_igtf, vef_val=t_igtf * rate_today, accent_color="EF4444")
+    _draw_excel_card(ws, start_col=2, start_row=9, label="IGTF", usd_val=t_igtf, vef_val=v_igtf, accent_color="EF4444")
     # 6. Disponibilidad
-    _draw_excel_card(ws, start_col=8, start_row=9, label="Disponibilidad", usd_val=t_disp, vef_val=t_disp * rate_today, accent_color="10B981")
+    _draw_excel_card(ws, start_col=8, start_row=9, label="Disponibilidad", usd_val=t_disp, vef_val=v_disp, accent_color="10B981")
     # 7. Gastos
-    _draw_excel_card(ws, start_col=14, start_row=9, label="Gastos", usd_val=t_spent, vef_val=t_spent * rate_today, accent_color="EC4899")
+    _draw_excel_card(ws, start_col=14, start_row=9, label="Gastos", usd_val=t_spent, vef_val=v_spent, accent_color="EC4899")
     # 8. Utilidad
-    _draw_excel_card(ws, start_col=20, start_row=9, label="Utilidad", usd_val=t_util, vef_val=t_util * rate_today, accent_color="059669")
+    _draw_excel_card(ws, start_col=20, start_row=9, label="Utilidad", usd_val=t_util, vef_val=v_util, accent_color="059669")
     
     ws.row_dimensions[9].height = 16
     ws.row_dimensions[10].height = 22
@@ -1113,18 +1142,18 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
             cell.fill = row_fill
             
         col_vals = [
-            r.get("pending_to_collect", 0), flt(r.get("pending_to_collect", 0)) * rate_today,
-            r.get("payment_order", 0), flt(r.get("payment_order", 0)) * rate_today,
-            r.get("payment_order_vat", 0), flt(r.get("payment_order_vat", 0)) * rate_today,
-            r.get("billed", 0), flt(r.get("billed", 0)) * rate_today,
-            r.get("vat", 0), flt(r.get("vat", 0)) * rate_today,
-            r.get("vat_after_withholding", 0), flt(r.get("vat_after_withholding", 0)) * rate_today,
-            r.get("vat_withholding", 0), flt(r.get("vat_withholding", 0)) * rate_today,
-            r.get("islr_withholding", 0), flt(r.get("islr_withholding", 0)) * rate_today,
-            r.get("igtf", 0), flt(r.get("igtf", 0)) * rate_today,
-            r.get("availability", 0), flt(r.get("availability", 0)) * rate_today,
-            r.get("spent", 0), flt(r.get("spent", 0)) * rate_today,
-            r.get("profit", 0), flt(r.get("profit", 0)) * rate_today,
+            r.get("pending_to_collect", 0), flt(r.get("pending_to_collect_vef", 0)),
+            r.get("payment_order", 0), flt(r.get("payment_order_vef", 0)),
+            r.get("payment_order_vat", 0), flt(r.get("payment_order_vat_vef", 0)),
+            r.get("billed", 0), flt(r.get("billed_vef", 0)),
+            r.get("vat", 0), flt(r.get("vat_vef", 0)),
+            r.get("vat_after_withholding", 0), flt(r.get("vat_after_withholding_vef", 0)),
+            r.get("vat_withholding", 0), flt(r.get("vat_withholding_vef", 0)),
+            r.get("islr_withholding", 0), flt(r.get("islr_withholding_vef", 0)),
+            r.get("igtf", 0), flt(r.get("igtf_vef", 0)),
+            r.get("availability", 0), flt(r.get("availability_vef", 0)),
+            r.get("spent", 0), flt(r.get("spent_vef", 0)),
+            r.get("profit", 0), flt(r.get("profit_vef", 0)),
         ]
         
         for idx, val in enumerate(col_vals, 2):
@@ -1147,18 +1176,18 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
     cell.fill = total_fill
     
     total_vals = [
-        t_cobrar, t_cobrar * rate_today,
-        t_op, t_op * rate_today,
-        t_iva_op, t_iva_op * rate_today,
-        t_fact, t_fact * rate_today,
-        t_iva, t_iva * rate_today,
-        t_neto, t_neto * rate_today,
-        t_ret_iva, t_ret_iva * rate_today,
-        t_ret_islr, t_ret_islr * rate_today,
-        t_igtf, t_igtf * rate_today,
-        t_disp, t_disp * rate_today,
-        t_spent, t_spent * rate_today,
-        t_util, t_util * rate_today,
+        t_cobrar, v_cobrar,
+        t_op, v_op,
+        t_iva_op, v_iva_op,
+        t_fact, v_fact,
+        t_iva, v_iva,
+        t_neto, v_neto,
+        t_ret_iva, v_ret_iva,
+        t_ret_islr, v_ret_islr,
+        t_igtf, v_igtf,
+        t_disp, v_disp,
+        t_spent, v_spent,
+        t_util, v_util,
     ]
     
     for idx, val in enumerate(total_vals, 2):
