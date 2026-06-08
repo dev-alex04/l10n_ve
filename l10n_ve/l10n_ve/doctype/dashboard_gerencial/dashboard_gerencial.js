@@ -58,6 +58,29 @@ frappe.ui.form.on('Dashboard Gerencial', {
             frm.trigger('render_dashboard');
         }, 'fa fa-refresh');
 
+        // Add download buttons in inner toolbar
+        frm.page.add_inner_button(__('Descargar PDF'), () => {
+            if (!frm.doc.company || !frm.doc.from_date || !frm.doc.to_date) {
+                frappe.msgprint(__('Por favor seleccione Empresa, Fecha Inicio y Fecha Fin.'));
+                return;
+            }
+            const url = frappe.urllib.get_full_url(
+                `/api/method/l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.download_pdf?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}`
+            );
+            window.open(url);
+        });
+
+        frm.page.add_inner_button(__('Descargar Excel'), () => {
+            if (!frm.doc.company || !frm.doc.from_date || !frm.doc.to_date) {
+                frappe.msgprint(__('Por favor seleccione Empresa, Fecha Inicio y Fecha Fin.'));
+                return;
+            }
+            const url = frappe.urllib.get_full_url(
+                `/api/method/l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.download_excel?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}`
+            );
+            window.open(url);
+        });
+
         // Render initial view
         frm.trigger('render_dashboard');
     },
@@ -397,10 +420,6 @@ function render_premium_dashboard(frm, data) {
                 }
             </style>
             
-            <div class="dg-exchange-rate-banner">
-                <i class="fa fa-info-circle"></i>
-                <span>Tasa de cambio de referencia (según fecha fin): <strong>1 USD = ${format_currency_ve(data.exchange_rate, "VEF")}</strong> (al ${frappe.datetime.str_to_user(frm.doc.to_date)})</span>
-            </div>
 
             <!-- SECCIÓN 2: TARJETAS DE RESUMEN (Consolidadas a partir de los totales de la tabla) -->
             <h6 class="dg-section-title" style="margin-top: 0;">
