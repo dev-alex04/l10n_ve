@@ -5,7 +5,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from frappe.utils import fmt_money, formatdate, nowdate
-from frappe.utils.pdf import get_pdf
+from l10n_ve.utils.pdf_utils import safe_get_pdf
 from l10n_ve.l10n_ve.report.vat_withholding.vat_withholding import get_data
 
 def _get_company_details(company_name):
@@ -224,7 +224,7 @@ def download_custom_pdf(filters=None):
     }
 
     final_html = frappe.render_template(html_content, context)
-    pdf_content = get_pdf(final_html, {"orientation": "Landscape"})
+    pdf_content = safe_get_pdf(final_html, {"orientation": "Landscape"})
 
     frappe.local.response.filename = f"Retenciones_IVA_{nowdate()}.pdf"
     frappe.local.response.filecontent = pdf_content

@@ -1,4 +1,6 @@
 import re
+import os
+import glob
 import frappe
 from frappe.utils.pdf import get_pdf
 from frappe.core.doctype.access_log.access_log import make_access_log
@@ -18,16 +20,78 @@ _EXTERNAL_DOMAINS = (
 def _sanitize_html_for_wkhtmltopdf(html):
     """Remove external <link> and <script src> tags that would cause
     wkhtmltopdf to fail with HostNotFoundError in isolated environments.
-    Also resolve local relative images and verify they exist on disk to prevent 404 crashes."""
-    # Remove <link ...href="https://external..." ...> tags
-    def remove_external_link(match):
+    Also inline local CSS stylesheets to prevent network deadlocks,
+    and resolve local relative images to verify they exist on disk."""
+
+    # 1. Process stylesheet <link> tags
+    link_pattern = r'<link\b[^>]*>'
+    def replace_link(match):
         tag = match.group(0)
-        if any(domain in tag for domain in _EXTERNAL_DOMAINS):
+        # Check if it's a stylesheet
+        href_match = re.search(r'href=["\']([^"\']*)["\']', tag, re.IGNORECASE)
+        if not href_match:
+            return tag
+
+        href = href_match.group(1)
+
+        from urllib.parse import urlparse
+        local_hosts = {"localhost", "127.0.0.1", "api.local"}
+        try:
+            site_host = urlparse(frappe.utils.get_url()).hostname
+            if site_host:
+                local_hosts.add(site_host)
+        except Exception:
+            pass
+
+        href_host = urlparse(href).hostname or ""
+        is_external = (
+            any(domain in href for domain in _EXTERNAL_DOMAINS)
+            or (href.startswith(("http://", "https://", "//")) and href_host not in local_hosts)
+        )
+
+        if is_external:
             return ""  # strip it
+
+        # If it's a stylesheet link, try to inline it
+        is_stylesheet = "stylesheet" in tag.lower() or href.lower().endswith(".css") or ".css?" in href.lower()
+        if is_stylesheet:
+            clean_href = href
+            if "assets/" in href:
+                assets_idx = href.find("assets/")
+                clean_href = "/" + href[assets_idx:]
+
+            if clean_href.startswith("/assets/"):
+                rel_path = clean_href.lstrip("/")
+                abs_path = os.path.join(frappe.local.sites_path, rel_path)
+
+                # If exact file doesn't exist, try to match by glob (wildcard the hash)
+                if not os.path.exists(abs_path):
+                    directory, filename = os.path.split(abs_path)
+                    base, ext = os.path.splitext(filename)
+                    parts = base.split('.')
+                    if len(parts) > 1:
+                        # Replace the last element (the hash) with '*'
+                        pattern = '.'.join(parts[:-1]) + '.*' + ext
+                        matches = glob.glob(os.path.join(directory, pattern))
+                        if matches:
+                            abs_path = matches[0]
+
+                if os.path.exists(abs_path):
+                    try:
+                        with open(abs_path, 'r', encoding='utf-8') as f:
+                            css_content = f.read()
+                        return f"<style>{css_content}</style>"
+                    except Exception:
+                        pass
+
+            # If we couldn't resolve or read it, return empty string to prevent network request deadlock
+            return ""
+
         return tag
 
-    html = re.sub(r'<link\b[^>]*>', remove_external_link, html, flags=re.IGNORECASE)
-    # Remove <script src="https://external..."></script>
+    html = re.sub(link_pattern, replace_link, html, flags=re.IGNORECASE)
+
+    # 2. Remove <script src="https://external..."></script>
     def remove_external_script(match):
         tag = match.group(0)
         if any(domain in tag for domain in _EXTERNAL_DOMAINS):
@@ -37,8 +101,7 @@ def _sanitize_html_for_wkhtmltopdf(html):
     html = re.sub(r'<script\b[^>]*src=[^>]*>.*?</script>', remove_external_script,
                   html, flags=re.IGNORECASE | re.DOTALL)
 
-    # Resolve local relative images and check existence
-    import os
+    # 3. Resolve local relative images and check existence
     img_pattern = r'<img\b[^>]*src=["\']([^"\']*)["\'][^>]*>'
     def replace_img(match):
         tag = match.group(0)
@@ -61,6 +124,7 @@ def _sanitize_html_for_wkhtmltopdf(html):
 
     html = re.sub(img_pattern, replace_img, html, flags=re.IGNORECASE)
     return html
+
 
 
 @frappe.whitelist()

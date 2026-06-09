@@ -14,7 +14,7 @@ def execute(filters=None):
     to_date = filters.get("to_date")
     presentation = filters.get("presentation") or "Detallado"
     
-    if presentation in ["1° Nivel", "2° Nivel", "3° Nivel"]:
+    if presentation in ["1° Nivel", "2° Nivel", "3° Nivel", "4° Nivel"]:
         columns = [
             {"fieldname": "account_number", "label": _("Código"), "fieldtype": "Data", "width": 120},
             {"fieldname": "account", "label": _("Cuenta Contable"), "fieldtype": "Data", "width": 350},
@@ -27,8 +27,10 @@ def execute(filters=None):
             L = 1
         elif presentation == "2° Nivel":
             L = 2
-        else:
+        elif presentation == "3° Nivel":
             L = 3
+        else:
+            L = 4
             
         accounts_data = get_hierarchical_balances(company, to_date, from_date=from_date)
         
@@ -227,7 +229,28 @@ def execute(filters=None):
         })
 
     company_rif = frappe.db.get_value("Company", company, "tax_id") or ""
+    
+    # Resolve company address
+    company_address = ""
+    try:
+        comp_doc = frappe.get_cached_doc("Company", company)
+        if comp_doc.get("custom_company_primary_address"):
+            addr = frappe.get_cached_doc("Address", comp_doc.custom_company_primary_address)
+            addr_parts = [addr.address_line1]
+            if addr.address_line2:
+                addr_parts.append(addr.address_line2)
+            if addr.city:
+                addr_parts.append(addr.city)
+            if addr.state:
+                addr_parts.append(addr.state)
+            if addr.country:
+                addr_parts.append(addr.country)
+            company_address = ", ".join([p for p in addr_parts if p])
+    except Exception:
+        pass
+
     for r in data:
         r["company_rif"] = company_rif
+        r["company_address"] = company_address
 
     return columns, data, None, None, None

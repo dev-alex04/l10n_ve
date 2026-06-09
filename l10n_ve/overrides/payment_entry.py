@@ -42,7 +42,57 @@ class CustomPaymentEntry(PaymentEntry):
         ve_doctypes: tuple = ("VE Sales Debit Note",)
         return valid + tuple(dt for dt in ve_doctypes if dt not in valid)
 
+    def calculate_igtf_taxes(self) -> None:
+        # Si no es en divisas, o no hay cuenta de IGTF, no hacemos nada
+        if not self.paid_on_currency or not self.default_company_currency:
+            return
+
+        if self.default_company_currency == self.paid_on_currency:
+            # Si es la misma moneda, remover el IGTF de la tabla de impuestos
+            self.taxes = [t for t in self.taxes or [] if t.charge_type != 'IGTF']
+            self.igtf_amount = 0.0
+            self.total_with_igtf = 0.0
+            return
+
+        # Obtener tasa y cuenta si no están definidas
+        if not self.igtf_account or not self.igtf_rate:
+            igtf_field = 'purchase_igtf_account' if self.payment_type == 'Pay' else 'sales_igtf_account'
+            self.igtf_account = frappe.db.get_value('Company', self.company, igtf_field)
+            self.igtf_rate = flt(frappe.db.get_single_value('Venezuela Account Settings', 'igtf_rate'))
+
+        if not self.igtf_account or not self.igtf_rate:
+            return
+
+        # Recalcular igtf_amount a partir del monto pagado si no está establecido
+        paid_currency_amount = flt(self.paid_amount) / flt(self.exchange_rate) if flt(self.exchange_rate) else flt(self.paid_amount)
+        if not self.igtf_amount:
+            self.igtf_amount = flt(paid_currency_amount * self.igtf_rate / 100.0)
+
+        self.total_with_igtf = paid_currency_amount + flt(self.igtf_amount)
+
+        # El monto del impuesto en base local (VEF)
+        tax_amount_vef = flt(self.igtf_amount) * flt(self.exchange_rate)
+
+        # Buscar si ya existe la fila de IGTF en la tabla de impuestos
+        igtf_row = next((t for t in self.taxes or [] if t.charge_type == 'IGTF'), None)
+        if igtf_row:
+            igtf_row.tax_amount = tax_amount_vef
+            igtf_row.base_tax_amount = tax_amount_vef
+            igtf_row.rate = self.igtf_rate
+            igtf_row.account_head = self.igtf_account
+        else:
+            self.append('taxes', {
+                'charge_type': 'IGTF',
+                'description': 'IGTF',
+                'add_deduct_tax': 'Add',
+                'rate': self.igtf_rate,
+                'tax_amount': tax_amount_vef,
+                'base_tax_amount': tax_amount_vef,
+                'account_head': self.igtf_account
+            })
+
     def validate(self) -> None:
+        self.calculate_igtf_taxes()
         super().validate()
 
         self.validate_reference_no()

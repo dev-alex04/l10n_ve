@@ -54,14 +54,14 @@ frappe.ui.form.on('Dashboard Gerencial', {
         frm.dirty(false);
         
         // Add reload button in toolbar
-        frm.page.set_primary_action(__('Actualizar'), () => {
+        frm.page.set_primary_action('Actualizar', () => {
             frm.trigger('render_dashboard');
         }, 'fa fa-refresh');
 
         // Add download buttons in inner toolbar
-        frm.page.add_inner_button(__('Descargar PDF'), () => {
+        frm.page.add_inner_button('Descargar PDF', () => {
             if (!frm.doc.company || !frm.doc.from_date || !frm.doc.to_date) {
-                frappe.msgprint(__('Por favor seleccione Empresa, Fecha Inicio y Fecha Fin.'));
+                frappe.msgprint('Por favor seleccione Empresa, Fecha Inicio y Fecha Fin.');
                 return;
             }
             const url = frappe.urllib.get_full_url(
@@ -70,9 +70,9 @@ frappe.ui.form.on('Dashboard Gerencial', {
             window.open(url);
         });
 
-        frm.page.add_inner_button(__('Descargar Excel'), () => {
+        frm.page.add_inner_button('Descargar Excel', () => {
             if (!frm.doc.company || !frm.doc.from_date || !frm.doc.to_date) {
-                frappe.msgprint(__('Por favor seleccione Empresa, Fecha Inicio y Fecha Fin.'));
+                frappe.msgprint('Por favor seleccione Empresa, Fecha Inicio y Fecha Fin.');
                 return;
             }
             const url = frappe.urllib.get_full_url(
@@ -153,9 +153,9 @@ frappe.ui.form.on('Dashboard Gerencial', {
                 </div>
             `);
             frappe.msgprint({
-                title: __('Rango de Fechas Inválido'),
+                title: 'Rango de Fechas Inválido',
                 indicator: 'red',
-                message: __('La Fecha de Inicio no puede ser posterior a la Fecha Fin.')
+                message: 'La Fecha de Inicio no puede ser posterior a la Fecha Fin.'
             });
             return;
         }

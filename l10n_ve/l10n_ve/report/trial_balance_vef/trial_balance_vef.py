@@ -24,6 +24,14 @@ def get_data(filters):
     if not company:
         return []
 
+    # Ensure from_date and to_date are present to prevent KeyError in SQL query
+    if not filters.get("from_date"):
+        from frappe.utils import get_first_day, today
+        filters["from_date"] = get_first_day(today())
+    if not filters.get("to_date"):
+        from frappe.utils import get_last_day, today
+        filters["to_date"] = get_last_day(today())
+
     # 1. Obtener todas las cuentas ordenadas por su código (lft) para mantener la jerarquía
     accounts = frappe.get_all("Account",
         filters={"company": company},

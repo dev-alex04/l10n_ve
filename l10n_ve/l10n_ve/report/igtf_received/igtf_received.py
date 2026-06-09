@@ -20,6 +20,11 @@ def execute(filters=None):
 
 	report_summary = [
 		{
+			"value": len(data),
+			"label": _("Número total de operaciones"),
+			"datatype": "Int",
+		},
+		{
 			"value": total_invoice,
 			"label": _("Total Facturado"),
 			"datatype": "Currency",
@@ -69,7 +74,7 @@ def get_columns():
 		},
 		{
 			"fieldname": "tax_id",
-			"label": _("RIF"),
+			"label": _("Documento"),
 			"fieldtype": "Data",
 			"width": 120
 		},
