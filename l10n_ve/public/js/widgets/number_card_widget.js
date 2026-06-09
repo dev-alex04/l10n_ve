@@ -34,29 +34,23 @@ if (frappe.widget.widget_factory.number_card) {
             // Formatear la tasa de cambio
             let formatted_rate = flt(rate).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             
-            // Guardar el valor original en Bs. y la tasa de cambio como sub-valor
-            this.sub_value = `${this.formatted_number} (Tasa: ${formatted_rate})`;
-            
-            // Establecer el valor en USD como número principal
-            this.formatted_number = formatted_usd;
+            // Establecer la referencia en USD y la tasa en el sub-valor en pequeño
+            this.sub_value = `${formatted_usd} (Tasa: ${formatted_rate})`;
         } else {
             this.sub_value = null;
         }
     };
 
+    // Extender render_number original mediante delegación de prototipo para mayor estabilidad
+    const original_render_number = frappe.widget.widget_factory.number_card.prototype.render_number;
     frappe.widget.widget_factory.number_card.prototype.render_number = function() {
-        const style_attr = this.card_doc.color ? `style="color: ${this.card_doc.color};"` : "";
-        
-        let html = `<div class="widget-content">
-            <div class="number" ${style_attr}>${this.formatted_number}</div>`;
-            
+        original_render_number.call(this);
         if (this.sub_value) {
-            html += `<div class="sub-value text-muted" style="font-size: 13px; margin-top: 6px; color: var(--text-light) !important;">${this.sub_value}</div>`;
+            $(this.body).find(".sub-value").remove();
+            $(this.body).find(".widget-content").append(
+                `<div class="sub-value text-muted" style="font-size: 13px; margin-top: 6px; color: var(--text-light) !important;">${this.sub_value}</div>`
+            );
         }
-        
-        html += `</div>`;
-        
-        $(this.body).html(html);
     };
 }
 
@@ -67,7 +61,7 @@ if (frappe.utils.build_summary_item) {
         let $item = original_build_summary_item.call(this, summary);
         
         let rate = frappe.boot.today_exchange_rate || 0.0;
-        if (summary.datatype === "Currency" && (summary.currency === "VES" || summary.currency === "VEF") && rate > 0) {
+        if (summary && summary.datatype === "Currency" && (summary.currency === "VES" || summary.currency === "VEF") && rate > 0) {
             let usd_val = flt(summary.value) / rate;
             let formatted_usd = format_currency(usd_val, "USD");
             let $val_div = $item.find(".summary-value");
@@ -84,6 +78,7 @@ if (frappe.utils.build_summary_item) {
 if (frappe.utils.make_chart) {
     const original_make_chart = frappe.utils.make_chart;
     frappe.utils.make_chart = function(wrapper, custom_options) {
+        custom_options = custom_options || {};
         let tooltipOptions = custom_options.tooltipOptions || {};
         let original_formatTooltipY = tooltipOptions.formatTooltipY;
         
