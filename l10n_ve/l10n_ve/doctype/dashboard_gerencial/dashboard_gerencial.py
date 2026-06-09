@@ -591,6 +591,8 @@ def _get_company_details(company_name):
 
 @frappe.whitelist()
 def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
+    # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
+    frappe.get_doc("Dashboard Gerencial").check_permission("read")
     from l10n_ve.utils.pdf_utils import safe_get_pdf
     from frappe.utils import formatdate, nowdate
     
@@ -951,6 +953,8 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
 
 @frappe.whitelist()
 def download_excel(company, from_date, to_date, branch=None, cost_center=None):
+    # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
+    frappe.get_doc("Dashboard Gerencial").check_permission("read")
     import io
     import openpyxl
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -958,9 +962,8 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
     from frappe.utils import formatdate, nowdate
     
     data = get_dashboard_data(company, from_date, to_date, branch, cost_center)
-    rate_today = data.get("exchange_rate", 1.0)
     company_details = _get_company_details(company)
-    
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Resumen Financiero"
@@ -1140,18 +1143,18 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
             cell.fill = row_fill
             
         col_vals = [
-            r.get("pending_to_collect", 0), r.get("pending_to_collect_vef", 0),
-            r.get("payment_order", 0), r.get("payment_order_vef", 0),
-            r.get("payment_order_vat", 0), r.get("payment_order_vat_vef", 0),
-            r.get("billed", 0), r.get("billed_vef", 0),
-            r.get("vat", 0), r.get("vat_vef", 0),
-            r.get("vat_after_withholding", 0), r.get("vat_after_withholding_vef", 0),
-            r.get("vat_withholding", 0), r.get("vat_withholding_vef", 0),
-            r.get("islr_withholding", 0), r.get("islr_withholding_vef", 0),
-            r.get("igtf", 0), r.get("igtf_vef", 0),
-            r.get("availability", 0), r.get("availability_vef", 0),
-            r.get("spent", 0), r.get("spent_vef", 0),
-            r.get("profit", 0), r.get("profit_vef", 0),
+            r.get("pending_to_collect", 0), flt(r.get("pending_to_collect_vef", 0)),
+            r.get("payment_order", 0), flt(r.get("payment_order_vef", 0)),
+            r.get("payment_order_vat", 0), flt(r.get("payment_order_vat_vef", 0)),
+            r.get("billed", 0), flt(r.get("billed_vef", 0)),
+            r.get("vat", 0), flt(r.get("vat_vef", 0)),
+            r.get("vat_after_withholding", 0), flt(r.get("vat_after_withholding_vef", 0)),
+            r.get("vat_withholding", 0), flt(r.get("vat_withholding_vef", 0)),
+            r.get("islr_withholding", 0), flt(r.get("islr_withholding_vef", 0)),
+            r.get("igtf", 0), flt(r.get("igtf_vef", 0)),
+            r.get("availability", 0), flt(r.get("availability_vef", 0)),
+            r.get("spent", 0), flt(r.get("spent_vef", 0)),
+            r.get("profit", 0), flt(r.get("profit_vef", 0)),
         ]
         
         for idx, val in enumerate(col_vals, 2):

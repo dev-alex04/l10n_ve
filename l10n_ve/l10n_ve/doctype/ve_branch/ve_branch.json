@@ -132,7 +132,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Centro de costos",
-   "options": "Cost Center"
+   "options": "Cost Center",
+   "reqd": 1
   },
   {
    "fieldname": "impuestos_section",
@@ -192,7 +193,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-05-21 11:14:18.993370",
+ "modified": "2026-06-07 18:42:26.426712",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",
