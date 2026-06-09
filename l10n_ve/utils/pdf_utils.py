@@ -45,9 +45,9 @@ def _sanitize_html_for_wkhtmltopdf(html):
         is_stylesheet = "stylesheet" in tag.lower() or href.lower().endswith(".css") or ".css?" in href.lower()
         if is_stylesheet:
             clean_href = href
-            if "/assets/" in href:
-                assets_idx = href.find("/assets/")
-                clean_href = href[assets_idx:]
+            if "assets/" in href:
+                assets_idx = href.find("assets/")
+                clean_href = "/" + href[assets_idx:]
 
             if clean_href.startswith("/assets/"):
                 rel_path = clean_href.lstrip("/")

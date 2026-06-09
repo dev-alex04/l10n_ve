@@ -577,6 +577,7 @@ def _get_company_details(company_name):
     if not company_name:
         return {"name": "EMPRESA", "tax_id": "", "address": ""}
     company_doc = frappe.get_cached_doc("Company", company_name)
+    company_doc.check_permission("read")
     company_tax_id = company_doc.get("tax_id") or ""
     company_address = ""
     if company_doc.get("custom_company_primary_address"):
