@@ -34,9 +34,20 @@ def _sanitize_html_for_wkhtmltopdf(html):
 
         href = href_match.group(1)
 
-        # Check if external stylesheet
-        is_external = any(domain in href for domain in _EXTERNAL_DOMAINS) or \
-                      (href.startswith(("http://", "https://", "//")) and not any(h in href for h in ("localhost", "127.0.0.1", "api.local")))
+        from urllib.parse import urlparse
+        local_hosts = {"localhost", "127.0.0.1", "api.local"}
+        try:
+            site_host = urlparse(frappe.utils.get_url()).hostname
+            if site_host:
+                local_hosts.add(site_host)
+        except Exception:
+            pass
+
+        href_host = urlparse(href).hostname or ""
+        is_external = (
+            any(domain in href for domain in _EXTERNAL_DOMAINS)
+            or (href.startswith(("http://", "https://", "//")) and href_host not in local_hosts)
+        )
 
         if is_external:
             return ""  # strip it
