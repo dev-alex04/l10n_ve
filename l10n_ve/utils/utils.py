@@ -936,3 +936,4 @@ def get_today_bcv_rate() -> float:
         )
         rate = rates[0].exchange_rate if rates else 0.0
     return flt(rate)
+

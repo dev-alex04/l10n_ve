@@ -17,38 +17,27 @@ if (frappe.widget.widget_factory.number_card) {
             this.formatted_number =
                 ($(formatted_number).text() || formatted_number) + " " + __(symbol);
         }
-
-        // Inyectar referencia en dólares si la tarjeta está en bolívares (VES/VEF)
-        let rate = frappe.boot.today_exchange_rate || 0.0;
-        let base_currency = frappe.defaults.get_default("currency");
-        let is_ves = (this.card_doc.currency === base_currency) 
-            || (!this.card_doc.currency && (base_currency === "VES" || base_currency === "VEF")) 
-            || (this.card_doc.currency === "VES" || this.card_doc.currency === "VEF");
-
-        if (is_ves && rate > 0 && !isNaN(number)) {
-            let usd_val = number / rate;
-            
-            // Formatear el valor en dólares como "REF X.XXX,XX" (separador de miles con punto, decimal con coma)
-            let formatted_usd = "REF " + flt(usd_val).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            
-            // Formatear la tasa de cambio
-            let formatted_rate = flt(rate).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            
-            // Establecer la referencia en USD y la tasa en el sub-valor en pequeño
-            this.sub_value = `${formatted_usd} (Tasa: ${formatted_rate})`;
-        } else {
-            this.sub_value = null;
-        }
     };
 
-    // Extender render_number original mediante delegación de prototipo para mayor estabilidad
+    // Extender render_number para mostrar referencia USD precalculada (tasa por transacción)
     const original_render_number = frappe.widget.widget_factory.number_card.prototype.render_number;
     frappe.widget.widget_factory.number_card.prototype.render_number = function() {
         original_render_number.call(this);
-        if (this.sub_value) {
+
+        // Leer el total USD precalculado desde bootinfo (inyectado en boot.py)
+        let card_refs = frappe.boot.card_usd_refs || {};
+        let card_name = this.card_doc.name;
+        let ref_data = card_refs[card_name];
+
+        if (ref_data && ref_data.usd_total > 0) {
+            let formatted_usd = "REF " + flt(ref_data.usd_total)
+                .toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            let formatted_rate = flt(ref_data.avg_rate)
+                .toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
             $(this.body).find(".sub-value").remove();
             $(this.body).find(".widget-content").append(
-                `<div class="sub-value text-muted" style="font-size: 13px; margin-top: 6px; color: var(--text-light) !important;">${this.sub_value}</div>`
+                `<div class="sub-value text-muted" style="font-size: 13px; margin-top: 6px; color: var(--text-light) !important;">${formatted_usd} (Tasa prom: ${formatted_rate})</div>`
             );
         }
     };
@@ -59,7 +48,7 @@ if (frappe.utils.build_summary_item) {
     const original_build_summary_item = frappe.utils.build_summary_item;
     frappe.utils.build_summary_item = function(summary) {
         let $item = original_build_summary_item.call(this, summary);
-        
+
         let rate = frappe.boot.today_exchange_rate || 0.0;
         if (summary && summary.datatype === "Currency" && (summary.currency === "VES" || summary.currency === "VEF") && rate > 0) {
             let usd_val = flt(summary.value) / rate;
@@ -81,7 +70,7 @@ if (frappe.utils.make_chart) {
         custom_options = custom_options || {};
         let tooltipOptions = custom_options.tooltipOptions || {};
         let original_formatTooltipY = tooltipOptions.formatTooltipY;
-        
+
         tooltipOptions.formatTooltipY = (value) => {
             let formatted = original_formatTooltipY ? original_formatTooltipY(value) : value;
             let rate = frappe.boot.today_exchange_rate || 0.0;
