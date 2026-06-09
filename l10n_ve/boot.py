@@ -12,3 +12,10 @@ def get_boot_info(bootinfo: dict) -> None:
         )
     except Exception:
         bootinfo.tfhka_enabled = False
+
+    try:
+        from l10n_ve.utils.utils import get_exchange_rate
+        from frappe.utils import nowdate
+        bootinfo.today_exchange_rate = get_exchange_rate(nowdate(), "USD")
+    except Exception:
+        bootinfo.today_exchange_rate = 0.0

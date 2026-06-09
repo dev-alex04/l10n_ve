@@ -916,3 +916,18 @@ def get_usd_factura_de_venta():
         "docstatus": 1,
         "posting_date": ["between", [first_day, last_day]]
     })
+
+
+@frappe.whitelist()
+def get_today_bcv_rate() -> float:
+    """Retorna la última tasa de cambio oficial (BCV) del dólar (USD) registrada."""
+    from frappe.utils import nowdate
+    rate = get_exchange_rate(nowdate(), "USD")
+    if not rate:
+        rate = frappe.db.get_value(
+            "Currency Exchange",
+            {"from_currency": "USD"},
+            "exchange_rate",
+            order_by="date desc"
+        )
+    return flt(rate)
