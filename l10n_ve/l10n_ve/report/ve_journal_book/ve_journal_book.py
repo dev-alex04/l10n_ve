@@ -14,7 +14,7 @@ def execute(filters=None):
     to_date = filters.get("to_date")
     presentation = filters.get("presentation") or "Detallado"
     
-    if presentation in ["1° Nivel", "2° Nivel", "3° Nivel"]:
+    if presentation in ["1° Nivel", "2° Nivel", "3° Nivel", "4° Nivel"]:
         columns = [
             {"fieldname": "account_number", "label": _("Código"), "fieldtype": "Data", "width": 120},
             {"fieldname": "account", "label": _("Cuenta Contable"), "fieldtype": "Data", "width": 350},
@@ -27,8 +27,10 @@ def execute(filters=None):
             L = 1
         elif presentation == "2° Nivel":
             L = 2
-        else:
+        elif presentation == "3° Nivel":
             L = 3
+        else:
+            L = 4
             
         accounts_data = get_hierarchical_balances(company, to_date, from_date=from_date)
         

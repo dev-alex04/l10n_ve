@@ -403,6 +403,7 @@ class CustomPaymentEntry(PaymentEntry):
 
     def make_gl_entries(self, cancel=0, adv_adj=0) -> None:
         gl_entries = self.build_gl_map()
+        self.add_tax_gl_entries(gl_entries)
         gl_entries = process_gl_map(gl_entries, merge_entries=False)
         make_gl_entries(gl_entries, cancel=cancel, adv_adj=adv_adj)
         if cancel:

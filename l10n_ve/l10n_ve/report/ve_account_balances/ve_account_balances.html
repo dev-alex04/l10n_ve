@@ -156,8 +156,10 @@
 <div class="report-container">
     {%
         var format_val = function(val) {
-            if (val === null || val === undefined || val === "") return "";
-            var formatted = format_currency(val);
+            if (val === null || val === undefined || val === "" || isNaN(val)) return "";
+            var formatted = Math.abs(val).toFixed(2)
+                .replace('.', ',')
+                .replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
             if (val < -0.005) {
                 return '<span class="negative-val">' + formatted + '</span>';
             }
@@ -176,7 +178,7 @@
             <td style="width: 45%; vertical-align: middle; border: none; padding: 0;">
                 <img src="{%= company_logo %}" style="max-height: 40px; display: block;" alt="Logo">
             </td>
-            <td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #334155; line-height: 1.35;">
+            <td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #334155; line-height: 1.35;">
                 <div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">{%= company_name %}</div>
                 <div style="font-size: 8px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: {%= company_rif %}</div>
                 <div style="font-size: 8px; color: #64748b; margin-top: 2px;">{%= new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %}</div>
@@ -187,13 +189,12 @@
     
     <div class="title-badge">
         <h1>Saldos de Cuentas</h1>
-        <p>A la fecha: {%= (filters && filters.to_date) ? filters.to_date.split("-").reverse().join("/") : "" %} &nbsp;|&nbsp; Expresado en Bolívares (VEF)</p>
+        <p>Al: {%= (filters && filters.to_date) ? filters.to_date.split("-").reverse().join("/") : "" %} &nbsp;|&nbsp; Expresado en Bolívares (VEF)</p>
     </div>
 
     <table class="ledger-table">
         <thead>
             <tr>
-                <th class="text-left" style="width: 120px;">Código</th>
                 <th class="text-left">Cuenta</th>
                 <th class="text-right" style="width: 120px;">Débito (Debe)</th>
                 <th class="text-right" style="width: 120px;">Crédito (Haber)</th>
@@ -205,7 +206,6 @@
                 var row = data[i]; %}
             {% if (row.is_total) { %}
             <tr class="totals-row">
-                <td>{%= row.account_number || "" %}</td>
                 <td>{%= row.account %}</td>
                 <td class="text-right">{%= format_val(row.debit) %}</td>
                 <td class="text-right">{%= format_val(row.credit) %}</td>
@@ -213,7 +213,6 @@
             </tr>
             {% } else if (row.is_group) { %}
             <tr class="group-header-row">
-                <td>{%= row.account_number || "" %}</td>
                 <td>{%= row.account %}</td>
                 <td class="text-right">{%= format_val(row.debit) %}</td>
                 <td class="text-right">{%= format_val(row.credit) %}</td>
@@ -221,7 +220,6 @@
             </tr>
             {% } else { %}
             <tr class="leaf-row">
-                <td>{%= row.account_number || "" %}</td>
                 <td>{%= row.account %}</td>
                 <td class="text-right">{%= format_val(row.debit) %}</td>
                 <td class="text-right">{%= format_val(row.credit) %}</td>

@@ -273,13 +273,7 @@
         
         var balance_col_label = "Saldo a la fecha " + report_month + " " + report_year;
         
-        var rows_per_page = 18;
-        var line_counter = 0;
-        var global_page_num = 1;
-        var html = "";
-        
-        var openPage = function() {
-            html += '<div class="page-container">' +
+        var html = '<div class="page-container">' +
                     '<table class="report-header" style="width: 100%; border-collapse: collapse; margin-bottom: 5px;">' +
                         '<tr>' +
                             '<td style="width: 45%; vertical-align: middle; border: none; padding: 0;">' +
@@ -288,66 +282,39 @@
                             '<td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: \'Outfit\', \'Inter\', sans-serif; color: #334155; line-height: 1.35;">' +
                                 '<div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">' + company_name + '</div>' +
                                 '<div style="font-size: 8px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: ' + company_rif + '</div>' +
-                                '<div style="font-size: 8px; color: #64748b; margin-top: 2px;">Pág. ' + global_page_num + ' | ' + emit_time + '</div>' +
+                                '<div style="font-size: 8px; color: #64748b; margin-top: 2px;">' + emit_time + '</div>' +
                             '</td>' +
                         '</tr>' +
                     '</table>' +
                     '<div style="width: 100%; height: 3px; background: linear-gradient(90deg, #84cc16 0%, #1e293b 100%); margin-top: 5px; margin-bottom: 10px;"></div>' +
                     '<div class="title-badge">' +
                         '<h1>Libro Mayor</h1>' +
-                        '<p>PARA EL AÑO ' + report_year + ' MES ' + report_month + ' EXPRESADO EN BOLÍVARES &nbsp;|&nbsp; Presentación: ' + presentation + '</p>' +
+                        '<p>Desde ' + formatDate(from_date) + ' Hasta ' + formatDate(to_date) + ' &nbsp;|&nbsp; Expresado en Bolívares &nbsp;|&nbsp; Presentación: ' + presentation + '</p>' +
                     '</div>' +
                     '<table class="ledger-table">' +
                         '<thead>' +
                             '<tr>';
-            if (is_level) {
-                html +=         '<th style="width: 12%;">Código</th>' +
-                                '<th style="width: 36%;">Cuenta Contable</th>' +
-                                '<th style="width: 13%; text-align: right;">Saldo Inicial</th>' +
-                                '<th style="width: 13%; text-align: right;">Debe</th>' +
-                                '<th style="width: 13%; text-align: right;">Haber</th>' +
-                                '<th style="width: 13%; text-align: right;">' + balance_col_label + '</th>';
-            } else {
-                html +=         '<th style="width: 10%;">Fecha</th>' +
-                                '<th style="width: 18%;">Referencia</th>' +
-                                '<th style="width: 34%;">Glosa / Detalle</th>' +
-                                '<th style="width: 12%; text-align: right;">Debe</th>' +
-                                '<th style="width: 12%; text-align: right;">Haber</th>' +
-                                '<th style="width: 14%; text-align: right;">Saldo</th>';
-            }
-            html +=         '</tr>' +
-                        '</thead>' +
-                        '<tbody>';
-            line_counter = 0;
-        };
-        
-        var closePage = function() {
-            html += '</tbody></table>' +
-                    '<div style="width: 100%; height: 1px; background-color: #cbd5e1; margin-top: 15px; margin-bottom: 5px;"></div>' +
-                    '<table style="width: 100%; border-collapse: collapse; border: none; font-size: 7.5px; color: #64748b; font-family: \'Outfit\', \'Inter\', sans-serif;">' +
-                        '<tr>' +
-                            '<td style="width: 50%; border: none; padding: 0;">' +
-                                '<div><b>Dirección:</b> Av. Principal de Los Ruices, Edif. Galanet, Piso 3, Caracas - Venezuela.</div>' +
-                            '</td>' +
-                            '<td style="width: 50%; text-align: right; border: none; padding: 0; vertical-align: top; font-weight: 600; color: #475569;">' +
-                                'GALANET SOLUTION C.A. — Excelencia en Software' +
-                            '</td>' +
-                        '</tr>' +
-                    '</table>' +
-                    '</div>';
-            global_page_num++;
-        };
-        
-        openPage();
+        if (is_level) {
+            html +=         '<th style="width: 12%;">Código</th>' +
+                            '<th style="width: 36%;">Cuenta Contable</th>' +
+                            '<th style="width: 13%; text-align: right;">Saldo Inicial</th>' +
+                            '<th style="width: 13%; text-align: right;">Debe</th>' +
+                            '<th style="width: 13%; text-align: right;">Haber</th>' +
+                            '<th style="width: 13%; text-align: right;">' + balance_col_label + '</th>';
+        } else {
+            html +=         '<th style="width: 10%;">Fecha</th>' +
+                            '<th style="width: 18%;">Referencia</th>' +
+                            '<th style="width: 34%;">Glosa / Detalle</th>' +
+                            '<th style="width: 12%; text-align: right;">Debe</th>' +
+                            '<th style="width: 12%; text-align: right;">Haber</th>' +
+                            '<th style="width: 14%; text-align: right;">Saldo</th>';
+        }
+        html +=         '</tr>' +
+                    '</thead>' +
+                    '<tbody>';
         
         for (var idx = 0; idx < data.length; idx++) {
             var row = data[idx];
-            
-            var lines_needed = 1;
-            if (line_counter + lines_needed > rows_per_page) {
-                closePage();
-                openPage();
-            }
             
             if (is_level) {
                 if (row.is_group_header) {
@@ -437,11 +404,22 @@
                            '</tr>';
                 }
             }
-            
-            line_counter += 1;
         }
         
-        closePage();
+        html += '</tbody></table>' +
+                '<div style="width: 100%; height: 1px; background-color: #cbd5e1; margin-top: 15px; margin-bottom: 5px;"></div>' +
+                '<table style="width: 100%; border-collapse: collapse; border: none; font-size: 7.5px; color: #64748b; font-family: \'Outfit\', \'Inter\', sans-serif;">' +
+                    '<tr>' +
+                        '<td style="width: 50%; border: none; padding: 0;">' +
+                            '<div><b>Dirección:</b> Av. Principal de Los Ruices, Edif. Galanet, Piso 3, Caracas - Venezuela.</div>' +
+                        '</td>' +
+                        '<td style="width: 50%; text-align: right; border: none; padding: 0; vertical-align: top; font-weight: 600; color: #475569;">' +
+                            'GALANET SOLUTION C.A. — Excelencia en Software' +
+                        '</td>' +
+                    '</tr>' +
+                '</table>' +
+                '</div>';
+        
         print(html);
     }
 %}
