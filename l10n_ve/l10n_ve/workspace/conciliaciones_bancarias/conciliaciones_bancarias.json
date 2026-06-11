@@ -148,9 +148,10 @@
             "color": "Green",
             "format": "{}",
             "label": "Conciliar Banco",
-            "link_to": "Bank Reconciliation Tool",
+            "link_to": "",
             "stats_filter": "{}",
-            "type": "DocType"
+            "type": "URL",
+            "url": "/app/bank-reconciliation-tool"
         }
     ],
     "title": "Conciliaciones Bancarias",
