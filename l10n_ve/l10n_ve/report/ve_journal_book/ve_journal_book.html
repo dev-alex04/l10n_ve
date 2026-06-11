@@ -215,7 +215,7 @@
         if (data && data[0] && data[0].company_address) {
             company_address = data[0].company_address;
         }
-        var company_logo = (comp_doc && comp_doc.company_logo) || "";
+        var company_logo = (data && data[0] && data[0].company_logo) || (comp_doc && comp_doc.company_logo) || "";
         
         var from_date = (filters && filters.from_date) || "";
         var to_date = (filters && filters.to_date) || "";

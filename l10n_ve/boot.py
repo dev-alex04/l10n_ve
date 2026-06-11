@@ -83,7 +83,6 @@ def _calc_invoice_usd_ref(doctype: str, agg_field: str, company: str, year_start
             "posting_date": [">=", year_start],
         },
         fields=[agg_field, "conversion_rate", "currency", "posting_date"],
-        limit_page_length=0,
     )
 
     if not docs:
@@ -142,7 +141,6 @@ def _calc_payment_usd_ref(
             "paid_from_account_currency", "paid_to_account_currency",
             "source_exchange_rate", "target_exchange_rate",
         ],
-        limit_page_length=0,
     )
 
     if not docs:

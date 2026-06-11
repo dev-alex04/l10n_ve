@@ -229,7 +229,8 @@ def execute(filters=None):
         })
 
     company_rif = frappe.db.get_value("Company", company, "tax_id") or ""
-    
+    company_logo = frappe.db.get_value("Company", company, "company_logo") or ""
+
     # Resolve company address
     company_address = ""
     try:
@@ -252,5 +253,6 @@ def execute(filters=None):
     for r in data:
         r["company_rif"] = company_rif
         r["company_address"] = company_address
+        r["company_logo"] = company_logo
 
     return columns, data, None, None, None

@@ -49,7 +49,7 @@ class CustomPaymentEntry(PaymentEntry):
 
         if self.default_company_currency == self.paid_on_currency:
             # Si es la misma moneda, remover el IGTF de la tabla de impuestos
-            self.taxes = [t for t in self.taxes or [] if t.charge_type != 'IGTF']
+            self.set('taxes', [t for t in self.taxes or [] if t.charge_type != 'IGTF'])
             self.igtf_amount = 0.0
             self.total_with_igtf = 0.0
             return
