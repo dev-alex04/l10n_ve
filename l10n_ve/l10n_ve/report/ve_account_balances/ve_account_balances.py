@@ -14,7 +14,6 @@ def execute(filters=None):
     
     columns = [
         {"fieldname": "account", "label": _("Cuenta"), "fieldtype": "Data", "width": 300},
-        {"fieldname": "account_number", "label": _("Código"), "fieldtype": "Data", "width": 120},
         {"fieldname": "debit", "label": _("Débito (Debe)"), "fieldtype": "Currency", "width": 120},
         {"fieldname": "credit", "label": _("Crédito (Haber)"), "fieldtype": "Currency", "width": 120},
         {"fieldname": "balance", "label": _("Saldo Neto"), "fieldtype": "Currency", "width": 120}
@@ -28,6 +27,8 @@ def execute(filters=None):
     
     for b in balances:
         if b.debit == 0 and b.credit == 0 and b.balance == 0:
+            continue
+        if b.is_group == 1:
             continue
             
         data.append({

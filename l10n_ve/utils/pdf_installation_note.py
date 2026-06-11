@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils.pdf import get_pdf
+from l10n_ve.utils.pdf_utils import safe_get_pdf
 from frappe.utils import fmt_money
 import os
 import base64
@@ -207,7 +207,7 @@ def generate_installation_note_pdf(docname):
     </html>
     """
 
-    pdf_file = get_pdf(html)
+    pdf_file = safe_get_pdf(html)
     frappe.local.response.filename = f"Orden_{docname}.pdf"
     frappe.local.response.filecontent = pdf_file
     frappe.local.response.type = "pdf"

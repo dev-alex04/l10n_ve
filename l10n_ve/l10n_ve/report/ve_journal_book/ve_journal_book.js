@@ -29,12 +29,46 @@ frappe.query_reports["ve_journal_book"] = {
 			"fieldname": "presentation",
 			"label": __("Presentación / Nivel"),
 			"fieldtype": "Select",
-			"options": "Detallado\nResumido\n1° Nivel\n2° Nivel\n3° Nivel",
+			"options": "Detallado\nResumido\n1° Nivel\n2° Nivel\n3° Nivel\n4° Nivel",
 			"default": "Detallado",
 			"reqd": 1
 		}
 	],
+	"onload": function (report) {
+		report.page.add_inner_button(__("Exportar PDF"), function () {
+			var filters = report.get_filter_values();
+			var safe_filters = {};
+			for (var k in filters) {
+				if (filters[k] !== null && filters[k] !== undefined && filters[k] !== "") {
+					safe_filters[k] = filters[k];
+				}
+			}
 
+			var original_get_filter_values = report.get_filter_values;
+			report.get_filter_values = function () {
+				return safe_filters;
+			};
+
+			if (!report.data || !report.data.length) {
+				frappe.msgprint(__("No hay datos en el reporte para exportar. Por favor genere el reporte primero."));
+				report.get_filter_values = original_get_filter_values;
+				return;
+			}
+
+			try {
+				report.pdf_report({
+					orientation: "Landscape",
+					include_filters: true
+				});
+			} catch (err) {
+				console.error(err);
+			} finally {
+				setTimeout(function () {
+					report.get_filter_values = original_get_filter_values;
+				}, 500);
+			}
+		});
+	},
 	"formatter": function (value, row, column, data, default_formatter) {
 		if (!data) return default_formatter(value, row, column, data);
 

@@ -264,44 +264,9 @@
         hours = hours % 12;
         hours = hours ? hours : 12;
         return "Emitido el " + day + "/" + month + "/" + year + " a las " + hours + ":" + minutes + " " + ampm;
-    };
-
-    var emit_time = getTodayDateTime();
-    var html = "";
-    var global_page_num = 1;
-    
-    /* Definir filas físicas por página (horizontal) */
-    var rows_per_page = 14; 
-    
-    for (var a_idx = 0; a_idx < accounts.length; a_idx++) {
-        var acc = accounts[a_idx];
-        var entries = acc.entries;
-        var total_pages = Math.max(1, Math.ceil(entries.length / rows_per_page));
-        
-        var running_bal = acc.opening_balance;
-        var page_cum_debit = 0.0;
-        var page_cum_credit = 0.0;
-        
-        for (var p = 0; p < total_pages; p++) {
-            var start = p * rows_per_page;
-            var end = Math.min(start + rows_per_page, entries.length);
-            var page_entries = entries.slice(start, end);
-            
-            /* Totales específicos de esta página física */
-            var page_debit_sum = 0.0;
-            var page_credit_sum = 0.0;
-            for (var pe_idx = 0; pe_idx < page_entries.length; pe_idx++) {
-                var ent = page_entries[pe_idx];
-                page_debit_sum += ent.debit;
-                page_credit_sum += ent.credit;
-            }
-            
-            page_cum_debit += page_debit_sum;
-            page_cum_credit += page_credit_sum;
-            
-            html += '<div class="page-container">';
-                  /* Membrete del reporte */
-            html += '<table class="report-header">' +
+    };    var emit_time = getTodayDateTime();
+    var html = '<div class="page-container">' +
+                '<table class="report-header">' +
                     '<tr>' +
                         '<td style="width: 45%; vertical-align: middle; border: none; padding: 0;">' +
                             '<img src="' + company_logo + '" style="max-height: 38px; display: block;" alt="Logo">' +
@@ -309,7 +274,7 @@
                         '<td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif; color: #334155; line-height: 1.35;">' +
                             '<div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">' + company_name + '</div>' +
                             '<div style="font-size: 8px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: ' + company_rif + '</div>' +
-                            '<div style="font-size: 8px; color: #64748b; margin-top: 2px;">Pág. ' + global_page_num + ' | ' + emit_time + '</div>' +
+                            '<div style="font-size: 8px; color: #64748b; margin-top: 2px;">' + emit_time + '</div>' +
                         '</td>' +
                     '</tr>' +
                 '</table>' +
@@ -317,12 +282,18 @@
                 '<div class="title-badge">' +
                     '<h1>Mayor Analítico</h1>' +
                     '<p>Desde el ' + formatDate(from_date) + ' hasta el ' + formatDate(to_date) + ' &nbsp;|&nbsp; Expresado en Bolívares (VEF)</p>' +
-                '</div>' +
-                '<div class="account-group-header">' +
+                '</div>';
+    
+    for (var a_idx = 0; a_idx < accounts.length; a_idx++) {
+        var acc = accounts[a_idx];
+        var entries = acc.entries;
+        var running_bal = acc.opening_balance;
+        
+        html += '<div class="account-group-header">' +
                     '<span class="account-code">Código: <span class="bold" style="font-size: 11px; font-family: monospace;">' + acc.number + '</span></span>' +
                     '<span class="account-desc">Descripción: <span class="bold" style="font-size: 10px;">' + acc.name + '</span></span>' +
                 '</div>' +
-                '<table class="ledger-table">' +
+                '<table class="ledger-table" style="margin-bottom: 25px;">' +
                     '<thead>' +
                         '<tr>' +
                             '<th style="width: 8%;">Fecha</th>' +
@@ -338,95 +309,66 @@
                     '</thead>' +
                     '<tbody>';
             
-            /* Fila de saldo inicial / arrastre */
-            if (p === 0) {
-                html += '<tr>' +
-                        '<td style="font-size: 9px; font-weight: bold;">' + formatDate(from_date) + '</td>' +
-                        '<td class="bold" style="font-size: 9px;">SALDO INICIAL</td>' +
-                        '<td></td>' +
-                        '<td></td>' +
-                        '<td></td>' +
-                        '<td class="text-right">0,00</td>' +
-                        '<td class="text-right">0,00</td>' +
-                        '<td class="text-right bold">' + formatCurrency(acc.opening_balance) + '</td>' +
-                        '<td class="text-center" style="font-size: 9px; font-weight: bold;">' + formatDate(from_date) + '</td>' +
-                    '</tr>';
-            } else {
-                html += '<tr class="van-vienen-row">' +
-                        '<td></td>' +
-                        '<td class="bold">VIENEN:</td>' +
-                        '<td></td>' +
-                        '<td></td>' +
-                        '<td>Arrastre de folio anterior</td>' +
-                        '<td class="text-right">' + formatCurrency(page_cum_debit - page_debit_sum) + '</td>' +
-                        '<td class="text-right">' + formatCurrency(page_cum_credit - page_credit_sum) + '</td>' +
-                        '<td class="text-right">' + formatCurrency(running_bal) + '</td>' +
-                        '<td></td>' +
-                    '</tr>';
-            }
+        /* Fila de saldo inicial */
+        html += '<tr>' +
+                '<td style="font-size: 9px; font-weight: bold;">' + formatDate(from_date) + '</td>' +
+                '<td class="bold" style="font-size: 9px;">SALDO INICIAL</td>' +
+                '<td></td>' +
+                '<td></td>' +
+                '<td></td>' +
+                '<td class="text-right">0,00</td>' +
+                '<td class="text-right">0,00</td>' +
+                '<td class="text-right bold">' + formatCurrency(acc.opening_balance) + '</td>' +
+                '<td class="text-center" style="font-size: 9px; font-weight: bold;">' + formatDate(from_date) + '</td>' +
+            '</tr>';
+        
+        /* Renderizar transacciones */
+        for (var e_idx = 0; e_idx < entries.length; e_idx++) {
+            var ent = entries[e_idx];
+            running_bal += (ent.debit - ent.credit);
             
-            /* Renderizar transacciones */
-            for (var e_idx = 0; e_idx < page_entries.length; e_idx++) {
-                var ent = page_entries[e_idx];
-                running_bal += (ent.debit - ent.credit);
-                
-                /* Formatear el Auxiliar (con prefijos de ceros) */
-                var padded_ref = ent.ref_code ? ("00000" + ent.ref_code).slice(-8) : "";
-                
-                html += '<tr>' +
-                        '<td style="font-size: 9px; padding-top: 5px; font-family: monospace;">' + formatDate(ent.posting_date) + '</td>' +
-                        '<td style="font-size: 9px; padding-top: 5px;" class="bold">' +
-                            ent.voucher_no +
-                            '<div class="double-line-second" style="font-family: monospace;">' + (ent.party || "") + '</div>' +
-                        '</td>' +
-                        '<td style="font-size: 9px; padding-top: 5px;">' +
-                            padded_ref +
-                            '<div class="double-line-second" style="font-family: monospace;">' + (ent.party || "") + '</div>' +
-                        '</td>' +
-                        '<td style="font-size: 9px; padding-top: 5px; font-family: monospace;">' + ent.ref_code + '</td>' +
-                        '<td style="font-size: 9px; padding-top: 5px; line-height: 1.2;">' +
-                            (ent.remarks || "") +
-                            (ent.party_name ? '<span style="font-style: italic; color: #555;"><br>Tercero: ' + ent.party_name + '</span>' : "") +
-                        '</td>' +
-                        '<td class="text-right" style="padding-top: 5px; font-family: monospace;">' + formatCurrency(ent.debit) + '</td>' +
-                        '<td class="text-right" style="padding-top: 5px; font-family: monospace;">' + formatCurrency(ent.credit) + '</td>' +
-                        '<td class="text-right bold" style="padding-top: 5px; font-family: monospace;">' + formatCurrency(running_bal) + '</td>' +
-                        '<td class="text-center" style="font-size: 9px; padding-top: 5px; font-family: monospace;">' + formatDate(ent.posting_date) + '</td>' +
-                    '</tr>';
-            }
+            /* Formatear el Auxiliar (con prefijos de ceros) */
+            var padded_ref = ent.ref_code ? ("00000" + ent.ref_code).slice(-8) : "";
             
-            /* Fila de cierre (VAN o TOTAL) */
-            if (p < total_pages - 1) {
-                html += '<tr class="van-vienen-row">' +
-                        '<td></td>' +
-                        '<td class="bold">VAN:</td>' +
-                        '<td></td>' +
-                        '<td></td>' +
-                        '<td>Suma para el siguiente folio</td>' +
-                        '<td class="text-right">' + formatCurrency(page_cum_debit) + '</td>' +
-                        '<td class="text-right">' + formatCurrency(page_cum_credit) + '</td>' +
-                        '<td class="text-right">' + formatCurrency(running_bal) + '</td>' +
-                        '<td></td>' +
-                    '</tr>';
-            } else {
-                html += '<tr class="totals-row">' +
-                        '<td></td>' +
-                        '<td class="bold">TOTAL CUENTA:</td>' +
-                        '<td></td>' +
-                        '<td></td>' +
-                        '<td>Acumulado del período</td>' +
-                        '<td class="text-right">' + formatCurrency(acc.total_debit) + '</td>' +
-                        '<td class="text-right">' + formatCurrency(acc.total_credit) + '</td>' +
-                        '<td class="text-right bold">' + formatCurrency(acc.final_balance) + '</td>' +
-                        '<td></td>' +
-                    '</tr>';
-            }
-            
-            html += '</tbody></table></div>';
-            
-            global_page_num++;
+            html += '<tr>' +
+                    '<td style="font-size: 9px; padding-top: 5px; font-family: monospace;">' + formatDate(ent.posting_date) + '</td>' +
+                    '<td style="font-size: 9px; padding-top: 5px;" class="bold">' +
+                        ent.voucher_no +
+                        '<div class="double-line-second" style="font-family: monospace;">' + (ent.party || "") + '</div>' +
+                    '</td>' +
+                    '<td style="font-size: 9px; padding-top: 5px;">' +
+                        padded_ref +
+                        '<div class="double-line-second" style="font-family: monospace;">' + (ent.party || "") + '</div>' +
+                    '</td>' +
+                    '<td style="font-size: 9px; padding-top: 5px; font-family: monospace;">' + ent.ref_code + '</td>' +
+                    '<td style="font-size: 9px; padding-top: 5px; line-height: 1.2;">' +
+                        (ent.remarks || "") +
+                        (ent.party_name ? '<span style="font-style: italic; color: #555;"><br>Tercero: ' + ent.party_name + '</span>' : "") +
+                    '</td>' +
+                    '<td class="text-right" style="padding-top: 5px; font-family: monospace;">' + formatCurrency(ent.debit) + '</td>' +
+                    '<td class="text-right" style="padding-top: 5px; font-family: monospace;">' + formatCurrency(ent.credit) + '</td>' +
+                    '<td class="text-right bold" style="padding-top: 5px; font-family: monospace;">' + formatCurrency(running_bal) + '</td>' +
+                    '<td class="text-center" style="font-size: 9px; padding-top: 5px; font-family: monospace;">' + formatDate(ent.posting_date) + '</td>' +
+                '</tr>';
         }
+        
+        /* Fila de cierre */
+        html += '<tr class="totals-row">' +
+                '<td></td>' +
+                '<td class="bold">TOTAL CUENTA:</td>' +
+                '<td></td>' +
+                '<td></td>' +
+                '<td>Acumulado del período</td>' +
+                '<td class="text-right">' + formatCurrency(acc.total_debit) + '</td>' +
+                '<td class="text-right">' + formatCurrency(acc.total_credit) + '</td>' +
+                '<td class="text-right bold">' + formatCurrency(acc.final_balance) + '</td>' +
+                '<td></td>' +
+            '</tr>';
+        
+        html += '</tbody></table>';
     }
+    
+    html += '</div>';
     
     print(html);%}
 

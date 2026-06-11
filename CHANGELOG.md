@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.0] - 2026-06-11
+
+### ✨ Funcionalidades (Features)
+- Se implementó la visualización de la conversión a USD como valor principal en las tarjetas numéricas del dashboard y se optimizó el diseño de la tarjeta de tasa.
+- Se añadió el desglose de referencia en USD bajo los valores expresados en bolívares en tarjetas numéricas y gráficos.
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la lógica del dashboard para utilizar la tasa de cambio específica de cada transacción al calcular la referencia en USD en las tarjetas [caccb45].
+
+---
+
+## [v2.1.1] - 2026-06-11
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió el atajo de "Conciliar Banco" en el Workspace, asegurando que el tipo de acceso sea mediante URL para su correcto funcionamiento. [4ca061f]
+
+---
+
+## [v2.1.0] - 2026-06-09
+
+### ✨ Funcionalidades (Features)
+- **Contabilidad:** Se implementó el asentamiento automático del IGTF en el proceso de cobros.
+- **Reportes:** Se ajustó el campo RIF por Documento en el reporte de IGTF para mayor precisión en la información.
+
+### 🐛 Correcciones (Fixes)
+- **PDF:** Se resolvió un error de deadlock que afectaba la generación de archivos PDF.
+- **Review:** Se integraron optimizaciones y correcciones técnicas derivadas de revisiones de código y sugerencias de IA.
+
+---
+
 ## [v2.0.1] - 2026-06-08
 
 ### 🐛 Correcciones (Fixes)

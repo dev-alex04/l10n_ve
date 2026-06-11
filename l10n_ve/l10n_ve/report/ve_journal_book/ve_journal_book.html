@@ -203,6 +203,7 @@
     } else {
         var company_name = (filters && filters.company) || "";
         var company_rif = "";
+        var company_address = "";
         
         var comp_doc = (typeof frappe !== "undefined" && frappe.model && frappe.model.get_doc) ? frappe.model.get_doc("Company", company_name) : null;
         if (data && data[0] && data[0].company_rif) {
@@ -210,7 +211,11 @@
         } else if (comp_doc) {
             company_rif = comp_doc.tax_id || "";
         }
-        var company_logo = (comp_doc && comp_doc.company_logo) || "/files/galanet_logo.jpg";
+        
+        if (data && data[0] && data[0].company_address) {
+            company_address = data[0].company_address;
+        }
+        var company_logo = (data && data[0] && data[0].company_logo) || (comp_doc && comp_doc.company_logo) || "";
         
         var from_date = (filters && filters.from_date) || "";
         var to_date = (filters && filters.to_date) || "";
@@ -271,78 +276,46 @@
         var report_month = getMonthName(from_date);
         var report_year = getYear(from_date);
         
-        var rows_per_page = 18;
-        var line_counter = 0;
-        var global_page_num = 1;
-        var html = "";
-        
-        var openPage = function() {
-            html += '<div class="page-container">' +
+        var html = '<div class="page-container">' +
                     '<table class="report-header" style="width: 100%; border-collapse: collapse; margin-bottom: 5px;">' +
                         '<tr>' +
                             '<td style="width: 45%; vertical-align: middle; border: none; padding: 0;">' +
-                                '<img src="' + company_logo + '" style="max-height: 40px; display: block;" alt="Logo">' +
+                                (company_logo ? '<img src="' + company_logo + '" style="max-height: 40px; display: block;" alt="Logo">' : '') +
                             '</td>' +
                             '<td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: \'Outfit\', \'Inter\', sans-serif; color: #334155; line-height: 1.35;">' +
                                 '<div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">' + company_name + '</div>' +
                                 '<div style="font-size: 8px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: ' + company_rif + '</div>' +
-                                '<div style="font-size: 8px; color: #64748b; margin-top: 2px;">Pág. ' + global_page_num + ' | ' + emit_time + '</div>' +
+                                '<div style="font-size: 8px; color: #64748b; margin-top: 2px;">' + emit_time + '</div>' +
                             '</td>' +
                         '</tr>' +
                     '</table>' +
                     '<div style="width: 100%; height: 3px; background: linear-gradient(90deg, #84cc16 0%, #1e293b 100%); margin-top: 5px; margin-bottom: 10px;"></div>' +
                     '<div class="title-badge">' +
                         '<h1>Libro Diario</h1>' +
-                        '<p>PARA EL AÑO ' + report_year + ' MES ' + report_month + ' EXPRESADO EN BOLÍVARES &nbsp;|&nbsp; Presentación: ' + presentation + '</p>' +
+                        '<p>Desde ' + formatDate(from_date) + ' Hasta ' + formatDate(to_date) + ' &nbsp;|&nbsp; Expresado en Bolívares &nbsp;|&nbsp; Presentación: ' + presentation + '</p>' +
                     '</div>' +
                     '<table class="ledger-table">' +
                         '<thead>' +
                             '<tr>';
-            if (is_level) {
-                html +=         '<th style="width: 70%;" colspan="2">Cuenta Contable</th>' +
-                                '<th style="width: 15%; text-align: right;">Debe</th>' +
-                                '<th style="width: 15%; text-align: right;">Haber</th>';
-            } else {
-                html +=         '<th style="width: 10%;">Fecha</th>' +
-                                '<th style="width: 18%;">Referencia</th>' +
-                                '<th style="width: 25%;">Cuenta Contable</th>' +
-                                '<th style="width: 23%;">Descripción / Glosa</th>' +
-                                '<th style="width: 12%; text-align: right;">Debe</th>' +
-                                '<th style="width: 12%; text-align: right;">Haber</th>';
-            }
-            html +=         '</tr>' +
-                        '</thead>' +
-                        '<tbody>';
-            line_counter = 0;
-        };
-        
-        var closePage = function() {
-            html += '</tbody></table>' +
-                    '<div style="width: 100%; height: 1px; background-color: #cbd5e1; margin-top: 15px; margin-bottom: 5px;"></div>' +
-                    '<table style="width: 100%; border-collapse: collapse; border: none; font-size: 7.5px; color: #64748b; font-family: \'Outfit\', \'Inter\', sans-serif;">' +
-                        '<tr>' +
-                            '<td style="width: 50%; border: none; padding: 0;">' +
-                                '<div><b>Dirección:</b> Av. Principal de Los Ruices, Edif. Galanet, Piso 3, Caracas - Venezuela.</div>' +
-                            '</td>' +
-                            '<td style="width: 50%; text-align: right; border: none; padding: 0; vertical-align: top; font-weight: 600; color: #475569;">' +
-                                'GALANET SOLUTION C.A. — Excelencia en Software' +
-                            '</td>' +
-                        '</tr>' +
-                    '</table>' +
-                    '</div>';
-            global_page_num++;
-        };
-        
-        openPage();
+        if (is_level) {
+            html +=         '<th style="width: 15%;">Código</th>' +
+                            '<th style="width: 55%;">Cuenta Contable</th>' +
+                            '<th style="width: 15%; text-align: right;">Debe</th>' +
+                            '<th style="width: 15%; text-align: right;">Haber</th>';
+        } else {
+            html +=         '<th style="width: 10%;">Fecha</th>' +
+                            '<th style="width: 18%;">Referencia</th>' +
+                            '<th style="width: 25%;">Cuenta Contable</th>' +
+                            '<th style="width: 23%;">Descripción / Glosa</th>' +
+                            '<th style="width: 12%; text-align: right;">Debe</th>' +
+                            '<th style="width: 12%; text-align: right;">Haber</th>';
+        }
+        html +=         '</tr>' +
+                    '</thead>' +
+                    '<tbody>';
         
         for (var idx = 0; idx < data.length; idx++) {
             var row = data[idx];
-            
-            var lines_needed = 1;
-            if (line_counter + lines_needed > rows_per_page) {
-                closePage();
-                openPage();
-            }
             
             if (is_level) {
                 if (row.is_group_header) {
@@ -399,6 +372,9 @@
                             '<td class="text-right">' + formatCurrency(row.debit) + '</td>' +
                             '<td class="text-right">' + formatCurrency(row.credit) + '</td>' +
                            '</tr>';
+                } else if (row.posting_date === "" && row.voucher_no === "" && row.account === "" && row.narration === "") {
+                    /* Spacer row */
+                    html += '<tr><td colspan="6" style="height: 10px; border: none;"></td></tr>';
                 } else {
                     html += '<tr class="leaf-row">' +
                             '<td>' + formatDate(row.posting_date) + '</td>' +
@@ -410,11 +386,22 @@
                            '</tr>';
                 }
             }
-            
-            line_counter += 1;
         }
         
-        closePage();
-        print(html);
+        html += '</tbody></table>' +
+                '<div style="width: 100%; height: 1px; background-color: #cbd5e1; margin-top: 15px; margin-bottom: 5px;"></div>' +
+                '<table style="width: 100%; border-collapse: collapse; border: none; font-size: 7.5px; color: #64748b; font-family: \'Outfit\', \'Inter\', sans-serif;">' +
+                    '<tr>' +
+                        '<td style="width: 50%; border: none; padding: 0;">' +
+                            (company_address ? '<div><b>Dirección:</b> ' + company_address + '</div>' : '') +
+                        '</td>' +
+                        '<td style="width: 50%; text-align: right; border: none; padding: 0; vertical-align: top; font-weight: 600; color: #475569;">' +
+                            company_name.toUpperCase() +
+                        '</td>' +
+                    '</tr>' +
+                '</table>' +
+                '</div>';
+        
     }
 %}
+{%= html || "" %}

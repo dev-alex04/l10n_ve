@@ -575,9 +575,10 @@ def _draw_excel_card(ws, start_col, start_row, label, usd_val, vef_val, accent_c
 
 def _get_company_details(company_name):
     if not company_name:
-        return {"name": "EMPRESA", "rif": "", "address": ""}
+        return {"name": "EMPRESA", "tax_id": "", "address": ""}
     company_doc = frappe.get_cached_doc("Company", company_name)
-    company_rif = company_doc.get("tax_id") or ""
+    company_doc.check_permission("read")
+    company_tax_id = company_doc.get("tax_id") or ""
     company_address = ""
     if company_doc.get("custom_company_primary_address"):
         try:
@@ -585,7 +586,7 @@ def _get_company_details(company_name):
             company_address = address_doc.address_line1
         except Exception:
             pass
-    return {"name": company_name, "rif": company_rif, "address": company_address}
+    return {"name": company_name, "tax_id": company_tax_id, "address": company_address}
 
 
 @frappe.whitelist()
@@ -602,7 +603,7 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
     summary_data = []
     t_cobrar = t_op = t_iva_op = t_fact = t_iva = t_neto = t_ret_iva = t_ret_islr = t_igtf = t_disp = t_spent = t_util = 0.0
     v_cobrar = v_op = v_iva_op = v_fact = v_iva = v_neto = v_ret_iva = v_ret_islr = v_igtf = v_disp = v_spent = v_util = 0.0
-
+    
     for r in data.get("branch_financial_summary") or []:
         if flt(r.get("indent", 0)) == 0.0:
             t_cobrar += flt(r.get("pending_to_collect", 0))
@@ -739,7 +740,7 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
     <body>
         <div class="header-container">
             <div class="company-name">{{ company_name }}</div>
-            <div class="company-info">R.I.F.: {{ company_rif }} | Dirección: {{ company_address }}</div>
+            <div class="company-info">R.I.F.: {{ company_tax_id }} | Dirección: {{ company_address }}</div>
             <div class="company-info">Fecha de Emisión: {{ print_date }}</div>
         </div>
 
@@ -909,7 +910,7 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
     
     context = {
         "company_name": company_details.get("name"),
-        "company_rif": company_details.get("rif"),
+        "company_tax_id": company_details.get("tax_id"),
         "company_address": company_details.get("address"),
         "print_date": formatdate(nowdate()),
         "from_date": formatdate(from_date),
@@ -1048,7 +1049,7 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
             v_spent += flt(r.get("spent_vef", 0))
             t_util += flt(r.get("profit", 0))
             v_util += flt(r.get("profit_vef", 0))
-
+            
     # Dibujar mini tarjetas (2 filas de 4 tarjetas cada una)
     # Fila 1 de Tarjetas (Filas 5 a 7)
     # 1. Cantidad de ventas
