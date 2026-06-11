@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.0] - 2026-06-11
+
+### ✨ Funcionalidades (Features)
+- Se implementó la visualización de la conversión a USD como valor principal en las tarjetas numéricas del dashboard y se optimizó el diseño de la tarjeta de tasa.
+- Se añadió el desglose de referencia en USD bajo los valores expresados en bolívares en tarjetas numéricas y gráficos.
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la lógica del dashboard para utilizar la tasa de cambio específica de cada transacción al calcular la referencia en USD en las tarjetas [caccb45].
+
+---
+
 ## [v2.1.1] - 2026-06-11
 
 ### 🐛 Correcciones (Fixes)
