@@ -13,6 +13,7 @@ app_include_js = [
     "/assets/l10n_ve/js/utils/fiscal_preview.js",
     "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
     "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
+    "/assets/l10n_ve/js/widgets/number_card_widget.js",
 ]
 
 # Apps
@@ -38,9 +39,9 @@ app_include_css = [
     "/assets/l10n_ve/css/digital_invoice_preview.css",
 ]
 
-page_js = {
-    "dashboard-view": "public/js/widgets/number_card_widget.js"
-}
+# page_js = {
+#     "dashboard-view": "public/js/widgets/number_card_widget.js"
+# }
 
 
 # include js, css files in header of web template
