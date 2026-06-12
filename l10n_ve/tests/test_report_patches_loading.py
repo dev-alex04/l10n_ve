@@ -20,11 +20,39 @@ fallaba todas las noches.
 """
 
 import unittest
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import frappe
 
 from l10n_ve.patches import monkey_patches
+
+_MISSING = object()
+
+
+@contextmanager
+def _override_local_db(value):
+    """Fija (o elimina, con _MISSING) frappe.local.db y lo restaura al salir.
+
+    No usar mock.patch.object aquí: werkzeug Local no expone __dict__, mock
+    clasifica el atributo como no-local y en el exit hace delattr — bajo
+    bench run-tests eso destruía la conexión real y rompía el setUpClass
+    de todos los FrappeTestCase posteriores de la suite.
+    """
+    original = getattr(frappe.local, "db", _MISSING)
+    if value is _MISSING:
+        if original is not _MISSING:
+            delattr(frappe.local, "db")
+    else:
+        frappe.local.db = value
+    try:
+        yield
+    finally:
+        if original is _MISSING:
+            if getattr(frappe.local, "db", _MISSING) is not _MISSING:
+                delattr(frappe.local, "db")
+        else:
+            frappe.local.db = original
 
 
 class TestEnsurePostDbPatches(unittest.TestCase):
@@ -39,7 +67,7 @@ class TestEnsurePostDbPatches(unittest.TestCase):
         """Sin BD (import temprano del paquete) no debe intentar aplicar."""
         monkey_patches._post_db_patches_applied = False
 
-        with patch.object(frappe.local, "db", None, create=True):
+        with _override_local_db(_MISSING):
             monkey_patches.ensure_post_db_patches()
 
         mock_apply.assert_not_called()
@@ -50,7 +78,7 @@ class TestEnsurePostDbPatches(unittest.TestCase):
         """Con BD disponible aplica una sola vez aunque se llame varias veces."""
         monkey_patches._post_db_patches_applied = False
 
-        with patch.object(frappe.local, "db", object(), create=True):
+        with _override_local_db(object()):
             monkey_patches.ensure_post_db_patches()
             monkey_patches.ensure_post_db_patches()
 
@@ -62,11 +90,11 @@ class TestEnsurePostDbPatches(unittest.TestCase):
         """Si el primer intento fue sin BD, el siguiente hook sí aplica."""
         monkey_patches._post_db_patches_applied = False
 
-        with patch.object(frappe.local, "db", None, create=True):
+        with _override_local_db(_MISSING):
             monkey_patches.ensure_post_db_patches()
         mock_apply.assert_not_called()
 
-        with patch.object(frappe.local, "db", object(), create=True):
+        with _override_local_db(object()):
             monkey_patches.ensure_post_db_patches()
         mock_apply.assert_called_once()
 
