@@ -447,12 +447,16 @@ fixtures = [
 
 # Request Events
 # ----------------
-# before_request = ["l10n_ve.utils.before_request"]
+# Garantiza que los patches de reportes queden aplicados en los workers web
+# (idempotente: solo la primera request de cada proceso hace trabajo real).
+before_request = ["l10n_ve.patches.monkey_patches.ensure_post_db_patches"]
 # after_request = ["l10n_ve.utils.after_request"]
 
 # Job Events
 # ----------
-# before_job = ["l10n_ve.utils.before_job"]
+# Igual que before_request pero para workers de RQ (scheduler, Auto Email
+# Reports, jobs encolados): sin esto los reportes corren sin parchear.
+before_job = ["l10n_ve.patches.monkey_patches.ensure_post_db_patches"]
 # after_job = ["l10n_ve.utils.after_job"]
 
 # User Data Protection
