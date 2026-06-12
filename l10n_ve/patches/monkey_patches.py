@@ -134,8 +134,36 @@ def apply_post_db_patches() -> None:
     except Exception as e:
         log_patch_error('custom_report_to_pdf_patch', e)
 
-# Attempt to apply patches immediately.
-try:
+_post_db_patches_applied = False
+
+
+def ensure_post_db_patches() -> None:
+    """Aplica los patches post-DB una sola vez por proceso (hook before_request/before_job).
+
+    El import del paquete l10n_ve puede ocurrir antes de que exista conexión
+    a la BD (workers web/RQ recién levantados), o no ocurrir nunca en jobs
+    que no tocan código de l10n_ve (p.ej. el envío de Auto Email Reports).
+    En ambos casos los workers ejecutaban los reportes core sin parchear:
+    de ahí el IndexError diario de "Payment Period Based On Invoice Date",
+    cuyo parche existe desde abril pero no se cargaba. Este hook garantiza
+    que los patches queden aplicados en cuanto haya BD disponible, sin
+    re-aplicarlos en cada request/job.
+    """
+    global _post_db_patches_applied
+    if _post_db_patches_applied:
+        return
+
+    if not getattr(frappe.local, "db", None):
+        # Sin BD todavía (import temprano del paquete): se reintenta en el
+        # siguiente before_request/before_job, ya con conexión.
+        return
+
+    _post_db_patches_applied = True
     apply_post_db_patches()
+
+
+# Attempt to apply patches immediately (solo surte efecto si ya hay BD).
+try:
+    ensure_post_db_patches()
 except Exception:
     pass
