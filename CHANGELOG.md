@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.1] - 2026-06-12
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la lógica de aplicación de parches de reportes para asegurar su ejecución correcta tanto en workers web como en workers de cola (RQ). 5312f62
+- Mejora en la estabilidad del entorno de pruebas mediante la restauración segura de frappe.local.db en los tests de parches. 35996f8
+
+---
+
 ## [v2.2.0] - 2026-06-11
 
 ### ✨ Funcionalidades (Features)
