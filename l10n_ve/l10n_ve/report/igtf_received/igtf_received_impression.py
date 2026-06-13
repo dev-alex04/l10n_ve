@@ -9,7 +9,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from l10n_ve.l10n_ve.report.igtf_received.igtf_received import get_data
 from frappe.utils import fmt_money, formatdate, nowdate
-from frappe.utils.pdf import get_pdf
+from l10n_ve.utils.pdf_utils import safe_get_pdf
 
 def _get_company_details(company_name):
 	"""
@@ -55,25 +55,34 @@ def download_custom_excel(filters=None):
 	ws["A2"] = f"R.I.F.: {company_details.get('rif')}"
 	ws["A3"] = f"Dirección: {company_details.get('address')}"
 	ws["A4"] = f"Fecha de Emisión: {formatdate(nowdate())}"
+	ws["A5"] = f"Número total de operaciones: {len(data)}"
+	ws["A5"].font = Font(bold=True, size=10)
 
-	ws.merge_cells('A5:G5')
-	ws["A5"] = "IGTF PERCIBIDO"
-	ws["A5"].font = bold_font
-	ws["A5"].alignment = center_align
-	ws["A5"].fill = green_fill
+	ws.merge_cells('A6:G6')
+	ws["A6"] = "IGTF PERCIBIDO"
+	ws["A6"].font = bold_font
+	ws["A6"].alignment = center_align
+	ws["A6"].fill = green_fill
+
+	ws.merge_cells('A7:G7')
+	from_date_str = formatdate(filters.get("from_date")) if filters.get("from_date") else ""
+	to_date_str = formatdate(filters.get("to_date")) if filters.get("to_date") else ""
+	ws["A7"] = f"Período: del {from_date_str} al {to_date_str}" if from_date_str and to_date_str else ""
+	ws["A7"].font = Font(bold=True, size=10)
+	ws["A7"].alignment = center_align
 
 	headers = [
-		"Fecha", "Nro. Factura", "Nombre o razón social", "RIF",
+		"Fecha", "Nro. Factura", "Nombre o razón social", "Documento",
 		"Monto de factura", "Monto Sujeto", "Monto IGTF"
 	]
 
 	for col_num, header in enumerate(headers, 1):
-		cell = ws.cell(row=6, column=col_num, value=header)
+		cell = ws.cell(row=8, column=col_num, value=header)
 		cell.font = bold_font
 		cell.border = thin_border
 		cell.fill = green_fill
 
-	row_num = 7
+	row_num = 9
 	total_base = sum(d.total or 0 for d in data)
 	total_base_igtf = sum(d.base_igtf or 0 for d in data)
 	total_igtf = sum(d.igtf_amount or 0 for d in data)
@@ -98,7 +107,7 @@ def download_custom_excel(filters=None):
 
 	for col_idx in range(1, 8):
 		max_length = 0
-		for r in range(6, row_num + 1):
+		for r in range(8, row_num + 1):
 			cell_value = ws.cell(row=r, column=col_idx).value
 			if cell_value:
 				max_length = max(max_length, len(str(cell_value)))
@@ -159,9 +168,13 @@ def download_custom_pdf(filters=None):
 			<div>R.I.F.: {{ company_rif }}</div>
 			<div>Dirección: {{ company_address }}</div>
 			<div>Fecha de Emisión: {{ print_date }}</div>
+			<div>Número total de operaciones: {{ total_operations }}</div>
 		</div>
 
-		<div class="title-row">IGTF PERCIBIDO</div>
+		<div class="title-row">
+			IGTF PERCIBIDO<br>
+			<span style="font-size: 8pt; font-weight: normal;">Período: del {{ from_date }} al {{ to_date }}</span>
+		</div>
 
 		<table>
 			<thead>
@@ -169,7 +182,7 @@ def download_custom_pdf(filters=None):
 					<th>Fecha</th>
 					<th>Nro. Factura</th>
 					<th>Nombre o razón social</th>
-					<th>RIF</th>
+					<th>Documento</th>
 					<th>Monto de factura</th>
 					<th>Monto Sujeto</th>
 					<th>Monto IGTF</th>
@@ -207,6 +220,9 @@ def download_custom_pdf(filters=None):
 		"company_rif": company_details.get("rif"),
 		"company_address": company_details.get("address"),
 		"print_date": formatdate(nowdate()),
+		"from_date": formatdate(filters.get("from_date")) if filters.get("from_date") else "",
+		"to_date": formatdate(filters.get("to_date")) if filters.get("to_date") else "",
+		"total_operations": len(data),
 		"data": data,
 		"total_base": fmt_money(total_base, currency=currency),
 		"total_base_igtf": fmt_money(total_base_igtf, currency=currency),
@@ -214,8 +230,8 @@ def download_custom_pdf(filters=None):
 	}
 
 	final_html = frappe.render_template(html_content, context)
-	pdf_content = get_pdf(final_html)
+	pdf_content = safe_get_pdf(final_html)
 
 	frappe.local.response.filename = "Reporte_IGTF_Percibido.pdf"
 	frappe.local.response.filecontent = pdf_content
-	frappe.local.response.type = "pdf"
+	frappe.local.response.type = "download"

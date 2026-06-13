@@ -1,14 +1,14 @@
 import frappe
 
 def log_patch_error(patch_name: str, error: Exception) -> None:
-    """Registra el error solo si no es un RuntimeError (DB no vinculada) o si la DB está lista."""
+    """Log the error only if it is not a RuntimeError (DB not connected) or if DB is ready."""
     if isinstance(error, RuntimeError):
         return
     
-    print(f"ERROR!!!: No se pudo cargar el parche {patch_name}. Error: {error}")
+    print(f"ERROR!!!: Failed to load patch {patch_name}. Error: {error}")
     if frappe.local and getattr(frappe.local, "db", None):
         try:
-            frappe.log_error(frappe.get_traceback(), f'Error al cargar el parche: {patch_name}')
+            frappe.log_error(frappe.get_traceback(), f'Error loading patch: {patch_name}')
         except Exception:
             pass
 
@@ -98,29 +98,72 @@ def apply_post_db_patches() -> None:
     except Exception as e:
         log_patch_error('l10n_ve.patches.reports.accounts_receivable', e)
 
-    # Capa 1: red de seguridad — resetea cualquier prepared_report que quedó en DB
+    # Layer 1: Safety net - reset any prepared_report stuck in the database
     try:
         from l10n_ve.tasks import reset_all_prepared_reports
         reset_all_prepared_reports()
     except Exception as e:
         log_patch_error('reset_all_prepared_reports', e)
 
-    # Capa 2: suprime el timer de Frappe que activa prepared_report en BD
+    # Layer 2: Suppress Frappe's timer that activates prepared_report
     try:
         from l10n_ve.patches.frappe.report_session_patch import apply as apply_session_patch
         apply_session_patch()
     except Exception as e:
         log_patch_error('report_session_patch', e)
 
+    # Layer 5: Apply monkeypatch for Excel report export with professional styling
+    try:
+        from l10n_ve.patches.frappe.report_export_patch import apply as apply_export_patch
+        apply_export_patch()
+    except Exception as e:
+        log_patch_error('report_export_patch', e)
 
-    # Capa 3: aplica el monkeypatch de get_user_permissions
+
+    # Layer 3: Apply monkeypatch for get_user_permissions
     try:
         import l10n_ve.patches.frappe.user_permissions_patch
     except Exception as e:
         log_patch_error('user_permissions_patch', e)
 
-# Attempt to apply patches immediately.
-try:
+    # Layer 4: Apply global monkeypatch for report_to_pdf to prevent HostNotFoundError
+    try:
+        from frappe.utils import print_format
+        from l10n_ve.utils.pdf_utils import custom_report_to_pdf
+        print_format.report_to_pdf = custom_report_to_pdf
+    except Exception as e:
+        log_patch_error('custom_report_to_pdf_patch', e)
+
+_post_db_patches_applied = False
+
+
+def ensure_post_db_patches() -> None:
+    """Aplica los patches post-DB una sola vez por proceso (hook before_request/before_job).
+
+    El import del paquete l10n_ve puede ocurrir antes de que exista conexión
+    a la BD (workers web/RQ recién levantados), o no ocurrir nunca en jobs
+    que no tocan código de l10n_ve (p.ej. el envío de Auto Email Reports).
+    En ambos casos los workers ejecutaban los reportes core sin parchear:
+    de ahí el IndexError diario de "Payment Period Based On Invoice Date",
+    cuyo parche existe desde abril pero no se cargaba. Este hook garantiza
+    que los patches queden aplicados en cuanto haya BD disponible, sin
+    re-aplicarlos en cada request/job.
+    """
+    global _post_db_patches_applied
+    if _post_db_patches_applied:
+        return
+
+    if not getattr(frappe.local, "db", None):
+        # Sin BD todavía (import temprano del paquete): se reintenta en el
+        # siguiente before_request/before_job, ya con conexión.
+        return
+
+    _post_db_patches_applied = True
     apply_post_db_patches()
+
+
+# Attempt to apply patches immediately (solo surte efecto si ya hay BD).
+try:
+    ensure_post_db_patches()
 except Exception:
     pass

@@ -1366,3 +1366,48 @@ def make_replacement_invoice(source_name: str) -> "Document":
         },
         postprocess=_adjust_date_and_rate,
     )
+
+
+@frappe.whitelist()
+def get_withholding_types(invoice_names: str) -> dict:
+    """Retorna los tipos de retención activos para un lote de facturas.
+
+    Consulta la tabla hija Sales Taxes and Charges para identificar
+    qué retenciones (VAT Withholding / ISLR) tiene cada factura.
+
+    Args:
+        invoice_names: Lista JSON de nombres de Sales Invoice.
+
+    Returns:
+        dict con clave = nombre de factura, valor = {has_vat, has_islr}
+    """
+    import json
+
+    names: list[str] = json.loads(invoice_names)
+    if not names:
+        return {}
+
+    for name in names:
+        frappe.has_permission("Sales Invoice", ptype="read", doc=name, throw=True)
+
+    rows: list[dict] = frappe.db.sql(
+        """
+        SELECT parent, charge_type
+        FROM `tabSales Taxes and Charges`
+        WHERE parent IN %(names)s
+          AND charge_type IN ('VAT Withholding', 'ISLR')
+          AND tax_amount != 0
+        """,
+        {"names": names},
+        as_dict=True,
+    )
+
+    result: dict = {}
+    for row in rows:
+        entry = result.setdefault(row.parent, {"has_vat": False, "has_islr": False})
+        if row.charge_type == "VAT Withholding":
+            entry["has_vat"] = True
+        elif row.charge_type == "ISLR":
+            entry["has_islr"] = True
+
+    return result

@@ -1,0 +1,206 @@
+{
+    "charts": [],
+    "content": "[{\"id\":\"cajas_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Cajas y Bancos</b></span>\",\"col\":12}},{\"id\":\"cj_sc_income\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Recibos de Ingresos-Clientes\",\"col\":3}},{\"id\":\"cj_sc_expense\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Recibos de Egresos-Proveedores\",\"col\":3}},{\"id\":\"cj_sc_transfer\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Transferencia entre Cuentas\",\"col\":3}},{\"id\":\"cj_sc_deposit\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Depósitos\",\"col\":3}},{\"id\":\"cj_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cj_links_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documentos y Catálogos</b></span>\",\"col\":12}},{\"id\":\"cj_card_tx\",\"type\":\"card\",\"data\":{\"card_name\":\"Transacciones y Conciliación\",\"col\":4}},{\"id\":\"cj_card_masters\",\"type\":\"card\",\"data\":{\"card_name\":\"Cajas y Cuentas\",\"col\":4}},{\"id\":\"cj_card_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Informes de Caja y Banco\",\"col\":4}}]",
+    "creation": "2026-06-01 10:00:00.000000",
+    "custom_blocks": [],
+    "docstatus": 0,
+    "doctype": "Workspace",
+    "for_user": "",
+    "hide_custom": 0,
+    "icon": "money-coins-1",
+    "idx": 0,
+    "is_hidden": 0,
+    "label": "Cajas",
+    "links": [
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Transacciones y Conciliación",
+            "link_count": 4,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Registro de Pagos",
+            "link_count": 0,
+            "link_to": "Payment Entry",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Transacciones Bancarias",
+            "link_count": 0,
+            "link_to": "Bank Transaction",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Conciliación Bancaria",
+            "link_count": 0,
+            "link_to": "Bank Reconciliation Tool",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Importar Extracto Bancario",
+            "link_count": 0,
+            "link_to": "Bank Statement Import",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Cajas y Cuentas",
+            "link_count": 3,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Cuentas Bancarias",
+            "link_count": 0,
+            "link_to": "Bank Account",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Bancos",
+            "link_count": 0,
+            "link_to": "Bank",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Formas de Pago",
+            "link_count": 0,
+            "link_to": "Mode of Payment",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Informes de Caja y Banco",
+            "link_count": 3,
+            "onboard": 0,
+            "type": "Card Break"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Movimientos (Bancos-Cajas)",
+            "link_count": 0,
+            "link_to": "General Ledger",
+            "link_type": "Report",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Flujo de Caja",
+            "link_count": 0,
+            "link_to": "Cash Flow",
+            "link_type": "Report",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Estado de Conciliación Bancaria",
+            "link_count": 0,
+            "link_to": "Bank Reconciliation Statement",
+            "link_type": "Report",
+            "onboard": 1,
+            "type": "Link"
+        }
+    ],
+    "modified": "2026-06-01 10:00:00.000000",
+    "modified_by": "Administrator",
+    "name": "Cajas",
+    "number_cards": [],
+    "owner": "Administrator",
+    "parent_page": "Administración",
+    "public": 1,
+    "quick_lists": [],
+    "restrict_to_domain": "",
+    "roles": [
+        {
+            "role": "System Manager"
+        },
+        {
+            "role": "Accounts Manager"
+        },
+        {
+            "role": "Accounts User"
+        }
+    ],
+    "sequence_id": 10.0,
+    "shortcuts": [
+        {
+            "color": "Blue",
+            "format": "{}",
+            "label": "Recibos de Ingresos-Clientes",
+            "link_to": "Payment Entry",
+            "stats_filter": "{\"payment_type\": \"Receive\", \"party_type\": \"Customer\"}",
+            "type": "DocType"
+        },
+        {
+            "color": "Orange",
+            "format": "{}",
+            "label": "Recibos de Egresos-Proveedores",
+            "link_to": "Payment Entry",
+            "stats_filter": "{\"payment_type\": \"Pay\", \"party_type\": \"Supplier\"}",
+            "type": "DocType"
+        },
+        {
+            "color": "Green",
+            "format": "{}",
+            "label": "Transferencia entre Cuentas",
+            "link_to": "Payment Entry",
+            "stats_filter": "{\"payment_type\": \"Internal Transfer\"}",
+            "type": "DocType"
+        },
+        {
+            "color": "Grey",
+            "format": "{}",
+            "label": "Depósitos",
+            "link_to": "VE Deposit",
+            "type": "DocType"
+        }
+    ],
+    "title": "Cajas",
+    "type": "Workspace"
+}

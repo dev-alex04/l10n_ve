@@ -78,8 +78,25 @@ function _sales_invoice_indicator(doc) {
     color = "orange";
   }
 
-  const withholding_warning =
-    flt(doc.total_withholding) > 0 && !doc.vat_withholding_voucher_number;
+  // Detectar comprobantes de retención faltantes
+  let withholding_warning = false;
+
+  if (doc.taxes && doc.taxes.length) {
+    // Form view: revisar charge_type directamente en la tabla de impuestos
+    const has_vat = doc.taxes.some(
+      (t) => t.charge_type === "VAT Withholding" && flt(t.tax_amount) !== 0
+    );
+    const has_islr = doc.taxes.some(
+      (t) => t.charge_type === "ISLR" && flt(t.tax_amount) !== 0
+    );
+    withholding_warning =
+      (has_vat && !doc.vat_withholding_voucher_number) ||
+      (has_islr && !doc.islr_receipt_number);
+  } else if (flt(doc.total_withholding) !== 0) {
+    // List view: sin acceso a taxes, usar heurística con campos del padre
+    withholding_warning =
+      !doc.vat_withholding_voucher_number && !doc.islr_receipt_number;
+  }
 
   return {
     label: `${fiscal} - ${payment}`,
@@ -147,7 +164,7 @@ function set_ve_form_indicator(frm, opts) {
 
   // En el formulario, mostrar advertencia de retención como texto legible
   if (result.withholding_warning) {
-    label += " · Falta comprobante de retención de IVA";
+    label += " · Falta comprobante de retención";
     color = "orange";
   }
 

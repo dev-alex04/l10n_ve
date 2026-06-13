@@ -68,11 +68,11 @@ def _set_cost_center_from_branch(doc: "Document") -> None:
 
     doc.cost_center = branch_cost_center
 
-    for item in doc.get("items", []):
+    for item in (doc.get("items") or []):
         if hasattr(item, "cost_center"):
             item.cost_center = branch_cost_center
 
-    for tax in doc.get("taxes", []):
+    for tax in (doc.get("taxes") or []):
         if hasattr(tax, "cost_center"):
             tax.cost_center = branch_cost_center
 

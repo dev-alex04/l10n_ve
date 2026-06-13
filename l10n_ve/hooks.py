@@ -13,6 +13,7 @@ app_include_js = [
     "/assets/l10n_ve/js/utils/fiscal_preview.js",
     "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
     "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
+    "/assets/l10n_ve/js/widgets/number_card_widget.js",
 ]
 
 # Apps
@@ -38,9 +39,9 @@ app_include_css = [
     "/assets/l10n_ve/css/digital_invoice_preview.css",
 ]
 
-page_js = {
-    "dashboard-view": "public/js/widgets/number_card_widget.js"
-}
+# page_js = {
+#     "dashboard-view": "public/js/widgets/number_card_widget.js"
+# }
 
 
 # include js, css files in header of web template
@@ -58,6 +59,9 @@ page_js = {
 
 # include js in doctype views
 doctype_js = {
+    "Journal Entry": [
+        "public/js/doctype/journal_entry/journal_entry.js",
+    ],
     "Bank Statement Import": [
         "public/js/doctype/bank_statement_import/bank_statement_import.js",
     ],
@@ -166,6 +170,8 @@ doctype_list_js = {
 
 query_report_js = {
     "General Ledger": "public/js/report/general_ledger.js",
+    "Accounts Receivable": "public/js/report/accounts_receivable.js",
+    "Accounts Payable": "public/js/report/accounts_payable.js",
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -340,6 +346,9 @@ doc_events = {
     },
     "VE Branch": {
         "on_change": "l10n_ve.permissions.clear_ve_branch_cache",
+    },
+    "Currency Exchange": {
+        "on_change": "l10n_ve.utils.utils.clear_exchange_rate_cache",
     }
 }
 # Scheduled Tasks
@@ -440,12 +449,16 @@ fixtures = [
 
 # Request Events
 # ----------------
-# before_request = ["l10n_ve.utils.before_request"]
+# Garantiza que los patches de reportes queden aplicados en los workers web
+# (idempotente: solo la primera request de cada proceso hace trabajo real).
+before_request = ["l10n_ve.patches.monkey_patches.ensure_post_db_patches"]
 # after_request = ["l10n_ve.utils.after_request"]
 
 # Job Events
 # ----------
-# before_job = ["l10n_ve.utils.before_job"]
+# Igual que before_request pero para workers de RQ (scheduler, Auto Email
+# Reports, jobs encolados): sin esto los reportes corren sin parchear.
+before_job = ["l10n_ve.patches.monkey_patches.ensure_post_db_patches"]
 # after_job = ["l10n_ve.utils.after_job"]
 
 # User Data Protection

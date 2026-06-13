@@ -95,7 +95,14 @@ class WithholdingVoucher():
         num_digits = len(template) - 6
 
         if current_correlative_value:
-            voucher_correlative_num = int(current_correlative_value)
+            curr_str = str(current_correlative_value).strip()
+            try:
+                if len(curr_str) >= 14:
+                    voucher_correlative_num = int(curr_str[6:])
+                else:
+                    voucher_correlative_num = int(curr_str)
+            except ValueError:
+                voucher_correlative_num = 1
         else:
             voucher_correlative_num = 1
 

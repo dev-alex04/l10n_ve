@@ -255,6 +255,11 @@ def _process_rates(rates_data: dict) -> None:
             })
             doc.insert(ignore_permissions=True)
 
+    # frappe.db.set_value no dispara doc_events, así que invalidamos el caché
+    # de tasas explícitamente tras la sincronización BCV.
+    from l10n_ve.utils.utils import clear_exchange_rate_cache
+    clear_exchange_rate_cache()
+
 
 def _resolve_future_date(
     api_date,

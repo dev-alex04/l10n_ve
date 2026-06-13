@@ -1763,6 +1763,62 @@ def setup_workspaces() -> None:
     add_shortcuts_to_selling_workspace()
     add_links_to_selling_workspace()
     add_links_to_buying_workspace()
+    remove_number_cards_from_accounting_workspace()
+
+def remove_number_cards_from_accounting_workspace() -> None:
+    """
+    Remueve la tarjeta de 'Tasa BCV del Día' del Workspace de Contabilidad
+    y restaura el ancho de las 4 tarjetas originales a col: 3.
+    """
+    print("Removiendo tarjeta de Tasa BCV del Día del Workspace de Contabilidad...")
+    try:
+        workspace_name = get_compatible_workspace_name()
+        if not workspace_name:
+            return
+
+        workspace = frappe.get_doc("Workspace", workspace_name)
+        
+        card_name = "Tasa BCV del Día"
+        modified = False
+
+        # 1. Remover del child table number_cards
+        original_cards = [c for c in workspace.number_cards if c.number_card_name != card_name]
+        if len(original_cards) != len(workspace.number_cards):
+            workspace.set("number_cards", original_cards)
+            modified = True
+            print(f"  -> Removida tarjeta '{card_name}' de la tabla number_cards.")
+
+        # 2. Remover del layout JSON content y restaurar col: 3 para las tarjetas de erpnext
+        content = json.loads(workspace.content) if workspace.content else []
+        new_content = []
+        target_cards = {"Total Outgoing Bills", "Total Incoming Bills", "Total Incoming Payment", "Total Outgoing Payment"}
+        
+        for block in content:
+            if block.get("type") == "number_card":
+                name = block.get("data", {}).get("number_card_name")
+                if name == card_name:
+                    modified = True
+                    continue # Omitir/borrar
+                elif name in target_cards:
+                    block["data"]["col"] = 3
+                    modified = True
+            new_content.append(block)
+
+        if modified:
+            workspace.content = json.dumps(new_content)
+            workspace.save(ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Workspace '{workspace_name}' restaurado (tarjeta BCV removida).")
+
+        # 3. Eliminar el documento de Number Card 'Tasa BCV del Día' de la base de datos si existe
+        if frappe.db.exists("Number Card", card_name):
+            frappe.delete_doc("Number Card", card_name, ignore_permissions=True)
+            frappe.db.commit()
+            print(f"Success: Documento Number Card '{card_name}' eliminado.")
+
+    except Exception as e:
+        print(f"Failure: Error limpiando el Workspace de Contabilidad: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en remove_number_cards_from_accounting_workspace')
 
 def add_shortcuts_to_selling_workspace() -> None:
     """

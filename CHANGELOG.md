@@ -5,6 +5,195 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.0] - 2026-06-13
+
+### ✨ Funcionalidades (Features)
+- Implementación de la descarga masiva para facturas de venta certificadas de HKA. [744e6aa]
+
+### 🐛 Correcciones (Fixes)
+- Implementación de controles de seguridad BOLA (Broken Object Level Authorization) en los procesos de descarga masiva y ejecución de jobs. [c2ad799]
+- Ajuste en `process_download_job` definiendo `ignore_permissions = True` para asegurar la ejecución correcta del proceso interno. [355cc79]
+- Aplicación de optimizaciones y mejoras técnicas en el módulo de descarga HKA. [9386a2b]
+
+---
+
+## [v2.2.2] - 2026-06-13
+
+### 🐛 Correcciones (Fixes)
+- Refactorización de la función `_get_allowed_branches` en el dashboard para implementar validaciones específicas por empresa. (3fb7620)
+- Ajuste en la validación de sucursales para omitir la verificación cuando no existan sucursales tipo VE configuradas. (8b5d93d)
+
+---
+
+## [v2.2.1] - 2026-06-12
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la lógica de aplicación de parches de reportes para asegurar su ejecución correcta tanto en workers web como en workers de cola (RQ). 5312f62
+- Mejora en la estabilidad del entorno de pruebas mediante la restauración segura de frappe.local.db en los tests de parches. 35996f8
+
+---
+
+## [v2.2.0] - 2026-06-11
+
+### ✨ Funcionalidades (Features)
+- Se implementó la visualización de la conversión a USD como valor principal en las tarjetas numéricas del dashboard y se optimizó el diseño de la tarjeta de tasa.
+- Se añadió el desglose de referencia en USD bajo los valores expresados en bolívares en tarjetas numéricas y gráficos.
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la lógica del dashboard para utilizar la tasa de cambio específica de cada transacción al calcular la referencia en USD en las tarjetas [caccb45].
+
+---
+
+## [v2.1.1] - 2026-06-11
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió el atajo de "Conciliar Banco" en el Workspace, asegurando que el tipo de acceso sea mediante URL para su correcto funcionamiento. [4ca061f]
+
+---
+
+## [v2.1.0] - 2026-06-09
+
+### ✨ Funcionalidades (Features)
+- **Contabilidad:** Se implementó el asentamiento automático del IGTF en el proceso de cobros.
+- **Reportes:** Se ajustó el campo RIF por Documento en el reporte de IGTF para mayor precisión en la información.
+
+### 🐛 Correcciones (Fixes)
+- **PDF:** Se resolvió un error de deadlock que afectaba la generación de archivos PDF.
+- **Review:** Se integraron optimizaciones y correcciones técnicas derivadas de revisiones de código y sugerencias de IA.
+
+---
+
+## [v2.0.1] - 2026-06-08
+
+### 🐛 Correcciones (Fixes)
+- **Dashboard**: Se optimizó el proceso de exportación mediante el uso de recursos nativos y se implementó la validación obligatoria de permisos de lectura para asegurar la integridad del acceso a los datos. [f0f2f10]
+
+---
+
+## [v2.0.0] - 2026-06-08
+
+### ✨ Funcionalidades (Features)
+- Implementación de la obligatoriedad del centro de costos a nivel de sucursal para asegurar la integridad de los datos contables. [25a8b25]
+
+---
+
+## [v1.11.0] - 2026-06-08
+
+### ✨ Funcionalidades (Features)
+- Se integraron mini tarjetas informativas al reporte exportable de Excel del dashboard. ef30b5b
+
+### 🐛 Correcciones (Fixes)
+- Corrección en la lógica de sumatoria de los totales para asegurar la precisión de los datos presentados. ef30b5b
+
+---
+
+## [v1.10.1] - 2026-06-07
+
+### 🐛 Correcciones (Fixes)
+- Se implementó el uso de `safe_get_pdf` para asegurar la correcta generación y descarga de reportes en formato PDF, específicamente para los módulos de Customer Retention e IGTF. [31cb9c7]
+
+---
+
+## [v1.10.0] - 2026-06-07
+
+### ✨ Funcionalidades (Features)
+- Implementación de reporte gerencial jerárquico en moneda local (bolívares) e integración de zona HKA vinculada a la dirección para la localización de Venezuela (l10n_ve).
+- Mejora en la interfaz y usabilidad de la vista de lista de impuestos municipales.
+
+### 🐛 Correcciones (Fixes)
+- Corrección de seguridad en el Dashboard: se restringió la visualización de IGTF, FX y Gastos aplicando un filtrado estricto por sucursal permitida para el usuario.
+
+---
+
+## [v1.9.0] - 2026-06-07
+
+### ✨ Funcionalidades (Features)
+- **Reestructuración del Dashboard Gerencial**: Se rediseñó la disposición de las tarjetas de métricas, moviéndolas sobre la tabla principal, y se implementó la lógica para calcular sumatorias directamente desde los datos de la tabla (1d37631, cfd8ad1).
+- **Nuevo Diseño Premium**: Actualización visual del dashboard utilizando un tema "premium slate" para mejorar la experiencia de usuario (845a520).
+- **Soporte para IGTF**: Adición de columnas y tarjetas específicas para el seguimiento del Impuesto a las Grandes Transacciones Financieras (1d37631).
+- **Plantillas de Impresión**: Incorporación de plantillas HTML personalizadas para la generación de reportes de localización (22938fa).
+- **Optimización de Exportación**: Implementación de un parche optimizado para la exportación a Excel en los módulos de contabilidad y localización venezolana (2c07f9c).
+- **Etiquetado Beta**: Inclusión de etiquetas (BETA) en los módulos de administración para identificar funciones en periodo de prueba (cfd8ad1).
+
+### 🐛 Correcciones (Fixes)
+- **Consistencia Financiera**: Alineación de los cálculos financieros entre el panel gerencial y el panel ISP para asegurar la integridad de la información (171606c).
+- **Refactor de Reportes**: Ajustes técnicos en la generación de libros contables y exportaciones a Excel basados en revisiones de calidad (c7136b2).
+- **Equivalencias de Facturación**: Corrección en el cálculo y visualización de equivalentes de facturación dentro del nuevo tema del dashboard (845a520).
+
+---
+
+## [v1.8.0] - 2026-06-05
+
+### ✨ Funcionalidades (Features)
+- Integración del módulo completo de Administración que incluye gestión de Clientes, Proveedores, Inventario, Bancos y Cajas (Ingresos, Egresos y Transferencias).
+- Implementación de reportes financieros bajo normativa VEN-NIF y libros oficiales requeridos por el SENIAT.
+- Nuevo reporte de Mayor Analítico independiente con soporte para consultas de gran volumen mediante prepared_report y filtros de Cuenta Contable para optimizar el rendimiento de PDF.
+- Reestructuración de los Estados de Resultados y Situación Financiera a formato vertical de 3 columnas y diseño horizontal (landscape) con indentación jerárquica.
+- Implementación del módulo tributario con reportes de IVA Forma 30, Prorrata y gestión de retenciones (IVA, ISLR, Municipales).
+- Rediseño de la plantilla de impresión oficial de 7 columnas del SENIAT con exportación directa a PDF y Excel para la declaración de IVA.
+- Incorporación de montos equivalentes en divisas (USD/Bs) en tarjetas y tablas de resumen del Dashboard Gerencial.
+- Reorganización integral de los espacios de trabajo (Workspaces) para Contabilidad, Tributos y Administración, optimizando la jerarquía de navegación y acceso a reportes.
+- Implementación de descripción automática en reportes y restauración de la cuadrícula estándar para el registro de asientos contables.
+
+### 🐛 Correcciones (Fixes)
+- Corrección de errores de desconexión en la base de datos al procesar impresiones PDF y mejora en la seguridad de los filtros en plantillas.
+- Resolución de crashes de compilación en microtemplate.js y fallos silenciosos en el frontend del Mayor Analítico.
+- Ajuste de compatibilidad del JavaScript de plantillas al estándar ES5 para asegurar el correcto funcionamiento con wkhtmltopdf.
+- Robustecimiento del proceso de exportación a PDF mediante el saneamiento de filtros vacíos para evitar TypeErrors.
+- Corrección del orden de argumentos SQL en funciones de balances jerárquicos y solución a errores RPC en el módulo tributario.
+- Ajustes de sintaxis en consultas de facturación y corrección de enlaces rotos en los accesos directos de la barra lateral.
+- Normalización de nombres de archivos y carpetas para evitar conflictos con caracteres especiales y tildes en el sistema de archivos.
+- Protección de la función de traducción global para evitar sobreescritura de cadenas en reportes de Prorrata IVA.
+
+---
+
+## [v1.7.2] - 2026-06-04
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la advertencia de retenciones faltantes y se resolvió el error de duplicación de registros en la vista de lista (b0b6daa).
+
+---
+
+## [v1.7.1] - 2026-06-03
+
+### ✨ Funcionalidades (Features)
+- Refactorización del módulo de tipo de cambio para integrar la lógica de conversión de moneda mediante el evento on_change, permitiendo una actualización reactiva de los valores.
+
+---
+
+## [v1.7.0] - 2026-06-03
+
+### ✨ Funcionalidades (Features)
+- Implementación de un sistema de caché para la función `get_exchange_rate` basado en fecha y moneda, que incluye lógica de invalidación para optimizar el rendimiento. b53b894
+- Normalización de fechas en las claves de caché para garantizar la consistencia y correcta recuperación de los datos almacenados. e9359ed
+
+---
+
+## [v1.6.1] - 2026-06-02
+
+### 🐛 Correcciones (Fixes)
+- Se integró una lista blanca (whitelist) para los DocTypes de sucursales en la subconsulta `_get_gl_entries` del dashboard, asegurando que los registros contables se filtren y muestren correctamente. a80fe27
+
+---
+
+## [v1.6.0] - 2026-06-02
+
+### ✨ Funcionalidades (Features)
+- Implementación del nuevo DocType **Dashboard Gerencial**, que integra un resumen financiero personalizado y 13 tarjetas de métricas clave para la toma de decisiones. [0a23e0b]
+- Optimización crítica de rendimiento en la carga de datos del dashboard mediante el uso de subconsultas SQL, evitando desbordamientos en cláusulas IN al filtrar vouchers por sucursal. [7f3c65d]
+- Mejora de eficiencia en la capa de datos eliminando consultas N+1 a través de agrupamiento en memoria y optimización de procesos de renderizado. [54b141e]
+- Adición de una fila virtual "Sin Sucursal" en las tablas de resumen, garantizando que la sumatoria de las tablas coincida exactamente con los valores de las tarjetas informativas. [ad84414]
+- Refactorización integral del backend: traducción de todas las variables internas, claves JSON y argumentos de funciones al estándar de la industria (Inglés). [6a48b42]
+- Actualización de estilos en tablas de sucursales para asegurar compatibilidad visual con el tema Dark Mode Premium. [2f788a2]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la precisión de los cálculos de gastos mensuales y anuales, así como en la consolidación de disponibilidad de USD en bancos y caja. [c9c91ad]
+- Implementación de saneamiento (sanitization) en el renderizado de nombres de sucursales para prevenir vulnerabilidades de Cross-Site Scripting (XSS). [54b141e]
+- Resolución de excepción `AttributeError` en consultas de la tabla de gastos mediante la implementación correcta de `as_dict=True` en las peticiones SQL. [f4d5632]
+- Corrección en el binding de manejadores de eventos en scripts de formulario, asegurando que los triggers reconozcan nombres con espacios exactos. [e9fa08a]
+
+---
+
 ## [v1.5.0] - 2026-05-29
 
 ### ✨ Funcionalidades (Features)
