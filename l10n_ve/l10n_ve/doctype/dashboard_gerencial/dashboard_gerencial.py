@@ -32,15 +32,17 @@ def _ve_branch_children(branch_name):
     )
 
 
-def _get_allowed_branches():
+def _get_allowed_branches(company=None):
     """Sucursales permitidas para el usuario: None=todas (Administrator), []=sin
     acceso, [list]=permitidas. Basado en User Permission allow='VE Branch' + hijos."""
     user = frappe.session.user
     if user == "Administrator":
         return None
 
-    # Si no hay sucursales registradas en el sistema en absoluto, permitir ver todo
-    if not frappe.db.count("VE Branch"):
+    # Si no hay sucursales registradas para la empresa (o en el sistema), permitir ver todo
+    has_company = frappe.get_meta("VE Branch").has_field("company")
+    exists_filters = {"company": company} if (company and has_company) else {}
+    if not frappe.db.get_value("VE Branch", exists_filters, "name"):
         return None
 
     perm = frappe.db.get_all(
@@ -150,7 +152,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
         si_filters["name"] = ["in", frappe.get_all("Sales Invoice Item", filters={"cost_center": cost_center}, pluck="parent")]
 
     # --- Permisos + universo de sucursales (árbol VE Branch, igual que el ISP) ---
-    allowed = _get_allowed_branches()                 # None=todas, []=ninguna, [list]
+    allowed = _get_allowed_branches(company)          # None=todas, []=ninguna, [list]
     allowed_set = set(allowed) if allowed is not None else None
     if branch:
         universe = set(_ve_branch_children(branch))   # seleccionada + descendientes
