@@ -16,7 +16,7 @@
             "hidden": 0,
             "is_query_report": 0,
             "label": "Administración",
-            "link_count": 5,
+            "link_count": 6,
             "onboard": 0,
             "type": "Card Break"
         },
@@ -76,6 +76,17 @@
             "type": "Link"
         },
         {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Descarga Masiva de Archivos Fiscales",
+            "link_count": 0,
+            "link_to": "VE Fiscal Document Download",
+            "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
             "hidden": 0,
             "is_query_report": 0,
             "label": "Reportes Importantes",
@@ -102,17 +113,6 @@
             "link_count": 0,
             "link_to": "Bank Reconciliation Statement",
             "link_type": "Report",
-            "onboard": 0,
-            "type": "Link"
-        },
-        {
-            "dependencies": "",
-            "hidden": 0,
-            "is_query_report": 0,
-            "label": "Conciliaciones Cajas",
-            "link_count": 0,
-            "link_to": "Cajas",
-            "link_type": "Page",
             "onboard": 0,
             "type": "Link"
         },

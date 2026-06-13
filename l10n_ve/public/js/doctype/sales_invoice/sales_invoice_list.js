@@ -71,6 +71,112 @@ frappe.listview_settings["Sales Invoice"] = {
       });
     }
 
+    listview.page.add_inner_button(__("Descargar Facturas HKA"), function () {
+      let dialog = new frappe.ui.Dialog({
+        title: __("Descarga Masiva de Facturas HKA"),
+        fields: [
+          {
+            label: __("Fecha Desde"),
+            fieldname: "from_date",
+            fieldtype: "Date",
+            reqd: 1,
+            default: frappe.datetime.add_months(frappe.datetime.get_today(), -1)
+          },
+          {
+            label: __("Fecha Hasta"),
+            fieldname: "to_date",
+            fieldtype: "Date",
+            reqd: 1,
+            default: frappe.datetime.get_today()
+          },
+          {
+            label: __("Cliente (Opcional)"),
+            fieldname: "customer",
+            fieldtype: "Link",
+            options: "Customer"
+          },
+          {
+            label: __("Sucursal (Opcional)"),
+            fieldname: "branch",
+            fieldtype: "Link",
+            options: "VE Branch"
+          }
+        ],
+        primary_action_label: __("Iniciar Descarga"),
+        primary_action(values) {
+          frappe.call({
+            method: "l10n_ve.l10n_ve.doctype.ve_fiscal_document_download.ve_fiscal_document_download.get_invoice_count",
+            args: {
+              from_date: values.from_date,
+              to_date: values.to_date,
+              customer: values.customer,
+              branch: values.branch
+            },
+            freeze: true,
+            freeze_message: __("Verificando cantidad de facturas..."),
+            callback: function (r) {
+              const count = r.message || 0;
+              if (count === 0) {
+                frappe.msgprint({
+                  title: __("Sin Facturas"),
+                  indicator: "orange",
+                  message: __("No se encontraron facturas aprobadas por HKA en el rango seleccionado.")
+                });
+                return;
+              }
+              if (count > 500) {
+                frappe.msgprint({
+                  title: __("Límite Excedido"),
+                  indicator: "red",
+                  message: __("El rango seleccionado contiene {0} facturas. Por seguridad, el límite máximo permitido es de 500 facturas. Por favor, selecciona un rango de fechas más corto o un cliente/sucursal específico.", [count])
+                });
+                return;
+              }
+
+              dialog.hide();
+              frappe.call({
+                method: "frappe.client.insert",
+                args: {
+                  doc: {
+                    doctype: "VE Fiscal Document Download",
+                    from_date: values.from_date,
+                    to_date: values.to_date,
+                    customer: values.customer,
+                    branch: values.branch
+                  }
+                },
+                freeze: true,
+                freeze_message: __("Creando solicitud de descarga..."),
+                callback: function (res_insert) {
+                  if (res_insert.message) {
+                    const docname = res_insert.message.name;
+                    frappe.call({
+                      method: "l10n_ve.l10n_ve.doctype.ve_fiscal_document_download.ve_fiscal_document_download.start_bulk_download",
+                      args: {
+                        docname: docname
+                      },
+                      freeze: true,
+                      freeze_message: __("Iniciando descarga de PDFs en segundo plano..."),
+                      callback: function (res_dl) {
+                        frappe.set_route("Form", "VE Fiscal Document Download", docname);
+                        frappe.show_alert({
+                          message: __("Descarga iniciada en segundo plano."),
+                          indicator: "green"
+                        });
+                      }
+                    });
+                  }
+                }
+              });
+            }
+          });
+        }
+      });
+      dialog.show();
+    });
+
+
+
     // Forzar columnas: Subject (bill_no), customer_name, bill_control, status
     const get_df = frappe.meta.get_docfield.bind(null, "Sales Invoice");
     listview.columns = [
