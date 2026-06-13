@@ -1416,7 +1416,7 @@ def bulk_download_pdf(from_date: str, to_date: str, customer: str = None) -> dic
 					content=zip_buffer.getvalue(),
 					dt=None,
 					dn=None,
-					is_private=0
+					is_private=1
 				)
 				files.append(file_doc.file_url)
 
@@ -1465,7 +1465,7 @@ def bulk_download_pdf(from_date: str, to_date: str, customer: str = None) -> dic
 			content=zip_buffer.getvalue(),
 			dt=None,
 			dn=None,
-			is_private=0
+			is_private=1
 		)
 		files.append(file_doc.file_url)
 	else:
@@ -1599,7 +1599,7 @@ def bulk_download_pdf_job(from_date: str, to_date: str, customer: str = None, re
 					content=zip_buffer.getvalue(),
 					dt=None,
 					dn=None,
-					is_private=0
+					is_private=1
 				)
 				files.append(file_doc.file_url)
 
@@ -1648,7 +1648,7 @@ def bulk_download_pdf_job(from_date: str, to_date: str, customer: str = None, re
 			content=zip_buffer.getvalue(),
 			dt=None,
 			dn=None,
-			is_private=0
+			is_private=1
 		)
 		files.append(file_doc.file_url)
 	else:

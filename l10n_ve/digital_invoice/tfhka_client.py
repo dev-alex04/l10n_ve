@@ -429,7 +429,7 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
 
     if attached_files:
         try:
-            file_doc = frappe.get_doc("File", attached_files[0].name)
+            file_doc = frappe.get_doc("File", attached_files[0].get("name"))
             file_content = file_doc.get_content()
             if isinstance(file_content, str):
                 file_content = file_content.encode("utf-8")
