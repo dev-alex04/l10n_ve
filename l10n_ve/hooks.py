@@ -170,6 +170,8 @@ doctype_list_js = {
 
 query_report_js = {
     "General Ledger": "public/js/report/general_ledger.js",
+    "Accounts Receivable": "public/js/report/accounts_receivable.js",
+    "Accounts Payable": "public/js/report/accounts_payable.js",
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}

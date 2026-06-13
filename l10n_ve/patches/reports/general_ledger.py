@@ -76,12 +76,14 @@ def set_branch_on_entries(res: list) -> None:
             continue
         vt = row.get("voucher_type")
         vn = row.get("voucher_no")
-        if vt and vn and vt in ("Sales Invoice", "Purchase Invoice", "Payment Entry", "VE Sales Credit Note", "VE Sales Debit Note"):
+        if vt and vn:
             vouchers_by_type.setdefault(vt, set()).add(vn)
 
     branch_map = {}
     for vt, names in vouchers_by_type.items():
         try:
+            if not frappe.get_meta(vt).has_field("branch"):
+                continue
             names_list = list(names)
             for chunk_start in range(0, len(names_list), 500):
                 chunk = names_list[chunk_start:chunk_start + 500]
@@ -187,6 +189,37 @@ def custom_get_gl_entries(filters, accounting_dimensions):
         filters,
         as_dict=1,
     )
+
+    if filters.get("ve_branch"):
+        selected_branch = filters.get("ve_branch")
+        vouchers_by_type = {}
+        for row in gl_entries:
+            vt = row.get("voucher_type")
+            vn = row.get("voucher_no")
+            if vt and vn:
+                vouchers_by_type.setdefault(vt, set()).add(vn)
+        
+        branch_map = {}
+        for vt, names in vouchers_by_type.items():
+            try:
+                if not frappe.get_meta(vt).has_field("branch"):
+                    continue
+                names_list = list(names)
+                for chunk_start in range(0, len(names_list), 500):
+                    chunk = names_list[chunk_start:chunk_start + 500]
+                    docs = frappe.get_all(vt, filters={"name": ("in", chunk)}, fields=["name", "branch"])
+                    for d in docs:
+                        branch_map[(vt, d.name)] = d.get("branch") or ""
+            except Exception:
+                pass
+        
+        filtered_entries = []
+        for row in gl_entries:
+            vt = row.get("voucher_type")
+            vn = row.get("voucher_no")
+            if branch_map.get((vt, vn)) == selected_branch:
+                filtered_entries.append(row)
+        gl_entries = filtered_entries
 
     if filters.get("presentation_currency"):
         return convert_to_presentation_currency(gl_entries, currency_map)
