@@ -1490,6 +1490,9 @@ def enqueue_bulk_download_pdf(from_date: str, to_date: str, customer: str = None
 	Encola el trabajo en segundo plano para la descarga masiva de PDFs.
 	Retorna de inmediato al cliente.
 	"""
+	if not frappe.has_permission("Sales Invoice", "read"):
+		frappe.throw(frappe._("No tiene permiso para leer Facturas de Venta."), frappe.PermissionError)
+
 	filters = {
 		"docstatus": 1,
 		"posting_date": ["between", [from_date, to_date]],
@@ -1541,6 +1544,9 @@ def bulk_download_pdf_job(from_date: str, to_date: str, customer: str = None, re
 	"""
 	Trabajo en segundo plano para generar el ZIP de facturas.
 	"""
+	if request_user:
+		frappe.set_user(request_user)
+
 	import zipfile
 	import io
 	import base64
@@ -1704,6 +1710,17 @@ def download_zip_file(file_url: str):
 		raise frappe.ValidationError("El archivo no existe.")
 
 	file = frappe.get_doc("File", file_doc)
+	
+	# BOLA check: check if user owns the file, or is Admin, or has read permission on the attached document
+	is_authorized = False
+	if frappe.session.user == "Administrator" or file.owner == frappe.session.user:
+		is_authorized = True
+	elif file.attached_to_doctype and file.attached_to_name:
+		if frappe.has_permission(file.attached_to_doctype, "read", doc=file.attached_to_name):
+			is_authorized = True
+			
+	if not is_authorized:
+		frappe.throw(frappe._("No tiene permisos para descargar este archivo."), frappe.PermissionError)
 	
 	frappe.local.response.filename = file.file_name
 	frappe.local.response.filecontent = file.get_content()

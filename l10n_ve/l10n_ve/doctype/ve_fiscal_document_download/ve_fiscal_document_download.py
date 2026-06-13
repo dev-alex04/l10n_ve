@@ -19,6 +19,7 @@ class VEFiscalDocumentDownload(Document):
 
 	@frappe.whitelist()
 	def start_download(self):
+		self.check_permission("write")
 		if self.status == "Processing":
 			return False
 		
@@ -45,6 +46,8 @@ class VEFiscalDocumentDownload(Document):
 def process_download_job(docname: str, request_user: str):
 	"""Trabajo en segundo plano para realizar la descarga masiva y adjuntar los ZIPs al documento."""
 	try:
+		if request_user:
+			frappe.set_user(request_user)
 		doc = frappe.get_doc("VE Fiscal Document Download", docname)
 		
 		filters = {
@@ -328,12 +331,16 @@ def publish_status(docname: str, status: str, request_user: str):
 @frappe.whitelist()
 def start_bulk_download(docname):
 	doc = frappe.get_doc("VE Fiscal Document Download", docname)
+	doc.check_permission("write")
 	doc.start_download()
 	return docname
 
 
 @frappe.whitelist()
 def get_invoice_count(from_date, to_date, customer=None, branch=None):
+	if not frappe.has_permission("Sales Invoice", "read"):
+		frappe.throw(frappe._("No tiene permiso para leer Facturas de Venta."), frappe.PermissionError)
+
 	filters = {
 		"docstatus": 1,
 		"posting_date": ["between", [from_date, to_date]],
