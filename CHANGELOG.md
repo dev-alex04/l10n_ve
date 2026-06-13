@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.0] - 2026-06-13
+
+### ✨ Funcionalidades (Features)
+- Implementación de la descarga masiva para facturas de venta certificadas de HKA. [744e6aa]
+
+### 🐛 Correcciones (Fixes)
+- Implementación de controles de seguridad BOLA (Broken Object Level Authorization) en los procesos de descarga masiva y ejecución de jobs. [c2ad799]
+- Ajuste en `process_download_job` definiendo `ignore_permissions = True` para asegurar la ejecución correcta del proceso interno. [355cc79]
+- Aplicación de optimizaciones y mejoras técnicas en el módulo de descarga HKA. [9386a2b]
+
+---
+
 ## [v2.2.2] - 2026-06-13
 
 ### 🐛 Correcciones (Fixes)
