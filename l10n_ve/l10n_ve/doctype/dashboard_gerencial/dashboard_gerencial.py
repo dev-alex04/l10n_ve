@@ -38,6 +38,11 @@ def _get_allowed_branches():
     user = frappe.session.user
     if user == "Administrator":
         return None
+
+    # Si no hay sucursales registradas en el sistema en absoluto, permitir ver todo
+    if not frappe.db.count("VE Branch"):
+        return None
+
     perm = frappe.db.get_all(
         "User Permission",
         filters={"user": user, "allow": "VE Branch"},
