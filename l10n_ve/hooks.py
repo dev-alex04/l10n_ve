@@ -510,8 +510,14 @@ def _register_ve_branch_restrictions() -> None:
                 SELECT DISTINCT dt AS parent FROM `tabCustom Field` 
                 WHERE fieldtype='Link' AND options='VE Branch'
             """, as_dict=True)
+
+            # 3. Buscar DocTypes modificados via Property Setter a VE Branch
+            prop_doctypes = frappe.db.sql("""
+                SELECT DISTINCT doc_type AS parent FROM `tabProperty Setter` 
+                WHERE property='options' AND value='VE Branch'
+            """, as_dict=True)
             
-            all_dt = {d.parent for d in (std_doctypes + cust_doctypes)}
+            all_dt = {d.parent for d in (std_doctypes + cust_doctypes + prop_doctypes)}
             all_dt.add("VE Branch") # Registrar tambien a si mismo
             
             for dt in all_dt:
