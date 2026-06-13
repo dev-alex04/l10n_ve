@@ -30,6 +30,8 @@ def custom_execute(filters=None) -> tuple:
 
         set_bill_numbers_on_columns(i, column, columns)
 
+    set_branch_on_entries(res)
+
     return columns, res
 
 
@@ -37,6 +39,15 @@ def set_bill_numbers_on_columns(i: int, column: dict, columns: list[dict]) -> No
 
     if column['fieldname'] != 'voucher_subtype':
         return
+
+    columns.insert(i + 1,
+        {
+            "label": _("Sucursal"),
+            "fieldname": "branch",
+            "fieldtype": "Link",
+            "options": "VE Branch",
+        },
+    )
 
     columns.insert(i + 1,
         {
@@ -53,6 +64,39 @@ def set_bill_numbers_on_columns(i: int, column: dict, columns: list[dict]) -> No
             "fieldtype": "Data",
         },
     )
+
+
+def set_branch_on_entries(res: list) -> None:
+    if not res:
+        return
+
+    vouchers_by_type = {}
+    for row in res:
+        if not isinstance(row, dict):
+            continue
+        vt = row.get("voucher_type")
+        vn = row.get("voucher_no")
+        if vt and vn and vt in ("Sales Invoice", "Purchase Invoice", "Payment Entry", "VE Sales Credit Note", "VE Sales Debit Note"):
+            vouchers_by_type.setdefault(vt, set()).add(vn)
+
+    branch_map = {}
+    for vt, names in vouchers_by_type.items():
+        try:
+            docs = frappe.get_all(vt, filters={"name": ("in", list(names))}, fields=["name", "branch"])
+            for d in docs:
+                branch_map[(vt, d.name)] = d.branch
+        except Exception:
+            pass
+
+    for row in res:
+        if not isinstance(row, dict):
+            continue
+        vt = row.get("voucher_type")
+        vn = row.get("voucher_no")
+        if (vt, vn) in branch_map:
+            row["branch"] = branch_map[(vt, vn)]
+        else:
+            row["branch"] = ""
 
 
 def initialize_gle_map(gl_entries, filters, totals_dict) -> OrderedDict:

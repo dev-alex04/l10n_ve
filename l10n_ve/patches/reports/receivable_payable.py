@@ -9,6 +9,7 @@ def custom_run(self, args):
     
     has_bill_no = False
     has_bill_control = False
+    has_branch = False
     idx_voucher_no = -1
     
     for i, col in enumerate(columns):
@@ -17,6 +18,8 @@ def custom_run(self, args):
                 has_bill_no = True
             if col.get("fieldname") == "bill_control":
                 has_bill_control = True
+            if col.get("fieldname") == "branch":
+                has_branch = True
             if col.get("fieldname") == "voucher_no":
                 idx_voucher_no = i
                 
@@ -43,44 +46,63 @@ def custom_run(self, args):
             "width": 110
         })
 
-    sales_invoices = set()
-    purchase_invoices = set()
-    
+    if not has_branch:
+        current_idx_bill_control = -1
+        for i, col in enumerate(columns):
+            if isinstance(col, dict) and col.get("fieldname") == "bill_control":
+                current_idx_bill_control = i
+                break
+        
+        insert_idx = current_idx_bill_control + 1 if current_idx_bill_control != -1 else idx_voucher_no + 1
+        columns.insert(insert_idx, {
+            "label": _("Sucursal"),
+            "fieldname": "branch",
+            "fieldtype": "Link",
+            "options": "VE Branch",
+            "width": 110
+        })
+
+    vouchers_by_type = {}
     for row in data:
         if isinstance(row, dict):
             vt = row.get("voucher_type")
             vn = row.get("voucher_no")
-            if vt == "Sales Invoice" and vn:
-                sales_invoices.add(vn)
-            elif vt == "Purchase Invoice" and vn:
-                purchase_invoices.add(vn)
+            if vt and vn and vt in ("Sales Invoice", "Purchase Invoice", "Payment Entry", "VE Sales Credit Note", "VE Sales Debit Note"):
+                vouchers_by_type.setdefault(vt, set()).add(vn)
 
     val_map = {}
-    if sales_invoices:
-        si_docs = frappe.get_all("Sales Invoice",
-                                  filters={"name": ("in", list(sales_invoices))},
-                                  fields=["name", "bill_no", "bill_control"])
-        for d in si_docs:
-            val_map[d.name] = {"bill_no": d.bill_no or "", "bill_control": d.bill_control or ""}
-            
-    if purchase_invoices:
-        pi_docs = frappe.get_all("Purchase Invoice",
-                                  filters={"name": ("in", list(purchase_invoices))},
-                                  fields=["name", "bill_no", "bill_control"])
-        for d in pi_docs:
-            val_map[d.name] = {"bill_no": d.bill_no or "", "bill_control": d.bill_control or ""}
+    for vt, names in vouchers_by_type.items():
+        try:
+            fields_to_get = ["name", "branch"]
+            if vt in ("Sales Invoice", "Purchase Invoice", "VE Sales Credit Note", "VE Sales Debit Note"):
+                fields_to_get.extend(["bill_no", "bill_control"])
+                
+            docs = frappe.get_all(vt, filters={"name": ("in", list(names))}, fields=fields_to_get)
+            for d in docs:
+                val_map[(vt, d.name)] = {
+                    "bill_no": d.get("bill_no") or "",
+                    "bill_control": d.get("bill_control") or "",
+                    "branch": d.get("branch") or ""
+                }
+        except Exception:
+            pass
 
     for row in data:
         if isinstance(row, dict):
+            vt = row.get("voucher_type")
             vn = row.get("voucher_no")
-            if vn in val_map:
-                row["bill_no"] = val_map[vn]["bill_no"]
-                row["bill_control"] = val_map[vn]["bill_control"]
+            key = (vt, vn)
+            if key in val_map:
+                row["bill_no"] = val_map[key]["bill_no"]
+                row["bill_control"] = val_map[key]["bill_control"]
+                row["branch"] = val_map[key]["branch"]
             else:
                 if not row.get("bill_no"):
                     row["bill_no"] = ""
                 if not row.get("bill_control"):
                     row["bill_control"] = ""
+                if not row.get("branch"):
+                    row["branch"] = ""
 
             if row.get("party_type") and isinstance(row.get("party_type"), str):
                 row["party_type"] = _(row["party_type"])
