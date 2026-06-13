@@ -82,9 +82,12 @@ def set_branch_on_entries(res: list) -> None:
     branch_map = {}
     for vt, names in vouchers_by_type.items():
         try:
-            docs = frappe.get_all(vt, filters={"name": ("in", list(names))}, fields=["name", "branch"])
-            for d in docs:
-                branch_map[(vt, d.name)] = d.branch
+            names_list = list(names)
+            for chunk_start in range(0, len(names_list), 500):
+                chunk = names_list[chunk_start:chunk_start + 500]
+                docs = frappe.get_all(vt, filters={"name": ("in", chunk)}, fields=["name", "branch"])
+                for d in docs:
+                    branch_map[(vt, d.name)] = d.get("branch") or ""
         except Exception:
             pass
 

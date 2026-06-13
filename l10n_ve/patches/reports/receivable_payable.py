@@ -77,13 +77,16 @@ def custom_run(self, args):
             if vt in ("Sales Invoice", "Purchase Invoice", "VE Sales Credit Note", "VE Sales Debit Note"):
                 fields_to_get.extend(["bill_no", "bill_control"])
                 
-            docs = frappe.get_all(vt, filters={"name": ("in", list(names))}, fields=fields_to_get)
-            for d in docs:
-                val_map[(vt, d.name)] = {
-                    "bill_no": d.get("bill_no") or "",
-                    "bill_control": d.get("bill_control") or "",
-                    "branch": d.get("branch") or ""
-                }
+            names_list = list(names)
+            for chunk_start in range(0, len(names_list), 500):
+                chunk = names_list[chunk_start:chunk_start + 500]
+                docs = frappe.get_all(vt, filters={"name": ("in", chunk)}, fields=fields_to_get)
+                for d in docs:
+                    val_map[(vt, d.name)] = {
+                        "bill_no": d.get("bill_no") or "",
+                        "bill_control": d.get("bill_control") or "",
+                        "branch": d.get("branch") or ""
+                    }
         except Exception:
             pass
 
