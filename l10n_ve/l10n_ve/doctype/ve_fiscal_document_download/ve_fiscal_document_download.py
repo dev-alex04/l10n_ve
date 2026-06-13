@@ -49,6 +49,7 @@ def process_download_job(docname: str, request_user: str):
 		if request_user:
 			frappe.set_user(request_user)
 		doc = frappe.get_doc("VE Fiscal Document Download", docname)
+		doc.flags.ignore_permissions = True
 		
 		filters = {
 			"docstatus": 1,
