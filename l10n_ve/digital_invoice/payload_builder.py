@@ -447,7 +447,10 @@ class TFHKAPayloadBuilder:
             if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0:
                 base_tax_amount_ves += flt(tax.base_tax_amount)
 
-        monto_exento_total = flt(flt(self.doc.get("total_exempt", 0.0)) * tc, 2)
+        # base_total_exempt (VEF) es la fuente de verdad del monto exento: se calcula
+        # por línea (base_net_amount) en calculate_total_exempt y se respalda en los
+        # históricos vía el patch backfill_base_total_exempt.
+        monto_exento_total = flt(self.doc.get("base_total_exempt", 0.0), 2)
         monto_gravado_total = flt(flt(self.doc.base_net_total) - monto_exento_total, 2)
         subtotal = flt(self.doc.base_net_total, 2)
         total_iva = flt(base_tax_amount_ves, 2)

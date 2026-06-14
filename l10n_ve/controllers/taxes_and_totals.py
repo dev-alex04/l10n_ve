@@ -49,11 +49,17 @@ class TaxesAndTotals(calculate_taxes_and_totals):
     def calculate_total_exempt(self) -> None:
 
         total_exempt = 0
+        base_total_exempt = 0
         for item in self.doc.items:
             if item.vat_exempt:
-                total_exempt += item.amount
+                total_exempt += flt(item.amount)
+                base_total_exempt += flt(item.base_net_amount)
 
         self.doc.total_exempt = total_exempt
+        # base_* (VEF) como fuente de verdad: se suma el base_net_amount por línea
+        # (misma base y redondeo per-ítem que usa ERPNext para base_net_total), de
+        # modo que base_net_total - base_total_exempt no arrastre céntimos.
+        self.doc.base_total_exempt = flt(base_total_exempt, 2)
 
     def get_current_tax_amount(self, item, tax, item_tax_map) -> float:
 
