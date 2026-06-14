@@ -325,6 +325,7 @@ doc_events = {
         "validate": "l10n_ve.overrides.mode_of_payment.validate_mode_of_payment",
     },
     "Bank Transaction": {
+        "validate": "l10n_ve.overrides.payment_reconciliation.validate_bank_transaction_duplicate",
         "on_submit": "l10n_ve.overrides.payment_reconciliation.reconcile_drafts_for_deposit",
     },
     "Delivery Note": {

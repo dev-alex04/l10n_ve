@@ -38,7 +38,7 @@
   "name": "Payment Entry-custom_reconciliation_status",
   "no_copy": 1,
   "non_negative": 0,
-  "options": "\nConciliación Pendiente\nConciliado",
+  "options": "\nConciliación Pendiente\nConciliado\nRevisar",
   "permlevel": 0,
   "placeholder": null,
   "precision": "",

@@ -23,6 +23,7 @@ from frappe.utils import flt
 
 RECON_PENDING = "Conciliación Pendiente"
 RECON_DONE = "Conciliado"
+RECON_REVIEW = "Revisar"
 
 # Modos que no exigen depósito bancario para aprobarse.
 CASH_LIKE_TYPES = ("Cash", "Gangway")
@@ -31,18 +32,6 @@ CASH_LIKE_TYPES = ("Cash", "Gangway")
 # depósito real contra el total del pago. SOLO positiva: "céntimo por encima,
 # nunca por debajo". Ajustable si aparecen falsos bloqueos por redondeo USD↔VEF.
 DEPOSIT_COVERAGE_TOLERANCE = 1.0
-
-
-def is_receive_reconciliation_enforced() -> bool:
-    """Flag que activa la EXIGENCIA de conciliación para aprobar cobros bancarios.
-
-    Se controla por site_config (`enforce_receive_reconciliation`). Por defecto
-    está DESACTIVADO: la compuerta no bloquea aprobaciones ni el disparador
-    auto-aprueba borradores, hasta que el dashboard cree los cobros en borrador
-    (pieza acoplada). Así se puede reiniciar bench sin romper el flujo actual.
-    El botón "Intentar conciliar" funciona siempre (acción manual).
-    """
-    return bool(frappe.conf.get("enforce_receive_reconciliation"))
 
 
 def _is_bank_receive(doc) -> bool:
@@ -113,21 +102,22 @@ def deposit_covers_payment(
     return deposited + flt(tolerance) >= pe_total
 
 
-def find_matching_deposit(doc) -> frappe._dict | None:
-    """Depósito bancario (Bank Transaction) cuyo número de referencia y MONEDA
-    coinciden con los del cobro y que aún tiene saldo disponible. Devuelve
-    {name, deposit, unallocated_amount, currency, bank_account} o None.
+DEPOSIT_FIELDS = ["name", "deposit", "unallocated_amount", "currency", "bank_account"]
 
-    Match por referencia + moneda (no por cuenta bancaria): los depósitos P2C /
-    Pagomóvil caen en una cuenta concentradora distinta a la del modo de pago,
-    pero la MONEDA sí debe coincidir — un depósito en VEF no concilia un cobro en
-    USD. Se exige saldo sin conciliar (unallocated_amount > 0) para no reusar un
-    depósito ya consumido. Match exacto a propósito.
-    """
+
+def _cobro_bank_account(doc) -> str | None:
+    """Bank Account (cuenta bancaria) del cobro, derivada de su cuenta GL."""
+    bank_gl_acc = doc.paid_to or doc.paid_from
+    if not bank_gl_acc:
+        return None
+    return frappe.db.get_value("Bank Account", {"account": bank_gl_acc})
+
+
+def _deposit_base_filters(doc) -> dict | None:
+    """Filtros comunes: referencia exacta + moneda del cobro + saldo disponible."""
     ref = (doc.reference_no or "").strip()
     if not ref:
         return None
-
     filters = {
         "reference_number": ref,
         "docstatus": 1,
@@ -137,13 +127,56 @@ def find_matching_deposit(doc) -> frappe._dict | None:
     paid_currency = (doc.paid_on_currency or "").strip()
     if paid_currency:
         filters["currency"] = paid_currency
+    return filters
 
-    return frappe.db.get_value(
+
+def _first_deposit(filters: dict) -> frappe._dict | None:
+    """Primer depósito que cumple los filtros, prefiriendo el de MENOR monto.
+
+    Si por la referencia coexisten varios Bank Transaction (p. ej. un gemelo x100
+    por error de parseo del extracto bancario), se concilia contra el de menor
+    'deposit' para no usar el inflado. Defensa en profundidad frente a duplicados.
+    """
+    rows = frappe.db.get_all(
         "Bank Transaction",
-        filters,
-        ["name", "deposit", "unallocated_amount", "currency", "bank_account"],
-        as_dict=True,
+        filters=filters,
+        fields=DEPOSIT_FIELDS,
+        order_by="deposit asc",
+        limit=1,
     )
+    return rows[0] if rows else None
+
+
+def find_matching_deposit(doc) -> frappe._dict | None:
+    """Depósito (Bank Transaction) que concilia el cobro: misma referencia, misma
+    moneda, MISMA cuenta bancaria, y con saldo disponible.
+
+    Se exige la misma cuenta a propósito: si el depósito de la referencia cayó en
+    otro banco, NO concilia — es una anomalía a revisar (ver find_deposit_other_bank).
+    """
+    filters = _deposit_base_filters(doc)
+    if filters is None:
+        return None
+    bank_account = _cobro_bank_account(doc)
+    if bank_account:
+        filters["bank_account"] = bank_account
+    return _first_deposit(filters)
+
+
+def find_deposit_other_bank(doc) -> frappe._dict | None:
+    """Depósito con la referencia+moneda del cobro pero en OTRO banco: anomalía.
+
+    El cliente pagó (existe el depósito) pero cayó en una cuenta distinta a la del
+    cobro. No se concilia; se marca el cobro para revisión interna ('Revisar Pago').
+    """
+    filters = _deposit_base_filters(doc)
+    if filters is None:
+        return None
+    bank_account = _cobro_bank_account(doc)
+    if not bank_account:
+        return None
+    filters["bank_account"] = ["!=", bank_account]
+    return _first_deposit(filters)
 
 
 def _apply_deposit_amount(doc, deposit: frappe._dict) -> None:
@@ -193,19 +226,6 @@ def _apply_deposit_amount(doc, deposit: frappe._dict) -> None:
     doc.igtf_amount = 0
     doc.total_with_igtf = 0
 
-    # Re-apuntar el cobro al banco donde realmente cayó el depósito: ERPNext exige
-    # que el cobro afecte la misma cuenta bancaria del depósito para conciliar, y
-    # contablemente la plata está en esa cuenta (depósitos P2C caen en el
-    # concentrador, no en el banco del modo de pago del cobro).
-    if deposit.bank_account:
-        bank_gl = frappe.get_cached_value("Bank Account", deposit.bank_account, "account")
-        if bank_gl and doc.paid_to != bank_gl:
-            doc.paid_to = bank_gl
-            doc.paid_to_account_currency = frappe.get_cached_value(
-                "Account", bank_gl, "account_currency"
-            )
-            doc.bank_account = deposit.bank_account
-
     if doc.references:
         ref = doc.references[0]
         outstanding = flt(ref.outstanding_amount, 2)
@@ -229,6 +249,21 @@ def reconcile_and_approve(payment_entry: str) -> dict:
 
     deposit = find_matching_deposit(doc)
     if not deposit:
+        anomaly = find_deposit_other_bank(doc)
+        if anomaly:
+            # El depósito de la referencia existe pero cayó en OTRO banco: anomalía.
+            # No se aprueba; se marca para revisión interna (badge "Revisar Pago"
+            # en el dashboard). El cobro del portal sigue "en proceso".
+            doc.db_set("custom_reconciliation_status", RECON_REVIEW)
+            return {
+                "reconciled": False,
+                "review": True,
+                "bank_transaction": anomaly.name,
+                "message": _(
+                    "El depósito de la referencia {0} cayó en otra cuenta bancaria "
+                    "({1}). El cobro quedó marcado para revisión."
+                ).format(doc.reference_no or "", anomaly.bank_account),
+            }
         if doc.get("custom_reconciliation_status") != RECON_PENDING:
             doc.db_set("custom_reconciliation_status", RECON_PENDING)
         return {
@@ -285,13 +320,10 @@ def before_submit_receive_payment(doc, method=None) -> None:
     - Si lo hay → se usa el MONTO DEL DEPÓSITO (no el tecleado) y se recalculan
       los montos base; el depósito se enlaza en on_submit.
 
-    Solo actúa con la exigencia activada (flag); ver
-    is_receive_reconciliation_enforced. El botón "Intentar conciliar"
-    (reconcile_and_approve) funciona siempre, con flag o sin él.
+    El botón "Intentar conciliar" (reconcile_and_approve) hace lo mismo de forma
+    explícita desde el formulario.
     """
     if not _is_bank_receive(doc):
-        return
-    if not is_receive_reconciliation_enforced():
         return
 
     deposit = find_matching_deposit(doc)
@@ -322,8 +354,6 @@ def on_submit_receive_payment(doc, method=None) -> None:
     Transaction dispara la conciliación y la activación por sus hooks."""
     if not _is_bank_receive(doc):
         return
-    if not is_receive_reconciliation_enforced():
-        return
 
     bt_name = doc.flags.get("l10n_ve_matched_deposit")
     if not bt_name:
@@ -333,16 +363,54 @@ def on_submit_receive_payment(doc, method=None) -> None:
         _link_deposit_to_payment(bt_name, doc.name)
 
 
+def validate_bank_transaction_duplicate(doc, method=None) -> None:
+    """No permite dos depósitos con la misma referencia en la misma cuenta
+    bancaria y empresa.
+
+    Un import duplicado del extracto (misma referencia con el monto distinto,
+    p. ej. por decimales corridos) rompe la conciliación por referencia: el
+    sistema puede ver la referencia "ya conciliada" en el depósito equivocado.
+    El monto NO entra en la clave a propósito: justo queremos atrapar la misma
+    referencia con cualquier monto. Solo aplica a depósitos no cancelados.
+
+    Solo corre al CREAR: previene duplicados nuevos del import. En updates (p. ej.
+    al conciliar, que guarda el Bank Transaction) no debe correr, para no bloquear
+    operaciones sobre duplicados legacy ya existentes.
+    """
+    if not doc.is_new():
+        return
+    ref = (doc.reference_number or "").strip()
+    if not ref or flt(doc.deposit) <= 0:
+        return
+
+    duplicate = frappe.db.exists(
+        "Bank Transaction",
+        {
+            "name": ["!=", doc.name or ""],
+            "reference_number": ref,
+            "bank_account": doc.bank_account,
+            "company": doc.company,
+            "deposit": [">", 0],
+            "docstatus": ["<", 2],
+        },
+    )
+    if duplicate:
+        frappe.throw(
+            _(
+                "Ya existe un depósito con la referencia {0} en esta cuenta bancaria "
+                "({1}). No se permiten depósitos duplicados con la misma referencia; "
+                "revise el extracto importado."
+            ).format(frappe.bold(ref), duplicate)
+        )
+
+
 def reconcile_drafts_for_deposit(doc, method=None) -> None:
     """Disparador desde el depósito: al confirmarse un Bank Transaction, intenta
     aprobar los cobros en borrador que esperaban esa referencia.
 
     Se ejecuta en background (enqueue_after_commit) para no bloquear el guardado
-    del depósito. Solo actúa con la exigencia activada (flag).
+    del depósito.
     """
-    if not is_receive_reconciliation_enforced():
-        return
-
     ref = (doc.reference_number or "").strip()
     if not ref or flt(doc.deposit) <= 0:
         return
