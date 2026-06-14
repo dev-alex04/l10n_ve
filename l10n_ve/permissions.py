@@ -226,7 +226,15 @@ def _get_branch_fields_for_doctype(doctype: str) -> List[str]:
     if cached_fields is not None:
         return cached_fields
         
-    meta = frappe.get_meta(doctype)
+    try:
+        meta = frappe.get_meta(doctype)
+    except Exception:
+        return []
+
+    if meta.issingle:
+        frappe.cache().set_value(cache_key, [])
+        return []
+        
     all_fields = [df.fieldname for df in meta.get("fields") if df.fieldtype == "Link" and df.options == "VE Branch"]
     
     frappe.cache().set_value(cache_key, all_fields)
