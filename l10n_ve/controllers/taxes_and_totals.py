@@ -52,7 +52,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         base_total_exempt = 0
         for item in self.doc.items:
             if item.vat_exempt:
-                total_exempt += flt(item.amount)
+                total_exempt += flt(item.net_amount)
                 base_total_exempt += flt(item.base_net_amount)
 
         self.doc.total_exempt = total_exempt

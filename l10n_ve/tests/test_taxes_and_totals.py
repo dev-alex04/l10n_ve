@@ -477,8 +477,8 @@ class TestCalculateTotalExempt(FrappeTestCase):
     def test_mixed_items(self) -> None:
         """2 exempt ($50 + $30) + 1 taxable ($100) → total_exempt=80."""
         items = [
-            make_mock_item(amount=50, vat_exempt=True, idx=1),
-            make_mock_item(amount=30, vat_exempt=True, idx=2),
+            make_mock_item(amount=50, net_amount=50, vat_exempt=True, idx=1),
+            make_mock_item(amount=30, net_amount=30, vat_exempt=True, idx=2),
             make_mock_item(amount=100, idx=3),
         ]
         doc = make_mock_doc(items=items)
@@ -502,8 +502,8 @@ class TestCalculateTotalExempt(FrappeTestCase):
     def test_all_exempt(self) -> None:
         """Todos exentos → total_exempt=suma total."""
         items = [
-            make_mock_item(amount=100, vat_exempt=True, idx=1),
-            make_mock_item(amount=200, vat_exempt=True, idx=2),
+            make_mock_item(amount=100, net_amount=100, vat_exempt=True, idx=1),
+            make_mock_item(amount=200, net_amount=200, vat_exempt=True, idx=2),
         ]
         doc = make_mock_doc(items=items)
 
@@ -542,7 +542,7 @@ class TestCalculateTotalExempt(FrappeTestCase):
         self.assertAlmostEqual(doc.base_total_exempt, 1900.00, places=2)
 
     def test_base_total_exempt_with_line_discount(self) -> None:
-        """Con descuento de línea, base usa el net (≠ total_exempt) — razón del cambio."""
+        """Con descuento de línea, total_exempt y base_total_exempt usan el monto neto."""
         items = [
             make_mock_item(amount=50, net_amount=45, base_net_amount=45, vat_exempt=True, idx=1),
         ]
@@ -550,9 +550,9 @@ class TestCalculateTotalExempt(FrappeTestCase):
 
         self._run_exempt(doc)
 
-        self.assertAlmostEqual(doc.total_exempt, 50.0, places=2)
+        # total_exempt usa net_amount (45), no amount (50): si se revierte a bruto, falla
+        self.assertAlmostEqual(doc.total_exempt, 45.0, places=2)
         self.assertAlmostEqual(doc.base_total_exempt, 45.0, places=2)
-        self.assertNotAlmostEqual(doc.base_total_exempt, doc.total_exempt, places=2)
 
     def test_base_total_exempt_rounding(self) -> None:
         """La suma se redondea a 2 decimales (99.999 → 100.00)."""
