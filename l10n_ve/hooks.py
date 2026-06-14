@@ -170,6 +170,8 @@ doctype_list_js = {
 
 query_report_js = {
     "General Ledger": "public/js/report/general_ledger.js",
+    "Accounts Receivable": "public/js/report/accounts_receivable.js",
+    "Accounts Payable": "public/js/report/accounts_payable.js",
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -447,12 +449,16 @@ fixtures = [
 
 # Request Events
 # ----------------
-# before_request = ["l10n_ve.utils.before_request"]
+# Garantiza que los patches de reportes queden aplicados en los workers web
+# (idempotente: solo la primera request de cada proceso hace trabajo real).
+before_request = ["l10n_ve.patches.monkey_patches.ensure_post_db_patches"]
 # after_request = ["l10n_ve.utils.after_request"]
 
 # Job Events
 # ----------
-# before_job = ["l10n_ve.utils.before_job"]
+# Igual que before_request pero para workers de RQ (scheduler, Auto Email
+# Reports, jobs encolados): sin esto los reportes corren sin parchear.
+before_job = ["l10n_ve.patches.monkey_patches.ensure_post_db_patches"]
 # after_job = ["l10n_ve.utils.after_job"]
 
 # User Data Protection
@@ -517,8 +523,14 @@ def _register_ve_branch_restrictions() -> None:
                 SELECT DISTINCT dt AS parent FROM `tabCustom Field` 
                 WHERE fieldtype='Link' AND options='VE Branch'
             """, as_dict=True)
+
+            # 3. Buscar DocTypes modificados via Property Setter a VE Branch
+            prop_doctypes = frappe.db.sql("""
+                SELECT DISTINCT doc_type AS parent FROM `tabProperty Setter` 
+                WHERE property='options' AND value='VE Branch'
+            """, as_dict=True)
             
-            all_dt = {d.parent for d in (std_doctypes + cust_doctypes)}
+            all_dt = {d.parent for d in (std_doctypes + cust_doctypes + prop_doctypes)}
             all_dt.add("VE Branch") # Registrar tambien a si mismo
             
             for dt in all_dt:

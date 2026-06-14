@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.1] - 2026-06-14
+
+### 🐛 Correcciones (Fixes)
+- Se implementaron mejoras de seguridad y optimización de rendimiento en el proceso de descarga HKA y en la generación de reportes AR/AP. [254609a]
+
+---
+
+## [v2.5.0] - 2026-06-14
+
+### ✨ Funcionalidades (Features)
+- Implementación de **base_total_exempt** (VEF) como la fuente de verdad central para el cálculo y gestión de montos exentos en el módulo de contabilidad. [8c18002]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la lógica de **total_exempt** para utilizar **net_amount**, asegurando la consistencia técnica y paridad de datos con el campo **base_total_exempt**. [6c6e191]
+
+---
+
+## [v2.4.0] - 2026-06-13
+
+### ✨ Funcionalidades (Features)
+- Implementación de soporte para **Property Setters** en los campos de sucursal, mejorando la flexibilidad y el control del sistema de permisos. [8d4ac97]
+
+---
+
+## [v2.3.0] - 2026-06-13
+
+### ✨ Funcionalidades (Features)
+- Implementación de la descarga masiva para facturas de venta certificadas de HKA. [744e6aa]
+
+### 🐛 Correcciones (Fixes)
+- Implementación de controles de seguridad BOLA (Broken Object Level Authorization) en los procesos de descarga masiva y ejecución de jobs. [c2ad799]
+- Ajuste en `process_download_job` definiendo `ignore_permissions = True` para asegurar la ejecución correcta del proceso interno. [355cc79]
+- Aplicación de optimizaciones y mejoras técnicas en el módulo de descarga HKA. [9386a2b]
+
+---
+
+## [v2.2.2] - 2026-06-13
+
+### 🐛 Correcciones (Fixes)
+- Refactorización de la función `_get_allowed_branches` en el dashboard para implementar validaciones específicas por empresa. (3fb7620)
+- Ajuste en la validación de sucursales para omitir la verificación cuando no existan sucursales tipo VE configuradas. (8b5d93d)
+
+---
+
+## [v2.2.1] - 2026-06-12
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la lógica de aplicación de parches de reportes para asegurar su ejecución correcta tanto en workers web como en workers de cola (RQ). 5312f62
+- Mejora en la estabilidad del entorno de pruebas mediante la restauración segura de frappe.local.db en los tests de parches. 35996f8
+
+---
+
 ## [v2.2.0] - 2026-06-11
 
 ### ✨ Funcionalidades (Features)

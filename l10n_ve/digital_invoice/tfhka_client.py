@@ -414,6 +414,37 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     if not tipo_documento:
         frappe.throw(f"DocType '{doctype}' no soportado.")
 
+    import base64
+
+    # 1. Buscar si ya existe el PDF adjunto al documento en el Doctype File
+    attached_files = frappe.get_all(
+        "File",
+        filters={
+            "attached_to_doctype": doctype,
+            "attached_to_name": invoice_name,
+            "file_name": ["like", "%.pdf"]
+        },
+        fields=["name", "file_name"]
+    )
+
+    if attached_files:
+        try:
+            file_doc = frappe.get_doc("File", attached_files[0].get("name"))
+            file_content = file_doc.get_content()
+            if isinstance(file_content, str):
+                file_content = file_content.encode("utf-8")
+            archivo_base64 = base64.b64encode(file_content).decode("utf-8")
+            return {
+                "base64": archivo_base64,
+                "numero_documento": numero_documento,
+                "numero_control": resultado.get("numeroControl", ""),
+            }
+        except Exception as e:
+            frappe.logger("l10n_ve").error(
+                f"Error al leer PDF adjunto local para {invoice_name}: {str(e)}"
+            )
+
+    # 2. Si no existe, lo descargamos de HKA
     client = TFHKAClient()
     response = client.download_file(
         numero_documento=str(numero_documento),
@@ -432,6 +463,24 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
             "base64": None,
             "error": response.get("mensaje", "TFHKA no retornó el archivo PDF."),
         }
+
+    # 3. Guardar y adjuntar el archivo descargado para futuras consultas rápidas
+    try:
+        from frappe.utils.file_manager import save_file
+        pdf_bytes = base64.b64decode(archivo_base64)
+        filename = f"Factura_{invoice_name}_{numero_documento}.pdf"
+        
+        save_file(
+            fname=filename,
+            content=pdf_bytes,
+            dt=doctype,
+            dn=invoice_name,
+            is_private=1  # Guardado como privado por confidencialidad
+        )
+    except Exception as e:
+        frappe.logger("l10n_ve").error(
+            f"No se pudo adjuntar el PDF descargado a {invoice_name}: {str(e)}"
+        )
 
     return {
         "base64": archivo_base64,

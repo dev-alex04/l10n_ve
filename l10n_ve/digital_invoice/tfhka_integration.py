@@ -382,11 +382,21 @@ def _update_fiscal_dates(doc: object, fecha_hka: str) -> None:
         doc.reload()
 
 
-def _sync_gl_entries_date(voucher_no: str, new_date: str, doctype: str = "Sales Invoice") -> None:
+def _sync_gl_entries_date(
+    voucher_no: str,
+    new_date: str,
+    doctype: str = "Sales Invoice",
+    bill_no: str = "",
+    bill_control: str = "",
+) -> None:
     """
     Sincroniza las fechas de los asientos contables (GL Entries),
     cronograma de pagos (Payment Schedule) e historial de pagos
     (Payment Ledger Entry) con la fecha de certificación HKA.
+
+    Adicionalmente, si HKA retorna bill_no y/o bill_control, los propaga
+    a los GL Entries del comprobante para que aparezcan en el Libro Mayor.
+
     Soporta tanto Sales Invoice como VE Sales Credit Note.
     """
     try:
@@ -396,6 +406,36 @@ def _sync_gl_entries_date(voucher_no: str, new_date: str, doctype: str = "Sales 
             WHERE voucher_type = %s
               AND voucher_no   = %s
         """, (new_date, doctype, voucher_no))
+
+        # Propagar número de factura y control al GL Entry una vez que
+        # HKA los confirma. Solo actualiza los campos que vienen con datos.
+        if bill_no or bill_control:
+            gl_set_fields: list[str] = []
+            gl_params: list = []
+
+            if bill_no:
+                gl_set_fields.append("bill_no = %s")
+                gl_params.append(bill_no)
+            if bill_control:
+                gl_set_fields.append("bill_control = %s")
+                gl_params.append(bill_control)
+
+            gl_params.extend([doctype, voucher_no])
+
+            frappe.db.sql(
+                f"""
+                UPDATE `tabGL Entry`
+                SET {', '.join(gl_set_fields)}
+                WHERE voucher_type = %s
+                  AND voucher_no   = %s
+                  AND is_cancelled = 0
+                """,
+                gl_params,
+            )
+            frappe.logger("l10n_ve").info(
+                f"GL Entry [{voucher_no}]: bill_no='{bill_no}', "
+                f"bill_control='{bill_control}' sincronizados desde HKA."
+            )
 
         frappe.db.sql("""
             UPDATE `tabPayment Schedule`
@@ -490,7 +530,13 @@ def _handle_hka_response(
             )
 
         fecha_hka: str = today()
-        _sync_gl_entries_date(doc.name, fecha_hka, doc.doctype)
+        _sync_gl_entries_date(
+            doc.name,
+            fecha_hka,
+            doc.doctype,
+            bill_no=frappe.db.get_value(doc.doctype, doc.name, "bill_no") or "",
+            bill_control=control or "",
+        )
 
         frappe.db.set_value(
             doc.doctype, doc.name, "remarks",
@@ -1292,3 +1338,396 @@ def _get_pending_hka_invoices(
     """, params, as_list=True)
 
     return [r[0] for r in results]
+
+
+@frappe.whitelist()
+def bulk_download_pdf(from_date: str, to_date: str, customer: str = None) -> dict:
+	"""
+	Genera y descarga el ZIP de forma síncrona para compatibilidad y entornos
+	sin workers/WebSockets activos.
+	"""
+	if not frappe.has_permission("Sales Invoice", "read"):
+		frappe.throw(frappe._("No tiene permiso para leer Facturas de Venta."), frappe.PermissionError)
+
+	import zipfile
+	import io
+	import base64
+	from l10n_ve.digital_invoice.tfhka_client import get_fiscal_invoice_pdf
+	from frappe.utils.file_manager import save_file
+
+	filters = {
+		"docstatus": 1,
+		"posting_date": ["between", [from_date, to_date]],
+	}
+	if customer:
+		filters["customer"] = customer
+
+	invoices = frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks", "bill_no"])
+
+	valid_invoices = []
+	for inv in invoices:
+		if inv.remarks and '"numeroDocumento"' in inv.remarks:
+			valid_invoices.append(inv)
+
+	if not valid_invoices:
+		frappe.throw(frappe._("No se encontraron facturas aprobadas por HKA en el rango seleccionado."))
+
+	# Límite de seguridad síncrona para prevenir timeouts del servidor
+	MAX_LIMIT = 50
+	if len(valid_invoices) > MAX_LIMIT:
+		frappe.throw(
+			frappe._(
+				"El rango seleccionado contiene {0} facturas certificadas por HKA. "
+				"Por seguridad y para evitar bloqueos con el servidor de HKA, "
+				"el límite máximo para la descarga masiva es de {1} facturas. "
+				"Por favor, seleccione un rango de fechas más corto o filtre por un cliente."
+			).format(len(valid_invoices), MAX_LIMIT)
+		)
+
+	MAX_SIZE_BYTES = int(4.5 * 1024 * 1024)  # 4.5 MB
+	files = []
+	errors = []
+	downloaded_count = 0
+
+	zip_buffer = io.BytesIO()
+	zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
+	current_zip_count = 0
+	part_number = 1
+
+	for idx, inv in enumerate(valid_invoices):
+		try:
+			res = get_fiscal_invoice_pdf(inv.name, "Sales Invoice")
+			pdf_base64 = res.get("base64")
+
+			# Determinar el tamaño aproximado de los datos del PDF
+			if not pdf_base64 and (inv.remarks and "Simulado" in inv.remarks):
+				pdf_len = 500000
+			elif pdf_base64:
+				pdf_len = (len(pdf_base64) * 3) // 4
+			else:
+				pdf_len = 0
+
+			# Si al sumarlo al ZIP supera los 4.5 MB
+			if current_zip_count > 0 and zip_buffer.tell() + pdf_len + 5000 >= MAX_SIZE_BYTES:
+				# Cerrar y guardar el ZIP actual
+				zip_file.close()
+				zip_buffer.seek(0)
+				cust_suffix = f"_{customer}" if customer else ""
+				file_name = f"Facturas_HKA_{from_date}_a_{to_date}{cust_suffix}_Parte{part_number}.zip"
+				file_doc = save_file(
+					fname=file_name,
+					content=zip_buffer.getvalue(),
+					dt=None,
+					dn=None,
+					is_private=1
+				)
+				files.append(file_doc.file_url)
+
+				# Inicializar nuevo ZIP
+				zip_buffer = io.BytesIO()
+				zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
+				current_zip_count = 0
+				part_number += 1
+
+			# MOCK: Si es una factura simulada para testing
+			if not pdf_base64 and (inv.remarks and "Simulado" in inv.remarks):
+				import os
+				pdf_data = b"%PDF-1.4\n" + os.urandom(500000) + b"\n%%EOF"
+				doc_no = inv.bill_no or "999999"
+				filename = f"Factura_{inv.name}_{doc_no}_MOCK.pdf"
+				zip_file.writestr(filename, pdf_data)
+				downloaded_count += 1
+				current_zip_count += 1
+				continue
+
+			if pdf_base64:
+				pdf_data = base64.b64decode(pdf_base64)
+				doc_no = res.get("numero_documento") or inv.bill_no or inv.name
+				filename = f"Factura_{inv.name}_{doc_no}.pdf"
+				zip_file.writestr(filename, pdf_data)
+				downloaded_count += 1
+				current_zip_count += 1
+			else:
+				err_msg = res.get("error") if res else "Error desconocido al descargar PDF."
+				errors.append(f"{inv.name}: {err_msg}")
+		except Exception as e:
+			errors.append(f"{inv.name}: {str(e)}")
+			frappe.logger("l10n_ve").error(
+				f"Error en descarga masiva de PDF para {inv.name}: {frappe.get_traceback()}"
+			)
+
+	# Guardar el último ZIP
+	if current_zip_count > 0:
+		zip_file.close()
+		zip_buffer.seek(0)
+		cust_suffix = f"_{customer}" if customer else ""
+		part_suffix = f"_Parte{part_number}" if part_number > 1 else ""
+		file_name = f"Facturas_HKA_{from_date}_a_{to_date}{cust_suffix}{part_suffix}.zip"
+		file_doc = save_file(
+			fname=file_name,
+			content=zip_buffer.getvalue(),
+			dt=None,
+			dn=None,
+			is_private=1
+		)
+		files.append(file_doc.file_url)
+	else:
+		zip_file.close()
+
+	if downloaded_count == 0:
+		frappe.throw(
+			frappe._("No se pudo descargar ningún PDF de HKA. Errores: {0}").format(", ".join(errors[:3]))
+		)
+
+	return {
+		"files": files,
+		"count": downloaded_count,
+		"total_attempted": len(valid_invoices),
+		"errors": errors
+	}
+
+
+@frappe.whitelist()
+def enqueue_bulk_download_pdf(from_date: str, to_date: str, customer: str = None) -> dict:
+	"""
+	Encola el trabajo en segundo plano para la descarga masiva de PDFs.
+	Retorna de inmediato al cliente.
+	"""
+	if not frappe.has_permission("Sales Invoice", "read"):
+		frappe.throw(frappe._("No tiene permiso para leer Facturas de Venta."), frappe.PermissionError)
+
+	filters = {
+		"docstatus": 1,
+		"posting_date": ["between", [from_date, to_date]],
+	}
+	if customer:
+		filters["customer"] = customer
+
+	# Obtener facturas en el rango para validación rápida
+	invoices = frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks"])
+	valid_count = sum(1 for inv in invoices if inv.remarks and '"numeroDocumento"' in inv.remarks)
+
+	if valid_count == 0:
+		frappe.throw(frappe._("No se encontraron facturas aprobadas por HKA en el rango seleccionado."))
+
+	# Guardar estado inicial en la caché
+	cache_key = f"bulk_download_status_{frappe.session.user}"
+	frappe.cache().set_value(cache_key, {"status": "running"})
+
+	# Encolar el proceso
+	frappe.enqueue(
+		"l10n_ve.digital_invoice.tfhka_integration.bulk_download_pdf_job",
+		queue="default",
+		timeout=600,
+		from_date=from_date,
+		to_date=to_date,
+		customer=customer,
+		request_user=frappe.session.user
+	)
+
+	return {
+		"status": "enqueued",
+		"message": frappe._("El proceso se ha iniciado en segundo plano. Te notificaremos cuando esté listo.")
+	}
+
+
+@frappe.whitelist()
+def get_bulk_download_status() -> dict:
+	cache_key = f"bulk_download_status_{frappe.session.user}"
+	return frappe.cache().get_value(cache_key) or {"status": "none"}
+
+
+@frappe.whitelist()
+def clear_bulk_download_status() -> None:
+	cache_key = f"bulk_download_status_{frappe.session.user}"
+	frappe.cache().delete_value(cache_key)
+
+
+def bulk_download_pdf_job(from_date: str, to_date: str, customer: str = None, request_user: str = None) -> None:
+	"""
+	Trabajo en segundo plano para generar el ZIP de facturas.
+	"""
+	if request_user:
+		frappe.set_user(request_user)
+
+	import zipfile
+	import io
+	import base64
+	from l10n_ve.digital_invoice.tfhka_client import get_fiscal_invoice_pdf
+	from frappe.utils.file_manager import save_file
+
+	filters = {
+		"docstatus": 1,
+		"posting_date": ["between", [from_date, to_date]],
+	}
+	if customer:
+		filters["customer"] = customer
+
+	invoices = frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks", "bill_no"])
+
+	valid_invoices = []
+	for inv in invoices:
+		if inv.remarks and '"numeroDocumento"' in inv.remarks:
+			valid_invoices.append(inv)
+
+	if not valid_invoices:
+		return
+
+	MAX_SIZE_BYTES = int(4.5 * 1024 * 1024)  # 4.5 MB
+	files = []
+	errors = []
+	downloaded_count = 0
+
+	zip_buffer = io.BytesIO()
+	zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
+	current_zip_count = 0
+	part_number = 1
+
+	for idx, inv in enumerate(valid_invoices):
+		try:
+			res = get_fiscal_invoice_pdf(inv.name, "Sales Invoice")
+			pdf_base64 = res.get("base64")
+
+			# Determinar el tamaño aproximado de los datos del PDF antes de meterlo
+			if not pdf_base64 and (inv.remarks and "Simulado" in inv.remarks):
+				pdf_len = 500000
+			elif pdf_base64:
+				pdf_len = (len(pdf_base64) * 3) // 4
+			else:
+				pdf_len = 0
+
+			# Si al sumarlo al ZIP supera los 4.5 MB
+			if current_zip_count > 0 and zip_buffer.tell() + pdf_len + 5000 >= MAX_SIZE_BYTES:
+				# Cerrar y guardar el ZIP actual
+				zip_file.close()
+				zip_buffer.seek(0)
+				cust_suffix = f"_{customer}" if customer else ""
+				file_name = f"Facturas_HKA_{from_date}_a_{to_date}{cust_suffix}_Parte{part_number}.zip"
+				file_doc = save_file(
+					fname=file_name,
+					content=zip_buffer.getvalue(),
+					dt=None,
+					dn=None,
+					is_private=1
+				)
+				files.append(file_doc.file_url)
+
+				# Inicializar nuevo ZIP
+				zip_buffer = io.BytesIO()
+				zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
+				current_zip_count = 0
+				part_number += 1
+
+			# MOCK: Si es una factura simulada para testing
+			if not pdf_base64 and (inv.remarks and "Simulado" in inv.remarks):
+				import os
+				pdf_data = b"%PDF-1.4\n" + os.urandom(500000) + b"\n%%EOF"
+				doc_no = inv.bill_no or "999999"
+				filename = f"Factura_{inv.name}_{doc_no}_MOCK.pdf"
+				zip_file.writestr(filename, pdf_data)
+				downloaded_count += 1
+				current_zip_count += 1
+				continue
+
+			if pdf_base64:
+				pdf_data = base64.b64decode(pdf_base64)
+				doc_no = res.get("numero_documento") or inv.bill_no or inv.name
+				filename = f"Factura_{inv.name}_{doc_no}.pdf"
+				zip_file.writestr(filename, pdf_data)
+				downloaded_count += 1
+				current_zip_count += 1
+			else:
+				err_msg = res.get("error") if res else "Error desconocido al descargar PDF."
+				errors.append(f"{inv.name}: {err_msg}")
+		except Exception as e:
+			errors.append(f"{inv.name}: {str(e)}")
+			frappe.logger("l10n_ve").error(
+				f"Error en descarga masiva de PDF para {inv.name}: {frappe.get_traceback()}"
+			)
+
+	# Guardar el último ZIP
+	if current_zip_count > 0:
+		zip_file.close()
+		zip_buffer.seek(0)
+		cust_suffix = f"_{customer}" if customer else ""
+		part_suffix = f"_Parte{part_number}" if part_number > 1 else ""
+		file_name = f"Facturas_HKA_{from_date}_a_{to_date}{cust_suffix}{part_suffix}.zip"
+		file_doc = save_file(
+			fname=file_name,
+			content=zip_buffer.getvalue(),
+			dt=None,
+			dn=None,
+			is_private=1
+		)
+		files.append(file_doc.file_url)
+	else:
+		zip_file.close()
+
+	# Guardar estado final en la caché
+	cache_key = f"bulk_download_status_{request_user}"
+	frappe.cache().set_value(cache_key, {
+		"status": "completed",
+		"files": files,
+		"count": downloaded_count,
+		"total_attempted": len(valid_invoices),
+		"errors": errors
+	})
+
+	# Crear una notificación del sistema (Notification Log) en la campana
+	if files:
+		try:
+			from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+			part_txt = f" en {len(files)} partes" if len(files) > 1 else ""
+			msg = f"Tu descarga masiva de facturas HKA está lista ({downloaded_count} facturas{part_txt})."
+			
+			links_html = []
+			for idx, url in enumerate(files, 1):
+				links_html.append(f"<a href='{url}' target='_blank'>Descargar Parte {idx}</a>")
+			links_str = " | ".join(links_html)
+
+			enqueue_create_notification(
+				users=[request_user],
+				doc={
+					"subject": msg,
+					"email_content": f"Los archivos ZIP están listos para descargar:<br>{links_str}",
+					"type": "Alert",
+					"document_type": "Sales Invoice"
+				}
+			)
+		except Exception as e:
+			frappe.logger("l10n_ve").error(f"Error al crear log de notificación: {str(e)}")
+
+
+@frappe.whitelist()
+def download_zip_file(file_url: str):
+	"""
+	Permite a los usuarios descargar los archivos ZIP generados por la descarga masiva
+	evitando problemas de permisos del DocType File y forzando la descarga nativa.
+	"""
+	if not file_url or not ("Facturas_HKA_" in file_url and file_url.endswith(".zip")):
+		raise frappe.PermissionError("Archivo no válido.")
+
+	file_name = file_url.split("/")[-1]
+	file_doc = frappe.get_value("File", {"file_url": file_url}, "name")
+	if not file_doc:
+		raise frappe.ValidationError("El archivo no existe.")
+
+	file = frappe.get_doc("File", file_doc)
+	
+	# BOLA check: check if user owns the file, or is Admin, or has read permission on the attached document
+	is_authorized = False
+	if frappe.session.user == "Administrator" or file.owner == frappe.session.user:
+		is_authorized = True
+	elif file.attached_to_doctype and file.attached_to_name:
+		if frappe.has_permission(file.attached_to_doctype, "read", doc=file.attached_to_name):
+			is_authorized = True
+			
+	if not is_authorized:
+		frappe.throw(frappe._("No tiene permisos para descargar este archivo."), frappe.PermissionError)
+	
+	frappe.local.response.filename = file.file_name
+	frappe.local.response.filecontent = file.get_content()
+	frappe.local.response.type = "download"
+
+
+

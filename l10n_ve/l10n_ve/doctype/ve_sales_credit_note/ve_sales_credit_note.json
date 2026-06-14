@@ -51,6 +51,7 @@
   "total_net_weight",
   "column_break_ve_totals",
   "total_exempt",
+  "base_total_exempt",
   "total_withholding",
   "column_break_52",
   "total",
@@ -1010,6 +1011,13 @@
    "fieldtype": "Currency",
    "label": "Total Exento",
    "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "base_total_exempt",
+   "fieldtype": "Currency",
+   "label": "Total Exento (Base)",
+   "options": "Company:company:default_currency",
    "read_only": 1
   },
   {

@@ -226,21 +226,9 @@ def _get_branch_fields_for_doctype(doctype: str) -> List[str]:
     if cached_fields is not None:
         return cached_fields
         
-    # Consultar campos estandar
-    fields: List[str] = frappe.get_all(
-        "DocField",
-        filters={"parent": doctype, "fieldtype": "Link", "options": "VE Branch"},
-        pluck="fieldname"
-    )
+    meta = frappe.get_meta(doctype)
+    all_fields = [df.fieldname for df in meta.get("fields") if df.fieldtype == "Link" and df.options == "VE Branch"]
     
-    # Consultar campos personalizados (Custom Field)
-    custom_fields: List[str] = frappe.get_all(
-        "Custom Field",
-        filters={"dt": doctype, "fieldtype": "Link", "options": "VE Branch"},
-        pluck="fieldname"
-    )
-    
-    all_fields: List[str] = list(set(fields + custom_fields))
     frappe.cache().set_value(cache_key, all_fields)
     return all_fields
 

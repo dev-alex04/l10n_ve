@@ -30,6 +30,8 @@ def custom_execute(filters=None) -> tuple:
 
         set_bill_numbers_on_columns(i, column, columns)
 
+    set_branch_on_entries(res)
+
     return columns, res
 
 
@@ -37,6 +39,15 @@ def set_bill_numbers_on_columns(i: int, column: dict, columns: list[dict]) -> No
 
     if column['fieldname'] != 'voucher_subtype':
         return
+
+    columns.insert(i + 1,
+        {
+            "label": _("Sucursal"),
+            "fieldname": "branch",
+            "fieldtype": "Link",
+            "options": "VE Branch",
+        },
+    )
 
     columns.insert(i + 1,
         {
@@ -53,6 +64,44 @@ def set_bill_numbers_on_columns(i: int, column: dict, columns: list[dict]) -> No
             "fieldtype": "Data",
         },
     )
+
+
+def set_branch_on_entries(res: list) -> None:
+    if not res:
+        return
+
+    vouchers_by_type = {}
+    for row in res:
+        if not isinstance(row, dict):
+            continue
+        vt = row.get("voucher_type")
+        vn = row.get("voucher_no")
+        if vt and vn:
+            vouchers_by_type.setdefault(vt, set()).add(vn)
+
+    branch_map = {}
+    for vt, names in vouchers_by_type.items():
+        try:
+            if not frappe.get_meta(vt).has_field("branch"):
+                continue
+            names_list = list(names)
+            for chunk_start in range(0, len(names_list), 500):
+                chunk = names_list[chunk_start:chunk_start + 500]
+                docs = frappe.get_all(vt, filters={"name": ("in", chunk)}, fields=["name", "branch"])
+                for d in docs:
+                    branch_map[(vt, d.name)] = d.get("branch") or ""
+        except Exception:
+            pass
+
+    for row in res:
+        if not isinstance(row, dict):
+            continue
+        vt = row.get("voucher_type")
+        vn = row.get("voucher_no")
+        if (vt, vn) in branch_map:
+            row["branch"] = branch_map[(vt, vn)]
+        else:
+            row["branch"] = ""
 
 
 def initialize_gle_map(gl_entries, filters, totals_dict) -> OrderedDict:
@@ -140,6 +189,37 @@ def custom_get_gl_entries(filters, accounting_dimensions):
         filters,
         as_dict=1,
     )
+
+    if filters.get("ve_branch"):
+        selected_branch = filters.get("ve_branch")
+        vouchers_by_type = {}
+        for row in gl_entries:
+            vt = row.get("voucher_type")
+            vn = row.get("voucher_no")
+            if vt and vn:
+                vouchers_by_type.setdefault(vt, set()).add(vn)
+        
+        branch_map = {}
+        for vt, names in vouchers_by_type.items():
+            try:
+                if not frappe.get_meta(vt).has_field("branch"):
+                    continue
+                names_list = list(names)
+                for chunk_start in range(0, len(names_list), 500):
+                    chunk = names_list[chunk_start:chunk_start + 500]
+                    docs = frappe.get_all(vt, filters={"name": ("in", chunk)}, fields=["name", "branch"])
+                    for d in docs:
+                        branch_map[(vt, d.name)] = d.get("branch") or ""
+            except Exception:
+                pass
+        
+        filtered_entries = []
+        for row in gl_entries:
+            vt = row.get("voucher_type")
+            vn = row.get("voucher_no")
+            if branch_map.get((vt, vn)) == selected_branch:
+                filtered_entries.append(row)
+        gl_entries = filtered_entries
 
     if filters.get("presentation_currency"):
         return convert_to_presentation_currency(gl_entries, currency_map)
