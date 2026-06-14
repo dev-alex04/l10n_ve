@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import frappe
 
-from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt
+from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt, add_years
 
 
 BCV_URL = "https://www.bcv.org.ve/"
@@ -499,13 +499,26 @@ def _cleanup_duplicate_error_logs() -> int:
     return _delete_logs([r.name for r in rows])
 
 
+# Años de retención de los logs de éxito. A diferencia de los logs de error
+# (ruido de reintentos), los Success son el respaldo fiscal de cada emisión:
+# guardan el payload enviado a HKA (incl. el string de tasa) y el numeroControl
+# de la respuesta. Se conservan por el período de prescripción fiscal.
+# Confirmar el valor con el área contable antes de reducirlo.
+SUCCESS_LOG_RETENTION_YEARS: int = 6
+
+
 def purge_old_digital_invoice_success_logs() -> None:
-    """Elimina logs de éxito del mes anterior. Se ejecuta el 1 de cada mes."""
-    first_of_current_month: str = getdate(nowdate()).replace(day=1).isoformat()
+    """Elimina logs de éxito más antiguos que la ventana de retención fiscal.
+
+    Los Success son el respaldo de lo que realmente se transmitió a HKA, por lo
+    que solo se purgan tras el período de prescripción (no mensualmente). Se
+    ejecuta el 1 de cada mes y borra lo anterior a la ventana de retención.
+    """
+    cutoff: str = add_years(nowdate(), -SUCCESS_LOG_RETENTION_YEARS)
 
     count: int = frappe.db.count(
         "VE Digital Invoice Log",
-        {"status": "Success", "creation": ["<", first_of_current_month]},
+        {"status": "Success", "creation": ["<", cutoff]},
     )
 
     if not count:
@@ -513,9 +526,10 @@ def purge_old_digital_invoice_success_logs() -> None:
 
     frappe.db.delete(
         "VE Digital Invoice Log",
-        {"status": "Success", "creation": ["<", first_of_current_month]},
+        {"status": "Success", "creation": ["<", cutoff]},
     )
     frappe.db.commit()
     frappe.logger("tfhka").info(
-        f"Purga mensual: {count} logs de éxito anteriores a {first_of_current_month} eliminados"
+        f"Purga de retención ({SUCCESS_LOG_RETENTION_YEARS} años): "
+        f"{count} logs de éxito anteriores a {cutoff} eliminados"
     )
