@@ -27,6 +27,11 @@ RECON_DONE = "Conciliado"
 # Modos que no exigen depósito bancario para aprobarse.
 CASH_LIKE_TYPES = ("Cash", "Gangway")
 
+# Tolerancia de redondeo (en moneda de la empresa, VEF) admitida al comparar el
+# depósito real contra el total del pago. SOLO positiva: "céntimo por encima,
+# nunca por debajo". Ajustable si aparecen falsos bloqueos por redondeo USD↔VEF.
+DEPOSIT_COVERAGE_TOLERANCE = 1.0
+
 
 def is_receive_reconciliation_enforced() -> bool:
     """Flag que activa la EXIGENCIA de conciliación para aprobar cobros bancarios.
@@ -50,6 +55,62 @@ def _is_bank_receive(doc) -> bool:
         else None
     )
     return mop_type not in CASH_LIKE_TYPES
+
+
+def deposit_covers_payment(
+    payment_entry_name: str,
+    tolerance: float = DEPOSIT_COVERAGE_TOLERANCE,
+) -> bool:
+    """¿El pago está realmente cubierto por lo que entró al banco?
+
+    Fuente ÚNICA de verdad para decidir si un pago puede marcarse conciliado y, en
+    consecuencia (en domina_isp), activar el servicio. Compara en moneda de la
+    empresa (VEF):
+
+      Σ(allocated_amount de los depósitos bancarios conciliados al Payment Entry)
+          >= base_paid_amount del Payment Entry  - tolerancia
+
+    Devuelve True si el pago es efectivo/gangway (no exige depósito), si el total
+    del PE es 0, o si la suma de depósitos conciliados cubre el total. Devuelve
+    False si existe un depósito pero queda corto, o si todavía no hay depósito
+    suficiente conciliado al PE.
+    """
+    pe = frappe.db.get_value(
+        "Payment Entry",
+        payment_entry_name,
+        ["base_paid_amount", "mode_of_payment"],
+        as_dict=True,
+    )
+    if not pe:
+        return False
+
+    mop_type = (
+        frappe.get_cached_value("Mode of Payment", pe.mode_of_payment, "type")
+        if pe.mode_of_payment
+        else None
+    )
+    if mop_type in CASH_LIKE_TYPES:
+        return True
+
+    pe_total = flt(pe.base_paid_amount, 2)
+    if pe_total <= 0:
+        return True
+
+    deposited = flt(
+        frappe.db.get_value(
+            "Bank Transaction Payments",
+            {
+                "payment_entry": payment_entry_name,
+                "payment_document": "Payment Entry",
+                "docstatus": 1,
+            },
+            "sum(allocated_amount)",
+        )
+        or 0,
+        2,
+    )
+
+    return deposited + flt(tolerance) >= pe_total
 
 
 def find_matching_deposit(doc) -> frappe._dict | None:
