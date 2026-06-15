@@ -24,7 +24,7 @@ frappe.ui.form.on('Dashboard Gerencial', {
             frm.doc.company = frappe.defaults.get_user_default('company');
             changed = true;
         }
-        // Always clear branch and cost center filters on initial page load to show consolidated data
+        // Always clear branch, cost center and customer filters on initial page load to show consolidated data
         if (frm.doc.branch) {
             frm.doc.branch = '';
             changed = true;
@@ -33,10 +33,25 @@ frappe.ui.form.on('Dashboard Gerencial', {
             frm.doc.cost_center = '';
             changed = true;
         }
+        if (frm.doc.customer) {
+            frm.doc.customer = '';
+            changed = true;
+        }
         if (changed) {
             frm.refresh_fields();
             frm.dirty(false);
         }
+
+        frm.set_query("customer", function() {
+            return {
+                query: "l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.get_customer_list",
+                params: {
+                    filters: {
+                        company: frm.doc.company
+                    }
+                }
+            };
+        });
     },
 
     refresh: function(frm) {
@@ -65,7 +80,7 @@ frappe.ui.form.on('Dashboard Gerencial', {
                 return;
             }
             const url = frappe.urllib.get_full_url(
-                `/api/method/l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.download_pdf?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}`
+                `/api/method/l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.download_pdf?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}&customer=${encodeURIComponent(frm.doc.customer || '')}`
             );
             window.open(url);
         });
@@ -76,7 +91,7 @@ frappe.ui.form.on('Dashboard Gerencial', {
                 return;
             }
             const url = frappe.urllib.get_full_url(
-                `/api/method/l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.download_excel?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}`
+                `/api/method/l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.download_excel?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}&customer=${encodeURIComponent(frm.doc.customer || '')}`
             );
             window.open(url);
         });
@@ -110,6 +125,12 @@ frappe.ui.form.on('Dashboard Gerencial', {
     },
 
     cost_center: function(frm) {
+        if (frm.fields_dict.dashboard_html && frm.fields_dict.dashboard_html.$wrapper) {
+            frm.trigger('render_dashboard');
+        }
+    },
+
+    customer: function(frm) {
         if (frm.fields_dict.dashboard_html && frm.fields_dict.dashboard_html.$wrapper) {
             frm.trigger('render_dashboard');
         }
@@ -179,7 +200,8 @@ frappe.ui.form.on('Dashboard Gerencial', {
                 from_date: frm.doc.from_date,
                 to_date: frm.doc.to_date,
                 branch: frm.doc.branch || null,
-                cost_center: frm.doc.cost_center || null
+                cost_center: frm.doc.cost_center || null,
+                customer: frm.doc.customer || null
             },
             callback: function(r) {
                 if (r.message) {
@@ -544,6 +566,36 @@ function render_premium_dashboard(frm, data) {
                     </table>
                 </div>
             </div>
+
+            <!-- SECCIÓN 3: CUADRO RESUMEN FINANCIERO POR CLIENTE -->
+            <div class="dg-table-card" style="margin-top: 30px;">
+                <h6 class="dg-section-title" style="border: none; padding-bottom: 0; margin-bottom: 20px; margin-top: 0;">
+                    <i class="fa fa-users dg-primary-icon"></i> Resumen Financiero por Cliente
+                    <span class="dg-help-tip" data-tooltip="Consolidado financiero del periodo por cliente (ingresos e impuestos asociados).">?</span>
+                    <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(Valores expresados en USD y su equivalente en Bs. abajo)</span>
+                </h6>
+                <div style="overflow-x: auto;">
+                    <table class="dg-table table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th style="text-align: right;">Por cobrar <span class="dg-help-tip" data-tooltip="Monto total de facturas que aún no tienen un número de control fiscal asignado.">?</span></th>
+                                <th style="text-align: right;">Orden de Pago <span class="dg-help-tip" data-tooltip="Sumatoria de todas las facturas de venta registradas (tanto controladas como pendientes de número de control).">?</span></th>
+                                <th style="text-align: right;">IVA Orden de Pago <span class="dg-help-tip" data-tooltip="Sumatoria del IVA de todas las facturas de venta del periodo.">?</span></th>
+                                <th style="text-align: right;">Facturado <span class="dg-help-tip" data-tooltip="Monto total de facturas que ya tienen un número de control fiscal asignado.">?</span></th>
+                                <th style="text-align: right;">IVA</th>
+                                <th style="text-align: right;">IVA desp. Retención</th>
+                                <th style="text-align: right;">Ret. IVA</th>
+                                <th style="text-align: right;">Ret. ISLR</th>
+                                <th style="text-align: right;">Disponibilidad <span class="dg-help-tip" data-tooltip="Monto disponible calculado: (Facturado - IVA) - Retención de ISLR.">?</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${render_customer_table_rows(data.customer_financial_summary, data.exchange_rate)}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     `;
 
@@ -686,6 +738,67 @@ function render_branch_table_rows(rows, exchange_rate) {
             <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_disp, v_disp)}</td>
             <td style="text-align: right; color: #ef4444;">${format_table_cell(t_spent, v_spent)}</td>
             <td style="text-align: right; color: ${t_util >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_util, v_util)}</td>
+        </tr>
+    `;
+
+    return rows_html + total_row;
+}
+
+function render_customer_table_rows(rows, exchange_rate) {
+    if (!rows || rows.length === 0) {
+        return `<tr><td colspan="10" class="text-center" style="padding: 20px; color: var(--text-muted);">No se encontraron registros financieros para los clientes.</td></tr>`;
+    }
+
+    const format_table_cell = (usd_val, vef_val) => {
+        const usd_str = format_currency_ve(usd_val, "USD");
+        const bs_str = format_currency_ve(vef_val, "VEF");
+        return `<div>${usd_str}</div><div style="font-size: 10.5px; color: #a0aec0; font-weight: normal; margin-top: 2px;">${bs_str}</div>`;
+    };
+
+    let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_disp = 0;
+    let v_cobrar = 0, v_op = 0, v_iva_op = 0, v_fact = 0, v_iva = 0, v_neto = 0, v_ret_iva = 0, v_ret_islr = 0, v_disp = 0;
+
+    let rows_html = rows.map(r => {
+        t_cobrar += r.pending_to_collect || 0;      v_cobrar += r.pending_to_collect_vef || 0;
+        t_op += r.payment_order || 0;               v_op += r.payment_order_vef || 0;
+        t_iva_op += r.payment_order_vat || 0;       v_iva_op += r.payment_order_vat_vef || 0;
+        t_fact += r.billed || 0;                    v_fact += r.billed_vef || 0;
+        t_iva += r.vat || 0;                        v_iva += r.vat_vef || 0;
+        t_neto += r.vat_after_withholding || 0;     v_neto += r.vat_after_withholding_vef || 0;
+        t_ret_iva += r.vat_withholding || 0;        v_ret_iva += r.vat_withholding_vef || 0;
+        t_ret_islr += r.islr_withholding || 0;      v_ret_islr += r.islr_withholding_vef || 0;
+        t_disp += r.availability || 0;              v_disp += r.availability_vef || 0;
+
+        const name_html = frappe.utils.escape_html(r.customer_name);
+        return `
+            <tr>
+                <td><span style="opacity: 0.85;">${name_html}</span></td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.pending_to_collect, r.pending_to_collect_vef)}</td>
+                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.payment_order, r.payment_order_vef)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.payment_order_vat, r.payment_order_vat_vef)}</td>
+                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.billed, r.billed_vef)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.vat, r.vat_vef)}</td>
+                <td style="text-align: right; font-weight: 600;">${format_table_cell(r.vat_after_withholding, r.vat_after_withholding_vef)}</td>
+                <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_table_cell(r.vat_withholding, r.vat_withholding_vef)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.islr_withholding, r.islr_withholding_vef)}</td>
+                <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.availability, r.availability_vef)}</td>
+            </tr>
+        `;
+    }).join("");
+
+    // Agregar fila de totales
+    const total_row = `
+        <tr style="background: #1f2733 !important; border-top: 2px solid #2d3748 !important; font-weight: 700; color: #ffffff !important;">
+            <td><strong>TOTAL</strong></td>
+            <td style="text-align: right;">${format_table_cell(t_cobrar, v_cobrar)}</td>
+            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_op, v_op)}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva_op, v_iva_op)}</td>
+            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_fact, v_fact)}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva, v_iva)}</td>
+            <td style="text-align: right;">${format_table_cell(t_neto, v_neto)}</td>
+            <td style="text-align: right; color: #8b5cf6;">${format_table_cell(t_ret_iva, v_ret_iva)}</td>
+            <td style="text-align: right;">${format_table_cell(t_ret_islr, v_ret_islr)}</td>
+            <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_disp, v_disp)}</td>
         </tr>
     `;
 
