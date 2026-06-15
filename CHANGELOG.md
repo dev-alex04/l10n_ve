@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.1] - 2026-06-14
+
+### 🐛 Correcciones (Fixes)
+- Se implementaron mejoras de seguridad y optimización de rendimiento en el proceso de descarga HKA y en la generación de reportes AR/AP. [254609a]
+
+---
+
+## [v2.5.0] - 2026-06-14
+
+### ✨ Funcionalidades (Features)
+- Implementación de **base_total_exempt** (VEF) como la fuente de verdad central para el cálculo y gestión de montos exentos en el módulo de contabilidad. [8c18002]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la lógica de **total_exempt** para utilizar **net_amount**, asegurando la consistencia técnica y paridad de datos con el campo **base_total_exempt**. [6c6e191]
+
+---
+
+## [v2.4.0] - 2026-06-13
+
+### ✨ Funcionalidades (Features)
+- Implementación de soporte para **Property Setters** en los campos de sucursal, mejorando la flexibilidad y el control del sistema de permisos. [8d4ac97]
+
+---
+
 ## [v2.3.0] - 2026-06-13
 
 ### ✨ Funcionalidades (Features)

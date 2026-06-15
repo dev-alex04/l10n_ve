@@ -311,6 +311,7 @@ def process_download_job(docname: str, request_user: str):
 		frappe.db.rollback()
 		try:
 			doc = frappe.get_doc("VE Fiscal Document Download", docname)
+			doc.flags.ignore_permissions = True
 			doc.status = "Failed"
 			doc.error_log = f"Ocurrió un error inesperado en el servidor:\n{str(e)}\n\n{frappe.get_traceback()}"[:30000]
 			doc.save()

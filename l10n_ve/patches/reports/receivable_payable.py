@@ -144,17 +144,24 @@ def custom_fetch_ple_in_buffered_cursor(self):
 
 def custom_fetch_ple_in_unbuffered_cursor(self):
     self.ple_entries = []
-    raw_entries = []
-    with frappe.db.unbuffered_cursor():
-        for ple in self.ple_query.run(as_dict=True, as_iterator=True):
-            raw_entries.append(ple)
-            
     if self.filters.get("ve_branch"):
+        # Filtrar por sucursal requiere materializar los asientos para resolver
+        # la sucursal de cada voucher antes de inicializar balances.
+        raw_entries = []
+        with frappe.db.unbuffered_cursor():
+            for ple in self.ple_query.run(as_dict=True, as_iterator=True):
+                raw_entries.append(ple)
         raw_entries = filter_ple_by_ve_branch(raw_entries, self.filters.get("ve_branch"))
-        
-    for ple in raw_entries:
-        self.init_voucher_balance(ple)
-        self.ple_entries.append(ple)
+        for ple in raw_entries:
+            self.init_voucher_balance(ple)
+            self.ple_entries.append(ple)
+    else:
+        # Sin filtro de sucursal, transmitir directamente desde el cursor sin
+        # acumular en una lista intermedia (preserva el beneficio de memoria).
+        with frappe.db.unbuffered_cursor():
+            for ple in self.ple_query.run(as_dict=True, as_iterator=True):
+                self.init_voucher_balance(ple)
+                self.ple_entries.append(ple)
     for ple in self.ple_entries:
         self.update_voucher_balance(ple)
     delattr(self, "ple_entries")
