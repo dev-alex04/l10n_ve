@@ -46,6 +46,19 @@ def _is_bank_receive(doc) -> bool:
     return mop_type not in CASH_LIKE_TYPES
 
 
+def _is_cash_like_receive(doc) -> bool:
+    """True si es un cobro en efectivo/gangway: no exige depósito bancario; se aprueba
+    con el monto tecleado y se aplica directo a la factura (modos privados de oficina)."""
+    if doc.payment_type != "Receive":
+        return False
+    mop_type = (
+        frappe.get_cached_value("Mode of Payment", doc.mode_of_payment, "type")
+        if doc.mode_of_payment
+        else None
+    )
+    return mop_type in CASH_LIKE_TYPES
+
+
 def deposit_covers_payment(
     payment_entry_name: str,
     tolerance: float = DEPOSIT_COVERAGE_TOLERANCE,
