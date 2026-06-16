@@ -254,6 +254,16 @@ class TFHKAPayloadBuilder:
             if log_raw:
                 resultado = (json.loads(log_raw).get("resultado") or {})
                 serie = resultado.get("serie") or ""
+
+            # Fallback: check if the Sales Invoice remarks contain the HKA response json
+            if not serie:
+                inv_remarks = frappe.db.get_value("Sales Invoice", ref, "remarks")
+                if inv_remarks:
+                    try:
+                        resultado = (json.loads(inv_remarks).get("resultado") or {})
+                        serie = resultado.get("serie") or ""
+                    except Exception:
+                        pass
         except Exception as e:
             frappe.throw(
                 f"Error al consultar el log de facturación digital "
@@ -269,6 +279,7 @@ class TFHKAPayloadBuilder:
                 f"para dicha factura."
             )
         return serie
+
 
     def _build_identificacion_documento(self) -> dict:
         tipo_doc: str = self._get_tipo_documento()
@@ -447,10 +458,7 @@ class TFHKAPayloadBuilder:
             if tax.get("charge_type") == "VAT" and flt(tax.rate) > 0:
                 base_tax_amount_ves += flt(tax.base_tax_amount)
 
-        # base_total_exempt (VEF) es la fuente de verdad del monto exento: se calcula
-        # por línea (base_net_amount) en calculate_total_exempt y se respalda en los
-        # históricos vía el patch backfill_base_total_exempt.
-        monto_exento_total = flt(self.doc.get("base_total_exempt", 0.0), 2)
+        monto_exento_total = flt(flt(self.doc.get("total_exempt", 0.0)) * tc, 2)
         monto_gravado_total = flt(flt(self.doc.base_net_total) - monto_exento_total, 2)
         subtotal = flt(self.doc.base_net_total, 2)
         total_iva = flt(base_tax_amount_ves, 2)
