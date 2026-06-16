@@ -118,14 +118,9 @@ def custom_run(self, args):
                 if not row.get("branch"):
                     row["branch"] = ""
 
-            if row.get("party_type") and isinstance(row.get("party_type"), str):
-                row["party_type"] = _(row["party_type"])
-            
-            if row.get("voucher_type") and isinstance(row.get("voucher_type"), str):
-                row["voucher_type"] = _(row["voucher_type"])
-                
-            if row.get("against_voucher_type") and isinstance(row.get("against_voucher_type"), str):
-                row["against_voucher_type"] = _(row["against_voucher_type"])
+            # Evitamos traducir party_type, voucher_type y against_voucher_type directamente en las claves
+            # del dataset para no romper el ruteo de enlaces (SlickGrid y custom HTML links en accounts_receivable.py)
+            pass
     
     return columns, data, message, chart, report_summary, skip_total_row
 

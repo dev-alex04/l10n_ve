@@ -111,13 +111,13 @@ def initialize_gle_map(gl_entries, filters, totals_dict) -> OrderedDict:
 
     for gle in gl_entries:
 
-        # Se agrega la traducción
-        gle.against = _(gle.get('against'), '')
-        gle.voucher_no = _(gle.get('voucher_no'), '')
-        gle.party_type = _(gle.get('party_type'), '')
-        gle.voucher_type = _(gle.get('voucher_type'), '')
+        # Se agrega la traducción (evitando traducir claves de DocType y registros para no romper el ruteo de enlaces)
+        gle.against = gle.get('against') or ''
+        gle.voucher_no = gle.get('voucher_no') or ''
+        gle.party_type = gle.get('party_type') or ''
+        gle.voucher_type = gle.get('voucher_type') or ''
         gle.voucher_subtype = _(gle.get('voucher_subtype'), '')
-        gle.against_voucher_type = _(gle.get('against_voucher_type'), '')
+        gle.against_voucher_type = gle.get('against_voucher_type') or ''
 
         gle_map.setdefault(gle.get(group_by), _dict(totals=copy.deepcopy(totals_dict), entries=[]))
     return gle_map
