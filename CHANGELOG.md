@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.6.0] - 2026-06-16
+
+### ✨ Funcionalidades (Features)
+- Implementación de la lógica para la conciliación de cobros contra su depósito bancario correspondiente, optimizando el flujo de cierre de caja.
+- Incorporación del helper técnico `_is_cash_like_receive` para la identificación y manejo especializado de pagos en efectivo en el módulo de cobros.
+
+### 🐛 Correcciones (Fixes)
+- Mejora de la robustez y "hardening" en los procesos de conciliación bancaria para la localización de Venezuela (l10n_ve).
+- Corrección crítica en el cálculo de montos de depósitos (ajuste de factor x100) y fortalecimiento de la lógica de conciliación en el módulo de cobros.
+
+---
+
 ## [v2.5.1] - 2026-06-14
 
 ### 🐛 Correcciones (Fixes)
