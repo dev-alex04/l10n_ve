@@ -17,6 +17,15 @@ _INDEX_NAME = "bank_txn_reference_number"
 
 
 def execute() -> None:
+    # PostgreSQL: índice normal con IF NOT EXISTS (no admite prefijo de longitud;
+    # reference_number es corto, se indexa completo).
+    if frappe.db.db_type == "postgres":
+        frappe.db.sql(
+            f'CREATE INDEX IF NOT EXISTS "{_INDEX_NAME}" ON "tabBank Transaction" (reference_number)'
+        )
+        return
+
+    # MariaDB/MySQL: índice de prefijo (reference_number es TEXT), idempotente.
     existing = {
         r["Key_name"]
         for r in frappe.db.sql("SHOW INDEX FROM `tabBank Transaction`", as_dict=True)

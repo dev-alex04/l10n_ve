@@ -289,6 +289,9 @@ def reconcile_and_approve(payment_entry: str) -> dict:
     _apply_deposit_amount(doc, deposit)
     doc.custom_reconciliation_status = RECON_DONE
     doc.save(ignore_permissions=True)
+    # Cachear el depósito ya encontrado: before_submit_receive_payment lo reusa en
+    # vez de volver a consultarlo (find_matching_deposit).
+    doc.flags.l10n_ve_matched_deposit_doc = deposit
     doc.submit()
 
     # Enlazar el depósito al cobro: la conciliación bancaria (y la activación del
@@ -339,7 +342,7 @@ def before_submit_receive_payment(doc, method=None) -> None:
     if not _is_bank_receive(doc):
         return
 
-    deposit = find_matching_deposit(doc)
+    deposit = doc.flags.get("l10n_ve_matched_deposit_doc") or find_matching_deposit(doc)
     if not deposit:
         frappe.throw(
             _(
@@ -408,12 +411,13 @@ def validate_bank_transaction_duplicate(doc, method=None) -> None:
         },
     )
     if duplicate:
+        duplicate_link = frappe.utils.get_link_to_form("Bank Transaction", duplicate)
         frappe.throw(
             _(
                 "Ya existe un depósito con la referencia {0} en esta cuenta bancaria "
                 "({1}). No se permiten depósitos duplicados con la misma referencia; "
                 "revise el extracto importado."
-            ).format(frappe.bold(ref), duplicate)
+            ).format(frappe.bold(ref), duplicate_link)
         )
 
 
@@ -446,6 +450,15 @@ def reconcile_drafts_job(reference: str) -> None:
     for name in drafts:
         try:
             reconcile_and_approve(name)
-        except frappe.ValidationError:
-            frappe.clear_last_message()
+            # Cada cobro es atómico: se confirma el exitoso para que un fallo
+            # posterior no lo arrastre.
+            frappe.db.commit()
+        except Exception:
+            # Un cobro problemático NO debe abortar el lote (es background): se
+            # revierten sus escrituras parciales, se registra el traceback y se sigue.
+            frappe.db.rollback()
+            frappe.log_error(
+                title=_("Error conciliando cobro {0} (auto)").format(name),
+                message=frappe.get_traceback(),
+            )
             continue
