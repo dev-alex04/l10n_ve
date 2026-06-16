@@ -124,7 +124,7 @@ def _build_branch_tree(branch_map, all_ve_branches, allowed_set, selected_branch
 
 
 @frappe.whitelist()
-def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=None):
+def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=None, customer=None):
     """Calculates all metrics and table rows for the Dashboard Gerencial."""
     if not company or not from_date or not to_date:
         frappe.throw("Los campos Empresa, Fecha Inicio y Fecha Fin son obligatorios.")
@@ -150,6 +150,8 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     }
     if cost_center:
         si_filters["name"] = ["in", frappe.get_all("Sales Invoice Item", filters={"cost_center": cost_center}, pluck="parent")]
+    if customer:
+        si_filters["customer"] = customer
 
     # --- Permisos + universo de sucursales (árbol VE Branch, igual que el ISP) ---
     allowed = _get_allowed_branches(company)          # None=todas, []=ninguna, [list]
@@ -198,7 +200,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     # Retrieve expenses via tabExpense
     expenses_by_branch = {}
     expenses_vef_by_branch = {}
-    if frappe.db.exists("DocType", "Expense"):
+    if frappe.db.exists("DocType", "Expense") and not customer:
         expenses_raw = frappe.db.sql(f"""
             SELECT branch, SUM(
                 CASE WHEN spending_currency = 'USD' THEN total_exchange
@@ -219,20 +221,26 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     igtf_vef_by_branch = {}
     if accounts_igtf:
         # Group by branch for Sales Invoice IGTF
+        sql_si_cust = " AND si.customer = %s" if customer else ""
         si_igtf = frappe.db.sql(f"""
             SELECT si.branch, gle.credit, gle.debit, gle.account_currency, gle.posting_date
             FROM `tabGL Entry` gle
             JOIN `tabSales Invoice` si ON gle.voucher_no = si.name
-            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s{sql_branch_si}
-        """, (tuple(accounts_igtf), from_date, to_date) + ((universe_param,) if universe is not None else ()), as_dict=True)
+            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s{sql_branch_si}{sql_si_cust}
+        """, (tuple(accounts_igtf), from_date, to_date) + 
+             ((universe_param,) if universe is not None else ()) + 
+             ((customer,) if customer else ()), as_dict=True)
 
         # Group by branch for Payment Entry IGTF
+        sql_pe_cust = " AND pe.party = %s" if customer else ""
         pe_igtf = frappe.db.sql(f"""
             SELECT pe.branch, gle.credit, gle.debit, gle.account_currency, gle.posting_date
             FROM `tabGL Entry` gle
             JOIN `tabPayment Entry` pe ON gle.voucher_no = pe.name
-            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s{sql_branch_pe}
-        """, (tuple(accounts_igtf), from_date, to_date) + ((universe_param,) if universe is not None else ()), as_dict=True)
+            WHERE gle.account IN %s AND gle.docstatus = 1 AND gle.posting_date BETWEEN %s AND %s{sql_branch_pe}{sql_pe_cust}
+        """, (tuple(accounts_igtf), from_date, to_date) + 
+             ((universe_param,) if universe is not None else ()) + 
+             ((customer,) if customer else ()), as_dict=True)
 
         for rows in (si_igtf, pe_igtf):
             for r in rows:
@@ -265,9 +273,13 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     ganancia_vef_by_branch = {}
     perdida_vef_by_branch = {}
     fx_cond = "AND si_fx.branch IN %(branches)s" if universe is not None else ""
+    if customer:
+        fx_cond += " AND si_fx.customer = %(customer)s"
     fx_params = {"company": company, "from_date": from_date, "to_date": to_date}
     if universe is not None:
         fx_params["branches"] = universe_param
+    if customer:
+        fx_params["customer"] = customer
 
     fx_ref = frappe.db.sql("""
         SELECT si_fx.branch AS branch,
@@ -318,7 +330,7 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     all_invoices = frappe.get_all(
         "Sales Invoice",
         filters=table_filters,
-        fields=["name", "net_total", "base_net_total", "grand_total", "total_taxes_and_charges", "bill_control", "currency", "posting_date", "branch", "docstatus"]
+        fields=["name", "net_total", "base_net_total", "grand_total", "total_taxes_and_charges", "bill_control", "currency", "posting_date", "branch", "docstatus", "customer", "customer_name"]
     )
 
     # 2. Single bulk query of all withholdings for these invoices
@@ -499,10 +511,93 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
     if sin and any(flt(sin.get(k, 0)) for k in _TREE_FIELDS):
         branch_financial_summary.append({**sin, "indent": 0, "is_group": False})
 
+    # Group invoices by customer in memory
+    customer_data_map = {}
+    for inv in all_invoices:
+        cust = inv.customer or "Sin Cliente"
+        cust_name = inv.customer_name or cust
+        if cust not in customer_data_map:
+            customer_data_map[cust] = {
+                "customer": cust,
+                "customer_name": cust_name,
+                "pending_to_collect": 0.0,
+                "payment_order": 0.0,
+                "payment_order_vat": 0.0,
+                "billed": 0.0,
+                "vat": 0.0,
+                "vat_after_withholding": 0.0,
+                "vat_withholding": 0.0,
+                "islr_withholding": 0.0,
+                "availability": 0.0,
+                "pending_to_collect_vef": 0.0,
+                "payment_order_vef": 0.0,
+                "payment_order_vat_vef": 0.0,
+                "billed_vef": 0.0,
+                "vat_vef": 0.0,
+                "vat_after_withholding_vef": 0.0,
+                "vat_withholding_vef": 0.0,
+                "islr_withholding_vef": 0.0,
+                "availability_vef": 0.0,
+            }
+
+        is_usd = (inv.currency == "USD")
+        rate = 1.0 if is_usd else _get_cached_rate(str(inv.posting_date), rates_cache)
+
+        inv_withholdings = withholdings_by_invoice.get(inv.name, {"vat": 0.0, "islr": 0.0, "vat_vef": 0.0, "islr_vef": 0.0})
+        raw_vat_withholding = inv_withholdings["vat"]
+        raw_islr_withholding = inv_withholdings["islr"]
+        raw_gross_iva = iva_by_invoice.get(inv.name, 0.0)
+
+        base_usd = flt(inv.net_total) if is_usd else flt(inv.net_total) / rate
+        tax_usd = flt(raw_gross_iva) if is_usd else flt(raw_gross_iva) / rate
+        g_total_usd = base_usd + tax_usd
+        ret_iva_usd = flt(raw_vat_withholding) if is_usd else flt(raw_vat_withholding) / rate
+        ret_islr_usd = flt(raw_islr_withholding) if is_usd else flt(raw_islr_withholding) / rate
+
+        base_vef = flt(inv.base_net_total)
+        tax_vef = flt(iva_vef_by_invoice.get(inv.name, 0.0))
+        g_total_vef = base_vef + tax_vef
+        ret_iva_vef = flt(inv_withholdings["vat_vef"])
+        ret_islr_vef = flt(inv_withholdings["islr_vef"])
+
+        row = customer_data_map[cust]
+        row["payment_order"] += g_total_usd
+        row["payment_order_vat"] += tax_usd
+        row["payment_order_vef"] += g_total_vef
+        row["payment_order_vat_vef"] += tax_vef
+
+        has_control = (inv.docstatus == 1 and inv.bill_control is not None and str(inv.bill_control).strip() != "")
+        no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
+        if has_control:
+            row["billed"] += g_total_usd
+            row["vat"] += tax_usd
+            row["vat_withholding"] += ret_iva_usd
+            row["islr_withholding"] += ret_islr_usd
+            row["billed_vef"] += g_total_vef
+            row["vat_vef"] += tax_vef
+            row["vat_withholding_vef"] += ret_iva_vef
+            row["islr_withholding_vef"] += ret_islr_vef
+        elif no_control:
+            row["pending_to_collect"] += g_total_usd
+            row["pending_to_collect_vef"] += g_total_vef
+
+    for cust, row in customer_data_map.items():
+        row["vat_after_withholding"] = row["vat"] - row["vat_withholding"]
+        row["vat_after_withholding_vef"] = row["vat_vef"] - row["vat_withholding_vef"]
+        row["availability"] = (row["billed"] - row["vat"]) - row["islr_withholding"]
+        row["availability_vef"] = (row["billed_vef"] - row["vat_vef"]) - row["islr_withholding_vef"]
+
+    customer_financial_summary = sorted(
+        customer_data_map.values(),
+        key=lambda x: x["payment_order"],
+        reverse=True
+    )
+
     return {
         "sales_count": sales_count,
         "exchange_rate": rate_today,
-        "branch_financial_summary": branch_financial_summary
+        "branch_financial_summary": branch_financial_summary,
+        "customer_financial_summary": customer_financial_summary
     }
 
 
@@ -597,13 +692,13 @@ def _get_company_details(company_name):
 
 
 @frappe.whitelist()
-def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
+def download_pdf(company, from_date, to_date, branch=None, cost_center=None, customer=None):
     # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
     frappe.get_doc("Dashboard Gerencial").check_permission("read")
     from l10n_ve.utils.pdf_utils import safe_get_pdf
     from frappe.utils import formatdate, nowdate
     
-    data = get_dashboard_data(company, from_date, to_date, branch, cost_center)
+    data = get_dashboard_data(company, from_date, to_date, branch, cost_center, customer)
     rate_today = data.get("exchange_rate", 1.0)
     company_details = _get_company_details(company)
     
@@ -959,7 +1054,7 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None):
 
 
 @frappe.whitelist()
-def download_excel(company, from_date, to_date, branch=None, cost_center=None):
+def download_excel(company, from_date, to_date, branch=None, cost_center=None, customer=None):
     # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
     frappe.get_doc("Dashboard Gerencial").check_permission("read")
     import io
@@ -968,7 +1063,7 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
     from openpyxl.utils import get_column_letter
     from frappe.utils import formatdate, nowdate
     
-    data = get_dashboard_data(company, from_date, to_date, branch, cost_center)
+    data = get_dashboard_data(company, from_date, to_date, branch, cost_center, customer)
     company_details = _get_company_details(company)
 
     wb = openpyxl.Workbook()
@@ -1226,3 +1321,32 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None):
     frappe.local.response.filename = f"Dashboard_Gerencial_{nowdate()}.xlsx"
     frappe.local.response.filecontent = content
     frappe.local.response.type = "binary"
+
+
+@frappe.whitelist()
+def get_customer_list(doctype=None, txt=None, searchfield=None, start=0, page_len=20, filters=None):
+    frappe.get_doc("Dashboard Gerencial").check_permission("read")
+    if isinstance(filters, str):
+        import json
+        try:
+            filters = json.loads(filters)
+        except ValueError:
+            filters = {}
+
+    company = filters.get("company") if filters else None
+    if not company:
+        return []
+    query = """
+        SELECT DISTINCT customer, customer_name 
+        FROM `tabSales Invoice` 
+        WHERE company = %s AND docstatus != 2
+    """
+    params = [company]
+    if txt:
+        query += " AND (customer LIKE %s OR customer_name LIKE %s)"
+        params.extend([f"%{txt}%", f"%{txt}%"])
+    query += " LIMIT %s, %s"
+    params.extend([int(start or 0), int(page_len or 20)])
+    db_results = frappe.db.sql(query, params)
+    return [{"value": r[0], "label": r[1] or r[0]} for r in db_results if r[0]]
+

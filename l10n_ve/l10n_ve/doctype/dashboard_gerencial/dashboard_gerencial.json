@@ -15,6 +15,8 @@
   "branch",
   "column_break_4",
   "cost_center",
+  "column_break_5",
+  "customer",
   "dashboard_section",
   "dashboard_html"
  ],
@@ -70,6 +72,16 @@
    "fieldtype": "Link",
    "label": "Centro de Costo",
    "options": "Cost Center"
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Autocomplete",
+   "ignore_validation": 1,
+   "label": "Cliente"
   },
   {
    "fieldname": "dashboard_section",
