@@ -43,6 +43,14 @@ class CustomPaymentEntry(PaymentEntry):
         return valid + tuple(dt for dt in ve_doctypes if dt not in valid)
 
     def calculate_igtf_taxes(self) -> None:
+        # Poblar la moneda de la compañía si viene vacía: este método corre antes
+        # de que Frappe rellene los campos fetch_from, y sin ella el IGTF y la tasa
+        # de cambio no se calculan (sobre todo en pagos creados a mano).
+        if not self.default_company_currency and self.company:
+            self.default_company_currency = frappe.get_cached_value(
+                "Company", self.company, "default_currency"
+            )
+
         # Si no es en divisas, o no hay cuenta de IGTF, no hacemos nada
         if not self.paid_on_currency or not self.default_company_currency:
             return
@@ -96,6 +104,28 @@ class CustomPaymentEntry(PaymentEntry):
         super().validate()
 
         self.validate_reference_no()
+        self.validate_payment_mode_currency()
+
+    def validate_payment_mode_currency(self) -> None:
+        """La moneda del pago (paid_on_currency) debe coincidir con la del modo de
+        pago (Mode of Payment.currency)."""
+        if not self.mode_of_payment or not self.paid_on_currency:
+            return
+
+        mop_currency = frappe.get_cached_value(
+            "Mode of Payment", self.mode_of_payment, "currency"
+        )
+        if mop_currency and mop_currency != self.paid_on_currency:
+            frappe.throw(
+                _(
+                    "La moneda del pago ({0}) no coincide con la del modo de pago "
+                    "{1} ({2}). Use un modo de pago en {0} o cambie la moneda del pago."
+                ).format(
+                    self.paid_on_currency,
+                    frappe.bold(self.mode_of_payment),
+                    mop_currency,
+                )
+            )
 
     def validate_transaction_reference(self) -> None:
         """Desactivada: no requerimos referencia obligatoria para cuentas bancarias."""
