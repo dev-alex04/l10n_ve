@@ -39,14 +39,16 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Cliente (Opcional)",
-   "options": "Customer"
+   "options": "Customer",
+   "search_index": 1
   },
   {
    "fieldname": "branch",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Sucursal (Opcional)",
-   "options": "VE Branch"
+   "options": "VE Branch",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_1",
@@ -59,7 +61,8 @@
    "in_list_view": 1,
    "label": "Estado",
    "options": "Pending\nProcessing\nCompleted\nFailed",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "total_attempted",
