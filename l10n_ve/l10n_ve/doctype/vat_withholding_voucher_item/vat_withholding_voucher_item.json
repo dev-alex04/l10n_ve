@@ -97,7 +97,8 @@
    "in_standard_filter": 1,
    "label": "Fecha Factura",
    "read_only": 1,
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "grand_total",

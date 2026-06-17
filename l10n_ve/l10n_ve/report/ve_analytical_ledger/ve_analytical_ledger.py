@@ -50,10 +50,6 @@ def execute(filters=None):
         for a in accounts_raw
     }
 
-    # Fetch suppliers and customers names/codes
-    suppliers = {s.name: s.supplier_name for s in frappe.db.get_all("Supplier", fields=["name", "supplier_name"])}
-    customers = {c.name: c.customer_name for c in frappe.db.get_all("Customer", fields=["name", "customer_name"])}
-
     # 1. Fetch beginning balances (before from_date)
     init_query = f"""
         SELECT account, SUM(debit - credit) as balance
@@ -72,6 +68,20 @@ def execute(filters=None):
         ORDER BY account, posting_date, creation
     """
     entries = frappe.db.sql(entries_query, tuple([company, from_date, to_date] + cc_args + acc_args), as_dict=True)
+
+    # Cargar solo los terceros presentes en las entradas (evita traer Supplier/Customer completos)
+    supplier_ids = {e.party for e in entries if e.party_type == "Supplier" and e.party}
+    customer_ids = {e.party for e in entries if e.party_type == "Customer" and e.party}
+    suppliers = (
+        {s.name: s.supplier_name for s in frappe.db.get_all(
+            "Supplier", filters={"name": ["in", list(supplier_ids)]}, fields=["name", "supplier_name"])}
+        if supplier_ids else {}
+    )
+    customers = (
+        {c.name: c.customer_name for c in frappe.db.get_all(
+            "Customer", filters={"name": ["in", list(customer_ids)]}, fields=["name", "customer_name"])}
+        if customer_ids else {}
+    )
     
     # Group entries by account
     account_entries = {}
