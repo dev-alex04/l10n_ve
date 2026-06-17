@@ -117,7 +117,7 @@ class TestVEFiscalDocumentDownload(FrappeTestCase):
 
 	@patch("frappe.publish_realtime")
 	def test_process_download_job_max_limit_exceeded(self, mock_publish):
-		"""Fails download job when max limit of 500 invoices is exceeded."""
+		"""Fails download job when max limit of 2000 invoices is exceeded."""
 		doc = frappe.get_doc({
 			"doctype": "VE Fiscal Document Download",
 			"from_date": "2026-06-01",
@@ -127,10 +127,10 @@ class TestVEFiscalDocumentDownload(FrappeTestCase):
 		doc.insert()
 
 		with patch("frappe.get_all") as mock_get_all:
-			# Mock 501 invoices
+			# Mock 2001 invoices
 			mock_get_all.return_value = [
 				{"name": f"INV-{i}", "remarks": '{"resultado": {"numeroDocumento": "100"}}', "bill_no": str(i)}
-				for i in range(501)
+				for i in range(2001)
 			]
 
 			# Run the job
@@ -138,7 +138,7 @@ class TestVEFiscalDocumentDownload(FrappeTestCase):
 
 		doc.reload()
 		self.assertEqual(doc.status, "Failed")
-		self.assertTrue("Por seguridad, el límite máximo permitido es de 500 facturas" in doc.error_log)
+		self.assertTrue("Por seguridad, el límite máximo permitido es de 2000 facturas" in doc.error_log)
 
 
 def run_local_tests():
