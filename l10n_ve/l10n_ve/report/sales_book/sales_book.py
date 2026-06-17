@@ -306,7 +306,7 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
     )
 
     for row in main_data + adjustment_data:
-        if row.get("base_amount_igtf") > 0 or row.get("total_igtf") > 0:
+        if abs(row.get("base_amount_igtf") or 0) > 0.001 or abs(row.get("total_igtf") or 0) > 0.001:
             row["igtf_rate"] = igtf_rate
         else:
             row["igtf_rate"] = 0
