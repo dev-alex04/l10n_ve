@@ -36,7 +36,7 @@ class VEFiscalDocumentDownload(Document):
 		frappe.enqueue(
 			"l10n_ve.l10n_ve.doctype.ve_fiscal_document_download.ve_fiscal_document_download.process_download_job",
 			queue="default",
-			timeout=600,
+			timeout=1800,
 			docname=self.name,
 			request_user=frappe.session.user
 		)
@@ -49,7 +49,6 @@ def process_download_job(docname: str, request_user: str):
 		if request_user:
 			frappe.set_user(request_user)
 		doc = frappe.get_doc("VE Fiscal Document Download", docname)
-		doc.flags.ignore_permissions = True
 		
 		filters = {
 			"docstatus": 1,
@@ -79,7 +78,7 @@ def process_download_job(docname: str, request_user: str):
 			return
 
 		# Límite de seguridad síncrona para evitar abusos o bloqueos con HKA
-		MAX_LIMIT = 500
+		MAX_LIMIT = 2000
 		if len(valid_invoices) > MAX_LIMIT:
 			doc.status = "Failed"
 			doc.error_log = (
@@ -305,17 +304,58 @@ def process_download_job(docname: str, request_user: str):
 
 		doc.save()
 		frappe.db.commit()
+
+		# Crear notificación en la campana
+		try:
+			from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+			part_txt = f" en {len(files)} partes" if len(files) > 1 else ""
+			if doc.status == "Completed":
+				msg = f"Tu descarga de facturas HKA está lista ({downloaded_count} facturas{part_txt})."
+				email_content = f"La solicitud de descarga masiva ha finalizado con éxito. Puedes descargar los archivos ZIP desde el documento <a href='/app/ve-fiscal-document-download/{docname}'>{docname}</a>."
+			else:
+				msg = f"La descarga masiva de facturas HKA falló."
+				email_content = f"La solicitud de descarga masiva {docname} falló. Error: {doc.error_log}"
+			
+			enqueue_create_notification(
+				users=[request_user],
+				doc={
+					"subject": msg,
+					"email_content": email_content,
+					"type": "Alert",
+					"document_type": "VE Fiscal Document Download",
+					"document_name": docname
+				}
+			)
+		except Exception as e:
+			frappe.logger("l10n_ve").error(f"Error al crear notificación de descarga: {str(e)}")
+
 		publish_status(docname, doc.status, request_user)
 
 	except Exception as e:
 		frappe.db.rollback()
 		try:
 			doc = frappe.get_doc("VE Fiscal Document Download", docname)
-			doc.flags.ignore_permissions = True
 			doc.status = "Failed"
 			doc.error_log = f"Ocurrió un error inesperado en el servidor:\n{str(e)}\n\n{frappe.get_traceback()}"[:30000]
 			doc.save()
 			frappe.db.commit()
+
+			# Notificación de error
+			try:
+				from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+				enqueue_create_notification(
+					users=[request_user],
+					doc={
+						"subject": f"La descarga masiva de facturas HKA falló.",
+						"email_content": f"Ocurrió un error inesperado al procesar {docname}: {str(e)}",
+						"type": "Alert",
+						"document_type": "VE Fiscal Document Download",
+						"document_name": docname
+					}
+				)
+			except Exception:
+				pass
+
 			publish_status(docname, "Failed", request_user)
 		except Exception:
 			pass
