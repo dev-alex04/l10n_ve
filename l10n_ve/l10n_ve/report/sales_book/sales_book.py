@@ -372,12 +372,12 @@ def _get_cte() -> str:
                 nc.base_total_exempt,
                 (CASE 
                     WHEN COALESCE(si_orig.base_net_total, 0) > 0 
-                    THEN (COALESCE(si_orig.base_amount_igtf, 0) * (nc.base_net_total / si_orig.base_net_total)) 
+                    THEN (ABS(COALESCE(si_orig.base_amount_igtf, 0)) * (COALESCE(nc.base_net_total, 0) / si_orig.base_net_total)) 
                     ELSE 0 
                 END) AS base_amount_igtf,
                 (CASE 
                     WHEN COALESCE(si_orig.base_net_total, 0) > 0 
-                    THEN (COALESCE(si_orig.total_igtf, 0) * (nc.base_net_total / si_orig.base_net_total)) 
+                    THEN (ABS(COALESCE(si_orig.total_igtf, 0)) * (COALESCE(nc.base_net_total, 0) / si_orig.base_net_total)) 
                     ELSE 0 
                 END) AS total_igtf,
                 JSON_UNQUOTE(JSON_EXTRACT(nc.remarks, '$.resultado.serie')) AS hka_serie
