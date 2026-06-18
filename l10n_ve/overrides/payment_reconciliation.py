@@ -128,7 +128,7 @@ def _cobro_bank_account(doc) -> str | None:
 
 def _deposit_base_filters(doc) -> dict | None:
     """Filtros comunes: referencia exacta + moneda del cobro + saldo disponible."""
-    ref = (doc.reference_no or "").strip()
+    ref = str(doc.reference_no or "").strip()
     if not ref:
         return None
     filters = {
@@ -395,7 +395,7 @@ def validate_bank_transaction_duplicate(doc, method=None) -> None:
     """
     if not doc.is_new():
         return
-    ref = (doc.reference_number or "").strip()
+    ref = str(doc.reference_number or "").strip()
     if not ref or flt(doc.deposit) <= 0:
         return
 
@@ -428,7 +428,7 @@ def reconcile_drafts_for_deposit(doc, method=None) -> None:
     Se ejecuta en background (enqueue_after_commit) para no bloquear el guardado
     del depósito.
     """
-    ref = (doc.reference_number or "").strip()
+    ref = str(doc.reference_number or "").strip()
     if not ref or flt(doc.deposit) <= 0:
         return
 
