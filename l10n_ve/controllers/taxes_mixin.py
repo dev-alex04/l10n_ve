@@ -232,7 +232,7 @@ class TaxesMixin:
             return None
 
         conversion_rate = flt(self.conversion_rate) or 1.0
-        base_islr_amount = flt(islr_amount) * conversion_rate
+        base_islr_amount = flt(islr_amount * conversion_rate, self.precision("base_tax_amount", "taxes") or 2)
 
         return _dict({
             "charge_type": "ISLR",
