@@ -40,3 +40,40 @@ def custom_get_data(self):
 
 PartyLedgerSummaryReport.get_columns = custom_get_columns
 PartyLedgerSummaryReport.get_data = custom_get_data
+
+def custom_get_return_invoices(self):
+    from frappe import scrub
+    
+    if not self.parties:
+        self.return_invoices = []
+        return
+        
+    doctype = "Sales Invoice" if self.filters.party_type == "Customer" else "Purchase Invoice"
+    filters = {
+        "is_return": 1,
+        "docstatus": 1,
+        "posting_date": ["between", [self.filters.from_date, self.filters.to_date]],
+        scrub(self.filters.party_type): ["in", self.parties],
+    }
+    self.return_invoices = frappe.get_all(doctype, filters=filters, pluck="name") or []
+
+    # Incluir DocTypes específicos de la localización venezolana
+    if self.filters.party_type == "Customer":
+        ve_cns = frappe.get_all("VE Sales Credit Note", filters={
+            "docstatus": 1,
+            "posting_date": ["between", [self.filters.from_date, self.filters.to_date]],
+            "customer": ["in", self.parties]
+        }, pluck="name")
+        if ve_cns:
+            self.return_invoices.extend(ve_cns)
+    elif self.filters.party_type == "Supplier":
+        ve_dns = frappe.get_all("VE Purchase Debit Note", filters={
+            "docstatus": 1,
+            "posting_date": ["between", [self.filters.from_date, self.filters.to_date]],
+            "supplier": ["in", self.parties]
+        }, pluck="name")
+        if ve_dns:
+            self.return_invoices.extend(ve_dns)
+
+PartyLedgerSummaryReport.get_return_invoices = custom_get_return_invoices
+
