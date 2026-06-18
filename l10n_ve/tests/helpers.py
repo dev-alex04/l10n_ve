@@ -100,7 +100,7 @@ class MockDoc:
         """Simula frappe.Document.get()."""
         return getattr(self, key, default)
 
-    def precision(self, field: str) -> int:
+    def precision(self, fieldname: str, parentfield: str | None = None) -> int:
         """Simula frappe.Document.precision()."""
         return 2
 
