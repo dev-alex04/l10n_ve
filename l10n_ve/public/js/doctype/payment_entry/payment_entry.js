@@ -366,6 +366,13 @@ function set_payment_entry_buttons(frm) {
           const msg = r.message || {};
           if (msg.reconciled) {
             frappe.show_alert({ message: msg.message, indicator: "green" });
+          } else if (msg.review) {
+            frappe.msgprint({
+              title: __("Revisar"),
+              message:
+                msg.message || __("El cobro quedó marcado para revisión."),
+              indicator: "red",
+            });
           } else {
             frappe.msgprint({
               title: __("Sin depósito"),

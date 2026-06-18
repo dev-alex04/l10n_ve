@@ -25,6 +25,11 @@ RECON_PENDING = "Conciliación Pendiente"
 RECON_DONE = "Conciliado"
 RECON_REVIEW = "Revisar"
 
+# Motivos por los que un cobro queda en RECON_REVIEW. Los consume el detalle de la
+# anomalía en el dashboard (get_payment_review_detail) para explicar qué revisar.
+REVIEW_OTHER_BANK = "other_bank"
+REVIEW_DUPLICATE_REFERENCE = "duplicate_reference"
+
 # Modos que no exigen depósito bancario para aprobarse.
 CASH_LIKE_TYPES = ("Cash", "Gangway")
 
@@ -192,6 +197,44 @@ def find_deposit_other_bank(doc) -> frappe._dict | None:
     return _first_deposit(filters)
 
 
+def find_duplicate_deposits(doc) -> list:
+    """Depósitos NO cancelados que comparten la referencia del cobro en SU MISMA
+    cuenta bancaria y empresa. Si la lista trae más de uno es una COLISIÓN: la
+    referencia está duplicada y la conciliación debe DETENERSE hasta que se borre o
+    cancele el depósito incorrecto — no se elige "el más chico" a dedo (esa heurística
+    anti-x100 era justo la que colapsaba el cobro al gemelo equivocado).
+
+    Mismo criterio que el patch de saneo cleanup_duplicate_x100_deposits
+    (TRIM(reference_number) + bank_account + company, deposit>0, docstatus<2) para que
+    la guardia en vivo y la limpieza por lote cuenten lo mismo. El TRIM cubre las
+    referencias LEGACY con espacios/saltos pegados (el import actual ya las normaliza a
+    solo-dígitos en bank_statement_import, así que la data nueva entra limpia); un match
+    exacto dejaría escapar esas legacy. El TRIM impide usar el índice de
+    reference_number, pero la consulta queda acotada por bank_account (indexado), así
+    que el costo es bajo; se podrá soltar el TRIM cuando se normalicen las legacy.
+    docstatus<2 excluye los cancelados (status 'Cancelled'): por eso CANCELAR el
+    duplicado —no solo borrarlo— ya libera la conciliación.
+    """
+    ref = (doc.reference_no or "").strip()
+    bank_account = _cobro_bank_account(doc)
+    if not ref or not bank_account:
+        return []
+    return frappe.db.sql(
+        """
+        SELECT name, deposit, unallocated_amount, status, docstatus
+        FROM `tabBank Transaction`
+        WHERE TRIM(reference_number) = %(ref)s
+          AND bank_account = %(bank_account)s
+          AND company = %(company)s
+          AND deposit > 0
+          AND docstatus < 2
+        ORDER BY deposit ASC
+        """,
+        {"ref": ref, "bank_account": bank_account, "company": doc.company},
+        as_dict=True,
+    )
+
+
 def _apply_deposit_amount(doc, deposit: frappe._dict) -> None:
     """Fija el monto del cobro al del depósito (monto autoritativo del banco).
 
@@ -260,6 +303,24 @@ def reconcile_and_approve(payment_entry: str) -> dict:
     if not _is_bank_receive(doc):
         frappe.throw(_("Solo aplica a cobros bancarios (no efectivo/gangway)."))
 
+    # Colisión de referencia: si hay más de un depósito con la misma referencia en la
+    # cuenta del cobro, NO se elige uno a dedo. Se detiene, se marca para revisión
+    # ('Revisar' → badge "Revisar Pago" en el dashboard) y se devuelve el detalle.
+    duplicates = find_duplicate_deposits(doc)
+    if len(duplicates) > 1:
+        if doc.get("custom_reconciliation_status") != RECON_REVIEW:
+            doc.db_set("custom_reconciliation_status", RECON_REVIEW)
+        return {
+            "reconciled": False,
+            "review": True,
+            "reason": REVIEW_DUPLICATE_REFERENCE,
+            "duplicates": [d.name for d in duplicates],
+            "message": _(
+                "No se puede conciliar: hay {0} depósitos con la referencia {1} en la "
+                "cuenta del cobro. Borre o cancele el incorrecto y reintente."
+            ).format(len(duplicates), doc.reference_no or ""),
+        }
+
     deposit = find_matching_deposit(doc)
     if not deposit:
         anomaly = find_deposit_other_bank(doc)
@@ -271,6 +332,7 @@ def reconcile_and_approve(payment_entry: str) -> dict:
             return {
                 "reconciled": False,
                 "review": True,
+                "reason": REVIEW_OTHER_BANK,
                 "bank_transaction": anomaly.name,
                 "message": _(
                     "El depósito de la referencia {0} cayó en otra cuenta bancaria "
@@ -289,9 +351,11 @@ def reconcile_and_approve(payment_entry: str) -> dict:
     _apply_deposit_amount(doc, deposit)
     doc.custom_reconciliation_status = RECON_DONE
     doc.save(ignore_permissions=True)
-    # Cachear el depósito ya encontrado: before_submit_receive_payment lo reusa en
-    # vez de volver a consultarlo (find_matching_deposit).
+    # Cachear lo ya verificado aquí para que before_submit_receive_payment (que corre
+    # dentro de doc.submit()) no repita las consultas: el depósito encontrado y que la
+    # referencia NO está duplicada.
     doc.flags.l10n_ve_matched_deposit_doc = deposit
+    doc.flags.l10n_ve_duplicates_checked = True
     doc.submit()
 
     # Enlazar el depósito al cobro: la conciliación bancaria (y la activación del
@@ -341,6 +405,21 @@ def before_submit_receive_payment(doc, method=None) -> None:
     """
     if not _is_bank_receive(doc):
         return
+
+    # Colisión de referencia: detener la aprobación si hay más de un depósito con la
+    # misma referencia en la cuenta del cobro. El operador debe borrar o cancelar el
+    # incorrecto antes de aprobar (no se concilia contra uno elegido a dedo).
+    # reconcile_and_approve ya lo verificó antes de submit: no repetir la consulta.
+    duplicates = [] if doc.flags.get("l10n_ve_duplicates_checked") else find_duplicate_deposits(doc)
+    if len(duplicates) > 1:
+        dup_list = ", ".join("{0} ({1})".format(d.name, d.deposit) for d in duplicates)
+        frappe.throw(
+            _(
+                "Este cobro no puede aprobarse: hay {0} depósitos bancarios con la "
+                "referencia {1} en la cuenta del cobro. Borre o cancele el depósito "
+                "incorrecto y reintente la conciliación. Depósitos: {2}."
+            ).format(len(duplicates), frappe.bold(doc.reference_no or ""), dup_list)
+        )
 
     deposit = doc.flags.get("l10n_ve_matched_deposit_doc") or find_matching_deposit(doc)
     if not deposit:

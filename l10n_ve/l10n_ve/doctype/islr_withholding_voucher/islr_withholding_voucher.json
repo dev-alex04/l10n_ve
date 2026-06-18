@@ -51,7 +51,8 @@
    "in_standard_filter": 1,
    "label": "Proveedor",
    "options": "Supplier",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_1",
@@ -116,7 +117,8 @@
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "hidden": 1,
-   "label": "Fecha Creación"
+   "label": "Fecha Creación",
+   "search_index": 1
   },
   {
    "fieldname": "section_11",

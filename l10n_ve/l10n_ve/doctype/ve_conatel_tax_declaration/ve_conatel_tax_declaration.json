@@ -72,7 +72,8 @@
             "fieldtype": "Link",
             "in_list_view": 1,
             "label": "Sucursal",
-            "options": "VE Branch"
+            "options": "VE Branch",
+            "search_index": 1
         },
         {
             "fieldname": "tax_id",

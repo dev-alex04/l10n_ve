@@ -271,7 +271,8 @@
             "fieldname": "declaration_year",
             "fieldtype": "Int",
             "label": "Declaration Year",
-            "reqd": 1
+            "reqd": 1,
+            "search_index": 1
         },
         {
             "fieldname": "naming_series",
