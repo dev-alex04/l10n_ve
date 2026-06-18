@@ -44,6 +44,10 @@ PartyLedgerSummaryReport.get_data = custom_get_data
 def custom_get_return_invoices(self):
     from frappe import scrub
     
+    if not self.parties:
+        self.return_invoices = []
+        return
+        
     doctype = "Sales Invoice" if self.filters.party_type == "Customer" else "Purchase Invoice"
     filters = {
         "is_return": 1,
