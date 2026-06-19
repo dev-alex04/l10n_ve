@@ -23,7 +23,7 @@ frappe.ui.form.on("Sales Invoice", {
 
     // Mover esto a una funcion
     realtime_numeric_validation(frm, "bill_no");
-    realtime_numeric_validation(frm, "bill_control");
+    realtime_numeric_with_hyphen_validation(frm, "bill_control");
     realtime_numeric_validation(frm, "credit_note_no");
     realtime_numeric_validation(frm, "debit_note_no");
 

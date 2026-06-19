@@ -245,8 +245,8 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                 frappe.throw(message)
 
         if self.bill_control:
-            if not self.bill_control.isdigit():
-                frappe.throw("El número de control solo debe contener números.")
+            if not self.bill_control.replace("-", "").isdigit():
+                frappe.throw("El número de control solo debe contener números y guiones.")
 
             filters_bill_control = {
                 'docstatus': ['!=', 2],

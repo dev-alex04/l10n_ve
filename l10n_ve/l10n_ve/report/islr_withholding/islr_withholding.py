@@ -80,7 +80,7 @@ def get_data(filters):
             INNER JOIN
                 `tabSupplier` supp ON parent.supplier = supp.name
             WHERE
-                child.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 {conditions}
             GROUP BY
                 parent.supplier, supp.tax_id
@@ -101,7 +101,7 @@ def get_data(filters):
             LEFT JOIN
                 `tabTabulator ISLR` tab_islr ON child.code = tab_islr.codigo
             WHERE
-                child.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 {conditions}
             GROUP BY
                 child.code, tab_islr.descripcion
@@ -143,7 +143,7 @@ def get_data(filters):
             LEFT JOIN
                 `tabTabulator ISLR` tab_islr ON child.code = tab_islr.codigo
             WHERE
-                child.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 {conditions}
             ORDER BY
                 child.posting_date DESC, child.idx ASC

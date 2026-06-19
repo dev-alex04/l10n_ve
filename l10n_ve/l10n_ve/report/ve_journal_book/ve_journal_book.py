@@ -137,11 +137,42 @@ def execute(filters=None):
             {"fieldname": "credit", "label": _("Crédito (Haber)"), "fieldtype": "Currency", "width": 120}
         ]
         
-        gl_entries = frappe.get_all("GL Entry", filters={
-            "company": company,
-            "posting_date": ["between", [from_date, to_date]],
-            "docstatus": 1
-        }, fields=["name", "posting_date", "voucher_type", "voucher_no", "account", "remarks", "debit", "credit"], order_by="posting_date, voucher_no, creation")
+        query = """
+            SELECT 
+                gle.posting_date, 
+                gle.voucher_no, 
+                gle.voucher_type,
+                gle.account, 
+                gle.remarks, 
+                gle.debit, 
+                gle.credit,
+                COALESCE(
+                    CASE 
+                        WHEN gle.voucher_type = 'Sales Invoice' THEN NULLIF(si.bill_no, '')
+                        WHEN gle.voucher_type = 'Purchase Invoice' THEN NULLIF(pi.bill_no, '')
+                        WHEN gle.voucher_type = 'Payment Entry' THEN NULLIF(pe.reference_no, '')
+                        WHEN gle.voucher_type = 'Journal Entry' THEN NULLIF(je.cheque_no, '')
+                        WHEN gle.voucher_type = 'VE Sales Debit Note' THEN NULLIF(vsdn.bill_no, '')
+                        WHEN gle.voucher_type = 'VE Sales Credit Note' THEN NULLIF(vscn.bill_no, '')
+                        WHEN gle.voucher_type = 'VE Purchase Debit Note' THEN NULLIF(vpdn.bill_no, '')
+                        WHEN gle.voucher_type = 'VE Purchase Credit Note' THEN NULLIF(vpcn.bill_no, '')
+                        ELSE NULL
+                    END,
+                    gle.voucher_no
+                ) as display_ref
+            FROM `tabGL Entry` gle
+            LEFT JOIN `tabSales Invoice` si ON gle.voucher_no = si.name AND gle.voucher_type = 'Sales Invoice'
+            LEFT JOIN `tabPurchase Invoice` pi ON gle.voucher_no = pi.name AND gle.voucher_type = 'Purchase Invoice'
+            LEFT JOIN `tabPayment Entry` pe ON gle.voucher_no = pe.name AND gle.voucher_type = 'Payment Entry'
+            LEFT JOIN `tabJournal Entry` je ON gle.voucher_no = je.name AND gle.voucher_type = 'Journal Entry'
+            LEFT JOIN `tabVE Sales Debit Note` vsdn ON gle.voucher_no = vsdn.name AND gle.voucher_type = 'VE Sales Debit Note'
+            LEFT JOIN `tabVE Sales Credit Note` vscn ON gle.voucher_no = vscn.name AND gle.voucher_type = 'VE Sales Credit Note'
+            LEFT JOIN `tabVE Purchase Debit Note` vpdn ON gle.voucher_no = vpdn.name AND gle.voucher_type = 'VE Purchase Debit Note'
+            LEFT JOIN `tabVE Purchase Credit Note` vpcn ON gle.voucher_no = vpcn.name AND gle.voucher_type = 'VE Purchase Credit Note'
+            WHERE gle.company = %s AND gle.docstatus = 1 AND gle.posting_date >= %s AND gle.posting_date <= %s
+            ORDER BY gle.posting_date, gle.voucher_no, gle.creation
+        """
+        gl_entries = frappe.db.sql(query, (company, from_date, to_date), as_dict=True)
         
         data = []
         
@@ -153,7 +184,7 @@ def execute(filters=None):
                 if key not in summary:
                     summary[key] = {
                         "posting_date": entry.posting_date,
-                        "voucher_no": entry.voucher_no,
+                        "voucher_no": entry.display_ref,
                         "account": f"{entry.voucher_type}",
                         "narration": entry.remarks,
                         "debit": 0.0,
@@ -193,7 +224,7 @@ def execute(filters=None):
                 
                 data.append({
                     "posting_date": entry.posting_date,
-                    "voucher_no": entry.voucher_no,
+                    "voucher_no": entry.display_ref,
                     "account": entry.account,
                     "narration": entry.remarks,
                     "debit": entry.debit,

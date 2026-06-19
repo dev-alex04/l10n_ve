@@ -248,10 +248,38 @@ def execute(filters=None):
         
         # 2. Fetch all GL entries in date range
         entries_query = f"""
-            SELECT posting_date, voucher_no, account, remarks, debit, credit
-            FROM `tabGL Entry`
-            WHERE company = %s AND docstatus = 1 AND posting_date >= %s AND posting_date <= %s {cc_cond}
-            ORDER BY account, posting_date, creation
+            SELECT 
+                gle.posting_date, 
+                gle.voucher_no, 
+                gle.account, 
+                gle.remarks, 
+                gle.debit, 
+                gle.credit,
+                COALESCE(
+                    CASE 
+                        WHEN gle.voucher_type = 'Sales Invoice' THEN NULLIF(si.bill_no, '')
+                        WHEN gle.voucher_type = 'Purchase Invoice' THEN NULLIF(pi.bill_no, '')
+                        WHEN gle.voucher_type = 'Payment Entry' THEN NULLIF(pe.reference_no, '')
+                        WHEN gle.voucher_type = 'Journal Entry' THEN NULLIF(je.cheque_no, '')
+                        WHEN gle.voucher_type = 'VE Sales Debit Note' THEN NULLIF(vsdn.bill_no, '')
+                        WHEN gle.voucher_type = 'VE Sales Credit Note' THEN NULLIF(vscn.bill_no, '')
+                        WHEN gle.voucher_type = 'VE Purchase Debit Note' THEN NULLIF(vpdn.bill_no, '')
+                        WHEN gle.voucher_type = 'VE Purchase Credit Note' THEN NULLIF(vpcn.bill_no, '')
+                        ELSE NULL
+                    END,
+                    gle.voucher_no
+                ) as display_ref
+            FROM `tabGL Entry` gle
+            LEFT JOIN `tabSales Invoice` si ON gle.voucher_no = si.name AND gle.voucher_type = 'Sales Invoice'
+            LEFT JOIN `tabPurchase Invoice` pi ON gle.voucher_no = pi.name AND gle.voucher_type = 'Purchase Invoice'
+            LEFT JOIN `tabPayment Entry` pe ON gle.voucher_no = pe.name AND gle.voucher_type = 'Payment Entry'
+            LEFT JOIN `tabJournal Entry` je ON gle.voucher_no = je.name AND gle.voucher_type = 'Journal Entry'
+            LEFT JOIN `tabVE Sales Debit Note` vsdn ON gle.voucher_no = vsdn.name AND gle.voucher_type = 'VE Sales Debit Note'
+            LEFT JOIN `tabVE Sales Credit Note` vscn ON gle.voucher_no = vscn.name AND gle.voucher_type = 'VE Sales Credit Note'
+            LEFT JOIN `tabVE Purchase Debit Note` vpdn ON gle.voucher_no = vpdn.name AND gle.voucher_type = 'VE Purchase Debit Note'
+            LEFT JOIN `tabVE Purchase Credit Note` vpcn ON gle.voucher_no = vpcn.name AND gle.voucher_type = 'VE Purchase Credit Note'
+            WHERE gle.company = %s AND gle.docstatus = 1 AND gle.posting_date >= %s AND gle.posting_date <= %s {cc_cond}
+            ORDER BY gle.account, gle.posting_date, gle.creation
         """
         entries = frappe.db.sql(entries_query, tuple([company, from_date, to_date] + cc_args), as_dict=True)
         
@@ -310,7 +338,7 @@ def execute(filters=None):
                 
                 data.append({
                     "posting_date": entry.posting_date,
-                    "reference": entry.voucher_no,
+                    "reference": entry.display_ref,
                     "remarks": entry.remarks,
                     "debit": deb,
                     "credit": cred,
