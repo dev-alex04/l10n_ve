@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.6.4] - 2026-06-19
+
+### ✨ Funcionalidades (Features)
+- Refactorización de la localización venezolana (l10n_ve) para trasladar el motor de conciliación al módulo mint, incluyendo un shim de compatibilidad para asegurar la transición arquitectónica. (e19e512)
+
+### 🐛 Correcciones (Fixes)
+- Mejora en la robustez de la lógica de validación para referencias de tipo integer, optimizando el manejo de tipos de datos en el sistema. (c1a842f)
+
+---
+
 ## [v2.6.3] - 2026-06-17
 
 ### ✨ Funcionalidades (Features)
