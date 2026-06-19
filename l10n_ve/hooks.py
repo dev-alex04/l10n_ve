@@ -315,19 +315,15 @@ doc_events = {
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Payment Entry": {
-        "before_submit": [
-            "l10n_ve.helpers.helpers.set_ve_branch",
-            "l10n_ve.overrides.payment_reconciliation.before_submit_receive_payment",
-        ],
-        "on_submit": "l10n_ve.overrides.payment_reconciliation.on_submit_receive_payment",
+        # Conciliación migrada a mint (mint.apis.reconciliation): before_submit_receive_payment
+        # y on_submit_receive_payment ahora se enganchan desde mint/hooks.py. Aquí queda
+        # solo lo fiscal/sucursal.
+        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
     "Mode of Payment": {
         "validate": "l10n_ve.overrides.mode_of_payment.validate_mode_of_payment",
     },
-    "Bank Transaction": {
-        "validate": "l10n_ve.overrides.payment_reconciliation.validate_bank_transaction_duplicate",
-        "on_submit": "l10n_ve.overrides.payment_reconciliation.reconcile_drafts_for_deposit",
-    },
+    # "Bank Transaction": conciliación (validate dup + reconcile drafts) migrada a mint/hooks.py.
     "Delivery Note": {
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
     },
