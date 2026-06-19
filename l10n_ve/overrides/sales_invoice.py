@@ -333,8 +333,9 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         if not bill_control_to_validate:
             return True
 
-        if not bill_control_to_validate.replace("-", "").isdigit():
-            frappe.throw("El número de control solo debe contener números y guiones.")
+        import re
+        if not re.match(r'^[A-Za-z0-9\-]+$', bill_control_to_validate):
+            frappe.throw("El número de control solo debe contener letras, números y guiones.")
 
         draft_submitted_filters = {
             'company': self.company,
