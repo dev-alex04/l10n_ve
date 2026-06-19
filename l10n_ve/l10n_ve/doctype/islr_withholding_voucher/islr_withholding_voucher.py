@@ -131,6 +131,12 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
         )
 
     def on_trash(self) -> None:
+        if self.docstatus == 2:
+            frappe.throw(
+                _("No se puede eliminar un comprobante de retención cancelado. "
+                  "El comprobante debe permanecer en el historial como cancelado.")
+            )
+
         if not self.posting_date:
             frappe.throw(
                 _("No se puede determinar la fecha del comprobante para la validación.")
