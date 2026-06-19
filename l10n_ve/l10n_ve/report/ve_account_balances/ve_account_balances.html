@@ -196,8 +196,6 @@
         <thead>
             <tr>
                 <th class="text-left">Cuenta</th>
-                <th class="text-right" style="width: 120px;">Débito (Debe)</th>
-                <th class="text-right" style="width: 120px;">Crédito (Haber)</th>
                 <th class="text-right" style="width: 140px;">Saldo Neto</th>
             </tr>
         </thead>
@@ -207,22 +205,16 @@
             {% if (row.is_total) { %}
             <tr class="totals-row">
                 <td>{%= row.account %}</td>
-                <td class="text-right">{%= format_val(row.debit) %}</td>
-                <td class="text-right">{%= format_val(row.credit) %}</td>
                 <td class="text-right">{%= format_val(row.balance) %}</td>
             </tr>
             {% } else if (row.is_group) { %}
             <tr class="group-header-row">
                 <td>{%= row.account %}</td>
-                <td class="text-right">{%= format_val(row.debit) %}</td>
-                <td class="text-right">{%= format_val(row.credit) %}</td>
                 <td class="text-right">{%= format_val(row.balance) %}</td>
             </tr>
             {% } else { %}
             <tr class="leaf-row">
                 <td>{%= row.account %}</td>
-                <td class="text-right">{%= format_val(row.debit) %}</td>
-                <td class="text-right">{%= format_val(row.credit) %}</td>
                 <td class="text-right">{%= format_val(row.balance) %}</td>
             </tr>
             {% } %}

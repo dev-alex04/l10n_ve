@@ -106,40 +106,77 @@ def get_columns():
 
 
 def get_data(filters):
+	company = filters.get("company")
+	sales_igtf_account = frappe.db.get_value("Company", company, "sales_igtf_account")
+	igtf_rate = frappe.db.get_single_value("Venezuela Account Settings", "igtf_rate") or 3.0
+
+	if not sales_igtf_account:
+		if not company:
+			company = frappe.defaults.get_user_default("company") or frappe.db.get_single_value("Global Defaults", "default_company")
+			if not company:
+				frappe.throw(_("Debe seleccionar una empresa para generar este reporte."))
+			sales_igtf_account = frappe.db.get_value("Company", company, "sales_igtf_account")
+		
+		if not sales_igtf_account:
+			frappe.throw(_("No se ha configurado la Cuenta IGTF en ventas para la empresa {0}.").format(company))
+
 	conditions = ""
-	if filters.get("company"):
-		conditions += " AND si.company = %(company)s"
+	if company:
+		conditions += " AND gle.company = %(company)s"
 	if filters.get("from_date"):
-		conditions += " AND si.posting_date >= %(from_date)s"
+		conditions += " AND gle.posting_date >= %(from_date)s"
 	if filters.get("to_date"):
-		conditions += " AND si.posting_date <= %(to_date)s"
+		conditions += " AND gle.posting_date <= %(to_date)s"
 
-	data = frappe.db.sql("""
+	query_params = {
+		"company": company,
+		"sales_igtf_account": sales_igtf_account,
+		"igtf_rate": igtf_rate,
+		"from_date": filters.get("from_date"),
+		"to_date": filters.get("to_date")
+	}
+
+	data = frappe.db.sql(f"""
 		SELECT
-			si.posting_date as date,
-			si.name as invoice,
-			si.bill_no as bill_no,
-			si.customer_name as customer,
-			COALESCE(NULLIF(si.tax_id, ''), c.tax_id) as tax_id,
-			si.base_grand_total as total,
-			si.base_amount_igtf as base_igtf,
-			si.total_igtf as igtf_amount
+			gle.posting_date as date,
+			CASE 
+				WHEN gle.voucher_type = 'Sales Invoice' THEN gle.voucher_no
+				ELSE MIN(per.reference_name)
+			END as invoice,
+			CASE 
+				WHEN gle.voucher_type = 'Sales Invoice' THEN MAX(si_direct.bill_no)
+				ELSE MIN(si.bill_no)
+			END as bill_no,
+			MAX(c.customer_name) as customer,
+			MAX(c.tax_id) as tax_id,
+			CASE 
+				WHEN gle.voucher_type = 'Sales Invoice' THEN MAX(si_direct.base_grand_total)
+				ELSE COALESCE(MAX(si.base_grand_total), MAX(pe.paid_amount))
+			END as total,
+			gle.credit as igtf_amount,
+			(gle.credit * 100.0 / %(igtf_rate)s) as base_igtf,
+			%(igtf_rate)s as igtf_rate
 		FROM
-			`tabSales Invoice` si
+			`tabGL Entry` gle
 		LEFT JOIN
-			`tabCustomer` c ON si.customer = c.name
+			`tabPayment Entry` pe ON gle.voucher_no = pe.name AND gle.voucher_type = 'Payment Entry'
+		LEFT JOIN
+			`tabPayment Entry Reference` per ON pe.name = per.parent AND per.reference_doctype = 'Sales Invoice'
+		LEFT JOIN
+			`tabSales Invoice` si ON per.reference_name = si.name
+		LEFT JOIN
+			`tabSales Invoice` si_direct ON gle.voucher_no = si_direct.name AND gle.voucher_type = 'Sales Invoice'
+		LEFT JOIN
+			`tabCustomer` c ON COALESCE(pe.party, si_direct.customer, CASE WHEN gle.party_type = 'Customer' THEN gle.party ELSE NULL END) = c.name
 		WHERE
-			si.docstatus = 1
-			AND si.total_igtf > 0
+			gle.docstatus = 1
+			AND gle.account = %(sales_igtf_account)s
+			AND gle.credit > 0
 			{conditions}
+		GROUP BY
+			gle.name, gle.posting_date, gle.voucher_type, gle.voucher_no, gle.credit
 		ORDER BY
-			si.posting_date DESC
-	""".format(conditions=conditions), filters, as_dict=1)
-
-	for row in data:
-		if row.get("base_igtf") and row.get("igtf_amount"):
-			row["igtf_rate"] = (row["igtf_amount"] / row["base_igtf"]) * 100
-		else:
-			row["igtf_rate"] = 0.0
+			gle.posting_date DESC
+	""", query_params, as_dict=True)
 
 	return data
