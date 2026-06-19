@@ -278,7 +278,7 @@ def execute(filters=None):
             LEFT JOIN `tabVE Sales Credit Note` vscn ON gle.voucher_no = vscn.name AND gle.voucher_type = 'VE Sales Credit Note'
             LEFT JOIN `tabVE Purchase Debit Note` vpdn ON gle.voucher_no = vpdn.name AND gle.voucher_type = 'VE Purchase Debit Note'
             LEFT JOIN `tabVE Purchase Credit Note` vpcn ON gle.voucher_no = vpcn.name AND gle.voucher_type = 'VE Purchase Credit Note'
-            WHERE gle.company = %s AND gle.docstatus = 1 AND gle.posting_date >= %s AND gle.posting_date <= %s {cc_cond}
+            WHERE gle.company = %s AND gle.docstatus = 1 AND gle.posting_date >= %s AND gle.posting_date <= %s {cc_cond.replace('cost_center', 'gle.cost_center')}
             ORDER BY gle.account, gle.posting_date, gle.creation
         """
         entries = frappe.db.sql(entries_query, tuple([company, from_date, to_date] + cc_args), as_dict=True)

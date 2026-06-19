@@ -113,8 +113,9 @@ def get_data(filters):
 	if not sales_igtf_account:
 		if not company:
 			company = frappe.defaults.get_user_default("company") or frappe.db.get_single_value("Global Defaults", "default_company")
-			if company:
-				sales_igtf_account = frappe.db.get_value("Company", company, "sales_igtf_account")
+			if not company:
+				frappe.throw(_("Debe seleccionar una empresa para generar este reporte."))
+			sales_igtf_account = frappe.db.get_value("Company", company, "sales_igtf_account")
 		
 		if not sales_igtf_account:
 			frappe.throw(_("No se ha configurado la Cuenta IGTF en ventas para la empresa {0}.").format(company))
