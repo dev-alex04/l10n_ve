@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.8.0] - 2026-06-20
+
+### ✨ Funcionalidades (Features)
+- **Descarga masiva de facturas (HKA):** Se implementó la capacidad de descargar facturas sin límites, procesando la información en lotes de 1000 registros y añadiendo persistencia del progreso para garantizar la integridad del proceso. d294068
+
+### 🐛 Correcciones (Fixes)
+- **Validación de Workspace:** Cambio del tipo de enlace en "Cajas" a tipo URL para prevenir errores de validación durante los procesos de importación. 87741f8
+- **Interfaz de Usuario:** Renombramiento del acceso "Cajas" a "Conciliación de Cajas" en el workspace para mejorar la claridad semántica. f384dbb
+
+---
+
 ## [v2.7.0] - 2026-06-19
 
 ### ✨ Funcionalidades (Features)
