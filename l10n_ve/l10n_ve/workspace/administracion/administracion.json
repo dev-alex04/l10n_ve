@@ -120,10 +120,10 @@
             "dependencies": "",
             "hidden": 0,
             "is_query_report": 0,
-            "label": "Conciliaciones Cajas",
+            "label": "Conciliación de Cajas",
             "link_count": 0,
-            "link_to": "Cajas",
-            "link_type": "Page",
+            "link_to": "/app/workspace/cajas",
+            "link_type": "URL",
             "onboard": 0,
             "type": "Link"
         },

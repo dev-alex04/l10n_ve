@@ -94,24 +94,30 @@ class WithholdingVoucher():
         template = correlative_format or '##############'
         num_digits = len(template) - 6
 
+        voucher_correlative_num = 1
         if current_correlative_value:
             curr_str = str(current_correlative_value).strip()
             try:
-                if len(curr_str) >= 14:
-                    voucher_correlative_num = int(curr_str[6:])
+                # Siempre intentar parsear como número simple.
+                # Si el valor almacenado es un voucher_number completo (≥14 dígitos),
+                # se extrae solo la parte secuencial (últimos num_digits dígitos).
+                parsed = int(curr_str)
+                if parsed > 10 ** num_digits:
+                    # Valor heredado: tomar solo los últimos num_digits dígitos
+                    voucher_correlative_num = parsed % (10 ** num_digits)
+                    if voucher_correlative_num == 0:
+                        voucher_correlative_num = 1
                 else:
-                    voucher_correlative_num = int(curr_str)
+                    voucher_correlative_num = parsed
             except ValueError:
                 voucher_correlative_num = 1
-        else:
-            voucher_correlative_num = 1
 
         next_correlative_num = voucher_correlative_num + 1
 
         formatted_voucher = str(voucher_correlative_num).zfill(num_digits)
 
         final_voucher_number = f"{current_year}{current_month}{formatted_voucher}"
-        final_next_correlative_number = f"{next_correlative_num}"
+        final_next_correlative_number = str(next_correlative_num)
 
         return final_voucher_number, final_next_correlative_number, current_year, current_month
 

@@ -399,8 +399,8 @@ def _build_invoice_row(
         "bill_no": inv.bill_no,
         "bill_control": inv.bill_control,
         "posting_date": inv.posting_date,
-        "grand_total": abs(inv.base_grand_total or 0),
-        "total": abs(inv.base_total or 0),
+        "grand_total": abs(inv.base_grand_total or 0) + abs(wh_details.get("base_tax_amount", 0)),
+        "total": abs((inv.base_total or 0) - total_exempt),
         "total_exempt": abs(total_exempt),
         "taxes_and_charges_added": abs(vat_details.get("base_tax_amount", 0)),
         # NC: credit_note_no = bill_no para diferenciación en totales y reporte

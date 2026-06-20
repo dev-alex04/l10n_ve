@@ -128,6 +128,7 @@ frappe.ui.form.on("VAT Withholding Voucher", {
 
     // Ocultar opción "Eliminar" si el comprobante está cancelado
     if (frm.doc.docstatus === 2) {
+      frm.page.remove_menu_item(__("Delete"));
       frm.page.menu_btn_group
         .find("a.grey-link")
         .filter(function () {

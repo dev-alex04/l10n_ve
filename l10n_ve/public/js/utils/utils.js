@@ -314,6 +314,23 @@ function realtime_numeric_validation(frm, fieldname) {
   });
 }
 
+// Permite letras (mayúsculas/minúsculas), números y guiones.
+// Usado para números de control de facturas de máquina fiscal.
+function realtime_alphanumeric_with_hyphen_validation(frm, fieldname) {
+  const input = frm.get_field(fieldname).$input;
+  if (!input) return;
+
+  input.on("input", function () {
+    const value = $(this).val();
+    const clean_value = value.replace(/[^A-Za-z0-9-]/g, "");
+
+    if (value !== clean_value) {
+      frm.set_value(fieldname, clean_value, false);
+      frm.get_field(fieldname).refresh();
+    }
+  });
+}
+
 function format_phone_input(value) {
   if (!value) return "";
   let formatted_value = value.replace(/[^\d+]/g, "");

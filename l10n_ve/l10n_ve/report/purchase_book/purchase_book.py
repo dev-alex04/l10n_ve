@@ -213,7 +213,10 @@ def get_query(filters: dict) -> str:
             inv.is_return AS tipo,
             inv.bill_no,
             inv.bill_control,
-            inv.base_grand_total AS grand_total,
+            (inv.base_grand_total + COALESCE(
+                (SELECT SUM(base_tax_amount) FROM `tabPurchase Taxes and Charges` 
+                 WHERE parent = inv.name AND charge_type = 'VAT Withholding'), 0)
+            ) AS grand_total,
             inv.total_exempt * inv.conversion_rate AS total_exempt,
             inv.credit_note_no,
             inv.debit_note_no,
