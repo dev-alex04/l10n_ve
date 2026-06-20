@@ -67,7 +67,7 @@ class TestVEFiscalDocumentDownload(FrappeTestCase):
 						{"name": "INV-2", "remarks": '{"resultado": {"numeroDocumento": "200"}, "Simulado": true}', "bill_no": "200"},
 					]
 				elif doctype == "File":
-					return [{"name": "mock-file-1", "file_name": "Factura_INV-1_100.pdf"}]
+					return [{"name": "mock-file-1", "file_name": "Factura_INV-1_100.pdf", "attached_to_name": "INV-1"}]
 				return []
 			mock_get_all.side_effect = get_all_side_effect
 
@@ -115,9 +115,11 @@ class TestVEFiscalDocumentDownload(FrappeTestCase):
 			count_no_branch = get_invoice_count("2026-06-01", "2026-06-10")
 			self.assertEqual(count_no_branch, 2)
 
+	@patch("l10n_ve.l10n_ve.doctype.ve_fiscal_document_download.ve_fiscal_document_download.save_file")
 	@patch("frappe.publish_realtime")
-	def test_process_download_job_max_limit_exceeded(self, mock_publish):
-		"""Fails download job when max limit of 2000 invoices is exceeded."""
+	@patch("frappe.get_doc")
+	def test_process_download_job_large_volume(self, mock_get_doc, mock_publish, mock_save_file):
+		"""Processes large volumes (e.g. 2005 invoices) in chunks without raising safety limit error."""
 		doc = frappe.get_doc({
 			"doctype": "VE Fiscal Document Download",
 			"from_date": "2026-06-01",
@@ -126,19 +128,42 @@ class TestVEFiscalDocumentDownload(FrappeTestCase):
 		})
 		doc.insert()
 
-		with patch("frappe.get_all") as mock_get_all:
-			# Mock 2001 invoices
-			mock_get_all.return_value = [
-				{"name": f"INV-{i}", "remarks": '{"resultado": {"numeroDocumento": "100"}}', "bill_no": str(i)}
-				for i in range(2001)
-			]
+		def get_doc_side_effect(doctype, *args, **kwargs):
+			if doctype == "File":
+				mock_file = MagicMock()
+				mock_file.get_content.return_value = b"dummy content"
+				return mock_file
+			if doctype == "VE Fiscal Document Download":
+				return doc
+			return frappe.get_doc(doctype, *args, **kwargs)
+		
+		mock_get_doc.side_effect = get_doc_side_effect
 
-			# Run the job
-			process_download_job(doc.name, "Administrator")
+		with patch("frappe.get_all") as mock_get_all:
+			def get_all_side_effect(doctype, *args, **kwargs):
+				if doctype == "Sales Invoice":
+					return [
+						{"name": f"INV-{i}", "remarks": '{"resultado": {"numeroDocumento": "100"}}', "bill_no": str(i)}
+						for i in range(2005)
+					]
+				elif doctype == "File":
+					return [{"name": f"mock-file-{i}", "file_name": f"Factura_INV-{i}_100.pdf", "attached_to_name": f"INV-{i}"} for i in range(10)]
+				return []
+			mock_get_all.side_effect = get_all_side_effect
+
+			mock_file_doc = MagicMock()
+			mock_file_doc.file_url = "/files/dummy.zip"
+			mock_file_doc.file_size = 1000
+			mock_save_file.return_value = mock_file_doc
+
+			# Mock de la función de API externa para evitar llamadas reales en test
+			with patch("l10n_ve.digital_invoice.tfhka_client.get_fiscal_invoice_pdf") as mock_get_pdf:
+				mock_get_pdf.return_value = {"base64": "ZHVtbXk=", "numero_documento": "100"}
+				process_download_job(doc.name, "Administrator")
 
 		doc.reload()
-		self.assertEqual(doc.status, "Failed")
-		self.assertTrue("Por seguridad, el límite máximo permitido es de 2000 facturas" in doc.error_log)
+		self.assertEqual(doc.status, "Completed")
+		self.assertEqual(doc.downloaded_count, 2005)
 
 
 def run_local_tests():
