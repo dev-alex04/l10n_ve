@@ -124,15 +124,6 @@ frappe.listview_settings["Sales Invoice"] = {
                 });
                 return;
               }
-              if (count > 500) {
-                frappe.msgprint({
-                  title: __("Límite Excedido"),
-                  indicator: "red",
-                  message: __("El rango seleccionado contiene {0} facturas. Por seguridad, el límite máximo permitido es de 500 facturas. Por favor, selecciona un rango de fechas más corto o un cliente/sucursal específico.", [count])
-                });
-                return;
-              }
-
               dialog.hide();
               frappe.call({
                 method: "frappe.client.insert",
