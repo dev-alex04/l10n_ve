@@ -119,6 +119,17 @@
         {
             "dependencies": "",
             "hidden": 0,
+            "is_query_report": 0,
+            "label": "Conciliaciones Cajas",
+            "link_count": 0,
+            "link_to": "/app/workspace/cajas",
+            "link_type": "URL",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
             "is_query_report": 1,
             "label": "Libro de Compra (Retenciones)",
             "link_count": 0,
