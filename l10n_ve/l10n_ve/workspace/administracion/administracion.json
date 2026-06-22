@@ -90,7 +90,7 @@
             "hidden": 0,
             "is_query_report": 0,
             "label": "Reportes Importantes",
-            "link_count": 7,
+            "link_count": 9,
             "onboard": 0,
             "type": "Card Break"
         },
@@ -167,6 +167,17 @@
             "label": "Estado de Cuentas Por pagar por Proveedor",
             "link_count": 0,
             "link_to": "Accounts Payable",
+            "link_type": "Report",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Estado de Facturas HKA",
+            "link_count": 0,
+            "link_to": "VE HKA Invoices Status",
             "link_type": "Report",
             "onboard": 0,
             "type": "Link"

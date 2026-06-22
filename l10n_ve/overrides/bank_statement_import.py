@@ -53,6 +53,12 @@ def get_preview_from_template(
     try:
         doc = frappe.get_doc("Bank Statement Import", data_import)
         doc.check_permission("read")
+
+        # Validar existencia del archivo si es local y no viene de Google Sheets
+        file_to_check = import_file or doc.import_file
+        if file_to_check and not google_sheets_url:
+            _validate_file_path(file_to_check)
+
         return doc.get_preview_from_template(import_file, google_sheets_url)
     except Exception:
         error_msg = str(frappe.get_traceback())
@@ -68,6 +74,7 @@ def get_preview_from_template(
             return {"columns": data[0], "data": data[1:]}
 
         raise
+
 
 
 @frappe.whitelist()
@@ -164,11 +171,26 @@ def _process_import_logic(doc, start_time: float) -> None:
 
 
 def _validate_file_path(import_file: str) -> str:
-    """Valida que la ruta del archivo esté dentro del sitio."""
+    """Valida que la ruta del archivo esté dentro del sitio y que exista, y que el usuario tenga permisos."""
+    # Validar que el archivo exista en la base de datos y que el usuario tenga permisos sobre el documento al que está adjunto
+    file_name = frappe.db.get_value("File", {"file_url": import_file})
+    if not file_name:
+        frappe.throw(_("No tiene permisos para acceder a este archivo o el archivo no existe."), title=_("Acceso Denegado"))
+    file_doc = frappe.get_cached_doc("File", file_name)
+    if file_doc.attached_to_doctype and file_doc.attached_to_name:
+        frappe.has_permission(file_doc.attached_to_doctype, "read", doc=file_doc.attached_to_name, throw=True)
+
     file_path = os.path.join(frappe.get_site_path(), import_file.lstrip('/'))
     if not os.path.abspath(file_path).startswith(os.path.abspath(frappe.get_site_path())):
         frappe.throw(_("Ruta de archivo inválida"))
+    if not os.path.exists(file_path):
+        frappe.throw(
+            _("El archivo adjunto '{0}' no se encuentra en el servidor. Por favor, vuelva a subir el archivo.").format(os.path.basename(import_file)),
+            title=_("Archivo No Encontrado")
+        )
     return file_path
+
+
 
 
 def _read_file_data(file_path: str, extension: str) -> list[list]:

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.9.1] - 2026-06-22
+
+### 🐛 Correcciones (Fixes)
+- Se mitigó una vulnerabilidad de seguridad relacionada con la lectura no autorizada de archivos. [c018567]
+- Se corrigió un error en el cálculo del total dentro del libro de compras para garantizar la integridad de los reportes financieros. [c018567]
+- Se eliminó un fallo que provocaba la duplicación en la descarga de archivos PDF, optimizando la gestión de documentos. [c018567]
+
+---
+
 ## [v2.9.0] - 2026-06-22
 
 ### ✨ Funcionalidades (Features)

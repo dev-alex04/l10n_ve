@@ -124,6 +124,18 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
       });
     }
 
+    // Ocultar opción "Eliminar" si el comprobante está cancelado
+    if (frm.doc.docstatus === 2) {
+      frm.page.remove_menu_item(__("Delete"));
+      frm.page.menu_btn_group
+        .find("a.grey-link")
+        .filter(function () {
+          return $(this).text().trim() === __("Delete");
+        })
+        .closest("li")
+        .hide();
+    }
+
     // Vista previa del documento fiscal HKA
     frappe.l10n_ve.render_fiscal_preview(frm, {
       doctype: "ISLR Withholding Voucher",

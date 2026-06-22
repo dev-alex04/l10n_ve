@@ -75,6 +75,8 @@ def process_download_job(docname: str, request_user: str):
 		master_zip_buffer = io.BytesIO()
 		master_zip_file = zipfile.ZipFile(master_zip_buffer, "w", zipfile.ZIP_DEFLATED)
 
+		from l10n_ve.digital_invoice.tfhka_client import get_fiscal_invoice_pdf
+
 		chunk_size = 1000
 		for chunk_start in range(0, len(valid_invoices), chunk_size):
 			chunk = valid_invoices[chunk_start:chunk_start + chunk_size]
@@ -105,7 +107,11 @@ def process_download_job(docname: str, request_user: str):
 					if pdf_data and filename:
 						# Si supera 4.5 MB, guardar el ZIP actual y abrir uno nuevo
 						if current_zip_count > 0 and zip_buffer.tell() + pdf_len + 5000 >= MAX_SIZE_BYTES:
-							zip_buffer, zip_file = save_zip_part(doc, zip_buffer, zip_file, part_number, files)
+							save_zip_part(doc, zip_buffer, zip_file, part_number, files)
+
+							# Resetear para la siguiente parte
+							zip_buffer = io.BytesIO()
+							zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
 							current_zip_count = 0
 							part_number += 1
 

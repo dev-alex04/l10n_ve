@@ -314,21 +314,6 @@ function realtime_numeric_validation(frm, fieldname) {
   });
 }
 
-function realtime_numeric_with_hyphen_validation(frm, fieldname) {
-  const input = frm.get_field(fieldname).$input;
-  if (!input) return;
-
-  input.on("input", function () {
-    const value = $(this).val();
-    const clean_value = value.replace(/[^0-9-]/g, "");
-
-    if (value !== clean_value) {
-      frm.set_value(fieldname, clean_value, false);
-      frm.get_field(fieldname).refresh();
-    }
-  });
-}
-
 // Permite letras (mayúsculas/minúsculas), números y guiones.
 // Usado para números de control de facturas de máquina fiscal.
 function realtime_alphanumeric_with_hyphen_validation(frm, fieldname) {
