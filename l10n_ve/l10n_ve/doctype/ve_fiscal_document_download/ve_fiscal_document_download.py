@@ -75,6 +75,8 @@ def process_download_job(docname: str, request_user: str):
 		master_zip_buffer = io.BytesIO()
 		master_zip_file = zipfile.ZipFile(master_zip_buffer, "w", zipfile.ZIP_DEFLATED)
 
+		from l10n_ve.digital_invoice.tfhka_client import get_fiscal_invoice_pdf
+
 		chunk_size = 1000
 		for chunk_start in range(0, len(valid_invoices), chunk_size):
 			chunk = valid_invoices[chunk_start:chunk_start + chunk_size]
@@ -100,12 +102,77 @@ def process_download_job(docname: str, request_user: str):
 
 			for idx, inv in enumerate(chunk):
 				try:
-					pdf_data, filename, pdf_len = download_invoice_pdf(inv, attached_by_invoice, errors)
+					inv_name = inv.get("name")
+					inv_remarks = inv.get("remarks")
+					inv_bill_no = inv.get("bill_no")
+
+					pdf_data = None
+					pdf_len = 0
+					filename = ""
+
+					# 1. Buscar archivo PDF adjunto localmente
+					invoice_files = attached_by_invoice.get(inv_name)
+					if invoice_files:
+						try:
+							file_doc = frappe.get_doc("File", invoice_files[0].get("name"))
+							pdf_data = file_doc.get_content()
+							if isinstance(pdf_data, str):
+								pdf_data = pdf_data.encode("utf-8")
+							pdf_len = len(pdf_data)
+							doc_no = inv_bill_no or inv_name
+							filename = f"Factura_{inv_name}_{doc_no}.pdf"
+						except Exception as e:
+							errors.append(f"{inv_name}: Error al leer archivo local ({str(e)})")
+
+					# 2. Si no existe localmente, lo descargamos de HKA usando la API
+					if not pdf_data:
+						try:
+							res = get_fiscal_invoice_pdf(inv_name, "Sales Invoice")
+							pdf_base64 = res.get("base64")
+							if pdf_base64:
+								pdf_data = base64.b64decode(pdf_base64)
+								pdf_len = len(pdf_data)
+								doc_no = res.get("numero_documento") or inv_bill_no or inv_name
+								filename = f"Factura_{inv_name}_{doc_no}.pdf"
+							elif inv_remarks and "Simulado" in inv_remarks:
+								pdf_data = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 40 >>\nstream\nBT /F1 12 Tf 72 712 Td (Mock PDF Invoice) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000062 00000 n\n0000000121 00000 n\n0000000223 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n314\n%%EOF"
+								pdf_len = len(pdf_data)
+								doc_no = inv_bill_no or "999999"
+								filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
+							else:
+								err_msg = res.get("error") if res else "No tiene archivo PDF adjunto localmente y falló la descarga desde HKA."
+								errors.append(f"{inv_name}: {err_msg}")
+						except Exception as e:
+							if inv_remarks and "Simulado" in inv_remarks:
+								pdf_data = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 40 >>\nstream\nBT /F1 12 Tf 72 712 Td (Mock PDF Invoice) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000062 00000 n\n0000000121 00000 n\n0000000223 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n314\n%%EOF"
+								pdf_len = len(pdf_data)
+								doc_no = inv_bill_no or "999999"
+								filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
+							else:
+								errors.append(f"{inv_name}: {str(e)}")
 
 					if pdf_data and filename:
 						# Si supera 4.5 MB, guardar el ZIP actual y abrir uno nuevo
 						if current_zip_count > 0 and zip_buffer.tell() + pdf_len + 5000 >= MAX_SIZE_BYTES:
-							zip_buffer, zip_file = save_zip_part(doc, zip_buffer, zip_file, part_number, files)
+							zip_file.close()
+							zip_buffer.seek(0)
+							cust_suffix = f"_{doc.customer}" if doc.customer else ""
+							file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}_Parte{part_number}.zip"
+							
+							# Guardar y adjuntar archivo al documento
+							file_doc = save_file(
+								fname=file_name,
+								content=zip_buffer.getvalue(),
+								dt="VE Fiscal Document Download",
+								dn=docname,
+								folder="Home/Attachments",
+								is_private=1
+							)
+							files.append(file_doc.file_url)
+
+							# Resetear para la siguiente parte
+							zip_buffer = io.BytesIO()
+							zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
 							current_zip_count = 0
 							part_number += 1
 

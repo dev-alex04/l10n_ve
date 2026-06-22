@@ -145,6 +145,12 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
         )
 
     def on_trash(self) -> None:
+        if self.docstatus == 2:
+            frappe.throw(
+                _("No se puede eliminar un comprobante de retención cancelado. "
+                  "El comprobante debe permanecer en el historial como cancelado.")
+            )
+
         if not self.issue_date:
             frappe.throw(
                 _("No se puede determinar la fecha del comprobante para la validación.")
@@ -396,8 +402,8 @@ def _build_invoice_row(
         "bill_no": inv.bill_no,
         "bill_control": inv.bill_control,
         "posting_date": inv.posting_date,
-        "grand_total": gross_total,
-        "total": taxable_base,
+        "grand_total": abs(inv.base_grand_total or 0) + abs(wh_details.get("base_tax_amount", 0)),
+        "total": abs((inv.base_total or 0) - total_exempt),
         "total_exempt": abs(total_exempt),
         "taxes_and_charges_added": abs(vat_details.get("base_tax_amount", 0)),
         # NC: credit_note_no = bill_no para diferenciación en totales y reporte

@@ -12,3 +12,5 @@ l10n_ve.patches.accounts.recalculate_igtf_on_invoices
 l10n_ve.patches.accounts.backfill_base_total_exempt
 l10n_ve.patches.accounts.add_bank_transaction_reference_index
 l10n_ve.patches.add_query_performance_indexes
+l10n_ve.patches.accounts.clear_igtf_for_specific_invoices
+

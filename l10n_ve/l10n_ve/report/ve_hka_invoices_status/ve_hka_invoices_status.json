@@ -1,0 +1,77 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2026-06-17 11:45:00.000000",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "mandatory": 1,
+   "options": "Company"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Sucursal",
+   "mandatory": 0,
+   "options": "VE Branch"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "mandatory": 0
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date",
+   "mandatory": 0
+  },
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Select",
+   "label": "Document Type",
+   "mandatory": 0,
+   "options": "All\nSales Invoice\nVE Sales Credit Note\nVE Sales Debit Note",
+   "default": "All"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "HKA Status",
+   "mandatory": 0,
+   "options": "All\nEmitida\nError\nPendiente",
+   "default": "All"
+  }
+ ],
+ "idx": 0,
+ "is_standard": "Yes",
+ "letterhead": null,
+ "modified": "2026-06-17 11:45:00.000000",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VE HKA Invoices Status",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Sales Invoice",
+ "report_name": "VE HKA Invoices Status",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "Accounts User"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "timeout": 0
+}

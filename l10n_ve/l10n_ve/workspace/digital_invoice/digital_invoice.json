@@ -16,7 +16,7 @@
             "hidden": 0,
             "is_query_report": 0,
             "label": "Facturación Digital",
-            "link_count": 3,
+            "link_count": 4,
             "onboard": 0,
             "type": "Card Break"
         },
@@ -50,6 +50,17 @@
             "link_count": 0,
             "link_to": "VE Digital Invoice Log",
             "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Estado de Facturas HKA",
+            "link_count": 0,
+            "link_to": "VE HKA Invoices Status",
+            "link_type": "Report",
             "onboard": 1,
             "type": "Link"
         }
