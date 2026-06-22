@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.9.0] - 2026-06-22
+
+### ✨ Funcionalidades (Features)
+- Se habilitó el soporte para letras y caracteres alfanuméricos en el número de control de facturas de máquinas fiscales, tanto en el módulo de ventas como en el de compras.
+- Inclusión de guiones como caracteres válidos en el campo de número de control para facturas de venta.
+
+### 🐛 Correcciones (Fixes)
+- Resolución de incidencias técnicas en los reportes de IGTF y Libro Mayor para garantizar la integridad de los datos.
+- Corrección de un error de ejecución (AttributeError) que se presentaba en las órdenes de compra y venta al realizar el cálculo de retenciones de ISLR.
+- Mejora en la robustez del módulo de retenciones mediante una gestión más segura de los campos de los documentos.
+
+---
+
 ## [v2.8.0] - 2026-06-20
 
 ### ✨ Funcionalidades (Features)
