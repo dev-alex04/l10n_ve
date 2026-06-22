@@ -306,7 +306,7 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
     )
 
     for row in main_data + adjustment_data:
-        if row.get("base_amount_igtf") > 0 or row.get("total_igtf") > 0:
+        if abs(row.get("base_amount_igtf") or 0) > 0.001 or abs(row.get("total_igtf") or 0) > 0.001:
             row["igtf_rate"] = igtf_rate
         else:
             row["igtf_rate"] = 0
@@ -370,8 +370,16 @@ def _get_cte() -> str:
                 nc.base_net_total,
                 nc.total_exempt,
                 nc.base_total_exempt,
-                0 AS base_amount_igtf,
-                0 AS total_igtf,
+                (CASE 
+                    WHEN COALESCE(si_orig.base_net_total, 0) > 0 
+                    THEN (ABS(COALESCE(si_orig.base_amount_igtf, 0)) * (COALESCE(nc.base_net_total, 0) / si_orig.base_net_total)) 
+                    ELSE 0 
+                END) AS base_amount_igtf,
+                (CASE 
+                    WHEN COALESCE(si_orig.base_net_total, 0) > 0 
+                    THEN (ABS(COALESCE(si_orig.total_igtf, 0)) * (COALESCE(nc.base_net_total, 0) / si_orig.base_net_total)) 
+                    ELSE 0 
+                END) AS total_igtf,
                 JSON_UNQUOTE(JSON_EXTRACT(nc.remarks, '$.resultado.serie')) AS hka_serie
             FROM `tabVE Sales Credit Note` nc
             LEFT JOIN `tabSales Invoice` si_orig ON si_orig.name = nc.return_against

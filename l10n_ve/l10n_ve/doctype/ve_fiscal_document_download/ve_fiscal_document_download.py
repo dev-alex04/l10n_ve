@@ -36,7 +36,7 @@ class VEFiscalDocumentDownload(Document):
 		frappe.enqueue(
 			"l10n_ve.l10n_ve.doctype.ve_fiscal_document_download.ve_fiscal_document_download.process_download_job",
 			queue="default",
-			timeout=600,
+			timeout=1800,
 			docname=self.name,
 			request_user=frappe.session.user
 		)
@@ -49,44 +49,13 @@ def process_download_job(docname: str, request_user: str):
 		if request_user:
 			frappe.set_user(request_user)
 		doc = frappe.get_doc("VE Fiscal Document Download", docname)
-		doc.flags.ignore_permissions = True
 		
-		filters = {
-			"docstatus": 1,
-			"posting_date": ["between", [doc.from_date, doc.to_date]],
-		}
-		if doc.customer:
-			filters["customer"] = doc.customer
-		if doc.get("branch"):
-			filters["branch"] = doc.branch
-
-		invoices = frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks", "bill_no"])
-		
-		valid_invoices = []
-		for inv in invoices:
-			remarks = inv.get("remarks")
-			if remarks and '"numeroDocumento"' in remarks:
-				valid_invoices.append(inv)
-
+		valid_invoices = get_valid_invoices(doc)
 		doc.total_attempted = len(valid_invoices)
 
 		if not valid_invoices:
 			doc.status = "Failed"
 			doc.error_log = "No se encontraron facturas aprobadas por HKA en el rango seleccionado."
-			doc.save()
-			frappe.db.commit()
-			publish_status(docname, "Failed", request_user)
-			return
-
-		# Límite de seguridad síncrona para evitar abusos o bloqueos con HKA
-		MAX_LIMIT = 500
-		if len(valid_invoices) > MAX_LIMIT:
-			doc.status = "Failed"
-			doc.error_log = (
-				f"El rango seleccionado contiene {len(valid_invoices)} facturas. "
-				f"Por seguridad, el límite máximo permitido es de {MAX_LIMIT} facturas. "
-				"Por favor, seleccione un rango de fechas más corto o filtre por un cliente o sucursal."
-			)
 			doc.save()
 			frappe.db.commit()
 			publish_status(docname, "Failed", request_user)
@@ -106,80 +75,52 @@ def process_download_job(docname: str, request_user: str):
 		master_zip_buffer = io.BytesIO()
 		master_zip_file = zipfile.ZipFile(master_zip_buffer, "w", zipfile.ZIP_DEFLATED)
 
-		for idx, inv in enumerate(valid_invoices):
-			try:
-				inv_name = inv.get("name")
-				inv_remarks = inv.get("remarks")
-				inv_bill_no = inv.get("bill_no")
+		chunk_size = 1000
+		for chunk_start in range(0, len(valid_invoices), chunk_size):
+			chunk = valid_invoices[chunk_start:chunk_start + chunk_size]
+			chunk_invoice_names = [inv.get("name") for inv in chunk]
 
-				pdf_data = None
-				pdf_len = 0
-				filename = ""
+			# Buscar todos los archivos PDF adjuntos localmente en una sola consulta para el lote actual
+			attached_files_list = frappe.get_all(
+				"File",
+				filters={
+					"attached_to_doctype": "Sales Invoice",
+					"attached_to_name": ["in", chunk_invoice_names],
+					"file_name": ["like", "%.pdf"]
+				},
+				fields=["name", "file_name", "attached_to_name"]
+			)
 
-				# 1. Buscar archivo PDF adjunto localmente en Frappe
-				attached_files = frappe.get_all(
-					"File",
-					filters={
-						"attached_to_doctype": "Sales Invoice",
-						"attached_to_name": inv_name,
-						"file_name": ["like", "%.pdf"]
-					},
-					fields=["name", "file_name"]
-				)
+			attached_by_invoice = {}
+			for f in attached_files_list:
+				inv_name = f.get("attached_to_name")
+				if inv_name not in attached_by_invoice:
+					attached_by_invoice[inv_name] = []
+				attached_by_invoice[inv_name].append(f)
 
-				if attached_files:
-					try:
-						file_doc = frappe.get_doc("File", attached_files[0].get("name"))
-						pdf_data = file_doc.get_content()
-						if isinstance(pdf_data, str):
-							pdf_data = pdf_data.encode("utf-8")
-						pdf_len = len(pdf_data)
-						doc_no = inv_bill_no or inv_name
-						filename = f"Factura_{inv_name}_{doc_no}.pdf"
-					except Exception as e:
-						errors.append(f"{inv_name}: Error al leer archivo local ({str(e)})")
+			for idx, inv in enumerate(chunk):
+				try:
+					pdf_data, filename, pdf_len = download_invoice_pdf(inv, attached_by_invoice, errors)
 
-				# 2. Si no tiene archivo y es simulada, generar un PDF simulado con formato estructurado válido
-				if not pdf_data and inv_remarks and "Simulado" in inv_remarks:
-					pdf_data = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 40 >>\nstream\nBT /F1 12 Tf 72 712 Td (Mock PDF Invoice) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000062 00000 n\n0000000121 00000 n\n0000000223 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n314\n%%EOF"
-					pdf_len = len(pdf_data)
-					doc_no = inv_bill_no or "999999"
-					filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
+					if pdf_data and filename:
+						# Si supera 4.5 MB, guardar el ZIP actual y abrir uno nuevo
+						if current_zip_count > 0 and zip_buffer.tell() + pdf_len + 5000 >= MAX_SIZE_BYTES:
+							zip_buffer, zip_file = save_zip_part(doc, zip_buffer, zip_file, part_number, files)
+							current_zip_count = 0
+							part_number += 1
 
-				if not pdf_data and not filename:
-					errors.append(f"{inv_name}: No tiene archivo PDF adjunto localmente.")
+						zip_file.writestr(filename, pdf_data)
+						master_zip_file.writestr(filename, pdf_data)
+						downloaded_count += 1
+						current_zip_count += 1
+				except Exception as e:
+					errors.append(f"{inv.get('name') or 'Desconocida'}: {str(e)}")
 
-				if pdf_data and filename:
-					# Si supera 4.5 MB, guardar el ZIP actual y abrir uno nuevo
-					if current_zip_count > 0 and zip_buffer.tell() + pdf_len + 5000 >= MAX_SIZE_BYTES:
-						zip_file.close()
-						zip_buffer.seek(0)
-						cust_suffix = f"_{doc.customer}" if doc.customer else ""
-						file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}_Parte{part_number}.zip"
-						
-						# Guardar y adjuntar archivo al documento
-						file_doc = save_file(
-							fname=file_name,
-							content=zip_buffer.getvalue(),
-							dt="VE Fiscal Document Download",
-							dn=docname,
-							folder="Home/Attachments",
-							is_private=1
-						)
-						files.append(file_doc.file_url)
-
-						# Resetear para la siguiente parte
-						zip_buffer = io.BytesIO()
-						zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
-						current_zip_count = 0
-						part_number += 1
-
-					zip_file.writestr(filename, pdf_data)
-					master_zip_file.writestr(filename, pdf_data)
-					downloaded_count += 1
-					current_zip_count += 1
-			except Exception as e:
-				errors.append(f"{inv.get('name') or 'Desconocida'}: {str(e)}")
+			# Guardar el progreso y commit al finalizar el lote actual de 1000
+			doc.downloaded_count = downloaded_count
+			doc.save(ignore_permissions=True)
+			frappe.db.commit()
+			publish_status(docname, "Processing", request_user)
 
 		# Guardar el último ZIP si tiene archivos
 		if current_zip_count > 0:
@@ -202,32 +143,7 @@ def process_download_job(docname: str, request_user: str):
 			zip_file.close()
 
 		# Guardar el ZIP maestro con todas las facturas
-		master_file_url = None
-		master_size_str = "Desconocido"
-		master_file_name = ""
-		if downloaded_count > 0:
-			master_zip_file.close()
-			master_zip_buffer.seek(0)
-			cust_suffix = f"_{doc.customer}" if doc.customer else ""
-			master_file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}_Completo.zip"
-			
-			master_file_doc = save_file(
-				fname=master_file_name,
-				content=master_zip_buffer.getvalue(),
-				dt="VE Fiscal Document Download",
-				dn=docname,
-				folder="Home/Attachments",
-				is_private=1
-			)
-			master_file_url = master_file_doc.file_url
-			master_size = master_file_doc.file_size
-			if master_size and isinstance(master_size, (int, float)):
-				if master_size >= 1024 * 1024:
-					master_size_str = f"{round(master_size / (1024 * 1024), 2)} MB"
-				else:
-					master_size_str = f"{round(master_size / 1024, 2)} KB"
-		else:
-			master_zip_file.close()
+		master_file_url, master_file_name, master_size_str = save_master_zip(doc, master_zip_file, master_zip_buffer, downloaded_count)
 
 		doc.downloaded_count = downloaded_count
 
@@ -236,89 +152,266 @@ def process_download_job(docname: str, request_user: str):
 			doc.error_log = ("No se pudo empaquetar ningún PDF localmente.\nDetalles:\n" + "\n".join(errors))[:30000]
 		else:
 			doc.status = "Completed"
-			if errors:
-				doc.error_log = ("Algunas facturas fallaron al empaquetarse:\n" + "\n".join(errors))[:30000]
-			else:
-				doc.error_log = ""
-			
-			# Generar un cuadro HTML bonito para las descargas
-			links_html = []
-			
-			if master_file_url:
-				master_download_url = f"/api/method/l10n_ve.digital_invoice.tfhka_integration.download_zip_file?file_url={master_file_url}"
-				links_html.extend([
-					'<div style="margin-bottom: 20px; padding: 15px; background-color: var(--alert-bg-info, #e8f4fd); border-left: 5px solid var(--alert-border-info, #2196f3); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm);">',
-					'  <div style="flex: 1; padding-right: 15px;">',
-					'    <h4 style="margin: 0 0 5px 0; color: var(--text-color); font-weight: bold; font-size: 14px;">Descargar Todas las Facturas juntas (ZIP Único)</h4>',
-					f'    <p style="margin: 0; font-size: 12px; color: var(--text-muted);">{master_file_name} ({master_size_str})</p>',
-					'  </div>',
-					f'  <a href="{master_download_url}" target="_blank" class="btn btn-sm btn-primary" style="font-weight: bold; padding: 6px 16px; font-size: 13px; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; height: 32px;">Descargar ZIP Único</a>',
-					'</div>',
-				])
-				
-			links_html.extend([
-				'<div class="table-responsive">',
-				'  <table class="table table-bordered table-hover" style="border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; background-color: var(--card-bg, #ffffff); width: 100%;">',
-				'    <thead>',
-				'      <tr style="background-color: var(--control-bg, #f8f9fa); font-weight: bold; color: var(--text-color);">',
-				'        <th style="width: 10%; text-align: center; border-bottom: 2px solid var(--border-color); padding: 10px;">Parte</th>',
-				'        <th style="border-bottom: 2px solid var(--border-color); padding: 10px;">Nombre del Archivo</th>',
-				'        <th style="width: 20%; text-align: center; border-bottom: 2px solid var(--border-color); padding: 10px;">Tamaño</th>',
-				'        <th style="width: 20%; text-align: center; border-bottom: 2px solid var(--border-color); padding: 10px;">Acción</th>',
-				'      </tr>',
-				'    </thead>',
-				'    <tbody>'
-			])
-			
-			for idx, url in enumerate(files, 1):
-				download_url = f"/api/method/l10n_ve.digital_invoice.tfhka_integration.download_zip_file?file_url={url}"
-				file_name = url.split("/")[-1]
-				
-				# Obtener tamaño real del archivo
-				file_size_str = "Desconocido"
-				file_name_db = frappe.get_value("File", {"file_url": url}, "name")
-				if file_name_db:
-					file_size = frappe.get_value("File", file_name_db, "file_size")
-					if file_size and isinstance(file_size, (int, float)):
-						if file_size >= 1024 * 1024:
-							file_size_str = f"{round(file_size / (1024 * 1024), 2)} MB"
-						else:
-							file_size_str = f"{round(file_size / 1024, 2)} KB"
-				
-				links_html.append(
-					f'      <tr>'
-					f'        <td style="text-align: center; font-weight: bold; vertical-align: middle; padding: 10px; border-top: 1px solid var(--border-color);">{idx}</td>'
-					f'        <td style="vertical-align: middle; padding: 10px; border-top: 1px solid var(--border-color);">{file_name}</td>'
-					f'        <td style="text-align: center; vertical-align: middle; color: var(--text-muted); padding: 10px; border-top: 1px solid var(--border-color);">{file_size_str}</td>'
-					f'        <td style="text-align: center; vertical-align: middle; padding: 10px; border-top: 1px solid var(--border-color);">'
-					f'          <a href="{download_url}" target="_blank" class="btn btn-xs btn-primary" '
-					f'             style="font-weight: bold; padding: 4px 12px; font-size: 11px;">Descargar</a>'
-					f'        </td>'
-					f'      </tr>'
-				)
-			links_html.extend([
-				'    </tbody>',
-				'  </table>',
-				'</div>'
-			])
-			doc.files_html = "".join(links_html)
+			doc.error_log = ("Algunas facturas fallaron al empaquetarse:\n" + "\n".join(errors))[:30000] if errors else ""
+			doc.files_html = generate_files_html(files, downloaded_count, master_file_url, master_file_name, master_size_str)
 
 		doc.save()
 		frappe.db.commit()
+
+		send_download_notification(docname, doc.status, downloaded_count, len(files), doc.error_log, request_user)
 		publish_status(docname, doc.status, request_user)
 
 	except Exception as e:
 		frappe.db.rollback()
+		handle_unexpected_error(docname, request_user, e)
+
+
+def get_valid_invoices(doc):
+	filters = {
+		"docstatus": 1,
+		"posting_date": ["between", [doc.from_date, doc.to_date]],
+	}
+	if doc.customer:
+		filters["customer"] = doc.customer
+	if doc.get("branch"):
+		filters["branch"] = doc.branch
+
+	invoices = frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks", "bill_no"])
+	
+	valid_invoices = []
+	for inv in invoices:
+		remarks = inv.get("remarks")
+		if remarks and '"numeroDocumento"' in remarks:
+			valid_invoices.append(inv)
+	return valid_invoices
+
+
+def download_invoice_pdf(inv, attached_by_invoice, errors):
+	inv_name = inv.get("name")
+	inv_remarks = inv.get("remarks")
+	inv_bill_no = inv.get("bill_no")
+
+	pdf_data = None
+	pdf_len = 0
+	filename = ""
+
+	# 1. Buscar archivo PDF adjunto localmente
+	invoice_files = attached_by_invoice.get(inv_name)
+	if invoice_files:
 		try:
-			doc = frappe.get_doc("VE Fiscal Document Download", docname)
-			doc.flags.ignore_permissions = True
-			doc.status = "Failed"
-			doc.error_log = f"Ocurrió un error inesperado en el servidor:\n{str(e)}\n\n{frappe.get_traceback()}"[:30000]
-			doc.save()
-			frappe.db.commit()
-			publish_status(docname, "Failed", request_user)
+			file_doc = frappe.get_doc("File", invoice_files[0].get("name"))
+			pdf_data = file_doc.get_content()
+			if isinstance(pdf_data, str):
+				pdf_data = pdf_data.encode("utf-8")
+			pdf_len = len(pdf_data)
+			doc_no = inv_bill_no or inv_name
+			filename = f"Factura_{inv_name}_{doc_no}.pdf"
+		except Exception as e:
+			errors.append(f"{inv_name}: Error al leer archivo local ({str(e)})")
+
+	# 2. Si no existe localmente, lo descargamos de HKA usando la API
+	if not pdf_data:
+		from l10n_ve.digital_invoice.tfhka_client import get_fiscal_invoice_pdf
+		try:
+			res = get_fiscal_invoice_pdf(inv_name, "Sales Invoice")
+			pdf_base64 = res.get("base64")
+			if pdf_base64:
+				pdf_data = base64.b64decode(pdf_base64)
+				pdf_len = len(pdf_data)
+				doc_no = res.get("numero_documento") or inv_bill_no or inv_name
+				filename = f"Factura_{inv_name}_{doc_no}.pdf"
+			elif inv_remarks and "Simulado" in inv_remarks:
+				pdf_data = get_mock_pdf_content()
+				pdf_len = len(pdf_data)
+				doc_no = inv_bill_no or "999999"
+				filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
+			else:
+				err_msg = res.get("error") if res else "No tiene archivo PDF adjunto localmente y falló la descarga desde HKA."
+				errors.append(f"{inv_name}: {err_msg}")
+		except Exception as e:
+			if inv_remarks and "Simulado" in inv_remarks:
+				pdf_data = get_mock_pdf_content()
+				pdf_len = len(pdf_data)
+				doc_no = inv_bill_no or "999999"
+				filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
+			else:
+				errors.append(f"{inv_name}: {str(e)}")
+				
+	return pdf_data, filename, pdf_len
+
+
+def get_mock_pdf_content():
+	return b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 40 >>\nstream\nBT /F1 12 Tf 72 712 Td (Mock PDF Invoice) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000062 00000 n\n0000000121 00000 n\n0000000223 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n314\n%%EOF"
+
+
+def save_zip_part(doc, zip_buffer, zip_file, part_number, files):
+	zip_file.close()
+	zip_buffer.seek(0)
+	cust_suffix = f"_{doc.customer}" if doc.customer else ""
+	file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}_Parte{part_number}.zip"
+	
+	# Guardar y adjuntar archivo al documento
+	file_doc = save_file(
+		fname=file_name,
+		content=zip_buffer.getvalue(),
+		dt="VE Fiscal Document Download",
+		dn=doc.name,
+		folder="Home/Attachments",
+		is_private=1
+	)
+	files.append(file_doc.file_url)
+
+	# Resetear para la siguiente parte
+	new_buffer = io.BytesIO()
+	new_zip_file = zipfile.ZipFile(new_buffer, "w", zipfile.ZIP_DEFLATED)
+	return new_buffer, new_zip_file
+
+
+def save_master_zip(doc, master_zip_file, master_zip_buffer, downloaded_count):
+	master_file_url = None
+	master_size_str = "Desconocido"
+	master_file_name = ""
+	if downloaded_count > 0:
+		master_zip_file.close()
+		master_zip_buffer.seek(0)
+		cust_suffix = f"_{doc.customer}" if doc.customer else ""
+		master_file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}_Completo.zip"
+		
+		master_file_doc = save_file(
+			fname=master_file_name,
+			content=master_zip_buffer.getvalue(),
+			dt="VE Fiscal Document Download",
+			dn=doc.name,
+			folder="Home/Attachments",
+			is_private=1
+		)
+		master_file_url = master_file_doc.file_url
+		master_size = master_file_doc.file_size
+		if master_size and isinstance(master_size, (int, float)):
+			if master_size >= 1024 * 1024:
+				master_size_str = f"{round(master_size / (1024 * 1024), 2)} MB"
+			else:
+				master_size_str = f"{round(master_size / 1024, 2)} KB"
+	else:
+		master_zip_file.close()
+	return master_file_url, master_file_name, master_size_str
+
+
+def generate_files_html(files, downloaded_count, master_file_url, master_file_name, master_size_str):
+	links_html = []
+	
+	if master_file_url:
+		master_download_url = f"/api/method/l10n_ve.digital_invoice.tfhka_integration.download_zip_file?file_url={master_file_url}"
+		links_html.extend([
+			'<div style="margin-bottom: 20px; padding: 15px; background-color: var(--alert-bg-info, #e8f4fd); border-left: 5px solid var(--alert-border-info, #2196f3); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm);">',
+			'  <div style="flex: 1; padding-right: 15px;">',
+			'    <h4 style="margin: 0 0 5px 0; color: var(--text-color); font-weight: bold; font-size: 14px;">Descargar Todas las Facturas juntas (ZIP Único)</h4>',
+			f'    <p style="margin: 0; font-size: 12px; color: var(--text-muted);">{master_file_name} ({master_size_str})</p>',
+			'  </div>',
+			f'  <a href="{master_download_url}" target="_blank" class="btn btn-sm btn-primary" style="font-weight: bold; padding: 6px 16px; font-size: 13px; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; height: 32px;">Descargar ZIP Único</a>',
+			'</div>',
+		])
+		
+	links_html.extend([
+		'<div class="table-responsive">',
+		'  <table class="table table-bordered table-hover" style="border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; background-color: var(--card-bg, #ffffff); width: 100%;">',
+		'    <thead>',
+		'      <tr style="background-color: var(--control-bg, #f8f9fa); font-weight: bold; color: var(--text-color);">',
+		'        <th style="width: 10%; text-align: center; border-bottom: 2px solid var(--border-color); padding: 10px;">Parte</th>',
+		'        <th style="border-bottom: 2px solid var(--border-color); padding: 10px;">Nombre del Archivo</th>',
+		'        <th style="width: 20%; text-align: center; border-bottom: 2px solid var(--border-color); padding: 10px;">Tamaño</th>',
+		'        <th style="width: 20%; text-align: center; border-bottom: 2px solid var(--border-color); padding: 10px;">Acción</th>',
+		'      </tr>',
+		'    </thead>',
+		'    <tbody>'
+	])
+	
+	for idx, url in enumerate(files, 1):
+		download_url = f"/api/method/l10n_ve.digital_invoice.tfhka_integration.download_zip_file?file_url={url}"
+		file_name = url.split("/")[-1]
+		
+		# Obtener tamaño real del archivo
+		file_size_str = "Desconocido"
+		file_name_db = frappe.get_value("File", {"file_url": url}, "name")
+		if file_name_db:
+			file_size = frappe.get_value("File", file_name_db, "file_size")
+			if file_size and isinstance(file_size, (int, float)):
+				if file_size >= 1024 * 1024:
+					file_size_str = f"{round(file_size / (1024 * 1024), 2)} MB"
+				else:
+					file_size_str = f"{round(file_size / 1024, 2)} KB"
+		
+		links_html.append(
+			f'      <tr>'
+			f'        <td style="text-align: center; font-weight: bold; vertical-align: middle; padding: 10px; border-top: 1px solid var(--border-color);">{idx}</td>'
+			f'        <td style="vertical-align: middle; padding: 10px; border-top: 1px solid var(--border-color);">{file_name}</td>'
+			f'        <td style="text-align: center; vertical-align: middle; color: var(--text-muted); padding: 10px; border-top: 1px solid var(--border-color);">{file_size_str}</td>'
+			f'        <td style="text-align: center; vertical-align: middle; padding: 10px; border-top: 1px solid var(--border-color);">'
+			f'          <a href="{download_url}" target="_blank" class="btn btn-xs btn-primary" '
+			f'             style="font-weight: bold; padding: 4px 12px; font-size: 11px;">Descargar</a>'
+			f'        </td>'
+			f'      </tr>'
+		)
+	links_html.extend([
+		'    </tbody>',
+		'  </table>',
+		'</div>'
+	])
+	return "".join(links_html)
+
+
+def send_download_notification(docname, status, downloaded_count, files_count, error_log, request_user):
+	try:
+		from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+		part_txt = f" en {files_count} partes" if files_count > 1 else ""
+		if status == "Completed":
+			msg = f"Tu descarga de facturas HKA está lista ({downloaded_count} facturas{part_txt})."
+			email_content = f"La solicitud de descarga masiva ha finalizado con éxito. Puedes descargar los archivos ZIP desde el documento <a href='/app/ve-fiscal-document-download/{docname}'>{docname}</a>."
+		else:
+			msg = f"La descarga masiva de facturas HKA falló."
+			email_content = f"La solicitud de descarga masiva {docname} falló. Error: {error_log}"
+		
+		enqueue_create_notification(
+			users=[request_user],
+			doc={
+				"subject": msg,
+				"email_content": email_content,
+				"type": "Alert",
+				"document_type": "VE Fiscal Document Download",
+				"document_name": docname
+			}
+		)
+	except Exception as e:
+		frappe.logger("l10n_ve").error(f"Error al crear notificación de descarga: {str(e)}")
+
+
+def handle_unexpected_error(docname: str, request_user: str, e: Exception):
+	try:
+		doc = frappe.get_doc("VE Fiscal Document Download", docname)
+		doc.status = "Failed"
+		doc.error_log = f"Ocurrió un error inesperado en el servidor:\n{str(e)}\n\n{frappe.get_traceback()}"[:30000]
+		doc.save()
+		frappe.db.commit()
+
+		# Notificación de error
+		try:
+			from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+			enqueue_create_notification(
+				users=[request_user],
+				doc={
+					"subject": f"La descarga masiva de facturas HKA falló.",
+					"email_content": f"Ocurrió un error inesperado al procesar {docname}: {str(e)}",
+					"type": "Alert",
+					"document_type": "VE Fiscal Document Download",
+					"document_name": docname
+				}
+			)
 		except Exception:
 			pass
+
+		publish_status(docname, "Failed", request_user)
+	except Exception:
+		pass
 
 
 def publish_status(docname: str, status: str, request_user: str):

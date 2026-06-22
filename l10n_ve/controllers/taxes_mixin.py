@@ -193,7 +193,7 @@ class TaxesMixin:
             # En compras el ISLR se agrega manualmente; no limpiar ni auto-asignar
             return
 
-        if self.doctype not in DocumentTransactionType.__SALES_INVOICE_DOCTYPES__:
+        if self.doctype not in DocumentTransactionType.__SALES_DOCTYPES__:
             return
 
         self.taxes = [
@@ -208,6 +208,9 @@ class TaxesMixin:
     def _build_islr_tax_row(self) -> _dict | None:
         """Construye la fila de retención ISLR o retorna None si no aplica."""
         from l10n_ve.utils.islr import get_islr_aliquot, calculate_islr_amount
+
+        if not self.get("customer") or not self.get("company"):
+            return None
 
         result = get_islr_aliquot(self.customer, self.company)
         if not result:
@@ -228,6 +231,9 @@ class TaxesMixin:
         if islr_amount <= 0:
             return None
 
+        conversion_rate = flt(self.conversion_rate) or 1.0
+        base_islr_amount = flt(islr_amount * conversion_rate, self.precision("base_tax_amount", "taxes") or 2)
+
         return _dict({
             "charge_type": "ISLR",
             "category": "Total",
@@ -236,7 +242,7 @@ class TaxesMixin:
             "is_tax_withholding_account": True,
             "account_head": islr_account,
             "tax_amount": islr_amount,
-            "base_tax_amount": islr_amount,
+            "base_tax_amount": base_islr_amount,
             "rate": flt(aliquot_info.aliquot),
             "percentage_base": flt(aliquot_info.percentage_base),
             "subtracting": flt(aliquot_info.subtracting),

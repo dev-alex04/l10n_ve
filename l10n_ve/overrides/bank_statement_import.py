@@ -6,6 +6,7 @@ import time
 from typing import Any
 import csv
 import os
+import re
 import unicodedata
 import io
 import openpyxl
@@ -459,6 +460,55 @@ def _is_valid_row(
     return True
 
 
+def _parse_ve_amount(value) -> float:
+    """Parsea un monto de extracto respetando el formato venezolano (#.###,##).
+
+    flt() interpreta mal los strings con coma decimal: flt('11453,57')=1145357.0
+    (borra la coma) -> generaba depósitos x100. Aquí se detecta el separador
+    decimal por la posición del último separador y se normaliza antes de convertir,
+    soportando formato venezolano (1.145.357,00) y plano/US (11453.57, 11,453.57).
+    """
+    if value is None or value == "":
+        return 0.0
+    if isinstance(value, (int, float)):
+        return abs(float(value))
+
+    s = re.sub(r"[^\d.,-]", "", str(value).strip())
+    if not s or s in ("-", ".", ","):
+        return 0.0
+
+    has_dot = "." in s
+    has_comma = "," in s
+
+    if has_dot and has_comma:
+        # El separador más a la derecha es el decimal; el otro es de miles.
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif has_comma:
+        # Solo coma: decimal si queda un único grupo de 1-2 dígitos al final
+        # (11453,57); si no, son separadores de miles (1,234,567 -> US).
+        head, _sep, tail = s.rpartition(",")
+        if "," not in head and len(tail) in (1, 2):
+            s = head + "." + tail
+        else:
+            s = s.replace(",", "")
+    elif has_dot:
+        # Solo punto: decimal si queda un único grupo de 1-2 dígitos al final
+        # (11453.57); si no, son miles venezolanos (1.145.357).
+        head, _sep, tail = s.rpartition(".")
+        if "." not in head and len(tail) in (1, 2):
+            s = head + "." + tail
+        else:
+            s = s.replace(".", "")
+
+    try:
+        return abs(float(s))
+    except ValueError:
+        return 0.0
+
+
 def _build_bank_transaction(
     doc,
     row: list,
@@ -478,7 +528,7 @@ def _build_bank_transaction(
             continue
 
         if field_name in ("deposit", "withdrawal"):
-            new_transaction.set(field_name, abs(flt(value)))
+            new_transaction.set(field_name, _parse_ve_amount(value))
         elif field_name == "date":
             try:
                 date_obj = datetime.strptime(str(value).split()[0], "%d/%m/%Y").date()

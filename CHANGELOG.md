@@ -5,6 +5,81 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.9.0] - 2026-06-22
+
+### ✨ Funcionalidades (Features)
+- Se habilitó el soporte para letras y caracteres alfanuméricos en el número de control de facturas de máquinas fiscales, tanto en el módulo de ventas como en el de compras.
+- Inclusión de guiones como caracteres válidos en el campo de número de control para facturas de venta.
+
+### 🐛 Correcciones (Fixes)
+- Resolución de incidencias técnicas en los reportes de IGTF y Libro Mayor para garantizar la integridad de los datos.
+- Corrección de un error de ejecución (AttributeError) que se presentaba en las órdenes de compra y venta al realizar el cálculo de retenciones de ISLR.
+- Mejora en la robustez del módulo de retenciones mediante una gestión más segura de los campos de los documentos.
+
+---
+
+## [v2.8.0] - 2026-06-20
+
+### ✨ Funcionalidades (Features)
+- **Descarga masiva de facturas (HKA):** Se implementó la capacidad de descargar facturas sin límites, procesando la información en lotes de 1000 registros y añadiendo persistencia del progreso para garantizar la integridad del proceso. d294068
+
+### 🐛 Correcciones (Fixes)
+- **Validación de Workspace:** Cambio del tipo de enlace en "Cajas" a tipo URL para prevenir errores de validación durante los procesos de importación. 87741f8
+- **Interfaz de Usuario:** Renombramiento del acceso "Cajas" a "Conciliación de Cajas" en el workspace para mejorar la claridad semántica. f384dbb
+
+---
+
+## [v2.7.0] - 2026-06-19
+
+### ✨ Funcionalidades (Features)
+- Se implementó el nuevo método de API `get_portal_banks` con soporte para almacenamiento en caché, optimizando el tiempo de respuesta en la obtención de bancos del portal. [2eea280]
+
+---
+
+## [v2.6.4] - 2026-06-19
+
+### ✨ Funcionalidades (Features)
+- Refactorización de la localización venezolana (l10n_ve) para trasladar el motor de conciliación al módulo mint, incluyendo un shim de compatibilidad para asegurar la transición arquitectónica. (e19e512)
+
+### 🐛 Correcciones (Fixes)
+- Mejora en la robustez de la lógica de validación para referencias de tipo integer, optimizando el manejo de tipos de datos en el sistema. (c1a842f)
+
+---
+
+## [v2.6.3] - 2026-06-17
+
+### ✨ Funcionalidades (Features)
+- **Optimización de reportes**: Se mejoró el rendimiento del libro mayor analítico (**analytical_ledger**) y se agregaron índices de base de datos en los ítems de retención para agilizar el procesamiento de datos.
+- **Mejora en base de datos**: Implementación de índices de consulta en diversos DocTypes de la localización venezolana (**l10n_ve**), optimizando la velocidad de respuesta del sistema en operaciones regionales.
+
+---
+
+## [v2.6.2] - 2026-06-16
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en los reportes contables que traducía las claves de DocType, asegurando que los identificadores internos se mantengan consistentes. [2a3799d]
+
+---
+
+## [v2.6.1] - 2026-06-16
+
+### 🐛 Correcciones (Fixes)
+- Se optimizó el filtro de clientes en el panel de control (dashboard) mediante la implementación de un componente de Autocomplete y una consulta personalizada para mejorar la precisión y el rendimiento de las búsquedas. [6407a54]
+
+---
+
+## [v2.6.0] - 2026-06-16
+
+### ✨ Funcionalidades (Features)
+- Implementación de la lógica para la conciliación de cobros contra su depósito bancario correspondiente, optimizando el flujo de cierre de caja.
+- Incorporación del helper técnico `_is_cash_like_receive` para la identificación y manejo especializado de pagos en efectivo en el módulo de cobros.
+
+### 🐛 Correcciones (Fixes)
+- Mejora de la robustez y "hardening" en los procesos de conciliación bancaria para la localización de Venezuela (l10n_ve).
+- Corrección crítica en el cálculo de montos de depósitos (ajuste de factor x100) y fortalecimiento de la lógica de conciliación en el módulo de cobros.
+
+---
+
 ## [v2.5.1] - 2026-06-14
 
 ### 🐛 Correcciones (Fixes)

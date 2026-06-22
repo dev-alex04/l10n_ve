@@ -1346,9 +1346,6 @@ def bulk_download_pdf(from_date: str, to_date: str, customer: str = None) -> dic
 	Genera y descarga el ZIP de forma síncrona para compatibilidad y entornos
 	sin workers/WebSockets activos.
 	"""
-	if not frappe.has_permission("Sales Invoice", "read"):
-		frappe.throw(frappe._("No tiene permiso para leer Facturas de Venta."), frappe.PermissionError)
-
 	import zipfile
 	import io
 	import base64

@@ -83,7 +83,6 @@ frappe.ui.form.on("Payment Entry", {
       set_custom_exchange_rate(frm);
     }
 
-    realtime_numeric_validation(frm, "reference_no");
     frm.events.set_reference_no_required(frm);
   },
 
@@ -170,63 +169,24 @@ frappe.ui.form.on("Payment Entry", {
     frm.events.hide_unhide_fields(frm);
   },
 
-  set_current_exchange_rate: function (
-    frm,
-    exchange_rate_field,
-    from_currency,
-    to_currency
-  ) {
-    frappe.call({
-      method: "erpnext.setup.utils.get_exchange_rate",
-      args: {
-        transaction_date: frm.doc.posting_date,
-        from_currency: from_currency || "VEF",
-        to_currency: to_currency,
-      },
-      callback: function (r, rt) {
-        const ex_rate = flt(
-          r.message,
-          frm.get_field(exchange_rate_field).get_precision()
-        );
-        frm.set_value(exchange_rate_field, ex_rate);
-      },
-    });
-  },
-
-  paid_from_account_currency: function (frm) {
+  paid_from_account_currency: async function (frm) {
     if (!frm.doc.paid_from_account_currency || !frm.doc.company) return;
-    let company_currency = frappe.get_doc(
-      ":Company",
-      frm.doc.company
-    ).default_currency;
+
+    // default_company_currency se asegura vía ensure_igtf_context (antes se leía
+    // con frappe.get_doc síncrono, que podía dar undefined si la compañía no
+    // estaba en caché). Una sola ruta para la tasa: set_current_exchange_rate.
+    await ensure_igtf_context(frm);
+    const company_currency = frm.doc.default_company_currency;
 
     if (frm.doc.paid_from_account_currency == company_currency) {
       frm.set_value("source_exchange_rate", 1);
     } else if (frm.doc.paid_from) {
-      if (["Internal Transfer", "Pay"].includes(frm.doc.payment_type)) {
-        let company_currency = frappe.get_doc(
-          ":Company",
-          frm.doc.company
-        )?.default_currency;
-        frappe.call({
-          method: "erpnext.setup.utils.get_exchange_rate",
-          args: {
-            from_currency: frm.doc.paid_from_account_currency || "VEF",
-            to_currency: company_currency,
-            transaction_date: frm.doc.posting_date,
-          },
-          callback: function (r, rt) {
-            frm.set_value("source_exchange_rate", r.message);
-          },
-        });
-      } else {
-        frm.events.set_current_exchange_rate(
-          frm,
-          "source_exchange_rate",
-          frm.doc.paid_from_account_currency,
-          company_currency
-        );
-      }
+      await set_current_exchange_rate(
+        frm,
+        "source_exchange_rate",
+        frm.doc.paid_from_account_currency,
+        company_currency
+      );
     }
   },
 
@@ -242,26 +202,6 @@ frappe.ui.form.on("Payment Entry", {
 
     frm.events.get_outstanding_invoices_or_orders(frm, true, false);
   },
-
-  // handle_get_outstanding_invoices: function (frm) {
-  //   if (!frm.doc.mode_of_payment) {
-  //     frappe.throw(
-  //       __(
-  //         'Debe seleccionar un "Modo de pago" para obtener las facturas pendientes de pago.'
-  //       )
-  //     );
-  //     return;
-  //   }
-
-  //   let allocate_amount = frm.doc.payment_type === "Receive" ? frm.doc.paid_amount : frm.doc.received_amount;
-
-  //   frm.events.get_outstanding_documents(
-  //     frm,
-  //     { allocate_payment_amount: allocate_amount },
-  //     true,
-  //     false
-  //   );
-  // },
 
   get_outstanding_documents: function (
     frm,
@@ -404,9 +344,94 @@ function set_payment_entry_buttons(frm) {
       set_islr_concept(frm);
     });
   }
+
+  // Cobro en borrador: intentar conciliar con su depósito bancario y aprobar.
+  if (
+    frm.doc.docstatus == 0 &&
+    frm.doc.payment_type === "Receive" &&
+    frm.doc.reference_no &&
+    !frm.is_new()
+  ) {
+    frm.add_custom_button(__("Intentar conciliar"), async function () {
+      if (frm.is_dirty()) {
+        await frm.save();
+      }
+      frappe.call({
+        method:
+          "l10n_ve.overrides.payment_reconciliation.reconcile_and_approve",
+        args: { payment_entry: frm.doc.name },
+        freeze: true,
+        freeze_message: __("Conciliando con el depósito bancario..."),
+        callback: function (r) {
+          const msg = r.message || {};
+          if (msg.reconciled) {
+            frappe.show_alert({ message: msg.message, indicator: "green" });
+          } else if (msg.review) {
+            frappe.msgprint({
+              title: __("Revisar"),
+              message:
+                msg.message || __("El cobro quedó marcado para revisión."),
+              indicator: "red",
+            });
+          } else {
+            frappe.msgprint({
+              title: __("Sin depósito"),
+              message:
+                msg.message ||
+                __("Aún no se encontró el depósito de esta referencia."),
+              indicator: "orange",
+            });
+          }
+          frm.reload_doc();
+        },
+      });
+    });
+  }
+}
+
+// Asegura que estén cargados los datos que el cálculo de IGTF / tasa necesita:
+// la moneda de la compañía y, en pagos en divisa, la tasa y la cuenta de IGTF.
+// Antes esto se cargaba DENTRO de set_igtf, después de intentar usar igtf_rate,
+// por eso el IGTF salía en 0 en la primera pasada.
+async function ensure_igtf_context(frm) {
+  if (!frm.doc.default_company_currency && frm.doc.company) {
+    const r = await frappe.db.get_value(
+      "Company",
+      frm.doc.company,
+      "default_currency"
+    );
+    if (r?.message?.default_currency) {
+      frm.doc.default_company_currency = r.message.default_currency;
+    }
+  }
+
+  const is_foreign =
+    frm.doc.default_company_currency &&
+    frm.doc.paid_on_currency &&
+    frm.doc.default_company_currency != frm.doc.paid_on_currency;
+
+  if (!is_foreign) return;
+
+  if (!frm.doc.igtf_rate) {
+    const rate = await frappe.db.get_single_value(
+      "Venezuela Account Settings",
+      "igtf_rate"
+    );
+    frm.doc.igtf_rate = flt(rate);
+  }
+  if (!frm.doc.igtf_account) {
+    const fld =
+      frm.doc.payment_type == "Pay"
+        ? "purchase_igtf_account"
+        : "sales_igtf_account";
+    const r = await frappe.db.get_value("Company", frm.doc.company, fld);
+    if (r?.message) frm.doc.igtf_account = r.message[fld];
+  }
 }
 
 async function compute_paid_amount(frm) {
+  await ensure_igtf_context(frm);
+
   frm.set_value(
     "paid_amount",
     flt(frm.doc.paid_currency_amount) * flt(frm.doc.exchange_rate)
@@ -465,6 +490,8 @@ function reorganize_payment_entry_fields(frm) {
 }
 
 async function set_custom_exchange_rate(frm) {
+  await ensure_igtf_context(frm);
+
   if (!frm.doc.default_company_currency || !frm.doc.paid_on_currency) {
     return;
   }
@@ -486,7 +513,7 @@ async function set_custom_exchange_rate(frm) {
     );
 
     const paid_currency_amount = flt(
-      outstanding_amount / frm.doc.exchange_rate
+      outstanding_amount / (flt(frm.doc.exchange_rate) || 1)
     );
 
     const igtf_amount = (paid_currency_amount * frm.doc.igtf_rate) / 100;
