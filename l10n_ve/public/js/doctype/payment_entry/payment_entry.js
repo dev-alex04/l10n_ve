@@ -115,7 +115,9 @@ frappe.ui.form.on("Payment Entry", {
   },
 
   posting_date: function (frm) {
-    set_custom_exchange_rate(frm);
+    if (frm.doc.posting_date) {
+      set_custom_exchange_rate(frm);
+    }
   },
 
   paid_currency_amount: function (frm) {
