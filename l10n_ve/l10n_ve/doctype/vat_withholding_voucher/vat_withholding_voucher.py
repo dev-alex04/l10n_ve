@@ -393,6 +393,9 @@ def _build_invoice_row(
     is_nc: bool = doc_type == "VE Purchase Credit Note"
     is_nd: bool = doc_type == "VE Purchase Debit Note"
 
+    taxable_base = abs((inv.base_total or 0) - total_exempt)
+    gross_total = abs(inv.base_total or 0) + abs(vat_details.get("base_tax_amount", 0))
+
     return {
         "purchase_invoice_type": doc_type,
         "purchase_invoice": inv.name,

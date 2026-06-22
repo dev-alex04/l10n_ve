@@ -116,6 +116,27 @@ def get_invoice_details(self):
         for d in si_list:
             self.invoice_details.setdefault(d.name, d)
 
+        # Get Custom VE Sales Debit/Credit Notes
+        custom_si = frappe.db.sql(
+            """
+            select name, due_date, po_no, bill_no
+            from `tabVE Sales Debit Note`
+            where posting_date <= %s
+                and company = %s
+                and docstatus = 1
+            union all
+            select name, due_date, po_no, bill_no
+            from `tabVE Sales Credit Note`
+            where posting_date <= %s
+                and company = %s
+                and docstatus = 1
+            """,
+            (self.filters.report_date, self.filters.company, self.filters.report_date, self.filters.company),
+            as_dict=1
+        )
+        for d in custom_si:
+            self.invoice_details.setdefault(d.name, d)
+
         # Get Sales Team
         if self.filters.show_sales_person:
             # nosemgrep
@@ -148,6 +169,27 @@ def get_invoice_details(self):
         ):
             self.invoice_details.setdefault(pi.name, pi)
 
+        # Get Custom VE Purchase Debit/Credit Notes
+        custom_pi = frappe.db.sql(
+            """
+            select name, posting_date as due_date, bill_no, bill_date
+            from `tabVE Purchase Debit Note`
+            where posting_date <= %s
+                and company = %s
+                and docstatus = 1
+            union all
+            select name, posting_date as due_date, bill_no, bill_date
+            from `tabVE Purchase Credit Note`
+            where posting_date <= %s
+                and company = %s
+                and docstatus = 1
+            """,
+            (self.filters.report_date, self.filters.company, self.filters.report_date, self.filters.company),
+            as_dict=1
+        )
+        for d in custom_pi:
+            self.invoice_details.setdefault(d.name, d)
+
     # Invoices booked via Journal Entries
     # nosemgrep
     journal_entries = frappe.db.sql(
@@ -168,7 +210,14 @@ def get_invoice_details(self):
             self.invoice_details.setdefault(je.name, je)
 
 
+def custom_is_invoice(self, ple):
+    custom_doctypes = ["VE Sales Debit Note", "VE Sales Credit Note", "VE Purchase Debit Note", "VE Purchase Credit Note"]
+    if ple.voucher_type in ("Sales Invoice", "Purchase Invoice") or ple.voucher_type in custom_doctypes:
+        return True
+    return False
+
 
 ReceivablePayableReport.build_data = build_data
 ReceivablePayableReport.get_columns = get_columns
 ReceivablePayableReport.get_invoice_details = get_invoice_details
+ReceivablePayableReport.is_invoice = custom_is_invoice

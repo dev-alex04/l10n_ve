@@ -255,22 +255,23 @@ class TaxesMixin:
             f" ({flt(aliquot_info.aliquot)}%)"
         )
 
-        if self.is_return and self.return_against:
+        return_against = self.get("return_against")
+        if self.get("is_return") and return_against:
             type_doctype: str = (
                 "Sales" if self.doctype in DocumentTransactionType.__SALES_DOCTYPES__
                 else "Purchase"
             )
             bill_no: str = frappe.get_cached_value(
                 f"{type_doctype} Invoice",
-                self.return_against,
+                return_against,
                 "bill_no"
-            ) or self.return_against
+            ) or return_against
             description += f" por Nota de Crédito contra factura {bill_no}"
 
-        elif getattr(self, "is_debit_note", 0) and self.return_against:
+        elif self.get("is_debit_note") and return_against:
             bill_no: str = frappe.get_cached_value(
-                "Sales Invoice", self.return_against, "bill_no"
-            ) or self.return_against
+                "Sales Invoice", return_against, "bill_no"
+            ) or return_against
             description += f" por Nota de Débito contra factura {bill_no}"
 
         return description
