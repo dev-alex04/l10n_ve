@@ -171,7 +171,15 @@ def _process_import_logic(doc, start_time: float) -> None:
 
 
 def _validate_file_path(import_file: str) -> str:
-    """Valida que la ruta del archivo esté dentro del sitio y que exista."""
+    """Valida que la ruta del archivo esté dentro del sitio y que exista, y que el usuario tenga permisos."""
+    # Validar que el archivo exista en la base de datos y que el usuario tenga permisos sobre el documento al que está adjunto
+    file_name = frappe.db.get_value("File", {"file_url": import_file})
+    if not file_name:
+        frappe.throw(_("No tiene permisos para acceder a este archivo o el archivo no existe."), title=_("Acceso Denegado"))
+    file_doc = frappe.get_cached_doc("File", file_name)
+    if file_doc.attached_to_doctype and file_doc.attached_to_name:
+        frappe.has_permission(file_doc.attached_to_doctype, "read", doc=file_doc.attached_to_name, throw=True)
+
     file_path = os.path.join(frappe.get_site_path(), import_file.lstrip('/'))
     if not os.path.abspath(file_path).startswith(os.path.abspath(frappe.get_site_path())):
         frappe.throw(_("Ruta de archivo inválida"))
@@ -181,6 +189,7 @@ def _validate_file_path(import_file: str) -> str:
             title=_("Archivo No Encontrado")
         )
     return file_path
+
 
 
 
