@@ -75,10 +75,10 @@ def get_data(filters):
             `tabPurchase Invoice` inv ON child.bill_no = inv.bill_no 
             AND parent.supplier = inv.supplier
         WHERE
-            child.posting_date BETWEEN %(from_date)s AND %(to_date)s
+            parent.issue_date BETWEEN %(from_date)s AND %(to_date)s
             {conditions}
         ORDER BY
-            child.posting_date DESC, child.bill_no ASC
+            parent.issue_date DESC, child.bill_no ASC
     """
     
     return frappe.db.sql(query, query_params, as_dict=True)
