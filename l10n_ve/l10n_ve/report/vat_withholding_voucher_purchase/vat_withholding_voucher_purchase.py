@@ -186,8 +186,8 @@ def generate_vat_report(voucher_name):
     return full_html
 
 def get_header_html(doc):
-    company_tax_id = frappe.db.get_value("Company", doc.empresa, "tax_id")
-    supplier_tax_id = frappe.db.get_value("Supplier", doc.supplier, "tax_id")
+    company_tax_id = frappe.db.get_value("Company", doc.empresa, "tax_id", cache=True)
+    supplier_tax_id = frappe.db.get_value("Supplier", doc.supplier, "tax_id", cache=True)
 
     return f"""
     <div class="page-header">
