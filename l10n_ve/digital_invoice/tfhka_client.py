@@ -63,9 +63,14 @@ class TFHKAClient:
                 )
             )
 
-    def authenticate(self) -> str:
+    def authenticate(self, force: bool = False) -> str:
         """Obtiene el token JWT. LoginResponse.codigo es int (200 = éxito)."""
         self._load_settings()
+        if not force:
+            cached_token = frappe.cache().get_value("tfhka_jwt_token")
+            if cached_token:
+                self.token = cached_token
+                return self.token
         url = f"{self.base_url}/api/Autenticacion"
         payload = {"usuario": self.username, "clave": self.password}
 
@@ -81,6 +86,7 @@ class TFHKAClient:
                 )
 
             self.token = data.get("token")
+            frappe.cache().set_value("tfhka_jwt_token", self.token, expires_in_sec=3600)
             return self.token
 
         except requests.exceptions.HTTPError as err:
@@ -309,7 +315,15 @@ class TFHKAClient:
             payload["serie"] = serie
 
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
+
+            if response.status_code == 401:
+                # Token expirado/inválido. Limpiar caché, forzar re-autenticación y reintentar.
+                frappe.cache().delete_value("tfhka_jwt_token")
+                self.token = None
+                self.authenticate(force=True)
+                headers["Authorization"] = f"Bearer {self.token}"
+                response = requests.post(url, json=payload, headers=headers, timeout=15)
 
             try:
                 data = response.json()
