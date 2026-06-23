@@ -172,14 +172,14 @@ def generate_islr_report(voucher_name):
 
 def get_company_logo_url(doc):
     company_name = doc.empresa
-    logo_path = frappe.db.get_value("Company", company_name, "company_logo")
+    logo_path = frappe.db.get_value("Company", company_name, "company_logo", cache=True)
     if logo_path:
         return frappe.utils.get_url(logo_path)
     return ""
 
 def get_header_html(doc, current_page, total_pages):
-    company_tax_id = frappe.db.get_value("Company", doc.empresa, "tax_id")
-    supplier_tax_id = frappe.db.get_value("Supplier", doc.supplier, "tax_id")
+    company_tax_id = frappe.db.get_value("Company", doc.empresa, "tax_id", cache=True)
+    supplier_tax_id = frappe.db.get_value("Supplier", doc.supplier, "tax_id", cache=True)
 
     company_logo_url = get_company_logo_url(doc)
 
