@@ -12,14 +12,6 @@ frappe.query_reports["VE HKA Invoices Status"] = {
 			"reqd": 1
 		},
 		{
-			"fieldname": "branch",
-			"label": __("Sucursal"),
-			"fieldtype": "Link",
-			"options": "VE Branch",
-			"reqd": 0
-		},
-
-		{
 			"fieldname": "from_date",
 			"label": __("From Date"),
 			"fieldtype": "Date",
