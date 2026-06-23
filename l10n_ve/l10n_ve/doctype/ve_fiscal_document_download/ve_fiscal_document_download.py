@@ -147,10 +147,6 @@ def process_download_job(docname: str, request_user: str):
 								file_path = frappe.get_site_path("public", file_url.lstrip("/"))
 							else:
 								file_path = frappe.get_site_path(file_url.lstrip("/"))
-							if not os.path.exists(file_path) and not os.path.isabs(file_path):
-								alt_path = os.path.join("sites", file_path)
-								if os.path.exists(alt_path):
-									file_path = alt_path
 							if os.path.exists(file_path):
 								with open(file_path, "rb") as f:
 									pdf_data = f.read()
@@ -450,96 +446,6 @@ def get_valid_invoices(doc):
 	return frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks", "bill_no"])
 
 
-
-def download_invoice_pdf(inv, attached_by_invoice, errors, skip_hka_api=False):
-	inv_name = inv.get("name")
-	inv_remarks = inv.get("remarks")
-	inv_bill_no = inv.get("bill_no")
-
-	pdf_data = None
-	pdf_len = 0
-	filename = ""
-	hka_failed = False
-
-	# 1. Si es simulada, generar MOCK de inmediato
-	if inv_remarks and "Simulado" in inv_remarks:
-		pdf_data = get_mock_pdf_content()
-		pdf_len = len(pdf_data)
-		doc_no = inv_bill_no or "999999"
-		filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
-		return pdf_data, filename, pdf_len, False
-
-	# 2. Buscar archivo PDF adjunto localmente
-	invoice_files = attached_by_invoice.get(inv_name)
-	if invoice_files:
-		try:
-			file_url = invoice_files[0].get("file_url")
-			if file_url:
-				if file_url.startswith("/files/"):
-					file_path = frappe.get_site_path("public", file_url.lstrip("/"))
-				else:
-					file_path = frappe.get_site_path(file_url.lstrip("/"))
-				if not os.path.exists(file_path) and not os.path.isabs(file_path):
-					alt_path = os.path.join("sites", file_path)
-					if os.path.exists(alt_path):
-						file_path = alt_path
-				if os.path.exists(file_path):
-					with open(file_path, "rb") as f:
-						pdf_data = f.read()
-					pdf_len = len(pdf_data)
-					doc_no = inv_bill_no or inv_name
-					filename = f"Factura_{inv_name}_{doc_no}.pdf"
-			
-			if not pdf_data:
-				file_doc = frappe.get_doc("File", invoice_files[0].get("name")).check_permission("read")
-				pdf_data = file_doc.get_content()
-				if isinstance(pdf_data, str):
-					pdf_data = pdf_data.encode("utf-8")
-				pdf_len = len(pdf_data)
-				doc_no = inv_bill_no or inv_name
-				filename = f"Factura_{inv_name}_{doc_no}.pdf"
-		except Exception as e:
-			errors.append(f"{inv_name}: Error al leer archivo local ({str(e)})")
-
-	# 3. Si no existe localmente, lo descargamos de HKA usando la API
-	if not pdf_data:
-		if skip_hka_api:
-			errors.append(f"{inv_name}: Descarga omitida debido a fallas consecutivas previas en la API de HKA.")
-			hka_failed = True
-		else:
-			from l10n_ve.digital_invoice.tfhka_client import get_fiscal_invoice_pdf
-			try:
-				res = get_fiscal_invoice_pdf(inv_name, "Sales Invoice")
-				pdf_base64 = res.get("base64")
-				if pdf_base64:
-					pdf_data = base64.b64decode(pdf_base64)
-					pdf_len = len(pdf_data)
-					doc_no = res.get("numero_documento") or inv_bill_no or inv_name
-					filename = f"Factura_{inv_name}_{doc_no}.pdf"
-				else:
-					err_msg = res.get("error") if res else "No tiene archivo PDF adjunto localmente y falló la descarga desde HKA."
-					errors.append(f"{inv_name}: {err_msg}")
-					hka_failed = True
-			except Exception as e:
-				errors.append(f"{inv_name}: {str(e)}")
-				hka_failed = True
-
-		if hka_failed:
-			is_demo = False
-			try:
-				is_demo = (frappe.get_cached_doc("TFHKA Settings").environment == "Demo")
-			except Exception:
-				pass
-			if not is_demo and frappe.flags.in_test:
-				is_demo = True
-			if is_demo:
-				pdf_data = get_mock_pdf_content()
-				pdf_len = len(pdf_data)
-				doc_no = inv_bill_no or inv_name
-				filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
-				hka_failed = False
-				
-	return pdf_data, filename, pdf_len, hka_failed
 
 
 def get_mock_pdf_content():

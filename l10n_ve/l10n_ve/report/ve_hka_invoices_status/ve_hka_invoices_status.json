@@ -15,13 +15,6 @@
    "options": "Company"
   },
   {
-   "fieldname": "branch",
-   "fieldtype": "Link",
-   "label": "Sucursal",
-   "mandatory": 0,
-   "options": "VE Branch"
-  },
-  {
    "fieldname": "from_date",
    "fieldtype": "Date",
    "label": "From Date",
