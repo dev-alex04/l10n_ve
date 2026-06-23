@@ -16,7 +16,7 @@
             "hidden": 0,
             "is_query_report": 0,
             "label": "Administración",
-            "link_count": 6,
+            "link_count": 7,
             "onboard": 0,
             "type": "Card Break"
         },
@@ -83,6 +83,17 @@
             "link_count": 0,
             "link_to": "VE Fiscal Document Download",
             "link_type": "DocType",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Reporte Pro",
+            "link_count": 0,
+            "link_to": "reporte-pro",
+            "link_type": "Page",
             "onboard": 1,
             "type": "Link"
         },
