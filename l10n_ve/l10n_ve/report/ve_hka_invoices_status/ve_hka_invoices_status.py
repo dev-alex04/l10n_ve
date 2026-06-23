@@ -10,11 +10,6 @@ def execute(filters=None):
 	if not filters.get("company"):
 		frappe.throw(_("Debe seleccionar una Empresa para generar el reporte."))
 
-	frappe.has_permission("Company", "read", doc=filters.get("company"), throw=True)
-
-	doctype_to_check = filters.get("document_type") if filters.get("document_type") and filters.get("document_type") != "All" else "Sales Invoice"
-	frappe.has_permission(doctype_to_check, "read", throw=True)
-
 	columns = get_columns()
 	data = get_data(filters)
 
@@ -53,7 +48,7 @@ def execute(filters=None):
 def get_columns():
 	return [
 		{
-			"fieldname": "document_type_label",
+			"fieldname": "document_type",
 			"label": _("Tipo de Documento"),
 			"fieldtype": "Data",
 			"width": 150
@@ -70,13 +65,6 @@ def get_columns():
 			"label": _("Fecha Emisión"),
 			"fieldtype": "Date",
 			"width": 110
-		},
-		{
-			"fieldname": "branch",
-			"label": _("Sucursal"),
-			"fieldtype": "Link",
-			"options": "VE Branch",
-			"width": 120
 		},
 		{
 			"fieldname": "customer_tax_id",
@@ -115,6 +103,12 @@ def get_columns():
 			"width": 120
 		},
 		{
+			"fieldname": "docstatus_label",
+			"label": _("Estado Documento"),
+			"fieldtype": "Data",
+			"width": 140
+		},
+		{
 			"fieldname": "log_creation",
 			"label": _("Último Intento"),
 			"fieldtype": "Datetime",
@@ -132,10 +126,6 @@ def get_columns():
 def get_data(filters):
 	conditions = ["doc.company = %(company)s"]
 	values = {"company": filters.get("company")}
-
-	if filters.get("branch"):
-		conditions.append("doc.branch = %(branch)s")
-		values["branch"] = filters.get("branch")
 
 	if filters.get("from_date"):
 		conditions.append("doc.posting_date >= %(from_date)s")
@@ -163,7 +153,6 @@ def get_data(filters):
 				doc.bill_no,
 				doc.bill_control,
 				doc.docstatus,
-				doc.branch,
 				log.status AS log_status,
 				log.notes AS log_notes,
 				log.creation AS log_creation
@@ -197,7 +186,6 @@ def get_data(filters):
 				doc.bill_no,
 				doc.bill_control,
 				doc.docstatus,
-				doc.branch,
 				log.status AS log_status,
 				log.notes AS log_notes,
 				log.creation AS log_creation
@@ -231,7 +219,6 @@ def get_data(filters):
 				doc.bill_no,
 				doc.bill_control,
 				doc.docstatus,
-				doc.branch,
 				log.status AS log_status,
 				log.notes AS log_notes,
 				log.creation AS log_creation
@@ -255,12 +242,6 @@ def get_data(filters):
 	raw_data = frappe.db.sql(full_query, values, as_dict=1)
 
 	processed_data = []
-	doc_type_translations = {
-		"Sales Invoice": _("Factura de Venta"),
-		"VE Sales Credit Note": _("Nota de Crédito"),
-		"VE Sales Debit Note": _("Nota de Débito"),
-	}
-
 	for row in raw_data:
 		# Determinar estado de HKA
 		if row.get("bill_control"):
@@ -275,8 +256,13 @@ def get_data(filters):
 			if row["status"] != filters.get("status"):
 				continue
 
-		# Tipo de documento en español
-		row["document_type_label"] = doc_type_translations.get(row.get("document_type"), row.get("document_type"))
+		# Etiqueta de docstatus
+		if row.get("docstatus") == 1:
+			row["docstatus_label"] = _("Sometido")
+		elif row.get("docstatus") == 2:
+			row["docstatus_label"] = _("Anulado")
+		else:
+			row["docstatus_label"] = _("Borrador")
 
 		processed_data.append(row)
 
