@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control ISP</title>
+    <script>
+        window.addEventListener('error', function(e) {
+            var banner = document.getElementById('js-error-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'js-error-banner';
+                banner.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; background: #ef4444; color: white; padding: 10px 20px; z-index: 100000; font-family: monospace; font-size: 13px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center;';
+                banner.innerHTML = '<span><strong>JS Error:</strong> <span id="js-error-msg"></span></span><button onclick="this.parentElement.remove()" style="background: none; border: 1px solid white; color: white; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px;">Cerrar</button>';
+                document.body.appendChild(banner);
+            }
+            document.getElementById('js-error-msg').innerText = e.message + ' at ' + e.filename + ':' + e.lineno;
+        });
+    </script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- ApexCharts for Premium Data Visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    
+    <!-- Local Stylesheet -->
+    <link rel="stylesheet" href="/isp_dashboard_portal/index.css?v=4">
+    <!-- Frappe CSRF token & session injected from server -->
+    <script>
+        window.csrf_token = "{{ csrf_token }}";
+        window.session_user = "{{ frappe.session.user }}";
+        window.exchange_rate = {{ exchange_rate or 36.50 }};
+    </script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Main Body Wrapper -->
+        <div class="main-layout">
+            <!-- Left Panel (Dashboard Grid) -->
+            <main class="dashboard-content">
+                <!-- Filters Bar -->
+                <div class="filters-bar card">
+                    <div class="filters-grid">
+                        <div class="filter-item">
+                            <label for="filter-company">Empresa</label>
+                            <select id="filter-company">
+                                <option value="">Cargando...</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="filter-branch">Sucursal</label>
+                            <select id="filter-branch">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="filter-router">Router</label>
+                            <select id="filter-router">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="filter-state">Estado</label>
+                            <select id="filter-state">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="filter-municipality">Municipio</label>
+                            <select id="filter-municipality">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="filter-currency">Moneda</label>
+                            <select id="filter-currency">
+                                <option value="USD">USD ($)</option>
+                                <option value="VEF">VEF (Bs.)</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="filter-date-from">Desde</label>
+                            <input type="date" id="filter-date-from">
+                        </div>
+                        <div class="filter-item">
+                            <label for="filter-date-to">Hasta</label>
+                            <input type="date" id="filter-date-to">
+                        </div>
+                        <div class="filter-item theme-toggle-container">
+                            <label>&nbsp;</label>
+                            <button id="theme-toggle" class="btn btn-outline" style="height: 38px; display: flex; align-items: center; gap: 8px; width: 100%; justify-content: center;" title="Cambiar Tema">
+                                <i data-lucide="moon" style="width: 16px; height: 16px;"></i>
+                                <span>Modo Oscuro</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI Cards Row -->
+                <div class="kpi-cards-grid" id="kpi-cards-grid">
+                    <div class="kpi-card" id="kpi-pendiente">
+                        <div class="kpi-icon-wrap warning"><i data-lucide="file-clock"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">Por Cobrar</span>
+                            <span class="kpi-value" id="kpi-pendiente-val">—</span>
+                            <span class="kpi-sub" id="kpi-pendiente-count">— facturas</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" id="kpi-cobrado-usd">
+                        <div class="kpi-icon-wrap success"><i data-lucide="dollar-sign"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">Cobrado REF ($)</span>
+                            <span class="kpi-value" id="kpi-cobrado-usd-val">—</span>
+                            <span class="kpi-sub" id="kpi-cobrado-usd-sub">Base + IVA</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" id="kpi-cobrado-ves">
+                        <div class="kpi-icon-wrap info"><i data-lucide="banknote"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">Cobrado Bs.</span>
+                            <span class="kpi-value" id="kpi-cobrado-ves-val">—</span>
+                            <span class="kpi-sub" id="kpi-cobrado-ves-sub">Base + IVA</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" id="kpi-gastos">
+                        <div class="kpi-icon-wrap danger"><i data-lucide="trending-down"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">Gastos</span>
+                            <span class="kpi-value" id="kpi-gastos-usd-val">—</span>
+                            <span class="kpi-sub" id="kpi-gastos-ves-val">Bs. —</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" id="kpi-disponible-usd">
+                        <div class="kpi-icon-wrap primary"><i data-lucide="wallet"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">Disponible REF ($)</span>
+                            <span class="kpi-value" id="kpi-disp-usd-val">—</span>
+                            <span class="kpi-sub" id="kpi-disp-usd-sub">Cobrado − Gastos</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" id="kpi-disponible-ves">
+                        <div class="kpi-icon-wrap purple"><i data-lucide="piggy-bank"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">Disponible Bs.</span>
+                            <span class="kpi-value" id="kpi-disp-ves-val">—</span>
+                            <span class="kpi-sub" id="kpi-disp-ves-sub">Cobrado − Gastos</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" id="kpi-tax-total">
+                        <div class="kpi-icon-wrap warning"><i data-lucide="receipt-text"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">IVA + IGTF Total</span>
+                            <div class="kpi-tax-row">
+                                <span class="kpi-tax-label">IVA</span>
+                                <span id="kpi-iva-usd-val" class="kpi-tax-usd">—</span>
+                                <span id="kpi-iva-ves-val" class="kpi-tax-ves">Bs. —</span>
+                            </div>
+                            <div class="kpi-tax-row">
+                                <span class="kpi-tax-label">IGTF</span>
+                                <span id="kpi-igtf-usd-val" class="kpi-tax-usd">—</span>
+                                <span id="kpi-igtf-ves-val" class="kpi-tax-ves">Bs. —</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card calendar-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Calendario para tareas</h2>
+                        <div class="calendar-controls">
+                            <button class="btn btn-primary" onclick="window.showAddTaskModal('')" style="display: flex; align-items: center; gap: 6px; font-weight: 500; font-size: 13px; height: 36px; padding: 0 16px;">
+                                <i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i>
+                                <span>Agregar Tarea</span>
+                            </button>
+                            <button class="btn btn-outline" id="cal-btn-today">Hoy</button>
+                            <div class="btn-group">
+                                <button class="btn btn-outline" id="cal-btn-prev"><i data-lucide="chevron-left"></i></button>
+                                <button class="btn btn-outline active" id="cal-btn-range-7">7d</button>
+                                <button class="btn btn-outline" id="cal-btn-range-15">15d</button>
+                                <button class="btn btn-outline" id="cal-btn-range-30">30d</button>
+                                <button class="btn btn-outline" id="cal-btn-next"><i data-lucide="chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="calendar-grid-wrapper">
+                        <div class="calendar-grid" id="weekly-calendar">
+                            <!-- JS will inject calendar columns dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Middle Grid Row (Work Orders & Sales Summary) -->
+                <div class="dashboard-row row-2">
+                    <!-- Ventas del Día Card -->
+                    <div class="card work-orders-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Ventas del Día</h2>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Factura</th>
+                                        <th>Cliente</th>
+                                        <th>Fecha Emisión</th>
+                                        <th>Monto Total</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sales-today-tbody">
+                                    <!-- Dynamic rows loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Sales Summary Card -->
+                    <div class="card sales-summary-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Resumen de Ventas</h2>
+                        </div>
+                        <div class="sales-stats-container">
+                            <div class="sales-stat-group">
+                                <div class="stat-header">
+                                    <span class="stat-label">Recaudación Diaria</span>
+                                    <span class="stat-value" id="daily-sales-val">Ventas Diarias: $4,500.00</span>
+                                </div>
+                                <div class="chart-container-mini" id="daily-sales-chart"></div>
+                            </div>
+                            <div class="sales-stat-group">
+                                <div class="stat-header">
+                                    <span class="stat-label">Recaudación Semanal</span>
+                                    <span class="stat-value" id="weekly-sales-val">$18,750.00</span>
+                                </div>
+                                <div class="progress-bar-wrapper">
+                                    <div class="progress-bar-fill green" style="width: 72%;"></div>
+                                </div>
+                                <div class="stat-meta" id="weekly-sales-meta">Semanales: $385.00 | Semanales: $26.00</div>
+                            </div>
+                            <div class="sales-stat-group">
+                                <div class="stat-header">
+                                    <span class="stat-label">Recaudación Mensual</span>
+                                    <span class="stat-value" id="monthly-sales-val">$65,200.00</span>
+                                </div>
+                                <div class="progress-bar-wrapper">
+                                    <div class="progress-bar-fill blue" style="width: 85%;"></div>
+                                </div>
+                                <div class="stat-meta" id="monthly-sales-meta">Mensuales: $385.00 | Mensuales: $110.00</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Grid Row (Monthly Expenses & Available Balance) -->
+                <div class="dashboard-row row-3">
+                    <!-- Monthly Expenses Card -->
+                    <div class="card expenses-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Gastos Mensuales</h2>
+                            <button class="icon-btn-small"><i data-lucide="more-horizontal"></i></button>
+                        </div>
+                        <div class="expenses-body">
+                            <div class="expenses-chart-wrapper">
+                                <div class="expense-item">
+                                    <div class="expense-info">
+                                        <span>Combustible</span>
+                                    </div>
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-bar-fill blue" style="width: 65%;"></div>
+                                    </div>
+                                </div>
+                                <div class="expense-item">
+                                    <div class="expense-info">
+                                        <span>Repuestos FTTH</span>
+                                    </div>
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-bar-fill blue" style="width: 48%;"></div>
+                                    </div>
+                                </div>
+                                <div class="expense-item">
+                                    <div class="expense-info">
+                                        <span>Salarios</span>
+                                    </div>
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-bar-fill blue" style="width: 82%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="expenses-footer">
+                                <span class="expenses-total" id="expenses-total-val">$12,450.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Available Balance Card -->
+                    <div class="card balance-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Saldo Disponible</h2>
+                            <button class="icon-btn-small"><i data-lucide="more-horizontal"></i></button>
+                        </div>
+                        <div class="balance-body">
+                            <div class="balance-left">
+                                <span class="balance-amount" id="balance-amount-val">$18,220.00</span>
+                                <div id="balance-amount-sub" style="font-size: 13px; color: var(--text-secondary); margin-top: 4px; font-weight: 500;">—</div>
+                                <span class="balance-subtitle" style="margin-top: 8px;">Ingresos vs. Gastos (Mes Actual)</span>
+                                <div class="balance-legend">
+                                    <div class="legend-item">
+                                        <span class="legend-dot green"></span>
+                                        <span>Ingresos</span>
+                                    </div>
+                                    <div class="legend-item">
+                                        <span class="legend-dot red"></span>
+                                        <span>Gastos</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="balance-right">
+                                <div id="balance-donut-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        </div>
+    </div>
+
+    <!-- Modal de Detalles de Instalación -->
+    <div id="installation-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title-container">
+                    <div class="modal-icon-wrap primary">
+                        <i data-lucide="calendar"></i>
+                    </div>
+                    <h3 class="modal-title">Detalle de Instalación</h3>
+                </div>
+                <button class="modal-close-btn" id="modal-close-btn" title="Cerrar">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-grid">
+                    <div class="modal-field full-width">
+                        <span class="field-label">Cliente</span>
+                        <span class="field-value" id="modal-client-val">—</span>
+                    </div>
+                    <div class="modal-field">
+                        <span class="field-label">ID de Servicio</span>
+                        <span class="field-value highlight" id="modal-service-val">—</span>
+                    </div>
+                    <div class="modal-field">
+                        <span class="field-label">Plan de Internet</span>
+                        <span class="field-value" id="modal-plan-val">—</span>
+                    </div>
+                    <div class="modal-field">
+                        <span class="field-label">IP Asignada</span>
+                        <span class="field-value" id="modal-ip-val">—</span>
+                    </div>
+                    <div class="modal-field">
+                        <span class="field-label">Router</span>
+                        <span class="field-value" id="modal-router-val">—</span>
+                    </div>
+                    <div class="modal-field">
+                        <span class="field-label">Fecha</span>
+                        <span class="field-value" id="modal-date-val">—</span>
+                    </div>
+                    <div class="modal-field">
+                        <span class="field-label">Hora Estimada</span>
+                        <span class="field-value" id="modal-time-val">—</span>
+                    </div>
+                    <div class="modal-field">
+                        <span class="field-label">Estado</span>
+                        <span id="modal-status-val" class="badge">—</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="modal-link-service" href="#" target="_blank" class="btn btn-outline" style="display: flex; align-items: center; gap: 6px; text-decoration: none;">
+                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                    <span>Ver Servicio</span>
+                </a>
+                <button class="btn btn-primary" id="modal-close-action-btn">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Detalles de Tarea -->
+    <div id="task-detail-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title-container">
+                    <div class="modal-icon-wrap primary">
+                        <i data-lucide="clipboard-list"></i>
+                    </div>
+                    <h3 class="modal-title">Detalle de Tarea</h3>
+                </div>
+                <button class="modal-close-btn" id="task-detail-close-btn" title="Cerrar">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-grid">
+                    <div class="modal-field full-width">
+                        <span class="field-label">Título</span>
+                        <span class="field-value" id="modal-task-subject" style="font-weight: 600;">—</span>
+                    </div>
+                    <div class="modal-field full-width">
+                        <span class="field-label">Qué se va a hacer / Descripción</span>
+                        <span class="field-value" id="modal-task-desc" style="white-space: pre-wrap; word-break: break-word;">—</span>
+                    </div>
+                    <div class="modal-field">
+                        <span class="field-label">Fecha</span>
+                        <span class="field-value" id="modal-task-date">—</span>
+                    </div>
+                    <div class="modal-field">
+                        <span class="field-label">Estado</span>
+                        <span id="modal-task-status" class="badge">—</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="task-detail-close-action-btn">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Agregar Tarea -->
+    <div id="add-task-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title-container">
+                    <div class="modal-icon-wrap primary">
+                        <i data-lucide="plus-circle"></i>
+                    </div>
+                    <h3 class="modal-title">Agregar Nueva Tarea</h3>
+                </div>
+                <button class="modal-close-btn" id="add-task-close-btn" title="Cerrar">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="add-task-form" onsubmit="event.preventDefault();">
+                <div class="modal-body">
+                    <div class="modal-grid" style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+                        <div class="modal-form-group">
+                            <label for="add-task-subject">Título</label>
+                            <input type="text" id="add-task-subject" required placeholder="Ej. Revisión de red de fibra">
+                        </div>
+                        <div class="modal-form-group">
+                            <label for="add-task-desc">Qué se va a hacer (la cosa / qué se va a hacer)</label>
+                            <textarea id="add-task-desc" rows="4" required placeholder="Describe detalladamente qué se va a hacer..."></textarea>
+                        </div>
+                        <div class="modal-form-group">
+                            <label for="add-task-date">Fecha</label>
+                            <input type="date" id="add-task-date" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" id="add-task-cancel-btn">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="add-task-submit-btn">Guardar Tarea</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Local Script -->
+    <script src="/isp_dashboard_portal/index.js?v=4"></script>
+</body>
+</html>
