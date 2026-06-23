@@ -10,7 +10,7 @@ def get_context(context):
     context.no_cache = 1
     
     # Expose CSRF token and user info to Jinja2 template (used by standalone page JS)
-    context.csrf_token = frappe.session.data.csrf_token
+    context.csrf_token = getattr(frappe.session.data, "csrf_token", "")
     context.full_name = frappe.get_value("User", frappe.session.user, "full_name") or frappe.session.user
 
     # Get active company default

@@ -158,7 +158,7 @@ def process_download_job(docname: str, request_user: str):
 								filename = f"Factura_{inv_name}_{doc_no}.pdf"
 
 						if not pdf_data:
-							file_doc = frappe.get_doc("File", invoice_files[0].get("name"))
+							file_doc = frappe.get_doc("File", invoice_files[0].get("name")).check_permission("read")
 							pdf_data = file_doc.get_content()
 							if isinstance(pdf_data, str):
 								pdf_data = pdf_data.encode("utf-8")
@@ -491,7 +491,7 @@ def download_invoice_pdf(inv, attached_by_invoice, errors, skip_hka_api=False):
 					filename = f"Factura_{inv_name}_{doc_no}.pdf"
 			
 			if not pdf_data:
-				file_doc = frappe.get_doc("File", invoice_files[0].get("name"))
+				file_doc = frappe.get_doc("File", invoice_files[0].get("name")).check_permission("read")
 				pdf_data = file_doc.get_content()
 				if isinstance(pdf_data, str):
 					pdf_data = pdf_data.encode("utf-8")
