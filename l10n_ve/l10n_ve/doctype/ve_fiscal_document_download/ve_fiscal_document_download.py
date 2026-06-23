@@ -52,6 +52,9 @@ def process_download_job(docname: str, request_user: str):
 		
 		valid_invoices = get_valid_invoices(doc)
 		doc.total_attempted = len(valid_invoices)
+		doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		publish_status(docname, "Processing", request_user)
 
 		if not valid_invoices:
 			doc.status = "Failed"
@@ -65,6 +68,8 @@ def process_download_job(docname: str, request_user: str):
 		files = []
 		errors = []
 		downloaded_count = 0
+		consecutive_hka_failures = 0
+		skip_hka_api = False
 
 		zip_buffer = io.BytesIO()
 		zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
@@ -75,9 +80,20 @@ def process_download_job(docname: str, request_user: str):
 		master_zip_buffer = io.BytesIO()
 		master_zip_file = zipfile.ZipFile(master_zip_buffer, "w", zipfile.ZIP_DEFLATED)
 
-		from l10n_ve.digital_invoice.tfhka_client import get_fiscal_invoice_pdf
+		# Instanciar el cliente HKA y obtener token y base_url una sola vez en el hilo principal
+		from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
+		client = TFHKAClient()
+		token = ""
+		base_url = ""
+		try:
+			client.authenticate()
+			token = client.token
+			base_url = client.base_url
+		except Exception as auth_err:
+			errors.append(f"Fallo de autenticación global HKA: {str(auth_err)}")
+			skip_hka_api = True
 
-		chunk_size = 1000
+		chunk_size = 100
 		for chunk_start in range(0, len(valid_invoices), chunk_size):
 			chunk = valid_invoices[chunk_start:chunk_start + chunk_size]
 			chunk_invoice_names = [inv.get("name") for inv in chunk]
@@ -90,7 +106,7 @@ def process_download_job(docname: str, request_user: str):
 					"attached_to_name": ["in", chunk_invoice_names],
 					"file_name": ["like", "%.pdf"]
 				},
-				fields=["name", "file_name", "attached_to_name"]
+				fields=["name", "file_name", "attached_to_name", "file_url"]
 			)
 
 			attached_by_invoice = {}
@@ -100,29 +116,266 @@ def process_download_job(docname: str, request_user: str):
 					attached_by_invoice[inv_name] = []
 				attached_by_invoice[inv_name].append(f)
 
-			for idx, inv in enumerate(chunk):
-				try:
-					pdf_data, filename, pdf_len = download_invoice_pdf(inv, attached_by_invoice, errors)
+			# Clasificar facturas: locales/simuladas vs remotas (API)
+			local_results = []
+			remote_tasks = []  # List of tuples: (inv, inv_name, doc_no, serie, tipo_documento)
 
-					if pdf_data and filename:
-						# Si supera 4.5 MB, guardar el ZIP actual y abrir uno nuevo
+			for inv in chunk:
+				inv_name = inv.get("name")
+				inv_remarks = inv.get("remarks")
+				inv_bill_no = inv.get("bill_no")
+
+				# 1. Si es simulada, generar MOCK de inmediato
+				if inv_remarks and "Simulado" in inv_remarks:
+					pdf_data = get_mock_pdf_content()
+					doc_no = inv_bill_no or "999999"
+					filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
+					local_results.append((inv_name, pdf_data, filename))
+					continue
+
+				# 2. Buscar archivo PDF adjunto localmente
+				invoice_files = attached_by_invoice.get(inv_name)
+				pdf_data = None
+				filename = ""
+				if invoice_files:
+					try:
+						file_url = invoice_files[0].get("file_url")
+						if file_url:
+							file_path = frappe.get_site_path(file_url.lstrip("/"))
+							if not os.path.exists(file_path) and not os.path.isabs(file_path):
+								alt_path = os.path.join("sites", file_path)
+								if os.path.exists(alt_path):
+									file_path = alt_path
+							if os.path.exists(file_path):
+								with open(file_path, "rb") as f:
+									pdf_data = f.read()
+								doc_no = inv_bill_no or inv_name
+								filename = f"Factura_{inv_name}_{doc_no}.pdf"
+
+						if not pdf_data:
+							file_doc = frappe.get_doc("File", invoice_files[0].get("name"))
+							pdf_data = file_doc.get_content()
+							if isinstance(pdf_data, str):
+								pdf_data = pdf_data.encode("utf-8")
+							doc_no = inv_bill_no or inv_name
+							filename = f"Factura_{inv_name}_{doc_no}.pdf"
+					except Exception as e:
+						errors.append(f"{inv_name}: Error al leer archivo local ({str(e)})")
+
+				if pdf_data:
+					local_results.append((inv_name, pdf_data, filename))
+				else:
+					# 3. Necesita descargar de la API
+					if skip_hka_api:
+						errors.append(f"{inv_name}: Descarga omitida debido a fallas en la API de HKA.")
+						is_demo = False
+						try:
+							is_demo = (frappe.get_cached_doc("TFHKA Settings").environment == "Demo")
+						except Exception:
+							pass
+						if is_demo:
+							pdf_data = get_mock_pdf_content()
+							doc_no = inv_bill_no or "999999"
+							filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
+							local_results.append((inv_name, pdf_data, filename))
+						continue
+
+					# Obtener número de documento y serie de los remarks
+					doc_no = inv_bill_no or ""
+					serie = ""
+					if inv_remarks:
+						try:
+							hka_data = json.loads(inv_remarks)
+							resultado = hka_data.get("resultado") or {}
+							doc_no = resultado.get("numeroDocumento") or doc_no
+							serie = resultado.get("serie") or ""
+						except Exception:
+							pass
+
+					if not doc_no:
+						errors.append(f"{inv_name}: No se pudo determinar el número de documento para descargar de HKA.")
+						continue
+
+					remote_tasks.append((inv, inv_name, doc_no, serie, "01"))
+
+			# Ejecutar descargas remotas en paralelo usando ThreadPoolExecutor
+			downloaded_from_hka = {}
+			if remote_tasks and token and base_url:
+				from concurrent.futures import ThreadPoolExecutor, as_completed
+				
+				# Función worker para descargar de HKA (libre de acceso a DB)
+				def worker_download(task):
+					inv_obj, name, num_doc, s_code, doc_t = task
+					import requests
+					url = f"{base_url}/api/DescargaArchivo"
+					headers = {
+						"Content-Type": "application/json",
+						"Authorization": f"Bearer {token}",
+					}
+					payload = {
+						"tipoDocumento": doc_t,
+						"numeroDocumento": num_doc,
+						"tipoArchivo": "pdf",
+					}
+					if s_code:
+						payload["serie"] = s_code
+					
+					try:
+						res = requests.post(url, json=payload, headers=headers, timeout=20)
+						if res.status_code == 401:
+							return {"name": name, "status": "401", "error": "Token expirado"}
+						if res.ok:
+							data = res.json()
+							if data.get("archivo"):
+								return {"name": name, "status": "success", "base64": data.get("archivo"), "doc_no": num_doc}
+							else:
+								return {"name": name, "status": "error", "error": data.get("mensaje") or "No se retornó el archivo PDF."}
+						else:
+							return {"name": name, "status": "error", "error": f"HTTP {res.status_code}: {res.text[:1000]}"}
+					except Exception as ex:
+						return {"name": name, "status": "error", "error": str(ex)}
+
+				max_workers = min(10, len(remote_tasks))
+				with ThreadPoolExecutor(max_workers=max_workers) as executor:
+					futures = {executor.submit(worker_download, task): task for task in remote_tasks}
+					
+					hka_401_detected = False
+					tasks_to_retry = []
+					
+					for future in futures:
+						task = futures[future]
+						name = task[1]
+						try:
+							res_data = future.result()
+							if res_data.get("status") == "401":
+								hka_401_detected = True
+								tasks_to_retry.append(task)
+							elif res_data.get("status") == "success":
+								downloaded_from_hka[name] = res_data
+							else:
+								errors.append(f"{name}: {res_data.get('error')}")
+								consecutive_hka_failures += 1
+						except Exception as ex:
+							errors.append(f"{name}: {str(ex)}")
+							consecutive_hka_failures += 1
+
+					# Si se detectó expiración de token (401), re-autenticar e intentar de nuevo con las tareas fallidas
+					if hka_401_detected:
+						try:
+							client.authenticate(force=True)
+							new_token = client.token
+							
+							for task in tasks_to_retry:
+								inv_obj, name, num_doc, s_code, doc_t = task
+								import requests
+								url = f"{base_url}/api/DescargaArchivo"
+								headers = {
+									"Content-Type": "application/json",
+									"Authorization": f"Bearer {new_token}",
+								}
+								payload = {
+									"tipoDocumento": doc_t,
+									"numeroDocumento": num_doc,
+									"tipoArchivo": "pdf",
+								}
+								if s_code:
+									payload["serie"] = s_code
+								
+								try:
+									res = requests.post(url, json=payload, headers=headers, timeout=20)
+									if res.ok:
+										data = res.json()
+										if data.get("archivo"):
+											downloaded_from_hka[name] = {
+												"name": name,
+												"status": "success",
+												"base64": data.get("archivo"),
+												"doc_no": num_doc
+											}
+										else:
+											errors.append(f"{name}: {data.get('mensaje') or 'No se retornó el archivo PDF (reintento).'}")
+									else:
+										errors.append(f"{name}: HTTP {res.status_code} (reintento)")
+								except Exception as ex:
+									errors.append(f"{name}: {str(ex)} (reintento)")
+						except Exception as auth_ex:
+							errors.append(f"Fallo al re-autenticar tras recibir 401: {str(auth_ex)}")
+							for task in tasks_to_retry:
+								errors.append(f"{task[1]}: Falló la descarga por token expirado y no se pudo re-autenticar.")
+
+			# Procesar y empaquetar los resultados en el hilo principal
+			for name, pdf_data, filename in local_results:
+				pdf_len = len(pdf_data)
+				if current_zip_count > 0 and zip_buffer.tell() + pdf_len + 5000 >= MAX_SIZE_BYTES:
+					zip_buffer, zip_file = save_zip_part(doc, zip_buffer, zip_file, part_number, files)
+					current_zip_count = 0
+					part_number += 1
+
+				zip_file.writestr(filename, pdf_data)
+				master_zip_file.writestr(filename, pdf_data)
+				downloaded_count += 1
+				current_zip_count += 1
+
+			for task in remote_tasks:
+				inv_obj, name, num_doc, s_code, doc_t = task
+				if name in downloaded_from_hka:
+					res_data = downloaded_from_hka[name]
+					pdf_bytes = base64.b64decode(res_data.get("base64"))
+					pdf_len = len(pdf_bytes)
+					doc_no = res_data.get("doc_no") or num_doc
+					filename = f"Factura_{name}_{doc_no}.pdf"
+
+					# Guardar archivo localmente en el hilo principal para futuras consultas rápidas
+					try:
+						save_file(
+							fname=filename,
+							content=pdf_bytes,
+							dt="Sales Invoice",
+							dn=name,
+							is_private=1
+						)
+					except Exception as e:
+						frappe.logger("l10n_ve").error(f"No se pudo guardar PDF adjunto para {name}: {str(e)}")
+
+					if current_zip_count > 0 and zip_buffer.tell() + pdf_len + 5000 >= MAX_SIZE_BYTES:
+						zip_buffer, zip_file = save_zip_part(doc, zip_buffer, zip_file, part_number, files)
+						current_zip_count = 0
+						part_number += 1
+
+					zip_file.writestr(filename, pdf_bytes)
+					master_zip_file.writestr(filename, pdf_bytes)
+					downloaded_count += 1
+					current_zip_count += 1
+					consecutive_hka_failures = 0
+				else:
+					# Check if TFHKA Settings environment is Demo
+					is_demo = False
+					try:
+						is_demo = (frappe.get_cached_doc("TFHKA Settings").environment == "Demo")
+					except Exception:
+						pass
+					
+					if is_demo:
+						# Generate a simulated mock PDF for test purposes
+						pdf_bytes = get_mock_pdf_content()
+						pdf_len = len(pdf_bytes)
+						filename = f"Factura_{name}_{num_doc}_MOCK.pdf"
+						
 						if current_zip_count > 0 and zip_buffer.tell() + pdf_len + 5000 >= MAX_SIZE_BYTES:
-							save_zip_part(doc, zip_buffer, zip_file, part_number, files)
-
-							# Resetear para la siguiente parte
-							zip_buffer = io.BytesIO()
-							zip_file = zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED)
+							zip_buffer, zip_file = save_zip_part(doc, zip_buffer, zip_file, part_number, files)
 							current_zip_count = 0
 							part_number += 1
 
-						zip_file.writestr(filename, pdf_data)
-						master_zip_file.writestr(filename, pdf_data)
+						zip_file.writestr(filename, pdf_bytes)
+						master_zip_file.writestr(filename, pdf_bytes)
 						downloaded_count += 1
 						current_zip_count += 1
-				except Exception as e:
-					errors.append(f"{inv.get('name') or 'Desconocida'}: {str(e)}")
 
-			# Guardar el progreso y commit al finalizar el lote actual de 1000
+			# Actualizar skip_hka_api por fallos consecutivos
+			if consecutive_hka_failures >= 10:
+				skip_hka_api = True
+
+			# Guardar el progreso y commit al finalizar el lote actual de 100
 			doc.downloaded_count = downloaded_count
 			doc.save(ignore_permissions=True)
 			frappe.db.commit()
@@ -176,23 +429,18 @@ def get_valid_invoices(doc):
 	filters = {
 		"docstatus": 1,
 		"posting_date": ["between", [doc.from_date, doc.to_date]],
+		"remarks": ["like", '%"numeroDocumento"%']
 	}
 	if doc.customer:
 		filters["customer"] = doc.customer
 	if doc.get("branch"):
 		filters["branch"] = doc.branch
 
-	invoices = frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks", "bill_no"])
-	
-	valid_invoices = []
-	for inv in invoices:
-		remarks = inv.get("remarks")
-		if remarks and '"numeroDocumento"' in remarks:
-			valid_invoices.append(inv)
-	return valid_invoices
+	return frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks", "bill_no"])
 
 
-def download_invoice_pdf(inv, attached_by_invoice, errors):
+
+def download_invoice_pdf(inv, attached_by_invoice, errors, skip_hka_api=False):
 	inv_name = inv.get("name")
 	inv_remarks = inv.get("remarks")
 	inv_bill_no = inv.get("bill_no")
@@ -200,50 +448,82 @@ def download_invoice_pdf(inv, attached_by_invoice, errors):
 	pdf_data = None
 	pdf_len = 0
 	filename = ""
+	hka_failed = False
 
-	# 1. Buscar archivo PDF adjunto localmente
+	# 1. Si es simulada, generar MOCK de inmediato
+	if inv_remarks and "Simulado" in inv_remarks:
+		pdf_data = get_mock_pdf_content()
+		pdf_len = len(pdf_data)
+		doc_no = inv_bill_no or "999999"
+		filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
+		return pdf_data, filename, pdf_len, False
+
+	# 2. Buscar archivo PDF adjunto localmente
 	invoice_files = attached_by_invoice.get(inv_name)
 	if invoice_files:
 		try:
-			file_doc = frappe.get_doc("File", invoice_files[0].get("name"))
-			pdf_data = file_doc.get_content()
-			if isinstance(pdf_data, str):
-				pdf_data = pdf_data.encode("utf-8")
-			pdf_len = len(pdf_data)
-			doc_no = inv_bill_no or inv_name
-			filename = f"Factura_{inv_name}_{doc_no}.pdf"
+			file_url = invoice_files[0].get("file_url")
+			if file_url:
+				file_path = frappe.get_site_path(file_url.lstrip("/"))
+				if not os.path.exists(file_path) and not os.path.isabs(file_path):
+					alt_path = os.path.join("sites", file_path)
+					if os.path.exists(alt_path):
+						file_path = alt_path
+				if os.path.exists(file_path):
+					with open(file_path, "rb") as f:
+						pdf_data = f.read()
+					pdf_len = len(pdf_data)
+					doc_no = inv_bill_no or inv_name
+					filename = f"Factura_{inv_name}_{doc_no}.pdf"
+			
+			if not pdf_data:
+				file_doc = frappe.get_doc("File", invoice_files[0].get("name"))
+				pdf_data = file_doc.get_content()
+				if isinstance(pdf_data, str):
+					pdf_data = pdf_data.encode("utf-8")
+				pdf_len = len(pdf_data)
+				doc_no = inv_bill_no or inv_name
+				filename = f"Factura_{inv_name}_{doc_no}.pdf"
 		except Exception as e:
 			errors.append(f"{inv_name}: Error al leer archivo local ({str(e)})")
 
-	# 2. Si no existe localmente, lo descargamos de HKA usando la API
+	# 3. Si no existe localmente, lo descargamos de HKA usando la API
 	if not pdf_data:
-		from l10n_ve.digital_invoice.tfhka_client import get_fiscal_invoice_pdf
-		try:
-			res = get_fiscal_invoice_pdf(inv_name, "Sales Invoice")
-			pdf_base64 = res.get("base64")
-			if pdf_base64:
-				pdf_data = base64.b64decode(pdf_base64)
-				pdf_len = len(pdf_data)
-				doc_no = res.get("numero_documento") or inv_bill_no or inv_name
-				filename = f"Factura_{inv_name}_{doc_no}.pdf"
-			elif inv_remarks and "Simulado" in inv_remarks:
-				pdf_data = get_mock_pdf_content()
-				pdf_len = len(pdf_data)
-				doc_no = inv_bill_no or "999999"
-				filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
-			else:
-				err_msg = res.get("error") if res else "No tiene archivo PDF adjunto localmente y falló la descarga desde HKA."
-				errors.append(f"{inv_name}: {err_msg}")
-		except Exception as e:
-			if inv_remarks and "Simulado" in inv_remarks:
-				pdf_data = get_mock_pdf_content()
-				pdf_len = len(pdf_data)
-				doc_no = inv_bill_no or "999999"
-				filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
-			else:
+		if skip_hka_api:
+			errors.append(f"{inv_name}: Descarga omitida debido a fallas consecutivas previas en la API de HKA.")
+			hka_failed = True
+		else:
+			from l10n_ve.digital_invoice.tfhka_client import get_fiscal_invoice_pdf
+			try:
+				res = get_fiscal_invoice_pdf(inv_name, "Sales Invoice")
+				pdf_base64 = res.get("base64")
+				if pdf_base64:
+					pdf_data = base64.b64decode(pdf_base64)
+					pdf_len = len(pdf_data)
+					doc_no = res.get("numero_documento") or inv_bill_no or inv_name
+					filename = f"Factura_{inv_name}_{doc_no}.pdf"
+				else:
+					err_msg = res.get("error") if res else "No tiene archivo PDF adjunto localmente y falló la descarga desde HKA."
+					errors.append(f"{inv_name}: {err_msg}")
+					hka_failed = True
+			except Exception as e:
 				errors.append(f"{inv_name}: {str(e)}")
+				hka_failed = True
+
+		if hka_failed:
+			is_demo = False
+			try:
+				is_demo = (frappe.get_cached_doc("TFHKA Settings").environment == "Demo")
+			except Exception:
+				pass
+			if is_demo:
+				pdf_data = get_mock_pdf_content()
+				pdf_len = len(pdf_data)
+				doc_no = inv_bill_no or inv_name
+				filename = f"Factura_{inv_name}_{doc_no}_MOCK.pdf"
+				hka_failed = False
 				
-	return pdf_data, filename, pdf_len
+	return pdf_data, filename, pdf_len, hka_failed
 
 
 def get_mock_pdf_content():
@@ -445,19 +725,13 @@ def get_invoice_count(from_date, to_date, customer=None, branch=None):
 	filters = {
 		"docstatus": 1,
 		"posting_date": ["between", [from_date, to_date]],
+		"remarks": ["like", '%"numeroDocumento"%']
 	}
 	if customer:
 		filters["customer"] = customer
 	if branch:
 		filters["branch"] = branch
 
-	invoices = frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks"])
-	
-	valid_count = 0
-	for inv in invoices:
-		remarks = inv.get("remarks")
-		if remarks and '"numeroDocumento"' in remarks:
-			valid_count += 1
-			
-	return valid_count
+	return frappe.db.count("Sales Invoice", filters)
+
 
