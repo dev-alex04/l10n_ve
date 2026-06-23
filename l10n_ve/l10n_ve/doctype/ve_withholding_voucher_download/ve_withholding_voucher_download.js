@@ -5,7 +5,7 @@ frappe.ui.form.on("VE Withholding Voucher Download", {
 	onload: function (frm) {
 		// Listen for realtime background job updates
 		frappe.realtime.on("withholding_download_completed", function (data) {
-			if (data && data.docname === frm.docname) {
+			if (data && data.docname === frm.doc.name) {
 				frm.reload_doc();
 				const msg = data.status === "Completed" ? 
 					__("Su descarga de comprobantes de retención fue exitosa") : 
@@ -33,9 +33,9 @@ frappe.ui.form.on("VE Withholding Voucher Download", {
 		}
 
 		const status = frm.doc.status;
-		const is_pending = status === "Pending" || status === "Pendiente" || status === __("Pending");
-		const is_failed = status === "Failed" || status === "Fallido" || status === __("Failed");
-		const is_processing = status === "Processing" || status === "Procesando" || status === __("Processing");
+		const is_pending = status === "Pending";
+		const is_failed = status === "Failed";
+		const is_processing = status === "Processing";
 
 		// If process is running
 		if (is_processing) {

@@ -7,6 +7,7 @@ import json
 import zipfile
 import io
 import os
+import tempfile
 from frappe.model.document import Document
 from frappe.utils.file_manager import save_file
 from l10n_ve.utils.pdf_utils import safe_get_pdf
@@ -48,6 +49,8 @@ class VEWithholdingVoucherDownload(Document):
 
 def process_download_job(docname: str, request_user: str):
 	"""Background job to bulk download withholding vouchers in chunks."""
+	master_zip_temp = None
+	master_zip_file = None
 	try:
 		if request_user:
 			frappe.set_user(request_user)
@@ -58,7 +61,8 @@ def process_download_job(docname: str, request_user: str):
 
 		if not vouchers:
 			doc.status = "Failed"
-			doc.error_log = frappe._("No withholding vouchers found in the selected range.")
+			doc.error_log = "No withholding vouchers found in the selected range."
+			doc.flags.ignore_permissions = True
 			doc.save()
 			frappe.db.commit()
 			publish_status(docname, "Failed", request_user)
@@ -74,8 +78,8 @@ def process_download_job(docname: str, request_user: str):
 		current_zip_count = 0
 		part_number = 1
 
-		master_zip_buffer = io.BytesIO()
-		master_zip_file = zipfile.ZipFile(master_zip_buffer, "w", zipfile.ZIP_DEFLATED)
+		master_zip_temp = tempfile.NamedTemporaryFile(delete=False)
+		master_zip_file = zipfile.ZipFile(master_zip_temp.name, "w", zipfile.ZIP_DEFLATED)
 
 		chunk_size = 1000
 		for chunk_start in range(0, len(vouchers), chunk_size):
@@ -188,18 +192,19 @@ def process_download_job(docname: str, request_user: str):
 			zip_file.close()
 
 		# Save master ZIP containing all vouchers
-		master_file_url, master_file_name, master_size_str = save_master_zip(doc, master_zip_file, master_zip_buffer, downloaded_count)
+		master_file_url, master_file_name, master_size_str = save_master_zip(doc, master_zip_file, master_zip_temp, downloaded_count)
 
 		doc.downloaded_count = downloaded_count
 
 		if downloaded_count == 0:
 			doc.status = "Failed"
-			doc.error_log = (frappe._("Could not package any withholding vouchers.\nDetails:\n") + "\n".join(errors))[:30000]
+			doc.error_log = ("Could not package any withholding vouchers.\nDetails:\n" + "\n".join(errors))[:30000]
 		else:
 			doc.status = "Completed"
-			doc.error_log = (frappe._("Some vouchers failed to package:\n") + "\n".join(errors))[:30000] if errors else ""
+			doc.error_log = ("Some vouchers failed to package:\n" + "\n".join(errors))[:30000] if errors else ""
 			doc.files_html = generate_files_html(files, downloaded_count, master_file_url, master_file_name, master_size_str)
 
+		doc.flags.ignore_permissions = True
 		doc.save()
 		frappe.db.commit()
 
@@ -208,6 +213,16 @@ def process_download_job(docname: str, request_user: str):
 
 	except Exception as e:
 		frappe.db.rollback()
+		if master_zip_file:
+			try:
+				master_zip_file.close()
+			except Exception:
+				pass
+		if master_zip_temp and os.path.exists(master_zip_temp.name):
+			try:
+				os.unlink(master_zip_temp.name)
+			except Exception:
+				pass
 		handle_unexpected_error(docname, request_user, e)
 
 
@@ -259,35 +274,6 @@ def get_withholding_vouchers(doc):
 	return vouchers
 
 
-def download_voucher_pdf(inv, errors):
-	doctype = inv.get("doctype")
-	name = inv.get("name")
-	voucher_num = inv.get("voucher_number") or ""
-	
-	pdf_data = None
-	filename = ""
-
-	try:
-		if doctype == "VAT Withholding Voucher":
-			from l10n_ve.l10n_ve.report.vat_withholding_voucher_purchase.vat_withholding_voucher_purchase import generate_vat_report
-			html = generate_vat_report(voucher_name=name)
-			clean_num = voucher_num.replace("/", "_").replace("\\", "_")
-			filename = f"VAT_Withholding_{name}_{clean_num}.pdf"
-		else:
-			from l10n_ve.l10n_ve.report.islr_withholding_voucher_purchase.islr_withholding_voucher_purchase import generate_islr_report
-			html = generate_islr_report(voucher_name=name)
-			clean_num = voucher_num.replace("/", "_").replace("\\", "_")
-			filename = f"ISLR_Withholding_{name}_{clean_num}.pdf"
-
-		if html:
-			pdf_data = safe_get_pdf(html)
-		else:
-			errors.append(f"{name}: " + frappe._("Error generating print HTML."))
-	except Exception as e:
-		errors.append(f"{name}: " + frappe._("Error rendering PDF ({0})").format(str(e)))
-
-	return pdf_data, filename
-
 
 def save_zip_part(doc, zip_buffer, zip_file, part_number, files):
 	zip_file.close()
@@ -310,33 +296,42 @@ def save_zip_part(doc, zip_buffer, zip_file, part_number, files):
 	return new_buffer, new_zip_file
 
 
-def save_master_zip(doc, master_zip_file, master_zip_buffer, downloaded_count):
+def save_master_zip(doc, master_zip_file, master_zip_temp, downloaded_count):
 	master_file_url = None
 	master_size_str = "Desconocido"
 	master_file_name = ""
-	if downloaded_count > 0:
-		master_zip_file.close()
-		master_zip_buffer.seek(0)
-		supp_suffix = f"_{doc.supplier}" if doc.supplier else ""
-		master_file_name = f"Withholding_Vouchers_{doc.from_date}_to_{doc.to_date}{supp_suffix}_Full.zip"
-		
-		master_file_doc = save_file(
-			fname=master_file_name,
-			content=master_zip_buffer.getvalue(),
-			dt="VE Withholding Voucher Download",
-			dn=doc.name,
-			folder="Home/Attachments",
-			is_private=1
-		)
-		master_file_url = master_file_doc.file_url
-		master_size = master_file_doc.file_size
-		if master_size and isinstance(master_size, (int, float)):
-			if master_size >= 1024 * 1024:
-				master_size_str = f"{round(master_size / (1024 * 1024), 2)} MB"
-			else:
-				master_size_str = f"{round(master_size / 1024, 2)} KB"
-	else:
-		master_zip_file.close()
+	try:
+		if downloaded_count > 0:
+			master_zip_file.close()
+			supp_suffix = f"_{doc.supplier}" if doc.supplier else ""
+			master_file_name = f"Withholding_Vouchers_{doc.from_date}_to_{doc.to_date}{supp_suffix}_Full.zip"
+			
+			with open(master_zip_temp.name, "rb") as f:
+				content = f.read()
+
+			master_file_doc = save_file(
+				fname=master_file_name,
+				content=content,
+				dt="VE Withholding Voucher Download",
+				dn=doc.name,
+				folder="Home/Attachments",
+				is_private=1
+			)
+			master_file_url = master_file_doc.file_url
+			master_size = master_file_doc.file_size
+			if master_size and isinstance(master_size, (int, float)):
+				if master_size >= 1024 * 1024:
+					master_size_str = f"{round(master_size / (1024 * 1024), 2)} MB"
+				else:
+					master_size_str = f"{round(master_size / 1024, 2)} KB"
+		else:
+			master_zip_file.close()
+	finally:
+		try:
+			if os.path.exists(master_zip_temp.name):
+				os.unlink(master_zip_temp.name)
+		except Exception:
+			pass
 	return master_file_url, master_file_name, master_size_str
 
 
@@ -344,7 +339,7 @@ def generate_files_html(files, downloaded_count, master_file_url, master_file_na
 	links_html = []
 	
 	if master_file_url:
-		master_download_url = f"/api/method/l10n_ve.digital_invoice.tfhka_integration.download_zip_file?file_url={master_file_url}"
+		master_download_url = f"/api/method/l10n_ve.l10n_ve.doctype.ve_withholding_voucher_download.ve_withholding_voucher_download.download_withholding_zip_file?file_url={master_file_url}"
 		links_html.extend([
 			'<div style="margin-bottom: 20px; padding: 15px; background-color: var(--alert-bg-info, #e8f4fd); border-left: 5px solid var(--alert-border-info, #2196f3); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm);">',
 			'  <div style="flex: 1; padding-right: 15px;">',
@@ -370,7 +365,7 @@ def generate_files_html(files, downloaded_count, master_file_url, master_file_na
 	])
 	
 	for idx, url in enumerate(files, 1):
-		download_url = f"/api/method/l10n_ve.digital_invoice.tfhka_integration.download_zip_file?file_url={url}"
+		download_url = f"/api/method/l10n_ve.l10n_ve.doctype.ve_withholding_voucher_download.ve_withholding_voucher_download.download_withholding_zip_file?file_url={url}"
 		file_name = url.split("/")[-1]
 		
 		file_size_str = "Desconocido"
@@ -431,7 +426,8 @@ def handle_unexpected_error(docname: str, request_user: str, e: Exception):
 	try:
 		doc = frappe.get_doc("VE Withholding Voucher Download", docname)
 		doc.status = "Failed"
-		doc.error_log = (frappe._("An unexpected server error occurred:") + f"\n{str(e)}\n\n{frappe.get_traceback()}")[:30000]
+		doc.error_log = ("An unexpected server error occurred:" + f"\n{str(e)}\n\n{frappe.get_traceback()}")[:30000]
+		doc.flags.ignore_permissions = True
 		doc.save()
 		frappe.db.commit()
 
@@ -440,8 +436,8 @@ def handle_unexpected_error(docname: str, request_user: str, e: Exception):
 			enqueue_create_notification(
 				users=[request_user],
 				doc={
-					"subject": frappe._("The bulk download of withholding vouchers failed."),
-					"email_content": frappe._("An unexpected error occurred while processing {0}: {1}").format(docname, str(e)),
+					"subject": "The bulk download of withholding vouchers failed.",
+					"email_content": f"An unexpected error occurred while processing {docname}: {str(e)}",
 					"type": "Alert",
 					"document_type": "VE Withholding Voucher Download",
 					"document_name": docname
@@ -500,4 +496,35 @@ def get_voucher_count(from_date, to_date, company, supplier=None, withholding_ty
 		count += frappe.db.count("ISLR Withholding Voucher", islr_filters)
 
 	return count
+
+
+@frappe.whitelist()
+def download_withholding_zip_file(file_url: str):
+	"""Permite descargar los archivos ZIP de retenciones validando permisos (BOLA)."""
+	if not frappe.has_permission("VE Withholding Voucher Download", "read"):
+		frappe.throw("No tiene permisos para realizar esta acción.", frappe.PermissionError)
+
+	if not file_url or not file_url.endswith(".zip"):
+		frappe.throw("Archivo no válido.", frappe.PermissionError)
+
+	file_doc_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if not file_doc_name:
+		frappe.throw("El archivo no existe.", frappe.ValidationError)
+
+	file = frappe.get_doc("File", file_doc_name)
+	file.check_permission("read")
+
+	is_authorized = False
+	if frappe.session.user == "Administrator" or file.owner == frappe.session.user:
+		is_authorized = True
+	elif file.attached_to_doctype and file.attached_to_name:
+		if frappe.has_permission(file.attached_to_doctype, "read", doc=file.attached_to_name):
+			is_authorized = True
+
+	if not is_authorized:
+		frappe.throw("No tiene permisos para descargar este archivo.", frappe.PermissionError)
+
+	frappe.local.response.filename = file.file_name
+	frappe.local.response.filecontent = file.get_content()
+	frappe.local.response.type = "download"
 
