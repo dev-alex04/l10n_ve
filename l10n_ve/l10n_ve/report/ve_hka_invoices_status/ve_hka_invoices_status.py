@@ -10,6 +10,12 @@ def execute(filters=None):
 	if not filters.get("company"):
 		frappe.throw(_("Debe seleccionar una Empresa para generar el reporte."))
 
+	frappe.has_permission("Company", "read", doc=filters.get("company"), throw=True)
+
+	doctypes_to_check = ["Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note"] if not filters.get("document_type") or filters.get("document_type") == "All" else [filters.get("document_type")]
+	for dt in doctypes_to_check:
+		frappe.has_permission(dt, "read", throw=True)
+
 	columns = get_columns()
 	data = get_data(filters)
 
