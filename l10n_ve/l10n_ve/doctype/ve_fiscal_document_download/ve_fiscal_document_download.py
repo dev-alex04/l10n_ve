@@ -154,7 +154,7 @@ def process_download_job(docname: str, request_user: str):
 								filename = f"Factura_{inv_name}_{doc_no}.pdf"
 
 						if not pdf_data:
-							file_doc = frappe.get_doc("File", invoice_files[0].get("name"))
+							file_doc = frappe.get_doc("File", invoice_files[0].get("name")).check_permission("read")
 							pdf_data = file_doc.get_content()
 							if isinstance(pdf_data, str):
 								pdf_data = pdf_data.encode("utf-8")
@@ -444,6 +444,7 @@ def get_valid_invoices(doc):
 		filters["branch"] = doc.branch
 
 	return frappe.get_all("Sales Invoice", filters=filters, fields=["name", "remarks", "bill_no"])
+
 
 
 
