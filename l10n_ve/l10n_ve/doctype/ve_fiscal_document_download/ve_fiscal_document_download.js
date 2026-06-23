@@ -7,8 +7,11 @@ frappe.ui.form.on("VE Fiscal Document Download", {
 		frappe.realtime.on("hka_download_completed", function (data) {
 			if (data && data.docname === frm.docname) {
 				frm.reload_doc();
+				const msg = data.status === "Completed" ? 
+					__("Su descarga de facturas HKA fue exitosa") : 
+					__("La descarga de facturas HKA falló");
 				frappe.show_alert({
-					message: __("Proceso de descarga finalizado: {0}", [__(data.status)]),
+					message: msg,
 					indicator: data.status === "Completed" ? "green" : "red"
 				});
 			}
@@ -17,7 +20,7 @@ frappe.ui.form.on("VE Fiscal Document Download", {
 
 	refresh: function (frm) {
 		// Limpiar alertas previas del headline
-		frm.clear_headline_alert();
+		frm.dashboard.clear_headline();
 
 		if (frm.doc.files_html && frm.fields_dict.files_html) {
 			frm.fields_dict.files_html.$wrapper.html(frm.doc.files_html);
@@ -29,7 +32,7 @@ frappe.ui.form.on("VE Fiscal Document Download", {
 
 		// Si el proceso está corriendo
 		if (frm.doc.status === "Processing") {
-			frm.set_headline_alert(
+			frm.dashboard.set_headline_alert(
 				__("El proceso se está ejecutando en segundo plano. Los archivos ZIP se adjuntarán aquí cuando finalice."),
 				"orange"
 			);
