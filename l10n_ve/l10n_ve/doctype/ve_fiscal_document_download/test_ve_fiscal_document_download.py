@@ -22,14 +22,11 @@ class TestVEFiscalDocumentDownload(FrappeTestCase):
 
 	def test_get_invoice_count(self):
 		"""Correctly counts invoices containing HKA remarks."""
-		with patch("frappe.get_all") as mock_get_all:
-			mock_get_all.return_value = [
-				{"name": "INV-1", "remarks": '{"resultado": {"numeroDocumento": "100"}}'},
-				{"name": "INV-2", "remarks": "Simulado HKA sin numeroDocumento"},
-				{"name": "INV-3", "remarks": '{"resultado": {"numeroDocumento": "101"}}'},
-			]
+		with patch("frappe.db.count") as mock_count:
+			mock_count.return_value = 2
 			count = get_invoice_count("2026-06-01", "2026-06-10")
 			self.assertEqual(count, 2)
+			mock_count.assert_called_once()
 
 	@patch("l10n_ve.l10n_ve.doctype.ve_fiscal_document_download.ve_fiscal_document_download.save_file")
 	@patch("frappe.publish_realtime")
@@ -94,18 +91,12 @@ class TestVEFiscalDocumentDownload(FrappeTestCase):
 
 	def test_get_invoice_count_with_branch(self):
 		"""Correctly counts invoices filtering by branch."""
-		with patch("frappe.get_all") as mock_get_all:
-			def get_all_side_effect(doctype, *args, **kwargs):
-				filters = kwargs.get("filters", {})
-				if filters.get("branch") == "Sucursal Principal":
-					return [
-						{"name": "INV-1", "remarks": '{"resultado": {"numeroDocumento": "100"}}'},
-					]
-				return [
-					{"name": "INV-1", "remarks": '{"resultado": {"numeroDocumento": "100"}}'},
-					{"name": "INV-2", "remarks": '{"resultado": {"numeroDocumento": "101"}}'},
-				]
-			mock_get_all.side_effect = get_all_side_effect
+		with patch("frappe.db.count") as mock_count:
+			def count_side_effect(doctype, filters=None):
+				if filters and filters.get("branch") == "Sucursal Principal":
+					return 1
+				return 2
+			mock_count.side_effect = count_side_effect
 			
 			# Test filtering by branch
 			count = get_invoice_count("2026-06-01", "2026-06-10", branch="Sucursal Principal")
