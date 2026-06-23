@@ -1,0 +1,26 @@
+{
+ "allow_roles": [],
+ "creation": "2026-06-23 09:45:00.000000",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-06-23 09:45:00.000000",
+ "modified_by": "Administrator",
+ "module": "L10n Ve",
+ "name": "reporte-pro",
+ "owner": "Administrator",
+ "page_name": "reporte-pro",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "Accounts User"
+  }
+ ],
+ "standard": "Yes",
+ "title": "Reporte Pro"
+}
