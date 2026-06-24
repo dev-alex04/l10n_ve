@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import getdate
+from frappe.utils import getdate, flt
 import datetime
 
 def get_context(context):
@@ -98,23 +98,23 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
     
     for node in tree:
         if node.get("indent") == 0:
-            total_pendiente_usd += float(node.get("pending_to_collect") or 0)
-            total_pendiente_vef += float(node.get("pending_to_collect_vef") or 0)
+            total_pendiente_usd += flt(node.get("pending_to_collect") or 0)
+            total_pendiente_vef += flt(node.get("pending_to_collect_vef") or 0)
             
-            billed_usd += float(node.get("billed") or 0)
-            billed_vef += float(node.get("billed_vef") or 0)
+            billed_usd += flt(node.get("billed") or 0)
+            billed_vef += flt(node.get("billed_vef") or 0)
             
-            vat_usd += float(node.get("vat") or 0)
-            vat_vef += float(node.get("vat_vef") or 0)
+            vat_usd += flt(node.get("vat") or 0)
+            vat_vef += flt(node.get("vat_vef") or 0)
             
-            igtf_usd += float(node.get("igtf") or 0)
-            igtf_vef += float(node.get("igtf_vef") or 0)
+            igtf_usd += flt(node.get("igtf") or 0)
+            igtf_vef += flt(node.get("igtf_vef") or 0)
             
-            availability_usd += float(node.get("availability") or 0)
-            availability_vef += float(node.get("availability_vef") or 0)
+            availability_usd += flt(node.get("availability") or 0)
+            availability_vef += flt(node.get("availability_vef") or 0)
             
-            spent_usd += float(node.get("spent") or 0)
-            spent_vef += float(node.get("spent_vef") or 0)
+            spent_usd += flt(node.get("spent") or 0)
+            spent_vef += flt(node.get("spent_vef") or 0)
 
     # Count invoices without control number (or draft/unsubmitted in range)
     si_filters = {
@@ -132,41 +132,41 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
     )
     unpaid_count = sum(1 for inv in invoices if not inv.bill_control)
 
-    igtf_usd_divided = igtf_vef / exchange_rate if exchange_rate else 0.0
+    igtf_usd_divided = flt(igtf_vef / exchange_rate) if exchange_rate else 0.0
 
     return {
         "unpaid_orders_count": unpaid_count,
-        "grand_total": total_pendiente_usd,
-        "total_pendiente_usd": total_pendiente_usd,
-        "total_pendiente_vef": total_pendiente_vef,
+        "grand_total": flt(total_pendiente_usd),
+        "total_pendiente_usd": flt(total_pendiente_usd),
+        "total_pendiente_vef": flt(total_pendiente_vef),
         "pending_base_amount": 0.0,
         "pending_tax_amount": 0.0,
         
-        "actual_collected_total": billed_usd,
-        "collected_base_amount": billed_usd - vat_usd - igtf_usd_divided,
-        "collected_tax_amount": vat_usd,
+        "actual_collected_total": flt(billed_usd),
+        "collected_base_amount": flt(billed_usd - vat_usd - igtf_usd_divided),
+        "collected_tax_amount": flt(vat_usd),
         
-        "collected_usd_total": billed_usd,
-        "collected_usd_base": billed_usd - vat_usd - igtf_usd_divided,
-        "collected_usd_tax": vat_usd,
-        "collected_usd_igtf": igtf_usd_divided,
+        "collected_usd_total": flt(billed_usd),
+        "collected_usd_base": flt(billed_usd - vat_usd - igtf_usd_divided),
+        "collected_usd_tax": flt(vat_usd),
+        "collected_usd_igtf": flt(igtf_usd_divided),
         
-        "collected_ves_total": billed_vef,
-        "collected_ves_base": billed_vef - vat_vef - igtf_vef,
-        "collected_ves_tax": vat_vef,
-        "collected_ves_igtf": igtf_vef,
-        "collected_ves_equivalent_usd": billed_usd,
+        "collected_ves_total": flt(billed_vef),
+        "collected_ves_base": flt(billed_vef - vat_vef - igtf_vef),
+        "collected_ves_tax": flt(vat_vef),
+        "collected_ves_igtf": flt(igtf_vef),
+        "collected_ves_equivalent_usd": flt(billed_usd),
         
-        "total_expenses_usd": spent_usd,
-        "total_expenses_vef": spent_vef,
+        "total_expenses_usd": flt(spent_usd),
+        "total_expenses_vef": flt(spent_vef),
         
-        "collected_total_usd": billed_usd,
-        "collected_total_vef": billed_vef,
-        "collected_total_usd_base": billed_usd - vat_usd - igtf_usd_divided,
-        "collected_total_vef_base": billed_vef - vat_vef - igtf_vef,
+        "collected_total_usd": flt(billed_usd),
+        "collected_total_vef": flt(billed_vef),
+        "collected_total_usd_base": flt(billed_usd - vat_usd - igtf_usd_divided),
+        "collected_total_vef_base": flt(billed_vef - vat_vef - igtf_vef),
         
-        "available_usd": availability_usd,
-        "available_vef": availability_vef,
+        "available_usd": flt(availability_usd),
+        "available_vef": flt(availability_vef),
     }
 
 
