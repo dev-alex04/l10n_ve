@@ -27,9 +27,14 @@ def get_context(context):
     try:
         from l10n_ve.utils.utils import get_exchange_rate
         today = datetime.date.today().strftime("%Y-%m-%d")
-        context.exchange_rate = get_exchange_rate(today, "USD") or 1.0
-    except Exception:
-        context.exchange_rate = 1.0  # Fallback rate if not found
+        rate = get_exchange_rate(today, "USD")
+        if not rate:
+            frappe.throw(_("No se pudo obtener la tasa de cambio BCV para el día de hoy ({0})").format(today))
+        context.exchange_rate = rate
+    except Exception as e:
+        if "No se pudo obtener" in str(e):
+            raise e
+        frappe.throw(_("Error al recuperar la tasa de cambio BCV para el día de hoy ({0}): {1}").format(today, e))
 
     # Fetch simple stats to bootstrap the frontend
     try:
@@ -438,9 +443,14 @@ def get_dashboard_data(
     # Fetch exchange rate for the end of the report period (date_to)
     try:
         from l10n_ve.utils.utils import get_exchange_rate
-        exchange_rate = get_exchange_rate(date_to, "USD") or 1.0
-    except Exception:
-        exchange_rate = 1.0
+        rate = get_exchange_rate(date_to, "USD")
+        if not rate:
+            frappe.throw(_("No se pudo obtener la tasa de cambio BCV para la fecha {0}").format(date_to))
+        exchange_rate = rate
+    except Exception as e:
+        if "No se pudo obtener" in str(e):
+            raise e
+        frappe.throw(_("Error al recuperar la tasa de cambio BCV para la fecha {0}: {1}").format(date_to, e))
 
     # 1. Fetch KPI cards
     kpi_cards = {}
