@@ -449,11 +449,9 @@ function renderDashboard(data) {
     const cobVesTax   = parseFloat(kpis.collected_ves_tax   || 0);
     const cobVesIgtf  = parseFloat(kpis.collected_ves_igtf  || 0);
     const cobVesTotalUsd = parseFloat(kpis.collected_ves_equivalent_usd || 0);
-    const implicitRate = cobVesTotalUsd > 0 ? cobVesTotal / cobVesTotalUsd : 0;
-    const rateText = implicitRate > 0 ? ` (Tasa Promedio: ${implicitRate.toFixed(2)})` : '';
     
     setText("kpi-cobrado-ves-val", fmtVES(cobVesTotal));
-    setText("kpi-cobrado-ves-sub", `Equiv. ${fmtUSD(cobVesTotalUsd)}${rateText}<br>
+    setText("kpi-cobrado-ves-sub", `Equiv. ${fmtUSD(cobVesTotalUsd)}<br>
         <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 4px;">Base: ${fmtVES(cobVesBase)}</span>
         <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 2px;">IVA: ${fmtVES(cobVesTax)}</span>
         <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 2px;">IGTF: ${fmtVES(cobVesIgtf)}</span>`);
