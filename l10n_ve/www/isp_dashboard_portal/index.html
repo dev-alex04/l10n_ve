@@ -29,8 +29,17 @@
     <!-- ApexCharts for Premium Data Visualizations -->
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     
+    <!-- Leaflet.js for Interactive Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Flatpickr for Premium Datepicker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+    
     <!-- Local Stylesheet -->
-    <link rel="stylesheet" href="/isp_dashboard_portal/index.css?v=4">
+    <link rel="stylesheet" href="/isp_dashboard_portal/index.css?v=7">
     <!-- Frappe CSRF token & session injected from server -->
     <script>
         window.csrf_token = "{{ csrf_token }}";
@@ -40,6 +49,22 @@
 </head>
 <body>
     <div class="app-container">
+        <!-- Top Navigation Bar -->
+        <header class="top-nav">
+            <div class="nav-left">
+                <div class="brand-logo" style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="bar-chart-3" style="width: 22px; height: 22px; color: var(--primary);"></i>
+                    <span class="brand-title" style="font-family: var(--font-heading); font-size: 20px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px;">Reporte Pro</span>
+                </div>
+            </div>
+            <div class="nav-right">
+                <a href="/app" class="back-to-desk-btn">
+                    <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i>
+                    <span>Volver al Escritorio</span>
+                </a>
+            </div>
+        </header>
+
         <!-- Main Body Wrapper -->
         <div class="main-layout">
             <!-- Left Panel (Dashboard Grid) -->
@@ -78,19 +103,12 @@
                             </select>
                         </div>
                         <div class="filter-item">
-                            <label for="filter-currency">Moneda</label>
-                            <select id="filter-currency">
-                                <option value="USD">USD ($)</option>
-                                <option value="VEF">VEF (Bs.)</option>
-                            </select>
-                        </div>
-                        <div class="filter-item">
                             <label for="filter-date-from">Desde</label>
-                            <input type="date" id="filter-date-from">
+                            <input type="text" id="filter-date-from" placeholder="Seleccione fecha...">
                         </div>
                         <div class="filter-item">
                             <label for="filter-date-to">Hasta</label>
-                            <input type="date" id="filter-date-to">
+                            <input type="text" id="filter-date-to" placeholder="Seleccione fecha...">
                         </div>
                         <div class="filter-item theme-toggle-container">
                             <label>&nbsp;</label>
@@ -152,27 +170,126 @@
                             <span class="kpi-sub" id="kpi-disp-ves-sub">Cobrado − Gastos</span>
                         </div>
                     </div>
-                    <div class="kpi-card" id="kpi-tax-total">
-                        <div class="kpi-icon-wrap warning"><i data-lucide="receipt-text"></i></div>
+                    <div class="kpi-card" id="kpi-iva">
+                        <div class="kpi-icon-wrap warning"><i data-lucide="percent"></i></div>
                         <div class="kpi-body">
-                            <span class="kpi-label">IVA + IGTF Total</span>
-                            <div class="kpi-tax-row">
-                                <span class="kpi-tax-label">IVA</span>
-                                <span id="kpi-iva-usd-val" class="kpi-tax-usd">—</span>
-                                <span id="kpi-iva-ves-val" class="kpi-tax-ves">Bs. —</span>
-                            </div>
-                            <div class="kpi-tax-row">
-                                <span class="kpi-tax-label">IGTF</span>
-                                <span id="kpi-igtf-usd-val" class="kpi-tax-usd">—</span>
-                                <span id="kpi-igtf-ves-val" class="kpi-tax-ves">Bs. —</span>
+                            <span class="kpi-label">IVA Total</span>
+                            <span class="kpi-value" id="kpi-iva-val">—</span>
+                            <span class="kpi-sub" id="kpi-iva-sub">Bs. —</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" id="kpi-igtf">
+                        <div class="kpi-icon-wrap danger"><i data-lucide="receipt-text"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">IGTF Total</span>
+                            <span class="kpi-value" id="kpi-igtf-val">—</span>
+                            <span class="kpi-sub" id="kpi-igtf-sub">Bs. —</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Métricas de Parque de Clientes y Suscriptores -->
+                <div class="card business-info-panel">
+                    <div class="card-header">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="users" style="width: 20px; height: 20px; color: var(--primary);"></i>
+                            <h2 class="card-title" style="margin: 0;">Métricas de Clientes y Parque de Suscriptores</h2>
+                        </div>
+                    </div>
+                    
+                    <div class="subscriber-kpi-grid">
+                        <div class="sub-kpi-card">
+                            <div class="sub-kpi-icon success"><i data-lucide="check-circle"></i></div>
+                            <div class="sub-kpi-body">
+                                <span class="sub-kpi-label">Servicios Activos</span>
+                                <span class="sub-kpi-value" id="sub-active-val">—</span>
+                                <span class="sub-kpi-meta" id="sub-active-pct">— del total</span>
                             </div>
                         </div>
+                        <div class="sub-kpi-card">
+                            <div class="sub-kpi-icon warning"><i data-lucide="alert-triangle"></i></div>
+                            <div class="sub-kpi-body">
+                                <span class="sub-kpi-label">Servicios Suspendidos</span>
+                                <span class="sub-kpi-value" id="sub-suspended-val">—</span>
+                                <span class="sub-kpi-meta" id="sub-suspended-pct">— del total</span>
+                            </div>
+                        </div>
+                        <div class="sub-kpi-card">
+                            <div class="sub-kpi-icon primary"><i data-lucide="user-plus"></i></div>
+                            <div class="sub-kpi-body">
+                                <span class="sub-kpi-label">Nuevas Altas (Mes)</span>
+                                <span class="sub-kpi-value" id="sub-news-val">—</span>
+                                <span class="sub-kpi-meta" id="sub-news-avg">Promedio: — / mes</span>
+                            </div>
+                        </div>
+                        <div class="sub-kpi-card">
+                            <div class="sub-kpi-icon danger"><i data-lucide="user-minus"></i></div>
+                            <div class="sub-kpi-body">
+                                <span class="sub-kpi-label">Tasa de Deserción (Churn)</span>
+                                <span class="sub-kpi-value" id="sub-churn-val">—%</span>
+                                <span class="sub-kpi-meta" id="sub-churn-avg">Promedio: —% / mes</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="business-row-visuals">
+                        <div class="business-col-visual">
+                            <div class="chart-header-group">
+                                <h3 class="chart-subtitle">Crecimiento de Nuevos Servicios</h3>
+                            </div>
+                            <div class="chart-container" id="panel-sub-growth"></div>
+                        </div>
+                        <div class="business-col-visual">
+                            <div class="chart-header-group">
+                                <h3 class="chart-subtitle">Distribución por Plan de Internet</h3>
+                            </div>
+                            <div class="chart-container" id="panel-sub-plans"></div>
+                        </div>
+                        <div class="business-col-visual">
+                            <div class="chart-header-group">
+                                <h3 class="chart-subtitle">Distribución por Municipio (Top 15)</h3>
+                            </div>
+                            <div class="chart-container" id="panel-sub-locations"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mapa de Distribución Geográfica -->
+                <div class="card map-card">
+                    <div class="card-header">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="map" style="width: 20px; height: 20px; color: var(--primary);"></i>
+                            <h2 class="card-title" style="margin: 0;">Distribución Geográfica y Concentración de Clientes</h2>
+                        </div>
+                    </div>
+                    <div class="map-wrapper" style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.08);">
+                        <div id="isp-map" style="height: 400px; z-index: 1;"></div>
                     </div>
                 </div>
 
                 <div class="card calendar-card">
                     <div class="card-header">
-                        <h2 class="card-title">Calendario para tareas</h2>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <h2 class="card-title">Calendario para tareas</h2>
+                            <div class="calendar-legend" style="display: flex; gap: 15px; font-size: 11px; font-weight: 500; margin-top: 4px;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="width: 12px; height: 12px; border-radius: 3px; background-color: #dbeafe; border: 1px solid #1e40af; display: inline-block;"></span>
+                                    <span style="color: var(--text-primary);">Abierta</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="width: 12px; height: 12px; border-radius: 3px; background-color: #fecdd3; border: 1px solid #9f1239; display: inline-block;"></span>
+                                    <span style="color: var(--text-primary);">En Progreso</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="width: 12px; height: 12px; border-radius: 3px; background-color: #d1fae5; border: 1px solid #065f46; display: inline-block;"></span>
+                                    <span style="color: var(--text-primary);">Completada</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="width: 12px; height: 12px; border-radius: 3px; background-color: #f3e8ff; border: 1px solid #6b21a8; display: inline-block;"></span>
+                                    <span style="color: var(--text-primary);">Cancelada</span>
+                                </div>
+                            </div>
+                        </div>
                         <div class="calendar-controls">
                             <button class="btn btn-primary" onclick="window.showAddTaskModal('')" style="display: flex; align-items: center; gap: 6px; font-weight: 500; font-size: 13px; height: 36px; padding: 0 16px;">
                                 <i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i>
@@ -469,6 +586,6 @@
     </div>
 
     <!-- Local Script -->
-    <script src="/isp_dashboard_portal/index.js?v=4"></script>
+    <script src="/isp_dashboard_portal/index.js?v=7"></script>
 </body>
 </html>

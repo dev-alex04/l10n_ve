@@ -2,12 +2,18 @@
 
 let dailySalesChartInstance = null;
 let balanceDonutChartInstance = null;
+let subGrowthChartInstance = null;
+let subPlansChartInstance = null;
+let subLocationsChartInstance = null;
 let currentCurrency = "USD";
 let allMunicipalities = [];
 let calendarRangeDays = 7;
 let calendarStartDate = null;
 let cachedInstallations = [];
 let cachedTasks = [];
+let ispMapInstance = null;
+let mapMarkersGroup = null;
+let mapTileLayer = null;
 
 const fmtUSD = (n) => "REF " + parseFloat(n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtVES = (n) => "Bs. " + parseFloat(n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -22,15 +28,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
     
-    const formatDate = (d) => {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+    // Inicializar Flatpickr en español
+    const flatpickrConfig = {
+        locale: "es",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d/m/Y",
+        altInputClass: "flatpickr-input form-control",
+        onChange: () => {
+            calendarStartDate = null;
+            reloadDashboard();
+        }
     };
 
-    document.getElementById("filter-date-from").value = formatDate(firstDay);
-    document.getElementById("filter-date-to").value = formatDate(today);
+    flatpickr("#filter-date-from", {
+        ...flatpickrConfig,
+        defaultDate: firstDay
+    });
+
+    flatpickr("#filter-date-to", {
+        ...flatpickrConfig,
+        defaultDate: today
+    });
+
+    // Inicializar mapa interactivo
+    initLeafletMap();
 
     // Load filter options from backend
     loadFilterOptions(() => {
@@ -39,14 +61,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Attach change events to filters
-    const filterIds = ["filter-company", "filter-branch", "filter-router", "filter-state", "filter-municipality", "filter-currency", "filter-date-from", "filter-date-to"];
+    const filterIds = ["filter-company", "filter-branch", "filter-router", "filter-state", "filter-municipality"];
     filterIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener("change", () => {
-                if (id === "filter-currency") {
-                    currentCurrency = el.value;
-                }
                 if (id === "filter-state") {
                     updateMunicipalityDropdown();
                 }
@@ -70,6 +89,17 @@ document.addEventListener("DOMContentLoaded", () => {
             const isDark = document.body.classList.toggle("dark-theme");
             localStorage.setItem("theme", isDark ? "dark" : "light");
             updateThemeButton(isDark);
+            
+            // Dynamically update Leaflet map tile layer
+            if (mapTileLayer) {
+                const tileUrl = isDark 
+                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' 
+                    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+                mapTileLayer.setUrl(tileUrl);
+            }
+
+            // Dynamically update ApexCharts theme options
+            updateChartsTheme(isDark);
         });
     }
 
@@ -81,6 +111,64 @@ document.addEventListener("DOMContentLoaded", () => {
         if (window.lucide) lucide.createIcons();
     }
 
+    function updateChartsTheme(isDark) {
+        const themeMode = isDark ? 'dark' : 'light';
+        const textColor = isDark ? '#94a3b8' : '#64748b';
+        const gridColor = isDark ? '#334155' : '#e2e8f0';
+
+        const chartConfigs = [
+            { chart: dailySalesChartInstance, type: 'sparkbar' },
+            { chart: balanceDonutChartInstance, type: 'donut' },
+            { chart: subGrowthChartInstance, type: 'growth' },
+            { chart: subPlansChartInstance, type: 'plans' },
+            { chart: subLocationsChartInstance, type: 'locations' }
+        ];
+
+        chartConfigs.forEach(({ chart, type }) => {
+            if (!chart) return;
+
+            let options = {
+                theme: { mode: themeMode }
+            };
+
+            if (type === 'growth' || type === 'plans') {
+                options.xaxis = {
+                    labels: { style: { colors: textColor } }
+                };
+                options.yaxis = {
+                    labels: { style: { colors: textColor } }
+                };
+                options.grid = {
+                    borderColor: gridColor
+                };
+            } else if (type === 'locations') {
+                options.legend = {
+                    labels: { colors: textColor }
+                };
+                options.stroke = {
+                    colors: isDark ? ['#0f172a'] : ['#ffffff']
+                };
+                options.plotOptions = {
+                    pie: {
+                        donut: {
+                            labels: {
+                                name: { color: textColor },
+                                value: { color: isDark ? '#f8fafc' : '#0f172a' },
+                                total: { color: textColor }
+                            }
+                        }
+                    }
+                };
+            }
+
+            try {
+                chart.updateOptions(options);
+            } catch (e) {
+                console.error(`Error dynamically updating theme for chart ${type}:`, e);
+            }
+        });
+    }
+
     // Calendar controls listeners
     const calBtnToday = document.getElementById("cal-btn-today");
     if (calBtnToday) {
@@ -89,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const dayOfWeek = today.getDay();
             calendarStartDate = new Date(today);
             calendarStartDate.setDate(today.getDate() - dayOfWeek);
-            renderCalendar(cachedInstallations);
+            renderCalendar(cachedTasks);
         });
     }
 
@@ -101,7 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 calendarStartDate.setDate(calendarStartDate.getDate() - calendarStartDate.getDay());
             }
             calendarStartDate.setDate(calendarStartDate.getDate() - calendarRangeDays);
-            renderCalendar(cachedInstallations);
+            renderCalendar(cachedTasks);
         });
     }
 
@@ -113,7 +201,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 calendarStartDate.setDate(calendarStartDate.getDate() - calendarStartDate.getDay());
             }
             calendarStartDate.setDate(calendarStartDate.getDate() + calendarRangeDays);
-            renderCalendar(cachedInstallations);
+            renderCalendar(cachedTasks);
         });
     }
 
@@ -133,7 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                     }
                 });
-                renderCalendar(cachedInstallations);
+                renderCalendar(cachedTasks);
             });
         }
     });
@@ -270,14 +358,14 @@ function populateSelect(id, list, addAllOption) {
 }
 
 function reloadDashboard() {
-    calendarStartDate = null;
+    // Keep calendarStartDate to avoid jumping calendar views on save
     const filters = {
         company: document.getElementById("filter-company").value,
         branch: document.getElementById("filter-branch").value,
         router: document.getElementById("filter-router").value,
         state: document.getElementById("filter-state").value,
         municipality: document.getElementById("filter-municipality").value,
-        currency: document.getElementById("filter-currency").value,
+        currency: "USD",
         date_from: document.getElementById("filter-date-from").value,
         date_to: document.getElementById("filter-date-to").value
     };
@@ -321,6 +409,9 @@ function fetchDashboardData(filters, callback) {
 }
 
 function renderDashboard(data) {
+    if (data && data.exchange_rate) {
+        window.exchange_rate = parseFloat(data.exchange_rate);
+    }
     const kpis = data.kpi_cards || {};
 
     // ── 1. KPI Cards ──────────────────────────────────────────────────────
@@ -340,19 +431,29 @@ function renderDashboard(data) {
     const cobUsdTotal = parseFloat(kpis.collected_usd_total || 0);
     const cobUsdBase  = parseFloat(kpis.collected_usd_base  || 0);
     const cobUsdTax   = parseFloat(kpis.collected_usd_tax   || 0);
+    const cobUsdIgtf  = parseFloat(kpis.collected_usd_igtf  || 0);
     const cobUsdTotalVes = cobUsdTotal * window.exchange_rate;
     
     setText("kpi-cobrado-usd-val", fmtUSD(cobUsdTotal));
-    setText("kpi-cobrado-usd-sub", `Equiv. ${fmtVES(cobUsdTotalVes)}<br><span style="opacity: 0.8; font-size: 10px;">Base ${fmtUSD(cobUsdBase)} + IVA ${fmtUSD(cobUsdTax)}</span>`);
+    setText("kpi-cobrado-usd-sub", `Equiv. ${fmtVES(cobUsdTotalVes)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br>
+        <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 4px;">Base: ${fmtUSD(cobUsdBase)}</span>
+        <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 2px;">IVA: ${fmtUSD(cobUsdTax)}</span>
+        <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 2px;">IGTF: ${fmtUSD(cobUsdIgtf)}</span>`);
 
     // Cobrado Bs.
     const cobVesTotal = parseFloat(kpis.collected_ves_total || 0);
     const cobVesBase  = parseFloat(kpis.collected_ves_base  || 0);
     const cobVesTax   = parseFloat(kpis.collected_ves_tax   || 0);
-    const cobVesTotalUsd = cobVesTotal / (window.exchange_rate || 1);
+    const cobVesIgtf  = parseFloat(kpis.collected_ves_igtf  || 0);
+    const cobVesTotalUsd = parseFloat(kpis.collected_ves_equivalent_usd || 0);
+    const implicitRate = cobVesTotalUsd > 0 ? cobVesTotal / cobVesTotalUsd : 0;
+    const rateText = implicitRate > 0 ? ` (Tasa Promedio: ${implicitRate.toFixed(2)})` : '';
     
     setText("kpi-cobrado-ves-val", fmtVES(cobVesTotal));
-    setText("kpi-cobrado-ves-sub", `Equiv. ${fmtUSD(cobVesTotalUsd)}<br><span style="opacity: 0.8; font-size: 10px;">Base ${fmtVES(cobVesBase)} + IVA ${fmtVES(cobVesTax)}</span>`);
+    setText("kpi-cobrado-ves-sub", `Equiv. ${fmtUSD(cobVesTotalUsd)}${rateText}<br>
+        <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 4px;">Base: ${fmtVES(cobVesBase)}</span>
+        <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 2px;">IVA: ${fmtVES(cobVesTax)}</span>
+        <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 2px;">IGTF: ${fmtVES(cobVesIgtf)}</span>`);
 
     // Gastos
     const gastosUsd = parseFloat(kpis.total_expenses_usd || 0);
@@ -361,7 +462,7 @@ function renderDashboard(data) {
     const gastosVefEquivUsd = gastosVef / (window.exchange_rate || 1);
     
     setText("kpi-gastos-usd-val", fmtUSD(gastosUsd));
-    setText("kpi-gastos-ves-val", `Equiv. ${fmtVES(gastosUsdEquivVes)}<br><span style="display: block; margin-top: 4px; font-weight: 600; color: var(--text-primary); font-size: 13px;">${fmtVES(gastosVef)}</span>Equiv. ${fmtUSD(gastosVefEquivUsd)}`);
+    setText("kpi-gastos-ves-val", `Equiv. ${fmtVES(gastosUsdEquivVes)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="display: block; margin-top: 4px; font-weight: 600; color: var(--text-primary); font-size: 13px;">${fmtVES(gastosVef)}</span>Equiv. ${fmtUSD(gastosVefEquivUsd)}`);
 
     // Disponible USD & Bs.
     const dispUsd = parseFloat(kpis.available_usd !== undefined ? kpis.available_usd : cobUsdTotal - gastosUsd);
@@ -370,7 +471,7 @@ function renderDashboard(data) {
     const dispVesEquivUsd = dispVes / (window.exchange_rate || 1);
     
     setText("kpi-disp-usd-val", fmtUSD(dispUsd));
-    setText("kpi-disp-usd-sub", `Equiv. ${fmtVES(dispUsdEquivVes)}<br><span style="opacity: 0.8;">Cobrado − Gastos</span>`);
+    setText("kpi-disp-usd-sub", `Equiv. ${fmtVES(dispUsdEquivVes)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="opacity: 0.8;">Cobrado − Gastos</span>`);
     setText("kpi-disp-ves-val", fmtVES(dispVes));
     setText("kpi-disp-ves-sub", `Equiv. ${fmtUSD(dispVesEquivUsd)}<br><span style="opacity: 0.8;">Cobrado − Gastos</span>`);
 
@@ -402,6 +503,9 @@ function renderDashboard(data) {
     cachedTasks = data.calendar_tasks || [];
     renderCalendar(cachedTasks);
 
+    // ── 7. Subscriber & Business Analytics ─────────────────────────────────
+    renderSubscriberAnalytics(data.customer_analytics);
+
     // Re-init icons for any newly inserted lucide elements
     if (window.lucide) lucide.createIcons();
 }
@@ -418,6 +522,274 @@ function formatMoney(amount) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     });
+}
+
+// =========================================================================
+// SUBSCRIBER & BUSINESS ANALYTICS RENDERING
+// =========================================================================
+
+function renderSubscriberAnalytics(analytics) {
+    if (!analytics) return;
+
+    // 1. Process Service Status Chart & KPIs
+    const statusChart = analytics.status_chart || { labels: [], values: [] };
+    let totalServices = 0;
+    let activeServices = 0;
+    let suspendedServices = 0;
+
+    for (let i = 0; i < statusChart.labels.length; i++) {
+        const label = statusChart.labels[i] || "";
+        const val = parseInt(statusChart.values[i] || 0);
+        totalServices += val;
+
+        const norm = label.toLowerCase();
+        if (norm.includes("acti")) {
+            activeServices += val;
+        } else if (norm.includes("suspe") || norm.includes("moro")) {
+            suspendedServices += val;
+        }
+    }
+
+    const activePct = totalServices > 0 ? Math.round((activeServices / totalServices) * 100) : 0;
+    const suspendedPct = totalServices > 0 ? Math.round((suspendedServices / totalServices) * 100) : 0;
+
+    setText("sub-active-val", activeServices);
+    setText("sub-active-pct", `${activePct}% del total (${totalServices} servicios)`);
+    setText("sub-suspended-val", suspendedServices);
+    setText("sub-suspended-pct", `${suspendedPct}% del total`);
+
+    // 2. New Customer Growth
+    const newCust = analytics.new_customers_data || { new_this_month: 0, average: 0, trend: "up" };
+    setText("sub-news-val", newCust.new_this_month);
+    setText("sub-news-avg", `Promedio: ${newCust.average || 0} / mes`);
+
+    // 3. Churn Data
+    const churn = analytics.churn_data || { current_rate: 0, average_rate: 0, churned_this_month: 0, trend: "down" };
+    setText("sub-churn-val", `${churn.current_rate || 0}%`);
+    setText("sub-churn-avg", `Bajas: ${churn.churned_this_month || 0} (Promedio: ${churn.average_rate || 0}%)`);
+
+    // 4. Render Charts & Map
+    initSubscriberGrowthChart(analytics.growth_chart);
+    initSubscriberPlansChart(analytics.plan_distribution);
+    initSubscriberLocationsChart(analytics.location_chart);
+    updateMapData(analytics);
+}
+
+function initSubscriberGrowthChart(growthData) {
+    if (subGrowthChartInstance) {
+        subGrowthChartInstance.destroy();
+        subGrowthChartInstance = null;
+    }
+    const container = document.querySelector("#panel-sub-growth");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const labels = growthData ? (growthData.labels || []) : [];
+    const values = (growthData && growthData.datasets && growthData.datasets[0]) ? (growthData.datasets[0].values || []) : [];
+
+    const isDark = document.body.classList.contains("dark-theme");
+
+    const options = {
+        series: [{
+            name: 'Servicios Nuevos',
+            data: values
+        }],
+        chart: {
+            type: 'area',
+            height: 250,
+            toolbar: { show: false },
+            animations: { enabled: true },
+            background: 'transparent'
+        },
+        stroke: {
+            curve: 'smooth',
+            width: 2.5
+        },
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shadeIntensity: 1,
+                opacityFrom: 0.45,
+                opacityTo: 0.05,
+                stops: [0, 100]
+            }
+        },
+        colors: ['#2563eb'],
+        xaxis: {
+            categories: labels,
+            labels: {
+                style: {
+                    colors: isDark ? '#94a3b8' : '#64748b',
+                    fontSize: '11px'
+                }
+            },
+            axisBorder: { show: false },
+            axisTicks: { show: false }
+        },
+        yaxis: {
+            labels: {
+                style: {
+                    colors: isDark ? '#94a3b8' : '#64748b',
+                    fontSize: '11px'
+                }
+            }
+        },
+        grid: {
+            borderColor: isDark ? '#334155' : '#e2e8f0',
+            strokeDashArray: 4
+        },
+        theme: {
+            mode: isDark ? 'dark' : 'light'
+        },
+        tooltip: {
+            theme: isDark ? 'dark' : 'light'
+        }
+    };
+
+    subGrowthChartInstance = new ApexCharts(container, options);
+    subGrowthChartInstance.render();
+}
+
+function initSubscriberPlansChart(planDistribution) {
+    if (subPlansChartInstance) {
+        subPlansChartInstance.destroy();
+        subPlansChartInstance = null;
+    }
+    const container = document.querySelector("#panel-sub-plans");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const labels = planDistribution ? (planDistribution.labels || []) : [];
+    const values = planDistribution ? (planDistribution.values || []) : [];
+
+    const isDark = document.body.classList.contains("dark-theme");
+
+    const options = {
+        series: [{
+            name: 'Servicios',
+            data: values
+        }],
+        chart: {
+            type: 'bar',
+            height: 250,
+            toolbar: { show: false },
+            background: 'transparent'
+        },
+        plotOptions: {
+            bar: {
+                borderRadius: 4,
+                horizontal: true,
+                barHeight: '70%'
+            }
+        },
+        colors: ['#06b6d4'],
+        xaxis: {
+            categories: labels,
+            labels: {
+                style: {
+                    colors: isDark ? '#94a3b8' : '#64748b',
+                    fontSize: '11px'
+                }
+            },
+            axisBorder: { show: false },
+            axisTicks: { show: false }
+        },
+        yaxis: {
+            labels: {
+                style: {
+                    colors: isDark ? '#94a3b8' : '#64748b',
+                    fontSize: '11px'
+                }
+            }
+        },
+        grid: {
+            borderColor: isDark ? '#334155' : '#e2e8f0',
+            strokeDashArray: 4
+        },
+        theme: {
+            mode: isDark ? 'dark' : 'light'
+        },
+        tooltip: {
+            theme: isDark ? 'dark' : 'light'
+        }
+    };
+
+    subPlansChartInstance = new ApexCharts(container, options);
+    subPlansChartInstance.render();
+}
+
+function initSubscriberLocationsChart(locationChart) {
+    if (subLocationsChartInstance) {
+        subLocationsChartInstance.destroy();
+        subLocationsChartInstance = null;
+    }
+    const container = document.querySelector("#panel-sub-locations");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const labels = locationChart ? (locationChart.labels || []) : [];
+    const values = locationChart ? (locationChart.values || []) : [];
+
+    const isDark = document.body.classList.contains("dark-theme");
+
+    const options = {
+        series: values,
+        chart: {
+            type: 'donut',
+            height: 250,
+            background: 'transparent'
+        },
+        labels: labels,
+        colors: ['#2563eb', '#10b981', '#7c3aed', '#f59e0b', '#ec4899', '#06b6d4', '#64748b'],
+        stroke: {
+            show: true,
+            colors: isDark ? ['#0f172a'] : ['#ffffff'],
+            width: 2
+        },
+        plotOptions: {
+            pie: {
+                donut: {
+                    size: '65%',
+                    labels: {
+                        show: true,
+                        name: {
+                            show: true,
+                            fontSize: '13px',
+                            color: isDark ? '#94a3b8' : '#64748b'
+                        },
+                        value: {
+                            show: true,
+                            fontSize: '18px',
+                            fontWeight: 'bold',
+                            color: isDark ? '#f8fafc' : '#0f172a'
+                        },
+                        total: {
+                            show: true,
+                            label: 'Total',
+                            color: isDark ? '#94a3b8' : '#64748b'
+                        }
+                    }
+                }
+            }
+        },
+        dataLabels: { enabled: false },
+        legend: {
+            show: true,
+            position: 'bottom',
+            labels: {
+                colors: isDark ? '#94a3b8' : '#64748b'
+            }
+        },
+        theme: {
+            mode: isDark ? 'dark' : 'light'
+        },
+        tooltip: {
+            theme: isDark ? 'dark' : 'light'
+        }
+    };
+
+    subLocationsChartInstance = new ApexCharts(container, options);
+    subLocationsChartInstance.render();
 }
 
 // =========================================================================
@@ -529,10 +901,16 @@ function renderExpenses(categories, totalExpenses) {
             const amountVes = item.amount_ves;
             const refAmt = currentCurrency === "VEF" ? amountVes : amountUsd;
             const pct = totalExpenses > 0 ? Math.round((refAmt / totalExpenses) * 100) : 0;
+            
+            let categoryName = item.category || "";
+            if (categoryName.toUpperCase() === "INTERCOMPANY") {
+                categoryName = "INTERCOMPAÑÍA";
+            }
+            
             html += `
                 <div class="expense-item">
                     <div class="expense-info">
-                        <span>${item.category}</span>
+                        <span>${categoryName}</span>
                         <span>${fmtUSD(amountUsd)} | ${fmtVES(amountVes)}</span>
                     </div>
                     <div class="progress-bar-wrapper">
@@ -679,16 +1057,16 @@ function renderSalesTodayTable(sales) {
 }
 
 // IVA del Día & IGTF del Día KPI cards
-// Populates the single combined IVA + IGTF (all-time) KPI card
+// Populates the split IVA and IGTF KPI cards
 function renderTaxKpiCards(taxTotals) {
     const t = taxTotals || {};
     const fmtUSD = (n) => "REF " + parseFloat(n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const fmtVES = (n) => "Bs. " + parseFloat(n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    setText("kpi-iva-usd-val",  fmtUSD(t.iva_usd));
-    setText("kpi-iva-ves-val",  fmtVES(t.iva_ves));
-    setText("kpi-igtf-usd-val", fmtUSD(t.igtf_usd));
-    setText("kpi-igtf-ves-val", fmtVES(t.igtf_ves));
+    setText("kpi-iva-val",  fmtUSD(t.iva_usd));
+    setText("kpi-iva-sub",  `Equiv. ${fmtVES(t.iva_ves)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})`);
+    setText("kpi-igtf-val", fmtUSD(t.igtf_usd));
+    setText("kpi-igtf-sub", `Equiv. ${fmtVES(t.igtf_ves)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})`);
 }
 
 // =========================================================================
@@ -726,6 +1104,31 @@ function getMockData() {
 // STATIC COMPONENTS (CALENDAR & CHAT)
 // =========================================================================
 
+function getCalendarPeriodText(startDate, rangeDays) {
+    if (!startDate) return "";
+    
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + rangeDays - 1);
+    
+    const startMonth = startDate.toLocaleDateString("es-ES", { month: "long" });
+    const endMonth = endDate.toLocaleDateString("es-ES", { month: "long" });
+    const startYear = startDate.getFullYear();
+    const endYear = endDate.getFullYear();
+    
+    const capStartMonth = startMonth.charAt(0).toUpperCase() + startMonth.slice(1);
+    const capEndMonth = endMonth.charAt(0).toUpperCase() + endMonth.slice(1);
+    
+    if (startYear === endYear) {
+        if (startMonth === endMonth) {
+            return `${capStartMonth} ${startYear}`;
+        } else {
+            return `${capStartMonth} - ${capEndMonth} ${startYear}`;
+        }
+    } else {
+        return `${capStartMonth} ${startYear} - ${capEndMonth} ${endYear}`;
+    }
+}
+
 function renderCalendar(tasks) {
     const calendarEl = document.getElementById("weekly-calendar");
     if (!calendarEl) return;
@@ -752,12 +1155,13 @@ function renderCalendar(tasks) {
     // Dynamically update card title
     const titleEl = document.querySelector(".calendar-card .card-title");
     if (titleEl) {
+        const periodText = getCalendarPeriodText(calendarStartDate, calendarRangeDays);
         if (calendarRangeDays === 7) {
-            titleEl.innerText = "Calendario para tareas (Semanal)";
+            titleEl.innerText = `Calendario para tareas (Semanal - ${periodText})`;
         } else if (calendarRangeDays === 15) {
-            titleEl.innerText = "Calendario para tareas (15 Días)";
+            titleEl.innerText = `Calendario para tareas (15 Días - ${periodText})`;
         } else if (calendarRangeDays === 30) {
-            titleEl.innerText = "Calendario para tareas (Mensual)";
+            titleEl.innerText = `Calendario para tareas (Mensual - ${periodText})`;
         }
     }
 
@@ -815,11 +1219,19 @@ function renderCalendar(tasks) {
         dayTasks.forEach(task => {
             // Pick a status class or custom task type style
             const statusClass = task.status === "Open" ? "work-order" : 
-                                task.status === "Working" ? "ftth" : "repair-green";
+                                task.status === "Working" ? "ftth" : 
+                                task.status === "Completed" ? "repair-green" : "repair-purple";
+            
+            const statusLabel = task.status === "Open" ? "Abierta" : 
+                                task.status === "Working" ? "Progeso" : 
+                                task.status === "Completed" ? "Hecha" : "Canc.";
             
             taskHtml += `
                 <div class="cal-task-card ${statusClass}" onclick="window.showTaskDetailModal('${task.task_id}')" style="margin-bottom: 6px; width: 100%;">
-                    <span class="cal-task-title">[Día ${currentDate.getDate()}] ${task.title}</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                        <span class="cal-task-title" style="margin: 0; font-weight: 600;">[Día ${currentDate.getDate()}] ${task.title}</span>
+                        <span style="font-size: 9px; padding: 1px 4px; border-radius: 4px; background: rgba(255,255,255,0.4); font-weight: bold; text-transform: uppercase;">${statusLabel}</span>
+                    </div>
                     <span style="font-size: 10px; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%;">${task.desc || 'Sin descripción'}</span>
                 </div>
             `;
@@ -892,7 +1304,7 @@ window.showTaskDetailModal = function(taskId) {
     let dateStr = "—";
     if (task.task_date) {
         try {
-            const parts = task.task_date.split("-");
+            const parts = task.task_date.split(" ")[0].split("-");
             if (parts.length === 3) {
                 const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
                 dateStr = dateObj.toLocaleDateString("es-ES", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -984,6 +1396,221 @@ window.closeInstallationModal = function() {
         }, 300);
     }
 };
+
+// =========================================================================
+// LEAFLET MAP FUNCTIONS & COORDINATES DATA
+// =========================================================================
+
+const VE_MUNICIPALITY_COORDINATES = {
+    // Caracas / Distrito Capital y Miranda
+    "libertador": [10.5050, -66.9144],
+    "chacao": [10.4914, -66.8576],
+    "baruta": [10.4328, -66.8686],
+    "sucre": [10.4853, -66.8189],
+    "el hatillo": [10.4286, -66.8250],
+    "los salias": [10.3794, -66.9461],
+    "carrizal": [10.3475, -66.9744],
+    "guaicaipuro": [10.3392, -67.0422], // Los Teques
+    "plaza": [10.4636, -66.6192], // Guarenas
+    "zamora": [10.4722, -66.5297], // Guatire
+    
+    // Carabobo
+    "valencia": [10.1620, -68.0077],
+    "naguanagua": [10.2541, -68.0125],
+    "san diego": [10.2292, -67.9547],
+    "guacara": [10.2272, -67.8767],
+    "puerto cabello": [10.4674, -68.0124],
+    
+    // Aragua
+    "girardot": [10.2504, -67.6014], // Maracay
+    "santiago marino": [10.2221, -67.5028], // Turmero
+    "jose felix ribas": [10.2319, -67.3341], // La Victoria
+    
+    // Zulia
+    "maracaibo": [10.6427, -71.6125],
+    "san francisco": [10.5562, -71.6742],
+    "cabimas": [10.3957, -71.4398],
+    "lagunillas": [10.1257, -71.2586], // Ciudad Ojeda
+    
+    // Lara
+    "iribarren": [10.0683, -69.3467], // Barquisimeto
+    "palavecino": [10.0264, -69.2612], // Cabudare
+    
+    // Anzoátegui
+    "simon bolivar": [9.6000, -64.5000],
+    "simon bolivar (bna)": [10.1362, -64.6862], // Barcelona
+    "juan antonio sotillo": [10.2167, -64.6333], // Puerto La Cruz
+    "diego bautista urbaneja": [10.2000, -64.6833], // Lechería
+    "anaco": [9.4389, -64.4722],
+    
+    // Bolívar
+    "caroni": [8.3000, -62.7000], // Ciudad Guayana / Puerto Ordaz
+    "heres": [8.1167, -63.5500], // Ciudad Bolívar
+    
+    // Táchira
+    "san cristobal": [7.7669, -72.2250],
+    
+    // Nueva Esparta
+    "marino": [10.9575, -63.8569], // Porlamar
+    "maneiro": [10.9833, -63.8000], // Pampatar
+    
+    // Default o estados de fallbacks (estados como tales)
+    "distrito capital": [10.5050, -66.9144],
+    "miranda": [10.3500, -66.6000],
+    "aragua": [10.0000, -67.2500],
+    "carabobo": [10.1000, -68.0000],
+    "zulia": [10.0000, -72.0000],
+    "lara": [10.1667, -69.6667],
+    "anzoategui": [9.0000, -64.0000],
+    "bolivar": [6.5000, -63.0000],
+    "nueva esparta": [11.0000, -63.9000],
+    "falcon": [11.0000, -70.0000],
+    "portuguesa": [9.2500, -69.2500],
+    "monagas": [9.5000, -63.0000],
+    "barinas": [8.2500, -70.2500],
+    "merida": [8.5000, -71.2500]
+};
+
+function initLeafletMap() {
+    const mapContainer = document.getElementById("isp-map");
+    if (!mapContainer) return;
+
+    if (ispMapInstance) {
+        try {
+            ispMapInstance.remove();
+        } catch(e) {
+            console.error("Error removing old map instance:", e);
+        }
+        ispMapInstance = null;
+    }
+
+    const isDark = document.body.classList.contains("dark-theme");
+    const defaultCenter = [10.4806, -66.9036]; // Caracas
+    const defaultZoom = 6;
+
+    try {
+        ispMapInstance = L.map('isp-map', {
+            center: defaultCenter,
+            zoom: defaultZoom,
+            scrollWheelZoom: false
+        });
+
+        const tileUrl = isDark 
+            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' 
+            : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+            
+        const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+        mapTileLayer = L.tileLayer(tileUrl, {
+            attribution: attribution,
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(ispMapInstance);
+
+        mapMarkersGroup = L.layerGroup().addTo(ispMapInstance);
+    } catch(e) {
+        console.error("Failed to initialize Leaflet map:", e);
+    }
+}
+
+function updateMapData(analytics) {
+    if (!ispMapInstance || !mapMarkersGroup) return;
+
+    mapMarkersGroup.clearLayers();
+
+    if (!analytics || !analytics.location_chart) return;
+
+    const locationChart = analytics.location_chart;
+    const labels = locationChart.labels || [];
+    const values = locationChart.values || [];
+
+    const maxValue = Math.max(...values, 1);
+    const points = [];
+
+    for (let i = 0; i < labels.length; i++) {
+        const rawLocationName = labels[i];
+        const clientCount = values[i];
+        
+        if (rawLocationName === "Sin Ubicación" || !clientCount) continue;
+
+        const normName = rawLocationName.toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/municipio\s+/g, "")
+            .trim();
+
+        let coords = VE_MUNICIPALITY_COORDINATES[normName];
+
+        if (!coords) {
+            for (const key in VE_MUNICIPALITY_COORDINATES) {
+                if (normName.includes(key) || key.includes(normName)) {
+                    coords = VE_MUNICIPALITY_COORDINATES[key];
+                    break;
+                }
+            }
+        }
+
+        if (!coords) {
+            const stateFilter = document.getElementById("filter-state")?.value;
+            if (stateFilter) {
+                const normState = stateFilter.toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .trim();
+                coords = VE_MUNICIPALITY_COORDINATES[normState];
+            }
+        }
+
+        // Final random spread around Venezuela center if not matched to prevent overlap
+        if (!coords) {
+            coords = [8.0 + (Math.random() - 0.5) * 1.5, -66.0 + (Math.random() - 0.5) * 1.5];
+        }
+
+        // Calculate dynamic marker radius
+        const radius = Math.max(8, (clientCount / maxValue) * 35);
+
+        const circle = L.circleMarker(coords, {
+            radius: radius,
+            fillColor: '#2563eb',
+            color: '#1d4ed8',
+            weight: 1.5,
+            opacity: 0.8,
+            fillOpacity: 0.4
+        });
+
+        const popupContent = `
+            <div class="map-popup-container">
+                <div class="map-popup-title">${rawLocationName}</div>
+                <div class="map-popup-row">
+                    <span class="map-popup-label">Suscriptores:</span>
+                    <span class="map-popup-value success">${clientCount}</span>
+                </div>
+                <div class="map-popup-row">
+                    <span class="map-popup-label">Estatus:</span>
+                    <span class="map-popup-value">Activo</span>
+                </div>
+            </div>
+        `;
+
+        circle.bindPopup(popupContent);
+        mapMarkersGroup.addLayer(circle);
+        
+        points.push(coords);
+    }
+
+    if (points.length > 0) {
+        try {
+            const munFilter = document.getElementById("filter-municipality")?.value;
+            if (munFilter && points.length === 1) {
+                ispMapInstance.setView(points[0], 11);
+            } else {
+                ispMapInstance.fitBounds(points, { padding: [50, 50] });
+            }
+        } catch (e) {
+            console.error("Error fitting map bounds:", e);
+        }
+    }
+}
 
 
 
