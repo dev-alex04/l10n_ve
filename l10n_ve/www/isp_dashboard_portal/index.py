@@ -132,7 +132,7 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
     )
     unpaid_count = sum(1 for inv in invoices if not inv.bill_control)
 
-    igtf_usd_divided = flt(igtf_vef / exchange_rate) if exchange_rate else 0.0
+    igtf_usd_divided = flt(flt(igtf_vef) / flt(exchange_rate)) if exchange_rate else 0.0
 
     return {
         "unpaid_orders_count": unpaid_count,
@@ -143,16 +143,16 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
         "pending_tax_amount": 0.0,
         
         "actual_collected_total": flt(billed_usd),
-        "collected_base_amount": flt(billed_usd - vat_usd - igtf_usd_divided),
+        "collected_base_amount": flt(flt(billed_usd) - flt(vat_usd) - flt(igtf_usd_divided)),
         "collected_tax_amount": flt(vat_usd),
         
         "collected_usd_total": flt(billed_usd),
-        "collected_usd_base": flt(billed_usd - vat_usd - igtf_usd_divided),
+        "collected_usd_base": flt(flt(billed_usd) - flt(vat_usd) - flt(igtf_usd_divided)),
         "collected_usd_tax": flt(vat_usd),
         "collected_usd_igtf": flt(igtf_usd_divided),
         
         "collected_ves_total": flt(billed_vef),
-        "collected_ves_base": flt(billed_vef - vat_vef - igtf_vef),
+        "collected_ves_base": flt(flt(billed_vef) - flt(vat_vef) - flt(igtf_vef)),
         "collected_ves_tax": flt(vat_vef),
         "collected_ves_igtf": flt(igtf_vef),
         "collected_ves_equivalent_usd": flt(billed_usd),
@@ -162,8 +162,8 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
         
         "collected_total_usd": flt(billed_usd),
         "collected_total_vef": flt(billed_vef),
-        "collected_total_usd_base": flt(billed_usd - vat_usd - igtf_usd_divided),
-        "collected_total_vef_base": flt(billed_vef - vat_vef - igtf_vef),
+        "collected_total_usd_base": flt(flt(billed_usd) - flt(vat_usd) - flt(igtf_usd_divided)),
+        "collected_total_vef_base": flt(flt(billed_vef) - flt(vat_vef) - flt(igtf_vef)),
         
         "available_usd": flt(availability_usd),
         "available_vef": flt(availability_vef),
@@ -199,7 +199,7 @@ def _get_trend_data(company, date_from, date_to, branch):
             fields=["parent", "tax_amount"]
         )
         for t in taxes:
-            iva_by_invoice[t.parent] = iva_by_invoice.get(t.parent, 0.0) + float(t.tax_amount or 0)
+            iva_by_invoice[t.parent] = flt(iva_by_invoice.get(t.parent, 0.0)) + flt(t.tax_amount or 0)
             
     rates_cache = {}
     from l10n_ve.utils.utils import get_exchange_rate
@@ -218,11 +218,11 @@ def _get_trend_data(company, date_from, date_to, branch):
         if not is_usd:
             date_str = str(inv.posting_date)
             if date_str not in rates_cache:
-                rates_cache[date_str] = float(get_exchange_rate(date_str, "USD") or 1.0)
+                rates_cache[date_str] = flt(get_exchange_rate(date_str, "USD") or 1.0)
             rate = rates_cache[date_str]
             
-        gross_iva = iva_by_invoice.get(inv.name, 0.0)
-        gross_total_usd = (float(inv.net_total or 0) + gross_iva) / rate
+        gross_iva = flt(iva_by_invoice.get(inv.name, 0.0))
+        gross_total_usd = flt((flt(inv.net_total or 0) + gross_iva) / rate) if rate else 0.0
         
         date_str = str(inv.posting_date)
         if date_str in daily_map:
@@ -516,8 +516,8 @@ def get_dashboard_data(
             label = r.category.split("-")[0].strip() if r.category else _("Otros")
             expenses_by_category.append({
                 "category": label,
-                "amount_usd": float(r.amount_usd or 0),
-                "amount_ves": float(r.amount_ves or 0)
+                "amount_usd": flt(r.amount_usd or 0),
+                "amount_ves": flt(r.amount_ves or 0)
             })
     except Exception as e:
         frappe.log_error(f"Portal dashboard expenses grouping error: {e}")
@@ -564,34 +564,34 @@ def get_dashboard_data(
                 }
         
         for inv in raw_sales:
-            grand_total = float(inv.grand_total or 0)
-            base_grand_total = float(inv.base_grand_total or 0)
-            conv_rate = float(inv.conversion_rate or 1)
-            total_igtf_ves = float(inv.total_igtf or 0)
+            grand_total = flt(inv.grand_total or 0)
+            base_grand_total = flt(inv.base_grand_total or 0)
+            conv_rate = flt(inv.conversion_rate or 1)
+            total_igtf_ves = flt(inv.total_igtf or 0)
             
             # Determine exchange rate to use
-            rate = conv_rate if conv_rate > 1 else exchange_rate
+            rate = flt(conv_rate if conv_rate > 1 else exchange_rate)
             
             # IGTF amounts (stored in VES/Bs on Sales Invoice)
-            igtf_ves = total_igtf_ves
-            igtf_usd = total_igtf_ves / rate if rate > 0 else 0
+            igtf_ves = flt(total_igtf_ves)
+            igtf_usd = flt(total_igtf_ves / rate) if rate > 0 else 0.0
             
             # IVA amounts
-            iva_info = iva_map.get(inv.invoice_id, {"tax_amount": 0, "base_tax_amount": 0})
+            iva_info = iva_map.get(inv.invoice_id, {"tax_amount": 0.0, "base_tax_amount": 0.0})
             if inv.currency == "USD":
-                iva_usd = iva_info["tax_amount"]
-                iva_ves = iva_info["base_tax_amount"] or (iva_usd * conv_rate)
+                iva_usd = flt(iva_info.get("tax_amount") or 0)
+                iva_ves = flt(iva_info.get("base_tax_amount") or 0) or flt(iva_usd * conv_rate)
             else:
-                iva_ves = iva_info["tax_amount"]
-                iva_usd = iva_ves / rate if rate > 0 else 0
+                iva_ves = flt(iva_info.get("tax_amount") or 0)
+                iva_usd = flt(iva_ves / rate) if rate > 0 else 0.0
             
             # Total amounts
             if inv.currency == "USD":
-                amount_usd = grand_total
-                amount_ves = base_grand_total or (grand_total * conv_rate)
+                amount_usd = flt(grand_total)
+                amount_ves = flt(base_grand_total) or flt(grand_total * conv_rate)
             else:
-                amount_ves = grand_total
-                amount_usd = grand_total / rate if rate > 0 else 0
+                amount_ves = flt(grand_total)
+                amount_usd = flt(grand_total / rate) if rate > 0 else 0.0
                 
             sales_today.append({
                 "invoice_id": inv.invoice_id,
