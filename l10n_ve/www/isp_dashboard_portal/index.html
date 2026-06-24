@@ -44,7 +44,7 @@
     <script>
         window.csrf_token = "{{ csrf_token }}";
         window.session_user = "{{ frappe.session.user }}";
-        window.exchange_rate = {{ exchange_rate or 36.50 }};
+        window.exchange_rate = {{ exchange_rate or 1.0 }};
     </script>
 </head>
 <body>

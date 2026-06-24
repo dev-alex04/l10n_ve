@@ -27,9 +27,9 @@ def get_context(context):
     try:
         from l10n_ve.utils.utils import get_exchange_rate
         today = datetime.date.today().strftime("%Y-%m-%d")
-        context.exchange_rate = get_exchange_rate(today, "USD") or 36.50
+        context.exchange_rate = get_exchange_rate(today, "USD") or 1.0
     except Exception:
-        context.exchange_rate = 36.50  # Fallback BCV rate
+        context.exchange_rate = 1.0  # Fallback rate if not found
 
     # Fetch simple stats to bootstrap the frontend
     try:
@@ -438,9 +438,9 @@ def get_dashboard_data(
     # Fetch exchange rate for the end of the report period (date_to)
     try:
         from l10n_ve.utils.utils import get_exchange_rate
-        exchange_rate = get_exchange_rate(date_to, "USD") or 36.50
+        exchange_rate = get_exchange_rate(date_to, "USD") or 1.0
     except Exception:
-        exchange_rate = 36.50
+        exchange_rate = 1.0
 
     # 1. Fetch KPI cards
     kpi_cards = {}
