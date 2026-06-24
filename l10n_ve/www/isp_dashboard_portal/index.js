@@ -412,6 +412,9 @@ function renderDashboard(data) {
     if (data && data.exchange_rate) {
         window.exchange_rate = parseFloat(data.exchange_rate);
     }
+    if (!window.exchange_rate || isNaN(window.exchange_rate)) {
+        window.exchange_rate = 1.0;
+    }
     const kpis = data.kpi_cards || {};
 
     // ── 1. KPI Cards ──────────────────────────────────────────────────────
@@ -425,7 +428,7 @@ function renderDashboard(data) {
     const subtextPendiente = currentCurrency === "VEF" ? fmtUSD(pendienteUsd) : fmtVES(pendienteVef);
     
     setText("kpi-pendiente-val", displayPendiente);
-    setText("kpi-pendiente-count", `Equiv. ${subtextPendiente}<br><span style="opacity: 0.8;">${count} factura${count !== 1 ? "s" : ""} pendiente${count !== 1 ? "s" : ""}</span>`);
+    setText("kpi-pendiente-count", `Equiv. ${subtextPendiente} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="opacity: 0.8;">${count} factura${count !== 1 ? "s" : ""} pendiente${count !== 1 ? "s" : ""}</span>`);
 
     // Cobrado REF ($)
     const cobUsdTotal = parseFloat(kpis.collected_usd_total || 0);
@@ -462,7 +465,7 @@ function renderDashboard(data) {
     const gastosVefEquivUsd = gastosVef / (window.exchange_rate || 1);
     
     setText("kpi-gastos-usd-val", fmtUSD(gastosUsd));
-    setText("kpi-gastos-ves-val", `Equiv. ${fmtVES(gastosUsdEquivVes)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="display: block; margin-top: 4px; font-weight: 600; color: var(--text-primary); font-size: 13px;">${fmtVES(gastosVef)}</span>Equiv. ${fmtUSD(gastosVefEquivUsd)}`);
+    setText("kpi-gastos-ves-val", `Equiv. ${fmtVES(gastosUsdEquivVes)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="display: block; margin-top: 4px; font-weight: 600; color: var(--text-primary); font-size: 13px;">${fmtVES(gastosVef)}</span>Equiv. ${fmtUSD(gastosVefEquivUsd)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})`);
 
     // Disponible USD & Bs.
     const dispUsd = parseFloat(kpis.available_usd !== undefined ? kpis.available_usd : cobUsdTotal - gastosUsd);
@@ -473,7 +476,7 @@ function renderDashboard(data) {
     setText("kpi-disp-usd-val", fmtUSD(dispUsd));
     setText("kpi-disp-usd-sub", `Equiv. ${fmtVES(dispUsdEquivVes)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="opacity: 0.8;">Cobrado − Gastos</span>`);
     setText("kpi-disp-ves-val", fmtVES(dispVes));
-    setText("kpi-disp-ves-sub", `Equiv. ${fmtUSD(dispVesEquivUsd)}<br><span style="opacity: 0.8;">Cobrado − Gastos</span>`);
+    setText("kpi-disp-ves-sub", `Equiv. ${fmtUSD(dispVesEquivUsd)} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="opacity: 0.8;">Cobrado − Gastos</span>`);
 
     // ── 2. Bottom balance card (legacy) ───────────────────────────────────
     const mainBalance = currentCurrency === "VEF" ? fmtVES(dispVes) : fmtUSD(dispUsd);
