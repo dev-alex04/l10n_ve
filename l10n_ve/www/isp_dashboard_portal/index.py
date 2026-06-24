@@ -52,6 +52,8 @@ def get_filter_options():
     if frappe.session.user == "Guest":
         frappe.throw(_("Debe iniciar sesión para obtener opciones de filtro."))
         
+    frappe.get_doc("Dashboard Gerencial").check_permission("read")
+        
     companies = [{"value": c.name, "label": c.name} for c in frappe.get_all("Company", fields=["name"], order_by="name")]
     branches = [{"value": b.name, "label": b.name} for b in frappe.get_all("VE Branch", fields=["name"], order_by="name")]
     routers = [{"value": r.name, "label": r.router_name} for r in frappe.get_all("ISP Router", fields=["name", "router_name"], order_by="router_name")]
@@ -279,8 +281,15 @@ def _get_customer_analytics(company, date_from, date_to, branch, state, municipa
     growth_months = {}
     from dateutil.relativedelta import relativedelta
     
+    # Parse dates outside the customer loop for performance optimization
+    d_from_dt = datetime.datetime.strptime(date_from, "%Y-%m-%d") if date_from else None
+    d_to_dt = datetime.datetime.strptime(date_to, "%Y-%m-%d") if date_to else None
+    
     # Initialize last 6 months
-    d_to = datetime.datetime.strptime(date_to, "%Y-%m-%d")
+    if d_to_dt:
+        d_to = d_to_dt
+    else:
+        d_to = datetime.datetime.strptime(date_to, "%Y-%m-%d") if date_to else datetime.datetime.today()
     for i in range(5, -1, -1):
         m_date = d_to - relativedelta(months=i)
         m_label = m_date.strftime("%b")
@@ -302,10 +311,8 @@ def _get_customer_analytics(company, date_from, date_to, branch, state, municipa
                 growth_months[c_month]["count"] += 1
                 
             # New this month
-            if date_from and date_to:
-                d_from = datetime.datetime.strptime(date_from, "%Y-%m-%d")
-                d_to_dt = datetime.datetime.strptime(date_to, "%Y-%m-%d")
-                if d_from <= creation_date <= d_to_dt:
+            if d_from_dt and d_to_dt:
+                if d_from_dt <= creation_date <= d_to_dt:
                     new_this_month += 1
                     
         loc = c.state_name or "Sin Ubicación"
@@ -408,6 +415,8 @@ def get_dashboard_data(
 ):
     if frappe.session.user == "Guest":
         frappe.throw(_("Debe iniciar sesión para ver los datos."))
+        
+    frappe.get_doc("Dashboard Gerencial").check_permission("read")
         
     currency = "USD"
         

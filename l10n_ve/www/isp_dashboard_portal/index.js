@@ -1223,7 +1223,7 @@ function renderCalendar(tasks) {
                                 task.status === "Completed" ? "repair-green" : "repair-purple";
             
             const statusLabel = task.status === "Open" ? "Abierta" : 
-                                task.status === "Working" ? "Progeso" : 
+                                task.status === "Working" ? "Progreso" : 
                                 task.status === "Completed" ? "Hecha" : "Canc.";
             
             taskHtml += `
