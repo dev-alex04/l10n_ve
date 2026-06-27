@@ -3,10 +3,12 @@ from frappe import _
 from frappe.utils import getdate, flt
 import datetime
 
+route = "reporte-pro"
+
 def get_context(context):
     # Ensure user is logged in, redirect to login page if guest
     if frappe.session.user == "Guest":
-        frappe.local.flags.redirect_to = "/login?redirect-to=/isp_dashboard_portal"
+        frappe.local.flags.redirect_to = "/login?redirect-to=/reporte-pro"
         raise frappe.Redirect
         
     context.no_cache = 1
@@ -57,7 +59,8 @@ def get_filter_options():
     if frappe.session.user == "Guest":
         frappe.throw(_("Debe iniciar sesión para obtener opciones de filtro."))
         
-    frappe.get_doc("Dashboard Gerencial").check_permission("read")
+    if not frappe.has_permission("Dashboard Gerencial", "read"):
+        frappe.throw(_("No tiene permisos para acceder a este recurso."), frappe.PermissionError)
         
     companies = [{"value": c.name, "label": c.name} for c in frappe.get_all("Company", fields=["name"], order_by="name")]
     branches = [{"value": b.name, "label": b.name} for b in frappe.get_all("VE Branch", fields=["name"], order_by="name")]
@@ -421,7 +424,8 @@ def get_dashboard_data(
     if frappe.session.user == "Guest":
         frappe.throw(_("Debe iniciar sesión para ver los datos."))
         
-    frappe.get_doc("Dashboard Gerencial").check_permission("read")
+    if not frappe.has_permission("Dashboard Gerencial", "read"):
+        frappe.throw(_("No tiene permisos para acceder a este recurso."), frappe.PermissionError)
         
     currency = "USD"
         
@@ -709,5 +713,152 @@ def create_task(subject, description, date):
     })
     doc.insert(ignore_permissions=True)
     return {"status": "success", "task_id": doc.name}
+
+
+@frappe.whitelist()
+def get_sales_data(company=None, period="today", date_from=None, date_to=None):
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Debe iniciar sesión para ver los datos."))
+        
+    if not frappe.has_permission("Dashboard Gerencial", "read"):
+        frappe.throw(_("No tiene permisos para acceder a este recurso."), frappe.PermissionError)
+
+    if not company:
+        company = frappe.defaults.get_user_default("company")
+    if not company:
+        companies = frappe.get_all("Company", limit=1)
+        company = companies[0].name if companies else ""
+
+    from frappe.utils import today, getdate
+    import datetime
+
+    # Determine date range for sales based on period
+    today_date = getdate(today())
+    
+    if period == "today":
+        start_date = today_date
+        end_date = today_date
+    elif period == "week":
+        # Start of current week (Monday)
+        start_date = today_date - datetime.timedelta(days=today_date.weekday())
+        end_date = today_date
+    elif period == "month":
+        # Start of current month
+        start_date = today_date.replace(day=1)
+        end_date = today_date
+    elif period == "custom":
+        start_date = getdate(date_from) if date_from else today_date
+        end_date = getdate(date_to) if date_to else today_date
+    else:
+        start_date = today_date
+        end_date = today_date
+
+    # Fetch exchange rate to convert VEF/Bs amounts
+    rate = 1.0
+    try:
+        from l10n_ve.utils.utils import get_exchange_rate
+        r = get_exchange_rate(end_date.strftime("%Y-%m-%d"), "USD")
+        if r:
+            rate = flt(r)
+    except Exception:
+        pass
+
+    # Query sales invoices
+    conditions = [
+        "si.company = %(company)s",
+        "si.docstatus != 2",
+        "si.posting_date >= %(start_date)s",
+        "si.posting_date <= %(end_date)s"
+    ]
+    params = {
+        "company": company,
+        "start_date": start_date.strftime("%Y-%m-%d"),
+        "end_date": end_date.strftime("%Y-%m-%d")
+    }
+
+    query = f"""
+        select 
+            si.name as invoice_id,
+            si.customer_name as client,
+            si.posting_date,
+            si.grand_total,
+            si.base_grand_total,
+            si.currency,
+            si.conversion_rate,
+            si.status,
+            si.total_igtf
+        from `tabSales Invoice` si
+        where { " and ".join(conditions) }
+        order by si.creation desc
+    """
+    raw_sales = frappe.db.sql(query, params, as_dict=True)
+
+    if not raw_sales:
+        return []
+
+    # Fetch IVA taxes
+    invoice_ids = tuple(inv.invoice_id for inv in raw_sales)
+    iva_map = {}
+    if invoice_ids:
+        in_clause = "%(invoice_ids)s" if len(invoice_ids) > 1 else "(%s)" % frappe.db.escape(invoice_ids[0])
+        iva_query = f"""
+            select parent as invoice_id, sum(tax_amount) as tax_amount, sum(base_tax_amount) as base_tax_amount
+            from `tabSales Taxes and Charges`
+            where parent in {in_clause} and (description like '%%IVA%%' or description like '%%I.V.A.%%')
+            group by parent
+        """
+        query_params = {"invoice_ids": invoice_ids} if len(invoice_ids) > 1 else {}
+        iva_res = frappe.db.sql(iva_query, query_params, as_dict=True)
+        for row in iva_res:
+            iva_map[row.invoice_id] = {
+                "tax_amount": flt(row.tax_amount or 0),
+                "base_tax_amount": flt(row.base_tax_amount or 0)
+            }
+
+    sales_list = []
+    for inv in raw_sales:
+        grand_total = flt(inv.grand_total or 0)
+        base_grand_total = flt(inv.base_grand_total or 0)
+        conv_rate = flt(inv.conversion_rate or 1)
+        total_igtf_ves = flt(inv.total_igtf or 0)
+        
+        # Determine exchange rate to use
+        inv_rate = conv_rate if conv_rate > 1 else rate
+        
+        # IGTF amounts
+        igtf_ves = flt(total_igtf_ves)
+        igtf_usd = flt(total_igtf_ves / inv_rate) if inv_rate > 0 else 0.0
+        
+        # IVA amounts
+        iva_info = iva_map.get(inv.invoice_id, {"tax_amount": 0.0, "base_tax_amount": 0.0})
+        if inv.currency == "USD":
+            iva_usd = flt(iva_info.get("tax_amount") or 0)
+            iva_ves = flt(iva_info.get("base_tax_amount") or 0) or flt(iva_usd * conv_rate)
+        else:
+            iva_ves = flt(iva_info.get("tax_amount") or 0)
+            iva_usd = flt(iva_ves / inv_rate) if inv_rate > 0 else 0.0
+        
+        # Total amounts
+        if inv.currency == "USD":
+            amount_usd = flt(grand_total)
+            amount_ves = flt(base_grand_total) or flt(grand_total * conv_rate)
+        else:
+            amount_ves = flt(grand_total)
+            amount_usd = flt(grand_total / inv_rate) if inv_rate > 0 else 0.0
+            
+        sales_list.append({
+            "invoice_id": inv.invoice_id,
+            "client": inv.client or _("Cliente General"),
+            "posting_date": str(inv.posting_date),
+            "amount_usd": amount_usd,
+            "amount_ves": amount_ves,
+            "iva_usd": iva_usd,
+            "iva_ves": iva_ves,
+            "igtf_usd": igtf_usd,
+            "igtf_ves": igtf_ves,
+            "status": inv.status
+        })
+
+    return sales_list
 
 

@@ -39,7 +39,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     
     <!-- Local Stylesheet -->
-    <link rel="stylesheet" href="/isp_dashboard_portal/index.css?v=7">
+    <link rel="stylesheet" href="/reporte-pro/index.css?v=7">
     <!-- Frappe CSRF token & session injected from server -->
     <script>
         window.csrf_token = "{{ csrf_token }}";
@@ -316,8 +316,21 @@
                 <div class="dashboard-row row-2">
                     <!-- Ventas del Día Card -->
                     <div class="card work-orders-card">
-                        <div class="card-header">
-                            <h2 class="card-title">Ventas del Día</h2>
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                            <h2 class="card-title" id="sales-card-title">Ventas del Día</h2>
+                            <div class="sales-filter-controls" style="display: flex; gap: 8px; align-items: center;">
+                                <select id="sales-period-select" style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font-size: 13px; outline: none; cursor: pointer; border-color: rgba(120, 120, 120, 0.2);">
+                                    <option value="today">Hoy</option>
+                                    <option value="week">Esta Semana</option>
+                                    <option value="month">Este Mes</option>
+                                    <option value="custom">Personalizado</option>
+                                </select>
+                                <div id="sales-custom-date-container" style="display: none; gap: 5px; align-items: center;">
+                                    <input type="date" id="sales-custom-from" style="padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font-size: 13px; border-color: rgba(120, 120, 120, 0.2);">
+                                    <span style="color: var(--text-secondary); font-size: 12px;">a</span>
+                                    <input type="date" id="sales-custom-to" style="padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font-size: 13px; border-color: rgba(120, 120, 120, 0.2);">
+                                </div>
+                            </div>
                         </div>
                         <div class="table-wrapper">
                             <table class="data-table">
@@ -586,6 +599,6 @@
     </div>
 
     <!-- Local Script -->
-    <script src="/isp_dashboard_portal/index.js?v=7"></script>
+    <script src="/reporte-pro/index.js?v=7"></script>
 </body>
 </html>

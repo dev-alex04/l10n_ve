@@ -74,6 +74,40 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // Ventas del Día Filter Logic
+    const salesPeriodSelect = document.getElementById("sales-period-select");
+    const salesCustomContainer = document.getElementById("sales-custom-date-container");
+    const salesCustomFrom = document.getElementById("sales-custom-from");
+    const salesCustomTo = document.getElementById("sales-custom-to");
+
+    if (salesPeriodSelect) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        const firstDayStr = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
+        if (salesCustomFrom) salesCustomFrom.value = firstDayStr;
+        if (salesCustomTo) salesCustomTo.value = todayStr;
+
+        salesPeriodSelect.addEventListener("change", () => {
+            const val = salesPeriodSelect.value;
+            if (val === "custom") {
+                if (salesCustomContainer) salesCustomContainer.style.display = "flex";
+            } else {
+                if (salesCustomContainer) salesCustomContainer.style.display = "none";
+            }
+            reloadSalesTable();
+        });
+    }
+
+    if (salesCustomFrom) {
+        salesCustomFrom.addEventListener("change", () => {
+            reloadSalesTable();
+        });
+    }
+    if (salesCustomTo) {
+        salesCustomTo.addEventListener("change", () => {
+            reloadSalesTable();
+        });
+    }
+
     // Dark Mode Toggle Logic
     const themeToggleBtn = document.getElementById("theme-toggle");
     if (themeToggleBtn) {
@@ -251,7 +285,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const description = document.getElementById("add-task-desc").value;
             const date = document.getElementById("add-task-date").value;
             
-            const url = "/api/method/l10n_ve.www.isp_dashboard_portal.index.create_task";
+            const url = "/api/method/l10n_ve.www.reporte_pro.index.create_task";
             fetch(url, {
                 method: "POST",
                 headers: {
@@ -303,7 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function loadFilterOptions(callback) {
     // Use GET — no CSRF token required for read-only endpoints
-    const url = "/api/method/l10n_ve.www.isp_dashboard_portal.index.get_filter_options";
+    const url = "/api/method/l10n_ve.www.reporte_pro.index.get_filter_options";
     fetch(url, { method: "GET", credentials: "same-origin" })
         .then(res => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -376,6 +410,7 @@ function reloadDashboard() {
             console.log("No data returned from backend, using high-fidelity mock data.");
             dashboardData = getMockData();
         }
+        window.lastDashboardData = dashboardData;
         renderDashboard(dashboardData);
     });
 }
@@ -386,7 +421,7 @@ function reloadDashboard() {
 
 function fetchDashboardData(filters, callback) {
     // Use GET with query params — no CSRF token required for read-only endpoints
-    const apiMethod = "l10n_ve.www.isp_dashboard_portal.index.get_dashboard_data";
+    const apiMethod = "l10n_ve.www.reporte_pro.index.get_dashboard_data";
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") params.append(k, v); });
     const url = `/api/method/${apiMethod}?${params.toString()}`;
@@ -499,7 +534,13 @@ function renderDashboard(data) {
     renderSalesSummary(data.trend, ingresos, kpis);
 
     // ── 5. Ventas del día table + KPI tax cards ──────────────────────────
-    renderSalesTodayTable(data.sales_today);
+    const salesPeriodSelect = document.getElementById("sales-period-select");
+    const currentSalesPeriod = salesPeriodSelect ? salesPeriodSelect.value : "today";
+    if (currentSalesPeriod === "today") {
+        renderSalesTodayTable(data.sales_today);
+    } else {
+        reloadSalesTable();
+    }
     renderTaxKpiCards(data.tax_totals);
 
     // ── 6. Calendar (tasks) ──────────────────────────────────────────────
@@ -1015,6 +1056,56 @@ function renderSalesSummary(trend, totalMonthly, kpis) {
     initSalesChart(labels, values);
 }
 
+function reloadSalesTable() {
+    const company = document.getElementById("filter-company").value;
+    const period = document.getElementById("sales-period-select").value;
+    const dateFrom = document.getElementById("sales-custom-from").value;
+    const dateTo = document.getElementById("sales-custom-to").value;
+
+    const titleEl = document.getElementById("sales-card-title");
+    if (titleEl) {
+        if (period === "today") titleEl.innerText = "Ventas del Día";
+        else if (period === "week") titleEl.innerText = "Ventas de la Semana";
+        else if (period === "month") titleEl.innerText = "Ventas del Mes";
+        else if (period === "custom") titleEl.innerText = "Ventas del Período";
+    }
+
+    if (period === "today" && window.lastDashboardData && window.lastDashboardData.sales_today) {
+        renderSalesTodayTable(window.lastDashboardData.sales_today);
+        return;
+    }
+
+    const params = new URLSearchParams({ company, period });
+    if (period === "custom") {
+        if (dateFrom) params.append("date_from", dateFrom);
+        if (dateTo) params.append("date_to", dateTo);
+    }
+
+    const tbody = document.getElementById("sales-today-tbody");
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="padding: 20px; text-align: center; color: var(--text-secondary);">Cargando ventas...</td></tr>`;
+    }
+
+    fetch(`/api/method/l10n_ve.www.reporte_pro.index.get_sales_data?${params.toString()}`, {
+        method: "GET",
+        credentials: "same-origin"
+    })
+    .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    })
+    .then(data => {
+        const sales = data.message || [];
+        renderSalesTodayTable(sales);
+    })
+    .catch(err => {
+        console.error("Error cargando ventas:", err);
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="padding: 20px; text-align: center; color: var(--danger);">Error al cargar las ventas.</td></tr>`;
+        }
+    });
+}
+
 // Ventas del Día Table
 function renderSalesTodayTable(sales) {
     const tbody = document.getElementById("sales-today-tbody");
@@ -1022,7 +1113,9 @@ function renderSalesTodayTable(sales) {
 
     let list = sales || [];
     if (list.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="padding: 20px; text-align: center; color: var(--text-secondary);">No hay ventas registradas el día de hoy.</td></tr>`;
+        const periodSelect = document.getElementById("sales-period-select");
+        const periodText = periodSelect && periodSelect.value !== "today" ? "en este período" : "el día de hoy";
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="padding: 20px; text-align: center; color: var(--text-secondary);">No hay ventas registradas ${periodText}.</td></tr>`;
         return;
     }
 
