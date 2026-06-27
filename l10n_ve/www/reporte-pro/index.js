@@ -285,7 +285,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const description = document.getElementById("add-task-desc").value;
             const date = document.getElementById("add-task-date").value;
             
-            const url = "/api/method/l10n_ve.www.reporte_pro.index.create_task";
+            const url = "/api/method/l10n_ve.api.create_task";
             fetch(url, {
                 method: "POST",
                 headers: {
@@ -337,7 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function loadFilterOptions(callback) {
     // Use GET — no CSRF token required for read-only endpoints
-    const url = "/api/method/l10n_ve.www.reporte_pro.index.get_filter_options";
+    const url = "/api/method/l10n_ve.api.get_filter_options";
     fetch(url, { method: "GET", credentials: "same-origin" })
         .then(res => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -421,7 +421,7 @@ function reloadDashboard() {
 
 function fetchDashboardData(filters, callback) {
     // Use GET with query params — no CSRF token required for read-only endpoints
-    const apiMethod = "l10n_ve.www.reporte_pro.index.get_dashboard_data";
+    const apiMethod = "l10n_ve.api.get_dashboard_data";
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") params.append(k, v); });
     const url = `/api/method/${apiMethod}?${params.toString()}`;
@@ -1086,7 +1086,7 @@ function reloadSalesTable() {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="padding: 20px; text-align: center; color: var(--text-secondary);">Cargando ventas...</td></tr>`;
     }
 
-    fetch(`/api/method/l10n_ve.www.reporte_pro.index.get_sales_data?${params.toString()}`, {
+    fetch(`/api/method/l10n_ve.api.get_sales_data?${params.toString()}`, {
         method: "GET",
         credentials: "same-origin"
     })
