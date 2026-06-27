@@ -1958,3 +1958,20 @@ body.dark-theme .flatpickr-calendar {
     display: none !important;
 }
 
+/* Ventas period filter select styling for options */
+#sales-period-select option {
+    background-color: #ffffff;
+    color: #1e293b;
+}
+
+body.dark-theme #sales-period-select {
+    background-color: #0f172a !important;
+    color: #f8fafc !important;
+}
+
+body.dark-theme #sales-period-select option {
+    background-color: #0f172a;
+    color: #f8fafc;
+}
+
+

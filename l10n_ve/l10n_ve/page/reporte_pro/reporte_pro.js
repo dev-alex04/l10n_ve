@@ -6,5 +6,5 @@ frappe.pages['reporte-pro'].on_page_load = function(wrapper) {
 	});
 
 	// Redirect to the portal dashboard
-	window.location.href = "/isp_dashboard_portal";
+	window.location.href = "/reporte-pro";
 };
