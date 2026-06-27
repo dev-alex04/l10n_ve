@@ -23,7 +23,10 @@ function populate_from_sales_invoice(frm) {
 
       _set_header_fields(frm, si);
       _set_items(frm, si);
+      _set_taxes(frm, si);
       _set_totals(frm, si);
+
+      recalculate_ve_document(frm);
 
       frappe.show_alert({
         message: __("Ítems cargados desde {0}", [frm.doc.return_against]),
@@ -141,4 +144,40 @@ function _set_totals(frm, si) {
     si.base_total_taxes_and_charges || 0,
   );
   frm.doc.outstanding_amount = 0;
+}
+
+/**
+ * Copia los impuestos (incluyendo retenciones) desde la SI al formulario.
+ */
+function _set_taxes(frm, si) {
+  frm.clear_table("taxes");
+
+  (si.taxes || []).forEach(function (tax) {
+    let row = frm.add_child("taxes");
+
+    row.charge_type = tax.charge_type;
+    row.account_head = tax.account_head;
+    row.description = tax.description;
+    row.included_in_print_rate = tax.included_in_print_rate || 0;
+    row.cost_center = tax.cost_center;
+    row.rate = tax.rate || 0;
+
+    row.tax_amount = Math.abs(tax.tax_amount || 0);
+    row.base_tax_amount = Math.abs(tax.base_tax_amount || 0);
+    row.tax_amount_after_discount_amount = Math.abs(
+      tax.tax_amount_after_discount_amount || tax.tax_amount || 0
+    );
+    row.base_tax_amount_after_discount_amount = Math.abs(
+      tax.base_tax_amount_after_discount_amount || tax.base_tax_amount || 0
+    );
+
+    row.total = Math.abs(tax.total || 0);
+    row.base_total = Math.abs(tax.base_total || 0);
+
+    row.is_tax_withholding_account = tax.is_tax_withholding_account || 0;
+    row.percentage_base = tax.percentage_base;
+    row.subtracting = tax.subtracting;
+  });
+
+  frm.refresh_field("taxes");
 }
