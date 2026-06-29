@@ -226,7 +226,7 @@ frappe.ui.form.on("VE Purchase Debit Note", {
         frm.refresh_field("taxes");
 
         // Recalcular totales
-        frm.trigger("calculate_taxes_and_totals");
+        recalculate_ve_document(frm);
       },
     });
   },
@@ -241,22 +241,22 @@ frappe.ui.form.on("VE Purchase Debit Note Item", {
     // stock_qty es reqd en Purchase Invoice Item
     const row = locals[cdt][cdn];
     row.stock_qty = flt(row.qty) * flt(row.conversion_factor || 1);
-    frm.trigger("calculate_taxes_and_totals");
+    recalculate_ve_document(frm);
   },
   rate(frm) {
-    frm.trigger("calculate_taxes_and_totals");
+    recalculate_ve_document(frm);
   },
   price_list_rate(frm) {
-    frm.trigger("calculate_taxes_and_totals");
+    recalculate_ve_document(frm);
   },
   discount_percentage(frm) {
-    frm.trigger("calculate_taxes_and_totals");
+    recalculate_ve_document(frm);
   },
   discount_amount(frm) {
-    frm.trigger("calculate_taxes_and_totals");
+    recalculate_ve_document(frm);
   },
   items_remove(frm) {
-    frm.trigger("calculate_taxes_and_totals");
+    recalculate_ve_document(frm);
   },
 });
 
