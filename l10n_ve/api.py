@@ -73,6 +73,13 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
     spent_usd = 0.0
     spent_vef = 0.0
     
+    ret_iva_usd = 0.0
+    ret_iva_vef = 0.0
+    ret_islr_usd = 0.0
+    ret_islr_vef = 0.0
+    igtf_total_usd = 0.0
+    igtf_total_vef = 0.0
+    
     for node in tree:
         if node.get("indent") == 0:
             total_pendiente_usd += flt(node.get("pending_to_collect") or 0)
@@ -92,6 +99,13 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
             
             spent_usd += flt(node.get("spent") or 0)
             spent_vef += flt(node.get("spent_vef") or 0)
+            
+            ret_iva_usd += flt(node.get("vat_withholding") or 0)
+            ret_iva_vef += flt(node.get("vat_withholding_vef") or 0)
+            ret_islr_usd += flt(node.get("islr_withholding") or 0)
+            ret_islr_vef += flt(node.get("islr_withholding_vef") or 0)
+            igtf_total_usd += flt(node.get("igtf") or 0)
+            igtf_total_vef += flt(node.get("igtf_vef") or 0)
 
     # Count invoices without control number (or draft/unsubmitted in range)
     si_filters = {
@@ -144,6 +158,13 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
         
         "available_usd": flt(availability_usd),
         "available_vef": flt(availability_vef),
+        
+        "ret_iva_usd": flt(ret_iva_usd),
+        "ret_iva_vef": flt(ret_iva_vef),
+        "ret_islr_usd": flt(ret_islr_usd),
+        "ret_islr_vef": flt(ret_islr_vef),
+        "igtf_total": flt(igtf_total_usd),
+        "igtf_vef": flt(igtf_total_vef),
     }
 
 
