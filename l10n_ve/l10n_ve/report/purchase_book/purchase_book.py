@@ -114,7 +114,15 @@ def get_query(filters: dict) -> str:
     """Construye la query SQL del Libro de Compras."""
     conditions: str = "AND tPI.docstatus = 1"
     conditions += " AND tPI.is_return = 0"
-    conditions += " AND tPI.posting_date BETWEEN %(from_date)s AND %(to_date)s"
+    conditions += """ AND COALESCE(
+        (SELECT wv.delivery_date 
+         FROM `tabVAT Withholding Voucher Item` wvi
+         INNER JOIN `tabVAT Withholding Voucher` wv 
+            ON wvi.parent = wv.name AND wv.docstatus = 1
+         WHERE wvi.purchase_invoice = tPI.name 
+         LIMIT 1),
+        tPI.posting_date
+    ) BETWEEN %(from_date)s AND %(to_date)s"""
 
     if filters.get("company"):
         conditions += " AND tPI.company = %(company)s"
@@ -173,7 +181,15 @@ def get_query(filters: dict) -> str:
                     THEN nc.conversion_rate ELSE 1 END) AS conversion_rate
             FROM `tabVE Purchase Credit Note` AS nc
             WHERE nc.docstatus = 1
-                AND nc.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                AND COALESCE(
+                    (SELECT wv.delivery_date 
+                     FROM `tabVAT Withholding Voucher Item` wvi
+                     INNER JOIN `tabVAT Withholding Voucher` wv 
+                        ON wvi.parent = wv.name AND wv.docstatus = 1
+                     WHERE wvi.purchase_invoice = nc.name 
+                     LIMIT 1),
+                    nc.posting_date
+                ) BETWEEN %(from_date)s AND %(to_date)s
                 {nc_company_condition}
                 {nc_branch_condition}
 
@@ -201,7 +217,15 @@ def get_query(filters: dict) -> str:
                     THEN nd.conversion_rate ELSE 1 END) AS conversion_rate
             FROM `tabVE Purchase Debit Note` AS nd
             WHERE nd.docstatus = 1
-                AND nd.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                AND COALESCE(
+                    (SELECT wv.delivery_date 
+                     FROM `tabVAT Withholding Voucher Item` wvi
+                     INNER JOIN `tabVAT Withholding Voucher` wv 
+                        ON wvi.parent = wv.name AND wv.docstatus = 1
+                     WHERE wvi.purchase_invoice = nd.name 
+                     LIMIT 1),
+                    nd.posting_date
+                ) BETWEEN %(from_date)s AND %(to_date)s
                 {nd_company_condition}
                 {nd_branch_condition}
         )

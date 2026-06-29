@@ -308,11 +308,13 @@
                             '<th style="width: 13%; text-align: right;">' + balance_col_label + '</th>';
         } else {
             html +=         '<th style="width: 10%;">Fecha</th>' +
-                            '<th style="width: 18%;">Referencia</th>' +
-                            '<th style="width: 34%;">Glosa / Detalle</th>' +
-                            '<th style="width: 12%; text-align: right;">Debe</th>' +
-                            '<th style="width: 12%; text-align: right;">Haber</th>' +
-                            '<th style="width: 14%; text-align: right;">Saldo</th>';
+                            '<th style="width: 15%;">Comprobante</th>' +
+                            '<th style="width: 13%;">Nro. Factura</th>' +
+                            '<th style="width: 12%;">Sucursal</th>' +
+                            '<th style="width: 18%;">Glosa / Detalle</th>' +
+                            '<th style="width: 10%; text-align: right;">Debe</th>' +
+                            '<th style="width: 10%; text-align: right;">Haber</th>' +
+                            '<th style="width: 12%; text-align: right;">Saldo</th>';
         }
         html +=         '</tr>' +
                     '</thead>' +
@@ -375,12 +377,14 @@
                 /* Transactional report */
                 if (row.is_header) {
                     html += '<tr class="group-header-row">' +
-                            '<td colspan="6">' + row.reference + '</td>' +
+                            '<td colspan="8">' + row.reference + '</td>' +
                            '</tr>';
                 } else if (row.is_opening) {
                     html += '<tr class="leaf-row">' +
                             '<td>' + formatDate(row.posting_date) + '</td>' +
                             '<td class="bold">' + row.reference + '</td>' +
+                            '<td></td>' +
+                            '<td></td>' +
                             '<td></td>' +
                             '<td class="text-right"></td>' +
                             '<td class="text-right"></td>' +
@@ -391,17 +395,21 @@
                             '<td></td>' +
                             '<td class="bold">' + row.reference + '</td>' +
                             '<td></td>' +
+                            '<td></td>' +
+                            '<td></td>' +
                             '<td class="text-right">' + formatCurrency(row.debit) + '</td>' +
                             '<td class="text-right">' + formatCurrency(row.credit) + '</td>' +
                             '<td class="text-right">' + formatCurrency(row.balance) + '</td>' +
                            '</tr>';
                 } else if (row.posting_date === "" && row.reference === "") {
                     /* Spacer row */
-                    html += '<tr><td colspan="6" style="height: 10px; border: none;"></td></tr>';
+                    html += '<tr><td colspan="8" style="height: 10px; border: none;"></td></tr>';
                 } else {
                     html += '<tr class="leaf-row">' +
                             '<td>' + formatDate(row.posting_date) + '</td>' +
                             '<td>' + (row.reference || "") + '</td>' +
+                            '<td>' + (row.bill_no || "") + '</td>' +
+                            '<td>' + (row.branch || "") + '</td>' +
                             '<td>' + (row.remarks || "") + '</td>' +
                             '<td class="text-right">' + formatCurrency(row.debit) + '</td>' +
                             '<td class="text-right">' + formatCurrency(row.credit) + '</td>' +

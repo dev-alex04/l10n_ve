@@ -84,12 +84,14 @@
                                 <option value="">Todas</option>
                             </select>
                         </div>
+                        {% if has_isp %}
                         <div class="filter-item">
                             <label for="filter-router">Router</label>
                             <select id="filter-router">
                                 <option value="">Todos</option>
                             </select>
                         </div>
+                        {% endif %}
                         <div class="filter-item">
                             <label for="filter-state">Estado</label>
                             <select id="filter-state">

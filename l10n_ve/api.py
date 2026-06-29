@@ -31,12 +31,14 @@ def get_filter_options():
     if frappe.session.user == "Guest":
         frappe.throw(_("Debe iniciar sesión para obtener opciones de filtro."))
         
-    if not frappe.has_permission("Dashboard Gerencial", "read"):
+    if not frappe.has_permission("Reporte Gerencial", "read"):
         frappe.throw(_("No tiene permisos para acceder a este recurso."), frappe.PermissionError)
         
     companies = [{"value": c.name, "label": c.name} for c in frappe.get_all("Company", fields=["name"], order_by="name")]
     branches = [{"value": b.name, "label": b.name} for b in frappe.get_all("VE Branch", fields=["name"], order_by="name")]
-    routers = [{"value": r.name, "label": r.router_name} for r in frappe.get_all("ISP Router", fields=["name", "router_name"], order_by="router_name")]
+    routers = []
+    if "domina_isp" in frappe.get_installed_apps():
+        routers = [{"value": r.name, "label": r.router_name} for r in frappe.get_all("ISP Router", fields=["name", "router_name"], order_by="router_name")]
     states = [{"value": s.name, "label": s.state} for s in frappe.get_all("VE State", fields=["name", "state"], order_by="state")]
     municipalities = [{"value": m.name, "label": m.municipality, "state": m.state} for m in frappe.get_all("VE Municipality", fields=["name", "municipality", "state"], order_by="municipality")]
     
@@ -50,7 +52,7 @@ def get_filter_options():
 
 
 def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
-    from l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial import get_dashboard_data as get_dg_data
+    from l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial import get_dashboard_data as get_dg_data
     
     dg_res = get_dg_data(company, date_from, date_to, branch=branch)
     tree = dg_res.get("branch_financial_summary", [])
@@ -396,7 +398,7 @@ def get_dashboard_data(
     if frappe.session.user == "Guest":
         frappe.throw(_("Debe iniciar sesión para ver los datos."))
         
-    if not frappe.has_permission("Dashboard Gerencial", "read"):
+    if not frappe.has_permission("Reporte Gerencial", "read"):
         frappe.throw(_("No tiene permisos para acceder a este recurso."), frappe.PermissionError)
         
     currency = "USD"
@@ -692,7 +694,7 @@ def get_sales_data(company=None, period="today", date_from=None, date_to=None):
     if frappe.session.user == "Guest":
         frappe.throw(_("Debe iniciar sesión para ver los datos."))
         
-    if not frappe.has_permission("Dashboard Gerencial", "read"):
+    if not frappe.has_permission("Reporte Gerencial", "read"):
         frappe.throw(_("No tiene permisos para acceder a este recurso."), frappe.PermissionError)
 
     if not company:

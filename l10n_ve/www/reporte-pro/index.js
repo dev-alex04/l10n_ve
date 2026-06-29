@@ -396,7 +396,7 @@ function reloadDashboard() {
     const filters = {
         company: document.getElementById("filter-company").value,
         branch: document.getElementById("filter-branch").value,
-        router: document.getElementById("filter-router").value,
+        router: document.getElementById("filter-router") ? document.getElementById("filter-router").value : "",
         state: document.getElementById("filter-state").value,
         municipality: document.getElementById("filter-municipality").value,
         currency: "USD",

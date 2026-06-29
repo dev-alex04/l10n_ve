@@ -222,8 +222,10 @@ def execute(filters=None):
         # DETAILED/TRANSACTIONAL presentation
         columns = [
             {"fieldname": "posting_date", "label": _("Fecha"), "fieldtype": "Date", "width": 100},
-            {"fieldname": "reference", "label": _("Referencia / Comprobante"), "fieldtype": "Data", "width": 180},
-            {"fieldname": "remarks", "label": _("Glosa / Detalle"), "fieldtype": "Data", "width": 250},
+            {"fieldname": "reference", "label": _("Referencia / Comprobante"), "fieldtype": "Data", "width": 150},
+            {"fieldname": "bill_no", "label": _("Nro. Factura"), "fieldtype": "Data", "width": 120},
+            {"fieldname": "branch", "label": _("Sucursal"), "fieldtype": "Data", "width": 120},
+            {"fieldname": "remarks", "label": _("Glosa / Detalle"), "fieldtype": "Data", "width": 200},
             {"fieldname": "debit", "label": _("Débito (Debe)"), "fieldtype": "Currency", "width": 120},
             {"fieldname": "credit", "label": _("Crédito (Haber)"), "fieldtype": "Currency", "width": 120},
             {"fieldname": "balance", "label": _("Saldo"), "fieldtype": "Currency", "width": 130}
@@ -256,19 +258,24 @@ def execute(filters=None):
                 gle.debit, 
                 gle.credit,
                 COALESCE(
-                    CASE 
-                        WHEN gle.voucher_type = 'Sales Invoice' THEN NULLIF(si.bill_no, '')
-                        WHEN gle.voucher_type = 'Purchase Invoice' THEN NULLIF(pi.bill_no, '')
-                        WHEN gle.voucher_type = 'Payment Entry' THEN NULLIF(pe.reference_no, '')
-                        WHEN gle.voucher_type = 'Journal Entry' THEN NULLIF(je.cheque_no, '')
-                        WHEN gle.voucher_type = 'VE Sales Debit Note' THEN NULLIF(vsdn.bill_no, '')
-                        WHEN gle.voucher_type = 'VE Sales Credit Note' THEN NULLIF(vscn.bill_no, '')
-                        WHEN gle.voucher_type = 'VE Purchase Debit Note' THEN NULLIF(vpdn.bill_no, '')
-                        WHEN gle.voucher_type = 'VE Purchase Credit Note' THEN NULLIF(vpcn.bill_no, '')
-                        ELSE NULL
-                    END,
-                    gle.voucher_no
-                ) as display_ref
+                    si.bill_no,
+                    pi.bill_no,
+                    pe.reference_no,
+                    je.cheque_no,
+                    vsdn.bill_no,
+                    vscn.bill_no,
+                    vpdn.bill_no,
+                    vpcn.bill_no
+                ) as bill_no,
+                COALESCE(
+                    si.branch,
+                    pi.branch,
+                    pe.branch,
+                    vsdn.branch,
+                    vscn.branch,
+                    vpdn.branch,
+                    vpcn.branch
+                ) as branch
             FROM `tabGL Entry` gle
             LEFT JOIN `tabSales Invoice` si ON gle.voucher_no = si.name AND gle.voucher_type = 'Sales Invoice'
             LEFT JOIN `tabPurchase Invoice` pi ON gle.voucher_no = pi.name AND gle.voucher_type = 'Purchase Invoice'
@@ -304,6 +311,8 @@ def execute(filters=None):
             data.append({
                 "posting_date": "",
                 "reference": f"CUENTA: {acc}",
+                "bill_no": "",
+                "branch": "",
                 "remarks": "",
                 "debit": 0.0,
                 "credit": 0.0,
@@ -316,6 +325,8 @@ def execute(filters=None):
             data.append({
                 "posting_date": from_date,
                 "reference": _("SALDO INICIAL"),
+                "bill_no": "",
+                "branch": "",
                 "remarks": "",
                 "debit": 0.0,
                 "credit": 0.0,
@@ -338,7 +349,9 @@ def execute(filters=None):
                 
                 data.append({
                     "posting_date": entry.posting_date,
-                    "reference": entry.display_ref,
+                    "reference": entry.voucher_no,
+                    "bill_no": entry.bill_no or "",
+                    "branch": entry.branch or "",
                     "remarks": entry.remarks,
                     "debit": deb,
                     "credit": cred,
@@ -350,6 +363,8 @@ def execute(filters=None):
             data.append({
                 "posting_date": "",
                 "reference": _("  Total Cuenta"),
+                "bill_no": "",
+                "branch": "",
                 "remarks": "",
                 "debit": total_debit,
                 "credit": total_credit,
@@ -362,6 +377,8 @@ def execute(filters=None):
             data.append({
                 "posting_date": "",
                 "reference": "",
+                "bill_no": "",
+                "branch": "",
                 "remarks": "",
                 "debit": 0,
                 "credit": 0,

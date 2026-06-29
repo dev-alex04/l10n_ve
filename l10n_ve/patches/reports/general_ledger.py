@@ -9,6 +9,29 @@ import erpnext.accounts.report.general_ledger.general_ledger as general_ledger_r
 from erpnext.accounts.report.utils import convert_to_presentation_currency, get_currency
 
 
+VOUCHER_TYPE_ES = {
+    "Sales Invoice": "Factura de venta",
+    "Purchase Invoice": "Factura de compra",
+    "Payment Entry": "Registro de pago",
+    "Journal Entry": "Asiento de diario",
+    "VE Sales Credit Note": "Nota de crédito de venta",
+    "VE Sales Debit Note": "Nota de débito de venta",
+    "VE Purchase Credit Note": "Nota de crédito de compra",
+    "VE Purchase Debit Note": "Nota de débito de compra",
+    "Stock Entry": "Entrada de inventario",
+    "Stock Ledger Entry": "Mayor de inventario",
+    "Purchase Receipt": "Recibo de compra",
+    "Delivery Note": "Nota de entrega",
+    "Sales Order": "Orden de venta",
+    "Purchase Order": "Orden de compra",
+    "Expense Claim": "Solicitud de gastos",
+    "Payroll Entry": "Entrada de nómina",
+    "Asset": "Activo",
+    "Asset Depreciation Ledger": "Mayor de depreciación",
+    "Opening Entry": "Asiento de apertura",
+}
+
+
 original_execute = general_ledger_report.execute
 
 def custom_execute(filters=None) -> tuple:
@@ -28,9 +51,22 @@ def custom_execute(filters=None) -> tuple:
         if column.get('fieldname') == 'remarks':
             column['label'] = _("Descripción")
 
+        # Cambiamos voucher_type a tipo Data para mostrar la traducción sin generar enlaces rotos
+        if column.get('fieldname') == 'voucher_type':
+            column['fieldtype'] = 'Data'
+            column['label'] = _("Tipo de Comprobante")
+
         set_bill_numbers_on_columns(i, column, columns)
 
     set_branch_on_entries(res)
+
+    # Traducir voucher_type en cada fila al español
+    for row in res:
+        if not isinstance(row, dict):
+            continue
+        vt = row.get("voucher_type")
+        if vt and vt in VOUCHER_TYPE_ES:
+            row["voucher_type"] = VOUCHER_TYPE_ES[vt]
 
     return columns, res
 
