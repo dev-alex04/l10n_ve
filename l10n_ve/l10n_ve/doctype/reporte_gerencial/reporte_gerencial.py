@@ -3,7 +3,7 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import getdate, flt
 
-class DashboardGerencial(Document):
+class ReporteGerencial(Document):
     pass
 
 
@@ -693,8 +693,8 @@ def _get_company_details(company_name):
 
 @frappe.whitelist()
 def download_pdf(company, from_date, to_date, branch=None, cost_center=None, customer=None):
-    # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
-    frappe.get_doc("Dashboard Gerencial").check_permission("read")
+    # Validar permiso de lectura sobre el reporte antes de exponer datos financieros
+    frappe.get_doc("Reporte Gerencial").check_permission("read")
     from l10n_ve.utils.pdf_utils import safe_get_pdf
     from frappe.utils import formatdate, nowdate
     
@@ -1048,15 +1048,15 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
     final_html = frappe.render_template(html_template, context)
     pdf_content = safe_get_pdf(final_html, {"orientation": "Landscape"})
     
-    frappe.local.response.filename = f"Dashboard_Gerencial_{nowdate()}.pdf"
+    frappe.local.response.filename = f"Reporte_Gerencial_{nowdate()}.pdf"
     frappe.local.response.filecontent = pdf_content
     frappe.local.response.type = "download"
 
 
 @frappe.whitelist()
 def download_excel(company, from_date, to_date, branch=None, cost_center=None, customer=None):
-    # Validar permiso de lectura sobre el dashboard antes de exponer datos financieros
-    frappe.get_doc("Dashboard Gerencial").check_permission("read")
+    # Validar permiso de lectura sobre el reporte antes de exponer datos financieros
+    frappe.get_doc("Reporte Gerencial").check_permission("read")
     import io
     import openpyxl
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -1105,7 +1105,7 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
     ws.row_dimensions[1].height = 24
     
     generated_on = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-    ws.cell(row=2, column=1).value = f"Dashboard Gerencial - Resumen Financiero por Sucursal | Generado: {generated_on}"
+    ws.cell(row=2, column=1).value = f"Reporte Gerencial - Resumen Financiero por Sucursal | Generado: {generated_on}"
     ws.cell(row=2, column=1).font = subtitle_font
     ws.row_dimensions[2].height = 16
     
@@ -1318,14 +1318,14 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
     out.seek(0)
     content = out.read()
     
-    frappe.local.response.filename = f"Dashboard_Gerencial_{nowdate()}.xlsx"
+    frappe.local.response.filename = f"Reporte_Gerencial_{nowdate()}.xlsx"
     frappe.local.response.filecontent = content
     frappe.local.response.type = "binary"
 
 
 @frappe.whitelist()
 def get_customer_list(doctype=None, txt=None, searchfield=None, start=0, page_len=20, filters=None):
-    frappe.get_doc("Dashboard Gerencial").check_permission("read")
+    frappe.get_doc("Reporte Gerencial").check_permission("read")
     if isinstance(filters, str):
         import json
         try:

@@ -84,6 +84,10 @@ def get_query_data(filters: dict) -> list[dict]:
     filters["from_date"] = from_date
     filters["to_date"] = to_date
 
+    from frappe.utils import add_months
+    loose_from_date = add_months(from_date, -3)
+    filters["loose_from_date"] = loose_from_date
+
     query: str = get_query(filters)
 
     company_currency: str = frappe.get_cached_value(
@@ -95,6 +99,7 @@ def get_query_data(filters: dict) -> list[dict]:
     values: dict = {
         "from_date": from_date,
         "to_date": to_date,
+        "loose_from_date": loose_from_date,
         "company_currency": company_currency,
         "general_rate": general_rate,
         "reduced_rate": reduced_rate,
@@ -114,7 +119,16 @@ def get_query(filters: dict) -> str:
     """Construye la query SQL del Libro de Compras."""
     conditions: str = "AND tPI.docstatus = 1"
     conditions += " AND tPI.is_return = 0"
-    conditions += " AND tPI.posting_date BETWEEN %(from_date)s AND %(to_date)s"
+    conditions += " AND tPI.posting_date BETWEEN %(loose_from_date)s AND %(to_date)s"
+    conditions += """ AND COALESCE(
+        (SELECT wv.delivery_date 
+         FROM `tabVAT Withholding Voucher Item` wvi
+         INNER JOIN `tabVAT Withholding Voucher` wv 
+            ON wvi.parent = wv.name AND wv.docstatus = 1
+         WHERE wvi.purchase_invoice = tPI.name 
+         LIMIT 1),
+        tPI.posting_date
+    ) BETWEEN %(from_date)s AND %(to_date)s"""
 
     if filters.get("company"):
         conditions += " AND tPI.company = %(company)s"
@@ -173,7 +187,16 @@ def get_query(filters: dict) -> str:
                     THEN nc.conversion_rate ELSE 1 END) AS conversion_rate
             FROM `tabVE Purchase Credit Note` AS nc
             WHERE nc.docstatus = 1
-                AND nc.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                AND nc.posting_date BETWEEN %(loose_from_date)s AND %(to_date)s
+                AND COALESCE(
+                    (SELECT wv.delivery_date 
+                     FROM `tabVAT Withholding Voucher Item` wvi
+                     INNER JOIN `tabVAT Withholding Voucher` wv 
+                        ON wvi.parent = wv.name AND wv.docstatus = 1
+                     WHERE wvi.purchase_invoice = nc.name 
+                     LIMIT 1),
+                    nc.posting_date
+                ) BETWEEN %(from_date)s AND %(to_date)s
                 {nc_company_condition}
                 {nc_branch_condition}
 
@@ -201,7 +224,16 @@ def get_query(filters: dict) -> str:
                     THEN nd.conversion_rate ELSE 1 END) AS conversion_rate
             FROM `tabVE Purchase Debit Note` AS nd
             WHERE nd.docstatus = 1
-                AND nd.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                AND nd.posting_date BETWEEN %(loose_from_date)s AND %(to_date)s
+                AND COALESCE(
+                    (SELECT wv.delivery_date 
+                     FROM `tabVAT Withholding Voucher Item` wvi
+                     INNER JOIN `tabVAT Withholding Voucher` wv 
+                        ON wvi.parent = wv.name AND wv.docstatus = 1
+                     WHERE wvi.purchase_invoice = nd.name 
+                     LIMIT 1),
+                    nd.posting_date
+                ) BETWEEN %(from_date)s AND %(to_date)s
                 {nd_company_condition}
                 {nd_branch_condition}
         )

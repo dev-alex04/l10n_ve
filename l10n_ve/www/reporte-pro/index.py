@@ -12,6 +12,7 @@ def get_context(context):
         raise frappe.Redirect
         
     context.no_cache = 1
+    context.has_isp = "domina_isp" in frappe.get_installed_apps()
     
     # Expose CSRF token and user info to Jinja2 template (used by standalone page JS)
     context.csrf_token = getattr(frappe.session.data, "csrf_token", "")

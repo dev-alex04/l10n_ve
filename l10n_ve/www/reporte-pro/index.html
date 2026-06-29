@@ -67,8 +67,29 @@
 
         <!-- Main Body Wrapper -->
         <div class="main-layout">
+            <!-- Sidebar for View Mode Toggle -->
+            <aside class="sidebar-modes" id="sidebar-modes">
+                <div class="sidebar-header-modes">
+                    <i data-lucide="layers" style="width: 18px; height: 18px; color: var(--primary);"></i>
+                    <span>Modos de Vista</span>
+                </div>
+                <div class="sidebar-menu-modes">
+                    <button class="sidebar-item-mode active" id="mode-detailed-btn">
+                        <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
+                        <span>Vista Detallada</span>
+                    </button>
+                    <button class="sidebar-item-mode" id="mode-summarized-btn">
+                        <i data-lucide="eye-off" style="width: 16px; height: 16px;"></i>
+                        <span>Vista Resumida</span>
+                    </button>
+                </div>
+                <button class="sidebar-toggle-modes" id="sidebar-toggle-modes-btn">
+                    <i data-lucide="chevron-left" style="width: 14px; height: 14px;"></i>
+                </button>
+            </aside>
+
             <!-- Left Panel (Dashboard Grid) -->
-            <main class="dashboard-content">
+            <main class="dashboard-content" id="dashboard-content">
                 <!-- Filters Bar -->
                 <div class="filters-bar card">
                     <div class="filters-grid">
@@ -84,12 +105,14 @@
                                 <option value="">Todas</option>
                             </select>
                         </div>
+                        {% if has_isp %}
                         <div class="filter-item">
                             <label for="filter-router">Router</label>
                             <select id="filter-router">
                                 <option value="">Todos</option>
                             </select>
                         </div>
+                        {% endif %}
                         <div class="filter-item">
                             <label for="filter-state">Estado</label>
                             <select id="filter-state">
@@ -120,7 +143,12 @@
                     </div>
                 </div>
 
-                <!-- KPI Cards Row -->
+                <!-- RESUMEN EJECUTIVO SECTION -->
+                <h5 class="section-title" id="title-resumen-ejecutivo">
+                    <i data-lucide="star" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>
+                    <span style="vertical-align: middle;">Resumen Ejecutivo</span>
+                    <span class="section-period-label" style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;" id="executive-period-label"></span>
+                </h5>
                 <div class="kpi-cards-grid" id="kpi-cards-grid">
                     <div class="kpi-card" id="kpi-pendiente">
                         <div class="kpi-icon-wrap warning"><i data-lucide="file-clock"></i></div>
@@ -170,20 +198,40 @@
                             <span class="kpi-sub" id="kpi-disp-ves-sub">Cobrado − Gastos</span>
                         </div>
                     </div>
-                    <div class="kpi-card" id="kpi-iva">
+                </div>
+
+                <!-- RETENCIONES SECTION -->
+                <h5 class="section-title" id="title-retenciones" style="margin-top: 25px;">
+                    <i data-lucide="scissors" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>
+                    <span style="vertical-align: middle;">Retenciones de lo Cobrado</span>
+                    <span class="section-period-label" style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;" id="withholding-period-label"></span>
+                </h5>
+                <div class="kpi-cards-grid">
+                    <!-- Retención IVA -->
+                    <div class="kpi-card" id="card-ret-iva">
                         <div class="kpi-icon-wrap warning"><i data-lucide="percent"></i></div>
                         <div class="kpi-body">
-                            <span class="kpi-label">IVA Total</span>
-                            <span class="kpi-value" id="kpi-iva-val">—</span>
-                            <span class="kpi-sub" id="kpi-iva-sub">Bs. —</span>
+                            <span class="kpi-label">Retención IVA</span>
+                            <span class="kpi-value" id="card-ret-iva-val">—</span>
+                            <span class="kpi-sub" id="card-ret-iva-ref">REF: $0,00</span>
                         </div>
                     </div>
-                    <div class="kpi-card" id="kpi-igtf">
+                    <!-- Retención ISLR -->
+                    <div class="kpi-card" id="card-ret-islr">
+                        <div class="kpi-icon-wrap purple"><i data-lucide="scissors"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">Retención ISLR</span>
+                            <span class="kpi-value" id="card-ret-islr-val">—</span>
+                            <span class="kpi-sub" id="card-ret-islr-ref">REF: $0,00</span>
+                        </div>
+                    </div>
+                    <!-- IGTF -->
+                    <div class="kpi-card" id="card-igtf">
                         <div class="kpi-icon-wrap danger"><i data-lucide="receipt-text"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">IGTF Total</span>
-                            <span class="kpi-value" id="kpi-igtf-val">—</span>
-                            <span class="kpi-sub" id="kpi-igtf-sub">Bs. —</span>
+                            <span class="kpi-value" id="card-igtf-val">—</span>
+                            <span class="kpi-sub" id="card-igtf-ref">REF: $0,00</span>
                         </div>
                     </div>
                 </div>
@@ -435,19 +483,18 @@
                             <button class="icon-btn-small"><i data-lucide="more-horizontal"></i></button>
                         </div>
                         <div class="balance-body">
-                            <div class="balance-left">
-                                <span class="balance-amount" id="balance-amount-val">$18,220.00</span>
-                                <div id="balance-amount-sub" style="font-size: 13px; color: var(--text-secondary); margin-top: 4px; font-weight: 500;">—</div>
-                                <span class="balance-subtitle" style="margin-top: 8px;">Ingresos vs. Gastos (Mes Actual)</span>
-                                <div class="balance-legend">
-                                    <div class="legend-item">
-                                        <span class="legend-dot green"></span>
-                                        <span>Ingresos</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <span class="legend-dot red"></span>
-                                        <span>Gastos</span>
-                                    </div>
+                            <div class="balance-left" style="gap: 8px; flex-grow: 1; display: flex; flex-direction: column;">
+                                <!-- USD Section -->
+                                <div>
+                                    <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px; margin-bottom: 1px;">Disponible USD</div>
+                                    <span class="balance-amount" id="balance-amount-usd-val" style="color: #2b5c8f; font-size: 22px; font-weight: 700;">$0,00</span>
+                                    <div id="balance-amount-usd-sub" style="font-size: 11px; color: var(--text-secondary); margin-top: 1px; font-weight: 500;">REF: Bs. 0,00</div>
+                                </div>
+                                <!-- VEF Section -->
+                                <div style="border-top: 1px dashed var(--border-color); padding-top: 6px; margin-top: 2px;">
+                                    <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px; margin-bottom: 1px;">Disponible VEF</div>
+                                    <span class="balance-amount" id="balance-amount-vef-val" style="color: #2e7d32; font-size: 22px; font-weight: 700;">Bs. 0,00</span>
+                                    <div id="balance-amount-vef-sub" style="font-size: 11px; color: var(--text-secondary); margin-top: 1px; font-weight: 500;">REF: $0,00</div>
                                 </div>
                             </div>
                             <div class="balance-right">

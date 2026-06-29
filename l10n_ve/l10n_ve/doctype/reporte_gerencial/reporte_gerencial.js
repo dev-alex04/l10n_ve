@@ -1,11 +1,11 @@
 // -*- coding: utf-8 -*-
-// Form script for Dashboard Gerencial Single DocType
+// Form script for Reporte Gerencial Single DocType
 
-frappe.ui.form.on('Dashboard Gerencial', {
+frappe.ui.form.on('Reporte Gerencial', {
     onload: function(frm) {
         // Redirect to standard Single DocType route if opened as a generic new document
-        if (frm.is_new() && frm.doc.name !== 'Dashboard Gerencial') {
-            frappe.set_route('Form', 'Dashboard Gerencial', 'Dashboard Gerencial');
+        if (frm.is_new() && frm.doc.name !== 'Reporte Gerencial') {
+            frappe.set_route('Form', 'Reporte Gerencial', 'Reporte Gerencial');
             return;
         }
 
@@ -44,7 +44,7 @@ frappe.ui.form.on('Dashboard Gerencial', {
 
         frm.set_query("customer", function() {
             return {
-                query: "l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.get_customer_list",
+                query: "l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial.get_customer_list",
                 params: {
                     filters: {
                         company: frm.doc.company
@@ -80,7 +80,7 @@ frappe.ui.form.on('Dashboard Gerencial', {
                 return;
             }
             const url = frappe.urllib.get_full_url(
-                `/api/method/l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.download_pdf?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}&customer=${encodeURIComponent(frm.doc.customer || '')}`
+                `/api/method/l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial.download_pdf?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}&customer=${encodeURIComponent(frm.doc.customer || '')}`
             );
             window.open(url);
         });
@@ -91,7 +91,7 @@ frappe.ui.form.on('Dashboard Gerencial', {
                 return;
             }
             const url = frappe.urllib.get_full_url(
-                `/api/method/l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.download_excel?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}&customer=${encodeURIComponent(frm.doc.customer || '')}`
+                `/api/method/l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial.download_excel?company=${encodeURIComponent(frm.doc.company)}&from_date=${encodeURIComponent(frm.doc.from_date)}&to_date=${encodeURIComponent(frm.doc.to_date)}&branch=${encodeURIComponent(frm.doc.branch || '')}&cost_center=${encodeURIComponent(frm.doc.cost_center || '')}&customer=${encodeURIComponent(frm.doc.customer || '')}`
             );
             window.open(url);
         });
@@ -194,7 +194,7 @@ frappe.ui.form.on('Dashboard Gerencial', {
 
         // Fetch data
         frappe.call({
-            method: 'l10n_ve.l10n_ve.doctype.dashboard_gerencial.dashboard_gerencial.get_dashboard_data',
+            method: 'l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial.get_dashboard_data',
             args: {
                 company: frm.doc.company,
                 from_date: frm.doc.from_date,
@@ -256,9 +256,10 @@ function render_premium_dashboard(frm, data) {
     });
 
     const get_card_vals = (usd_val, vef_val) => {
+        const equiv_vef = usd_val * rate;
         return {
             usd: format_currency_ve(usd_val, "USD"),
-            vef: format_currency_ve(vef_val, "VEF")
+            vef: `Equiv. ${format_currency_ve(equiv_vef, "VEF")} (Tasa BCV: ${rate.toFixed(2)})`
         };
     };
 
@@ -570,7 +571,7 @@ function render_premium_dashboard(frm, data) {
             <!-- SECCIÓN 3: CUADRO RESUMEN FINANCIERO POR CLIENTE -->
             <div class="dg-table-card" style="margin-top: 30px;">
                 <h6 class="dg-section-title" style="border: none; padding-bottom: 0; margin-bottom: 20px; margin-top: 0;">
-                    <i class="fa fa-users dg-primary-icon"></i> Resumen Financiero por Cliente
+                    <i class="fa fa-users dg-primary-icon"></i> Resumen Financiero por Cliente (Últimos 10)
                     <span class="dg-help-tip" data-tooltip="Consolidado financiero del periodo por cliente (ingresos e impuestos asociados).">?</span>
                     <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(Valores expresados en USD y su equivalente en Bs. abajo)</span>
                 </h6>
@@ -758,7 +759,7 @@ function render_customer_table_rows(rows, exchange_rate) {
     let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_disp = 0;
     let v_cobrar = 0, v_op = 0, v_iva_op = 0, v_fact = 0, v_iva = 0, v_neto = 0, v_ret_iva = 0, v_ret_islr = 0, v_disp = 0;
 
-    let rows_html = rows.map(r => {
+    let rows_html = rows.slice(0, 10).map(r => {
         t_cobrar += r.pending_to_collect || 0;      v_cobrar += r.pending_to_collect_vef || 0;
         t_op += r.payment_order || 0;               v_op += r.payment_order_vef || 0;
         t_iva_op += r.payment_order_vat || 0;       v_iva_op += r.payment_order_vat_vef || 0;
