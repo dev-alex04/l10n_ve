@@ -37,7 +37,6 @@ def execute() -> None:
     for source in VOUCHER_SOURCES:
         updated = _backfill_voucher_type(source)
         total_updated += updated
-        frappe.db.commit()
         frappe.log(
             f"[l10n_ve] {source['voucher_type']}: {updated} GL Entries actualizados."
         )
@@ -46,44 +45,53 @@ def execute() -> None:
 
 
 def _backfill_voucher_type(source: dict) -> int:
-    """Ejecuta el backfill para un tipo de comprobante específico."""
+    """Ejecuta el backfill para un tipo de comprobante específico de forma paginada."""
     voucher_type: str = source["voucher_type"]
     table: str = source["table"]
     bill_no_field: str = source["bill_no_field"]
     bill_control_field: str = source["bill_control_field"]
 
-    # Obtenemos todas las facturas con datos de facturación
-    invoices: list[dict] = frappe.db.sql(
-        f"""
-        SELECT
-            name,
-            `{bill_no_field}`       AS bill_no,
-            `{bill_control_field}`  AS bill_control
-        FROM `{table}`
-        WHERE
-            docstatus = 1
-            AND (
-                (`{bill_no_field}`      IS NOT NULL AND `{bill_no_field}`      != '')
-                OR
-                (`{bill_control_field}` IS NOT NULL AND `{bill_control_field}` != '')
-            )
-        """,
-        as_dict=True,
-    )
-
-    if not invoices:
-        return 0
-
     total_updated: int = 0
-    batch: list[dict] = []
+    limit: int = BATCH_SIZE
+    offset: int = 0
 
-    for idx, invoice in enumerate(invoices, start=1):
-        batch.append(invoice)
+    while True:
+        invoices: list[dict] = frappe.db.sql(
+            f"""
+            SELECT
+                name,
+                `{bill_no_field}`       AS bill_no,
+                `{bill_control_field}`  AS bill_control
+            FROM `{table}`
+            WHERE
+                docstatus = 1
+                AND (
+                    (`{bill_no_field}`      IS NOT NULL AND `{bill_no_field}`      != '')
+                    OR
+                    (`{bill_control_field}` IS NOT NULL AND `{bill_control_field}` != '')
+                )
+            ORDER BY name
+            LIMIT {limit} OFFSET {offset}
+            """,
+            as_dict=True,
+        )
 
-        if len(batch) >= BATCH_SIZE or idx == len(invoices):
-            updated = _update_gl_entries_batch(voucher_type, batch)
+        if not invoices:
+            break
+
+        try:
+            updated = _update_gl_entries_batch(voucher_type, invoices)
             total_updated += updated
-            batch = []
+            frappe.db.commit()
+        except Exception as e:
+            frappe.db.rollback()
+            frappe.log_error(message=str(e), title="Backfill GL Entry Bill Fields Error")
+            raise e
+
+        if len(invoices) < limit:
+            break
+
+        offset += limit
 
     return total_updated
 
@@ -128,6 +136,7 @@ def _update_gl_entries_batch(voucher_type: str, batch: list[dict]) -> int:
         )
         query_params.extend(params_bill_control)
 
+    query_params.append(voucher_type)
     query_params.extend(voucher_names)
 
     sql: str = f"""
@@ -141,8 +150,6 @@ def _update_gl_entries_batch(voucher_type: str, batch: list[dict]) -> int:
             AND (bill_no IS NULL OR bill_no = '' OR bill_control IS NULL OR bill_control = '')
     """
 
-    query_params.insert(0, voucher_type)
-    frappe.db.sql(sql, query_params)
-
-    affected: int = frappe.db.sql("SELECT ROW_COUNT()")[0][0]
+    affected = frappe.db.sql(sql, query_params)
     return affected
+
