@@ -51,9 +51,10 @@ def custom_execute(filters=None) -> tuple:
         if column.get('fieldname') == 'remarks':
             column['label'] = _("Descripción")
 
-        # Cambiamos voucher_type a tipo Data para mostrar la traducción sin generar enlaces rotos
+        # Solo renombramos la etiqueta de voucher_type; el frontend JS
+        # (general_ledger.js) se encarga de traducir los valores sin romper
+        # los enlaces (Link). Mantener el tipo original preserva la navegación.
         if column.get('fieldname') == 'voucher_type':
-            column['fieldtype'] = 'Data'
             column['label'] = _("Tipo de Comprobante")
 
         set_bill_numbers_on_columns(i, column, columns)

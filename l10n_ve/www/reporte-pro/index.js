@@ -560,21 +560,21 @@ function renderDashboard(data) {
     // ── 1.5 Retenciones ───────────────────────────────────────────────────
     // 8. RETENCIÓN IVA
     const retIvaUsd = parseFloat(kpis.ret_iva_usd || 0);
-    const retIvaVes = parseFloat(kpis.ret_iva_vef !== undefined ? kpis.ret_iva_vef : (retIvaUsd * window.exchange_rate));
+    const retIvaVes = parseFloat(kpis.ret_iva_vef != null ? kpis.ret_iva_vef : (retIvaUsd * window.exchange_rate));
     const promRetIvaRate = retIvaUsd > 0 ? (retIvaVes / retIvaUsd) : window.exchange_rate;
     setText("card-ret-iva-val", fmtVES(retIvaVes));
     setText("card-ret-iva-ref", `REF: ${fmtUSD(retIvaUsd)} (PROM. ${promRetIvaRate.toFixed(2)})`);
 
     // 9. RETENCIÓN ISLR
     const retIslrUsd = parseFloat(kpis.ret_islr_usd || 0);
-    const retIslrVes = parseFloat(kpis.ret_islr_vef !== undefined ? kpis.ret_islr_vef : (retIslrUsd * window.exchange_rate));
+    const retIslrVes = parseFloat(kpis.ret_islr_vef != null ? kpis.ret_islr_vef : (retIslrUsd * window.exchange_rate));
     const promRetIslrRate = retIslrUsd > 0 ? (retIslrVes / retIslrUsd) : window.exchange_rate;
     setText("card-ret-islr-val", fmtVES(retIslrVes));
     setText("card-ret-islr-ref", `REF: ${fmtUSD(retIslrUsd)} (PROM. ${promRetIslrRate.toFixed(2)})`);
 
     // 10. IGTF
     const igtfTotal = parseFloat(kpis.igtf_total || 0);
-    const igtfTotalVes = parseFloat(kpis.igtf_vef !== undefined ? kpis.igtf_vef : (igtfTotal * window.exchange_rate));
+    const igtfTotalVes = parseFloat(kpis.igtf_vef != null ? kpis.igtf_vef : (igtfTotal * window.exchange_rate));
     const promIgtfRate = igtfTotal > 0 ? (igtfTotalVes / igtfTotal) : window.exchange_rate;
     setText("card-igtf-val", fmtVES(igtfTotalVes));
     setText("card-igtf-ref", `REF: ${fmtUSD(igtfTotal)} (PROM. ${promIgtfRate.toFixed(2)})`);
