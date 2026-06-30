@@ -1,7 +1,6 @@
 import frappe
 from frappe import _
 from frappe.utils import getdate, flt
-import datetime
 
 route = "reporte-pro"
 
@@ -27,9 +26,9 @@ def get_context(context):
     context.company = company
     
     # Fetch exchange rate from l10n_ve if available
+    today = frappe.utils.today()
     try:
         from l10n_ve.utils.utils import get_exchange_rate
-        today = datetime.date.today().strftime("%Y-%m-%d")
         rate = get_exchange_rate(today, "USD")
         if not rate:
             frappe.throw(_("No se pudo obtener la tasa de cambio BCV para el día de hoy ({0})").format(today))

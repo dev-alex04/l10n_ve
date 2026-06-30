@@ -40,14 +40,18 @@ try:
     )
 except ImportError:
     # mint no instalado en este site: sin motor de conciliación aquí.
-    RECON_PENDING = "Pending"
-    RECON_DONE = "Reconciled"
-    RECON_REVIEW = "Review"
-    REVIEW_OTHER_BANK = "Other Bank"
-    REVIEW_DUPLICATE_REFERENCE = "Duplicate Reference"
-    CASH_LIKE_TYPES = []
-    DEPOSIT_COVERAGE_TOLERANCE = 0
-    DEPOSIT_FIELDS = []
+    # Las constantes DEBEN coincidir exactamente con mint.apis.reconciliation: son
+    # los literales del Select `custom_reconciliation_status` (opciones en español).
+    # Un literal divergente nunca casaría contra la BD (estados fantasma). Ver el
+    # test de paridad en l10n_ve/tests/test_reconciliation_shim_parity.py.
+    RECON_PENDING = "Conciliación Pendiente"
+    RECON_DONE = "Conciliado"
+    RECON_REVIEW = "Revisar"
+    REVIEW_OTHER_BANK = "other_bank"
+    REVIEW_DUPLICATE_REFERENCE = "duplicate_reference"
+    CASH_LIKE_TYPES = ("Cash", "Gateway", "Gangway")
+    DEPOSIT_COVERAGE_TOLERANCE = 1.0
+    DEPOSIT_FIELDS = ["name", "deposit", "unallocated_amount", "currency", "bank_account"]
     _is_bank_receive = lambda *a, **k: None
     _is_cash_like_receive = lambda *a, **k: None
     deposit_covers_payment = lambda *a, **k: None
