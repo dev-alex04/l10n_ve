@@ -387,19 +387,17 @@ class TestResolveZoneFromAddress(unittest.TestCase):
 
     def test_county_freetext_returned_as_is(self):
         """county con texto libre (no existe como VE Municipality) → se devuelve tal cual."""
-        # parish(None), county="Tovar", VE Municipality.municipality(None); el registro no existe
+        # parish(None), county="Tovar", municipality(None), name(None: el registro no existe)
         with patch(f"{self._PATH}.get_cached_value",
-                   side_effect=[None, "Tovar", None]), \
-             patch(f"{self._PATH}.db.exists", return_value=False):
+                   side_effect=[None, "Tovar", None, None]):
             zone = resolve_zone_from_address("Customer A", "ADDR-001")
         self.assertEqual(zone, "Tovar")
 
     def test_county_orphaned_id_never_emits_hash(self):
         """county con un id huérfano de VE Municipality (existe sin etiqueta) → nunca emite el hash."""
-        # parish(None), county="ORPHAN-hash", municipality(None) pero el registro SÍ existe; city(None)
+        # parish(None), county="ORPHAN-hash", municipality(None), name("ORPHAN-hash": SÍ existe), city(None)
         with patch(f"{self._PATH}.get_cached_value",
-                   side_effect=[None, "ORPHAN-hash", None, None]), \
-             patch(f"{self._PATH}.db.exists", return_value=True):
+                   side_effect=[None, "ORPHAN-hash", None, "ORPHAN-hash", None]):
             zone = resolve_zone_from_address("Customer A", "ADDR-001")
         self.assertIsNone(zone)
 

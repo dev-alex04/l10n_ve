@@ -73,8 +73,8 @@ def _resolve_geo_label(doctype: str, value: str, label_field: str) -> Optional[s
     label = frappe.get_cached_value(doctype, value, label_field)
     if label:
         return label
-    if not frappe.db.exists(doctype, value):
-        return value  # texto libre cargado fuera del diálogo VE
+    if not frappe.get_cached_value(doctype, value, "name"):
+        return value  # texto libre cargado fuera del diálogo VE (el registro no existe)
     return None  # registro existe pero sin etiqueta legible: no emitir el id/hash
 
 
