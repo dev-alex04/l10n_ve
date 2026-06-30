@@ -40,4 +40,30 @@ try:
     )
 except ImportError:
     # mint no instalado en este site: sin motor de conciliación aquí.
-    pass
+    RECON_PENDING = "Pending"
+    RECON_DONE = "Reconciled"
+    RECON_REVIEW = "Review"
+    REVIEW_OTHER_BANK = "Other Bank"
+    REVIEW_DUPLICATE_REFERENCE = "Duplicate Reference"
+    CASH_LIKE_TYPES = []
+    DEPOSIT_COVERAGE_TOLERANCE = 0
+    DEPOSIT_FIELDS = []
+    _is_bank_receive = lambda *a, **k: None
+    _is_cash_like_receive = lambda *a, **k: None
+    deposit_covers_payment = lambda *a, **k: None
+    _cobro_bank_account = lambda *a, **k: None
+    _deposit_base_filters = lambda *a, **k: None
+    _first_deposit = lambda *a, **k: None
+    find_matching_deposit = lambda *a, **k: None
+    find_deposit_other_bank = lambda *a, **k: None
+    find_duplicate_deposits = lambda *a, **k: None
+    _apply_deposit_amount = lambda *a, **k: None
+    reconcile_and_approve = lambda *a, **k: None
+    _link_deposit_to_payment = lambda *a, **k: None
+    before_submit_receive_payment = lambda *a, **k: None
+    on_submit_receive_payment = lambda *a, **k: None
+    validate_bank_transaction_duplicate = lambda *a, **k: None
+    reconcile_drafts_for_deposit = lambda *a, **k: None
+    reconcile_drafts_job = lambda *a, **k: None
+    apply_format_rule = lambda *a, **k: None
+
