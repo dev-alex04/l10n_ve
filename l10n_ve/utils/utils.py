@@ -24,15 +24,17 @@ import erpnext
 
 _JURIDICAL_NATURES: tuple[str, ...] = ("Juridical", "Government", "Communal", "Educational")
 _NATURAL_NATURES: tuple[str, ...] = ("Venezuelan", "Extranjero", "Passport")
+_JURIDICAL_PERSON_TYPES: tuple[str, ...] = ("Domiciled legal entity", "Non-domiciled legal entity")
 
 
 @frappe.whitelist()
 def is_juridical_customer(customer_name: str) -> bool:
     """Retorna True si el cliente es una persona jurídica.
 
-    Determina el tipo de persona a partir del campo 'nature_of_the_taxpayer'
-    del Customer. Las naturalezas jurídicas son: Juridical, Government,
-    Communal y Educational.
+    Las naturalezas jurídicas son: Juridical, Government, Communal y Educational.
+    Además, una empresa extranjera (Naturaleza 'Extranjero' con Tipo de Persona
+    'Persona jurídica no domiciliada') también es persona jurídica a efectos
+    fiscales, pese a que 'Extranjero' es una naturaleza natural.
 
     Args:
         customer_name: Nombre (ID) del Customer en Frappe.
@@ -40,10 +42,19 @@ def is_juridical_customer(customer_name: str) -> bool:
     Returns:
         True si es persona jurídica, False si es persona natural.
     """
-    nature: str = frappe.get_cached_value(
-        "Customer", customer_name, "nature_of_the_taxpayer"
-    ) or ""
-    return nature in _JURIDICAL_NATURES
+    values = frappe.get_cached_value(
+        "Customer", customer_name, ["nature_of_the_taxpayer", "type_of_person"]
+    )
+    if not values:
+        return False
+
+    nature, person_type = values
+    nature = nature or ""
+    person_type = person_type or ""
+
+    return nature in _JURIDICAL_NATURES or (
+        nature == "Extranjero" and person_type in _JURIDICAL_PERSON_TYPES
+    )
 
 
 @frappe.whitelist()
@@ -99,16 +110,21 @@ def validate_taxpayer_and_person_type_consistency(doc):
     is_natural_person_type = person_type.startswith("Natural person") \
     or person_type.startswith("Non-domiciled natural person")
 
+    # Excepción: una empresa extranjera (Naturaleza 'Extranjero') puede ser una
+    # persona jurídica NO domiciliada, aunque 'Extranjero' sea naturaleza natural.
+    is_foreign_legal_entity = \
+    nature == "Extranjero" and person_type.startswith("Non-domiciled legal entity")
+
 
     if is_legal_nature and not is_legal_person_type:
         frappe.throw(_("Con la Naturaleza de Contribuyente '{0}'," \
         " el Tipo de Persona debe ser una entidad legal.").format(nature))
 
-    if is_natural_nature and not is_natural_person_type:
+    if is_natural_nature and not is_natural_person_type and not is_foreign_legal_entity:
         frappe.throw(_("Con la Naturaleza de Contribuyente '{0}'," \
         " el Tipo de Persona debe ser una persona natural.").format(nature))
 
-    if is_legal_person_type and not is_legal_nature:
+    if is_legal_person_type and not is_legal_nature and not is_foreign_legal_entity:
         frappe.throw(_("Con el Tipo de Persona '{0}'," \
         " la Naturaleza del Contribuyente debe ser Jurídico," \
         " Gubernamental, Comunal o Educativo.").format(person_type))
