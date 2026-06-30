@@ -15,4 +15,5 @@ l10n_ve.patches.add_query_performance_indexes
 l10n_ve.patches.accounts.clear_igtf_for_specific_invoices
 l10n_ve.patches.accounts.backfill_gl_entry_bill_fields
 l10n_ve.patches.model.fix_general_ledger_translation
+l10n_ve.patches.model.force_reload_administracion_workspace
 
