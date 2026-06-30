@@ -260,8 +260,7 @@ def _get_customer_analytics(company, date_from, date_to, branch, state, municipa
             cust.name, cust.disabled, cust.creation, addr.state, addr.county,
             s.state as state_name, m.municipality as mun_name
         FROM `tabCustomer` cust
-        LEFT JOIN `tabDynamic Link` dl ON dl.link_doctype = 'Customer' AND dl.link_name = cust.name
-        LEFT JOIN `tabAddress` addr ON dl.parent = addr.name
+        LEFT JOIN `tabAddress` addr ON cust.customer_primary_address = addr.name
         LEFT JOIN `tabVE State` s ON addr.state = s.name
         LEFT JOIN `tabVE Municipality` m ON addr.county = m.name
         WHERE cust.name IN ({invoice_subquery})
@@ -315,7 +314,7 @@ def _get_customer_analytics(company, date_from, date_to, branch, state, municipa
                 
             # New this month
             if d_from_dt and d_to_dt:
-                if d_from_dt <= creation_date <= d_to_dt:
+                if d_from_dt.date() <= creation_date.date() <= d_to_dt.date():
                     new_this_month += 1
                     
         loc = c.state_name or "Sin Ubicación"
@@ -689,7 +688,10 @@ def get_dashboard_data(
 def create_task(subject, description, date):
     if frappe.session.user == "Guest":
         frappe.throw(_("Debe iniciar sesión para crear tareas."))
-        
+
+    if not frappe.has_permission("Reporte Gerencial", "read"):
+        frappe.throw(_("No tiene permisos para acceder a este recurso."), frappe.PermissionError)
+
     # Get active company default
     company = frappe.defaults.get_user_default("company")
     if not company:
@@ -795,15 +797,12 @@ def get_sales_data(company=None, period="today", date_from=None, date_to=None):
     invoice_ids = tuple(inv.invoice_id for inv in raw_sales)
     iva_map = {}
     if invoice_ids:
-        in_clause = "%(invoice_ids)s" if len(invoice_ids) > 1 else "(%s)" % frappe.db.escape(invoice_ids[0])
-        iva_query = f"""
+        iva_res = frappe.db.sql("""
             select parent as invoice_id, sum(tax_amount) as tax_amount, sum(base_tax_amount) as base_tax_amount
             from `tabSales Taxes and Charges`
-            where parent in {in_clause} and (description like '%%IVA%%' or description like '%%I.V.A.%%')
+            where parent in %(invoice_ids)s and (description like '%%IVA%%' or description like '%%I.V.A.%%')
             group by parent
-        """
-        query_params = {"invoice_ids": invoice_ids} if len(invoice_ids) > 1 else {}
-        iva_res = frappe.db.sql(iva_query, query_params, as_dict=True)
+        """, {"invoice_ids": invoice_ids}, as_dict=True)
         for row in iva_res:
             iva_map[row.invoice_id] = {
                 "tax_amount": flt(row.tax_amount or 0),
