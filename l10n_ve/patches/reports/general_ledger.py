@@ -28,10 +28,19 @@ def custom_execute(filters=None) -> tuple:
         if column.get('fieldname') == 'remarks':
             column['label'] = _("Descripción")
 
+        # Solo renombramos la etiqueta de voucher_type; el frontend JS
+        # (general_ledger.js) se encarga de traducir los valores sin romper
+        # los enlaces (Link). Mantener el tipo original preserva la navegación.
+        if column.get('fieldname') == 'voucher_type':
+            column['label'] = _("Tipo de Comprobante")
+
         set_bill_numbers_on_columns(i, column, columns)
 
     set_branch_on_entries(res)
 
+    # NO traducir voucher_type en las filas: Frappe usa su valor para resolver el
+    # DocType destino del Link voucher_no. La traducción del texto visible la hace
+    # el frontend (general_ledger.js) sin romper la navegación.
     return columns, res
 
 

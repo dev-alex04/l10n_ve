@@ -1,10 +1,9 @@
 {
- "allow_roles": [],
- "creation": "2026-06-23 09:45:00.000000",
+ "content": null,
+ "creation": "2026-06-24 14:00:00.000000",
  "docstatus": 0,
  "doctype": "Page",
- "idx": 0,
- "modified": "2026-06-23 09:45:00.000000",
+ "modified": "2026-06-24 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "L10n Ve",
  "name": "reporte-pro",
@@ -21,6 +20,8 @@
    "role": "Accounts User"
   }
  ],
+ "script": null,
  "standard": "Yes",
+ "style": null,
  "title": "Reporte Pro"
 }
