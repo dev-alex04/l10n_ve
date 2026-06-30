@@ -363,15 +363,50 @@ class TestResolveZoneFromAddress(unittest.TestCase):
             zone = resolve_zone_from_address("Customer A", None)
         self.assertIsNone(zone)
 
-    def test_without_parish_returns_none(self):
-        """Dirección sin parish → None."""
+    def test_without_any_geo_returns_none(self):
+        """Dirección sin parish, county ni city → None (mantiene el throw aguas arriba)."""
         with patch(f"{self._PATH}.get_cached_value", return_value=None):
             zone = resolve_zone_from_address("Customer A", "ADDR-001")
         self.assertIsNone(zone)
 
-    def test_parish_without_municipality_returns_none(self):
-        """Parish existe pero no tiene municipio asignado → None."""
+    def test_parish_without_municipality_falls_back_to_county(self):
+        """Parish sin municipio asignado → cae a county (Link a VE Municipality)."""
+        # parish, VE Parish.municipality(None), county, VE Municipality.municipality
         with patch(f"{self._PATH}.get_cached_value",
-                   side_effect=["VE-PARISH", None]):
+                   side_effect=["VE-PARISH", None, "VE-MUNI-hash", "Tovar"]):
+            zone = resolve_zone_from_address("Customer A", "ADDR-001")
+        self.assertEqual(zone, "Tovar")
+
+    def test_falls_back_to_county_municipality(self):
+        """Sin parish pero con county → municipio legible vía VE Municipality."""
+        # parish(None), county, VE Municipality.municipality
+        with patch(f"{self._PATH}.get_cached_value",
+                   side_effect=[None, "VE-MUNI-hash", "Tovar"]):
+            zone = resolve_zone_from_address("Customer A", "ADDR-001")
+        self.assertEqual(zone, "Tovar")
+
+    def test_county_freetext_returned_as_is(self):
+        """county con texto libre (no existe como VE Municipality) → se devuelve tal cual."""
+        # parish(None), county="Tovar", VE Municipality.municipality(None); el registro no existe
+        with patch(f"{self._PATH}.get_cached_value",
+                   side_effect=[None, "Tovar", None]), \
+             patch(f"{self._PATH}.db.exists", return_value=False):
+            zone = resolve_zone_from_address("Customer A", "ADDR-001")
+        self.assertEqual(zone, "Tovar")
+
+    def test_county_orphaned_id_never_emits_hash(self):
+        """county con un id huérfano de VE Municipality (existe sin etiqueta) → nunca emite el hash."""
+        # parish(None), county="ORPHAN-hash", municipality(None) pero el registro SÍ existe; city(None)
+        with patch(f"{self._PATH}.get_cached_value",
+                   side_effect=[None, "ORPHAN-hash", None, None]), \
+             patch(f"{self._PATH}.db.exists", return_value=True):
             zone = resolve_zone_from_address("Customer A", "ADDR-001")
         self.assertIsNone(zone)
+
+    def test_falls_back_to_city_when_no_parish_or_county(self):
+        """Sin parish ni county → último recurso: ciudad/pueblo legible vía VE City."""
+        # parish(None), county(None), city, VE City.city
+        with patch(f"{self._PATH}.get_cached_value",
+                   side_effect=[None, None, "VE-CITY-hash", "Colonia Tovar"]):
+            zone = resolve_zone_from_address("Customer A", "ADDR-001")
+        self.assertEqual(zone, "Colonia Tovar")
