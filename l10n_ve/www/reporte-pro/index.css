@@ -207,6 +207,8 @@ body, html {
     flex-direction: column;
     gap: 20px;
     height: 100%;
+    position: relative;
+    z-index: 1; /* Render below sidebar absolute children */
 }
 
 /* Right Area: Fixed Chat Sidebar */
@@ -1973,5 +1975,303 @@ body.dark-theme #sales-period-select option {
     background-color: #0f172a;
     color: #f8fafc;
 }
+/* Collapsible View Modes Sidebar */
+.sidebar-modes {
+    width: 210px;
+    background-color: var(--card-bg, #0f172a);
+    border-right: 1px solid var(--border-color, rgba(255,255,255,0.08));
+    display: flex;
+    flex-direction: column;
+    padding: 20px 14px;
+    position: relative;
+    transition: width 0.3s ease, padding 0.3s ease;
+    flex-shrink: 0;
+    z-index: 100;
+    height: 100%;
+    overflow: visible !important; /* Prevent toggle button from being clipped */
+}
 
+.sidebar-modes.collapsed {
+    width: 68px;
+    padding: 20px 8px;
+    overflow: visible !important;
+}
+
+.sidebar-header-modes {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 24px;
+    padding-left: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    letter-spacing: 0.5px;
+}
+
+.sidebar-menu-modes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-grow: 1;
+}
+
+.sidebar-item-mode {
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.sidebar-item-mode:hover {
+    background-color: var(--hover-bg, rgba(255,255,255,0.04));
+    color: var(--text-primary);
+}
+
+.sidebar-item-mode.active {
+    background-color: var(--primary, #3b82f6);
+    color: white;
+}
+
+.sidebar-modes.collapsed .sidebar-header-modes {
+    padding-left: 0;
+    justify-content: center;
+    gap: 0;
+}
+
+.sidebar-modes.collapsed .sidebar-header-modes span {
+    display: none;
+}
+
+.sidebar-modes.collapsed .sidebar-item-mode {
+    justify-content: center;
+    padding: 0;
+    width: 44px;
+    height: 44px;
+    margin: 0 auto;
+    border-radius: 8px;
+    gap: 0; /* Remove gap when text is hidden to center icon perfectly */
+}
+
+.sidebar-modes.collapsed .sidebar-item-mode span {
+    display: none;
+}
+
+.sidebar-toggle-modes {
+    position: absolute;
+    bottom: 20px;
+    right: -14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: var(--primary, #3b82f6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 101;
+    transition: transform 0.3s ease;
+}
+
+.sidebar-modes.collapsed .sidebar-toggle-modes {
+    transform: rotate(180deg);
+}
+
+/* Vista Resumida Mode Layout Toggles */
+.summarized-mode-active #title-retenciones,
+.summarized-mode-active .third-row,
+.summarized-mode-active .business-info-panel,
+.summarized-mode-active .business-row-visuals,
+.summarized-mode-active .map-card,
+.summarized-mode-active .calendar-card,
+.summarized-mode-active .row-2 {
+    display: none !important;
+}
+/* =========================================================================
+   CUSTOM PREMIUM FINANCIAL CARDS - EXECUTIVE SUMMARY & WITHHOLDINGS
+   ========================================================================= */
+
+.section-title {
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-top: 20px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.kpi-cards-row-custom {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.kpi-card-custom {
+    border-radius: 12px;
+    padding: 20px;
+    color: white;
+    min-width: 250px;
+    flex: 1 1 260px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+.kpi-card-custom:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+.kpi-card-custom.cobrado-usd {
+    background: linear-gradient(135deg, #2b5c8f 0%, #1a365d 100%);
+    box-shadow: 0 4px 15px rgba(43, 92, 143, 0.25);
+}
+
+.kpi-card-custom.cobrado-vef {
+    background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+    box-shadow: 0 4px 15px rgba(46, 125, 50, 0.25);
+}
+
+.kpi-card-custom.disponible-vef,
+.kpi-card-custom.disponible-usd {
+    background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
+    box-shadow: 0 4px 15px rgba(15, 118, 110, 0.25);
+}
+
+.kpi-card-custom.gastos-custom {
+    background: linear-gradient(135deg, #c2410c 0%, #9a3412 100%);
+    box-shadow: 0 4px 15px rgba(194, 65, 12, 0.25);
+}
+
+.kpi-card-custom.utilidad-custom {
+    background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.25);
+}
+
+.kpi-card-custom.utilidad-custom.negative {
+    background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%) !important;
+    box-shadow: 0 4px 15px rgba(153, 27, 27, 0.25) !important;
+}
+
+.kpi-card-custom.retencion-iva,
+.kpi-card-custom.retencion-islr,
+.kpi-card-custom.igtf-custom {
+    background: linear-gradient(135deg, #581c87 0%, #4c1d95 100%);
+    box-shadow: 0 4px 15px rgba(88, 28, 135, 0.25);
+}
+
+.kpi-card-custom-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.kpi-card-custom-title {
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.kpi-card-custom-title .info-icon {
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.kpi-card-custom-icon {
+    width: 32px;
+    height: 32px;
+    opacity: 0.25;
+    position: absolute;
+    right: 16px;
+    top: 16px;
+}
+
+.kpi-card-custom-value {
+    font-size: 32px;
+    font-weight: 700;
+    margin-top: 4px;
+    line-height: 1.1;
+}
+
+.kpi-card-custom-value.small {
+    font-size: 24px;
+    margin-top: 2px;
+}
+
+.kpi-card-custom-desc {
+    font-size: 11px;
+    opacity: 0.85;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.kpi-card-custom-ref {
+    font-size: 13px;
+    opacity: 0.9;
+    margin-top: 4px;
+}
+
+.kpi-card-custom-ref.small {
+    font-size: 12px;
+    margin-top: 1px;
+    opacity: 0.85;
+}
+
+.kpi-card-custom-details {
+    margin-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    padding-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.kpi-detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.currency-section-title {
+    font-size: 10px;
+    opacity: 0.8;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
 
