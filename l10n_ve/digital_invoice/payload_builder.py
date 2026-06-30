@@ -429,7 +429,10 @@ class TFHKAPayloadBuilder:
 
     @staticmethod
     def _sanitize_razon_social(name: str) -> str:
-        """Limpia la razón social para cumplir con el formato requerido por HKA."""
+        """Limpia la razón social para cumplir con el formato requerido por HKA.
+        UPDATE: 20260630 - Se deshabilita esta función ya que si existen clientes con caracteres especiales
+        """
+        return name
         cleaned: str = " ".join((name or "").split())
         nfkd: str = unicodedata.normalize("NFKD", cleaned)
         cleaned = "".join(c for c in nfkd if not unicodedata.combining(c))
