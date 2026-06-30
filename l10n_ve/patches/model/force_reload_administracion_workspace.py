@@ -16,9 +16,6 @@ def execute():
     # Delete the main workspace record
     frappe.db.delete("Workspace", {"name": workspace_name})
 
-    # Commit delete transactions so the reload does not hit primary key constraint conflicts
-    frappe.db.commit()
-
     # Reload from the app workspace JSON configuration file
     frappe.reload_doc("l10n_ve", "workspace", "administracion", force=True)
 
