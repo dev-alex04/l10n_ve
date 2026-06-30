@@ -1192,11 +1192,13 @@ function renderSalesTodayTable(sales) {
         // Status styles
         const statusBadge = row.status === "Paid" ? "success" : 
                             row.status === "Unpaid" ? "warning" : 
-                            row.status === "Overdue" ? "danger" : "info";
+                            row.status === "Overdue" ? "danger" :
+                            row.status === "Draft" ? "warning" : "info";
                             
         const statusLabel = row.status === "Paid" ? "Pagado" : 
                             row.status === "Unpaid" ? "Por Cobrar" : 
-                            row.status === "Overdue" ? "Vencido" : row.status;
+                            row.status === "Overdue" ? "Vencido" :
+                            row.status === "Draft" ? "Borrador" : row.status;
                             
         // Format emission date cleanly
         let dateStr = row.posting_date || "—";
