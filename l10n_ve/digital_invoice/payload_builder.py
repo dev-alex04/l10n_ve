@@ -60,10 +60,36 @@ def clean_payload(d):
         return d
 
 
+def _resolve_geo_label(doctype: str, value: str, label_field: str) -> Optional[str]:
+    """Resuelve la etiqueta legible de un registro geo (VE Municipality / VE City).
+
+    Los campos `county`/`city` del Address son `Data` (el comportamiento de Link es
+    solo del diálogo VE, sin integridad referencial en el esquema), por lo que pueden
+    guardar: el name de un registro válido, texto libre, o un id huérfano. Esta función:
+      - name válido        → su etiqueta legible
+      - texto libre        → el texto tal cual (el registro no existe)
+      - id sin etiqueta    → None (NUNCA se emite el name/hash como Zona)
+    """
+    label = frappe.get_cached_value(doctype, value, label_field)
+    if label:
+        return label
+    if not frappe.get_cached_value(doctype, value, "name"):
+        return value  # texto libre cargado fuera del diálogo VE (el registro no existe)
+    return None  # registro existe pero sin etiqueta legible: no emitir el id/hash
+
+
 def resolve_zone_from_address(customer_name: str, customer_address: Optional[str] = None) -> Optional[str]:
     """Fallback de Zona: nombre legible del municipio de la dirección (no el name/hash).
 
-    Cadena: Address.parish → VE Parish.municipality → VE Municipality.municipality.
+    Orden de resolución (siempre devuelve la etiqueta legible, nunca el name/hash):
+      1. Address.parish → VE Parish.municipality → VE Municipality.municipality
+      2. Address.county (Link a VE Municipality) → VE Municipality.municipality
+      3. Address.city (Link a VE City) → VE City.city
+
+    `county` es el municipio y suele estar cargado aunque falte la parroquia (es
+    obligatorio en el diálogo VE), por lo que es el fallback principal. Si algún
+    campo guarda texto libre (direcciones creadas fuera del diálogo VE) se devuelve
+    ese texto tal cual.
     """
     if not customer_address:
         rows = frappe.db.sql("""
@@ -79,13 +105,30 @@ def resolve_zone_from_address(customer_name: str, customer_address: Optional[str
             return None
         customer_address = rows[0][0]
 
+    # 1. Parroquia → municipio (cadena enlazada original)
     parish = frappe.get_cached_value("Address", customer_address, "parish")
-    if not parish:
-        return None
-    muni_id = frappe.get_cached_value("VE Parish", parish, "municipality")
-    if not muni_id:
-        return None
-    return frappe.get_cached_value("VE Municipality", muni_id, "municipality") or None
+    if parish:
+        muni_id = frappe.get_cached_value("VE Parish", parish, "municipality")
+        if muni_id:
+            label = frappe.get_cached_value("VE Municipality", muni_id, "municipality")
+            if label:
+                return label
+
+    # 2. Municipio directo desde `county` (Link a VE Municipality, requerido en el diálogo VE)
+    county = frappe.get_cached_value("Address", customer_address, "county")
+    if county:
+        label = _resolve_geo_label("VE Municipality", county, "municipality")
+        if label:
+            return label
+
+    # 3. Último recurso: ciudad/pueblo (Link a VE City)
+    city = frappe.get_cached_value("Address", customer_address, "city")
+    if city:
+        label = _resolve_geo_label("VE City", city, "city")
+        if label:
+            return label
+
+    return None
 
 
 class TFHKAPayloadBuilder:
