@@ -150,6 +150,6 @@ def _update_gl_entries_batch(voucher_type: str, batch: list[dict]) -> int:
             AND (bill_no IS NULL OR bill_no = '' OR bill_control IS NULL OR bill_control = '')
     """
 
-    affected = frappe.db.sql(sql, query_params)
-    return affected
+    frappe.db.sql(sql, query_params)
+    return frappe.db._cursor.rowcount
 
