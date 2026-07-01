@@ -42,6 +42,9 @@ def is_juridical_customer(customer_name: str) -> bool:
     Returns:
         True si es persona jurídica, False si es persona natural.
     """
+    if not customer_name:
+        return False
+
     values = frappe.get_cached_value(
         "Customer", customer_name, ["nature_of_the_taxpayer", "type_of_person"]
     )
