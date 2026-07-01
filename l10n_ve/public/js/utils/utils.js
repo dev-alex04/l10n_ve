@@ -148,6 +148,11 @@ function set_person_type_filter(frm) {
       "Natural person domiciled",
       "Non-domiciled natural person",
     ];
+    // Una empresa extranjera puede identificarse con pasaporte como
+    // persona jurídica no domiciliada.
+    if (doc_type === "Passport") {
+      allowed_person_types.push("Non-domiciled legal entity");
+    }
   } else if (doc_type === "DEA") {
     allowed_person_types = ["Domiciled legal entity"];
   } else if (RIF_LEGAL_NATURES.includes(nature)) {
