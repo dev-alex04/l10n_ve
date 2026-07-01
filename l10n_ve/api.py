@@ -60,52 +60,10 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
     total_pendiente_usd = 0.0
     total_pendiente_vef = 0.0
     
-    billed_usd = 0.0
-    billed_vef = 0.0
-    vat_usd = 0.0
-    vat_vef = 0.0
-    igtf_usd = 0.0
-    igtf_vef = 0.0
-    
-    availability_usd = 0.0
-    availability_vef = 0.0
-    
-    spent_usd = 0.0
-    spent_vef = 0.0
-    
-    ret_iva_usd = 0.0
-    ret_iva_vef = 0.0
-    ret_islr_usd = 0.0
-    ret_islr_vef = 0.0
-    igtf_total_usd = 0.0
-    igtf_total_vef = 0.0
-    
     for node in tree:
         if node.get("indent") == 0:
             total_pendiente_usd += flt(node.get("pending_to_collect") or 0)
             total_pendiente_vef += flt(node.get("pending_to_collect_vef") or 0)
-            
-            billed_usd += flt(node.get("billed") or 0)
-            billed_vef += flt(node.get("billed_vef") or 0)
-            
-            vat_usd += flt(node.get("vat") or 0)
-            vat_vef += flt(node.get("vat_vef") or 0)
-            
-            igtf_usd += flt(node.get("igtf") or 0)
-            igtf_vef += flt(node.get("igtf_vef") or 0)
-            
-            availability_usd += flt(node.get("availability") or 0)
-            availability_vef += flt(node.get("availability_vef") or 0)
-            
-            spent_usd += flt(node.get("spent") or 0)
-            spent_vef += flt(node.get("spent_vef") or 0)
-            
-            ret_iva_usd += flt(node.get("vat_withholding") or 0)
-            ret_iva_vef += flt(node.get("vat_withholding_vef") or 0)
-            ret_islr_usd += flt(node.get("islr_withholding") or 0)
-            ret_islr_vef += flt(node.get("islr_withholding_vef") or 0)
-            igtf_total_usd += flt(node.get("igtf") or 0)
-            igtf_total_vef += flt(node.get("igtf_vef") or 0)
 
     # Count invoices without control number (or draft/unsubmitted in range)
     si_filters = {
@@ -123,7 +81,124 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
     )
     unpaid_count = sum(1 for inv in invoices if not inv.bill_control)
 
-    igtf_usd_divided = flt(flt(igtf_vef) / flt(exchange_rate)) if exchange_rate else 0.0
+    # NOW CALCULATE REAL USD & VEF PAYMENTS
+    # Using tabISP Payment Entry and tabISP Payment Entry Lines
+    query = """
+        select 
+            ipe.name,
+            l.payment_currency,
+            l.paid_amount_reference_currency,
+            l.paid_amount_local_currency,
+            si.base_net_total,
+            si.base_grand_total,
+            (select sum(base_tax_amount) from `tabSales Taxes and Charges` where parent = si.name and (description like '%%IVA%%' or description like '%%I.V.A.%%') and is_tax_withholding_account = 0) as base_iva_amount,
+            si.total_igtf
+        from `tabISP Payment Entry` ipe
+        join `tabSales Invoice` si on ipe.sales_invoice = si.name
+        join `tabISP Payment Entry Lines` l on l.parent = ipe.name
+        where si.company = %(company)s
+          and si.posting_date between %(date_from)s and %(date_to)s
+          and si.docstatus = 1
+    """
+    params = {"company": company, "date_from": date_from, "date_to": date_to}
+    if branch:
+        query += " and si.branch = %(branch)s"
+        params["branch"] = branch
+
+    res = frappe.db.sql(query, params, as_dict=True)
+
+    collected_usd_total = 0.0
+    collected_usd_base = 0.0
+    collected_usd_tax = 0.0
+    collected_usd_igtf = 0.0
+
+    collected_ves_total = 0.0
+    collected_ves_base = 0.0
+    collected_ves_tax = 0.0
+    collected_ves_igtf = 0.0
+    collected_ves_equivalent_usd = 0.0
+
+    for row in res:
+        currency = row['payment_currency']
+        paid_ref = flt(row['paid_amount_reference_currency'] or 0)
+        paid_loc = flt(row['paid_amount_local_currency'] or 0)
+        
+        # Proportions from Sales Invoice (using local base VEF values)
+        total_vef = flt(row['base_grand_total'] or 0)
+        base_vef = flt(row['base_net_total'] or 0)
+        iva_vef = flt(row['base_iva_amount'] or 0)
+        igtf_vef = flt(row['total_igtf'] or 0)
+        
+        ratio_base = base_vef / total_vef if total_vef > 0 else 1.0
+        ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
+        ratio_igtf = igtf_vef / total_vef if total_vef > 0 else 0.0
+        
+        if currency == 'USD':
+            collected_usd_total += paid_ref
+            collected_usd_base += paid_ref * ratio_base
+            collected_usd_tax += paid_ref * ratio_tax
+            collected_usd_igtf += paid_ref * ratio_igtf
+        elif currency in ('VEF', 'VES'):
+            collected_ves_total += paid_loc
+            collected_ves_base += paid_loc * ratio_base
+            collected_ves_tax += paid_loc * ratio_tax
+            collected_ves_igtf += paid_loc * ratio_igtf
+            collected_ves_equivalent_usd += paid_ref
+
+    # REAL EXPENSES PAID IN USD AND VEF
+    query_expenses = """
+        select 
+            spending_currency,
+            sum(total_exchange) as total_usd,
+            sum(total) as total_vef
+        from `tabExpense`
+        where docstatus = 1 and company = %(company)s and expense_date between %(date_from)s and %(date_to)s
+    """
+    params_exp = {"company": company, "date_from": date_from, "date_to": date_to}
+    if branch:
+        query_expenses += " and branch = %(branch)s"
+        params_exp["branch"] = branch
+    query_expenses += " group by spending_currency"
+
+    expenses_res = frappe.db.sql(query_expenses, params_exp, as_dict=True)
+    real_spent_usd = 0.0
+    real_spent_vef = 0.0
+    for row in expenses_res:
+        if row['spending_currency'] == 'USD':
+            real_spent_usd += flt(row['total_usd'] or 0)
+        elif row['spending_currency'] in ('VEF', 'VES'):
+            real_spent_vef += flt(row['total_vef'] or 0)
+
+    # REAL WITHHOLDINGS FROM PAYMENT ENTRIES
+    query_withholdings = """
+        select 
+            sum(ipe.vat_withholding_amount) as vat_withholding_usd,
+            sum(ipe.islr_withholding_amount) as islr_withholding_usd,
+            sum(ipe.igtf_amount) as igtf_usd
+        from `tabISP Payment Entry` ipe
+        join `tabSales Invoice` si on ipe.sales_invoice = si.name
+        where si.company = %(company)s
+          and si.posting_date between %(date_from)s and %(date_to)s
+          and si.docstatus = 1
+    """
+    if branch:
+        query_withholdings += " and si.branch = %(branch)s"
+    withholdings_res = frappe.db.sql(query_withholdings, params, as_dict=True)
+    real_ret_iva_usd = 0.0
+    real_ret_islr_usd = 0.0
+    real_igtf_usd = 0.0
+    if withholdings_res and withholdings_res[0]:
+        real_ret_iva_usd = flt(withholdings_res[0].get("vat_withholding_usd") or 0)
+        real_ret_islr_usd = flt(withholdings_res[0].get("islr_withholding_usd") or 0)
+        real_igtf_usd = flt(withholdings_res[0].get("igtf_usd") or 0)
+
+    real_ret_iva_vef = real_ret_iva_usd * exchange_rate
+    real_ret_islr_vef = real_ret_islr_usd * exchange_rate
+    real_igtf_vef = real_igtf_usd * exchange_rate
+
+    # Available = Collected - Spent
+    available_usd = collected_usd_total - real_spent_usd
+    available_vef = collected_ves_total - real_spent_vef
 
     return {
         "unpaid_orders_count": unpaid_count,
@@ -133,38 +208,38 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
         "pending_base_amount": 0.0,
         "pending_tax_amount": 0.0,
         
-        "actual_collected_total": flt(billed_usd),
-        "collected_base_amount": flt(flt(billed_usd) - flt(vat_usd) - flt(igtf_usd_divided)),
-        "collected_tax_amount": flt(vat_usd),
+        "actual_collected_total": flt(collected_usd_total),
+        "collected_base_amount": flt(collected_usd_base),
+        "collected_tax_amount": flt(collected_usd_tax),
         
-        "collected_usd_total": flt(billed_usd),
-        "collected_usd_base": flt(flt(billed_usd) - flt(vat_usd) - flt(igtf_usd_divided)),
-        "collected_usd_tax": flt(vat_usd),
-        "collected_usd_igtf": flt(igtf_usd_divided),
+        "collected_usd_total": flt(collected_usd_total),
+        "collected_usd_base": flt(collected_usd_base),
+        "collected_usd_tax": flt(collected_usd_tax),
+        "collected_usd_igtf": flt(collected_usd_igtf),
         
-        "collected_ves_total": flt(billed_vef),
-        "collected_ves_base": flt(flt(billed_vef) - flt(vat_vef) - flt(igtf_vef)),
-        "collected_ves_tax": flt(vat_vef),
-        "collected_ves_igtf": flt(igtf_vef),
-        "collected_ves_equivalent_usd": flt(billed_usd),
+        "collected_ves_total": flt(collected_ves_total),
+        "collected_ves_base": flt(collected_ves_base),
+        "collected_ves_tax": flt(collected_ves_tax),
+        "collected_ves_igtf": flt(collected_ves_igtf),
+        "collected_ves_equivalent_usd": flt(collected_ves_equivalent_usd),
         
-        "total_expenses_usd": flt(spent_usd),
-        "total_expenses_vef": flt(spent_vef),
+        "total_expenses_usd": flt(real_spent_usd),
+        "total_expenses_vef": flt(real_spent_vef),
         
-        "collected_total_usd": flt(billed_usd),
-        "collected_total_vef": flt(billed_vef),
-        "collected_total_usd_base": flt(flt(billed_usd) - flt(vat_usd) - flt(igtf_usd_divided)),
-        "collected_total_vef_base": flt(flt(billed_vef) - flt(vat_vef) - flt(igtf_vef)),
+        "collected_total_usd": flt(collected_usd_total),
+        "collected_total_vef": flt(collected_ves_total),
+        "collected_total_usd_base": flt(collected_usd_base),
+        "collected_total_vef_base": flt(collected_ves_base),
         
-        "available_usd": flt(availability_usd),
-        "available_vef": flt(availability_vef),
+        "available_usd": flt(available_usd),
+        "available_vef": flt(available_vef),
         
-        "ret_iva_usd": flt(ret_iva_usd),
-        "ret_iva_vef": flt(ret_iva_vef),
-        "ret_islr_usd": flt(ret_islr_usd),
-        "ret_islr_vef": flt(ret_islr_vef),
-        "igtf_total": flt(igtf_total_usd),
-        "igtf_vef": flt(igtf_total_vef),
+        "ret_iva_usd": flt(real_ret_iva_usd),
+        "ret_iva_vef": flt(real_ret_iva_vef),
+        "ret_islr_usd": flt(real_ret_islr_usd),
+        "ret_islr_vef": flt(real_ret_islr_vef),
+        "igtf_total": flt(real_igtf_usd),
+        "igtf_vef": flt(real_igtf_vef),
     }
 
 
