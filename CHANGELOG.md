@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.10.0] - 2026-07-02
+
+### ✨ Funcionalidades (Features)
+- Optimización del rendimiento en base de datos mediante el ajuste del orden de columnas en el índice compuesto de **Sales Invoice**. (78cf0e8)
+- Implementación de validaciones dinámicas y estáticas para filtros de fechas en **Reporte Pro**. (78cc35e)
+- Mejora en la velocidad de carga y alineación técnica de los KPIs de flujo de caja real en **Reporte Pro**. (e6a0640)
+
+---
+
 ## [v2.9.3] - 2026-06-22
 
 ### 🐛 Correcciones (Fixes)
