@@ -26,6 +26,7 @@ _INDEXES = [
     ("VE Deposit", "vdep_company_posting_date", ["company", "posting_date"]),
     ("VE Conatel Tax Declaration", "vconatel_company_status", ["company", "status"]),
     ("VE Disclosure Note", "vdisc_company_fiscal_year", ["company", "fiscal_year"]),
+    ("Sales Invoice", "si_company_docstatus_posting_date", ["company", "docstatus", "posting_date"]),
 ]
 
 

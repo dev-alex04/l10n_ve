@@ -28,27 +28,41 @@ document.addEventListener("DOMContentLoaded", () => {
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
     
-    // Inicializar Flatpickr en español
+    // Inicializar Flatpickr en español con validación dinámica de rango
     const flatpickrConfig = {
         locale: "es",
         dateFormat: "Y-m-d",
         altInput: true,
         altFormat: "d/m/Y",
-        altInputClass: "flatpickr-input form-control",
-        onChange: () => {
+        altInputClass: "flatpickr-input form-control"
+    };
+
+    let fromPicker, toPicker;
+
+    fromPicker = flatpickr("#filter-date-from", {
+        ...flatpickrConfig,
+        defaultDate: firstDay,
+        maxDate: today,
+        onChange: (selectedDates, dateStr) => {
+            if (toPicker) {
+                toPicker.set("minDate", dateStr);
+            }
             calendarStartDate = null;
             reloadDashboard();
         }
-    };
-
-    flatpickr("#filter-date-from", {
-        ...flatpickrConfig,
-        defaultDate: firstDay
     });
 
-    flatpickr("#filter-date-to", {
+    toPicker = flatpickr("#filter-date-to", {
         ...flatpickrConfig,
-        defaultDate: today
+        defaultDate: today,
+        minDate: firstDay,
+        onChange: (selectedDates, dateStr) => {
+            if (fromPicker) {
+                fromPicker.set("maxDate", dateStr);
+            }
+            calendarStartDate = null;
+            reloadDashboard();
+        }
     });
 
     // Inicializar mapa interactivo
@@ -447,6 +461,11 @@ function reloadDashboard() {
         date_from: document.getElementById("filter-date-from").value,
         date_to: document.getElementById("filter-date-to").value
     };
+
+    if (filters.date_from && filters.date_to && filters.date_from > filters.date_to) {
+        alert("La fecha de inicio ('Desde') no puede ser posterior a la fecha final ('Hasta'). Por favor, corrija el rango.");
+        return;
+    }
 
     fetchDashboardData(filters, (data) => {
         let dashboardData = data;
