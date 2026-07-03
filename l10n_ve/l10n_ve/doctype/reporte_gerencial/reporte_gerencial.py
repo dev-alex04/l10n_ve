@@ -593,11 +593,14 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
         reverse=True
     )
 
+    real_kpis = calculate_real_kpis(company, from_date, to_date, branch=branch, exchange_rate=rate_today)
+
     return {
         "sales_count": sales_count,
         "exchange_rate": rate_today,
         "branch_financial_summary": branch_financial_summary,
-        "customer_financial_summary": customer_financial_summary
+        "customer_financial_summary": customer_financial_summary,
+        "real_kpis": real_kpis
     }
 
 
@@ -1349,4 +1352,277 @@ def get_customer_list(doctype=None, txt=None, searchfield=None, start=0, page_le
     params.extend([int(start or 0), int(page_len or 20)])
     db_results = frappe.db.sql(query, params)
     return [{"value": r[0], "label": r[1] or r[0]} for r in db_results if r[0]]
+
+
+def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=None, tree=None):
+    from l10n_ve.utils.utils import get_exchange_rate
+    from frappe.utils import flt
+
+    if not exchange_rate:
+        exchange_rate = flt(get_exchange_rate(date_to, "USD")) or 1.0
+
+    # 1. Real Collections from standard Payment Entry and Payment Entry Reference
+    query = """
+        select 
+            pe.name,
+            pe.paid_on_currency,
+            pe.paid_currency_amount,
+            pe.paid_amount as pe_paid_amount,
+            pe.posting_date,
+            ref.allocated_amount,
+            pe.total_allocated_amount,
+            si.base_net_total,
+            si.base_grand_total,
+            si.total_igtf,
+            (select sum(base_tax_amount) from `tabSales Taxes and Charges` where parent = si.name and (description like '%%IVA%%' or description like '%%I.V.A.%%') and is_tax_withholding_account = 0) as base_iva_amount
+        from `tabPayment Entry Reference` ref
+        join `tabPayment Entry` pe on ref.parent = pe.name
+        join `tabSales Invoice` si on ref.reference_name = si.name
+        where pe.docstatus = 1
+          and pe.company = %(company)s
+          and pe.posting_date between %(date_from)s and %(date_to)s
+    """
+    params = {"company": company, "date_from": date_from, "date_to": date_to}
+    if branch:
+        query += " and si.branch = %(branch)s"
+        params["branch"] = branch
+
+    res = frappe.db.sql(query, params, as_dict=True)
+
+    rates_cache = {}
+    def _local_get_cached_rate(d_str):
+        if d_str not in rates_cache:
+            rates_cache[d_str] = flt(get_exchange_rate(d_str, "USD")) or 1.0
+        return rates_cache[d_str]
+
+    collected_usd_total = 0.0
+    collected_usd_base = 0.0
+    collected_usd_tax = 0.0
+    collected_usd_igtf = 0.0
+
+    collected_ves_total = 0.0
+    collected_ves_base = 0.0
+    collected_ves_tax = 0.0
+    collected_ves_igtf = 0.0
+    collected_ves_equivalent_usd = 0.0
+
+    for row in res:
+        currency = row['paid_on_currency'] or 'VEF'
+        pe_total_allocated = flt(row['total_allocated_amount'] or 0)
+        allocated = flt(row['allocated_amount'] or 0)
+        
+        ratio = allocated / pe_total_allocated if pe_total_allocated > 0 else 1.0
+        
+        paid_currency_total = flt(row['paid_currency_amount'] or 0)
+        paid_currency_ref = paid_currency_total * ratio
+        paid_loc = allocated
+        
+        total_vef = flt(row['base_grand_total'] or 0)
+        base_vef = flt(row['base_net_total'] or 0)
+        iva_vef = flt(row['base_iva_amount'] or 0)
+        igtf_vef = flt(row['total_igtf'] or 0)
+        
+        ratio_base = base_vef / total_vef if total_vef > 0 else 1.0
+        ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
+        ratio_igtf = igtf_vef / total_vef if total_vef > 0 else 0.0
+        
+        if currency == 'USD':
+            collected_usd_total += paid_currency_ref
+            collected_usd_base += paid_currency_ref * ratio_base
+            collected_usd_tax += paid_currency_ref * ratio_tax
+            collected_usd_igtf += paid_currency_ref * ratio_igtf
+            
+            # Convert USD IGTF portion of the payment to VEF using payment posting date rate
+            r_val = _local_get_cached_rate(str(row['posting_date']))
+            collected_ves_igtf += (paid_currency_ref * ratio_igtf) * r_val
+        elif currency in ('VEF', 'VES'):
+            collected_ves_total += paid_loc
+            collected_ves_base += paid_loc * ratio_base
+            collected_ves_tax += paid_loc * ratio_tax
+            collected_ves_igtf += paid_loc * ratio_igtf
+            
+            # Convert VEF payment to USD equivalent using exchange rate of payment date
+            r_val = _local_get_cached_rate(str(row['posting_date']))
+            collected_ves_equivalent_usd += paid_loc / r_val if r_val > 0 else 0.0
+
+    # 2. Real Expenses paid in USD and VEF
+    query_expenses = """
+        select 
+            spending_currency,
+            sum(total_exchange) as total_usd,
+            sum(total) as total_vef
+        from `tabExpense`
+        where docstatus = 1 and company = %(company)s and expense_date between %(date_from)s and %(date_to)s
+    """
+    params_exp = {"company": company, "date_from": date_from, "date_to": date_to}
+    if branch:
+        query_expenses += " and branch = %(branch)s"
+        params_exp["branch"] = branch
+    query_expenses += " group by spending_currency"
+
+    expenses_res = frappe.db.sql(query_expenses, params_exp, as_dict=True)
+    real_spent_usd = 0.0
+    real_spent_vef = 0.0
+    for row in expenses_res:
+        if row['spending_currency'] == 'USD':
+            real_spent_usd += flt(row['total_usd'] or 0)
+        elif row['spending_currency'] in ('VEF', 'VES'):
+            real_spent_vef += flt(row['total_vef'] or 0)
+
+    # 3. Real Withholdings from Sales Taxes and Charges (same pattern as get_dashboard_data)
+    real_ret_iva_usd = 0.0
+    real_ret_iva_vef = 0.0
+    real_ret_islr_usd = 0.0
+    real_ret_islr_vef = 0.0
+    real_igtf_usd = 0.0
+    real_igtf_vef = 0.0
+
+    if tree:
+        for node in tree:
+            if node.get("indent") == 0:
+                real_ret_iva_usd += flt(node.get("vat_withholding") or 0)
+                real_ret_iva_vef += flt(node.get("vat_withholding_vef") or 0)
+                real_ret_islr_usd += flt(node.get("islr_withholding") or 0)
+                real_ret_islr_vef += flt(node.get("islr_withholding_vef") or 0)
+                real_igtf_usd += flt(node.get("igtf") or 0)
+                real_igtf_vef += flt(node.get("igtf_vef") or 0)
+    else:
+        # Fetch all invoices in range with GL entry movements (docstatus=1)
+        query_invoices = """
+            select name, posting_date, currency, total_igtf, base_amount_igtf
+            from `tabSales Invoice`
+            where docstatus = 1 and company = %(company)s
+              and posting_date between %(date_from)s and %(date_to)s
+        """
+        params_inv = {"company": company, "date_from": date_from, "date_to": date_to}
+        if branch:
+            query_invoices += " and branch = %(branch)s"
+            params_inv["branch"] = branch
+
+        invoices_list = frappe.db.sql(query_invoices, params_inv, as_dict=True)
+        invoice_names = [x.name for x in invoices_list]
+
+        if invoice_names:
+            # IGTF: sum from Sales Invoice directly
+            for inv in invoices_list:
+                is_usd = (inv.currency == "USD")
+                rate_val = flt(_local_get_cached_rate(str(inv.posting_date)))
+                igtf_val = flt(inv.total_igtf)
+                real_igtf_usd += igtf_val if is_usd else (igtf_val / rate_val if rate_val > 0 else 0.0)
+                
+                base_igtf = flt(inv.get("base_amount_igtf") or 0)
+                if is_usd:
+                    real_igtf_vef += base_igtf if base_igtf > 0 else (igtf_val * rate_val)
+                else:
+                    real_igtf_vef += igtf_val
+
+            # Withholdings: from Sales Taxes and Charges (same as get_dashboard_data)
+            taxes_raw = frappe.db.get_all(
+                "Sales Taxes and Charges",
+                filters={"parent": ["in", invoice_names], "is_tax_withholding_account": 1},
+                fields=["parent", "account_head", "tax_amount", "base_tax_amount"]
+            )
+            inv_map = {x.name: x for x in invoices_list}
+            for t in taxes_raw:
+                inv_doc = inv_map.get(t.parent)
+                if not inv_doc:
+                    continue
+                is_usd = (inv_doc.currency == "USD")
+                rate_val = 1.0 if is_usd else _local_get_cached_rate(str(inv_doc.posting_date))
+
+                ac_lower = str(t.account_head).lower()
+                vat_v = flt(t.base_tax_amount)
+                vat_usd = flt(t.tax_amount) if is_usd else vat_v / rate_val
+
+                if "iva" in ac_lower:
+                    real_ret_iva_vef += vat_v
+                    real_ret_iva_usd += vat_usd
+                elif "islr" in ac_lower:
+                    real_ret_islr_vef += vat_v
+                    real_ret_islr_usd += vat_usd
+
+    # 4. Real Available
+    available_usd = collected_usd_total - real_spent_usd
+    available_vef = collected_ves_total - real_spent_vef
+
+    # 5. Outstanding / Pending Invoices
+    from l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial import _get_allowed_branches, _ve_branch_children
+    
+    si_filters = {
+        "docstatus": 1,
+        "company": company,
+        "posting_date": ["between", [date_from, date_to]]
+    }
+    
+    allowed = _get_allowed_branches(company)
+    allowed_set = set(allowed) if allowed is not None else None
+    if branch:
+        universe = set(_ve_branch_children(branch))
+        if allowed_set is not None:
+            universe &= allowed_set
+    elif allowed_set is not None:
+        universe = set(allowed_set)
+    else:
+        universe = None
+
+    if universe is not None:
+        si_filters["branch"] = ["in", (list(universe) or ["__no_access__"])]
+
+    table_filters = dict(si_filters)
+    table_filters["docstatus"] = ["!=", 2]
+    all_invoices = frappe.get_all(
+        "Sales Invoice",
+        filters=table_filters,
+        fields=["name", "base_net_total", "base_grand_total", "grand_total", "bill_control", "docstatus"]
+    )
+
+    total_pendiente_usd = 0.0
+    total_pendiente_vef = 0.0
+    for inv in all_invoices:
+        no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
+        if no_control:
+            g_total_usd = flt(inv.grand_total)
+            g_total_vef = flt(inv.base_grand_total) if hasattr(inv, "base_grand_total") else (g_total_usd * exchange_rate)
+            total_pendiente_usd += g_total_usd
+            total_pendiente_vef += g_total_vef
+
+    unpaid_count = sum(1 for inv in all_invoices if not inv.bill_control)
+
+    return {
+        "unpaid_orders_count": unpaid_count,
+        "grand_total": total_pendiente_usd,
+        "total_pendiente_usd": total_pendiente_usd,
+        "total_pendiente_vef": total_pendiente_vef,
+        "pending_base_amount": 0.0,
+        "pending_tax_amount": 0.0,
+        
+        "actual_collected_total": collected_usd_total,
+        
+        "collected_usd_total": collected_usd_total,
+        "collected_usd_base": collected_usd_base,
+        "collected_usd_tax": collected_usd_tax,
+        "collected_usd_igtf": collected_usd_igtf,
+        
+        "collected_ves_total": collected_ves_total,
+        "collected_ves_base": collected_ves_base,
+        "collected_ves_tax": collected_ves_tax,
+        "collected_ves_igtf": collected_ves_igtf,
+        "collected_ves_equivalent_usd": collected_ves_equivalent_usd,
+        
+        "total_expenses_usd": real_spent_usd,
+        "total_expenses_vef": real_spent_vef,
+        
+        "collected_total_usd": collected_usd_total,
+        "collected_total_vef": collected_ves_total,
+        
+        "available_usd": available_usd,
+        "available_vef": available_vef,
+        
+        "ret_iva_usd": real_ret_iva_usd,
+        "ret_iva_vef": real_ret_iva_vef,
+        "ret_islr_usd": real_ret_islr_usd,
+        "ret_islr_vef": real_ret_islr_vef,
+        "igtf_total": collected_usd_igtf,
+        "igtf_vef": collected_ves_igtf,
+    }
 
