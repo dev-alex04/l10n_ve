@@ -7,7 +7,7 @@ from frappe.utils import flt, getdate, cint, today
 
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder, resolve_zone_from_address
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
-from l10n_ve.utils.utils import is_juridical_customer
+from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
 
 SUPPORTED_DOCTYPES = ("Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note")
 
@@ -134,16 +134,25 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
 
 def _compute_tasa_fecha(doc: object) -> str:
     """
-    Calcula la fecha de la tasa BCV a partir del posting_date ORIGINAL del documento
-    (antes de que sea actualizado a la fecha de certificación HKA).
+    Calcula la fecha de la tasa BCV que debe mostrar el documento impreso.
 
-    - Jurídico: fecha exacta del posting_date.
-    - Natural:   primer día del mes del posting_date.
+    - Jurídico: fecha REAL de la tasa que porta el documento (lookup inverso
+      en Currency Exchange sobre conversion_rate). No puede inferirse del
+      posting_date: la tasa del jurídico se actualiza al primer pago
+      (_sync_invoice_with_rate en domina_isp), que puede ocurrir días después
+      de generada la factura. Fallback: posting_date si ninguna fila coincide.
+    - Natural: primer día del mes del posting_date (tasa congelada del 1°;
+      _validate_tasa_coherencia garantiza que coincida con la del documento).
+
+    Se calcula ANTES de que posting_date sea actualizado a la fecha de
+    certificación HKA.
     """
     fecha_base = getdate(doc.posting_date)
     if not is_juridical_customer(doc.customer):
-        fecha_base = fecha_base.replace(day=1)
-    return str(fecha_base)
+        return str(fecha_base.replace(day=1))
+
+    rate_date = resolve_exchange_rate_date(flt(doc.conversion_rate), doc.currency)
+    return rate_date or str(fecha_base)
 
 
 def _validate_tasa_coherencia(doc: object, tasa_fecha: str) -> None:
@@ -846,7 +855,8 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
 
     tc: float = flt(doc.conversion_rate) if doc.conversion_rate else 1.0
     if is_juridical_customer(doc.customer):
-        fecha_bcv = getdate(doc.posting_date)
+        # Fecha real de la tasa del documento (misma regla que _compute_tasa_fecha).
+        fecha_bcv = getdate(resolve_exchange_rate_date(tc, doc.currency) or doc.posting_date)
     else:
         fecha_bcv = getdate(doc.posting_date).replace(day=1)
 
