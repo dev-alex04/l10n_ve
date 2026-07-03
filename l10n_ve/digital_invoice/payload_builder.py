@@ -6,7 +6,7 @@ from typing import Optional
 import frappe
 from frappe.utils import getdate, flt, cint
 from frappe.utils.data import money_in_words
-from l10n_ve.utils.utils import is_juridical_customer
+from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
 
 
 def strip_html(html: str) -> str:
@@ -853,12 +853,17 @@ class TFHKAPayloadBuilder:
         tasa_bcv: str = ""
         if flt(doc.conversion_rate) > 0:
             # tasa_fecha explícita (capturada antes de actualizar posting_date a hoy).
-            # Fallback: si no se proporcionó, se calcula desde posting_date con la
-            # misma regla fiscal (evita romper llamadas que no pasen el parámetro).
+            # Fallback: si no se proporcionó, se calcula con la misma regla fiscal
+            # que _compute_tasa_fecha (evita romper llamadas sin el parámetro).
             if self.tasa_fecha:
                 fecha_valor = getdate(self.tasa_fecha)
             elif is_juridical_customer(doc.customer):
-                fecha_valor = getdate(doc.posting_date)
+                # Fecha real de la tasa que porta el documento, no el posting_date:
+                # la tasa del jurídico se actualiza al primer pago.
+                fecha_valor = getdate(
+                    resolve_exchange_rate_date(flt(doc.conversion_rate), doc.currency)
+                    or doc.posting_date
+                )
             else:
                 fecha_valor = getdate(doc.posting_date).replace(day=1)
 
