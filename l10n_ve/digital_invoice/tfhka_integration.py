@@ -158,10 +158,12 @@ def _compute_tasa_fecha(doc: object) -> str:
 def _validate_tasa_coherencia(doc: object, tasa_fecha: str) -> None:
     """
     Verifica que la tasa de cambio registrada en el documento coincida
-    con la tasa BCV de Currency Exchange para la fecha calculada.
+    con la tasa BCV de Currency Exchange para la fecha que se va a IMPRIMIR
+    en el texto "de fecha valor DD/MM/YYYY" del documento fiscal.
 
     Si no existe tasa registrada para esa fecha, o si la tasa del documento
-    difiere de la registrada, se lanza un error bloqueando el envío a HKA.
+    difiere de la registrada, se lanza un error bloqueando el envío a HKA:
+    mejor bloquear que certificar un par tasa/fecha inconsistente ante SENIAT.
     """
     if not flt(doc.conversion_rate):
         return
@@ -169,6 +171,11 @@ def _validate_tasa_coherencia(doc: object, tasa_fecha: str) -> None:
     company_currency: str = frappe.get_cached_value(
         "Company", doc.company, "default_currency"
     ) or "VEF"
+
+    # Documento en la moneda de la empresa (tasa 1.0): no hay cruce de moneda
+    # que validar y Currency Exchange no registra filas VEF→VEF.
+    if doc.currency == company_currency:
+        return
 
     tasa_registrada: float = frappe.db.get_value(
         "Currency Exchange",
@@ -647,10 +654,15 @@ def process_invoice(
         else:
             tasa_fecha: str = _compute_tasa_fecha(doc)
 
-        # Verificar que la tasa del documento coincida con la BCV registrada.
-        # Solo aplica a facturas de personas naturales.
+        # Verificar que la tasa del documento coincida con la BCV registrada
+        # para la fecha que se va a imprimir (fail-closed).
+        # - Natural: tasa_fecha = 1° del mes → detecta tasa desalineada.
+        # - Jurídico: tasa_fecha se resolvió DESDE la tasa (lookup inverso),
+        #   así que el flujo sano pasa trivialmente; si no hubo fila
+        #   coincidente cayó al posting_date y esto bloquea la emisión de
+        #   una tasa que no existe en Currency Exchange.
         # NC y ND se omiten: su tasa es heredada de la factura original.
-        if not skip_si_validations and not is_juridical_customer(doc.customer) and not force:
+        if not skip_si_validations and not force:
             _validate_tasa_coherencia(doc, tasa_fecha)
 
         fecha_hka: str = today()

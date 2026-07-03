@@ -12,14 +12,22 @@ par tasa/fecha inconsistente ante SENIAT.
 
 Fix: la fecha se resuelve desde la tasa misma con lookup inverso en
 Currency Exchange (resolve_exchange_rate_date), no desde el posting_date.
+Además, _validate_tasa_coherencia aplica también a jurídicos (fail-closed):
+una tasa que no exista en Currency Exchange bloquea la emisión en vez de
+certificarse con una fecha inventada.
 """
 
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import frappe
+
 from l10n_ve.utils.utils import resolve_exchange_rate_date
-from l10n_ve.digital_invoice.tfhka_integration import _compute_tasa_fecha
+from l10n_ve.digital_invoice.tfhka_integration import (
+    _compute_tasa_fecha,
+    _validate_tasa_coherencia,
+)
 
 
 def _make_invoice(**overrides):
@@ -28,6 +36,7 @@ def _make_invoice(**overrides):
         "customer": "CUST-TEST",
         "conversion_rate": 653.9726,
         "currency": "USD",
+        "company": "COMPANY-TEST",
     }
     base.update(overrides)
     return SimpleNamespace(**base)
@@ -99,3 +108,39 @@ class TestComputeTasaFecha(unittest.TestCase):
 
         self.assertEqual(_compute_tasa_fecha(doc), "2026-07-01")
         mock_resolve.assert_not_called()
+
+
+@patch("frappe.get_cached_value", return_value="VEF")
+class TestValidateTasaCoherencia(unittest.TestCase):
+    """La validación aplica ahora también a jurídicos (fail-closed)."""
+
+    @patch("frappe.db.get_value", return_value=653.9726)
+    def test_passes_when_rate_matches_printed_date(self, _rate, _company):
+        """Flujo sano: la tasa del documento es la BCV de la fecha a imprimir."""
+        doc = _make_invoice(conversion_rate=653.9726)
+
+        _validate_tasa_coherencia(doc, "2026-07-02")  # no lanza
+
+    @patch("frappe.db.get_value", return_value=633.3644)
+    def test_blocks_when_rate_differs(self, _rate, _company):
+        """Tasa del documento ≠ BCV de la fecha a imprimir → bloquea el envío."""
+        doc = _make_invoice(conversion_rate=653.9726)
+
+        with self.assertRaises(frappe.ValidationError):
+            _validate_tasa_coherencia(doc, "2026-07-01")
+
+    @patch("frappe.db.get_value", return_value=None)
+    def test_blocks_when_no_rate_registered(self, _rate, _company):
+        """Sin fila en Currency Exchange para la fecha → bloquea el envío."""
+        doc = _make_invoice(conversion_rate=111.11)
+
+        with self.assertRaises(frappe.ValidationError):
+            _validate_tasa_coherencia(doc, "2026-07-01")
+
+    @patch("frappe.db.get_value")
+    def test_company_currency_document_skips_validation(self, mock_rate, _company):
+        """Documento en la moneda de la empresa (tasa 1.0): nada que validar."""
+        doc = _make_invoice(currency="VEF", conversion_rate=1.0)
+
+        _validate_tasa_coherencia(doc, "2026-07-01")  # no lanza
+        mock_rate.assert_not_called()
