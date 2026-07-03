@@ -989,7 +989,6 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
         frappe.log_error(frappe.get_traceback(), "Error ISLR Portal")
         return {"status": "error", "msg": str(e)}
 
-@frappe.whitelist()
 def _validate_void_authorization(doc) -> None:
     """Autorización para ANULAR (fiscalmente sensible), compartida por
     void_document y void_sales_invoice (HKA):
@@ -1009,6 +1008,7 @@ def _validate_void_authorization(doc) -> None:
             "User Permission",
             filters={"user": frappe.session.user, "allow": "VE Branch"},
             pluck="for_value",
+            ignore_permissions=True,
         )
         if allowed_branches and branch not in allowed_branches:
             frappe.throw(
@@ -1016,6 +1016,7 @@ def _validate_void_authorization(doc) -> None:
             )
 
 
+@frappe.whitelist()
 def void_document(doctype, name):
     """
     Marca el documento como anulado (is_void = 1).
@@ -1024,6 +1025,7 @@ def void_document(doctype, name):
 
     doc = frappe.get_doc(doctype, name)
     _validate_void_authorization(doc)
+    frappe.has_permission(doctype, ptype="cancel", doc=doc, throw=True)
 
     if doc.docstatus != 2:
         frappe.throw(_("Solo se pueden anular documentos que ya están cancelados."))

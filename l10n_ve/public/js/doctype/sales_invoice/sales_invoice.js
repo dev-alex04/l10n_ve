@@ -431,7 +431,8 @@ function user_can_void(frm) {
   const branch = frm.doc.branch;
   if (!branch) return true;
 
-  const branch_perms = frappe.defaults.get_user_permissions()["VE Branch"] || [];
+  const user_perms = frappe.defaults.get_user_permissions() || {};
+  const branch_perms = user_perms["VE Branch"] || [];
   if (!branch_perms.length) return true; // sin restricción de sucursal: acceso global
   return branch_perms.some((p) => (p.doc || p) === branch);
 }
