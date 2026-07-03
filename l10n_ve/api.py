@@ -746,15 +746,36 @@ def get_sales_data(company=None, period="today", date_from=None, date_to=None):
 
 @frappe.whitelist()
 def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None):
-    frappe.get_doc("Reporte Gerencial").check_permission("read")
-    
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Debe iniciar sesión para ver los datos."))
+    if not frappe.has_permission("Reporte Gerencial", "read"):
+        frappe.throw(_("No tiene permisos para acceder a este recurso."), frappe.PermissionError)
+        
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
     from frappe.utils import flt
     import io
     from l10n_ve.utils.utils import get_exchange_rate
-    from l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial import calculate_real_kpis
+    from l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial import (
+        calculate_real_kpis,
+        _get_allowed_branches,
+        _ve_branch_children
+    )
+
+    # Calculate allowed branch universe (hierarchy)
+    allowed = _get_allowed_branches(company)
+    allowed_set = set(allowed) if allowed is not None else None
+    if branch:
+        universe = set(_ve_branch_children(branch))
+        if allowed_set is not None:
+            universe &= allowed_set
+    elif allowed_set is not None:
+        universe = set(allowed_set)
+    else:
+        universe = None
+
+    branch_list = list(universe) if universe is not None else None
 
     # Setup styles
     font_title = Font(name="Calibri", size=16, bold=True, color="1F4E78")
@@ -825,25 +846,13 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             cell.fill = fill_header
             cell.alignment = align_center
 
-        from l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial import _get_allowed_branches, _ve_branch_children
         si_filters = {
             "docstatus": 1,
             "company": company,
             "posting_date": ["between", [date_from, date_to]]
         }
-        allowed = _get_allowed_branches(company)
-        allowed_set = set(allowed) if allowed is not None else None
-        if branch:
-            universe = set(_ve_branch_children(branch))
-            if allowed_set is not None:
-                universe &= allowed_set
-        elif allowed_set is not None:
-            universe = set(allowed_set)
-        else:
-            universe = None
-
-        if universe is not None:
-            si_filters["branch"] = ["in", (list(universe) or ["__no_access__"])]
+        if branch_list is not None:
+            si_filters["branch"] = ["in", (branch_list or ["__no_access__"])]
 
         table_filters = dict(si_filters)
         table_filters["docstatus"] = ["!=", 2]
@@ -964,9 +973,9 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
               and pe.posting_date between %(date_from)s and %(date_to)s
         """
         params = {"company": company, "date_from": date_from, "date_to": date_to}
-        if branch:
-            query += " and si.branch = %(branch)s"
-            params["branch"] = branch
+        if branch_list is not None:
+            query += " and si.branch in %(branches)s"
+            params["branches"] = branch_list or ["__no_access__"]
             
         res = frappe.db.sql(query, params, as_dict=True)
 
@@ -1227,9 +1236,9 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
               and pe.posting_date between %(date_from)s and %(date_to)s
         """
         params = {"company": company, "date_from": date_from, "date_to": date_to}
-        if branch:
-            query += " and si.branch = %(branch)s"
-            params["branch"] = branch
+        if branch_list is not None:
+            query += " and si.branch in %(branches)s"
+            params["branches"] = branch_list or ["__no_access__"]
             
         res = frappe.db.sql(query, params, as_dict=True)
         row_idx = 2
@@ -1303,9 +1312,9 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             where docstatus = 1 and company = %(company)s and expense_date between %(date_from)s and %(date_to)s
         """
         params_exp = {"company": company, "date_from": date_from, "date_to": date_to}
-        if branch:
-            query_expenses += " and branch = %(branch)s"
-            params_exp["branch"] = branch
+        if branch_list is not None:
+            query_expenses += " and branch in %(branches)s"
+            params_exp["branches"] = branch_list or ["__no_access__"]
         expenses_res = frappe.db.sql(query_expenses, params_exp, as_dict=True)
         
         row_idx = 2
@@ -1371,9 +1380,9 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
               and posting_date between %(date_from)s and %(date_to)s
         """
         params_inv = {"company": company, "date_from": date_from, "date_to": date_to}
-        if branch:
-            query_invoices += " and branch = %(branch)s"
-            params_inv["branch"] = branch
+        if branch_list is not None:
+            query_invoices += " and branch in %(branches)s"
+            params_inv["branches"] = branch_list or ["__no_access__"]
         invoices_list = frappe.db.sql(query_invoices, params_inv, as_dict=True)
         invoice_names = [x.name for x in invoices_list]
 
@@ -1473,9 +1482,9 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
               and posting_date between %(date_from)s and %(date_to)s
         """
         params_inv = {"company": company, "date_from": date_from, "date_to": date_to}
-        if branch:
-            query_invoices += " and branch = %(branch)s"
-            params_inv["branch"] = branch
+        if branch_list is not None:
+            query_invoices += " and branch in %(branches)s"
+            params_inv["branches"] = branch_list or ["__no_access__"]
         invoices_list = frappe.db.sql(query_invoices, params_inv, as_dict=True)
 
         row_idx = header_row_idx + 1

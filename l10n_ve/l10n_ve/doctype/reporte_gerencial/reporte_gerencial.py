@@ -1361,6 +1361,20 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
     if not exchange_rate:
         exchange_rate = flt(get_exchange_rate(date_to, "USD")) or 1.0
 
+    # Calculate allowed branch universe (hierarchy)
+    allowed = _get_allowed_branches(company)
+    allowed_set = set(allowed) if allowed is not None else None
+    if branch:
+        universe = set(_ve_branch_children(branch))
+        if allowed_set is not None:
+            universe &= allowed_set
+    elif allowed_set is not None:
+        universe = set(allowed_set)
+    else:
+        universe = None
+
+    branch_list = list(universe) if universe is not None else None
+
     # 1. Real Collections from standard Payment Entry and Payment Entry Reference
     query = """
         select 
@@ -1383,9 +1397,9 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
           and pe.posting_date between %(date_from)s and %(date_to)s
     """
     params = {"company": company, "date_from": date_from, "date_to": date_to}
-    if branch:
-        query += " and si.branch = %(branch)s"
-        params["branch"] = branch
+    if branch_list is not None:
+        query += " and si.branch in %(branches)s"
+        params["branches"] = branch_list or ["__no_access__"]
 
     res = frappe.db.sql(query, params, as_dict=True)
 
@@ -1455,9 +1469,9 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
         where docstatus = 1 and company = %(company)s and expense_date between %(date_from)s and %(date_to)s
     """
     params_exp = {"company": company, "date_from": date_from, "date_to": date_to}
-    if branch:
-        query_expenses += " and branch = %(branch)s"
-        params_exp["branch"] = branch
+    if branch_list is not None:
+        query_expenses += " and branch in %(branches)s"
+        params_exp["branches"] = branch_list or ["__no_access__"]
     query_expenses += " group by spending_currency"
 
     expenses_res = frappe.db.sql(query_expenses, params_exp, as_dict=True)
@@ -1495,9 +1509,9 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
               and posting_date between %(date_from)s and %(date_to)s
         """
         params_inv = {"company": company, "date_from": date_from, "date_to": date_to}
-        if branch:
-            query_invoices += " and branch = %(branch)s"
-            params_inv["branch"] = branch
+        if branch_list is not None:
+            query_invoices += " and branch in %(branches)s"
+            params_inv["branches"] = branch_list or ["__no_access__"]
 
         invoices_list = frappe.db.sql(query_invoices, params_inv, as_dict=True)
         invoice_names = [x.name for x in invoices_list]
@@ -1546,27 +1560,14 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
     available_vef = collected_ves_total - real_spent_vef
 
     # 5. Outstanding / Pending Invoices
-    from l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial import _get_allowed_branches, _ve_branch_children
-    
     si_filters = {
         "docstatus": 1,
         "company": company,
         "posting_date": ["between", [date_from, date_to]]
     }
-    
-    allowed = _get_allowed_branches(company)
-    allowed_set = set(allowed) if allowed is not None else None
-    if branch:
-        universe = set(_ve_branch_children(branch))
-        if allowed_set is not None:
-            universe &= allowed_set
-    elif allowed_set is not None:
-        universe = set(allowed_set)
-    else:
-        universe = None
 
-    if universe is not None:
-        si_filters["branch"] = ["in", (list(universe) or ["__no_access__"])]
+    if branch_list is not None:
+        si_filters["branch"] = ["in", (branch_list or ["__no_access__"])]
 
     table_filters = dict(si_filters)
     table_filters["docstatus"] = ["!=", 2]
