@@ -938,35 +938,47 @@ def create_bank_venezuelan()->str:
     for banco_data in bancos:
         codigo_banco = banco_data.get('codigo')
         nombre_banco = banco_data.get('nombre')
+        imagen_banco = banco_data.get('image')
 
         if not codigo_banco or not nombre_banco:
             frappe.log_message("Entrada de banco inválida, se omite", f"Datos: {banco_data}")
             errores.append(f"Entrada de banco inválida: {banco_data}")
             continue
 
-        if frappe.db.exists("Bank", {"swift_number": codigo_banco}):
-            bancos_existentes += 1
-            print(f"  -- Omitiendo (ya existe por código SWIFT): '{nombre_banco}' ({codigo_banco})")
-            continue
-
-        if frappe.db.exists("Bank", {"bank_name": nombre_banco}):
-            bancos_existentes += 1
-            print(f"  -- Omitiendo (ya existe por nombre): '{nombre_banco}' ({codigo_banco})")
-            continue
-
         try:
-            nuevo_banco = frappe.get_doc({
-                "doctype": "Bank",
-                "bank_name": nombre_banco,
-                "swift_number": codigo_banco,
-                "country": country_name
-            })
-            nuevo_banco.insert(ignore_permissions=True)
-            bancos_creados += 1
-            print(f"  -> Creado Banco: '{nombre_banco}' ({codigo_banco})")
+            bank_name = frappe.db.get_value("Bank", {"swift_number": codigo_banco}, "name") or frappe.db.get_value("Bank", {"bank_name": nombre_banco}, "name")
+            bank_doc = frappe.get_doc("Bank", bank_name) if bank_name else None
+
+            if bank_doc:
+                bancos_existentes += 1
+                needs_save = False
+                if not bank_doc.swift_number:
+                    bank_doc.swift_number = codigo_banco
+                    needs_save = True
+                if imagen_banco and not getattr(bank_doc, "image", None):
+                    if frappe.db.has_column("Bank", "image"):
+                        bank_doc.image = imagen_banco
+                        needs_save = True
+                if needs_save:
+                    bank_doc.save(ignore_permissions=True)
+                print(f"  -- Actualizado/Verificado: '{nombre_banco}' ({codigo_banco})")
+            else:
+                bank_dict = {
+                    "doctype": "Bank",
+                    "bank_name": nombre_banco,
+                    "swift_number": codigo_banco,
+                    "country": country_name
+                }
+                if imagen_banco and frappe.db.has_column("Bank", "image"):
+                    bank_dict["image"] = imagen_banco
+
+                nuevo_banco = frappe.get_doc(bank_dict)
+                nuevo_banco.insert(ignore_permissions=True)
+                bancos_creados += 1
+                print(f"  -> Creado Banco: '{nombre_banco}' ({codigo_banco})")
 
         except Exception as e:
-            error_msg = f"Error al crear el banco '{nombre_banco}' ({codigo_banco}): {e}"
+            error_msg = f"Error al crear o actualizar el banco '{nombre_banco}' ({codigo_banco}): {e}"
             frappe.log_error(error_msg, "Error de Importación de Bancos")
             errores.append(error_msg)
 

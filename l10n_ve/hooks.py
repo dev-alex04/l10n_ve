@@ -299,6 +299,10 @@ override_doctype_dashboards = {
 # Hook on document methods and events
 
 doc_events = {
+    "Bank": {
+        "on_change": "l10n_ve.api.clear_portal_banks_cache",
+        "on_trash": "l10n_ve.api.clear_portal_banks_cache",
+    },
     "ToDo": {
         "after_insert": "l10n_ve.overrides.task.auto_share_on_assignment",
     },
