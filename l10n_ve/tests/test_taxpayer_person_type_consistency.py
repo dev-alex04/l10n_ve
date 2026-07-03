@@ -77,23 +77,23 @@ class TestIsJuridicalCustomer(FrappeTestCase):
     @patch("l10n_ve.utils.utils.frappe.get_cached_value")
     def test_foreign_legal_entity_is_juridical(self, mock_get_cached_value) -> None:
         """Empresa extranjera no domiciliada -> jurídica (tratamiento fiscal correcto)."""
-        mock_get_cached_value.return_value = ["Extranjero", "Non-domiciled legal entity"]
+        mock_get_cached_value.side_effect = ["Extranjero", "Non-domiciled legal entity"]
         self.assertTrue(is_juridical_customer("CUST-FOREIGN-CO"))
 
     @patch("l10n_ve.utils.utils.frappe.get_cached_value")
     def test_foreign_natural_is_not_juridical(self, mock_get_cached_value) -> None:
         """Persona natural extranjera -> NO jurídica."""
-        mock_get_cached_value.return_value = ["Extranjero", "Non-domiciled natural person"]
+        mock_get_cached_value.side_effect = ["Extranjero", "Non-domiciled natural person"]
         self.assertFalse(is_juridical_customer("CUST-FOREIGN-NAT"))
 
     @patch("l10n_ve.utils.utils.frappe.get_cached_value")
     def test_juridical_nature_is_juridical(self, mock_get_cached_value) -> None:
         """Naturaleza jurídica -> jurídica (comportamiento previo intacto)."""
-        mock_get_cached_value.return_value = ["Juridical", "Domiciled legal entity"]
+        mock_get_cached_value.side_effect = ["Juridical", "Domiciled legal entity"]
         self.assertTrue(is_juridical_customer("CUST-JUR"))
 
     @patch("l10n_ve.utils.utils.frappe.get_cached_value")
     def test_venezuelan_natural_is_not_juridical(self, mock_get_cached_value) -> None:
         """Persona natural venezolana -> NO jurídica (comportamiento previo intacto)."""
-        mock_get_cached_value.return_value = ["Venezuelan", "Natural person domiciled"]
+        mock_get_cached_value.side_effect = ["Venezuelan", "Natural person domiciled"]
         self.assertFalse(is_juridical_customer("CUST-VE-NAT"))
