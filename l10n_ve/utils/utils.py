@@ -587,18 +587,21 @@ def resolve_exchange_rate_date(rate: float, from_currency: str = "USD", max_date
     if not flt(rate) or not from_currency or not to_currency or from_currency == to_currency:
         return None
 
+    # BETWEEN (sargable) en vez de ABS(col - x): permite usar índice sobre
+    # exchange_rate y expresa la misma tolerancia de ±0.0001.
+    rate_val: float = flt(rate)
     result = frappe.db.sql(
         """
         SELECT `date`
         FROM `tabCurrency Exchange`
-        WHERE ABS(`exchange_rate` - %s) < 0.0001
+        WHERE `exchange_rate` BETWEEN %s AND %s
             AND `from_currency` = %s
             AND `to_currency` = %s
             AND `date` <= %s
         ORDER BY `date` DESC
         LIMIT 1
         """,
-        (flt(rate), from_currency, to_currency, max_date or nowdate()),
+        (rate_val - 0.0001, rate_val + 0.0001, from_currency, to_currency, max_date or nowdate()),
     )
 
     return str(result[0][0]) if result else None

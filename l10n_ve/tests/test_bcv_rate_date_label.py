@@ -51,8 +51,9 @@ class TestResolveExchangeRateDate(unittest.TestCase):
 
         self.assertEqual(result, "2026-07-02")
         params = mock_sql.call_args[0][1]
-        self.assertEqual(params[0], 653.9726)
-        self.assertEqual(params[1], "USD")
+        self.assertAlmostEqual(params[0], 653.9725, places=6)  # rate - tolerancia
+        self.assertAlmostEqual(params[1], 653.9727, places=6)  # rate + tolerancia
+        self.assertEqual(params[2], "USD")
 
     @patch("frappe.db.sql", return_value=[])
     @patch("frappe.defaults.get_defaults", return_value={"currency": "VEF"})
