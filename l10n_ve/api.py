@@ -4,25 +4,40 @@ from frappe import _
 import frappe
 
 @frappe.whitelist()
-def get_portal_banks() -> list[str]:
-    cache_key = "l10n_ve:portal_banks"
+def get_portal_banks() -> list[dict]:
+    """Retorna la lista de bancos para el portal de clientes, optimizado en caché de memoria (Redis) para evitar consultas a la BD."""
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Por favor, inicie sesión"), frappe.PermissionError)
+
+    cache_key = "l10n_ve:portal_banks_v2"
     portal_banks = frappe.cache().get_value(cache_key)
 
     if portal_banks:
         return portal_banks
 
+    bank_fields: list[str] = ["name", "bank_name", "swift_number"]
+    if frappe.db.has_column("Bank", "image"):
+        bank_fields.append("image")
+
     portal_banks = frappe.db.get_all(
         "Bank",
-        fields=["name"],
+        fields=bank_fields,
+        order_by="bank_name asc",
         ignore_permissions=True,
     )
 
     frappe.cache().set_value(
         cache_key,
         portal_banks,
-        expires_in_sec=3600
+        expires_in_sec=86400
     )
     return portal_banks
+
+
+def clear_portal_banks_cache(doc=None, method=None) -> None:
+    """Invalida la caché del portal cuando se crea, modifica o elimina un registro en el DocType Bank."""
+    frappe.cache().delete_value("l10n_ve:portal_banks_v2")
+
 
 
 
