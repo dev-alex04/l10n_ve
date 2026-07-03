@@ -20,6 +20,7 @@
   "column_break_inzw",
   "parent_ve_branch",
   "cost_center",
+  "phone_cobranzas",
   "impuestos_section",
   "num_license_economic",
   "column_break_ixms",
@@ -126,6 +127,11 @@
    "fieldtype": "Data",
    "label": "Email Branch",
    "options": "Email"
+  },
+  {
+   "fieldname": "phone_cobranzas",
+   "fieldtype": "Data",
+   "label": "Tel\u00e9fono de Cobranzas"
   },
   {
    "fieldname": "cost_center",
