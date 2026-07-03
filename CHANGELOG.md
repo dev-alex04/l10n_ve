@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.11.0] - 2026-07-03
+
+### ✨ Funcionalidades (Features)
+- Se extendió la validación de coherencia de tasa (_validate_tasa_coherencia) para incluir a personas jurídicas bajo un esquema de fail-closed en el módulo HKA. [948f6c1]
+- Incorporación del nuevo campo "Teléfono de cobranzas" en el modelo de VE Branch. [d34726e]
+
+### 🐛 Correcciones (Fixes)
+- Corrección en la lógica de resolución de la tasa BCV: ahora se determina a partir de la tasa del documento en lugar de la fecha de contabilización (posting_date). [50b70fd]
+- Refactorización de la función resolve_exchange_rate_date para implementar una consulta sargable, optimizando el rendimiento y el uso de índices en la base de datos. [eb3ce28]
+
+---
+
 ## [v2.10.1] - 2026-07-03
 
 ### 🐛 Correcciones (Fixes)
