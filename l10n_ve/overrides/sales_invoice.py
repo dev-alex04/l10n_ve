@@ -990,6 +990,32 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
         return {"status": "error", "msg": str(e)}
 
 @frappe.whitelist()
+def _validate_void_authorization(doc) -> None:
+    """Autorización para ANULAR (fiscalmente sensible), compartida por
+    void_document y void_sales_invoice (HKA):
+
+    - Solo el Gerente de Contabilidad (rol "Accounts Manager"); only_for exime a
+      Administrator. Los botones del cliente se ocultan con la misma regla, pero
+      esta validación es la garantía real (los métodos son whitelisted).
+    - Si el documento tiene sucursal, el usuario además debe tener acceso a esa
+      VE Branch (User Permission). Sin User Permissions de VE Branch el usuario
+      es global (sin restricción por sucursal).
+    """
+    frappe.only_for("Accounts Manager")
+
+    branch = doc.get("branch")
+    if branch and frappe.session.user != "Administrator":
+        allowed_branches = frappe.get_all(
+            "User Permission",
+            filters={"user": frappe.session.user, "allow": "VE Branch"},
+            pluck="for_value",
+        )
+        if allowed_branches and branch not in allowed_branches:
+            frappe.throw(
+                _("No tienes acceso a la sucursal {0} para anular este documento.").format(branch)
+            )
+
+
 def void_document(doctype, name):
     """
     Marca el documento como anulado (is_void = 1).
@@ -997,6 +1023,8 @@ def void_document(doctype, name):
     """
 
     doc = frappe.get_doc(doctype, name)
+    _validate_void_authorization(doc)
+
     if doc.docstatus != 2:
         frappe.throw(_("Solo se pueden anular documentos que ya están cancelados."))
 
@@ -1074,6 +1102,7 @@ def void_sales_invoice(
     from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 
     invoice: "VESalesInvoice" = frappe.get_doc("Sales Invoice", docname)
+    _validate_void_authorization(invoice)
     frappe.has_permission("Sales Invoice", ptype="cancel", doc=invoice, throw=True)
 
     if invoice.docstatus != 1:

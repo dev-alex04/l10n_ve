@@ -417,10 +417,30 @@ function print_button_pdf(frm) {
 }
 
 /**
+ * Solo el Gerente de Contabilidad (Accounts Manager) puede anular; y si el
+ * documento tiene sucursal, además debe tener acceso a esa VE Branch
+ * (User Permission). Espejo de la validación server-side de void_document
+ * (ocultar el botón es cosmético: la garantía real está en el servidor).
+ * @param {object} frm
+ * @returns {boolean}
+ */
+function user_can_void(frm) {
+  if (frappe.session.user === "Administrator") return true;
+  if (!frappe.user.has_role("Accounts Manager")) return false;
+
+  const branch = frm.doc.branch;
+  if (!branch) return true;
+
+  const branch_perms = frappe.defaults.get_user_permissions()["VE Branch"] || [];
+  if (!branch_perms.length) return true; // sin restricción de sucursal: acceso global
+  return branch_perms.some((p) => (p.doc || p) === branch);
+}
+
+/**
  * @param {object} frm
  */
 function setup_void_button(frm) {
-  if (frm.doc.docstatus === 2 && !frm.doc.is_void) {
+  if (frm.doc.docstatus === 2 && !frm.doc.is_void && user_can_void(frm)) {
     frm.add_custom_button(
       __("Anular Documento"),
       function () {
@@ -1016,6 +1036,9 @@ function setup_debit_note_button(frm) {
  */
 function setup_hka_void_button(frm) {
   if (frm.doc.docstatus !== 1 || !frm.doc.bill_no) return;
+  // Misma regla de visibilidad que "Anular Documento": solo Accounts Manager
+  // con acceso a la sucursal del documento (ver user_can_void).
+  if (!user_can_void(frm)) return;
 
   frm.add_custom_button(
     __("Anular Factura de Venta"),
