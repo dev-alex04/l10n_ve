@@ -23,23 +23,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Lucide Icons (Local + defer) -->
+    <script src="/assets/l10n_ve/js/lucide.min.js" defer></script>
     
-    <!-- ApexCharts for Premium Data Visualizations -->
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <!-- ApexCharts for Premium Visualizations (Local + defer) -->
+    <script src="/assets/l10n_ve/js/apexcharts.min.js" defer></script>
     
-    <!-- Leaflet.js for Interactive Maps -->
+    <!-- Leaflet.js for Interactive Maps (CDN + defer) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
     
-    <!-- Flatpickr for Premium Datepicker -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+    <!-- Flatpickr for Premium Datepicker (Local + defer) -->
+    <link rel="stylesheet" href="/assets/l10n_ve/css/flatpickr.min.css">
+    <script src="/assets/l10n_ve/js/flatpickr.min.js" defer></script>
+    <script src="/assets/l10n_ve/js/flatpickr.es.js" defer></script>
     
     <!-- Local Stylesheet -->
-    <link rel="stylesheet" href="/reporte-pro/index.css?v=7">
+    <link rel="stylesheet" href="/reporte-pro/index.css?v=8">
     <!-- Frappe CSRF token & session injected from server -->
     <script>
         window.csrf_token = "{{ csrf_token }}";
@@ -745,6 +745,6 @@
     </div>
 
     <!-- Local Script -->
-    <script src="/reporte-pro/index.js?v=7"></script>
+    <script src="/reporte-pro/index.js?v=8" defer></script>
 </body>
 </html>

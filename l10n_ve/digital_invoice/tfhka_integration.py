@@ -7,7 +7,7 @@ from frappe.utils import flt, getdate, cint, today
 
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder, resolve_zone_from_address
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
-from l10n_ve.utils.utils import is_juridical_customer
+from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
 
 SUPPORTED_DOCTYPES = ("Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note")
 
@@ -134,25 +134,36 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
 
 def _compute_tasa_fecha(doc: object) -> str:
     """
-    Calcula la fecha de la tasa BCV a partir del posting_date ORIGINAL del documento
-    (antes de que sea actualizado a la fecha de certificación HKA).
+    Calcula la fecha de la tasa BCV que debe mostrar el documento impreso.
 
-    - Jurídico: fecha exacta del posting_date.
-    - Natural:   primer día del mes del posting_date.
+    - Jurídico: fecha REAL de la tasa que porta el documento (lookup inverso
+      en Currency Exchange sobre conversion_rate). No puede inferirse del
+      posting_date: la tasa del jurídico se actualiza al primer pago
+      (_sync_invoice_with_rate en domina_isp), que puede ocurrir días después
+      de generada la factura. Fallback: posting_date si ninguna fila coincide.
+    - Natural: primer día del mes del posting_date (tasa congelada del 1°;
+      _validate_tasa_coherencia garantiza que coincida con la del documento).
+
+    Se calcula ANTES de que posting_date sea actualizado a la fecha de
+    certificación HKA.
     """
     fecha_base = getdate(doc.posting_date)
     if not is_juridical_customer(doc.customer):
-        fecha_base = fecha_base.replace(day=1)
-    return str(fecha_base)
+        return str(fecha_base.replace(day=1))
+
+    rate_date = resolve_exchange_rate_date(flt(doc.conversion_rate), doc.currency)
+    return rate_date or str(fecha_base)
 
 
 def _validate_tasa_coherencia(doc: object, tasa_fecha: str) -> None:
     """
     Verifica que la tasa de cambio registrada en el documento coincida
-    con la tasa BCV de Currency Exchange para la fecha calculada.
+    con la tasa BCV de Currency Exchange para la fecha que se va a IMPRIMIR
+    en el texto "de fecha valor DD/MM/YYYY" del documento fiscal.
 
     Si no existe tasa registrada para esa fecha, o si la tasa del documento
-    difiere de la registrada, se lanza un error bloqueando el envío a HKA.
+    difiere de la registrada, se lanza un error bloqueando el envío a HKA:
+    mejor bloquear que certificar un par tasa/fecha inconsistente ante SENIAT.
     """
     if not flt(doc.conversion_rate):
         return
@@ -160,6 +171,11 @@ def _validate_tasa_coherencia(doc: object, tasa_fecha: str) -> None:
     company_currency: str = frappe.get_cached_value(
         "Company", doc.company, "default_currency"
     ) or "VEF"
+
+    # Documento en la moneda de la empresa (tasa 1.0): no hay cruce de moneda
+    # que validar y Currency Exchange no registra filas VEF→VEF.
+    if doc.currency == company_currency:
+        return
 
     tasa_registrada: float = frappe.db.get_value(
         "Currency Exchange",
@@ -638,10 +654,15 @@ def process_invoice(
         else:
             tasa_fecha: str = _compute_tasa_fecha(doc)
 
-        # Verificar que la tasa del documento coincida con la BCV registrada.
-        # Solo aplica a facturas de personas naturales.
+        # Verificar que la tasa del documento coincida con la BCV registrada
+        # para la fecha que se va a imprimir (fail-closed).
+        # - Natural: tasa_fecha = 1° del mes → detecta tasa desalineada.
+        # - Jurídico: tasa_fecha se resolvió DESDE la tasa (lookup inverso),
+        #   así que el flujo sano pasa trivialmente; si no hubo fila
+        #   coincidente cayó al posting_date y esto bloquea la emisión de
+        #   una tasa que no existe en Currency Exchange.
         # NC y ND se omiten: su tasa es heredada de la factura original.
-        if not skip_si_validations and not is_juridical_customer(doc.customer) and not force:
+        if not skip_si_validations and not force:
             _validate_tasa_coherencia(doc, tasa_fecha)
 
         fecha_hka: str = today()
@@ -846,7 +867,8 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
 
     tc: float = flt(doc.conversion_rate) if doc.conversion_rate else 1.0
     if is_juridical_customer(doc.customer):
-        fecha_bcv = getdate(doc.posting_date)
+        # Fecha real de la tasa del documento (misma regla que _compute_tasa_fecha).
+        fecha_bcv = getdate(resolve_exchange_rate_date(tc, doc.currency) or doc.posting_date)
     else:
         fecha_bcv = getdate(doc.posting_date).replace(day=1)
 

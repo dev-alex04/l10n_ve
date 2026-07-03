@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.11.0] - 2026-07-03
+
+### ✨ Funcionalidades (Features)
+- Se extendió la validación de coherencia de tasa (_validate_tasa_coherencia) para incluir a personas jurídicas bajo un esquema de fail-closed en el módulo HKA. [948f6c1]
+- Incorporación del nuevo campo "Teléfono de cobranzas" en el modelo de VE Branch. [d34726e]
+
+### 🐛 Correcciones (Fixes)
+- Corrección en la lógica de resolución de la tasa BCV: ahora se determina a partir de la tasa del documento en lugar de la fecha de contabilización (posting_date). [50b70fd]
+- Refactorización de la función resolve_exchange_rate_date para implementar una consulta sargable, optimizando el rendimiento y el uso de índices en la base de datos. [eb3ce28]
+
+---
+
+## [v2.10.1] - 2026-07-03
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error de lógica ("too many values to unpack") en la función de utilidad `is_juridical_customer` que afectaba el procesamiento de tipos de cliente. [5f8cd83]
+
+---
+
+## [v2.10.0] - 2026-07-02
+
+### ✨ Funcionalidades (Features)
+- Optimización del rendimiento en base de datos mediante el ajuste del orden de columnas en el índice compuesto de **Sales Invoice**. (78cf0e8)
+- Implementación de validaciones dinámicas y estáticas para filtros de fechas en **Reporte Pro**. (78cc35e)
+- Mejora en la velocidad de carga y alineación técnica de los KPIs de flujo de caja real en **Reporte Pro**. (e6a0640)
+
+---
+
 ## [v2.9.3] - 2026-06-22
 
 ### 🐛 Correcciones (Fixes)
