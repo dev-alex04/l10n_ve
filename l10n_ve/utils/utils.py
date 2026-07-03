@@ -574,6 +574,39 @@ def _query_exchange_rate(date: str, from_currency: str, to_currency: str) -> flo
 
     return flt(result[0][0]) if result else 0
 
+
+def resolve_exchange_rate_date(rate: float, from_currency: str = "USD", max_date: str = None) -> str | None:
+    """Fecha real de publicación de una tasa: lookup INVERSO en Currency Exchange.
+
+    Inverso de get_exchange_rate: dada la tasa que porta un documento, devuelve
+    la fecha (más reciente <= max_date) en que el BCV publicó exactamente esa
+    tasa, o None si ninguna fila coincide. Permite etiquetar el documento con
+    la fecha verdadera de su tasa sin inferirla del posting_date — inferencia
+    que falla cuando la tasa se actualizó después (ej. re-tasado de jurídicos
+    al primer pago) o cuando get_exchange_rate cayó a la fila de un día
+    anterior porque el BCV aún no cargaba la del día solicitado.
+    """
+    to_currency = frappe.defaults.get_defaults().get("currency")
+    if not flt(rate) or not from_currency or not to_currency or from_currency == to_currency:
+        return None
+
+    result = frappe.db.sql(
+        """
+        SELECT `date`
+        FROM `tabCurrency Exchange`
+        WHERE ABS(`exchange_rate` - %s) < 0.0001
+            AND `from_currency` = %s
+            AND `to_currency` = %s
+            AND `date` <= %s
+        ORDER BY `date` DESC
+        LIMIT 1
+        """,
+        (flt(rate), from_currency, to_currency, max_date or nowdate()),
+    )
+
+    return str(result[0][0]) if result else None
+
+
 def clear_exchange_rate_cache(doc=None, method=None) -> None:
     """Invalida el caché de tasas de cambio.
     Se invoca desde los doc_events de 'Currency Exchange' (alta/edición/baja
