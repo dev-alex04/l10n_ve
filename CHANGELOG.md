@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.12.0] - 2026-07-03
+
+### ✨ Funcionalidades (Features)
+- Se agregó el campo de logo en la entidad Bank y se implementó la integración con soporte para códigos SWIFT de 4 dígitos. 37c95a3
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la configuración de visibilidad de campos en la vista de lista (`in_list_view`). 500d7c7
+
+---
+
 ## [v2.11.0] - 2026-07-03
 
 ### ✨ Funcionalidades (Features)
