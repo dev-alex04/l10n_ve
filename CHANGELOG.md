@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.13.0] - 2026-07-04
+
+### ✨ Funcionalidades (Features)
+- Actualización y optimización integral del Reporte Gerencial y Reporte Pro, incluyendo mejoras en el formato visual y centrado de tablas.
+- Refactorización de la API para el manejo de descargas de detalles KPI en Excel, mejorando la estructura del módulo de reportes.
+
+### 🐛 Correcciones (Fixes)
+- Resolución de vulnerabilidad crítica de seguridad BOLA (Broken Object Level Authorization) mediante la implementación de filtrado jerárquico de sucursales.
+- Corrección en el cálculo de ratios de Base, IVA e IGTF para los procesos de cobro en divisas USD y VES.
+- Ajuste en la lógica de obtención de datos para tarjetas KPI, normalizando la referencia a las tablas de entradas de pago.
+- Mejora en la visualización de las vistas de lista de facturas de venta y compra mediante la implementación de columnas dinámicas para campos de fecha.
+
+---
+
 ## [v2.12.0] - 2026-07-03
 
 ### ✨ Funcionalidades (Features)
