@@ -1839,7 +1839,7 @@ function downloadKpiExcel(kpiName) {
         kpi_name: kpiName
     });
 
-    const downloadUrl = `/api/method/l10n_ve.api.download_kpi_detail_excel?${params.toString()}`;
+    const downloadUrl = `/api/method/l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial.download_kpi_detail_excel?${params.toString()}`;
     window.open(downloadUrl, '_blank');
 }
 
