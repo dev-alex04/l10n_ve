@@ -88,6 +88,12 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
         "grand_total":            flt(kpis.get("total_pendiente_usd", 0)),
         "total_pendiente_usd":    flt(kpis.get("total_pendiente_usd", 0)),
         "total_pendiente_vef":    flt(kpis.get("total_pendiente_vef", 0)),
+        "total_borrador_usd":    flt(kpis.get("total_borrador_usd", 0)),
+        "total_borrador_vef":    flt(kpis.get("total_borrador_vef", 0)),
+        "borrador_count":        kpis.get("borrador_count", 0),
+        "total_cobrable_usd":    flt(kpis.get("total_cobrable_usd", 0)),
+        "total_cobrable_vef":    flt(kpis.get("total_cobrable_vef", 0)),
+        "cobrable_count":        kpis.get("cobrable_count", 0),
         "pending_base_amount":    0.0,
         "pending_tax_amount":     0.0,
 

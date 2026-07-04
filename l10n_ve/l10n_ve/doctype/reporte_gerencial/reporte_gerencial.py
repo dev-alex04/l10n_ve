@@ -868,9 +868,16 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
             <div class="cards-row">
                 <div class="card-cell">
                     <div class="mini-card" style="border-top: 3px solid #64748b;">
-                        <div class="mini-card-label">Por Cobrar</div>
-                        <div class="mini-card-value">{{ k_cobrar_usd_f }}</div>
-                        <div class="mini-card-subtext">{{ k_cobrar_ves_f }}</div>
+                        <div class="mini-card-label">Pendiente por Cobrar</div>
+                        <div class="mini-card-value">{{ k_cobrable_usd_f }}</div>
+                        <div class="mini-card-subtext">{{ k_cobrable_ves_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #0284c7;">
+                        <div class="mini-card-label">Borradores</div>
+                        <div class="mini-card-value">{{ k_borrador_usd_f }}</div>
+                        <div class="mini-card-subtext">{{ k_borrador_ves_f }}</div>
                     </div>
                 </div>
                 <div class="card-cell">
@@ -887,7 +894,7 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
                         <div class="mini-card-label">Cobrado Bs.</div>
                         <div class="mini-card-value">{{ k_cobrado_ves_f }}</div>
                         <div class="mini-card-subtext" style="font-size: 6pt; color: #475569;">
-                            Base: {{ k_cobrado_ves_base_f }} | IVA: {{ k_cobrado_ves_tax_f }} | IGTF: {{ k_cobrado_ves_igtf_f }}
+                            Base: {{ k_cobrado_ves_base_f }} | IVA: {{ k_cobrado_ves_tax_f }}
                         </div>
                     </div>
                 </div>
@@ -1047,6 +1054,10 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
         # Nuevos KPIs
         "k_cobrar_usd_f": format_currency_ve_py(real_kpis.get("total_pendiente_usd", 0.0), "USD"),
         "k_cobrar_ves_f": format_currency_ve_py(real_kpis.get("total_pendiente_vef", 0.0), "VEF"),
+        "k_borrador_usd_f": format_currency_ve_py(real_kpis.get("total_borrador_usd", 0.0), "USD"),
+        "k_borrador_ves_f": format_currency_ve_py(real_kpis.get("total_borrador_vef", 0.0), "VEF"),
+        "k_cobrable_usd_f": format_currency_ve_py(real_kpis.get("total_cobrable_usd", 0.0), "USD"),
+        "k_cobrable_ves_f": format_currency_ve_py(real_kpis.get("total_cobrable_vef", 0.0), "VEF"),
         
         "k_cobrado_usd_f": format_currency_ve_py(real_kpis.get("collected_usd_total", 0.0), "USD"),
         "k_cobrado_usd_base_f": format_currency_ve_py(real_kpis.get("collected_usd_base", 0.0), "USD"),
@@ -1185,14 +1196,14 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
             t_util += flt(r.get("profit", 0))
             v_util += flt(r.get("profit_vef", 0))
             
-    # Dibujar mini tarjetas (3 filas de 3 tarjetas cada una)
+    # Dibujar mini tarjetas (4 filas de 3 tarjetas cada una)
     # Fila 1 de Tarjetas (Filas 5 a 7)
-    # 1. Por cobrar
-    _draw_excel_card(ws, start_col=2, start_row=5, label="Por cobrar", usd_val=real_kpis.get("total_pendiente_usd", 0.0), vef_val=real_kpis.get("total_pendiente_vef", 0.0), accent_color="64748B")
-    # 2. Cobrado REF ($)
-    _draw_excel_card(ws, start_col=10, start_row=5, label="Cobrado REF ($)", usd_val=real_kpis.get("collected_usd_total", 0.0), vef_val=real_kpis.get("collected_usd_total", 0.0) * rate_today, accent_color="10B981")
-    # 3. Cobrado Bs.
-    _draw_excel_card(ws, start_col=18, start_row=5, label="Cobrado Bs.", usd_val=real_kpis.get("collected_ves_total", 0.0) / rate_today if rate_today else 0.0, vef_val=real_kpis.get("collected_ves_total", 0.0), accent_color="059669")
+    # 1. Pendiente por cobrar
+    _draw_excel_card(ws, start_col=2, start_row=5, label="Pendiente por cobrar", usd_val=real_kpis.get("total_cobrable_usd", 0.0), vef_val=real_kpis.get("total_cobrable_vef", 0.0), accent_color="64748B")
+    # 2. Borradores
+    _draw_excel_card(ws, start_col=10, start_row=5, label="Borradores", usd_val=real_kpis.get("total_borrador_usd", 0.0), vef_val=real_kpis.get("total_borrador_vef", 0.0), accent_color="0284C7")
+    # 3. Cobrado REF ($)
+    _draw_excel_card(ws, start_col=18, start_row=5, label="Cobrado REF ($)", usd_val=real_kpis.get("collected_usd_total", 0.0), vef_val=real_kpis.get("collected_usd_total", 0.0) * rate_today, accent_color="10B981")
     
     ws.row_dimensions[5].height = 16
     ws.row_dimensions[6].height = 22
@@ -1202,12 +1213,12 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
     ws.row_dimensions[8].height = 10
     
     # Fila 2 de Tarjetas (Filas 9 a 11)
-    # 4. Gastos
-    _draw_excel_card(ws, start_col=2, start_row=9, label="Gastos", usd_val=real_kpis.get("total_expenses_usd", 0.0), vef_val=real_kpis.get("total_expenses_vef", 0.0), accent_color="EC4899")
-    # 5. Disponible REF ($)
-    _draw_excel_card(ws, start_col=10, start_row=9, label="Disponible REF ($)", usd_val=real_kpis.get("available_usd", 0.0), vef_val=real_kpis.get("available_usd", 0.0) * rate_today, accent_color="06B6D4")
-    # 6. Disponible Bs.
-    _draw_excel_card(ws, start_col=18, start_row=9, label="Disponible Bs.", usd_val=real_kpis.get("available_vef", 0.0) / rate_today if rate_today else 0.0, vef_val=real_kpis.get("available_vef", 0.0), accent_color="3B82F6")
+    # 4. Cobrado Bs.
+    _draw_excel_card(ws, start_col=2, start_row=9, label="Cobrado Bs.", usd_val=real_kpis.get("collected_ves_total", 0.0) / rate_today if rate_today else 0.0, vef_val=real_kpis.get("collected_ves_total", 0.0), accent_color="059669")
+    # 5. Gastos
+    _draw_excel_card(ws, start_col=10, start_row=9, label="Gastos", usd_val=real_kpis.get("total_expenses_usd", 0.0), vef_val=real_kpis.get("total_expenses_vef", 0.0), accent_color="EC4899")
+    # 6. Disponible REF ($)
+    _draw_excel_card(ws, start_col=18, start_row=9, label="Disponible REF ($)", usd_val=real_kpis.get("available_usd", 0.0), vef_val=real_kpis.get("available_usd", 0.0) * rate_today, accent_color="06B6D4")
     
     ws.row_dimensions[9].height = 16
     ws.row_dimensions[10].height = 22
@@ -1217,37 +1228,48 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
     ws.row_dimensions[12].height = 10
     
     # Fila 3 de Tarjetas (Filas 13 a 15)
-    # 7. Retención IVA
-    _draw_excel_card(ws, start_col=2, start_row=13, label="Retención IVA", usd_val=real_kpis.get("ret_iva_usd", 0.0), vef_val=real_kpis.get("ret_iva_vef", 0.0), accent_color="F59E0B")
-    # 8. Retención ISLR
-    _draw_excel_card(ws, start_col=10, start_row=13, label="Retención ISLR", usd_val=real_kpis.get("ret_islr_usd", 0.0), vef_val=real_kpis.get("ret_islr_vef", 0.0), accent_color="D97706")
-    # 9. IGTF Total
-    _draw_excel_card(ws, start_col=18, start_row=13, label="IGTF Total", usd_val=real_kpis.get("collected_usd_igtf", 0.0), vef_val=real_kpis.get("collected_ves_igtf", 0.0), accent_color="EF4444")
+    # 7. Disponible Bs.
+    _draw_excel_card(ws, start_col=2, start_row=13, label="Disponible Bs.", usd_val=real_kpis.get("available_vef", 0.0) / rate_today if rate_today else 0.0, vef_val=real_kpis.get("available_vef", 0.0), accent_color="3B82F6")
+    # 8. Retención IVA
+    _draw_excel_card(ws, start_col=10, start_row=13, label="Retención IVA", usd_val=real_kpis.get("ret_iva_usd", 0.0), vef_val=real_kpis.get("ret_iva_vef", 0.0), accent_color="F59E0B")
+    # 9. Retención ISLR
+    _draw_excel_card(ws, start_col=18, start_row=13, label="Retención ISLR", usd_val=real_kpis.get("ret_islr_usd", 0.0), vef_val=real_kpis.get("ret_islr_vef", 0.0), accent_color="D97706")
     
     ws.row_dimensions[13].height = 16
     ws.row_dimensions[14].height = 22
     ws.row_dimensions[15].height = 18
     
     # Separador (Fila 16)
-    ws.row_dimensions[16].height = 12
+    ws.row_dimensions[16].height = 10
+
+    # Fila 4 de Tarjetas (Filas 17 a 19)
+    # 10. IGTF Total
+    _draw_excel_card(ws, start_col=2, start_row=17, label="IGTF Total", usd_val=real_kpis.get("collected_usd_igtf", 0.0), vef_val=real_kpis.get("collected_ves_igtf", 0.0), accent_color="EF4444")
     
-    # Título de Sección "Resumen Financiero por Sucursal" (Fila 17)
-    ws.row_dimensions[17].height = 22
-    ws.merge_cells(start_row=17, start_column=1, end_row=17, end_column=25)
-    title_cell = ws.cell(row=17, column=1, value="RESUMEN FINANCIERO POR SUCURSAL")
+    ws.row_dimensions[17].height = 16
+    ws.row_dimensions[18].height = 22
+    ws.row_dimensions[19].height = 18
+    
+    # Separador (Fila 20)
+    ws.row_dimensions[20].height = 12
+    
+    # Título de Sección "Resumen Financiero por Sucursal" (Fila 21)
+    ws.row_dimensions[21].height = 22
+    ws.merge_cells(start_row=21, start_column=1, end_row=21, end_column=25)
+    title_cell = ws.cell(row=21, column=1, value="RESUMEN FINANCIERO POR SUCURSAL")
     title_cell.font = Font(name=font_family, size=11, bold=True, color="0F172A")
     title_cell.alignment = align_left
     
     title_border_side = Side(style='thin', color="CBD5E1")
     for col_idx in range(1, 26):
-        ws.cell(row=17, column=col_idx).border = Border(bottom=title_border_side)
+        ws.cell(row=21, column=col_idx).border = Border(bottom=title_border_side)
         
-    # Separador (Fila 18)
-    ws.row_dimensions[18].height = 8
+    # Separador (Fila 22)
+    ws.row_dimensions[22].height = 8
     
     headers = [
         "Sucursal",
-        "Por cobrar (USD)", "Por cobrar (Bs.)",
+        "Pendiente por cobrar (USD)", "Pendiente por cobrar (Bs.)",
         "Orden de Pago (USD)", "Orden de Pago (Bs.)",
         "IVA Orden de Pago (USD)", "IVA Orden de Pago (Bs.)",
         "Facturado (USD)", "Facturado (Bs.)",
@@ -1261,16 +1283,16 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
         "Utilidad (USD)", "Utilidad (Bs.)"
     ]
     
-    # Cabeceras de la tabla (Fila 19)
-    ws.row_dimensions[19].height = 28
+    # Cabeceras de la tabla (Fila 23)
+    ws.row_dimensions[23].height = 28
     for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=19, column=col_idx, value=h)
+        cell = ws.cell(row=23, column=col_idx, value=h)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = align_center
         cell.border = Border(left=thin_grid, right=thin_grid, top=thin_accent, bottom=thin_accent)
         
-    row_num = 20
+    row_num = 24
     for r in data.get("branch_financial_summary") or []:
         is_grp = r.get("is_group", False)
         indent = r.get("indent", 0)
@@ -1345,11 +1367,11 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
         cell.number_format = '#,##0.00;(#,##0.00);"-"'
         cell.fill = total_fill
         
-    # Ajustar ancho de columnas escaneando desde la cabecera de la tabla (fila 19) en adelante
+    # Ajustar ancho de columnas escaneando desde la cabecera de la tabla (fila 23) en adelante
     for col_idx in range(1, 26):
         col_letter = get_column_letter(col_idx)
         max_len = 0
-        for r in range(19, row_num + 1):
+        for r in range(23, row_num + 1):
             cell_val = ws.cell(row=r, column=col_idx).value
             if cell_val is not None:
                 val_str = f"{cell_val:,.2f}" if isinstance(cell_val, (int, float)) else str(cell_val)
@@ -1601,8 +1623,72 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
                     real_ret_islr_usd += vat_usd
 
     # 4. Real Available
-    available_usd = collected_usd_total - real_spent_usd
-    available_vef = collected_ves_total - real_spent_vef
+    # 4. Real Available (Cumulative from beginning of time up to date_to)
+    # Cumulative collections query (ignoring date_from)
+    query_cum_collected = """
+        select 
+            pe.paid_on_currency,
+            pe.paid_currency_amount,
+            ref.allocated_amount,
+            pe.total_allocated_amount
+        from `tabPayment Entry Reference` ref
+        join `tabPayment Entry` pe on ref.parent = pe.name
+        join `tabSales Invoice` si on ref.reference_name = si.name
+        where pe.docstatus = 1
+          and pe.company = %(company)s
+          and pe.posting_date <= %(date_to)s
+    """
+    params_cum_col = {"company": company, "date_to": date_to}
+    if branch_list is not None:
+        query_cum_collected += " and si.branch in %(branches)s"
+        params_cum_col["branches"] = tuple(branch_list) if branch_list else ("__no_access__",)
+
+    res_cum_col = frappe.db.sql(query_cum_collected, params_cum_col, as_dict=True)
+    cum_collected_usd = 0.0
+    cum_collected_vef = 0.0
+
+    for row in res_cum_col:
+        currency = row['paid_on_currency'] or 'VEF'
+        pe_total_allocated = flt(row['total_allocated_amount'] or 0)
+        allocated = flt(row['allocated_amount'] or 0)
+        
+        ratio = allocated / pe_total_allocated if pe_total_allocated > 0 else 1.0
+        
+        paid_currency_total = flt(row['paid_currency_amount'] or 0)
+        paid_currency_ref = paid_currency_total * ratio
+        paid_loc = allocated
+        
+        if currency == 'USD':
+            cum_collected_usd += paid_currency_ref
+        elif currency in ('VEF', 'VES'):
+            cum_collected_vef += paid_loc
+
+    # Cumulative expenses query (ignoring date_from)
+    query_cum_expenses = """
+        select 
+            spending_currency,
+            sum(total_exchange) as total_usd,
+            sum(total) as total_vef
+        from `tabExpense`
+        where docstatus = 1 and company = %(company)s and expense_date <= %(date_to)s
+    """
+    params_cum_exp = {"company": company, "date_to": date_to}
+    if branch_list is not None:
+        query_cum_expenses += " and branch in %(branches)s"
+        params_cum_exp["branches"] = tuple(branch_list) if branch_list else ("__no_access__",)
+    query_cum_expenses += " group by spending_currency"
+
+    res_cum_exp = frappe.db.sql(query_cum_expenses, params_cum_exp, as_dict=True)
+    cum_spent_usd = 0.0
+    cum_spent_vef = 0.0
+    for row in res_cum_exp:
+        if row['spending_currency'] == 'USD':
+            cum_spent_usd += flt(row['total_usd'] or 0)
+        elif row['spending_currency'] in ('VEF', 'VES'):
+            cum_spent_vef += flt(row['total_vef'] or 0)
+
+    available_usd = cum_collected_usd - cum_spent_usd
+    available_vef = cum_collected_vef - cum_spent_vef
 
     # 5. Outstanding / Pending Invoices
     si_filters = {
@@ -1624,6 +1710,13 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
 
     total_pendiente_usd = 0.0
     total_pendiente_vef = 0.0
+    total_borrador_usd = 0.0
+    total_borrador_vef = 0.0
+    borrador_count = 0
+    total_cobrable_usd = 0.0
+    total_cobrable_vef = 0.0
+    cobrable_count = 0
+
     for inv in all_invoices:
         no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
         if no_control:
@@ -1631,6 +1724,15 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
             g_total_vef = flt(inv.base_grand_total) if hasattr(inv, "base_grand_total") else (g_total_usd * exchange_rate)
             total_pendiente_usd += g_total_usd
             total_pendiente_vef += g_total_vef
+            
+            if inv.docstatus == 0:
+                total_borrador_usd += g_total_usd
+                total_borrador_vef += g_total_vef
+                borrador_count += 1
+            elif inv.docstatus == 1:
+                total_cobrable_usd += g_total_usd
+                total_cobrable_vef += g_total_vef
+                cobrable_count += 1
 
     unpaid_count = sum(1 for inv in all_invoices if not inv.bill_control)
 
@@ -1639,6 +1741,12 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
         "grand_total": total_pendiente_usd,
         "total_pendiente_usd": total_pendiente_usd,
         "total_pendiente_vef": total_pendiente_vef,
+        "total_borrador_usd": total_borrador_usd,
+        "total_borrador_vef": total_borrador_vef,
+        "borrador_count": borrador_count,
+        "total_cobrable_usd": total_cobrable_usd,
+        "total_cobrable_vef": total_cobrable_vef,
+        "cobrable_count": cobrable_count,
         "pending_base_amount": 0.0,
         "pending_tax_amount": 0.0,
         
@@ -1748,10 +1856,19 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             col_letter = get_column_letter(col[0].column)
             ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
 
-    if kpi_name == "por_cobrar":
-        ws = wb.create_sheet(title="Por Cobrar")
+    if kpi_name in ("por_cobrar", "pendiente_cobrar", "borrador"):
+        sheet_title = "Por Cobrar"
+        report_title = "Reporte Detallado: Por Cobrar"
+        if kpi_name == "pendiente_cobrar":
+            sheet_title = "Pendientes por Cobrar"
+            report_title = "Reporte Detallado: Facturas Pendientes por Cobrar"
+        elif kpi_name == "borrador":
+            sheet_title = "Borradores"
+            report_title = "Reporte Detallado: Facturas en Borrador"
+
+        ws = wb.create_sheet(title=sheet_title)
         
-        ws["A1"] = "Reporte Detallado: Por Cobrar"
+        ws["A1"] = report_title
         ws["A1"].font = font_title
         ws["A2"] = f"Empresa: {company} | Periodo: {date_from} al {date_to}"
         ws["A2"].font = font_subtitle
@@ -1783,7 +1900,7 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
         all_invoices = frappe.get_all(
             "Sales Invoice",
             filters=table_filters,
-            fields=["name", "posting_date", "customer_name", "net_total", "base_net_total", "grand_total", "base_grand_total", "bill_control", "currency"]
+            fields=["name", "posting_date", "customer_name", "net_total", "base_net_total", "grand_total", "base_grand_total", "bill_control", "currency", "docstatus"]
         )
 
         row_idx = header_row_idx + 1
@@ -1795,6 +1912,11 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
         for inv in all_invoices:
             no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
             if no_control:
+                if kpi_name == "pendiente_cobrar" and inv.docstatus != 1:
+                    continue
+                if kpi_name == "borrador" and inv.docstatus != 0:
+                    continue
+
                 is_usd = (inv.currency == "USD")
                 rate = 1.0 if is_usd else _local_get_cached_rate(str(inv.posting_date))
                 
@@ -2159,9 +2281,9 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             join `tabSales Invoice` si on ref.reference_name = si.name
             where pe.docstatus = 1
               and pe.company = %(company)s
-              and pe.posting_date between %(date_from)s and %(date_to)s
+              and pe.posting_date <= %(date_to)s
         """
-        params = {"company": company, "date_from": date_from, "date_to": date_to}
+        params = {"company": company, "date_to": date_to}
         if branch_list is not None:
             query += " and si.branch in %(branches)s"
             params["branches"] = branch_list or ["__no_access__"]
@@ -2237,9 +2359,9 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
                 total_exchange as total_usd,
                 total as total_vef
             from `tabExpense`
-            where docstatus = 1 and company = %(company)s and expense_date between %(date_from)s and %(date_to)s
+            where docstatus = 1 and company = %(company)s and expense_date <= %(date_to)s
         """
-        params_exp = {"company": company, "date_from": date_from, "date_to": date_to}
+        params_exp = {"company": company, "date_to": date_to}
         if branch_list is not None:
             query_expenses += " and branch in %(branches)s"
             params_exp["branches"] = branch_list or ["__no_access__"]
