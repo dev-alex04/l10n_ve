@@ -1423,6 +1423,7 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
             pe.paid_on_currency,
             pe.paid_currency_amount,
             pe.paid_amount as pe_paid_amount,
+            pe.igtf_amount as pe_igtf_amount,
             pe.posting_date,
             ref.allocated_amount,
             pe.total_allocated_amount,
@@ -1484,21 +1485,41 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
         ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
         ratio_igtf = igtf_vef / total_vef if total_vef > 0 else 0.0
         
+        # IGTF directo del Payment Entry
+        pe_igtf_val = flt(row.get('pe_igtf_amount') or 0)
+        
         if currency == 'USD':
             collected_usd_total += paid_currency_ref
-            collected_usd_base += paid_currency_ref * ratio_base
-            collected_usd_tax += paid_currency_ref * ratio_tax
-            collected_usd_igtf += paid_currency_ref * ratio_igtf
+            
+            if pe_igtf_val > 0:
+                igtf_collected_usd = pe_igtf_val * ratio
+                remainder_usd = paid_currency_ref - igtf_collected_usd
+                collected_usd_base += remainder_usd * (base_vef / base_grand if base_grand > 0 else 1.0)
+                collected_usd_tax += remainder_usd * (iva_vef / base_grand if base_grand > 0 else 0.0)
+            else:
+                collected_usd_base += paid_currency_ref * ratio_base
+                collected_usd_tax += paid_currency_ref * ratio_tax
+                igtf_collected_usd = paid_currency_ref * ratio_igtf
+                
+            collected_usd_igtf += igtf_collected_usd
             
             # Convert USD IGTF portion of the payment to VEF using payment posting date rate
             r_val = _local_get_cached_rate(str(row['posting_date']))
-            collected_ves_igtf += (paid_currency_ref * ratio_igtf) * r_val
+            collected_ves_igtf += igtf_collected_usd * r_val
         elif currency in ('VEF', 'VES'):
             collected_ves_total += paid_loc
-            collected_ves_base += paid_loc * ratio_base
-            collected_ves_tax += paid_loc * ratio_tax
-            collected_ves_igtf += paid_loc * ratio_igtf
-
+            
+            if pe_igtf_val > 0:
+                igtf_collected_ves = pe_igtf_val * ratio
+                remainder_ves = paid_loc - igtf_collected_ves
+                collected_ves_base += remainder_ves * (base_vef / base_grand if base_grand > 0 else 1.0)
+                collected_ves_tax += remainder_ves * (iva_vef / base_grand if base_grand > 0 else 0.0)
+            else:
+                collected_ves_base += paid_loc * ratio_base
+                collected_ves_tax += paid_loc * ratio_tax
+                igtf_collected_ves = paid_loc * ratio_igtf
+                
+            collected_ves_igtf += igtf_collected_ves
             
             # Convert VEF payment to USD equivalent using exchange rate of payment date
             r_val = _local_get_cached_rate(str(row['posting_date']))
@@ -1880,6 +1901,7 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
                 pe.paid_on_currency,
                 pe.paid_currency_amount,
                 pe.paid_amount as pe_paid_amount,
+                pe.igtf_amount as pe_igtf_amount,
                 pe.posting_date,
                 ref.allocated_amount,
                 pe.total_allocated_amount,
@@ -1936,9 +1958,17 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
             ratio_igtf = igtf_vef / total_vef if total_vef > 0 else 0.0
 
-            val_base = paid_val * ratio_base
-            val_tax = paid_val * ratio_tax
-            val_igtf = paid_val * ratio_igtf
+            # IGTF directo del Payment Entry
+            pe_igtf_val = flt(row.get('pe_igtf_amount') or 0)
+            if pe_igtf_val > 0:
+                val_igtf = pe_igtf_val * ratio
+                remainder = paid_val - val_igtf
+                val_base = remainder * (base_vef / base_grand if base_grand > 0 else 1.0)
+                val_tax = remainder * (iva_vef / base_grand if base_grand > 0 else 0.0)
+            else:
+                val_base = paid_val * ratio_base
+                val_tax = paid_val * ratio_tax
+                val_igtf = paid_val * ratio_igtf
 
             row_data = [
                 row['payment_entry'],
@@ -2145,6 +2175,7 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
                 pe.paid_on_currency,
                 pe.paid_currency_amount,
                 pe.paid_amount as pe_paid_amount,
+                pe.igtf_amount as pe_igtf_amount,
                 pe.posting_date,
                 ref.allocated_amount,
                 pe.total_allocated_amount,
@@ -2193,15 +2224,27 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
             ratio_igtf = igtf_vef / total_vef if total_vef > 0 else 0.0
 
+            # IGTF directo del Payment Entry
+            pe_igtf_val = flt(row.get('pe_igtf_amount') or 0)
+            if pe_igtf_val > 0:
+                val_igtf = pe_igtf_val * ratio
+                remainder = paid_val - val_igtf
+                val_base = remainder * (base_vef / base_grand if base_grand > 0 else 1.0)
+                val_tax = remainder * (iva_vef / base_grand if base_grand > 0 else 0.0)
+            else:
+                val_base = paid_val * ratio_base
+                val_tax = paid_val * ratio_tax
+                val_igtf = paid_val * ratio_igtf
+
             row_data = [
                 row['payment_entry'],
                 str(row['posting_date']),
                 row['customer_name'],
                 row['invoice_name'],
                 paid_val,
-                paid_val * ratio_base,
-                paid_val * ratio_tax,
-                paid_val * ratio_igtf
+                val_base,
+                val_tax,
+                val_igtf
             ]
             ws_pay.append(row_data)
             for col_idx in range(1, len(row_data) + 1):
