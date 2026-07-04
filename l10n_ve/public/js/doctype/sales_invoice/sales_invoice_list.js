@@ -16,6 +16,7 @@ frappe.listview_settings["Sales Invoice"] = {
     "is_debit_note",
     "is_void",
     "bill_no",
+    "posting_date",
     "total_withholding",
     "vat_withholding_voucher_number",
     "islr_receipt_number",
@@ -168,15 +169,14 @@ frappe.listview_settings["Sales Invoice"] = {
 
 
 
-    // Forzar columnas: Subject (bill_no), customer_name, bill_control, status
+    // Dynamic update of Subject column to use bill_no, while keeping other columns configurable by the user
     const get_df = frappe.meta.get_docfield.bind(null, "Sales Invoice");
-    listview.columns = [
-      { type: "Subject", df: get_df("bill_no") || { label: __("Número de Factura"), fieldname: "bill_no" } },
-      { type: "Tag" },
-      { type: "Status" },
-      { type: "Field", df: get_df("customer_name") || { label: __("Cliente"), fieldname: "customer_name" } },
-      { type: "Field", df: get_df("bill_control") || { label: __("Número de Control"), fieldname: "bill_control" } },
-    ];
+    if (listview.columns && listview.columns.length > 0) {
+      const subject_col = listview.columns.find(col => col.type === "Subject");
+      if (subject_col) {
+        subject_col.df = get_df("bill_no") || { label: __("Número de Factura"), fieldname: "bill_no", fieldtype: "Data" };
+      }
+    }
     listview.render_header(true);
 
     const original_render = listview.render_list;

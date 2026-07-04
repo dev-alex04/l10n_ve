@@ -1794,5 +1794,54 @@ function updateMapData(analytics) {
     }
 }
 
+// Dropdown menu handling for KPI cards
+function toggleCardMenu(event, cardId) {
+    event.stopPropagation();
+    
+    // Close any other open menus
+    document.querySelectorAll('.dropdown-menu-custom').forEach(menu => {
+        if (menu.id !== `menu-${cardId}`) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    const menu = document.getElementById(`menu-${cardId}`);
+    if (menu) {
+        menu.classList.toggle('hidden');
+    }
+}
+
+// Close menus when clicking outside
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('.card-options-dropdown')) {
+        document.querySelectorAll('.dropdown-menu-custom').forEach(menu => {
+            menu.classList.add('hidden');
+        });
+    }
+});
+
+function downloadKpiExcel(kpiName) {
+    const company = document.getElementById("filter-company").value;
+    const branch = document.getElementById("filter-branch").value;
+    const date_from = document.getElementById("filter-date-from").value;
+    const date_to = document.getElementById("filter-date-to").value;
+    
+    if (!company) {
+        frappe.msgprint(__('Por favor seleccione una Empresa para descargar el detalle.'));
+        return;
+    }
+    
+    const params = new URLSearchParams({
+        company: company,
+        branch: branch || "",
+        date_from: date_from,
+        date_to: date_to,
+        kpi_name: kpiName
+    });
+
+    const downloadUrl = `/api/method/l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial.download_kpi_detail_excel?${params.toString()}`;
+    window.open(downloadUrl, '_blank');
+}
+
 
 

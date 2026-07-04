@@ -280,6 +280,7 @@ body, html {
 }
 
 .kpi-card {
+    position: relative;
     background: var(--bg-card);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -2273,5 +2274,70 @@ body.dark-theme #sales-period-select option {
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: 600;
+}
+
+/* Card options dropdown */
+.card-options-dropdown {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+}
+
+.options-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.options-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.dropdown-menu-custom {
+    position: absolute;
+    right: 0;
+    top: 28px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    width: 160px;
+    overflow: hidden;
+    padding: 4px;
+    transform-origin: top right;
+}
+
+.dropdown-menu-custom.hidden {
+    display: none;
+}
+
+.dropdown-menu-custom button {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s ease;
+}
+
+.dropdown-menu-custom button:hover {
+    background: var(--bg-hover);
 }
 

@@ -151,6 +151,17 @@
                 </h5>
                 <div class="kpi-cards-grid" id="kpi-cards-grid">
                     <div class="kpi-card" id="kpi-pendiente">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'pendiente')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-pendiente">
+                                <button onclick="downloadKpiExcel('por_cobrar')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="kpi-icon-wrap warning"><i data-lucide="file-clock"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">Por Cobrar</span>
@@ -159,6 +170,17 @@
                         </div>
                     </div>
                     <div class="kpi-card" id="kpi-cobrado-usd">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'cobrado-usd')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-cobrado-usd">
+                                <button onclick="downloadKpiExcel('cobrado_usd')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="kpi-icon-wrap success"><i data-lucide="dollar-sign"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">Cobrado REF ($)</span>
@@ -167,6 +189,17 @@
                         </div>
                     </div>
                     <div class="kpi-card" id="kpi-cobrado-ves">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'cobrado-ves')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-cobrado-ves">
+                                <button onclick="downloadKpiExcel('cobrado_ves')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="kpi-icon-wrap info"><i data-lucide="banknote"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">Cobrado Bs.</span>
@@ -175,6 +208,17 @@
                         </div>
                     </div>
                     <div class="kpi-card" id="kpi-gastos">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'gastos')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-gastos">
+                                <button onclick="downloadKpiExcel('gastos')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="kpi-icon-wrap danger"><i data-lucide="trending-down"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">Gastos</span>
@@ -183,6 +227,17 @@
                         </div>
                     </div>
                     <div class="kpi-card" id="kpi-disponible-usd">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'disponible-usd')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-disponible-usd">
+                                <button onclick="downloadKpiExcel('disponible_usd')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="kpi-icon-wrap primary"><i data-lucide="wallet"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">Disponible REF ($)</span>
@@ -191,6 +246,17 @@
                         </div>
                     </div>
                     <div class="kpi-card" id="kpi-disponible-ves">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'disponible-ves')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-disponible-ves">
+                                <button onclick="downloadKpiExcel('disponible_ves')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="kpi-icon-wrap purple"><i data-lucide="piggy-bank"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">Disponible Bs.</span>
@@ -209,6 +275,17 @@
                 <div class="kpi-cards-grid">
                     <!-- Retención IVA -->
                     <div class="kpi-card" id="card-ret-iva">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'ret-iva')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-ret-iva">
+                                <button onclick="downloadKpiExcel('ret_iva')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="kpi-icon-wrap warning"><i data-lucide="percent"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">Retención IVA</span>
@@ -218,6 +295,17 @@
                     </div>
                     <!-- Retención ISLR -->
                     <div class="kpi-card" id="card-ret-islr">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'ret-islr')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-ret-islr">
+                                <button onclick="downloadKpiExcel('ret_islr')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="kpi-icon-wrap purple"><i data-lucide="scissors"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">Retención ISLR</span>
@@ -227,6 +315,17 @@
                     </div>
                     <!-- IGTF -->
                     <div class="kpi-card" id="card-igtf">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'igtf')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-igtf">
+                                <button onclick="downloadKpiExcel('igtf')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="kpi-icon-wrap danger"><i data-lucide="receipt-text"></i></div>
                         <div class="kpi-body">
                             <span class="kpi-label">IGTF Total</span>
