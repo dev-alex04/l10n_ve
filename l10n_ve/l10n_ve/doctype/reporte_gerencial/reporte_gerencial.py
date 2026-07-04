@@ -704,6 +704,7 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
     data = get_dashboard_data(company, from_date, to_date, branch, cost_center, customer)
     rate_today = data.get("exchange_rate", 1.0)
     company_details = _get_company_details(company)
+    real_kpis = data.get("real_kpis") or {}
     
     summary_data = []
     t_cobrar = t_op = t_iva_op = t_fact = t_iva = t_neto = t_ret_iva = t_ret_islr = t_igtf = t_disp = t_spent = t_util = 0.0
@@ -863,64 +864,81 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
 
         <!-- Mini tarjetas de Resumen -->
         <div class="cards-container">
+            <!-- Fila 1: Cobros -->
             <div class="cards-row">
-                <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #8b5cf6;">
-                        <div class="mini-card-label">Cantidad de Ventas</div>
-                        <div class="mini-card-value">{{ sales_count }}</div>
-                        <div class="mini-card-subtext">&nbsp;</div>
-                    </div>
-                </div>
                 <div class="card-cell">
                     <div class="mini-card" style="border-top: 3px solid #64748b;">
                         <div class="mini-card-label">Por Cobrar</div>
-                        <div class="mini-card-value">{{ t_cobrar_f }}</div>
-                        <div class="mini-card-subtext">{{ t_cobrar_vef_f }}</div>
-                    </div>
-                </div>
-                <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #06b6d4;">
-                        <div class="mini-card-label">Facturado</div>
-                        <div class="mini-card-value">{{ t_fact_f }}</div>
-                        <div class="mini-card-subtext">{{ t_fact_vef_f }}</div>
-                    </div>
-                </div>
-                <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #f97316;">
-                        <div class="mini-card-label">IVA</div>
-                        <div class="mini-card-value">{{ t_iva_f }}</div>
-                        <div class="mini-card-subtext">{{ t_iva_vef_f }}</div>
-                    </div>
-                </div>
-            </div>
-            <div style="height: 6px;"></div>
-            <div class="cards-row">
-                <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #ef4444;">
-                        <div class="mini-card-label">IGTF</div>
-                        <div class="mini-card-value">{{ t_igtf_f }}</div>
-                        <div class="mini-card-subtext">{{ t_igtf_vef_f }}</div>
+                        <div class="mini-card-value">{{ k_cobrar_usd_f }}</div>
+                        <div class="mini-card-subtext">{{ k_cobrar_ves_f }}</div>
                     </div>
                 </div>
                 <div class="card-cell">
                     <div class="mini-card" style="border-top: 3px solid #10b981;">
-                        <div class="mini-card-label">Disponibilidad</div>
-                        <div class="mini-card-value" style="color: {% if t_disp >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_disp_f }}</div>
-                        <div class="mini-card-subtext" style="color: {% if t_disp >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_disp_vef_f }}</div>
-                    </div>
-                </div>
-                <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #ec4899;">
-                        <div class="mini-card-label">Gastos</div>
-                        <div class="mini-card-value" style="color: #dc2626;">{{ t_spent_f }}</div>
-                        <div class="mini-card-subtext" style="color: #dc2626;">{{ t_spent_vef_f }}</div>
+                        <div class="mini-card-label">Cobrado REF ($)</div>
+                        <div class="mini-card-value">{{ k_cobrado_usd_f }}</div>
+                        <div class="mini-card-subtext" style="font-size: 6pt; color: #475569;">
+                            Base: {{ k_cobrado_usd_base_f }} | IVA: {{ k_cobrado_usd_tax_f }} | IGTF: {{ k_cobrado_usd_igtf_f }}
+                        </div>
                     </div>
                 </div>
                 <div class="card-cell">
                     <div class="mini-card" style="border-top: 3px solid #059669;">
-                        <div class="mini-card-label">Utilidad</div>
-                        <div class="mini-card-value" style="color: {% if t_util >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_util_f }}</div>
-                        <div class="mini-card-subtext" style="color: {% if t_util >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_util_vef_f }}</div>
+                        <div class="mini-card-label">Cobrado Bs.</div>
+                        <div class="mini-card-value">{{ k_cobrado_ves_f }}</div>
+                        <div class="mini-card-subtext" style="font-size: 6pt; color: #475569;">
+                            Base: {{ k_cobrado_ves_base_f }} | IVA: {{ k_cobrado_ves_tax_f }} | IGTF: {{ k_cobrado_ves_igtf_f }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="height: 6px;"></div>
+            <!-- Fila 2: Gastos y Disponibilidad -->
+            <div class="cards-row">
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #ec4899;">
+                        <div class="mini-card-label">Gastos</div>
+                        <div class="mini-card-value">{{ k_spent_usd_f }}</div>
+                        <div class="mini-card-subtext">{{ k_spent_ves_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #06b6d4;">
+                        <div class="mini-card-label">Disponible REF ($)</div>
+                        <div class="mini-card-value" style="color: {% if k_available_usd >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ k_available_usd_f }}</div>
+                        <div class="mini-card-subtext">&nbsp;</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #3b82f6;">
+                        <div class="mini-card-label">Disponible Bs.</div>
+                        <div class="mini-card-value" style="color: {% if k_available_ves >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ k_available_ves_f }}</div>
+                        <div class="mini-card-subtext">&nbsp;</div>
+                    </div>
+                </div>
+            </div>
+            <div style="height: 6px;"></div>
+            <!-- Fila 3: Retenciones e IGTF -->
+            <div class="cards-row">
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #f59e0b;">
+                        <div class="mini-card-label">Retención IVA</div>
+                        <div class="mini-card-value">{{ k_ret_iva_ves_f }}</div>
+                        <div class="mini-card-subtext">Equiv. {{ k_ret_iva_usd_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #d97706;">
+                        <div class="mini-card-label">Retención ISLR</div>
+                        <div class="mini-card-value">{{ k_ret_islr_ves_f }}</div>
+                        <div class="mini-card-subtext">Equiv. {{ k_ret_islr_usd_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #ef4444;">
+                        <div class="mini-card-label">IGTF Total</div>
+                        <div class="mini-card-value">{{ k_igtf_total_ves_f }}</div>
+                        <div class="mini-card-subtext">Equiv. {{ k_igtf_total_usd_f }}</div>
                     </div>
                 </div>
             </div>
@@ -1025,27 +1043,37 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
         "cost_center": cost_center,
         "summary": summary_data,
         "sales_count": data.get("sales_count", 0),
-        "t_cobrar": t_cobrar,
-        "t_cobrar_f": format_currency_ve_py(t_cobrar, "USD"),
-        "t_cobrar_vef_f": format_currency_ve_py(v_cobrar, "VEF"),
-        "t_fact": t_fact,
-        "t_fact_f": format_currency_ve_py(t_fact, "USD"),
-        "t_fact_vef_f": format_currency_ve_py(v_fact, "VEF"),
-        "t_iva": t_iva,
-        "t_iva_f": format_currency_ve_py(t_iva, "USD"),
-        "t_iva_vef_f": format_currency_ve_py(v_iva, "VEF"),
-        "t_igtf": t_igtf,
-        "t_igtf_f": format_currency_ve_py(t_igtf, "USD"),
-        "t_igtf_vef_f": format_currency_ve_py(v_igtf, "VEF"),
-        "t_disp": t_disp,
-        "t_disp_f": format_currency_ve_py(t_disp, "USD"),
-        "t_disp_vef_f": format_currency_ve_py(v_disp, "VEF"),
-        "t_spent": t_spent,
-        "t_spent_f": format_currency_ve_py(t_spent, "USD"),
-        "t_spent_vef_f": format_currency_ve_py(v_spent, "VEF"),
-        "t_util": t_util,
-        "t_util_f": format_currency_ve_py(t_util, "USD"),
-        "t_util_vef_f": format_currency_ve_py(v_util, "VEF")
+        
+        # Nuevos KPIs
+        "k_cobrar_usd_f": format_currency_ve_py(real_kpis.get("total_pendiente_usd", 0.0), "USD"),
+        "k_cobrar_ves_f": format_currency_ve_py(real_kpis.get("total_pendiente_vef", 0.0), "VEF"),
+        
+        "k_cobrado_usd_f": format_currency_ve_py(real_kpis.get("collected_usd_total", 0.0), "USD"),
+        "k_cobrado_usd_base_f": format_currency_ve_py(real_kpis.get("collected_usd_base", 0.0), "USD"),
+        "k_cobrado_usd_tax_f": format_currency_ve_py(real_kpis.get("collected_usd_tax", 0.0), "USD"),
+        "k_cobrado_usd_igtf_f": format_currency_ve_py(real_kpis.get("collected_usd_igtf", 0.0), "USD"),
+        
+        "k_cobrado_ves_f": format_currency_ve_py(real_kpis.get("collected_ves_total", 0.0), "VEF"),
+        "k_cobrado_ves_base_f": format_currency_ve_py(real_kpis.get("collected_ves_base", 0.0), "VEF"),
+        "k_cobrado_ves_tax_f": format_currency_ve_py(real_kpis.get("collected_ves_tax", 0.0), "VEF"),
+        "k_cobrado_ves_igtf_f": format_currency_ve_py(real_kpis.get("collected_ves_igtf", 0.0), "VEF"),
+        
+        "k_spent_usd_f": format_currency_ve_py(real_kpis.get("total_expenses_usd", 0.0), "USD"),
+        "k_spent_ves_f": format_currency_ve_py(real_kpis.get("total_expenses_vef", 0.0), "VEF"),
+        
+        "k_available_usd": real_kpis.get("available_usd", 0.0),
+        "k_available_usd_f": format_currency_ve_py(real_kpis.get("available_usd", 0.0), "USD"),
+        "k_available_ves": real_kpis.get("available_vef", 0.0),
+        "k_available_ves_f": format_currency_ve_py(real_kpis.get("available_vef", 0.0), "VEF"),
+        
+        "k_ret_iva_usd_f": format_currency_ve_py(real_kpis.get("ret_iva_usd", 0.0), "USD"),
+        "k_ret_iva_ves_f": format_currency_ve_py(real_kpis.get("ret_iva_vef", 0.0), "VEF"),
+        
+        "k_ret_islr_usd_f": format_currency_ve_py(real_kpis.get("ret_islr_usd", 0.0), "USD"),
+        "k_ret_islr_ves_f": format_currency_ve_py(real_kpis.get("ret_islr_vef", 0.0), "VEF"),
+        
+        "k_igtf_total_usd_f": format_currency_ve_py(real_kpis.get("collected_usd_igtf", 0.0), "USD"),
+        "k_igtf_total_ves_f": format_currency_ve_py(real_kpis.get("collected_ves_igtf", 0.0), "VEF"),
     }
     
     final_html = frappe.render_template(html_template, context)
@@ -1067,6 +1095,8 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
     from frappe.utils import formatdate, nowdate
     
     data = get_dashboard_data(company, from_date, to_date, branch, cost_center, customer)
+    rate_today = data.get("exchange_rate", 1.0)
+    real_kpis = data.get("real_kpis") or {}
     company_details = _get_company_details(company)
 
     wb = openpyxl.Workbook()
@@ -1155,16 +1185,14 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
             t_util += flt(r.get("profit", 0))
             v_util += flt(r.get("profit_vef", 0))
             
-    # Dibujar mini tarjetas (2 filas de 4 tarjetas cada una)
+    # Dibujar mini tarjetas (3 filas de 3 tarjetas cada una)
     # Fila 1 de Tarjetas (Filas 5 a 7)
-    # 1. Cantidad de ventas
-    _draw_excel_card(ws, start_col=2, start_row=5, label="Cantidad de ventas", usd_val=data.get("sales_count", 0), vef_val=None, accent_color="8B5CF6", is_qty=True)
-    # 2. Por cobrar
-    _draw_excel_card(ws, start_col=8, start_row=5, label="Por cobrar", usd_val=t_cobrar, vef_val=v_cobrar, accent_color="64748B")
-    # 3. Facturado
-    _draw_excel_card(ws, start_col=14, start_row=5, label="Facturado", usd_val=t_fact, vef_val=v_fact, accent_color="06B6D4")
-    # 4. IVA
-    _draw_excel_card(ws, start_col=20, start_row=5, label="IVA", usd_val=t_iva, vef_val=v_iva, accent_color="F97316")
+    # 1. Por cobrar
+    _draw_excel_card(ws, start_col=2, start_row=5, label="Por cobrar", usd_val=real_kpis.get("total_pendiente_usd", 0.0), vef_val=real_kpis.get("total_pendiente_vef", 0.0), accent_color="64748B")
+    # 2. Cobrado REF ($)
+    _draw_excel_card(ws, start_col=10, start_row=5, label="Cobrado REF ($)", usd_val=real_kpis.get("collected_usd_total", 0.0), vef_val=real_kpis.get("collected_usd_total", 0.0) * rate_today, accent_color="10B981")
+    # 3. Cobrado Bs.
+    _draw_excel_card(ws, start_col=18, start_row=5, label="Cobrado Bs.", usd_val=real_kpis.get("collected_ves_total", 0.0) / rate_today if rate_today else 0.0, vef_val=real_kpis.get("collected_ves_total", 0.0), accent_color="059669")
     
     ws.row_dimensions[5].height = 16
     ws.row_dimensions[6].height = 22
@@ -1174,35 +1202,48 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
     ws.row_dimensions[8].height = 10
     
     # Fila 2 de Tarjetas (Filas 9 a 11)
-    # 5. IGTF
-    _draw_excel_card(ws, start_col=2, start_row=9, label="IGTF", usd_val=t_igtf, vef_val=v_igtf, accent_color="EF4444")
-    # 6. Disponibilidad
-    _draw_excel_card(ws, start_col=8, start_row=9, label="Disponibilidad", usd_val=t_disp, vef_val=v_disp, accent_color="10B981")
-    # 7. Gastos
-    _draw_excel_card(ws, start_col=14, start_row=9, label="Gastos", usd_val=t_spent, vef_val=v_spent, accent_color="EC4899")
-    # 8. Utilidad
-    _draw_excel_card(ws, start_col=20, start_row=9, label="Utilidad", usd_val=t_util, vef_val=v_util, accent_color="059669")
+    # 4. Gastos
+    _draw_excel_card(ws, start_col=2, start_row=9, label="Gastos", usd_val=real_kpis.get("total_expenses_usd", 0.0), vef_val=real_kpis.get("total_expenses_vef", 0.0), accent_color="EC4899")
+    # 5. Disponible REF ($)
+    _draw_excel_card(ws, start_col=10, start_row=9, label="Disponible REF ($)", usd_val=real_kpis.get("available_usd", 0.0), vef_val=real_kpis.get("available_usd", 0.0) * rate_today, accent_color="06B6D4")
+    # 6. Disponible Bs.
+    _draw_excel_card(ws, start_col=18, start_row=9, label="Disponible Bs.", usd_val=real_kpis.get("available_vef", 0.0) / rate_today if rate_today else 0.0, vef_val=real_kpis.get("available_vef", 0.0), accent_color="3B82F6")
     
     ws.row_dimensions[9].height = 16
     ws.row_dimensions[10].height = 22
     ws.row_dimensions[11].height = 18
     
     # Separador (Fila 12)
-    ws.row_dimensions[12].height = 12
+    ws.row_dimensions[12].height = 10
     
-    # Título de Sección "Resumen Financiero por Sucursal" (Fila 13)
-    ws.row_dimensions[13].height = 22
-    ws.merge_cells(start_row=13, start_column=1, end_row=13, end_column=25)
-    title_cell = ws.cell(row=13, column=1, value="RESUMEN FINANCIERO POR SUCURSAL")
+    # Fila 3 de Tarjetas (Filas 13 a 15)
+    # 7. Retención IVA
+    _draw_excel_card(ws, start_col=2, start_row=13, label="Retención IVA", usd_val=real_kpis.get("ret_iva_usd", 0.0), vef_val=real_kpis.get("ret_iva_vef", 0.0), accent_color="F59E0B")
+    # 8. Retención ISLR
+    _draw_excel_card(ws, start_col=10, start_row=13, label="Retención ISLR", usd_val=real_kpis.get("ret_islr_usd", 0.0), vef_val=real_kpis.get("ret_islr_vef", 0.0), accent_color="D97706")
+    # 9. IGTF Total
+    _draw_excel_card(ws, start_col=18, start_row=13, label="IGTF Total", usd_val=real_kpis.get("collected_usd_igtf", 0.0), vef_val=real_kpis.get("collected_ves_igtf", 0.0), accent_color="EF4444")
+    
+    ws.row_dimensions[13].height = 16
+    ws.row_dimensions[14].height = 22
+    ws.row_dimensions[15].height = 18
+    
+    # Separador (Fila 16)
+    ws.row_dimensions[16].height = 12
+    
+    # Título de Sección "Resumen Financiero por Sucursal" (Fila 17)
+    ws.row_dimensions[17].height = 22
+    ws.merge_cells(start_row=17, start_column=1, end_row=17, end_column=25)
+    title_cell = ws.cell(row=17, column=1, value="RESUMEN FINANCIERO POR SUCURSAL")
     title_cell.font = Font(name=font_family, size=11, bold=True, color="0F172A")
     title_cell.alignment = align_left
     
     title_border_side = Side(style='thin', color="CBD5E1")
     for col_idx in range(1, 26):
-        ws.cell(row=13, column=col_idx).border = Border(bottom=title_border_side)
+        ws.cell(row=17, column=col_idx).border = Border(bottom=title_border_side)
         
-    # Separador (Fila 14)
-    ws.row_dimensions[14].height = 8
+    # Separador (Fila 18)
+    ws.row_dimensions[18].height = 8
     
     headers = [
         "Sucursal",
@@ -1220,16 +1261,16 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
         "Utilidad (USD)", "Utilidad (Bs.)"
     ]
     
-    # Cabeceras de la tabla (Fila 15)
-    ws.row_dimensions[15].height = 28
+    # Cabeceras de la tabla (Fila 19)
+    ws.row_dimensions[19].height = 28
     for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=15, column=col_idx, value=h)
+        cell = ws.cell(row=19, column=col_idx, value=h)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = align_center
         cell.border = Border(left=thin_grid, right=thin_grid, top=thin_accent, bottom=thin_accent)
         
-    row_num = 16
+    row_num = 20
     for r in data.get("branch_financial_summary") or []:
         is_grp = r.get("is_group", False)
         indent = r.get("indent", 0)
@@ -1304,11 +1345,11 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
         cell.number_format = '#,##0.00;(#,##0.00);"-"'
         cell.fill = total_fill
         
-    # Ajustar ancho de columnas escaneando desde la cabecera de la tabla (fila 15) en adelante
+    # Ajustar ancho de columnas escaneando desde la cabecera de la tabla (fila 19) en adelante
     for col_idx in range(1, 26):
         col_letter = get_column_letter(col_idx)
         max_len = 0
-        for r in range(15, row_num + 1):
+        for r in range(19, row_num + 1):
             cell_val = ws.cell(row=r, column=col_idx).value
             if cell_val is not None:
                 val_str = f"{cell_val:,.2f}" if isinstance(cell_val, (int, float)) else str(cell_val)
