@@ -253,6 +253,7 @@ function render_premium_dashboard(frm, data) {
     
     const t_fact = kpis.collected_usd_total || 0;
     const v_fact = kpis.collected_ves_total || 0;
+    const v_fact_equiv_usd = kpis.collected_ves_equivalent_usd || 0;
     
     const t_iva = kpis.collected_usd_tax || 0;
     const v_iva = kpis.collected_ves_tax || 0;
@@ -271,6 +272,10 @@ function render_premium_dashboard(frm, data) {
     
     const t_igtf = kpis.igtf_total || 0;
     const v_igtf = kpis.igtf_vef || 0;
+
+    const implicit_rate = v_fact_equiv_usd > 0 ? v_fact / v_fact_equiv_usd : 0;
+    const rate_text_ves = implicit_rate > 0 ? ` (Tasa Promedio: ${implicit_rate.toFixed(2)})` : ` (Tasa BCV: ${rate.toFixed(2)})`;
+    const equiv_ves_usd = v_fact_equiv_usd > 0 ? v_fact_equiv_usd : v_fact / (rate || 1);
 
     const get_card_vals = (usd_val, vef_val) => {
         const equiv_vef = usd_val * rate;
@@ -515,7 +520,7 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-clock-o kpi-card-custom-icon"></i>
                     </div>
                     <div class="kpi-card-custom-value">${format_currency_ve(t_cobrar, "USD")}</div>
-                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(v_cobrar, "VEF")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(v_cobrar, "VEF")} (Tasa BCV: ${rate.toFixed(2)})</div>
                     <div class="kpi-card-custom-details">
                         <span>Facturas pendientes de número de control</span>
                     </div>
@@ -528,9 +533,9 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-dollar kpi-card-custom-icon"></i>
                     </div>
                     <div class="kpi-card-custom-value">${format_currency_ve(t_fact, "USD")}</div>
-                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(t_fact * rate, "VEF")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(t_fact * rate, "VEF")} (Tasa BCV: ${rate.toFixed(2)})</div>
                     <div class="kpi-card-custom-details">
-                        <span>Base: ${format_currency_ve(t_fact - t_iva - t_igtf, "USD")}</span>
+                        <span>Base: ${format_currency_ve(kpis.collected_usd_base || 0, "USD")}</span>
                         <span>IVA: ${format_currency_ve(t_iva, "USD")}</span>
                         <span>IGTF: ${format_currency_ve(t_igtf, "USD")}</span>
                     </div>
@@ -543,11 +548,10 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-university kpi-card-custom-icon"></i>
                     </div>
                     <div class="kpi-card-custom-value">${format_currency_ve(v_fact, "VEF")}</div>
-                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(v_fact / rate, "USD")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(equiv_ves_usd, "USD")}${rate_text_ves}</div>
                     <div class="kpi-card-custom-details">
-                        <span>Base: ${format_currency_ve(v_fact - v_iva - v_igtf, "VEF")}</span>
+                        <span>Base: ${format_currency_ve(kpis.collected_ves_base || 0, "VEF")}</span>
                         <span>IVA: ${format_currency_ve(v_iva, "VEF")}</span>
-                        <span>IGTF: ${format_currency_ve(v_igtf, "VEF")}</span>
                     </div>
                 </div>
 
@@ -558,7 +562,7 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-arrow-down kpi-card-custom-icon"></i>
                     </div>
                     <div class="kpi-card-custom-value">${format_currency_ve(t_spent, "USD")}</div>
-                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(t_spent * rate, "VEF")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(t_spent * rate, "VEF")} (Tasa BCV: ${rate.toFixed(2)})</div>
                     <div class="kpi-card-custom-details">
                         <span>Caja Bs: ${format_currency_ve(v_spent, "VEF")}</span>
                         <span>Equiv. Ref: ${format_currency_ve(v_spent / rate, "USD")}</span>
@@ -572,7 +576,7 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-check-circle kpi-card-custom-icon"></i>
                     </div>
                     <div class="kpi-card-custom-value">${format_currency_ve(t_disp, "USD")}</div>
-                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(t_disp * rate, "VEF")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(t_disp * rate, "VEF")} (Tasa BCV: ${rate.toFixed(2)})</div>
                     <div class="kpi-card-custom-details">
                         <span>Saldo disponible en dólares</span>
                     </div>
@@ -585,7 +589,7 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-check-circle kpi-card-custom-icon"></i>
                     </div>
                     <div class="kpi-card-custom-value">${format_currency_ve(v_disp, "VEF")}</div>
-                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(v_disp / rate, "USD")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(v_disp / rate, "USD")} (Tasa BCV: ${rate.toFixed(2)})</div>
                     <div class="kpi-card-custom-details">
                         <span>Saldo disponible en bolívares</span>
                     </div>
@@ -604,7 +608,7 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-percent kpi-card-custom-icon"></i>
                     </div>
                     <div class="kpi-card-custom-value">${format_currency_ve(v_ret_iva, "VEF")}</div>
-                    <div class="kpi-card-custom-ref">REF: ${format_currency_ve(t_ret_iva, "USD")}</div>
+                    <div class="kpi-card-custom-ref">REF: ${format_currency_ve(t_ret_iva, "USD")} (Tasa BCV: ${rate.toFixed(2)})</div>
                     <div class="kpi-card-custom-details">
                         <span>IVA retenido por clientes especiales</span>
                     </div>
@@ -617,7 +621,7 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-percent kpi-card-custom-icon"></i>
                     </div>
                     <div class="kpi-card-custom-value">${format_currency_ve(v_ret_islr, "VEF")}</div>
-                    <div class="kpi-card-custom-ref">REF: ${format_currency_ve(t_ret_islr, "USD")}</div>
+                    <div class="kpi-card-custom-ref">REF: ${format_currency_ve(t_ret_islr, "USD")} (Tasa BCV: ${rate.toFixed(2)})</div>
                     <div class="kpi-card-custom-details">
                         <span>ISLR retenido en la fuente</span>
                     </div>
@@ -630,7 +634,7 @@ function render_premium_dashboard(frm, data) {
                         <i class="fa fa-university kpi-card-custom-icon"></i>
                     </div>
                     <div class="kpi-card-custom-value">${format_currency_ve(v_igtf, "VEF")}</div>
-                    <div class="kpi-card-custom-ref">REF: ${format_currency_ve(t_igtf, "USD")}</div>
+                    <div class="kpi-card-custom-ref">REF: ${format_currency_ve(t_igtf, "USD")} (Tasa BCV: ${rate.toFixed(2)})</div>
                     <div class="kpi-card-custom-details">
                         <span>Impuesto a las Grandes Transacciones Financieras</span>
                     </div>
