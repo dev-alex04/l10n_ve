@@ -138,11 +138,13 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
         paid_ref = flt(row['paid_amount_reference_currency'] or 0)
         paid_loc = flt(row['paid_amount_local_currency'] or 0)
         
-        # Proportions from Sales Invoice (using local base VEF values)
-        total_vef = flt(row['base_grand_total'] or 0)
+        # base_grand_total does NOT include IGTF in Frappe; use the true total
+        # (base_grand_total + total_igtf) so that ratio_base + ratio_tax + ratio_igtf == 1
+        base_grand = flt(row['base_grand_total'] or 0)
+        igtf_vef = flt(row['total_igtf'] or 0)
+        total_vef = base_grand + igtf_vef   # true invoice total in company currency
         base_vef = flt(row['base_net_total'] or 0)
         iva_vef = flt(row['base_iva_amount'] or 0)
-        igtf_vef = flt(row['total_igtf'] or 0)
         
         ratio_base = base_vef / total_vef if total_vef > 0 else 1.0
         ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
@@ -215,6 +217,11 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
     available_usd = collected_usd_total - real_spent_usd
     available_vef = collected_ves_total - real_spent_vef
 
+    # IGTF total: use the proportional amount from payments (same source as collected_usd_igtf)
+    # to keep IGTF TOTAL card consistent with the breakdown in COBRADO REF ($)
+    igtf_total_usd = collected_usd_igtf
+    igtf_total_vef = collected_ves_igtf
+
     return {
         "unpaid_orders_count": unpaid_count,
         "grand_total": flt(total_pendiente_usd),
@@ -253,8 +260,8 @@ def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
         "ret_iva_vef": flt(real_ret_iva_vef),
         "ret_islr_usd": flt(real_ret_islr_usd),
         "ret_islr_vef": flt(real_ret_islr_vef),
-        "igtf_total": flt(real_igtf_usd),
-        "igtf_vef": flt(real_igtf_vef),
+        "igtf_total": flt(igtf_total_usd),
+        "igtf_vef": flt(igtf_total_vef),
     }
 
 
