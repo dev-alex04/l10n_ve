@@ -1431,10 +1431,13 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
         paid_currency_ref = paid_currency_total * ratio
         paid_loc = allocated
         
-        total_vef = flt(row['base_grand_total'] or 0)
+        # base_grand_total does NOT include IGTF in Frappe; use the true total
+        # (base_grand_total + total_igtf) so that ratio_base + ratio_tax + ratio_igtf == 1
+        base_grand = flt(row['base_grand_total'] or 0)
+        igtf_vef = flt(row['total_igtf'] or 0)
+        total_vef = base_grand + igtf_vef   # true invoice total in company currency
         base_vef = flt(row['base_net_total'] or 0)
         iva_vef = flt(row['base_iva_amount'] or 0)
-        igtf_vef = flt(row['total_igtf'] or 0)
         
         ratio_base = base_vef / total_vef if total_vef > 0 else 1.0
         ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
@@ -1454,6 +1457,7 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
             collected_ves_base += paid_loc * ratio_base
             collected_ves_tax += paid_loc * ratio_tax
             collected_ves_igtf += paid_loc * ratio_igtf
+
             
             # Convert VEF payment to USD equivalent using exchange rate of payment date
             r_val = _local_get_cached_rate(str(row['posting_date']))
@@ -1880,10 +1884,12 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             paid_currency_total = flt(row['paid_currency_amount'] or 0)
             paid_val = paid_currency_total * ratio if is_usd_kpi else allocated
 
-            total_vef = flt(row['base_grand_total'] or 0)
+            # Use true total (base_grand_total + total_igtf) so ratios sum to 1
+            base_grand = flt(row['base_grand_total'] or 0)
+            igtf_vef = flt(row['total_igtf'] or 0)
+            total_vef = base_grand + igtf_vef
             base_vef = flt(row['base_net_total'] or 0)
             iva_vef = flt(row['base_iva_amount'] or 0)
-            igtf_vef = flt(row['total_igtf'] or 0)
             
             ratio_base = base_vef / total_vef if total_vef > 0 else 1.0
             ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
@@ -2135,10 +2141,12 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             paid_currency_total = flt(row['paid_currency_amount'] or 0)
             
             paid_val = paid_currency_total * ratio if is_usd_kpi else allocated
-            total_vef = flt(row['base_grand_total'] or 0)
+            # Use true total (base_grand_total + total_igtf) so ratios sum to 1
+            base_grand = flt(row['base_grand_total'] or 0)
+            igtf_vef = flt(row['total_igtf'] or 0)
+            total_vef = base_grand + igtf_vef
             base_vef = flt(row['base_net_total'] or 0)
             iva_vef = flt(row['base_iva_amount'] or 0)
-            igtf_vef = flt(row['total_igtf'] or 0)
             
             ratio_base = base_vef / total_vef if total_vef > 0 else 1.0
             ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
