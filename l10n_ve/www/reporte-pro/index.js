@@ -517,16 +517,27 @@ function renderDashboard(data) {
 
     // ── 1. KPI Cards ──────────────────────────────────────────────────────
 
-    // Por Cobrar
-    const pendienteUsd = parseFloat(kpis.total_pendiente_usd || kpis.grand_total || 0);
-    const pendienteVef = parseFloat(kpis.total_pendiente_vef || 0);
-    const count = kpis.unpaid_orders_count || 0;
+    // Pendientes por Cobrar
+    const cobrableUsd = parseFloat(kpis.total_cobrable_usd || 0);
+    const cobrableVef = parseFloat(kpis.total_cobrable_vef || 0);
+    const cobrableCount = kpis.cobrable_count || 0;
     
-    const displayPendiente = currentCurrency === "VEF" ? fmtVES(pendienteVef) : fmtUSD(pendienteUsd);
-    const subtextPendiente = currentCurrency === "VEF" ? fmtUSD(pendienteUsd) : fmtVES(pendienteVef);
+    const displayCobrable = currentCurrency === "VEF" ? fmtVES(cobrableVef) : fmtUSD(cobrableUsd);
+    const subtextCobrable = currentCurrency === "VEF" ? fmtUSD(cobrableUsd) : fmtVES(cobrableVef);
     
-    setText("kpi-pendiente-val", displayPendiente);
-    setText("kpi-pendiente-count", `Equiv. ${subtextPendiente} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="opacity: 0.8;">${count} factura${count !== 1 ? "s" : ""} pendiente${count !== 1 ? "s" : ""}</span>`);
+    setText("kpi-pendiente-cobrar-val", displayCobrable);
+    setText("kpi-pendiente-cobrar-count", `Equiv. ${subtextCobrable} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="opacity: 0.8;">${cobrableCount} factura${cobrableCount !== 1 ? "s" : ""} por cobrar</span>`);
+
+    // Borradores
+    const borradorUsd = parseFloat(kpis.total_borrador_usd || 0);
+    const borradorVef = parseFloat(kpis.total_borrador_vef || 0);
+    const borradorCount = kpis.borrador_count || 0;
+    
+    const displayBorrador = currentCurrency === "VEF" ? fmtVES(borradorVef) : fmtUSD(borradorUsd);
+    const subtextBorrador = currentCurrency === "VEF" ? fmtUSD(borradorUsd) : fmtVES(borradorVef);
+    
+    setText("kpi-borrador-val", displayBorrador);
+    setText("kpi-borrador-count", `Equiv. ${subtextBorrador} (Tasa BCV: ${window.exchange_rate.toFixed(2)})<br><span style="opacity: 0.8;">${borradorCount} factura${borradorCount !== 1 ? "s" : ""} en borrador</span>`);
 
     // Cobrado REF ($)
     const cobUsdTotal = parseFloat(kpis.collected_usd_total || 0);
@@ -545,7 +556,6 @@ function renderDashboard(data) {
     const cobVesTotal = parseFloat(kpis.collected_ves_total || 0);
     const cobVesBase  = parseFloat(kpis.collected_ves_base  || 0);
     const cobVesTax   = parseFloat(kpis.collected_ves_tax   || 0);
-    const cobVesIgtf  = parseFloat(kpis.collected_ves_igtf  || 0);
     const cobVesTotalUsd = parseFloat(kpis.collected_ves_equivalent_usd || 0);
     const implicitRate = cobVesTotalUsd > 0 ? cobVesTotal / cobVesTotalUsd : 0;
     const rateText = implicitRate > 0 ? ` (Tasa Promedio: ${implicitRate.toFixed(2)})` : '';
@@ -553,8 +563,7 @@ function renderDashboard(data) {
     setText("kpi-cobrado-ves-val", fmtVES(cobVesTotal));
     setText("kpi-cobrado-ves-sub", `Equiv. ${fmtUSD(cobVesTotalUsd)}${rateText}<br>
         <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 4px;">Base: ${fmtVES(cobVesBase)}</span>
-        <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 2px;">IVA: ${fmtVES(cobVesTax)}</span>
-        <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 2px;">IGTF: ${fmtVES(cobVesIgtf)}</span>`);
+        <span style="opacity: 0.8; font-size: 10px; display: block; margin-top: 2px;">IVA: ${fmtVES(cobVesTax)}</span>`);
 
     // Gastos
     const gastosUsd = parseFloat(kpis.total_expenses_usd || 0);

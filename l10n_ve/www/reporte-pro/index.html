@@ -150,23 +150,42 @@
                     <span class="section-period-label" style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;" id="executive-period-label"></span>
                 </h5>
                 <div class="kpi-cards-grid" id="kpi-cards-grid">
-                    <div class="kpi-card" id="kpi-pendiente">
+                    <div class="kpi-card" id="kpi-pendiente-cobrar">
                         <div class="card-options-dropdown">
-                            <button class="options-btn" onclick="toggleCardMenu(event, 'pendiente')" title="Opciones">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'pendiente-cobrar')" title="Opciones">
                                 <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
                             </button>
-                            <div class="dropdown-menu-custom hidden" id="menu-pendiente">
-                                <button onclick="downloadKpiExcel('por_cobrar')">
+                            <div class="dropdown-menu-custom hidden" id="menu-pendiente-cobrar">
+                                <button onclick="downloadKpiExcel('pendiente_cobrar')">
                                     <i data-lucide="download" style="width: 14px; height: 14px;"></i>
                                     <span>Descargar Excel</span>
                                 </button>
                             </div>
                         </div>
-                        <div class="kpi-icon-wrap warning"><i data-lucide="file-clock"></i></div>
+                        <div class="kpi-icon-wrap warning"><i data-lucide="receipt"></i></div>
                         <div class="kpi-body">
-                            <span class="kpi-label">Por Cobrar</span>
-                            <span class="kpi-value" id="kpi-pendiente-val">—</span>
-                            <span class="kpi-sub" id="kpi-pendiente-count">— facturas</span>
+                            <span class="kpi-label">Pendientes por Cobrar</span>
+                            <span class="kpi-value" id="kpi-pendiente-cobrar-val">—</span>
+                            <span class="kpi-sub" id="kpi-pendiente-cobrar-count">— facturas</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" id="kpi-borrador">
+                        <div class="card-options-dropdown">
+                            <button class="options-btn" onclick="toggleCardMenu(event, 'borrador')" title="Opciones">
+                                <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div class="dropdown-menu-custom hidden" id="menu-borrador">
+                                <button onclick="downloadKpiExcel('borrador')">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>Descargar Excel</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="kpi-icon-wrap info"><i data-lucide="file-text"></i></div>
+                        <div class="kpi-body">
+                            <span class="kpi-label">Borradores</span>
+                            <span class="kpi-value" id="kpi-borrador-val">—</span>
+                            <span class="kpi-sub" id="kpi-borrador-count">— facturas</span>
                         </div>
                     </div>
                     <div class="kpi-card" id="kpi-cobrado-usd">
