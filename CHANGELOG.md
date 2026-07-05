@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.15.0] - 2026-07-05
+
+### ✨ Funcionalidades (Features)
+- Se restringió la visibilidad del número de referencia en la interfaz de usuario para que sea accesible únicamente por usuarios con rol de Administrador. [f3fa087]
+
+---
+
 ## [v2.14.3] - 2026-07-05
 
 ### 🐛 Correcciones (Fixes)
