@@ -616,6 +616,22 @@ def format_currency_ve_py(val, currency="USD"):
         return f"{symbol}{flt(val):.2f}"
 
 
+def get_payment_igtf_value(pe_igtf_val, paid_on_currency, exchange_rate, ratio, is_usd_kpi):
+    if not pe_igtf_val:
+        return 0.0
+    is_pe_usd = (paid_on_currency == "USD")
+    if is_usd_kpi:
+        if is_pe_usd:
+            return flt(pe_igtf_val) * ratio
+        else:
+            return (flt(pe_igtf_val) / exchange_rate if exchange_rate > 0 else 0.0) * ratio
+    else:
+        if is_pe_usd:
+            return (flt(pe_igtf_val) * exchange_rate) * ratio
+        else:
+            return flt(pe_igtf_val) * ratio
+
+
 def _draw_excel_card(ws, start_col, start_row, label, usd_val, vef_val, accent_color, is_qty=False):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     
@@ -1514,20 +1530,7 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
             collected_usd_total += paid_currency_ref
             
             if pe_igtf_val > 0:
-                pe_paid_amt = flt(row.get('pe_paid_amount') or 0)
-                paid_cur_amt = flt(row.get('paid_currency_amount') or 0)
-                pe_rate = pe_paid_amt / paid_cur_amt if paid_cur_amt > 0 else exchange_rate
-                if pe_rate <= 0:
-                    pe_rate = exchange_rate
-                
-                # Heurística: si pe_igtf_val > paid_cur_amt * 0.5, está en VES, se convierte a USD.
-                # De lo contrario, ya está en USD.
-                if pe_igtf_val > paid_cur_amt * 0.5:
-                    pe_igtf_usd = pe_igtf_val / pe_rate
-                else:
-                    pe_igtf_usd = pe_igtf_val
-                    
-                igtf_collected_usd = pe_igtf_usd * ratio
+                igtf_collected_usd = get_payment_igtf_value(pe_igtf_val, row.get('paid_on_currency'), exchange_rate, ratio, is_usd_kpi=True)
                 remainder_usd = paid_currency_ref - igtf_collected_usd
                 collected_usd_base += remainder_usd * (base_vef / base_grand if base_grand > 0 else 1.0)
                 collected_usd_tax += remainder_usd * (iva_vef / base_grand if base_grand > 0 else 0.0)
@@ -1545,7 +1548,7 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
             collected_ves_total += paid_loc
             
             if pe_igtf_val > 0:
-                igtf_collected_ves = pe_igtf_val * ratio
+                igtf_collected_ves = get_payment_igtf_value(pe_igtf_val, row.get('paid_on_currency'), exchange_rate, ratio, is_usd_kpi=False)
                 remainder_ves = paid_loc - igtf_collected_ves
                 collected_ves_base += remainder_ves * (base_vef / base_grand if base_grand > 0 else 1.0)
                 collected_ves_tax += remainder_ves * (iva_vef / base_grand if base_grand > 0 else 0.0)
@@ -1765,22 +1768,14 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
             # Para facturas emitidas, se considera pendiente si tiene saldo pendiente por cobrar (outstanding_amount > 0)
             is_unpaid = flt(inv.get("outstanding_amount") or 0) > 0.01
             if is_unpaid:
-                g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (flt(inv.grand_total) * exchange_rate)
-                g_total_usd = g_total_vef / exchange_rate if exchange_rate > 0 else 0.0
-                total_pendiente_usd += g_total_usd
-                total_pendiente_vef += g_total_vef
-                
-                # El saldo pendiente real en USD / VES
                 out_vef = flt(inv.get("outstanding_amount") or 0)
                 out_usd = out_vef / exchange_rate if exchange_rate > 0 else 0.0
                 
-                # Si no tiene outstanding_amount registrado, usar grand_total
-                if out_vef <= 0:
-                    total_cobrable_usd += g_total_usd
-                    total_cobrable_vef += g_total_vef
-                else:
-                    total_cobrable_usd += out_usd
-                    total_cobrable_vef += out_vef
+                total_pendiente_usd += out_usd
+                total_pendiente_vef += out_vef
+                
+                total_cobrable_usd += out_usd
+                total_cobrable_vef += out_vef
                 cobrable_count += 1
 
     unpaid_count = borrador_count + cobrable_count
@@ -2129,20 +2124,7 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             # IGTF directo del Payment Entry
             pe_igtf_val = flt(row.get('pe_igtf_amount') or 0)
             if pe_igtf_val > 0:
-                if is_usd_kpi:
-                    pe_paid_amt = flt(row.get('pe_paid_amount') or 0)
-                    paid_cur_amt = flt(row.get('paid_currency_amount') or 0)
-                    pe_rate = pe_paid_amt / paid_cur_amt if paid_cur_amt > 0 else 1.0
-                    if pe_rate <= 0:
-                        pe_rate = _local_get_cached_rate(str(row['posting_date']))
-                    # Heurística: si pe_igtf_val > paid_cur_amt * 0.5, está en VES → dividir.
-                    # De lo contrario, ya está en USD → usar directo.
-                    if pe_igtf_val > paid_cur_amt * 0.5:
-                        val_igtf = (pe_igtf_val / pe_rate) * ratio
-                    else:
-                        val_igtf = pe_igtf_val * ratio
-                else:
-                    val_igtf = pe_igtf_val * ratio
+                val_igtf = get_payment_igtf_value(pe_igtf_val, row.get('paid_on_currency'), exchange_rate, ratio, is_usd_kpi)
                 remainder = paid_val - val_igtf
                 val_base = remainder * (base_vef / base_grand if base_grand > 0 else 1.0)
                 val_tax = remainder * (iva_vef / base_grand if base_grand > 0 else 0.0)
@@ -2408,20 +2390,7 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             # IGTF directo del Payment Entry
             pe_igtf_val = flt(row.get('pe_igtf_amount') or 0)
             if pe_igtf_val > 0:
-                if is_usd_kpi:
-                    pe_paid_amt = flt(row.get('pe_paid_amount') or 0)
-                    paid_cur_amt = flt(row.get('paid_currency_amount') or 0)
-                    pe_rate = pe_paid_amt / paid_cur_amt if paid_cur_amt > 0 else 1.0
-                    if pe_rate <= 0:
-                        pe_rate = _local_get_cached_rate(str(row['posting_date']))
-                    # Heurística: si pe_igtf_val > paid_cur_amt * 0.5, está en VES → dividir.
-                    # De lo contrario, ya está en USD → usar directo.
-                    if pe_igtf_val > paid_cur_amt * 0.5:
-                        val_igtf = (pe_igtf_val / pe_rate) * ratio
-                    else:
-                        val_igtf = pe_igtf_val * ratio
-                else:
-                    val_igtf = pe_igtf_val * ratio
+                val_igtf = get_payment_igtf_value(pe_igtf_val, row.get('paid_on_currency'), exchange_rate, ratio, is_usd_kpi)
                 remainder = paid_val - val_igtf
                 val_base = remainder * (base_vef / base_grand if base_grand > 0 else 1.0)
                 val_tax = remainder * (iva_vef / base_grand if base_grand > 0 else 0.0)

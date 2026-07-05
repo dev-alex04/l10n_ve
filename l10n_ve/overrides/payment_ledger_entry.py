@@ -52,18 +52,19 @@ def recalculate_invoice_igtf(invoice_name):
         # Verificar si el pago tiene el impuesto IGTF en su tabla de impuestos
         igtf_tax = next((t for t in pe.taxes or [] if t.charge_type == "IGTF"), None)
         if igtf_tax and flt(igtf_tax.tax_amount) > 0:
-            matched_amount_vef = abs(flt(entry.amount_in_account_currency))
+            matched_amount_in_acc_currency = abs(flt(entry.amount_in_account_currency))
             
-            # Si la moneda de la cuenta de cobro es USD, el monto ya está en USD.
-            # De lo contrario (ej. VES), se divide por la tasa del cobro.
+            # El IGTF en la factura (base_amount_igtf y total_igtf) debe estar expresado en VEF (moneda base).
+            # Si el Ledger Entry está en USD, lo convertimos a VEF usando la tasa del cobro.
+            # Si está en VEF, lo tomamos directo.
             account_currency = entry.get("account_currency") or "VEF"
             if account_currency == "USD":
-                matched_amount_usd = matched_amount_vef
+                matched_amount_vef = matched_amount_in_acc_currency * (flt(pe.exchange_rate) or 1.0)
             else:
-                matched_amount_usd = matched_amount_vef / (flt(pe.exchange_rate) or 1.0)
+                matched_amount_vef = matched_amount_in_acc_currency
 
-            total_base_igtf += matched_amount_usd
-            total_igtf += (matched_amount_usd * igtf_rate) / 100.0
+            total_base_igtf += matched_amount_vef
+            total_igtf += (matched_amount_vef * igtf_rate) / 100.0
 
     # Actualizar la factura
     frappe.db.set_value("Sales Invoice", invoice_name, {
