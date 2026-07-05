@@ -1502,9 +1502,9 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
         base_vef = flt(row['base_net_total'] or 0)
         iva_vef = flt(row['base_iva_amount'] or 0)
         
-        ratio_base = base_vef / total_vef if total_vef > 0 else 1.0
-        ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
-        ratio_igtf = igtf_vef / total_vef if total_vef > 0 else 0.0
+        ratio_base = base_vef / total_vef if total_vef != 0 else 1.0
+        ratio_tax = iva_vef / total_vef if total_vef != 0 else 0.0
+        ratio_igtf = igtf_vef / total_vef if total_vef != 0 else 0.0
         
         if currency == 'USD':
             collected_usd_total += paid_currency_ref
@@ -1721,7 +1721,7 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
         no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
         if no_control:
             g_total_usd = flt(inv.grand_total)
-            g_total_vef = flt(inv.base_grand_total) if hasattr(inv, "base_grand_total") else (g_total_usd * exchange_rate)
+            g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (g_total_usd * exchange_rate)
             total_pendiente_usd += g_total_usd
             total_pendiente_vef += g_total_vef
             
@@ -1921,7 +1921,7 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
                 rate = 1.0 if is_usd else _local_get_cached_rate(str(inv.posting_date))
                 
                 g_total_usd = flt(inv.grand_total)
-                g_total_vef = flt(inv.base_grand_total) if hasattr(inv, "base_grand_total") else (g_total_usd * exchange_rate)
+                g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (g_total_usd * exchange_rate)
                 net_usd = flt(inv.net_total) if is_usd else flt(inv.net_total) / rate
                 iva_usd = g_total_usd - net_usd
 
