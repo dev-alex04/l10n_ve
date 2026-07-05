@@ -1514,7 +1514,20 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
             collected_usd_total += paid_currency_ref
             
             if pe_igtf_val > 0:
-                igtf_collected_usd = pe_igtf_val * ratio
+                pe_paid_amt = flt(row.get('pe_paid_amount') or 0)
+                paid_cur_amt = flt(row.get('paid_currency_amount') or 0)
+                pe_rate = pe_paid_amt / paid_cur_amt if paid_cur_amt > 0 else exchange_rate
+                if pe_rate <= 0:
+                    pe_rate = exchange_rate
+                
+                # Heurística: si pe_igtf_val > paid_cur_amt * 0.5, está en VES, se convierte a USD.
+                # De lo contrario, ya está en USD.
+                if pe_igtf_val > paid_cur_amt * 0.5:
+                    pe_igtf_usd = pe_igtf_val / pe_rate
+                else:
+                    pe_igtf_usd = pe_igtf_val
+                    
+                igtf_collected_usd = pe_igtf_usd * ratio
                 remainder_usd = paid_currency_ref - igtf_collected_usd
                 collected_usd_base += remainder_usd * (base_vef / base_grand if base_grand > 0 else 1.0)
                 collected_usd_tax += remainder_usd * (iva_vef / base_grand if base_grand > 0 else 0.0)
@@ -1726,7 +1739,7 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
     all_invoices = frappe.get_all(
         "Sales Invoice",
         filters=table_filters,
-        fields=["name", "base_net_total", "base_grand_total", "grand_total", "bill_control", "docstatus"]
+        fields=["name", "base_net_total", "base_grand_total", "grand_total", "bill_control", "docstatus", "outstanding_amount"]
     )
 
     total_pendiente_usd = 0.0
@@ -1739,23 +1752,41 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
     cobrable_count = 0
 
     for inv in all_invoices:
-        no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
-        if no_control:
+        # Un borrador es siempre borrador, tenga o no número de control (a veces se pre-asigna o copia)
+        if inv.docstatus == 0:
             g_total_usd = flt(inv.grand_total)
             g_total_vef = flt(inv.base_grand_total) if hasattr(inv, "base_grand_total") else (g_total_usd * exchange_rate)
+            total_borrador_usd += g_total_usd
+            total_borrador_vef += g_total_vef
             total_pendiente_usd += g_total_usd
             total_pendiente_vef += g_total_vef
-            
-            if inv.docstatus == 0:
-                total_borrador_usd += g_total_usd
-                total_borrador_vef += g_total_vef
-                borrador_count += 1
-            elif inv.docstatus == 1:
-                total_cobrable_usd += g_total_usd
-                total_cobrable_vef += g_total_vef
+            borrador_count += 1
+        elif inv.docstatus == 1:
+            # Para facturas emitidas, se considera pendiente si:
+            # 1. No tiene número de control asignado (flujo original / contingencia) OR
+            # 2. Tiene saldo pendiente por cobrar (outstanding_amount > 0)
+            no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
+            is_unpaid = flt(inv.get("outstanding_amount") or 0) > 0.01
+            if no_control or is_unpaid:
+                g_total_usd = flt(inv.grand_total)
+                g_total_vef = flt(inv.base_grand_total) if hasattr(inv, "base_grand_total") else (g_total_usd * exchange_rate)
+                total_pendiente_usd += g_total_usd
+                total_pendiente_vef += g_total_vef
+                
+                # El saldo pendiente real en USD / VES
+                out_vef = flt(inv.get("outstanding_amount") or 0)
+                out_usd = out_vef / exchange_rate if exchange_rate > 0 else 0.0
+                
+                # Si no tiene outstanding_amount registrado, usar grand_total
+                if out_vef <= 0:
+                    total_cobrable_usd += g_total_usd
+                    total_cobrable_vef += g_total_vef
+                else:
+                    total_cobrable_usd += out_usd
+                    total_cobrable_vef += out_vef
                 cobrable_count += 1
 
-    unpaid_count = sum(1 for inv in all_invoices if not inv.bill_control)
+    unpaid_count = borrador_count + cobrable_count
 
     return {
         "unpaid_orders_count": unpaid_count,
@@ -1921,7 +1952,7 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
         all_invoices = frappe.get_all(
             "Sales Invoice",
             filters=table_filters,
-            fields=["name", "posting_date", "customer_name", "net_total", "base_net_total", "grand_total", "base_grand_total", "bill_control", "currency", "docstatus"]
+            fields=["name", "posting_date", "customer_name", "net_total", "base_net_total", "grand_total", "base_grand_total", "bill_control", "currency", "docstatus", "outstanding_amount"]
         )
 
         row_idx = header_row_idx + 1
@@ -1931,12 +1962,14 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
         total_grand_vef = 0.0
 
         for inv in all_invoices:
-            no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
-            if no_control:
-                if kpi_name == "pendiente_cobrar" and inv.docstatus != 1:
-                    continue
-                if kpi_name == "borrador" and inv.docstatus != 0:
-                    continue
+            if inv.docstatus == 0:
+                is_included = (kpi_name == "borrador")
+            else:
+                no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
+                is_unpaid = flt(inv.get("outstanding_amount") or 0) > 0.01
+                is_included = (kpi_name in ("por_cobrar", "pendiente_cobrar") and (no_control or is_unpaid))
+
+            if is_included:
 
                 is_usd = (inv.currency == "USD")
                 rate = 1.0 if is_usd else _local_get_cached_rate(str(inv.posting_date))
@@ -2083,7 +2116,20 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             # IGTF directo del Payment Entry
             pe_igtf_val = flt(row.get('pe_igtf_amount') or 0)
             if pe_igtf_val > 0:
-                val_igtf = pe_igtf_val * ratio
+                if is_usd_kpi:
+                    pe_paid_amt = flt(row.get('pe_paid_amount') or 0)
+                    paid_cur_amt = flt(row.get('paid_currency_amount') or 0)
+                    pe_rate = pe_paid_amt / paid_cur_amt if paid_cur_amt > 0 else 1.0
+                    if pe_rate <= 0:
+                        pe_rate = _local_get_cached_rate(str(row['posting_date']))
+                    # Heurística: si pe_igtf_val > paid_cur_amt * 0.5, está en VES → dividir.
+                    # De lo contrario, ya está en USD → usar directo.
+                    if pe_igtf_val > paid_cur_amt * 0.5:
+                        val_igtf = (pe_igtf_val / pe_rate) * ratio
+                    else:
+                        val_igtf = pe_igtf_val * ratio
+                else:
+                    val_igtf = pe_igtf_val * ratio
                 remainder = paid_val - val_igtf
                 val_base = remainder * (base_vef / base_grand if base_grand > 0 else 1.0)
                 val_tax = remainder * (iva_vef / base_grand if base_grand > 0 else 0.0)
@@ -2349,7 +2395,20 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             # IGTF directo del Payment Entry
             pe_igtf_val = flt(row.get('pe_igtf_amount') or 0)
             if pe_igtf_val > 0:
-                val_igtf = pe_igtf_val * ratio
+                if is_usd_kpi:
+                    pe_paid_amt = flt(row.get('pe_paid_amount') or 0)
+                    paid_cur_amt = flt(row.get('paid_currency_amount') or 0)
+                    pe_rate = pe_paid_amt / paid_cur_amt if paid_cur_amt > 0 else 1.0
+                    if pe_rate <= 0:
+                        pe_rate = _local_get_cached_rate(str(row['posting_date']))
+                    # Heurística: si pe_igtf_val > paid_cur_amt * 0.5, está en VES → dividir.
+                    # De lo contrario, ya está en USD → usar directo.
+                    if pe_igtf_val > paid_cur_amt * 0.5:
+                        val_igtf = (pe_igtf_val / pe_rate) * ratio
+                    else:
+                        val_igtf = pe_igtf_val * ratio
+                else:
+                    val_igtf = pe_igtf_val * ratio
                 remainder = paid_val - val_igtf
                 val_base = remainder * (base_vef / base_grand if base_grand > 0 else 1.0)
                 val_tax = remainder * (iva_vef / base_grand if base_grand > 0 else 0.0)
