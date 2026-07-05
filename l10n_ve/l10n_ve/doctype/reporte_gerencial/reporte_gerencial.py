@@ -1968,12 +1968,29 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             if is_included:
 
                 is_usd = (inv.currency == "USD")
-                rate = 1.0 if is_usd else _local_get_cached_rate(str(inv.posting_date))
                 
-                g_total_usd = flt(inv.grand_total)
-                g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (g_total_usd * exchange_rate)
-                net_usd = flt(inv.net_total) if is_usd else flt(inv.net_total) / rate
-                iva_usd = g_total_usd - net_usd
+                if kpi_name == "borrador":
+                    g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (flt(inv.grand_total) * exchange_rate)
+                    g_total_usd = g_total_vef / exchange_rate if exchange_rate > 0 else 0.0
+                    
+                    net_vef = flt(inv.base_net_total) if inv.get("base_net_total") else (flt(inv.net_total) * exchange_rate)
+                    net_usd = net_vef / exchange_rate if exchange_rate > 0 else 0.0
+                    iva_usd = g_total_usd - net_usd
+                else:
+                    # Para pendientes por cobrar, usar el saldo pendiente real (outstanding_amount)
+                    out_vef = flt(inv.get("outstanding_amount") or 0)
+                    out_usd = out_vef / exchange_rate if exchange_rate > 0 else 0.0
+                    
+                    g_total_usd = out_usd
+                    g_total_vef = out_vef
+                    
+                    # Prorratear Neto e IVA en base al saldo pendiente
+                    grand_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (flt(inv.grand_total) * exchange_rate)
+                    ratio = out_vef / grand_vef if grand_vef > 0 else 1.0
+                    
+                    net_vef = flt(inv.base_net_total) if inv.get("base_net_total") else (flt(inv.net_total) * exchange_rate)
+                    net_usd = (net_vef / exchange_rate if exchange_rate > 0 else 0.0) * ratio
+                    iva_usd = g_total_usd - net_usd
 
                 row_data = [
                     str(inv.posting_date),
