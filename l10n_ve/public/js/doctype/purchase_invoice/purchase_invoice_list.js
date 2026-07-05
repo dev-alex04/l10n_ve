@@ -12,6 +12,7 @@ frappe.listview_settings["Purchase Invoice"] = {
     "is_return",
     "is_debit_note",
     "bill_no",
+    "posting_date",
   ],
 
   get_indicator: function (doc) {
@@ -87,15 +88,14 @@ frappe.listview_settings["Purchase Invoice"] = {
       });
     }
 
-    // Columnas personalizadas: bill_no como Subject, supplier_name, status
+    // Dynamic update of Subject column to use bill_no, while keeping other columns configurable by the user
     const get_df = frappe.meta.get_docfield.bind(null, "Purchase Invoice");
-    listview.columns = [
-      { type: "Subject", df: get_df("bill_no") || { label: __("Factura de proveedor No."), fieldname: "bill_no" } },
-      { type: "Tag" },
-      { type: "Status" },
-      { type: "Field", df: get_df("supplier_name") || { label: __("Proveedor"), fieldname: "supplier_name" } },
-      { type: "Field", df: get_df("posting_date") || { label: __("Fecha de Contabilización"), fieldname: "posting_date" } },
-    ];
+    if (listview.columns && listview.columns.length > 0) {
+      const subject_col = listview.columns.find(col => col.type === "Subject");
+      if (subject_col) {
+        subject_col.df = get_df("bill_no") || { label: __("Factura de proveedor No."), fieldname: "bill_no", fieldtype: "Data" };
+      }
+    }
     listview.render_header(true);
   },
 };

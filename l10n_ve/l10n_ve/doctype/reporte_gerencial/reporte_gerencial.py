@@ -593,11 +593,14 @@ def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=Non
         reverse=True
     )
 
+    real_kpis = calculate_real_kpis(company, from_date, to_date, branch=branch, exchange_rate=rate_today)
+
     return {
         "sales_count": sales_count,
         "exchange_rate": rate_today,
         "branch_financial_summary": branch_financial_summary,
-        "customer_financial_summary": customer_financial_summary
+        "customer_financial_summary": customer_financial_summary,
+        "real_kpis": real_kpis
     }
 
 
@@ -701,6 +704,7 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
     data = get_dashboard_data(company, from_date, to_date, branch, cost_center, customer)
     rate_today = data.get("exchange_rate", 1.0)
     company_details = _get_company_details(company)
+    real_kpis = data.get("real_kpis") or {}
     
     summary_data = []
     t_cobrar = t_op = t_iva_op = t_fact = t_iva = t_neto = t_ret_iva = t_ret_islr = t_igtf = t_disp = t_spent = t_util = 0.0
@@ -860,64 +864,88 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
 
         <!-- Mini tarjetas de Resumen -->
         <div class="cards-container">
+            <!-- Fila 1: Cobros -->
             <div class="cards-row">
-                <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #8b5cf6;">
-                        <div class="mini-card-label">Cantidad de Ventas</div>
-                        <div class="mini-card-value">{{ sales_count }}</div>
-                        <div class="mini-card-subtext">&nbsp;</div>
-                    </div>
-                </div>
                 <div class="card-cell">
                     <div class="mini-card" style="border-top: 3px solid #64748b;">
-                        <div class="mini-card-label">Por Cobrar</div>
-                        <div class="mini-card-value">{{ t_cobrar_f }}</div>
-                        <div class="mini-card-subtext">{{ t_cobrar_vef_f }}</div>
+                        <div class="mini-card-label">Pendiente por Cobrar</div>
+                        <div class="mini-card-value">{{ k_cobrable_usd_f }}</div>
+                        <div class="mini-card-subtext">{{ k_cobrable_ves_f }}</div>
                     </div>
                 </div>
                 <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #06b6d4;">
-                        <div class="mini-card-label">Facturado</div>
-                        <div class="mini-card-value">{{ t_fact_f }}</div>
-                        <div class="mini-card-subtext">{{ t_fact_vef_f }}</div>
-                    </div>
-                </div>
-                <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #f97316;">
-                        <div class="mini-card-label">IVA</div>
-                        <div class="mini-card-value">{{ t_iva_f }}</div>
-                        <div class="mini-card-subtext">{{ t_iva_vef_f }}</div>
-                    </div>
-                </div>
-            </div>
-            <div style="height: 6px;"></div>
-            <div class="cards-row">
-                <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #ef4444;">
-                        <div class="mini-card-label">IGTF</div>
-                        <div class="mini-card-value">{{ t_igtf_f }}</div>
-                        <div class="mini-card-subtext">{{ t_igtf_vef_f }}</div>
+                    <div class="mini-card" style="border-top: 3px solid #0284c7;">
+                        <div class="mini-card-label">Borradores</div>
+                        <div class="mini-card-value">{{ k_borrador_usd_f }}</div>
+                        <div class="mini-card-subtext">{{ k_borrador_ves_f }}</div>
                     </div>
                 </div>
                 <div class="card-cell">
                     <div class="mini-card" style="border-top: 3px solid #10b981;">
-                        <div class="mini-card-label">Disponibilidad</div>
-                        <div class="mini-card-value" style="color: {% if t_disp >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_disp_f }}</div>
-                        <div class="mini-card-subtext" style="color: {% if t_disp >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_disp_vef_f }}</div>
-                    </div>
-                </div>
-                <div class="card-cell">
-                    <div class="mini-card" style="border-top: 3px solid #ec4899;">
-                        <div class="mini-card-label">Gastos</div>
-                        <div class="mini-card-value" style="color: #dc2626;">{{ t_spent_f }}</div>
-                        <div class="mini-card-subtext" style="color: #dc2626;">{{ t_spent_vef_f }}</div>
+                        <div class="mini-card-label">Cobrado REF ($)</div>
+                        <div class="mini-card-value">{{ k_cobrado_usd_f }}</div>
+                        <div class="mini-card-subtext" style="font-size: 6pt; color: #475569;">
+                            Base: {{ k_cobrado_usd_base_f }} | IVA: {{ k_cobrado_usd_tax_f }} | IGTF: {{ k_cobrado_usd_igtf_f }}
+                        </div>
                     </div>
                 </div>
                 <div class="card-cell">
                     <div class="mini-card" style="border-top: 3px solid #059669;">
-                        <div class="mini-card-label">Utilidad</div>
-                        <div class="mini-card-value" style="color: {% if t_util >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_util_f }}</div>
-                        <div class="mini-card-subtext" style="color: {% if t_util >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ t_util_vef_f }}</div>
+                        <div class="mini-card-label">Cobrado Bs.</div>
+                        <div class="mini-card-value">{{ k_cobrado_ves_f }}</div>
+                        <div class="mini-card-subtext" style="font-size: 6pt; color: #475569;">
+                            Base: {{ k_cobrado_ves_base_f }} | IVA: {{ k_cobrado_ves_tax_f }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="height: 6px;"></div>
+            <!-- Fila 2: Gastos y Disponibilidad -->
+            <div class="cards-row">
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #ec4899;">
+                        <div class="mini-card-label">Gastos</div>
+                        <div class="mini-card-value">{{ k_spent_usd_f }}</div>
+                        <div class="mini-card-subtext">{{ k_spent_ves_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #06b6d4;">
+                        <div class="mini-card-label">Disponible REF ($)</div>
+                        <div class="mini-card-value" style="color: {% if k_available_usd >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ k_available_usd_f }}</div>
+                        <div class="mini-card-subtext">&nbsp;</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #3b82f6;">
+                        <div class="mini-card-label">Disponible Bs.</div>
+                        <div class="mini-card-value" style="color: {% if k_available_ves >= 0 %}#059669{% else %}#dc2626{% endif %};">{{ k_available_ves_f }}</div>
+                        <div class="mini-card-subtext">&nbsp;</div>
+                    </div>
+                </div>
+            </div>
+            <div style="height: 6px;"></div>
+            <!-- Fila 3: Retenciones e IGTF -->
+            <div class="cards-row">
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #f59e0b;">
+                        <div class="mini-card-label">Retención IVA</div>
+                        <div class="mini-card-value">{{ k_ret_iva_ves_f }}</div>
+                        <div class="mini-card-subtext">Equiv. {{ k_ret_iva_usd_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #d97706;">
+                        <div class="mini-card-label">Retención ISLR</div>
+                        <div class="mini-card-value">{{ k_ret_islr_ves_f }}</div>
+                        <div class="mini-card-subtext">Equiv. {{ k_ret_islr_usd_f }}</div>
+                    </div>
+                </div>
+                <div class="card-cell">
+                    <div class="mini-card" style="border-top: 3px solid #ef4444;">
+                        <div class="mini-card-label">IGTF Total</div>
+                        <div class="mini-card-value">{{ k_igtf_total_ves_f }}</div>
+                        <div class="mini-card-subtext">Equiv. {{ k_igtf_total_usd_f }}</div>
                     </div>
                 </div>
             </div>
@@ -1022,27 +1050,41 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
         "cost_center": cost_center,
         "summary": summary_data,
         "sales_count": data.get("sales_count", 0),
-        "t_cobrar": t_cobrar,
-        "t_cobrar_f": format_currency_ve_py(t_cobrar, "USD"),
-        "t_cobrar_vef_f": format_currency_ve_py(v_cobrar, "VEF"),
-        "t_fact": t_fact,
-        "t_fact_f": format_currency_ve_py(t_fact, "USD"),
-        "t_fact_vef_f": format_currency_ve_py(v_fact, "VEF"),
-        "t_iva": t_iva,
-        "t_iva_f": format_currency_ve_py(t_iva, "USD"),
-        "t_iva_vef_f": format_currency_ve_py(v_iva, "VEF"),
-        "t_igtf": t_igtf,
-        "t_igtf_f": format_currency_ve_py(t_igtf, "USD"),
-        "t_igtf_vef_f": format_currency_ve_py(v_igtf, "VEF"),
-        "t_disp": t_disp,
-        "t_disp_f": format_currency_ve_py(t_disp, "USD"),
-        "t_disp_vef_f": format_currency_ve_py(v_disp, "VEF"),
-        "t_spent": t_spent,
-        "t_spent_f": format_currency_ve_py(t_spent, "USD"),
-        "t_spent_vef_f": format_currency_ve_py(v_spent, "VEF"),
-        "t_util": t_util,
-        "t_util_f": format_currency_ve_py(t_util, "USD"),
-        "t_util_vef_f": format_currency_ve_py(v_util, "VEF")
+        
+        # Nuevos KPIs
+        "k_cobrar_usd_f": format_currency_ve_py(real_kpis.get("total_pendiente_usd", 0.0), "USD"),
+        "k_cobrar_ves_f": format_currency_ve_py(real_kpis.get("total_pendiente_vef", 0.0), "VEF"),
+        "k_borrador_usd_f": format_currency_ve_py(real_kpis.get("total_borrador_usd", 0.0), "USD"),
+        "k_borrador_ves_f": format_currency_ve_py(real_kpis.get("total_borrador_vef", 0.0), "VEF"),
+        "k_cobrable_usd_f": format_currency_ve_py(real_kpis.get("total_cobrable_usd", 0.0), "USD"),
+        "k_cobrable_ves_f": format_currency_ve_py(real_kpis.get("total_cobrable_vef", 0.0), "VEF"),
+        
+        "k_cobrado_usd_f": format_currency_ve_py(real_kpis.get("collected_usd_total", 0.0), "USD"),
+        "k_cobrado_usd_base_f": format_currency_ve_py(real_kpis.get("collected_usd_base", 0.0), "USD"),
+        "k_cobrado_usd_tax_f": format_currency_ve_py(real_kpis.get("collected_usd_tax", 0.0), "USD"),
+        "k_cobrado_usd_igtf_f": format_currency_ve_py(real_kpis.get("collected_usd_igtf", 0.0), "USD"),
+        
+        "k_cobrado_ves_f": format_currency_ve_py(real_kpis.get("collected_ves_total", 0.0), "VEF"),
+        "k_cobrado_ves_base_f": format_currency_ve_py(real_kpis.get("collected_ves_base", 0.0), "VEF"),
+        "k_cobrado_ves_tax_f": format_currency_ve_py(real_kpis.get("collected_ves_tax", 0.0), "VEF"),
+        "k_cobrado_ves_igtf_f": format_currency_ve_py(real_kpis.get("collected_ves_igtf", 0.0), "VEF"),
+        
+        "k_spent_usd_f": format_currency_ve_py(real_kpis.get("total_expenses_usd", 0.0), "USD"),
+        "k_spent_ves_f": format_currency_ve_py(real_kpis.get("total_expenses_vef", 0.0), "VEF"),
+        
+        "k_available_usd": real_kpis.get("available_usd", 0.0),
+        "k_available_usd_f": format_currency_ve_py(real_kpis.get("available_usd", 0.0), "USD"),
+        "k_available_ves": real_kpis.get("available_vef", 0.0),
+        "k_available_ves_f": format_currency_ve_py(real_kpis.get("available_vef", 0.0), "VEF"),
+        
+        "k_ret_iva_usd_f": format_currency_ve_py(real_kpis.get("ret_iva_usd", 0.0), "USD"),
+        "k_ret_iva_ves_f": format_currency_ve_py(real_kpis.get("ret_iva_vef", 0.0), "VEF"),
+        
+        "k_ret_islr_usd_f": format_currency_ve_py(real_kpis.get("ret_islr_usd", 0.0), "USD"),
+        "k_ret_islr_ves_f": format_currency_ve_py(real_kpis.get("ret_islr_vef", 0.0), "VEF"),
+        
+        "k_igtf_total_usd_f": format_currency_ve_py(real_kpis.get("collected_usd_igtf", 0.0), "USD"),
+        "k_igtf_total_ves_f": format_currency_ve_py(real_kpis.get("collected_ves_igtf", 0.0), "VEF"),
     }
     
     final_html = frappe.render_template(html_template, context)
@@ -1064,6 +1106,8 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
     from frappe.utils import formatdate, nowdate
     
     data = get_dashboard_data(company, from_date, to_date, branch, cost_center, customer)
+    rate_today = data.get("exchange_rate", 1.0)
+    real_kpis = data.get("real_kpis") or {}
     company_details = _get_company_details(company)
 
     wb = openpyxl.Workbook()
@@ -1152,16 +1196,14 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
             t_util += flt(r.get("profit", 0))
             v_util += flt(r.get("profit_vef", 0))
             
-    # Dibujar mini tarjetas (2 filas de 4 tarjetas cada una)
+    # Dibujar mini tarjetas (4 filas de 3 tarjetas cada una)
     # Fila 1 de Tarjetas (Filas 5 a 7)
-    # 1. Cantidad de ventas
-    _draw_excel_card(ws, start_col=2, start_row=5, label="Cantidad de ventas", usd_val=data.get("sales_count", 0), vef_val=None, accent_color="8B5CF6", is_qty=True)
-    # 2. Por cobrar
-    _draw_excel_card(ws, start_col=8, start_row=5, label="Por cobrar", usd_val=t_cobrar, vef_val=v_cobrar, accent_color="64748B")
-    # 3. Facturado
-    _draw_excel_card(ws, start_col=14, start_row=5, label="Facturado", usd_val=t_fact, vef_val=v_fact, accent_color="06B6D4")
-    # 4. IVA
-    _draw_excel_card(ws, start_col=20, start_row=5, label="IVA", usd_val=t_iva, vef_val=v_iva, accent_color="F97316")
+    # 1. Pendiente por cobrar
+    _draw_excel_card(ws, start_col=2, start_row=5, label="Pendiente por cobrar", usd_val=real_kpis.get("total_cobrable_usd", 0.0), vef_val=real_kpis.get("total_cobrable_vef", 0.0), accent_color="64748B")
+    # 2. Borradores
+    _draw_excel_card(ws, start_col=10, start_row=5, label="Borradores", usd_val=real_kpis.get("total_borrador_usd", 0.0), vef_val=real_kpis.get("total_borrador_vef", 0.0), accent_color="0284C7")
+    # 3. Cobrado REF ($)
+    _draw_excel_card(ws, start_col=18, start_row=5, label="Cobrado REF ($)", usd_val=real_kpis.get("collected_usd_total", 0.0), vef_val=real_kpis.get("collected_usd_total", 0.0) * rate_today, accent_color="10B981")
     
     ws.row_dimensions[5].height = 16
     ws.row_dimensions[6].height = 22
@@ -1171,39 +1213,63 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
     ws.row_dimensions[8].height = 10
     
     # Fila 2 de Tarjetas (Filas 9 a 11)
-    # 5. IGTF
-    _draw_excel_card(ws, start_col=2, start_row=9, label="IGTF", usd_val=t_igtf, vef_val=v_igtf, accent_color="EF4444")
-    # 6. Disponibilidad
-    _draw_excel_card(ws, start_col=8, start_row=9, label="Disponibilidad", usd_val=t_disp, vef_val=v_disp, accent_color="10B981")
-    # 7. Gastos
-    _draw_excel_card(ws, start_col=14, start_row=9, label="Gastos", usd_val=t_spent, vef_val=v_spent, accent_color="EC4899")
-    # 8. Utilidad
-    _draw_excel_card(ws, start_col=20, start_row=9, label="Utilidad", usd_val=t_util, vef_val=v_util, accent_color="059669")
+    # 4. Cobrado Bs.
+    _draw_excel_card(ws, start_col=2, start_row=9, label="Cobrado Bs.", usd_val=real_kpis.get("collected_ves_total", 0.0) / rate_today if rate_today else 0.0, vef_val=real_kpis.get("collected_ves_total", 0.0), accent_color="059669")
+    # 5. Gastos
+    _draw_excel_card(ws, start_col=10, start_row=9, label="Gastos", usd_val=real_kpis.get("total_expenses_usd", 0.0), vef_val=real_kpis.get("total_expenses_vef", 0.0), accent_color="EC4899")
+    # 6. Disponible REF ($)
+    _draw_excel_card(ws, start_col=18, start_row=9, label="Disponible REF ($)", usd_val=real_kpis.get("available_usd", 0.0), vef_val=real_kpis.get("available_usd", 0.0) * rate_today, accent_color="06B6D4")
     
     ws.row_dimensions[9].height = 16
     ws.row_dimensions[10].height = 22
     ws.row_dimensions[11].height = 18
     
     # Separador (Fila 12)
-    ws.row_dimensions[12].height = 12
+    ws.row_dimensions[12].height = 10
     
-    # Título de Sección "Resumen Financiero por Sucursal" (Fila 13)
-    ws.row_dimensions[13].height = 22
-    ws.merge_cells(start_row=13, start_column=1, end_row=13, end_column=25)
-    title_cell = ws.cell(row=13, column=1, value="RESUMEN FINANCIERO POR SUCURSAL")
+    # Fila 3 de Tarjetas (Filas 13 a 15)
+    # 7. Disponible Bs.
+    _draw_excel_card(ws, start_col=2, start_row=13, label="Disponible Bs.", usd_val=real_kpis.get("available_vef", 0.0) / rate_today if rate_today else 0.0, vef_val=real_kpis.get("available_vef", 0.0), accent_color="3B82F6")
+    # 8. Retención IVA
+    _draw_excel_card(ws, start_col=10, start_row=13, label="Retención IVA", usd_val=real_kpis.get("ret_iva_usd", 0.0), vef_val=real_kpis.get("ret_iva_vef", 0.0), accent_color="F59E0B")
+    # 9. Retención ISLR
+    _draw_excel_card(ws, start_col=18, start_row=13, label="Retención ISLR", usd_val=real_kpis.get("ret_islr_usd", 0.0), vef_val=real_kpis.get("ret_islr_vef", 0.0), accent_color="D97706")
+    
+    ws.row_dimensions[13].height = 16
+    ws.row_dimensions[14].height = 22
+    ws.row_dimensions[15].height = 18
+    
+    # Separador (Fila 16)
+    ws.row_dimensions[16].height = 10
+
+    # Fila 4 de Tarjetas (Filas 17 a 19)
+    # 10. IGTF Total
+    _draw_excel_card(ws, start_col=2, start_row=17, label="IGTF Total", usd_val=real_kpis.get("collected_usd_igtf", 0.0), vef_val=real_kpis.get("collected_ves_igtf", 0.0), accent_color="EF4444")
+    
+    ws.row_dimensions[17].height = 16
+    ws.row_dimensions[18].height = 22
+    ws.row_dimensions[19].height = 18
+    
+    # Separador (Fila 20)
+    ws.row_dimensions[20].height = 12
+    
+    # Título de Sección "Resumen Financiero por Sucursal" (Fila 21)
+    ws.row_dimensions[21].height = 22
+    ws.merge_cells(start_row=21, start_column=1, end_row=21, end_column=25)
+    title_cell = ws.cell(row=21, column=1, value="RESUMEN FINANCIERO POR SUCURSAL")
     title_cell.font = Font(name=font_family, size=11, bold=True, color="0F172A")
     title_cell.alignment = align_left
     
     title_border_side = Side(style='thin', color="CBD5E1")
     for col_idx in range(1, 26):
-        ws.cell(row=13, column=col_idx).border = Border(bottom=title_border_side)
+        ws.cell(row=21, column=col_idx).border = Border(bottom=title_border_side)
         
-    # Separador (Fila 14)
-    ws.row_dimensions[14].height = 8
+    # Separador (Fila 22)
+    ws.row_dimensions[22].height = 8
     
     headers = [
         "Sucursal",
-        "Por cobrar (USD)", "Por cobrar (Bs.)",
+        "Pendiente por cobrar (USD)", "Pendiente por cobrar (Bs.)",
         "Orden de Pago (USD)", "Orden de Pago (Bs.)",
         "IVA Orden de Pago (USD)", "IVA Orden de Pago (Bs.)",
         "Facturado (USD)", "Facturado (Bs.)",
@@ -1217,16 +1283,16 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
         "Utilidad (USD)", "Utilidad (Bs.)"
     ]
     
-    # Cabeceras de la tabla (Fila 15)
-    ws.row_dimensions[15].height = 28
+    # Cabeceras de la tabla (Fila 23)
+    ws.row_dimensions[23].height = 28
     for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=15, column=col_idx, value=h)
+        cell = ws.cell(row=23, column=col_idx, value=h)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = align_center
         cell.border = Border(left=thin_grid, right=thin_grid, top=thin_accent, bottom=thin_accent)
         
-    row_num = 16
+    row_num = 24
     for r in data.get("branch_financial_summary") or []:
         is_grp = r.get("is_group", False)
         indent = r.get("indent", 0)
@@ -1301,11 +1367,11 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
         cell.number_format = '#,##0.00;(#,##0.00);"-"'
         cell.fill = total_fill
         
-    # Ajustar ancho de columnas escaneando desde la cabecera de la tabla (fila 15) en adelante
+    # Ajustar ancho de columnas escaneando desde la cabecera de la tabla (fila 23) en adelante
     for col_idx in range(1, 26):
         col_letter = get_column_letter(col_idx)
         max_len = 0
-        for r in range(15, row_num + 1):
+        for r in range(23, row_num + 1):
             cell_val = ws.cell(row=r, column=col_idx).value
             if cell_val is not None:
                 val_str = f"{cell_val:,.2f}" if isinstance(cell_val, (int, float)) else str(cell_val)
@@ -1349,4 +1415,1195 @@ def get_customer_list(doctype=None, txt=None, searchfield=None, start=0, page_le
     params.extend([int(start or 0), int(page_len or 20)])
     db_results = frappe.db.sql(query, params)
     return [{"value": r[0], "label": r[1] or r[0]} for r in db_results if r[0]]
+
+
+def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=None, tree=None):
+    from l10n_ve.utils.utils import get_exchange_rate
+    from frappe.utils import flt
+
+    if not exchange_rate:
+        exchange_rate = flt(get_exchange_rate(date_to, "USD")) or 1.0
+
+    # Calculate allowed branch universe (hierarchy)
+    allowed = _get_allowed_branches(company)
+    allowed_set = set(allowed) if allowed is not None else None
+    if branch:
+        universe = set(_ve_branch_children(branch))
+        if allowed_set is not None:
+            universe &= allowed_set
+    elif allowed_set is not None:
+        universe = set(allowed_set)
+    else:
+        universe = None
+
+    branch_list = list(universe) if universe is not None else None
+
+    # 1. Real Collections from standard Payment Entry and Payment Entry Reference
+    query = """
+        select 
+            pe.name,
+            pe.paid_on_currency,
+            pe.paid_currency_amount,
+            pe.paid_amount as pe_paid_amount,
+            pe.posting_date,
+            ref.allocated_amount,
+            pe.total_allocated_amount,
+            si.base_net_total,
+            si.base_grand_total,
+            si.total_igtf,
+            (select sum(base_tax_amount) from `tabSales Taxes and Charges` where parent = si.name and (description like '%%IVA%%' or description like '%%I.V.A.%%') and is_tax_withholding_account = 0) as base_iva_amount
+        from `tabPayment Entry Reference` ref
+        join `tabPayment Entry` pe on ref.parent = pe.name
+        join `tabSales Invoice` si on ref.reference_name = si.name
+        where pe.docstatus = 1
+          and pe.company = %(company)s
+          and pe.posting_date between %(date_from)s and %(date_to)s
+    """
+    params = {"company": company, "date_from": date_from, "date_to": date_to}
+    if branch_list is not None:
+        query += " and si.branch in %(branches)s"
+        params["branches"] = branch_list or ["__no_access__"]
+
+    res = frappe.db.sql(query, params, as_dict=True)
+
+    rates_cache = {}
+    def _local_get_cached_rate(d_str):
+        if d_str not in rates_cache:
+            rates_cache[d_str] = flt(get_exchange_rate(d_str, "USD")) or 1.0
+        return rates_cache[d_str]
+
+    collected_usd_total = 0.0
+    collected_usd_base = 0.0
+    collected_usd_tax = 0.0
+    collected_usd_igtf = 0.0
+
+    collected_ves_total = 0.0
+    collected_ves_base = 0.0
+    collected_ves_tax = 0.0
+    collected_ves_igtf = 0.0
+    collected_ves_equivalent_usd = 0.0
+
+    for row in res:
+        currency = row['paid_on_currency'] or 'VEF'
+        pe_total_allocated = flt(row['total_allocated_amount'] or 0)
+        allocated = flt(row['allocated_amount'] or 0)
+        
+        ratio = allocated / pe_total_allocated if pe_total_allocated > 0 else 1.0
+        
+        paid_currency_total = flt(row['paid_currency_amount'] or 0)
+        paid_currency_ref = paid_currency_total * ratio
+        paid_loc = allocated
+        
+        # base_grand_total does NOT include IGTF in Frappe; use the true total
+        # (base_grand_total + total_igtf) so that ratio_base + ratio_tax + ratio_igtf == 1
+        base_grand = flt(row['base_grand_total'] or 0)
+        igtf_vef = flt(row['total_igtf'] or 0)
+        total_vef = base_grand + igtf_vef   # true invoice total in company currency
+        base_vef = flt(row['base_net_total'] or 0)
+        iva_vef = flt(row['base_iva_amount'] or 0)
+        
+        ratio_base = base_vef / total_vef if total_vef != 0 else 1.0
+        ratio_tax = iva_vef / total_vef if total_vef != 0 else 0.0
+        ratio_igtf = igtf_vef / total_vef if total_vef != 0 else 0.0
+        
+        if currency == 'USD':
+            collected_usd_total += paid_currency_ref
+            collected_usd_base += paid_currency_ref * ratio_base
+            collected_usd_tax += paid_currency_ref * ratio_tax
+            collected_usd_igtf += paid_currency_ref * ratio_igtf
+            
+            # Convert USD IGTF portion of the payment to VEF using payment posting date rate
+            r_val = _local_get_cached_rate(str(row['posting_date']))
+            collected_ves_igtf += (paid_currency_ref * ratio_igtf) * r_val
+        elif currency in ('VEF', 'VES'):
+            collected_ves_total += paid_loc
+            collected_ves_base += paid_loc * ratio_base
+            collected_ves_tax += paid_loc * ratio_tax
+            collected_ves_igtf += paid_loc * ratio_igtf
+
+            
+            # Convert VEF payment to USD equivalent using exchange rate of payment date
+            r_val = _local_get_cached_rate(str(row['posting_date']))
+            collected_ves_equivalent_usd += paid_loc / r_val if r_val > 0 else 0.0
+
+    # 2. Real Expenses paid in USD and VEF
+    query_expenses = """
+        select 
+            spending_currency,
+            sum(total_exchange) as total_usd,
+            sum(total) as total_vef
+        from `tabExpense`
+        where docstatus = 1 and company = %(company)s and expense_date between %(date_from)s and %(date_to)s
+    """
+    params_exp = {"company": company, "date_from": date_from, "date_to": date_to}
+    if branch_list is not None:
+        query_expenses += " and branch in %(branches)s"
+        params_exp["branches"] = branch_list or ["__no_access__"]
+    query_expenses += " group by spending_currency"
+
+    expenses_res = frappe.db.sql(query_expenses, params_exp, as_dict=True)
+    real_spent_usd = 0.0
+    real_spent_vef = 0.0
+    for row in expenses_res:
+        if row['spending_currency'] == 'USD':
+            real_spent_usd += flt(row['total_usd'] or 0)
+        elif row['spending_currency'] in ('VEF', 'VES'):
+            real_spent_vef += flt(row['total_vef'] or 0)
+
+    # 3. Real Withholdings from Sales Taxes and Charges (same pattern as get_dashboard_data)
+    real_ret_iva_usd = 0.0
+    real_ret_iva_vef = 0.0
+    real_ret_islr_usd = 0.0
+    real_ret_islr_vef = 0.0
+    real_igtf_usd = 0.0
+    real_igtf_vef = 0.0
+
+    if tree:
+        for node in tree:
+            if node.get("indent") == 0:
+                real_ret_iva_usd += flt(node.get("vat_withholding") or 0)
+                real_ret_iva_vef += flt(node.get("vat_withholding_vef") or 0)
+                real_ret_islr_usd += flt(node.get("islr_withholding") or 0)
+                real_ret_islr_vef += flt(node.get("islr_withholding_vef") or 0)
+                real_igtf_usd += flt(node.get("igtf") or 0)
+                real_igtf_vef += flt(node.get("igtf_vef") or 0)
+    else:
+        # Fetch all invoices in range with GL entry movements (docstatus=1)
+        query_invoices = """
+            select name, posting_date, currency, total_igtf, base_amount_igtf
+            from `tabSales Invoice`
+            where docstatus = 1 and company = %(company)s
+              and posting_date between %(date_from)s and %(date_to)s
+        """
+        params_inv = {"company": company, "date_from": date_from, "date_to": date_to}
+        if branch_list is not None:
+            query_invoices += " and branch in %(branches)s"
+            params_inv["branches"] = branch_list or ["__no_access__"]
+
+        invoices_list = frappe.db.sql(query_invoices, params_inv, as_dict=True)
+        invoice_names = [x.name for x in invoices_list]
+
+        if invoice_names:
+            # IGTF: sum from Sales Invoice directly
+            for inv in invoices_list:
+                is_usd = (inv.currency == "USD")
+                rate_val = flt(_local_get_cached_rate(str(inv.posting_date)))
+                igtf_val = flt(inv.total_igtf)
+                real_igtf_usd += igtf_val if is_usd else (igtf_val / rate_val if rate_val > 0 else 0.0)
+                
+                base_igtf = flt(inv.get("base_amount_igtf") or 0)
+                if is_usd:
+                    real_igtf_vef += base_igtf if base_igtf > 0 else (igtf_val * rate_val)
+                else:
+                    real_igtf_vef += igtf_val
+
+            # Withholdings: from Sales Taxes and Charges (same as get_dashboard_data)
+            taxes_raw = frappe.db.get_all(
+                "Sales Taxes and Charges",
+                filters={"parent": ["in", invoice_names], "is_tax_withholding_account": 1},
+                fields=["parent", "account_head", "tax_amount", "base_tax_amount"]
+            )
+            inv_map = {x.name: x for x in invoices_list}
+            for t in taxes_raw:
+                inv_doc = inv_map.get(t.parent)
+                if not inv_doc:
+                    continue
+                is_usd = (inv_doc.currency == "USD")
+                rate_val = 1.0 if is_usd else _local_get_cached_rate(str(inv_doc.posting_date))
+
+                ac_lower = str(t.account_head).lower()
+                vat_v = flt(t.base_tax_amount)
+                vat_usd = flt(t.tax_amount) if is_usd else vat_v / rate_val
+
+                if "iva" in ac_lower:
+                    real_ret_iva_vef += vat_v
+                    real_ret_iva_usd += vat_usd
+                elif "islr" in ac_lower:
+                    real_ret_islr_vef += vat_v
+                    real_ret_islr_usd += vat_usd
+
+    # 4. Real Available
+    # 4. Real Available (Cumulative from beginning of time up to date_to)
+    # Cumulative collections query (ignoring date_from)
+    query_cum_collected = """
+        select 
+            pe.paid_on_currency,
+            pe.paid_currency_amount,
+            ref.allocated_amount,
+            pe.total_allocated_amount
+        from `tabPayment Entry Reference` ref
+        join `tabPayment Entry` pe on ref.parent = pe.name
+        join `tabSales Invoice` si on ref.reference_name = si.name
+        where pe.docstatus = 1
+          and pe.company = %(company)s
+          and pe.posting_date <= %(date_to)s
+    """
+    params_cum_col = {"company": company, "date_to": date_to}
+    if branch_list is not None:
+        query_cum_collected += " and si.branch in %(branches)s"
+        params_cum_col["branches"] = tuple(branch_list) if branch_list else ("__no_access__",)
+
+    res_cum_col = frappe.db.sql(query_cum_collected, params_cum_col, as_dict=True)
+    cum_collected_usd = 0.0
+    cum_collected_vef = 0.0
+
+    for row in res_cum_col:
+        currency = row['paid_on_currency'] or 'VEF'
+        pe_total_allocated = flt(row['total_allocated_amount'] or 0)
+        allocated = flt(row['allocated_amount'] or 0)
+        
+        ratio = allocated / pe_total_allocated if pe_total_allocated > 0 else 1.0
+        
+        paid_currency_total = flt(row['paid_currency_amount'] or 0)
+        paid_currency_ref = paid_currency_total * ratio
+        paid_loc = allocated
+        
+        if currency == 'USD':
+            cum_collected_usd += paid_currency_ref
+        elif currency in ('VEF', 'VES'):
+            cum_collected_vef += paid_loc
+
+    # Cumulative expenses query (ignoring date_from)
+    query_cum_expenses = """
+        select 
+            spending_currency,
+            sum(total_exchange) as total_usd,
+            sum(total) as total_vef
+        from `tabExpense`
+        where docstatus = 1 and company = %(company)s and expense_date <= %(date_to)s
+    """
+    params_cum_exp = {"company": company, "date_to": date_to}
+    if branch_list is not None:
+        query_cum_expenses += " and branch in %(branches)s"
+        params_cum_exp["branches"] = tuple(branch_list) if branch_list else ("__no_access__",)
+    query_cum_expenses += " group by spending_currency"
+
+    res_cum_exp = frappe.db.sql(query_cum_expenses, params_cum_exp, as_dict=True)
+    cum_spent_usd = 0.0
+    cum_spent_vef = 0.0
+    for row in res_cum_exp:
+        if row['spending_currency'] == 'USD':
+            cum_spent_usd += flt(row['total_usd'] or 0)
+        elif row['spending_currency'] in ('VEF', 'VES'):
+            cum_spent_vef += flt(row['total_vef'] or 0)
+
+    available_usd = cum_collected_usd - cum_spent_usd
+    available_vef = cum_collected_vef - cum_spent_vef
+
+    # 5. Outstanding / Pending Invoices
+    si_filters = {
+        "docstatus": 1,
+        "company": company,
+        "posting_date": ["between", [date_from, date_to]]
+    }
+
+    if branch_list is not None:
+        si_filters["branch"] = ["in", (branch_list or ["__no_access__"])]
+
+    table_filters = dict(si_filters)
+    table_filters["docstatus"] = ["!=", 2]
+    all_invoices = frappe.get_all(
+        "Sales Invoice",
+        filters=table_filters,
+        fields=["name", "base_net_total", "base_grand_total", "grand_total", "bill_control", "docstatus"]
+    )
+
+    total_pendiente_usd = 0.0
+    total_pendiente_vef = 0.0
+    total_borrador_usd = 0.0
+    total_borrador_vef = 0.0
+    borrador_count = 0
+    total_cobrable_usd = 0.0
+    total_cobrable_vef = 0.0
+    cobrable_count = 0
+
+    for inv in all_invoices:
+        no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
+        if no_control:
+            g_total_usd = flt(inv.grand_total)
+            g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (g_total_usd * exchange_rate)
+            total_pendiente_usd += g_total_usd
+            total_pendiente_vef += g_total_vef
+            
+            if inv.docstatus == 0:
+                total_borrador_usd += g_total_usd
+                total_borrador_vef += g_total_vef
+                borrador_count += 1
+            elif inv.docstatus == 1:
+                total_cobrable_usd += g_total_usd
+                total_cobrable_vef += g_total_vef
+                cobrable_count += 1
+
+    unpaid_count = sum(1 for inv in all_invoices if not inv.bill_control)
+
+    return {
+        "unpaid_orders_count": unpaid_count,
+        "grand_total": total_pendiente_usd,
+        "total_pendiente_usd": total_pendiente_usd,
+        "total_pendiente_vef": total_pendiente_vef,
+        "total_borrador_usd": total_borrador_usd,
+        "total_borrador_vef": total_borrador_vef,
+        "borrador_count": borrador_count,
+        "total_cobrable_usd": total_cobrable_usd,
+        "total_cobrable_vef": total_cobrable_vef,
+        "cobrable_count": cobrable_count,
+        "pending_base_amount": 0.0,
+        "pending_tax_amount": 0.0,
+        
+        "actual_collected_total": collected_usd_total,
+        
+        "collected_usd_total": collected_usd_total,
+        "collected_usd_base": collected_usd_base,
+        "collected_usd_tax": collected_usd_tax,
+        "collected_usd_igtf": collected_usd_igtf,
+        
+        "collected_ves_total": collected_ves_total,
+        "collected_ves_base": collected_ves_base,
+        "collected_ves_tax": collected_ves_tax,
+        "collected_ves_igtf": collected_ves_igtf,
+        "collected_ves_equivalent_usd": collected_ves_equivalent_usd,
+        
+        "total_expenses_usd": real_spent_usd,
+        "total_expenses_vef": real_spent_vef,
+        
+        "collected_total_usd": collected_usd_total,
+        "collected_total_vef": collected_ves_total,
+        
+        "available_usd": available_usd,
+        "available_vef": available_vef,
+        
+        "ret_iva_usd": real_ret_iva_usd,
+        "ret_iva_vef": real_ret_iva_vef,
+        "ret_islr_usd": real_ret_islr_usd,
+        "ret_islr_vef": real_ret_islr_vef,
+        "igtf_total": collected_usd_igtf,
+        "igtf_vef": collected_ves_igtf,
+    }
+
+
+@frappe.whitelist()
+def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None):
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Debe iniciar sesión para ver los datos."))
+    if not frappe.has_permission("Reporte Gerencial", "read"):
+        frappe.throw(_("No tiene permisos para acceder a este recurso."), frappe.PermissionError)
+        
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from frappe.utils import flt
+    import io
+    from l10n_ve.utils.utils import get_exchange_rate
+
+    # Calculate allowed branch universe (hierarchy)
+    allowed = _get_allowed_branches(company)
+    allowed_set = set(allowed) if allowed is not None else None
+    if branch:
+        universe = set(_ve_branch_children(branch))
+        if allowed_set is not None:
+            universe &= allowed_set
+    elif allowed_set is not None:
+        universe = set(allowed_set)
+    else:
+        universe = None
+
+    branch_list = list(universe) if universe is not None else None
+
+    # Setup styles
+    font_title = Font(name="Calibri", size=16, bold=True, color="1F4E78")
+    font_subtitle = Font(name="Calibri", size=11, italic=True, color="595959")
+    font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    font_bold = Font(name="Calibri", size=11, bold=True)
+    font_regular = Font(name="Calibri", size=11)
+    
+    fill_header = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    fill_total = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    
+    thin_side = Side(border_style="thin", color="D9D9D9")
+    border_data = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+    
+    double_bottom_side = Side(border_style="double", color="000000")
+    top_thin_side = Side(border_style="thin", color="000000")
+    border_total = Border(top=top_thin_side, bottom=double_bottom_side)
+
+    align_left = Alignment(horizontal="left", vertical="center")
+    align_right = Alignment(horizontal="right", vertical="center")
+    align_center = Alignment(horizontal="center", vertical="center")
+
+    wb = Workbook()
+    # Remove default sheet
+    wb.remove(wb.active)
+
+    exchange_rate = flt(get_exchange_rate(date_to, "USD")) or 1.0
+
+    rates_cache = {}
+    def _local_get_cached_rate(d_str):
+        if d_str not in rates_cache:
+            rates_cache[d_str] = flt(get_exchange_rate(d_str, "USD")) or 1.0
+        return rates_cache[d_str]
+
+    def autofit_cols(ws, start_row=1):
+        for col in ws.columns:
+            max_len = 0
+            for cell in col:
+                if cell.row >= start_row and cell.value:
+                    if isinstance(cell.value, (int, float)):
+                        val_str = f"{cell.value:,.2f}"
+                    else:
+                        val_str = str(cell.value)
+                    if len(val_str) > max_len:
+                        max_len = len(val_str)
+            col_letter = get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    if kpi_name in ("por_cobrar", "pendiente_cobrar", "borrador"):
+        sheet_title = "Por Cobrar"
+        report_title = "Reporte Detallado: Por Cobrar"
+        if kpi_name == "pendiente_cobrar":
+            sheet_title = "Pendientes por Cobrar"
+            report_title = "Reporte Detallado: Facturas Pendientes por Cobrar"
+        elif kpi_name == "borrador":
+            sheet_title = "Borradores"
+            report_title = "Reporte Detallado: Facturas en Borrador"
+
+        ws = wb.create_sheet(title=sheet_title)
+        
+        ws["A1"] = report_title
+        ws["A1"].font = font_title
+        ws["A2"] = f"Empresa: {company} | Periodo: {date_from} al {date_to}"
+        ws["A2"].font = font_subtitle
+        if branch:
+            ws["A3"] = f"Sucursal: {branch}"
+            ws["A3"].font = font_subtitle
+        
+        headers = ["Fecha Registro", "Factura", "Cliente", "Monto Neto (USD)", "IVA (USD)", "Total Factura (USD)", "Total Factura (Bs.)"]
+        ws.append([])
+        ws.append(headers)
+        
+        header_row_idx = 4 if not branch else 5
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=header_row_idx, column=col_idx)
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align_center
+
+        si_filters = {
+            "docstatus": 1,
+            "company": company,
+            "posting_date": ["between", [date_from, date_to]]
+        }
+        if branch_list is not None:
+            si_filters["branch"] = ["in", (branch_list or ["__no_access__"])]
+
+        table_filters = dict(si_filters)
+        table_filters["docstatus"] = ["!=", 2]
+        all_invoices = frappe.get_all(
+            "Sales Invoice",
+            filters=table_filters,
+            fields=["name", "posting_date", "customer_name", "net_total", "base_net_total", "grand_total", "base_grand_total", "bill_control", "currency", "docstatus"]
+        )
+
+        row_idx = header_row_idx + 1
+        total_net_usd = 0.0
+        total_iva_usd = 0.0
+        total_grand_usd = 0.0
+        total_grand_vef = 0.0
+
+        for inv in all_invoices:
+            no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
+            if no_control:
+                if kpi_name == "pendiente_cobrar" and inv.docstatus != 1:
+                    continue
+                if kpi_name == "borrador" and inv.docstatus != 0:
+                    continue
+
+                is_usd = (inv.currency == "USD")
+                rate = 1.0 if is_usd else _local_get_cached_rate(str(inv.posting_date))
+                
+                g_total_usd = flt(inv.grand_total)
+                g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (g_total_usd * exchange_rate)
+                net_usd = flt(inv.net_total) if is_usd else flt(inv.net_total) / rate
+                iva_usd = g_total_usd - net_usd
+
+                row_data = [
+                    str(inv.posting_date),
+                    inv.name,
+                    inv.customer_name,
+                    net_usd,
+                    iva_usd,
+                    g_total_usd,
+                    g_total_vef
+                ]
+                ws.append(row_data)
+                
+                for col_idx in range(1, len(row_data) + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.font = font_regular
+                    cell.border = border_data
+                    if col_idx in (1, 2):
+                        cell.alignment = align_center
+                    elif col_idx == 3:
+                        cell.alignment = align_left
+                    else:
+                        cell.alignment = align_right
+                        cell.number_format = '#,##0.00'
+
+                total_net_usd += net_usd
+                total_iva_usd += iva_usd
+                total_grand_usd += g_total_usd
+                total_grand_vef += g_total_vef
+                row_idx += 1
+
+        total_row = ["Total", "", "", total_net_usd, total_iva_usd, total_grand_usd, total_grand_vef]
+        ws.append(total_row)
+        for col_idx in range(1, len(total_row) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = font_bold
+            cell.border = border_total
+            cell.fill = fill_total
+            if col_idx == 1:
+                cell.alignment = align_left
+            elif col_idx > 3:
+                cell.alignment = align_right
+                cell.number_format = '#,##0.00'
+                
+        autofit_cols(ws, header_row_idx)
+
+    elif kpi_name in ("cobrado_usd", "cobrado_ves"):
+        currency_label = "USD" if kpi_name == "cobrado_usd" else "Bs."
+        ws = wb.create_sheet(title=f"Cobrado {currency_label}")
+        
+        ws["A1"] = f"Reporte Detallado: Cobrado en {currency_label}"
+        ws["A1"].font = font_title
+        ws["A2"] = f"Empresa: {company} | Periodo: {date_from} al {date_to}"
+        ws["A2"].font = font_subtitle
+        if branch:
+            ws["A3"] = f"Sucursal: {branch}"
+            ws["A3"].font = font_subtitle
+            
+        headers = [
+            "Recibo de Pago", "Fecha Pago", "Cliente", "Factura Afectada",
+            f"Monto Cobrado ({currency_label})", f"Base Exenta/Gravada ({currency_label})",
+            f"IVA ({currency_label})", f"IGTF ({currency_label})"
+        ]
+        ws.append([])
+        ws.append(headers)
+        
+        header_row_idx = 4 if not branch else 5
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=header_row_idx, column=col_idx)
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align_center
+
+        query = """
+            select 
+                pe.name as payment_entry,
+                pe.paid_on_currency,
+                pe.paid_currency_amount,
+                pe.paid_amount as pe_paid_amount,
+                pe.posting_date,
+                ref.allocated_amount,
+                pe.total_allocated_amount,
+                pe.party as customer_name,
+                si.name as invoice_name,
+                si.base_net_total,
+                si.base_grand_total,
+                si.total_igtf,
+                (select sum(base_tax_amount) from `tabSales Taxes and Charges` where parent = si.name and (description like '%%IVA%%' or description like '%%I.V.A.%%') and is_tax_withholding_account = 0) as base_iva_amount
+            from `tabPayment Entry Reference` ref
+            join `tabPayment Entry` pe on ref.parent = pe.name
+            join `tabSales Invoice` si on ref.reference_name = si.name
+            where pe.docstatus = 1
+              and pe.company = %(company)s
+              and pe.posting_date between %(date_from)s and %(date_to)s
+        """
+        params = {"company": company, "date_from": date_from, "date_to": date_to}
+        if branch_list is not None:
+            query += " and si.branch in %(branches)s"
+            params["branches"] = branch_list or ["__no_access__"]
+            
+        res = frappe.db.sql(query, params, as_dict=True)
+
+        row_idx = header_row_idx + 1
+        t_cobrado = 0.0
+        t_base = 0.0
+        t_iva = 0.0
+        t_igtf = 0.0
+
+        for row in res:
+            curr = row['paid_on_currency'] or 'VEF'
+            is_usd_kpi = (kpi_name == "cobrado_usd")
+            
+            if is_usd_kpi and curr != "USD":
+                continue
+            if not is_usd_kpi and curr not in ("VEF", "VES"):
+                continue
+
+            pe_total_allocated = flt(row['total_allocated_amount'] or 0)
+            allocated = flt(row['allocated_amount'] or 0)
+            ratio = allocated / pe_total_allocated if pe_total_allocated > 0 else 1.0
+            
+            paid_currency_total = flt(row['paid_currency_amount'] or 0)
+            paid_val = paid_currency_total * ratio if is_usd_kpi else allocated
+
+            # Use true total (base_grand_total + total_igtf) so ratios sum to 1
+            base_grand = flt(row['base_grand_total'] or 0)
+            igtf_vef = flt(row['total_igtf'] or 0)
+            total_vef = base_grand + igtf_vef
+            base_vef = flt(row['base_net_total'] or 0)
+            iva_vef = flt(row['base_iva_amount'] or 0)
+            
+            ratio_base = base_vef / total_vef if total_vef > 0 else 1.0
+            ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
+            ratio_igtf = igtf_vef / total_vef if total_vef > 0 else 0.0
+
+            val_base = paid_val * ratio_base
+            val_tax = paid_val * ratio_tax
+            val_igtf = paid_val * ratio_igtf
+
+            row_data = [
+                row['payment_entry'],
+                str(row['posting_date']),
+                row['customer_name'],
+                row['invoice_name'],
+                paid_val,
+                val_base,
+                val_tax,
+                val_igtf
+            ]
+            ws.append(row_data)
+            
+            for col_idx in range(1, len(row_data) + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell.font = font_regular
+                cell.border = border_data
+                if col_idx in (1, 2, 4):
+                    cell.alignment = align_center
+                elif col_idx == 3:
+                    cell.alignment = align_left
+                else:
+                    cell.alignment = align_right
+                    cell.number_format = '#,##0.00'
+
+            t_cobrado += paid_val
+            t_base += val_base
+            t_iva += val_tax
+            t_igtf += val_igtf
+            row_idx += 1
+
+        total_row = ["Total", "", "", "", t_cobrado, t_base, t_iva, t_igtf]
+        ws.append(total_row)
+        for col_idx in range(1, len(total_row) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = font_bold
+            cell.border = border_total
+            cell.fill = fill_total
+            if col_idx == 1:
+                cell.alignment = align_left
+            elif col_idx > 4:
+                cell.alignment = align_right
+                cell.number_format = '#,##0.00'
+                
+        autofit_cols(ws, header_row_idx)
+
+    elif kpi_name == "gastos":
+        ws = wb.create_sheet(title="Gastos")
+        
+        ws["A1"] = "Reporte Detallado: Gastos (Egresos)"
+        ws["A1"].font = font_title
+        ws["A2"] = f"Empresa: {company} | Periodo: {date_from} al {date_to}"
+        ws["A2"].font = font_subtitle
+        if branch:
+            ws["A3"] = f"Sucursal: {branch}"
+            ws["A3"].font = font_subtitle
+            
+        headers = ["Fecha Gasto", "Documento", "Proveedor", "Categoría / Concepto", "Moneda", "Monto USD", "Monto VES"]
+        ws.append([])
+        ws.append(headers)
+        
+        header_row_idx = 4 if not branch else 5
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=header_row_idx, column=col_idx)
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align_center
+
+        query_expenses = """
+            select 
+                expense_date,
+                name,
+                employee_name as vendor,
+                expense_description as category,
+                spending_currency,
+                total_exchange as total_usd,
+                total as total_vef
+            from `tabExpense`
+            where docstatus = 1 and company = %(company)s and expense_date between %(date_from)s and %(date_to)s
+        """
+        params_exp = {"company": company, "date_from": date_from, "date_to": date_to}
+        if branch:
+            query_expenses += " and branch = %(branch)s"
+            params_exp["branch"] = branch
+            
+        expenses_res = frappe.db.sql(query_expenses, params_exp, as_dict=True)
+
+        row_idx = header_row_idx + 1
+        t_usd = 0.0
+        t_vef = 0.0
+
+        for r in expenses_res:
+            row_data = [
+                str(r['expense_date']),
+                r['name'],
+                r['vendor'] or "",
+                r['category'] or "",
+                r['spending_currency'],
+                flt(r['total_usd']),
+                flt(r['total_vef'])
+            ]
+            ws.append(row_data)
+            
+            for col_idx in range(1, len(row_data) + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell.font = font_regular
+                cell.border = border_data
+                if col_idx in (1, 2, 5):
+                    cell.alignment = align_center
+                elif col_idx in (3, 4):
+                    cell.alignment = align_left
+                else:
+                    cell.alignment = align_right
+                    cell.number_format = '#,##0.00'
+
+            t_usd += flt(r['total_usd'])
+            t_vef += flt(r['total_vef'])
+            row_idx += 1
+
+        total_row = ["Total", "", "", "", "", t_usd, t_vef]
+        ws.append(total_row)
+        for col_idx in range(1, len(total_row) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = font_bold
+            cell.border = border_total
+            cell.fill = fill_total
+            if col_idx == 1:
+                cell.alignment = align_left
+            elif col_idx > 5:
+                cell.alignment = align_right
+                cell.number_format = '#,##0.00'
+                
+        autofit_cols(ws, header_row_idx)
+
+    elif kpi_name in ("disponible_usd", "disponible_ves"):
+        curr_label = "USD" if kpi_name == "disponible_usd" else "Bs."
+        
+        ws_sum = wb.create_sheet(title="Resumen Disponibilidad")
+        ws_sum["A1"] = f"Resumen de Disponibilidad en {curr_label}"
+        ws_sum["A1"].font = font_title
+        ws_sum["A2"] = f"Empresa: {company} | Periodo: {date_from} al {date_to}"
+        ws_sum["A2"].font = font_subtitle
+        
+        real_kpis = calculate_real_kpis(company, date_from, date_to, branch=branch, exchange_rate=exchange_rate)
+        if kpi_name == "disponible_usd":
+            cobrado = real_kpis.get("collected_usd_total", 0.0)
+            spent = real_kpis.get("total_expenses_usd", 0.0)
+            avail = real_kpis.get("available_usd", 0.0)
+        else:
+            cobrado = real_kpis.get("collected_ves_total", 0.0)
+            spent = real_kpis.get("total_expenses_vef", 0.0)
+            avail = real_kpis.get("available_vef", 0.0)
+
+        ws_sum["A5"] = "Concepto"
+        ws_sum["B5"] = "Monto"
+        for col_idx in (1, 2):
+            cell = ws_sum.cell(row=5, column=col_idx)
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align_center
+
+        ws_sum["A6"] = f"Total Cobrado (Ingresos en {curr_label})"
+        ws_sum["B6"] = cobrado
+        ws_sum["A7"] = f"Total Gastado (Egresos en {curr_label})"
+        ws_sum["B7"] = spent
+        ws_sum["A8"] = "Disponible Neto"
+        ws_sum["B8"] = avail
+
+        for col_idx in (1, 2):
+            for row_idx in (6, 7, 8):
+                cell = ws_sum.cell(row=row_idx, column=col_idx)
+                if row_idx == 8:
+                    cell.font = font_bold
+                    cell.border = border_total
+                    cell.fill = fill_total
+                else:
+                    cell.font = font_regular
+                    cell.border = border_data
+                if col_idx == 1:
+                    cell.alignment = align_left
+                else:
+                    cell.alignment = align_right
+                    cell.number_format = '#,##0.00'
+                    
+        ws_sum.column_dimensions["A"].width = 35
+        ws_sum.column_dimensions["B"].width = 20
+
+        ws_pay = wb.create_sheet(title="Detalle Ingresos (Cobros)")
+        pay_headers = [
+            "Recibo de Pago", "Fecha Pago", "Cliente", "Factura Afectada",
+            f"Monto Cobrado ({curr_label})", f"Base Exenta/Gravada ({curr_label})",
+            f"IVA ({curr_label})", f"IGTF ({curr_label})"
+        ]
+        ws_pay.append(pay_headers)
+        for col_idx, h in enumerate(pay_headers, 1):
+            cell = ws_pay.cell(row=1, column=col_idx)
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align_center
+
+        query = """
+            select 
+                pe.name as payment_entry,
+                pe.paid_on_currency,
+                pe.paid_currency_amount,
+                pe.paid_amount as pe_paid_amount,
+                pe.posting_date,
+                ref.allocated_amount,
+                pe.total_allocated_amount,
+                pe.party as customer_name,
+                si.name as invoice_name,
+                si.base_net_total,
+                si.base_grand_total,
+                si.total_igtf,
+                (select sum(base_tax_amount) from `tabSales Taxes and Charges` where parent = si.name and (description like '%%IVA%%' or description like '%%I.V.A.%%') and is_tax_withholding_account = 0) as base_iva_amount
+            from `tabPayment Entry Reference` ref
+            join `tabPayment Entry` pe on ref.parent = pe.name
+            join `tabSales Invoice` si on ref.reference_name = si.name
+            where pe.docstatus = 1
+              and pe.company = %(company)s
+              and pe.posting_date <= %(date_to)s
+        """
+        params = {"company": company, "date_to": date_to}
+        if branch_list is not None:
+            query += " and si.branch in %(branches)s"
+            params["branches"] = branch_list or ["__no_access__"]
+            
+        res = frappe.db.sql(query, params, as_dict=True)
+        row_idx = 2
+        for row in res:
+            curr = row['paid_on_currency'] or 'VEF'
+            is_usd_kpi = (kpi_name == "disponible_usd")
+            if is_usd_kpi and curr != "USD":
+                continue
+            if not is_usd_kpi and curr not in ("VEF", "VES"):
+                continue
+
+            pe_total_allocated = flt(row['total_allocated_amount'] or 0)
+            allocated = flt(row['allocated_amount'] or 0)
+            ratio = allocated / pe_total_allocated if pe_total_allocated > 0 else 1.0
+            paid_currency_total = flt(row['paid_currency_amount'] or 0)
+            
+            paid_val = paid_currency_total * ratio if is_usd_kpi else allocated
+            # Use true total (base_grand_total + total_igtf) so ratios sum to 1
+            base_grand = flt(row['base_grand_total'] or 0)
+            igtf_vef = flt(row['total_igtf'] or 0)
+            total_vef = base_grand + igtf_vef
+            base_vef = flt(row['base_net_total'] or 0)
+            iva_vef = flt(row['base_iva_amount'] or 0)
+            
+            ratio_base = base_vef / total_vef if total_vef > 0 else 1.0
+            ratio_tax = iva_vef / total_vef if total_vef > 0 else 0.0
+            ratio_igtf = igtf_vef / total_vef if total_vef > 0 else 0.0
+
+            row_data = [
+                row['payment_entry'],
+                str(row['posting_date']),
+                row['customer_name'],
+                row['invoice_name'],
+                paid_val,
+                paid_val * ratio_base,
+                paid_val * ratio_tax,
+                paid_val * ratio_igtf
+            ]
+            ws_pay.append(row_data)
+            for col_idx in range(1, len(row_data) + 1):
+                cell = ws_pay.cell(row=row_idx, column=col_idx)
+                cell.font = font_regular
+                cell.border = border_data
+                if col_idx in (1, 2, 4):
+                    cell.alignment = align_center
+                elif col_idx == 3:
+                    cell.alignment = align_left
+                else:
+                    cell.alignment = align_right
+                    cell.number_format = '#,##0.00'
+            row_idx += 1
+        autofit_cols(ws_pay, 1)
+
+        ws_exp = wb.create_sheet(title="Detalle Egresos (Gastos)")
+        exp_headers = ["Fecha Gasto", "Documento", "Proveedor", "Categoría / Concepto", "Moneda", f"Monto ({curr_label})"]
+        ws_exp.append(exp_headers)
+        for col_idx, h in enumerate(exp_headers, 1):
+            cell = ws_exp.cell(row=1, column=col_idx)
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align_center
+
+        query_expenses = """
+            select 
+                expense_date,
+                name,
+                employee_name as vendor,
+                expense_description as category,
+                spending_currency,
+                total_exchange as total_usd,
+                total as total_vef
+            from `tabExpense`
+            where docstatus = 1 and company = %(company)s and expense_date <= %(date_to)s
+        """
+        params_exp = {"company": company, "date_to": date_to}
+        if branch_list is not None:
+            query_expenses += " and branch in %(branches)s"
+            params_exp["branches"] = branch_list or ["__no_access__"]
+        expenses_res = frappe.db.sql(query_expenses, params_exp, as_dict=True)
+        
+        row_idx = 2
+        for r in expenses_res:
+            curr = r['spending_currency']
+            is_usd_kpi = (kpi_name == "disponible_usd")
+            if is_usd_kpi and curr != "USD":
+                continue
+            if not is_usd_kpi and curr not in ("VEF", "VES"):
+                continue
+                
+            amt = flt(r['total_usd']) if is_usd_kpi else flt(r['total_vef'])
+            row_data = [
+                str(r['expense_date']),
+                r['name'],
+                r['vendor'] or "",
+                r['category'] or "",
+                r['spending_currency'],
+                amt
+            ]
+            ws_exp.append(row_data)
+            for col_idx in range(1, len(row_data) + 1):
+                cell = ws_exp.cell(row=row_idx, column=col_idx)
+                cell.font = font_regular
+                cell.border = border_data
+                if col_idx in (1, 2, 5):
+                    cell.alignment = align_center
+                elif col_idx in (3, 4):
+                    cell.alignment = align_left
+                else:
+                    cell.alignment = align_right
+                    cell.number_format = '#,##0.00'
+            row_idx += 1
+        autofit_cols(ws_exp, 1)
+
+    elif kpi_name in ("ret_iva", "ret_islr"):
+        title_lbl = "Retención IVA" if kpi_name == "ret_iva" else "Retención ISLR"
+        ws = wb.create_sheet(title=title_lbl)
+        
+        ws["A1"] = f"Reporte Detallado: {title_lbl}"
+        ws["A1"].font = font_title
+        ws["A2"] = f"Empresa: {company} | Periodo: {date_from} al {date_to}"
+        ws["A2"].font = font_subtitle
+        if branch:
+            ws["A3"] = f"Sucursal: {branch}"
+            ws["A3"].font = font_subtitle
+            
+        headers = ["Fecha Factura", "Factura", "Cliente", "Cuenta Retención", "Monto Retención (USD)", "Monto Retención (Bs.)"]
+        ws.append([])
+        ws.append(headers)
+        
+        header_row_idx = 4 if not branch else 5
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=header_row_idx, column=col_idx)
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align_center
+
+        query_invoices = """
+            select name, posting_date, currency, total_igtf
+            from `tabSales Invoice`
+            where docstatus = 1 and company = %(company)s
+              and posting_date between %(date_from)s and %(date_to)s
+        """
+        params_inv = {"company": company, "date_from": date_from, "date_to": date_to}
+        if branch_list is not None:
+            query_invoices += " and branch in %(branches)s"
+            params_inv["branches"] = branch_list or ["__no_access__"]
+        invoices_list = frappe.db.sql(query_invoices, params_inv, as_dict=True)
+        invoice_names = [x.name for x in invoices_list]
+
+        row_idx = header_row_idx + 1
+        tot_usd = 0.0
+        tot_vef = 0.0
+
+        if invoice_names:
+            taxes_raw = frappe.db.get_all(
+                "Sales Taxes and Charges",
+                filters={"parent": ["in", invoice_names], "is_tax_withholding_account": 1},
+                fields=["parent", "account_head", "tax_amount", "base_tax_amount"]
+            )
+            inv_map = {x.name: x for x in invoices_list}
+            for t in taxes_raw:
+                ac_lower = str(t.account_head).lower()
+                is_iva_match = ("iva" in ac_lower and kpi_name == "ret_iva")
+                is_islr_match = ("islr" in ac_lower and kpi_name == "ret_islr")
+                if not (is_iva_match or is_islr_match):
+                    continue
+
+                inv_doc = inv_map.get(t.parent)
+                if not inv_doc:
+                    continue
+                is_usd = (inv_doc.currency == "USD")
+                rate_val = 1.0 if is_usd else _local_get_cached_rate(str(inv_doc.posting_date))
+                
+                vat_v = flt(t.base_tax_amount)
+                vat_usd = flt(t.tax_amount) if is_usd else vat_v / rate_val
+
+                row_data = [
+                    str(inv_doc.posting_date),
+                    inv_doc.name,
+                    frappe.db.get_value("Sales Invoice", inv_doc.name, "customer_name") or "",
+                    t.account_head,
+                    vat_usd,
+                    vat_v
+                ]
+                ws.append(row_data)
+                
+                for col_idx in range(1, len(row_data) + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.font = font_regular
+                    cell.border = border_data
+                    if col_idx in (1, 2):
+                        cell.alignment = align_center
+                    elif col_idx in (3, 4):
+                        cell.alignment = align_left
+                    else:
+                        cell.alignment = align_right
+                        cell.number_format = '#,##0.00'
+                tot_usd += vat_usd
+                tot_vef += vat_v
+                row_idx += 1
+
+        total_row = ["Total", "", "", "", tot_usd, tot_vef]
+        ws.append(total_row)
+        for col_idx in range(1, len(total_row) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = font_bold
+            cell.border = border_total
+            cell.fill = fill_total
+            if col_idx == 1:
+                cell.alignment = align_left
+            elif col_idx > 4:
+                cell.alignment = align_right
+                cell.number_format = '#,##0.00'
+                
+        autofit_cols(ws, header_row_idx)
+
+    elif kpi_name == "igtf":
+        ws = wb.create_sheet(title="IGTF Total")
+        
+        ws["A1"] = "Reporte Detallado: IGTF Total"
+        ws["A1"].font = font_title
+        ws["A2"] = f"Empresa: {company} | Periodo: {date_from} al {date_to}"
+        ws["A2"].font = font_subtitle
+        if branch:
+            ws["A3"] = f"Sucursal: {branch}"
+            ws["A3"].font = font_subtitle
+            
+        headers = ["Fecha Factura", "Factura", "Cliente", "IGTF (USD)", "IGTF (Bs.)"]
+        ws.append([])
+        ws.append(headers)
+        
+        header_row_idx = 4 if not branch else 5
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=header_row_idx, column=col_idx)
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align_center
+
+        query_invoices = """
+            select name, posting_date, currency, total_igtf, base_amount_igtf
+            from `tabSales Invoice`
+            where docstatus = 1 and company = %(company)s
+              and posting_date between %(date_from)s and %(date_to)s
+        """
+        params_inv = {"company": company, "date_from": date_from, "date_to": date_to}
+        if branch_list is not None:
+            query_invoices += " and branch in %(branches)s"
+            params_inv["branches"] = branch_list or ["__no_access__"]
+        invoices_list = frappe.db.sql(query_invoices, params_inv, as_dict=True)
+
+        row_idx = header_row_idx + 1
+        tot_usd = 0.0
+        tot_vef = 0.0
+
+        for inv in invoices_list:
+            igtf_val = flt(inv.total_igtf)
+            if igtf_val <= 0:
+                continue
+
+            is_usd = (inv.currency == "USD")
+            rate_val = flt(_local_get_cached_rate(str(inv.posting_date)))
+            
+            igtf_usd = igtf_val if is_usd else (igtf_val / rate_val if rate_val > 0 else 0.0)
+            
+            base_igtf = flt(inv.get("base_amount_igtf") or 0)
+            if is_usd:
+                igtf_vef = base_igtf if base_igtf > 0 else (igtf_val * rate_val)
+            else:
+                igtf_vef = igtf_val
+
+            row_data = [
+                str(inv.posting_date),
+                inv.name,
+                frappe.db.get_value("Sales Invoice", inv.name, "customer_name") or "",
+                igtf_usd,
+                igtf_vef
+            ]
+            ws.append(row_data)
+            
+            for col_idx in range(1, len(row_data) + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell.font = font_regular
+                cell.border = border_data
+                if col_idx in (1, 2):
+                    cell.alignment = align_center
+                elif col_idx == 3:
+                    cell.alignment = align_left
+                else:
+                    cell.alignment = align_right
+                    cell.number_format = '#,##0.00'
+            tot_usd += igtf_usd
+            tot_vef += igtf_vef
+            row_idx += 1
+
+        total_row = ["Total", "", "", tot_usd, tot_vef]
+        ws.append(total_row)
+        for col_idx in range(1, len(total_row) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = font_bold
+            cell.border = border_total
+            cell.fill = fill_total
+            if col_idx == 1:
+                cell.alignment = align_left
+            elif col_idx > 3:
+                cell.alignment = align_right
+                cell.number_format = '#,##0.00'
+                
+        autofit_cols(ws, header_row_idx)
+
+    # Save to BytesIO and return binary response
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    content = out.read()
+
+    frappe.local.response.filename = f"Detalle_{kpi_name}_{date_from}_a_{date_to}.xlsx"
+    frappe.local.response.filecontent = content
+    frappe.local.response.type = "binary"
+
 

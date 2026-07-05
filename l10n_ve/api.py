@@ -4,25 +4,40 @@ from frappe import _
 import frappe
 
 @frappe.whitelist()
-def get_portal_banks() -> list[str]:
-    cache_key = "l10n_ve:portal_banks"
+def get_portal_banks() -> list[dict]:
+    """Retorna la lista de bancos para el portal de clientes, optimizado en caché de memoria (Redis) para evitar consultas a la BD."""
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Por favor, inicie sesión"), frappe.PermissionError)
+
+    cache_key = "l10n_ve:portal_banks_v2"
     portal_banks = frappe.cache().get_value(cache_key)
 
     if portal_banks:
         return portal_banks
 
+    bank_fields: list[str] = ["name", "bank_name", "swift_number"]
+    if frappe.db.has_column("Bank", "image"):
+        bank_fields.append("image")
+
     portal_banks = frappe.db.get_all(
         "Bank",
-        fields=["name"],
+        fields=bank_fields,
+        order_by="bank_name asc",
         ignore_permissions=True,
     )
 
     frappe.cache().set_value(
         cache_key,
         portal_banks,
-        expires_in_sec=3600
+        expires_in_sec=86400
     )
     return portal_banks
+
+
+def clear_portal_banks_cache(doc=None, method=None) -> None:
+    """Invalida la caché del portal cuando se crea, modifica o elimina un registro en el DocType Bank."""
+    frappe.cache().delete_value("l10n_ve:portal_banks_v2")
+
 
 
 
@@ -52,119 +67,69 @@ def get_filter_options():
 
 
 def _get_kpi_cards(company, date_from, date_to, branch, exchange_rate):
-    from l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial import get_dashboard_data as get_dg_data
-    
-    dg_res = get_dg_data(company, date_from, date_to, branch=branch)
-    tree = dg_res.get("branch_financial_summary", [])
-    
-    total_pendiente_usd = 0.0
-    total_pendiente_vef = 0.0
-    
-    billed_usd = 0.0
-    billed_vef = 0.0
-    vat_usd = 0.0
-    vat_vef = 0.0
-    igtf_usd = 0.0
-    igtf_vef = 0.0
-    
-    availability_usd = 0.0
-    availability_vef = 0.0
-    
-    spent_usd = 0.0
-    spent_vef = 0.0
-    
-    ret_iva_usd = 0.0
-    ret_iva_vef = 0.0
-    ret_islr_usd = 0.0
-    ret_islr_vef = 0.0
-    igtf_total_usd = 0.0
-    igtf_total_vef = 0.0
-    
-    for node in tree:
-        if node.get("indent") == 0:
-            total_pendiente_usd += flt(node.get("pending_to_collect") or 0)
-            total_pendiente_vef += flt(node.get("pending_to_collect_vef") or 0)
-            
-            billed_usd += flt(node.get("billed") or 0)
-            billed_vef += flt(node.get("billed_vef") or 0)
-            
-            vat_usd += flt(node.get("vat") or 0)
-            vat_vef += flt(node.get("vat_vef") or 0)
-            
-            igtf_usd += flt(node.get("igtf") or 0)
-            igtf_vef += flt(node.get("igtf_vef") or 0)
-            
-            availability_usd += flt(node.get("availability") or 0)
-            availability_vef += flt(node.get("availability_vef") or 0)
-            
-            spent_usd += flt(node.get("spent") or 0)
-            spent_vef += flt(node.get("spent_vef") or 0)
-            
-            ret_iva_usd += flt(node.get("vat_withholding") or 0)
-            ret_iva_vef += flt(node.get("vat_withholding_vef") or 0)
-            ret_islr_usd += flt(node.get("islr_withholding") or 0)
-            ret_islr_vef += flt(node.get("islr_withholding_vef") or 0)
-            igtf_total_usd += flt(node.get("igtf") or 0)
-            igtf_total_vef += flt(node.get("igtf_vef") or 0)
+    """
+    Calcula las tarjetas KPI del dashboard usando la misma fuente que el Excel:
+    tabPayment Entry + tabPayment Entry Reference + tabSales Invoice (l10n_ve).
+    NO usa tabISP Payment Entry (domina_isp).
+    """
+    from l10n_ve.l10n_ve.doctype.reporte_gerencial.reporte_gerencial import calculate_real_kpis
 
-    # Count invoices without control number (or draft/unsubmitted in range)
-    si_filters = {
-        "docstatus": 1,
-        "company": company,
-        "posting_date": ["between", [date_from, date_to]]
-    }
-    if branch:
-        si_filters["branch"] = branch
-        
-    invoices = frappe.get_all(
-        "Sales Invoice",
-        filters=si_filters,
-        fields=["name", "bill_control"]
+    # Una sola fuente de verdad: la misma lógica que usa el Excel descargable
+    kpis = calculate_real_kpis(
+        company=company,
+        date_from=date_from,
+        date_to=date_to,
+        branch=branch,
+        exchange_rate=exchange_rate
     )
-    unpaid_count = sum(1 for inv in invoices if not inv.bill_control)
-
-    igtf_usd_divided = flt(flt(igtf_vef) / flt(exchange_rate)) if exchange_rate else 0.0
 
     return {
-        "unpaid_orders_count": unpaid_count,
-        "grand_total": flt(total_pendiente_usd),
-        "total_pendiente_usd": flt(total_pendiente_usd),
-        "total_pendiente_vef": flt(total_pendiente_vef),
-        "pending_base_amount": 0.0,
-        "pending_tax_amount": 0.0,
-        
-        "actual_collected_total": flt(billed_usd),
-        "collected_base_amount": flt(flt(billed_usd) - flt(vat_usd) - flt(igtf_usd_divided)),
-        "collected_tax_amount": flt(vat_usd),
-        
-        "collected_usd_total": flt(billed_usd),
-        "collected_usd_base": flt(flt(billed_usd) - flt(vat_usd) - flt(igtf_usd_divided)),
-        "collected_usd_tax": flt(vat_usd),
-        "collected_usd_igtf": flt(igtf_usd_divided),
-        
-        "collected_ves_total": flt(billed_vef),
-        "collected_ves_base": flt(flt(billed_vef) - flt(vat_vef) - flt(igtf_vef)),
-        "collected_ves_tax": flt(vat_vef),
-        "collected_ves_igtf": flt(igtf_vef),
-        "collected_ves_equivalent_usd": flt(billed_usd),
-        
-        "total_expenses_usd": flt(spent_usd),
-        "total_expenses_vef": flt(spent_vef),
-        
-        "collected_total_usd": flt(billed_usd),
-        "collected_total_vef": flt(billed_vef),
-        "collected_total_usd_base": flt(flt(billed_usd) - flt(vat_usd) - flt(igtf_usd_divided)),
-        "collected_total_vef_base": flt(flt(billed_vef) - flt(vat_vef) - flt(igtf_vef)),
-        
-        "available_usd": flt(availability_usd),
-        "available_vef": flt(availability_vef),
-        
-        "ret_iva_usd": flt(ret_iva_usd),
-        "ret_iva_vef": flt(ret_iva_vef),
-        "ret_islr_usd": flt(ret_islr_usd),
-        "ret_islr_vef": flt(ret_islr_vef),
-        "igtf_total": flt(igtf_total_usd),
-        "igtf_vef": flt(igtf_total_vef),
+        "unpaid_orders_count":    kpis.get("unpaid_orders_count", 0),
+        "grand_total":            flt(kpis.get("total_pendiente_usd", 0)),
+        "total_pendiente_usd":    flt(kpis.get("total_pendiente_usd", 0)),
+        "total_pendiente_vef":    flt(kpis.get("total_pendiente_vef", 0)),
+        "total_borrador_usd":    flt(kpis.get("total_borrador_usd", 0)),
+        "total_borrador_vef":    flt(kpis.get("total_borrador_vef", 0)),
+        "borrador_count":        kpis.get("borrador_count", 0),
+        "total_cobrable_usd":    flt(kpis.get("total_cobrable_usd", 0)),
+        "total_cobrable_vef":    flt(kpis.get("total_cobrable_vef", 0)),
+        "cobrable_count":        kpis.get("cobrable_count", 0),
+        "pending_base_amount":    0.0,
+        "pending_tax_amount":     0.0,
+
+        "actual_collected_total": flt(kpis.get("collected_usd_total", 0)),
+        "collected_base_amount":  flt(kpis.get("collected_usd_base", 0)),
+        "collected_tax_amount":   flt(kpis.get("collected_usd_tax", 0)),
+
+        "collected_usd_total":    flt(kpis.get("collected_usd_total", 0)),
+        "collected_usd_base":     flt(kpis.get("collected_usd_base", 0)),
+        "collected_usd_tax":      flt(kpis.get("collected_usd_tax", 0)),
+        "collected_usd_igtf":     flt(kpis.get("collected_usd_igtf", 0)),
+
+        "collected_ves_total":          flt(kpis.get("collected_ves_total", 0)),
+        "collected_ves_base":           flt(kpis.get("collected_ves_base", 0)),
+        "collected_ves_tax":            flt(kpis.get("collected_ves_tax", 0)),
+        "collected_ves_igtf":           flt(kpis.get("collected_ves_igtf", 0)),
+        "collected_ves_equivalent_usd": flt(kpis.get("collected_ves_equivalent_usd", 0)),
+
+        "total_expenses_usd":  flt(kpis.get("total_expenses_usd", 0)),
+        "total_expenses_vef":  flt(kpis.get("total_expenses_vef", 0)),
+
+        "collected_total_usd":      flt(kpis.get("collected_usd_total", 0)),
+        "collected_total_vef":      flt(kpis.get("collected_ves_total", 0)),
+        "collected_total_usd_base": flt(kpis.get("collected_usd_base", 0)),
+        "collected_total_vef_base": flt(kpis.get("collected_ves_base", 0)),
+
+        "available_usd": flt(kpis.get("available_usd", 0)),
+        "available_vef":  flt(kpis.get("available_vef", 0)),
+
+        "ret_iva_usd":  flt(kpis.get("ret_iva_usd", 0)),
+        "ret_iva_vef":  flt(kpis.get("ret_iva_vef", 0)),
+        "ret_islr_usd": flt(kpis.get("ret_islr_usd", 0)),
+        "ret_islr_vef": flt(kpis.get("ret_islr_vef", 0)),
+        # IGTF TOTAL = mismo valor que el desglose en COBRADO REF ($)
+        "igtf_total":   flt(kpis.get("collected_usd_igtf", 0)),
+        "igtf_vef":     flt(kpis.get("collected_ves_igtf", 0)),
     }
 
 

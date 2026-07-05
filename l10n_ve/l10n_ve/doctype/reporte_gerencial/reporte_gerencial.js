@@ -3,6 +3,14 @@
 
 frappe.ui.form.on('Reporte Gerencial', {
     onload: function(frm) {
+        // Override dirty function to prevent document from ever being marked as modified
+        frm.dirty = function(is_dirty) {
+            this.doc.__unsaved = 0;
+            if (this.page && typeof this.page.clear_indicator === 'function') {
+                this.page.clear_indicator();
+            }
+        };
+
         // Redirect to standard Single DocType route if opened as a generic new document
         if (frm.is_new() && frm.doc.name !== 'Reporte Gerencial') {
             frappe.set_route('Form', 'Reporte Gerencial', 'Reporte Gerencial');
@@ -206,6 +214,9 @@ frappe.ui.form.on('Reporte Gerencial', {
             callback: function(r) {
                 if (r.message) {
                     render_premium_dashboard(frm, r.message);
+                    setTimeout(() => {
+                        frm.dirty(false);
+                    }, 100);
                 } else {
                     frm.fields_dict.dashboard_html.$wrapper.html(`
                         <div style="padding: 40px; text-align: center; color: var(--red-500); font-size: 14px;">
@@ -234,26 +245,37 @@ function render_premium_dashboard(frm, data) {
 
     const rate = data.exchange_rate || 1.0;
 
-    // Calculate sums from table rows to drive both the table totals and the summary cards
-    let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_igtf = 0, t_disp = 0, t_spent = 0, t_util = 0;
-    // Bs nativo para las tarjetas (mismos campos *_vef que la tabla)
-    let v_cobrar = 0, v_fact = 0, v_iva = 0, v_igtf = 0, v_disp = 0, v_spent = 0, v_util = 0;
-    (data.branch_financial_summary || []).forEach(r => {
-        // Solo raíces (indent 0): la tabla es un árbol y los padres ya consolidan a sus hijos.
-        if ((r.indent || 0) !== 0) return;
-        t_cobrar += r.pending_to_collect || 0;   v_cobrar += r.pending_to_collect_vef || 0;
-        t_op += r.payment_order || 0;
-        t_iva_op += r.payment_order_vat || 0;
-        t_fact += r.billed || 0;                  v_fact += r.billed_vef || 0;
-        t_iva += r.vat || 0;                       v_iva += r.vat_vef || 0;
-        t_neto += r.vat_after_withholding || 0;
-        t_ret_iva += r.vat_withholding || 0;
-        t_ret_islr += r.islr_withholding || 0;
-        t_igtf += r.igtf || 0;                     v_igtf += r.igtf_vef || 0;
-        t_disp += r.availability || 0;             v_disp += r.availability_vef || 0;
-        t_spent += r.spent || 0;                   v_spent += r.spent_vef || 0;
-        t_util += r.profit || 0;                   v_util += r.profit_vef || 0;
-    });
+    // Read calculations directly from the real_kpis dictionary computed in the python backend
+    const kpis = data.real_kpis || {};
+    
+    const t_cobrar = kpis.total_pendiente_usd || 0;
+    const v_cobrar = kpis.total_pendiente_vef || 0;
+    
+    const t_fact = kpis.collected_usd_total || 0;
+    const v_fact = kpis.collected_ves_total || 0;
+    const v_fact_equiv_usd = kpis.collected_ves_equivalent_usd || 0;
+    
+    const t_iva = kpis.collected_usd_tax || 0;
+    const v_iva = kpis.collected_ves_tax || 0;
+    
+    const t_spent = kpis.total_expenses_usd || 0;
+    const v_spent = kpis.total_expenses_vef || 0;
+    
+    const t_disp = kpis.available_usd || 0;
+    const v_disp = kpis.available_vef || 0;
+    
+    const t_ret_iva = kpis.ret_iva_usd || 0;
+    const v_ret_iva = kpis.ret_iva_vef || 0;
+    
+    const t_ret_islr = kpis.ret_islr_usd || 0;
+    const v_ret_islr = kpis.ret_islr_vef || 0;
+    
+    const t_igtf = kpis.igtf_total || 0;
+    const v_igtf = kpis.igtf_vef || 0;
+
+    const implicit_rate = v_fact_equiv_usd > 0 ? v_fact / v_fact_equiv_usd : 0;
+    const rate_text_ves = implicit_rate > 0 ? ` (Tasa Promedio: ${implicit_rate.toFixed(2)})` : ` (Tasa BCV: ${rate.toFixed(2)})`;
+    const equiv_ves_usd = v_fact_equiv_usd > 0 ? v_fact_equiv_usd : v_fact / (rate || 1);
 
     const get_card_vals = (usd_val, vef_val) => {
         const equiv_vef = usd_val * rate;
@@ -287,91 +309,108 @@ function render_premium_dashboard(frm, data) {
                     color: #3b82f6 !important;
                     font-size: 16px;
                 }
-                .dg-card-grid {
+                .kpi-cards-grid-custom {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
                     gap: 16px;
-                    margin-bottom: 35px;
+                    margin-bottom: 25px;
                 }
-                .dg-card {
-                    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
-                    border: 1px solid #334155 !important;
+                .kpi-card-custom {
                     border-radius: 12px;
                     padding: 18px;
-                    position: relative;
-                    overflow: hidden;
+                    color: white;
+                    min-height: 140px;
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+                    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
                     display: flex;
                     flex-direction: column;
                     justify-content: space-between;
-                    min-height: 130px;
-                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -1px rgba(0,0,0,0.1);
-                    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                    position: relative;
+                    overflow: hidden;
                 }
-                .dg-card:hover {
+                .kpi-card-custom:hover {
                     transform: translateY(-4px);
-                    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -2px rgba(0,0,0,0.2);
-                    border-color: #475569 !important;
+                    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
                 }
-                .dg-card-header {
+                .kpi-card-custom.cobrado-usd {
+                    background: linear-gradient(135deg, #2b5c8f 0%, #1a365d 100%) !important;
+                    box-shadow: 0 4px 15px rgba(43, 92, 143, 0.25);
+                }
+                .kpi-card-custom.cobrado-vef {
+                    background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%) !important;
+                    box-shadow: 0 4px 15px rgba(46, 125, 50, 0.25);
+                }
+                .kpi-card-custom.disponible-vef,
+                .kpi-card-custom.disponible-usd {
+                    background: linear-gradient(135deg, #0f766e 0%, #115e59 100%) !important;
+                    box-shadow: 0 4px 15px rgba(15, 118, 110, 0.25);
+                }
+                .kpi-card-custom.gastos-custom {
+                    background: linear-gradient(135deg, #c2410c 0%, #9a3412 100%) !important;
+                    box-shadow: 0 4px 15px rgba(194, 65, 12, 0.25);
+                }
+                .kpi-card-custom.utilidad-custom {
+                    background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%) !important;
+                    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.25);
+                }
+                .kpi-card-custom.utilidad-custom.negative {
+                    background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%) !important;
+                    box-shadow: 0 4px 15px rgba(153, 27, 27, 0.25) !important;
+                }
+                .kpi-card-custom.retencion-iva,
+                .kpi-card-custom.retencion-islr,
+                .kpi-card-custom.igtf-custom {
+                    background: linear-gradient(135deg, #581c87 0%, #4c1d95 100%) !important;
+                    box-shadow: 0 4px 15px rgba(88, 28, 135, 0.25);
+                }
+                .kpi-card-custom.por-cobrar-custom {
+                    background: linear-gradient(135deg, #475569 0%, #1e293b 100%) !important;
+                    box-shadow: 0 4px 15px rgba(71, 85, 105, 0.25);
+                }
+                .kpi-card-custom-header {
                     display: flex;
                     justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 4px;
+                    align-items: center;
+                    margin-bottom: 8px;
                 }
-                .dg-card-title {
-                    font-size: 10.5px;
+                .kpi-card-custom-title {
+                    font-size: 11px;
+                    font-weight: 600;
+                    opacity: 0.9;
                     text-transform: uppercase;
-                    letter-spacing: 0.8px;
-                    font-weight: 700;
-                    color: #94a3b8 !important;
+                    letter-spacing: 1px;
+                    color: #f1f5f9 !important;
                 }
-                .dg-card-icon {
+                .kpi-card-custom-icon {
                     font-size: 28px !important;
-                    opacity: 0.12;
+                    opacity: 0.15;
                     position: absolute;
                     right: 15px;
                     top: 15px;
-                    color: #ffffff !important;
+                    color: white !important;
                 }
-                .dg-card-value {
-                    font-size: 22px !important;
+                .kpi-card-custom-value {
+                    font-size: 24px !important;
                     font-weight: 800 !important;
-                    margin: 4px 0 0 0;
-                    letter-spacing: -0.5px;
-                    color: #ffffff !important;
+                    line-height: 1.1;
+                    color: white !important;
                 }
-                .dg-card-equivalent {
-                    font-size: 13.5px !important;
-                    font-weight: 600 !important;
-                    margin-top: 2px;
-                    margin-bottom: 4px;
-                }
-                .dg-card-subtext {
-                    font-size: 11px;
-                    color: #94a3b8 !important;
-                    border-top: 1px solid rgba(255, 255, 255, 0.08);
-                    padding-top: 6px;
+                .kpi-card-custom-ref {
+                    font-size: 13px !important;
+                    opacity: 0.9;
                     margin-top: 4px;
+                    color: #e2e8f0 !important;
                 }
-                
-                /* Premium Card Border Accents (Slate background for all) */
-                .dg-card-grey { border-top: 4px solid #64748b !important; }
-                .dg-card-red { border-top: 4px solid #ef4444 !important; }
-                .dg-card-teal { border-top: 4px solid #06b6d4 !important; }
-                .dg-card-green { border-top: 4px solid #10b981 !important; }
-                .dg-card-blue { border-top: 4px solid #3b82f6 !important; }
-                .dg-card-orange { border-top: 4px solid #f97316 !important; }
-                .dg-card-purple { border-top: 4px solid #8b5cf6 !important; }
-                .dg-card-pink { border-top: 4px solid #ec4899 !important; }
-                .dg-card-indigo { border-top: 4px solid #6366f1 !important; }
-                .dg-card-deepgreen { border-top: 4px solid #059669 !important; }
-                
-                .dg-card-green .dg-card-equivalent, .dg-card-deepgreen .dg-card-equivalent { color: #10b981 !important; }
-                .dg-card-red .dg-card-equivalent, .dg-card-pink .dg-card-equivalent { color: #ef4444 !important; }
-                .dg-card-blue .dg-card-equivalent, .dg-card-teal .dg-card-equivalent { color: #3b82f6 !important; }
-                .dg-card-orange .dg-card-equivalent { color: #f97316 !important; }
-                .dg-card-purple .dg-card-equivalent, .dg-card-indigo .dg-card-equivalent { color: #8b5cf6 !important; }
-                .dg-card-grey .dg-card-equivalent { color: #94a3b8 !important; }
+                .kpi-card-custom-details {
+                    margin-top: 8px;
+                    border-top: 1px solid rgba(255, 255, 255, 0.15);
+                    padding-top: 6px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 3px;
+                    font-size: 11px !important;
+                    color: #cbd5e0 !important;
+                }
                 
                 .dg-section-title {
                     font-size: 16px;
@@ -386,33 +425,57 @@ function render_premium_dashboard(frm, data) {
                     padding-bottom: 10px;
                 }
                 .dg-table-card {
-                    background: #1e293b !important;
-                    border: 1px solid #334155 !important;
-                    border-radius: 14px;
+                    background: linear-gradient(145deg, #1e293b, #0f172a) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                    border-radius: 16px;
                     padding: 24px;
-                    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+                    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.35);
                     margin-bottom: 30px;
+                    overflow: hidden;
                 }
                 .dg-table {
                     width: 100%;
                     margin-bottom: 0;
                     border-collapse: collapse;
+                    border-spacing: 0;
                 }
                 .dg-table th {
-                    background: #0f172a !important;
+                    background: rgba(15, 23, 42, 0.4) !important;
                     font-size: 11px;
                     text-transform: uppercase;
-                    letter-spacing: 0.8px;
+                    letter-spacing: 1px;
                     font-weight: 700;
-                    padding: 14px 16px !important;
-                    border: 1px solid #334155 !important;
-                    color: #94a3b8 !important;
+                    padding: 16px 14px !important;
+                    border-top: none !important;
+                    border-left: none !important;
+                    border-right: none !important;
+                    border-bottom: 2px solid rgba(255, 255, 255, 0.12) !important;
+                    color: #e2e8f0 !important;
+                    vertical-align: middle;
+                    text-align: center !important;
+                }
+                .dg-table th:first-child {
+                    text-align: left !important;
                 }
                 .dg-table td {
-                    padding: 14px 16px !important;
+                    padding: 14px 14px !important;
                     font-size: 13px;
-                    border: 1px solid #334155 !important;
-                    color: #cbd5e0 !important;
+                    border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+                    border-left: none !important;
+                    border-right: none !important;
+                    color: #f8fafc !important;
+                    vertical-align: middle;
+                    text-align: center !important;
+                }
+                .dg-table td:first-child {
+                    text-align: left !important;
+                }
+                .dg-table tbody tr {
+                    transition: background-color 0.15s ease;
+                }
+                .dg-table tbody tr:hover {
+                    background-color: rgba(255, 255, 255, 0.03) !important;
                 }
                 .dg-badge {
                     display: inline-block;
@@ -446,90 +509,135 @@ function render_premium_dashboard(frm, data) {
 
             <!-- SECCIÓN 2: TARJETAS DE RESUMEN (Consolidadas a partir de los totales de la tabla) -->
             <h6 class="dg-section-title" style="margin-top: 0;">
-                <i class="fa fa-th-large" style="color: #3b82f6;"></i> Resumen
+                <i class="fa fa-th-large" style="color: #3b82f6;"></i> Resumen de Flujo de Caja
             </h6>
             
-            <div class="dg-card-grid">
-                <!-- Cantidad de Ventas -->
-                <div id="dg-sales-count-card" class="dg-card dg-card-purple" style="cursor: pointer;">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Cantidad de ventas</span>
-                        <i class="fa fa-shopping-bag dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${data.sales_count}</div>
-                    <div class="dg-card-subtext">
-                        <span>Facturas emitidas en el periodo seleccionado</span>
-                    </div>
-                </div>
-
+            <div class="kpi-cards-grid-custom">
                 <!-- Por cobrar -->
-                <div class="dg-card dg-card-grey">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Por cobrar</span>
-                        <i class="fa fa-clock-o dg-card-icon"></i>
+                <div class="kpi-card-custom por-cobrar-custom">
+                    <div class="kpi-card-custom-header">
+                        <span class="kpi-card-custom-title">Por cobrar</span>
+                        <i class="fa fa-clock-o kpi-card-custom-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_cobrar, v_cobrar).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_cobrar, v_cobrar).vef}</div>
+                    <div class="kpi-card-custom-value">${format_currency_ve(t_cobrar, "USD")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(v_cobrar, "VEF")} (Tasa BCV: ${rate.toFixed(2)})</div>
+                    <div class="kpi-card-custom-details">
+                        <span>Facturas pendientes de número de control</span>
+                    </div>
                 </div>
 
-                <!-- Facturado -->
-                <div class="dg-card dg-card-teal">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Facturado</span>
-                        <i class="fa fa-dollar dg-card-icon"></i>
+                <!-- Cobrado USD -->
+                <div class="kpi-card-custom cobrado-usd">
+                    <div class="kpi-card-custom-header">
+                        <span class="kpi-card-custom-title">Cobrado REF ($)</span>
+                        <i class="fa fa-dollar kpi-card-custom-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_fact, v_fact).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_fact, v_fact).vef}</div>
+                    <div class="kpi-card-custom-value">${format_currency_ve(t_fact, "USD")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(t_fact * rate, "VEF")} (Tasa BCV: ${rate.toFixed(2)})</div>
+                    <div class="kpi-card-custom-details">
+                        <span>Base: ${format_currency_ve(kpis.collected_usd_base || 0, "USD")}</span>
+                        <span>IVA: ${format_currency_ve(t_iva, "USD")}</span>
+                        <span>IGTF: ${format_currency_ve(t_igtf, "USD")}</span>
+                    </div>
                 </div>
 
-                <!-- IVA -->
-                <div class="dg-card dg-card-orange">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">IVA</span>
-                        <i class="fa fa-percent dg-card-icon"></i>
+                <!-- Cobrado Bs. -->
+                <div class="kpi-card-custom cobrado-vef">
+                    <div class="kpi-card-custom-header">
+                        <span class="kpi-card-custom-title">Cobrado Bs.</span>
+                        <i class="fa fa-university kpi-card-custom-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_iva, v_iva).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_iva, v_iva).vef}</div>
-                </div>
-
-                <!-- IGTF -->
-                <div class="dg-card dg-card-red">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">IGTF</span>
-                        <i class="fa fa-university dg-card-icon"></i>
+                    <div class="kpi-card-custom-value">${format_currency_ve(v_fact, "VEF")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(equiv_ves_usd, "USD")}${rate_text_ves}</div>
+                    <div class="kpi-card-custom-details">
+                        <span>Base: ${format_currency_ve(kpis.collected_ves_base || 0, "VEF")}</span>
+                        <span>IVA: ${format_currency_ve(v_iva, "VEF")}</span>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_igtf, v_igtf).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_igtf, v_igtf).vef}</div>
-                </div>
-
-                <!-- Disponibilidad -->
-                <div class="dg-card dg-card-green">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Disponibilidad</span>
-                        <i class="fa fa-check-circle dg-card-icon"></i>
-                    </div>
-                    <div class="dg-card-value">${get_card_vals(t_disp, v_disp).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_disp, v_disp).vef}</div>
                 </div>
 
                 <!-- Gastos -->
-                <div class="dg-card dg-card-pink">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Gastos</span>
-                        <i class="fa fa-arrow-down dg-card-icon"></i>
+                <div class="kpi-card-custom gastos-custom">
+                    <div class="kpi-card-custom-header">
+                        <span class="kpi-card-custom-title">Gastos</span>
+                        <i class="fa fa-arrow-down kpi-card-custom-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_spent, v_spent).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_spent, v_spent).vef}</div>
+                    <div class="kpi-card-custom-value">${format_currency_ve(t_spent, "USD")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(t_spent * rate, "VEF")} (Tasa BCV: ${rate.toFixed(2)})</div>
+                    <div class="kpi-card-custom-details">
+                        <span>Caja Bs: ${format_currency_ve(v_spent, "VEF")}</span>
+                        <span>Equiv. Ref: ${format_currency_ve(v_spent / rate, "USD")}</span>
+                    </div>
                 </div>
 
-                <!-- Utilidad -->
-                <div class="dg-card dg-card-deepgreen">
-                    <div class="dg-card-header">
-                        <span class="dg-card-title">Utilidad</span>
-                        <i class="fa fa-line-chart dg-card-icon"></i>
+                <!-- Disponible USD -->
+                <div class="kpi-card-custom disponible-usd">
+                    <div class="kpi-card-custom-header">
+                        <span class="kpi-card-custom-title">Disponible REF ($)</span>
+                        <i class="fa fa-check-circle kpi-card-custom-icon"></i>
                     </div>
-                    <div class="dg-card-value">${get_card_vals(t_util, v_util).usd}</div>
-                    <div class="dg-card-equivalent">${get_card_vals(t_util, v_util).vef}</div>
+                    <div class="kpi-card-custom-value">${format_currency_ve(t_disp, "USD")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(t_disp * rate, "VEF")} (Tasa BCV: ${rate.toFixed(2)})</div>
+                    <div class="kpi-card-custom-details">
+                        <span>Saldo disponible en dólares</span>
+                    </div>
+                </div>
+
+                <!-- Disponible VES -->
+                <div class="kpi-card-custom disponible-vef">
+                    <div class="kpi-card-custom-header">
+                        <span class="kpi-card-custom-title">Disponible Bs.</span>
+                        <i class="fa fa-check-circle kpi-card-custom-icon"></i>
+                    </div>
+                    <div class="kpi-card-custom-value">${format_currency_ve(v_disp, "VEF")}</div>
+                    <div class="kpi-card-custom-ref">Equiv. ${format_currency_ve(v_disp / rate, "USD")} (Tasa BCV: ${rate.toFixed(2)})</div>
+                    <div class="kpi-card-custom-details">
+                        <span>Saldo disponible en bolívares</span>
+                    </div>
+                </div>
+            </div>
+
+            <h6 class="dg-section-title">
+                <i class="fa fa-shield" style="color: #8b5cf6;"></i> Retenciones e Impuestos
+            </h6>
+            
+            <div class="kpi-cards-grid-custom" style="margin-bottom: 35px;">
+                <!-- Retención IVA -->
+                <div class="kpi-card-custom retencion-iva">
+                    <div class="kpi-card-custom-header">
+                        <span class="kpi-card-custom-title">Retención IVA</span>
+                        <i class="fa fa-percent kpi-card-custom-icon"></i>
+                    </div>
+                    <div class="kpi-card-custom-value">${format_currency_ve(v_ret_iva, "VEF")}</div>
+                    <div class="kpi-card-custom-ref">REF: ${format_currency_ve(t_ret_iva, "USD")} (Tasa BCV: ${rate.toFixed(2)})</div>
+                    <div class="kpi-card-custom-details">
+                        <span>IVA retenido por clientes especiales</span>
+                    </div>
+                </div>
+
+                <!-- Retención ISLR -->
+                <div class="kpi-card-custom retencion-islr">
+                    <div class="kpi-card-custom-header">
+                        <span class="kpi-card-custom-title">Retención ISLR</span>
+                        <i class="fa fa-percent kpi-card-custom-icon"></i>
+                    </div>
+                    <div class="kpi-card-custom-value">${format_currency_ve(v_ret_islr, "VEF")}</div>
+                    <div class="kpi-card-custom-ref">REF: ${format_currency_ve(t_ret_islr, "USD")} (Tasa BCV: ${rate.toFixed(2)})</div>
+                    <div class="kpi-card-custom-details">
+                        <span>ISLR retenido en la fuente</span>
+                    </div>
+                </div>
+
+                <!-- IGTF -->
+                <div class="kpi-card-custom igtf-custom">
+                    <div class="kpi-card-custom-header">
+                        <span class="kpi-card-custom-title">IGTF</span>
+                        <i class="fa fa-university kpi-card-custom-icon"></i>
+                    </div>
+                    <div class="kpi-card-custom-value">${format_currency_ve(v_igtf, "VEF")}</div>
+                    <div class="kpi-card-custom-ref">REF: ${format_currency_ve(t_igtf, "USD")} (Tasa BCV: ${rate.toFixed(2)})</div>
+                    <div class="kpi-card-custom-details">
+                        <span>Impuesto a las Grandes Transacciones Financieras</span>
+                    </div>
                 </div>
             </div>
 
@@ -603,7 +711,7 @@ function render_premium_dashboard(frm, data) {
     frm.fields_dict.dashboard_html.$wrapper.html(html);
 
     // Bind clean jQuery click event to navigate to Sales Invoices list view
-    frm.fields_dict.dashboard_html.$wrapper.find('#dg-sales-count-card').on('click', function() {
+    frm.fields_dict.dashboard_html.$wrapper.find('.por-cobrar-custom').css('cursor', 'pointer').on('click', function() {
         const filters = {
             docstatus: 1,
             company: frm.doc.company,
@@ -663,19 +771,16 @@ function render_branch_table_rows(rows, exchange_rate) {
         return `<tr><td colspan="15" class="text-center" style="padding: 20px; color: var(--text-muted);">No se encontraron registros financieros para las sucursales.</td></tr>`;
     }
 
-    // Bs NATIVO: el backend ya entrega cada columna en su bolívar real (campos *_vef);
-    // no se reconvierte por la tasa de hoy (por eso cuadra con el panel ISP).
-    const format_table_cell = (usd_val, vef_val) => {
+    const format_table_cell = (usd_val, vef_val, usd_color = "#f8fafc") => {
         const usd_str = format_currency_ve(usd_val, "USD");
         const bs_str = format_currency_ve(vef_val, "VEF");
-        return `<div>${usd_str}</div><div style="font-size: 10.5px; color: #a0aec0; font-weight: normal; margin-top: 2px;">${bs_str}</div>`;
+        return `<div style="font-weight: 600; color: ${usd_color};">${usd_str}</div><div style="font-size: 10px; color: #94a3b8; font-weight: normal; margin-top: 1px; opacity: 0.8;">${bs_str}</div>`;
     };
 
     let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_igtf = 0, t_ganancia = 0, t_perdida = 0, t_disp = 0, t_spent = 0, t_util = 0;
     let v_cobrar = 0, v_op = 0, v_iva_op = 0, v_fact = 0, v_iva = 0, v_neto = 0, v_ret_iva = 0, v_ret_islr = 0, v_igtf = 0, v_ganancia = 0, v_perdida = 0, v_disp = 0, v_spent = 0, v_util = 0;
 
     let rows_html = rows.map(r => {
-        // El TOTAL suma SOLO las raíces (indent 0) para no duplicar padres con hijos.
         if ((r.indent || 0) === 0) {
             t_cobrar += r.pending_to_collect || 0;      v_cobrar += r.pending_to_collect_vef || 0;
             t_op += r.payment_order || 0;               v_op += r.payment_order_vef || 0;
@@ -693,52 +798,50 @@ function render_branch_table_rows(rows, exchange_rate) {
             t_util += r.profit || 0;                    v_util += r.profit_vef || 0;
         }
 
-        const indent = (r.indent || 0) * 24;
+        const indent = (r.indent || 0) * 20;
         const name_html = frappe.utils.escape_html(r.branch);
-        // Sangría con un span interno (margin): el CSS .dg-table td usa padding !important
-        // y pisaría un padding-left en la celda.
         const branch_label = r.is_group
-            ? `<span style="margin-left: ${indent}px;"><strong>${name_html}</strong></span>`
-            : `<span style="margin-left: ${indent}px; opacity: 0.85;">${name_html}</span>`;
+            ? `<span style="margin-left: ${indent}px; color: #ffffff;"><strong>${name_html}</strong></span>`
+            : `<span style="margin-left: ${indent}px; color: #cbd5e0; opacity: 0.95;">${name_html}</span>`;
+            
         return `
             <tr>
                 <td>${branch_label}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.pending_to_collect, r.pending_to_collect_vef)}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.payment_order, r.payment_order_vef)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.payment_order_vat, r.payment_order_vat_vef)}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.billed, r.billed_vef)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.vat, r.vat_vef)}</td>
-                <td style="text-align: right; font-weight: 600;">${format_table_cell(r.vat_after_withholding, r.vat_after_withholding_vef)}</td>
-                <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_table_cell(r.vat_withholding, r.vat_withholding_vef)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.islr_withholding, r.islr_withholding_vef)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.igtf, r.igtf_vef)}</td>
-                <td style="text-align: right; color: ${(r.ganancia || 0) > 0 ? '#10b981' : 'var(--text-muted)'};">${format_table_cell(r.ganancia, r.ganancia_vef)}</td>
-                <td style="text-align: right; color: ${(r.perdida || 0) > 0 ? '#ef4444' : 'var(--text-muted)'};">${format_table_cell(r.perdida, r.perdida_vef)}</td>
-                <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.availability, r.availability_vef)}</td>
-                <td style="text-align: right; font-weight: 600; color: #ef4444;">${format_table_cell(r.spent, r.spent_vef)}</td>
-                <td style="text-align: right; font-weight: 700; color: ${r.profit >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.profit, r.profit_vef)}</td>
+                <td style="text-align: right;">${format_table_cell(r.pending_to_collect, r.pending_to_collect_vef, "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.payment_order, r.payment_order_vef, "#60a5fa")}</td>
+                <td style="text-align: right;">${format_table_cell(r.payment_order_vat, r.payment_order_vat_vef, "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.billed, r.billed_vef, "#60a5fa")}</td>
+                <td style="text-align: right;">${format_table_cell(r.vat, r.vat_vef, "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.vat_after_withholding, r.vat_after_withholding_vef, "#f8fafc")}</td>
+                <td style="text-align: right;">${format_table_cell(r.vat_withholding, r.vat_withholding_vef, "#c084fc")}</td>
+                <td style="text-align: right;">${format_table_cell(r.islr_withholding, r.islr_withholding_vef, "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.igtf, r.igtf_vef, "#f87171")}</td>
+                <td style="text-align: right;">${format_table_cell(r.ganancia, r.ganancia_vef, (r.ganancia || 0) > 0 ? "#34d399" : "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.perdida, r.perdida_vef, (r.perdida || 0) > 0 ? "#f87171" : "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.availability, r.availability_vef, r.availability >= 0 ? "#34d399" : "#f87171")}</td>
+                <td style="text-align: right;">${format_table_cell(r.spent, r.spent_vef, "#f87171")}</td>
+                <td style="text-align: right;">${format_table_cell(r.profit, r.profit_vef, r.profit >= 0 ? "#34d399" : "#f87171")}</td>
             </tr>
         `;
     }).join("");
 
-    // Agregar fila de totales
     const total_row = `
-        <tr style="background: #1f2733 !important; border-top: 2px solid #2d3748 !important; font-weight: 700; color: #ffffff !important;">
+        <tr style="background: rgba(15, 23, 42, 0.6) !important; border-top: 2px solid rgba(255, 255, 255, 0.15) !important; border-bottom: 2px solid rgba(255, 255, 255, 0.15) !important; font-weight: 700; color: #ffffff !important;">
             <td><strong>TOTAL</strong></td>
-            <td style="text-align: right;">${format_table_cell(t_cobrar, v_cobrar)}</td>
-            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_op, v_op)}</td>
-            <td style="text-align: right;">${format_table_cell(t_iva_op, v_iva_op)}</td>
-            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_fact, v_fact)}</td>
-            <td style="text-align: right;">${format_table_cell(t_iva, v_iva)}</td>
-            <td style="text-align: right;">${format_table_cell(t_neto, v_neto)}</td>
-            <td style="text-align: right; color: #8b5cf6;">${format_table_cell(t_ret_iva, v_ret_iva)}</td>
-            <td style="text-align: right;">${format_table_cell(t_ret_islr, v_ret_islr)}</td>
-            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_igtf, v_igtf)}</td>
-            <td style="text-align: right; color: #10b981;">${format_table_cell(t_ganancia, v_ganancia)}</td>
-            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_perdida, v_perdida)}</td>
-            <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_disp, v_disp)}</td>
-            <td style="text-align: right; color: #ef4444;">${format_table_cell(t_spent, v_spent)}</td>
-            <td style="text-align: right; color: ${t_util >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_util, v_util)}</td>
+            <td style="text-align: right;">${format_table_cell(t_cobrar, v_cobrar, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_op, v_op, "#60a5fa")}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva_op, v_iva_op, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_fact, v_fact, "#60a5fa")}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva, v_iva, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_neto, v_neto, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_ret_iva, v_ret_iva, "#c084fc")}</td>
+            <td style="text-align: right;">${format_table_cell(t_ret_islr, v_ret_islr, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_igtf, v_igtf, "#f87171")}</td>
+            <td style="text-align: right;">${format_table_cell(t_ganancia, v_ganancia, "#34d399")}</td>
+            <td style="text-align: right;">${format_table_cell(t_perdida, v_perdida, "#f87171")}</td>
+            <td style="text-align: right;">${format_table_cell(t_disp, v_disp, t_disp >= 0 ? "#34d399" : "#f87171")}</td>
+            <td style="text-align: right;">${format_table_cell(t_spent, v_spent, "#f87171")}</td>
+            <td style="text-align: right;">${format_table_cell(t_util, v_util, t_util >= 0 ? "#34d399" : "#f87171")}</td>
         </tr>
     `;
 
@@ -750,10 +853,10 @@ function render_customer_table_rows(rows, exchange_rate) {
         return `<tr><td colspan="10" class="text-center" style="padding: 20px; color: var(--text-muted);">No se encontraron registros financieros para los clientes.</td></tr>`;
     }
 
-    const format_table_cell = (usd_val, vef_val) => {
+    const format_table_cell = (usd_val, vef_val, usd_color = "#f8fafc") => {
         const usd_str = format_currency_ve(usd_val, "USD");
         const bs_str = format_currency_ve(vef_val, "VEF");
-        return `<div>${usd_str}</div><div style="font-size: 10.5px; color: #a0aec0; font-weight: normal; margin-top: 2px;">${bs_str}</div>`;
+        return `<div style="font-weight: 600; color: ${usd_color};">${usd_str}</div><div style="font-size: 10px; color: #94a3b8; font-weight: normal; margin-top: 1px; opacity: 0.8;">${bs_str}</div>`;
     };
 
     let t_cobrar = 0, t_op = 0, t_iva_op = 0, t_fact = 0, t_iva = 0, t_neto = 0, t_ret_iva = 0, t_ret_islr = 0, t_disp = 0;
@@ -773,33 +876,32 @@ function render_customer_table_rows(rows, exchange_rate) {
         const name_html = frappe.utils.escape_html(r.customer_name);
         return `
             <tr>
-                <td><span style="opacity: 0.85;">${name_html}</span></td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.pending_to_collect, r.pending_to_collect_vef)}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.payment_order, r.payment_order_vef)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.payment_order_vat, r.payment_order_vat_vef)}</td>
-                <td style="text-align: right; font-weight: 600; color: #3b82f6;">${format_table_cell(r.billed, r.billed_vef)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.vat, r.vat_vef)}</td>
-                <td style="text-align: right; font-weight: 600;">${format_table_cell(r.vat_after_withholding, r.vat_after_withholding_vef)}</td>
-                <td style="text-align: right; font-weight: 600; color: #8b5cf6;">${format_table_cell(r.vat_withholding, r.vat_withholding_vef)}</td>
-                <td style="text-align: right; color: var(--text-muted);">${format_table_cell(r.islr_withholding, r.islr_withholding_vef)}</td>
-                <td style="text-align: right; font-weight: 700; color: ${r.availability >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(r.availability, r.availability_vef)}</td>
+                <td><span style="color: #cbd5e0; opacity: 0.95;">${name_html}</span></td>
+                <td style="text-align: right;">${format_table_cell(r.pending_to_collect, r.pending_to_collect_vef, "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.payment_order, r.payment_order_vef, "#60a5fa")}</td>
+                <td style="text-align: right;">${format_table_cell(r.payment_order_vat, r.payment_order_vat_vef, "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.billed, r.billed_vef, "#60a5fa")}</td>
+                <td style="text-align: right;">${format_table_cell(r.vat, r.vat_vef, "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.vat_after_withholding, r.vat_after_withholding_vef, "#f8fafc")}</td>
+                <td style="text-align: right;">${format_table_cell(r.vat_withholding, r.vat_withholding_vef, "#c084fc")}</td>
+                <td style="text-align: right;">${format_table_cell(r.islr_withholding, r.islr_withholding_vef, "#e2e8f0")}</td>
+                <td style="text-align: right;">${format_table_cell(r.availability, r.availability_vef, r.availability >= 0 ? "#34d399" : "#f87171")}</td>
             </tr>
         `;
     }).join("");
 
-    // Agregar fila de totales
     const total_row = `
-        <tr style="background: #1f2733 !important; border-top: 2px solid #2d3748 !important; font-weight: 700; color: #ffffff !important;">
+        <tr style="background: rgba(15, 23, 42, 0.6) !important; border-top: 2px solid rgba(255, 255, 255, 0.15) !important; border-bottom: 2px solid rgba(255, 255, 255, 0.15) !important; font-weight: 700; color: #ffffff !important;">
             <td><strong>TOTAL</strong></td>
-            <td style="text-align: right;">${format_table_cell(t_cobrar, v_cobrar)}</td>
-            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_op, v_op)}</td>
-            <td style="text-align: right;">${format_table_cell(t_iva_op, v_iva_op)}</td>
-            <td style="text-align: right; color: #3b82f6;">${format_table_cell(t_fact, v_fact)}</td>
-            <td style="text-align: right;">${format_table_cell(t_iva, v_iva)}</td>
-            <td style="text-align: right;">${format_table_cell(t_neto, v_neto)}</td>
-            <td style="text-align: right; color: #8b5cf6;">${format_table_cell(t_ret_iva, v_ret_iva)}</td>
-            <td style="text-align: right;">${format_table_cell(t_ret_islr, v_ret_islr)}</td>
-            <td style="text-align: right; color: ${t_disp >= 0 ? '#10b981' : '#ef4444'};">${format_table_cell(t_disp, v_disp)}</td>
+            <td style="text-align: right;">${format_table_cell(t_cobrar, v_cobrar, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_op, v_op, "#60a5fa")}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva_op, v_iva_op, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_fact, v_fact, "#60a5fa")}</td>
+            <td style="text-align: right;">${format_table_cell(t_iva, v_iva, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_neto, v_neto, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_ret_iva, v_ret_iva, "#c084fc")}</td>
+            <td style="text-align: right;">${format_table_cell(t_ret_islr, v_ret_islr, "#ffffff")}</td>
+            <td style="text-align: right;">${format_table_cell(t_disp, v_disp, t_disp >= 0 ? "#34d399" : "#f87171")}</td>
         </tr>
     `;
 

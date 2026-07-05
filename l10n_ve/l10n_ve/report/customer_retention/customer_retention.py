@@ -184,6 +184,10 @@ def get_data(filters):
 		d["grand_total"] = flt(d.get("grand_total", 0)) * sign * (1 - is_void)
 		d["withholding_amount"] = flt(d.get("withholding_amount", 0)) * sign * (1 - is_void)
 		
+		# Si la retención tiene un saldo de 0 bolívares, no se incluye en la lista
+		if flt(d["withholding_amount"]) == 0.0:
+			continue
+			
 		d["retention_type"] = "IVA" if d.get("charge_type") == "VAT Withholding" else "ISLR"
 		
 		processed_data.append(d)
