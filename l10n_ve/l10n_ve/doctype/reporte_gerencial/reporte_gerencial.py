@@ -1754,8 +1754,8 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
     for inv in all_invoices:
         # Un borrador es siempre borrador, tenga o no número de control (a veces se pre-asigna o copia)
         if inv.docstatus == 0:
-            g_total_usd = flt(inv.grand_total)
-            g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (g_total_usd * exchange_rate)
+            g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (flt(inv.grand_total) * exchange_rate)
+            g_total_usd = g_total_vef / exchange_rate if exchange_rate > 0 else 0.0
             total_borrador_usd += g_total_usd
             total_borrador_vef += g_total_vef
             total_pendiente_usd += g_total_usd
@@ -1765,8 +1765,8 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
             # Para facturas emitidas, se considera pendiente si tiene saldo pendiente por cobrar (outstanding_amount > 0)
             is_unpaid = flt(inv.get("outstanding_amount") or 0) > 0.01
             if is_unpaid:
-                g_total_usd = flt(inv.grand_total)
-                g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (g_total_usd * exchange_rate)
+                g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (flt(inv.grand_total) * exchange_rate)
+                g_total_usd = g_total_vef / exchange_rate if exchange_rate > 0 else 0.0
                 total_pendiente_usd += g_total_usd
                 total_pendiente_vef += g_total_vef
                 
