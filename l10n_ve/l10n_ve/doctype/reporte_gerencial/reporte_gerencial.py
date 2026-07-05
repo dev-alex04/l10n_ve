@@ -1762,12 +1762,9 @@ def calculate_real_kpis(company, date_from, date_to, branch=None, exchange_rate=
             total_pendiente_vef += g_total_vef
             borrador_count += 1
         elif inv.docstatus == 1:
-            # Para facturas emitidas, se considera pendiente si:
-            # 1. No tiene número de control asignado (flujo original / contingencia) OR
-            # 2. Tiene saldo pendiente por cobrar (outstanding_amount > 0)
-            no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
+            # Para facturas emitidas, se considera pendiente si tiene saldo pendiente por cobrar (outstanding_amount > 0)
             is_unpaid = flt(inv.get("outstanding_amount") or 0) > 0.01
-            if no_control or is_unpaid:
+            if is_unpaid:
                 g_total_usd = flt(inv.grand_total)
                 g_total_vef = flt(inv.base_grand_total) if inv.get("base_grand_total") else (g_total_usd * exchange_rate)
                 total_pendiente_usd += g_total_usd
@@ -1965,9 +1962,8 @@ def download_kpi_detail_excel(company, date_from, date_to, kpi_name, branch=None
             if inv.docstatus == 0:
                 is_included = (kpi_name == "borrador")
             else:
-                no_control = (inv.bill_control is None or str(inv.bill_control).strip() == "")
                 is_unpaid = flt(inv.get("outstanding_amount") or 0) > 0.01
-                is_included = (kpi_name in ("por_cobrar", "pendiente_cobrar") and (no_control or is_unpaid))
+                is_included = (kpi_name in ("por_cobrar", "pendiente_cobrar") and is_unpaid)
 
             if is_included:
 
