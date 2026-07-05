@@ -103,6 +103,13 @@ def _is_ve_branch_tree_context() -> bool:
     matchea ningún patrón conocido, para detectar cambios entre versiones de
     Frappe (el endpoint exacto de carga inicial del árbol ha variado).
     """
+    # Señal PRIMARIA y robusta: la marca el propio método del árbol
+    # (get_ve_branch_tree_children) vía frappe.flags, sin depender del cmd/path
+    # del request — que varía entre versiones de Frappe y rompía el árbol. Los
+    # patrones de sniffing de abajo quedan solo como respaldo.
+    if frappe.flags.get("in_ve_branch_tree"):
+        return True
+
     form_dict = getattr(frappe.local, "form_dict", None) or {}
     cmd: str = (form_dict.get("cmd") or "").lower()
     doctype: str = form_dict.get("doctype") or ""
@@ -136,6 +143,29 @@ def _is_ve_branch_tree_context() -> bool:
         )
 
     return False
+
+
+@frappe.whitelist()
+def get_ve_branch_tree_children(doctype, parent="", **filters):
+    """get_children del árbol de VE Branch, marcando el contexto de forma EXPLÍCITA.
+
+    Es el `get_tree_nodes` del treeview de VE Branch (ve_branch_tree.js). Pone
+    frappe.flags.in_ve_branch_tree para que get_ve_branch_permission_query
+    incluya los ancestros de las sucursales permitidas y el árbol pinte el path
+    completo (raíz → ... → sucursal del usuario). No depende del cmd/path del
+    request, que varía entre versiones de Frappe y dejaba el árbol vacío.
+
+    Fuera del árbol el permission query sigue estricto (dropdowns, list view),
+    y has_ve_branch_permission sigue bloqueando abrir un ancestro no permitido:
+    los ancestros solo se exponen como nodos de navegación, no como acceso real.
+    """
+    from frappe.desk.treeview import get_children
+
+    frappe.flags.in_ve_branch_tree = True
+    try:
+        return get_children(doctype, parent, **filters)
+    finally:
+        frappe.flags.in_ve_branch_tree = False
 
 
 def get_ve_branch_permission_query(user: str, doctype: str = None) -> str:
