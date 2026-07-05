@@ -360,6 +360,11 @@ doc_events = {
     },
     "Currency Exchange": {
         "on_change": "l10n_ve.utils.utils.clear_exchange_rate_cache",
+    },
+    "Payment Ledger Entry": {
+        "on_submit": "l10n_ve.overrides.payment_ledger_entry.on_submit_payment_ledger_entry",
+        "on_cancel": "l10n_ve.overrides.payment_ledger_entry.on_cancel_payment_ledger_entry",
+        "on_trash": "l10n_ve.overrides.payment_ledger_entry.on_trash_payment_ledger_entry",
     }
 }
 # Scheduled Tasks
