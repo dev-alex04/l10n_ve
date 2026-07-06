@@ -403,34 +403,44 @@ function add_address_button(frm) {
         : "customer_primary_address";
     const address_name = frm.doc[address_field];
 
-    if (address_name && !frm.custom_buttons[__("Editar Dirección")]) {
-      frm.add_custom_button(__("Editar Dirección"), () => {
-        frappe.call({
-          method: "l10n_ve.utils.utils.get_address_data",
-          args: { address_name: address_name },
-          callback: (r) => {
-            if (r.message) {
-              const dialog = _get_address_dialog(frm, address_name);
-              const data = r.message;
-              dialog.set_values({
-                address_line1: data.address_line1 || "",
-                address_type: data.address_type || "Billing",
-                country: data.country || "",
-                state: data.state || "",
-                city: data.city || "",
-                county: data.county || "",
-                parish: data.parish || "",
-                pincode: data.pincode || "",
-                phone: data.phone || "",
-                email_id: frm.doc.email_id || "",
-                is_primary_address: data.is_primary_address || 0,
-                is_shipping_address: data.is_shipping_address || 0,
-              });
-              dialog.show();
-            }
-          },
+    if (address_name) {
+      if (!frm.custom_buttons[__("Editar Dirección")]) {
+        frm.add_custom_button(__("Editar Dirección"), () => {
+          frappe.call({
+            method: "l10n_ve.utils.utils.get_address_data",
+            args: { address_name: address_name },
+            callback: (r) => {
+              if (r.message) {
+                const dialog = _get_address_dialog(frm, address_name);
+                const data = r.message;
+                dialog.set_values({
+                  address_line1: data.address_line1 || "",
+                  address_type: data.address_type || "Billing",
+                  country: data.country || "",
+                  state: data.state || "",
+                  city: data.city || "",
+                  county: data.county || "",
+                  parish: data.parish || "",
+                  pincode: data.pincode || "",
+                  phone: data.phone || "",
+                  email_id: frm.doc.email_id || "",
+                  is_primary_address: data.is_primary_address || 0,
+                  is_shipping_address: data.is_shipping_address || 0,
+                });
+                dialog.show();
+              }
+            },
+          });
         });
-      });
+      }
+    } else {
+      if (!frm.custom_buttons[__("Agregar Dirección")]) {
+        frm.add_custom_button(__("Agregar Dirección"), () => {
+          const dialog = _get_address_dialog(frm, null);
+          dialog.set_value("email_id", frm.doc.email_id || "");
+          dialog.show();
+        });
+      }
     }
   }
 }
