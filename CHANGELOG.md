@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.18.0] - 2026-07-06
+
+### ✨ Funcionalidades (Features)
+- Incorporación de los campos técnicos `hka_status` y `hka_series` en los documentos de venta, permitiendo una trazabilidad detallada de la integración con HKA.
+
+### 🐛 Correcciones (Fixes)
+- Implementación de validaciones de semántica estricta para los campos `hka_status` y `hka_series`, garantizando la integridad de los datos para procesos de auditoría fiscal.
+- Refactorización de la derivación canónica hacia el esquema `digital_invoice/hka_status` junto con la ejecución de un backfill de datos históricos para la entidad de producto.
+
+---
+
 ## [v2.17.0] - 2026-07-06
 
 ### ✨ Funcionalidades (Features)
