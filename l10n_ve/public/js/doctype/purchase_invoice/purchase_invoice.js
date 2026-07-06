@@ -20,6 +20,8 @@ frappe.ui.form.on("Purchase Invoice", {
     toggle_purchase_type_fields(frm);
     set_purchase_invoice_fields(frm);
     set_islr_buttons(frm);
+    setup_credit_note_button(frm);
+    setup_debit_note_button(frm);
   },
 
   is_debit_note: function (frm) {
@@ -410,4 +412,73 @@ function update_islr_preview(dialog, frm, type_of_person) {
       `);
     },
   });
+}
+
+/**
+ * Oculta el botón nativo de ERPNext "Return / Debit Note" y agrega
+ * "Nota de Crédito", que abre directamente el DocType VE Purchase Credit Note
+ * pre-llenado con los datos de la factura actual (mismo patrón que la
+ * Factura de Venta con VE Sales Credit Note).
+ * @param {object} frm
+ */
+function setup_credit_note_button(frm) {
+  // El controller de ERPNext agrega "Return / Debit Note" DESPUÉS de
+  // nuestro refresh. Usamos timeouts para removerlo siempre.
+  setTimeout(() => {
+    frm.page.remove_inner_button(__("Return / Debit Note"), __("Create"));
+  }, 500);
+  setTimeout(() => {
+    frm.page.remove_inner_button(__("Return / Debit Note"), __("Create"));
+  }, 1500);
+
+  if (
+    frm.doc.docstatus !== 1 ||
+    frm.doc.is_return ||
+    frm.doc.is_debit_note ||
+    frm.doc.status === "Debit Note Issued"
+  )
+    return;
+
+  frm.add_custom_button(
+    __("Nota de Crédito"),
+    function () {
+      frappe.route_options = {
+        return_against: frm.doc.name,
+        company: frm.doc.company,
+        supplier: frm.doc.supplier,
+      };
+      frappe.new_doc("VE Purchase Credit Note");
+    },
+    __("Create"),
+  );
+}
+
+/**
+ * Botón "Nota de Débito" en el grupo "Create" de la Factura de Compra.
+ * Redirige al formulario de VE Purchase Debit Note pre-llenado con los
+ * datos de la factura actual. Solo visible cuando la factura está aprobada
+ * y no es una NC ni una ND.
+ * @param {object} frm
+ */
+function setup_debit_note_button(frm) {
+  if (
+    frm.doc.docstatus !== 1 ||
+    frm.doc.is_return ||
+    frm.doc.is_debit_note ||
+    frm.doc.status === "Debit Note Issued"
+  )
+    return;
+
+  frm.add_custom_button(
+    __("Nota de Débito"),
+    function () {
+      frappe.route_options = {
+        return_against: frm.doc.name,
+        company: frm.doc.company,
+        supplier: frm.doc.supplier,
+      };
+      frappe.new_doc("VE Purchase Debit Note");
+    },
+    __("Create"),
+  );
 }

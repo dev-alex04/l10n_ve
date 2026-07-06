@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.16.0] - 2026-07-05
+
+### ✨ Funcionalidades (Features)
+- **Compras:** Se actualizaron los accesos de los botones de Notas de Crédito (NC) y Notas de Débito (ND) para que apunten correctamente a los doctypes de VE Purchase. eb07bb8
+
+---
+
+## [v2.15.0] - 2026-07-05
+
+### ✨ Funcionalidades (Features)
+- Se restringió la visibilidad del número de referencia en la interfaz de usuario para que sea accesible únicamente por usuarios con rol de Administrador. [f3fa087]
+
+---
+
+## [v2.14.3] - 2026-07-05
+
+### 🐛 Correcciones (Fixes)
+- Se habilitó la visualización del número de referencia en los extractos bancarios dentro de la interfaz de usuario. [df536d5]
+
+---
+
+## [v2.14.2] - 2026-07-05
+
+### 🐛 Correcciones (Fixes)
+
+- **Cálculo de IGTF:** Se corrigió el cálculo de IGTF en el módulo de cobros para casos donde el monto está expresado en Bs. pero el pago se procesa en USD. [2f4ffed]
+- **Conversión de Moneda:** Ajustada la lógica de conversión a USD en el cálculo de KPIs reales y en los reportes de Excel para facturas pendientes y borradores, asegurando el uso de la tasa de cambio del periodo correspondiente. [aa21323, 3aaa310]
+- **Lógica de Facturación:** Se actualizó el criterio de facturas pendientes por cobrar para excluir correctamente aquellas que ya poseen un saldo pendiente (outstanding_amount) de cero. [6dd2419]
+- **Arquitectura de Reportes:** Refactorización integral de la función de descarga de detalles de KPI en Excel, segmentándola en funciones helper especializadas para mejorar la mantenibilidad y el determinismo en el cálculo de campos en VEF. [022a7da, ab2b776]
+- **Conteo de Documentos:** Corregido el conteo de facturas en estado borrador y pendientes que poseen controles pre-asignados. [6c6faf2]
+- **Interfaz de Usuario:** Eliminación de los enlaces de agenda y planificación en el menú de navegación principal. [c624b79]
+- **Estabilidad:** Solucionado un error de sintaxis en el script de reporte gerencial que afectaba la ejecución del módulo. [fba859c]
+
+---
+
 ## [v2.14.1] - 2026-07-05
 
 ### 🐛 Correcciones (Fixes)
