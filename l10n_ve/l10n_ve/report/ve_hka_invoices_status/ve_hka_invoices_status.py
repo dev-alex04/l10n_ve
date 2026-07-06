@@ -264,7 +264,7 @@ def get_data(filters):
 
 	# Semántica estricta compartida con el backfill (una sola fuente de verdad):
 	# el estado solo afirma lo que HKA registró; sin evidencia -> "No aplica".
-	from l10n_ve.scripts.backfill_hka_status import derive_hka_status, get_hka_cutoff
+	from l10n_ve.digital_invoice.hka_status import derive_hka_status, get_hka_cutoff
 
 	cutoff = get_hka_cutoff()
 

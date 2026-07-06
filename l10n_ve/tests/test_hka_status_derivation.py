@@ -2,8 +2,9 @@
 # See license.txt
 
 """
-Tests unitarios para la derivación ESTRICTA de hka_status/hka_series del
-backfill (l10n_ve.scripts.backfill_hka_status).
+Tests unitarios para la derivación ESTRICTA de hka_status/hka_series
+(l10n_ve.digital_invoice.hka_status, consumida por el reporte y por el
+backfill de domina_galanet).
 
 Semántica estricta (auditoría fiscal 2026-07): el campo solo afirma lo que
 HKA registró — sin evidencia HKA el estado queda vacío, y la serie jamás se
@@ -18,7 +19,7 @@ import unittest
 
 from frappe.utils import getdate
 
-from l10n_ve.scripts.backfill_hka_status import (
+from l10n_ve.digital_invoice.hka_status import (
     derive_hka_series,
     derive_hka_status,
     has_hka_evidence,
