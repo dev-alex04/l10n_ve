@@ -4,27 +4,37 @@
 """Backfill histórico de hka_status y hka_series en documentos de venta.
 
 Deriva el estado fiscal HKA de cada documento (Sales Invoice, VE Sales
-Credit Note, VE Sales Debit Note con docstatus 1 o 2) replicando la lógica
-del reporte "VE HKA Invoices Status", con precedencia:
+Credit Note, VE Sales Debit Note con docstatus 1 o 2) con semántica
+ESTRICTA: el campo solo afirma lo que HKA registró de verdad.
 
-    1. is_void = 1                        -> Anulada
-    2. bill_control no vacío              -> Emitida
-    3. último VE Digital Invoice Log Error -> Error
-    4. resto                              -> Pendiente
+Un documento tiene EVIDENCIA HKA si cumple al menos una de:
+    - último VE Digital Invoice Log con status Success,
+    - remarks con respuesta HKA parseable (codigo 200/201),
+    - bill_control con formato HKA (NN-NNNNNNNN).
 
-La derivación se ancla en bill_control (no en el log): hay miles de
-documentos emitidos sin log Success por deduplicación/registro tardío.
+Derivación (precedencia):
+    1. is_void = 1 y evidencia HKA           -> Anulada
+    2. evidencia HKA                         -> Emitida
+    3. último log Error y docstatus = 1      -> Error
+    4. sin evidencia, docstatus = 1 y
+       posting_date >= cutoff (TFHKA Settings.cutoff_date,
+       la misma fuente que el cron de envío) -> Pendiente (accionable)
+    5. resto (legacy pre-HKA, cancelados sin
+       emisión, void local sin rastro HKA)   -> '' (vacío: HKA no lo conoce)
 
-La serie (hka_series) solo se rellena en documentos Emitida, con cascada
-de fuentes (de más a menos confiable):
+La serie (hka_series) solo se rellena con fuentes verificadas del propio
+documento — NUNCA se infiere del mapping sucursal->serie (el histórico
+demostró que diverge):
+    1. response_received del último log Success -> resultado.serie
+    2. payload_sent del último log Success      -> encabezado.identificacionDocumento.serie
+    3. remarks del documento (JSON de HKA)      -> resultado.serie
 
-    1. response_received del último log Success  -> resultado.serie
-    2. payload_sent del último log Success       -> Encabezado.IdentificacionDocumento.Serie
-    3. remarks del documento (JSON de HKA)       -> resultado.serie
-    4. mapping actual sucursal -> serie (best-effort, refleja el mapping de HOY)
+Escribe con frappe.db.set_value (sin hooks, no toca GL) solo cuando el
+valor derivado difiere del actual (idempotente, re-ejecutable), con commit
+por lotes de 500 para no sostener locks largos.
 
-Escribe con frappe.db.set_value (sin hooks, no toca GL) y solo cuando el
-valor derivado difiere del actual, por lo que es idempotente y re-ejecutable.
+Recomendación operativa: ejecutar con el scheduler pausado (o fuera de la
+ventana de facturación) para evitar carreras con el cron de emisión.
 
 Uso:
     # simula (no escribe)
@@ -34,8 +44,10 @@ Uso:
 """
 
 import json
+import re
 
 import frappe
+from frappe.utils import getdate
 
 _TARGETS: tuple[str, ...] = (
     "Sales Invoice",
@@ -43,22 +55,71 @@ _TARGETS: tuple[str, ...] = (
     "VE Sales Debit Note",
 )
 
+_HKA_CONTROL_RE = re.compile(r"^\d{2}-\d{8}$")
+_COMMIT_BATCH: int = 500
+_DEFAULT_CUTOFF: str = "2026-04-01"
 
-def derive_hka_status(row: dict, last_log_status: str | None) -> str:
-    """Deriva el estado HKA de un documento (misma lógica que el reporte).
+
+def _hka_response_ok(raw_json: str | None) -> bool:
+    """True si el texto es una respuesta HKA exitosa (codigo 200/201)."""
+    if not raw_json:
+        return False
+    try:
+        data = json.loads(raw_json)
+        return str(data.get("codigo", "")) in ("200", "201")
+    except (json.JSONDecodeError, AttributeError, TypeError, ValueError):
+        return False
+
+
+def has_hka_evidence(row: dict, success_log: dict | None) -> bool:
+    """True si el documento tiene rastro verificable de emisión en HKA."""
+    if success_log:
+        return True
+    if _HKA_CONTROL_RE.match(str(row.get("bill_control") or "").strip()):
+        return True
+    return _hka_response_ok(row.get("remarks"))
+
+
+def derive_hka_status(
+    row: dict,
+    last_log_status: str | None,
+    success_log: dict | None,
+    cutoff: "object",
+) -> str:
+    """Deriva el estado HKA de un documento (semántica estricta).
 
     Args:
-        row: dict con is_void, bill_control (del documento).
-        last_log_status: status del último VE Digital Invoice Log del
-            documento ('Success' | 'Error' | '' | None).
+        row: dict con is_void, bill_control, remarks, docstatus, posting_date.
+        last_log_status: status del último VE Digital Invoice Log ('Success' |
+            'Error' | '' | None).
+        success_log: último log Success del documento (o None).
+        cutoff: fecha de corte HKA (datetime.date).
     """
+    evidence = has_hka_evidence(row, success_log)
+
     if row.get("is_void"):
-        return "Anulada"
-    if row.get("bill_control"):
+        # Void local sin rastro HKA (void_document legacy) NO es una
+        # anulación fiscal ante HKA: queda vacío.
+        return "Anulada" if evidence else ""
+
+    if evidence:
         return "Emitida"
-    if last_log_status == "Error":
+
+    if last_log_status == "Error" and row.get("docstatus") == 1:
         return "Error"
-    return "Pendiente"
+
+    if (
+        row.get("docstatus") == 1
+        and not row.get("bill_control")
+        and row.get("posting_date")
+        and getdate(row["posting_date"]) >= cutoff
+    ):
+        # Pendiente = accionable: activo, sin NINGÚN número fiscal previo
+        # (un control legacy del talonario anterior no está "por emitir")
+        # y dentro de la era HKA.
+        return "Pendiente"
+
+    return ""
 
 
 def _serie_from_response(response_received: str | None) -> str:
@@ -68,36 +129,41 @@ def _serie_from_response(response_received: str | None) -> str:
     try:
         data = json.loads(response_received)
         return (data.get("resultado") or {}).get("serie") or ""
-    except (json.JSONDecodeError, AttributeError, TypeError):
+    except (json.JSONDecodeError, AttributeError, TypeError, ValueError):
         return ""
 
 
 def _serie_from_payload(payload_sent: str | None) -> str:
-    """Extrae la Serie del payload enviado a HKA. '' si no se puede."""
+    """Extrae la serie del payload enviado a HKA. '' si no se puede.
+
+    Los logs reales guardan el payload en camelCase
+    (documentoElectronico.encabezado.identificacionDocumento.serie); se
+    prueba también la variante PascalCase por robustez.
+    """
     if not payload_sent:
         return ""
     try:
         data = json.loads(payload_sent)
-        return (
-            (data.get("documentoElectronico") or {})
-            .get("Encabezado", {})
-            .get("IdentificacionDocumento", {})
-            .get("Serie")
-        ) or ""
-    except (json.JSONDecodeError, AttributeError, TypeError):
+        doc_e = data.get("documentoElectronico") or {}
+        for enc_key, ident_key, serie_key in (
+            ("encabezado", "identificacionDocumento", "serie"),
+            ("Encabezado", "IdentificacionDocumento", "Serie"),
+        ):
+            serie = (
+                (doc_e.get(enc_key) or {}).get(ident_key, {}).get(serie_key)
+            )
+            if serie:
+                return serie
+        return ""
+    except (json.JSONDecodeError, AttributeError, TypeError, ValueError):
         return ""
 
 
-def derive_hka_series(
-    row: dict,
-    success_log: dict | None,
-    branch_serie_map: dict[str, str],
-) -> tuple[str, str]:
-    """Deriva la serie HKA de un documento Emitida.
+def derive_hka_series(row: dict, success_log: dict | None) -> tuple[str, str]:
+    """Deriva la serie HKA desde fuentes verificadas del propio documento.
 
     Returns:
-        (serie, fuente) — fuente ∈ {log_response, log_payload, remarks,
-        branch_map, ''} para reportar cobertura.
+        (serie, fuente) — fuente ∈ {log_response, log_payload, remarks, ''}.
     """
     if success_log:
         serie = _serie_from_response(success_log.get("response_received"))
@@ -111,10 +177,6 @@ def derive_hka_series(
     if serie:
         return serie, "remarks"
 
-    serie = branch_serie_map.get(row.get("branch") or "")
-    if serie:
-        return serie, "branch_map"
-
     return "", ""
 
 
@@ -123,7 +185,10 @@ def _last_log_status_map(doctype: str) -> dict[str, str]:
     rows = frappe.db.sql("""
         SELECT sales_invoice, status FROM (
             SELECT sales_invoice, status,
-                   ROW_NUMBER() OVER (PARTITION BY sales_invoice ORDER BY creation DESC) AS rn
+                   ROW_NUMBER() OVER (
+                       PARTITION BY sales_invoice
+                       ORDER BY creation DESC, name DESC
+                   ) AS rn
             FROM `tabVE Digital Invoice Log`
             WHERE document_type = %s
         ) t WHERE rn = 1
@@ -136,7 +201,10 @@ def _last_success_log_map(doctype: str) -> dict[str, dict]:
     rows = frappe.db.sql("""
         SELECT sales_invoice, response_received, payload_sent FROM (
             SELECT sales_invoice, response_received, payload_sent,
-                   ROW_NUMBER() OVER (PARTITION BY sales_invoice ORDER BY creation DESC) AS rn
+                   ROW_NUMBER() OVER (
+                       PARTITION BY sales_invoice
+                       ORDER BY creation DESC, name DESC
+                   ) AS rn
             FROM `tabVE Digital Invoice Log`
             WHERE document_type = %s AND status = 'Success'
         ) t WHERE rn = 1
@@ -144,22 +212,14 @@ def _last_success_log_map(doctype: str) -> dict[str, dict]:
     return {r.sales_invoice: r for r in rows}
 
 
-def _branch_serie_map() -> dict[str, str]:
-    """Mapa {branch: serie} desde VE Digital Billing Series (best-effort).
-
-    Sin filtrar por status Active (el histórico pudo emitirse con series hoy
-    agotadas), pero prefiriendo la fila Active cuando una sucursal aparece
-    en más de una serie.
-    """
-    rows = frappe.db.sql("""
-        SELECT child.branch, parent.serie, parent.status
-        FROM `tabVE Digital Billing Series Branch` child
-        INNER JOIN `tabVE Digital Billing Series` parent ON parent.name = child.parent
-        WHERE IFNULL(parent.serie, '') != ''
-        ORDER BY (parent.status = 'Active') ASC
-    """, as_dict=True)
-    # El ORDER BY deja las Active al final: al construir el dict, pisan a las demás
-    return {r.branch: r.serie for r in rows}
+def get_hka_cutoff() -> "object":
+    """Fecha de corte HKA — misma fuente que el cron de envío."""
+    cutoff = None
+    try:
+        cutoff = frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "cutoff_date")
+    except Exception:
+        pass
+    return getdate(cutoff or _DEFAULT_CUTOFF)
 
 
 def _has_columns(doctype: str) -> bool:
@@ -175,11 +235,12 @@ def _has_columns(doctype: str) -> bool:
 
 def execute(dry_run: bool = True) -> None:
     mode: str = "DRY-RUN (no escribe)" if dry_run else "EJECUCIÓN (escribe)"
-    print(f"\n=== Backfill hka_status/hka_series — {mode} ===\n")
+    cutoff = get_hka_cutoff()
+    print(f"\n=== Backfill hka_status/hka_series — {mode} | cutoff HKA: {cutoff} ===\n")
 
-    branch_map: dict[str, str] = _branch_serie_map()
     total_scanned: int = 0
     total_written: int = 0
+    pending_in_batch: int = 0
     serie_sources: dict[str, int] = {}
 
     for doctype in _TARGETS:
@@ -191,7 +252,7 @@ def execute(dry_run: bool = True) -> None:
             doctype,
             filters={"docstatus": ["in", [1, 2]]},
             fields=[
-                "name", "docstatus", "is_void", "bill_control",
+                "name", "docstatus", "is_void", "bill_control", "posting_date",
                 "branch", "remarks", "hka_status", "hka_series",
             ],
             limit_page_length=0,
@@ -205,14 +266,13 @@ def execute(dry_run: bool = True) -> None:
 
         for row in docs:
             scanned += 1
-            new_status = derive_hka_status(row, log_status.get(row.name))
-            status_counts[new_status] = status_counts.get(new_status, 0) + 1
+            success_log = success_logs.get(row.name)
+            new_status = derive_hka_status(row, log_status.get(row.name), success_log, cutoff)
+            status_counts[new_status or "(vacío)"] = status_counts.get(new_status or "(vacío)", 0) + 1
 
             new_serie, source = "", ""
             if new_status in ("Emitida", "Anulada"):
-                new_serie, source = derive_hka_series(
-                    row, success_logs.get(row.name), branch_map
-                )
+                new_serie, source = derive_hka_series(row, success_log)
 
             updates: dict = {}
             if new_status != (row.hka_status or ""):
@@ -223,14 +283,18 @@ def execute(dry_run: bool = True) -> None:
             if not updates:
                 continue
 
-            if source:
+            if "hka_series" in updates and source:
                 serie_sources[source] = serie_sources.get(source, 0) + 1
 
-            print(f"  [{doctype}] {row.name}: {row.hka_status or '(vacío)'} -> {new_status}"
+            print(f"  [{doctype}] {row.name}: {row.hka_status or '(vacío)'} -> {new_status or '(vacío)'}"
                   + (f" | serie: {new_serie} ({source})" if "hka_series" in updates else ""))
 
             if not dry_run:
                 frappe.db.set_value(doctype, row.name, updates, update_modified=False)
+                pending_in_batch += 1
+                if pending_in_batch >= _COMMIT_BATCH:
+                    frappe.db.commit()
+                    pending_in_batch = 0
             written += 1
 
         total_scanned += scanned

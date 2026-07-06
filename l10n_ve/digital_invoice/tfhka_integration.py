@@ -776,13 +776,21 @@ def process_invoice(
     except (frappe.ValidationError, HKAAmountMismatchError):
         raise
     except HKARangeExhausted:
+        # Persistir el hka_status=Error y el log escritos en
+        # _handle_hka_response: sin este commit, el rollback del throw en el
+        # request (camino manual raise_on_error) los borraría.
+        frappe.db.commit()
         raise
 
     except Exception as e:
         tb: str = frappe.get_traceback(with_context=True) or str(e)
         frappe.logger("l10n_ve").error(f"Error procesando {doctype} {doc_name}: {tb}")
         try:
-            _set_hka_status(doctype, doc_name, "Error")
+            # No pisar una emisión ya confirmada: si el doc ya tiene
+            # bill_control, HKA lo emitió y este fallo fue post-emisión
+            # (p. ej. deadlock en _sync_gl_entries_date o _log_request).
+            if not frappe.db.get_value(doctype, doc_name, "bill_control"):
+                _set_hka_status(doctype, doc_name, "Error")
         except Exception:
             # No enmascarar el error original si el doc no existe o la
             # escritura falla; el log de abajo es el registro primario.
