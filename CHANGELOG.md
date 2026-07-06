@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.17.0] - 2026-07-06
+
+### ✨ Funcionalidades (Features)
+- Se añadieron nuevos campos para teléfonos de soporte y cobranzas en el doctype **VE Branch**, junto con una reestructuración estética de la sección de contacto en tres columnas para mejorar la usabilidad. 7e1c5f0, f586ea6, fd747e3, 00ede07
+- Extensión de la validación `_validate_tasa_coherencia` en la integración con **HKA** para incluir a clientes jurídicos, implementando una política de seguridad *fail-closed*. a28590c
+
+### 🐛 Correcciones (Fixes)
+- Corrección de error en el árbol de sucursales que se visualizaba vacío para usuarios con permisos de acceso restringido. e253a1c
+- Resolución de excepción de ejecución "too many values to unpack" en la utilidad de sistema `is_juridical_customer`. d601f3d
+- Ajuste crítico en la lógica de **HKA**: la fecha de la tasa BCV ahora se resuelve a partir de la tasa del documento en lugar del `posting_date`, garantizando consistencia fiscal. 555c8fb
+- Optimización de base de datos mediante una consulta *sargable* en la función `resolve_exchange_rate_date` para mejorar el rendimiento en búsquedas de tasas de cambio. 03adfea
+
+---
+
 ## [v2.16.0] - 2026-07-05
 
 ### ✨ Funcionalidades (Features)
