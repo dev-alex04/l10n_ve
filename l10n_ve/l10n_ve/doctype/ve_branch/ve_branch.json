@@ -21,6 +21,7 @@
   "parent_ve_branch",
   "cost_center",
   "phone_cobranzas",
+  "phone_soporte",
   "impuestos_section",
   "num_license_economic",
   "column_break_ixms",
@@ -132,6 +133,12 @@
    "fieldname": "phone_cobranzas",
    "fieldtype": "Data",
    "label": "Tel\u00e9fono de Cobranzas"
+  },
+  {
+   "description": "N\u00famero de tel\u00e9fono para el enlace de contacto en el portal de clientes (ej: 584121112233).",
+   "fieldname": "phone_soporte",
+   "fieldtype": "Data",
+   "label": "Tel\u00e9fono de Soporte"
   },
   {
    "fieldname": "cost_center",
