@@ -24,6 +24,7 @@ def execute(filters=None):
 	total_emitida = sum(1 for row in data if row.get("status") == "Emitida")
 	total_error = sum(1 for row in data if row.get("status") == "Error")
 	total_pendiente = sum(1 for row in data if row.get("status") == "Pendiente")
+	total_anulada = sum(1 for row in data if row.get("status") == "Anulada")
 
 	report_summary = [
 		{
@@ -44,6 +45,11 @@ def execute(filters=None):
 		{
 			"value": total_pendiente,
 			"label": _("Pendientes por enviar"),
+			"datatype": "Int",
+		},
+		{
+			"value": total_anulada,
+			"label": _("Anuladas ante HKA"),
 			"datatype": "Int",
 		}
 	]
@@ -159,6 +165,9 @@ def get_data(filters):
 				doc.bill_no,
 				doc.bill_control,
 				doc.docstatus,
+				doc.is_void,
+				doc.remarks,
+				doc.hka_status,
 				log.status AS log_status,
 				log.notes AS log_notes,
 				log.creation AS log_creation
@@ -192,6 +201,9 @@ def get_data(filters):
 				doc.bill_no,
 				doc.bill_control,
 				doc.docstatus,
+				doc.is_void,
+				doc.remarks,
+				doc.hka_status,
 				log.status AS log_status,
 				log.notes AS log_notes,
 				log.creation AS log_creation
@@ -225,6 +237,9 @@ def get_data(filters):
 				doc.bill_no,
 				doc.bill_control,
 				doc.docstatus,
+				doc.is_void,
+				doc.remarks,
+				doc.hka_status,
 				log.status AS log_status,
 				log.notes AS log_notes,
 				log.creation AS log_creation
@@ -247,15 +262,22 @@ def get_data(filters):
 	full_query = " UNION ALL ".join(query_parts) + " ORDER BY posting_date DESC, name DESC"
 	raw_data = frappe.db.sql(full_query, values, as_dict=1)
 
+	# Semántica estricta compartida con el backfill (una sola fuente de verdad):
+	# el estado solo afirma lo que HKA registró; sin evidencia -> "No aplica".
+	from l10n_ve.digital_invoice.hka_status import derive_hka_status, get_hka_cutoff
+
+	cutoff = get_hka_cutoff()
+
 	processed_data = []
 	for row in raw_data:
-		# Determinar estado de HKA
-		if row.get("bill_control"):
-			row["status"] = "Emitida"
-		elif row.get("log_status") == "Error":
-			row["status"] = "Error"
-		else:
-			row["status"] = "Pendiente"
+		# Preferir el campo persistido (lo mantiene el flujo en vivo);
+		# derivar como fallback (sites donde el backfill aún no corrió).
+		success_log = {"exists": 1} if row.get("log_status") == "Success" else None
+		row["status"] = (
+			row.get("hka_status")
+			or derive_hka_status(row, row.get("log_status"), success_log, cutoff)
+			or "No aplica"
+		)
 
 		# Aplicar filtro de estado si está presente
 		if filters.get("status") and filters.get("status") != "All":

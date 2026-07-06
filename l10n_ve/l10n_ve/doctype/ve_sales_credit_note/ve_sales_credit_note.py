@@ -69,6 +69,15 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self._init_si_defaults()
         super().on_submit()
         self._update_parent_invoice_status()
+        self._set_pending_hka_status()
+
+    def _set_pending_hka_status(self) -> None:
+        """Marca la NC como Pendiente de emisión HKA si su sucursal tiene serie digital activa."""
+        from l10n_ve.digital_invoice.tfhka_integration import has_active_digital_series
+
+        if has_active_digital_series(self.company, self.get("branch")):
+            self.db_set("hka_status", "Pendiente", update_modified=False)
+            self.hka_status = "Pendiente"
 
     def before_cancel(self) -> None:
         """
@@ -718,7 +727,9 @@ def void_credit_note(
     # update_modified=False evita TimestampMismatchError al hacer cancel() → save()
     credit_note.db_set("avoid_reason", reason, update_modified=False)
     credit_note.db_set("is_void", True, update_modified=False)
+    credit_note.db_set("hka_status", "Anulada", update_modified=False)
     credit_note.is_void = True
+    credit_note.hka_status = "Anulada"
     credit_note._hka_void_confirmed = True
     credit_note.cancel()
 

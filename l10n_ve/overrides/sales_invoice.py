@@ -34,6 +34,20 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         super().before_submit()
         self.set_control_and_invoice_number()
         self.set_title_field()
+        self._set_pending_hka_status()
+
+    def _set_pending_hka_status(self) -> None:
+        """Marca la factura como Pendiente de emisión HKA al validarla.
+
+        Solo aplica a facturas normales (no NC/ND legacy) cuya sucursal tiene
+        una serie de facturación digital activa. En before_submit el valor se
+        persiste con el propio submit, sin db_set.
+        """
+        if self.is_return or self.get("is_debit_note"):
+            return
+
+        if self._get_active_digital_series():
+            self.hka_status = "Pendiente"
 
     def before_cancel(self) -> None:
         self._block_cancel_if_has_active_notes()
@@ -1170,7 +1184,9 @@ def void_sales_invoice(
     # y evitar TimestampMismatchError al hacer cancel() → save()
     invoice.db_set("avoid_reason", reason, update_modified=False)
     invoice.db_set("is_void", True, update_modified=False)
+    invoice.db_set("hka_status", "Anulada", update_modified=False)
     invoice.is_void = True
+    invoice.hka_status = "Anulada"
     invoice._hka_void_confirmed = True
     invoice.cancel()
     invoice.add_comment("Comment", _("Factura anulada ante HKA. Motivo: {0}").format(reason))
