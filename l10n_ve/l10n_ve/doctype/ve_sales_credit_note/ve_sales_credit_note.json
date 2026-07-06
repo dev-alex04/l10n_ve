@@ -17,6 +17,8 @@
   "due_date",
   "bill_no",
   "bill_control",
+  "hka_series",
+  "hka_status",
   "column_break1",
   "customer",
   "customer_name",
@@ -309,6 +311,24 @@
    "no_copy": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "hka_series",
+   "fieldtype": "Data",
+   "label": "Serie HKA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "hka_status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Estado HKA",
+   "no_copy": 1,
+   "options": "\nPendiente\nEmitida\nError\nAnulada",
+   "read_only": 1
   },
   {
    "fieldname": "branch",

@@ -67,6 +67,47 @@ def get_active_billing_series(
     return series_doc, branch_code
 
 
+def has_active_digital_series(company: str, branch: str | None) -> bool:
+    """Retorna True si la sucursal tiene una serie digital activa (no lanza).
+
+    Variante segura de get_active_billing_series para detección en submit:
+    con TFHKA deshabilitado, sin sucursal o sucursal no configurada retorna False.
+    """
+    try:
+        enabled = frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "enabled")
+    except Exception:
+        return False
+
+    if not enabled or not branch:
+        return False
+
+    row = frappe.db.sql("""
+        SELECT child.parent
+        FROM `tabVE Digital Billing Series Branch` child
+        INNER JOIN `tabVE Digital Billing Series` serie
+            ON serie.name = child.parent
+        WHERE child.branch  = %s
+          AND serie.company = %s
+          AND serie.status  = 'Active'
+        LIMIT 1
+    """, (branch, company))
+
+    return bool(row)
+
+
+def _set_hka_status(doctype: str, name: str, status: str, serie: str | None = None) -> None:
+    """Persiste el estado fiscal HKA del documento (y la serie si se provee).
+
+    Escritura directa vía db.set_value (documentos submitted, mismo patrón que
+    el resto del flujo). update_modified=False: es metadato de integración,
+    no una edición del documento.
+    """
+    values: dict = {"hka_status": status}
+    if serie:
+        values["hka_series"] = serie
+    frappe.db.set_value(doctype, name, values, update_modified=False)
+
+
 
 
 def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
@@ -583,11 +624,16 @@ def _handle_hka_response(
                 f"de campos fiscales: {post_fixes}"
             )
 
+        _set_hka_status(
+            doc.doctype, doc.name, "Emitida",
+            serie=getattr(series_doc, "serie", "") or "",
+        )
         _log_request("Emision", doc.name, payload, response, "Success", doctype=doc.doctype)
         return True
 
     # Respuesta nula (timeout, error de red, etc.): response.get() fallaría con AttributeError
     if not response:
+        _set_hka_status(doc.doctype, doc.name, "Error")
         _log_request("Emision", doc.name, payload, {}, "Error",
                      notes="La API HKA no devolvió respuesta (timeout o error de conexión).",
                      doctype=doc.doctype)
@@ -604,6 +650,7 @@ def _handle_hka_response(
     all_text: str = " ".join(str(v) for v in validaciones).lower() + " " + mensaje.lower()
     is_range_exhausted: bool = any(kw in all_text for kw in _RANGE_EXHAUSTED_KEYWORDS)
 
+    _set_hka_status(doc.doctype, doc.name, "Error")
     _log_request("Emision", doc.name, payload, response, "Error",
                  notes="\n".join(notes_parts), doctype=doc.doctype)
 
@@ -688,6 +735,7 @@ def process_invoice(
                 + "\n".join(f"  • {e}" for e in all_errors)
             )
             frappe.logger("l10n_ve").error(msg)
+            _set_hka_status(doctype, doc_name, "Error")
             _log_request(
                 "Validación Pre-Envío HKA", doc_name, payload,
                 {"error": True, "message": msg}, "Error",
@@ -713,6 +761,7 @@ def process_invoice(
                     f"No se pudo resolver: {', '.join(missing)}. "
                     f"Cliente: {doc.customer}, Suscripción: {doc.get('subscription') or '-'}"
                 )
+                _set_hka_status(doc.doctype, doc.name, "Error")
                 _log_request("Emision", doc.name, payload,
                              {"error": True, "message": notes}, "Error", notes=notes)
                 frappe.db.commit()
@@ -732,6 +781,12 @@ def process_invoice(
     except Exception as e:
         tb: str = frappe.get_traceback(with_context=True) or str(e)
         frappe.logger("l10n_ve").error(f"Error procesando {doctype} {doc_name}: {tb}")
+        try:
+            _set_hka_status(doctype, doc_name, "Error")
+        except Exception:
+            # No enmascarar el error original si el doc no existe o la
+            # escritura falla; el log de abajo es el registro primario.
+            pass
         _log_request(
             "Emision",
             doc_name,
@@ -1267,6 +1322,8 @@ def _repair_partial_hka_invoices() -> None:
                 updates["bill_no"] = match.group(1)
 
         if updates:
+            # El doc quedó con datos fiscales completos → HKA sí lo emitió
+            updates["hka_status"] = "Emitida"
             frappe.db.set_value("Sales Invoice", inv.name, updates, update_modified=True)
             _log_request(
                 "Reparacion", inv.name, {},

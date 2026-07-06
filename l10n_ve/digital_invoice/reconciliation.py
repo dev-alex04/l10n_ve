@@ -84,6 +84,11 @@ def _reconcile_doctype(doctype: str) -> int:
             updates["bill_control"] = numero_control
 
         if updates:
+            # Respuesta HKA exitosa en remarks → el doc está emitido
+            updates["hka_status"] = "Emitida"
+            if resultado.get("serie"):
+                updates["hka_series"] = resultado["serie"]
+
             frappe.db.set_value(
                 doctype, doc["name"], updates,
                 update_modified=False,
