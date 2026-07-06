@@ -2,7 +2,7 @@ frappe.provide("frappe.treeview_settings");
 
 
 frappe.treeview_settings["VE Branch"] = {
-	get_tree_nodes: "frappe.desk.treeview.get_children",
+	get_tree_nodes: "l10n_ve.permissions.get_ve_branch_tree_children",
 	filters: [
 		{
 			fieldname: "company",
