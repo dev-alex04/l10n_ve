@@ -13,13 +13,15 @@
   "section_break_dlfm",
   "branch_name",
   "company",
-  "email_branch",
   "lft",
   "rgt",
   "old_parent",
   "column_break_inzw",
   "parent_ve_branch",
   "cost_center",
+  "section_break_contacto",
+  "email_branch",
+  "column_break_contacto_2",
   "phone_cobranzas",
   "column_break_soporte",
   "phone_soporte",
@@ -125,10 +127,19 @@
    "options": "VE Branch Payment Modes"
   },
   {
+   "fieldname": "section_break_contacto",
+   "fieldtype": "Section Break",
+   "label": "Contacto"
+  },
+  {
    "fieldname": "email_branch",
    "fieldtype": "Data",
    "label": "Email Branch",
    "options": "Email"
+  },
+  {
+   "fieldname": "column_break_contacto_2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "phone_cobranzas",
