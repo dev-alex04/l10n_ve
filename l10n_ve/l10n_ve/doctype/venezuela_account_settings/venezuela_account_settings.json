@@ -10,10 +10,10 @@
   "mt_currency",
   "column_break_xsos",
   "igtf_rate",
-  "section_break_vat_calc",
-  "vat_calculation_method",
-  "column_break_vat_calc",
-  "vat_calculation_method_help"
+  "section_break_tax_calc",
+  "tax_calculation_method",
+  "column_break_tax_calc",
+  "tax_calculation_method_help"
  ],
  "fields": [
   {
@@ -44,24 +44,24 @@
    "options": "Currency"
   },
   {
-   "fieldname": "section_break_vat_calc",
+   "fieldname": "section_break_tax_calc",
    "fieldtype": "Section Break",
-   "label": "Cálculo del IVA"
+   "label": "Cálculo de Impuestos"
   },
   {
-   "description": "Aplica a la facturación de venta. Sin método definido, el sistema bloqueará el cálculo de documentos con IVA.",
-   "fieldname": "vat_calculation_method",
+   "description": "Los precios siempre se cargan como base imponible; el método solo cambia cómo se deriva el cálculo fiscal (Bs). Aplica a venta y compra. Sin método definido, el sistema bloqueará el cálculo de documentos con impuestos.",
+   "fieldname": "tax_calculation_method",
    "fieldtype": "Select",
-   "label": "Método de cálculo del IVA",
+   "label": "Método de cálculo de Impuestos",
    "options": "Desde la base imponible\nDesde el total de la factura",
    "reqd": 1
   },
   {
-   "fieldname": "column_break_vat_calc",
+   "fieldname": "column_break_tax_calc",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "vat_calculation_method_help",
+   "fieldname": "tax_calculation_method_help",
    "fieldtype": "HTML",
    "options": ""
   }

@@ -523,3 +523,67 @@ function calculate_base_total_with_vat(frm) {
   frm.doc.base_total_with_vat = result;
   frm.refresh_field("base_total_with_vat");
 }
+
+// ------------------------------------------------------------------ //
+// Método de cálculo de impuestos (Venezuela Account Settings)
+// "Desde el total de la factura": ancla el carril Bs al total comercial
+// redondeado x tasa. Espejo de _anchor_item_base_amounts_ve (Python) —
+// mantener en sync. Los precios y plantillas NO cambian.
+// ------------------------------------------------------------------ //
+
+const __ve_original_calculate_net_total =
+  erpnext.taxes_and_totals.prototype.calculate_net_total;
+
+erpnext.taxes_and_totals.prototype.calculate_net_total = function () {
+  this._anchor_item_base_amounts_ve();
+  __ve_original_calculate_net_total.apply(this);
+};
+
+erpnext.taxes_and_totals.prototype._anchor_item_base_amounts_ve = function () {
+  if (!this._is_multicurrency()) return;
+
+  // El método viaja en el boot (se refresca al recargar la página)
+  if (frappe.boot.tax_calculation_method !== "Desde el total de la factura") {
+    return;
+  }
+
+  const conversion_rate = flt(this.frm.doc.conversion_rate);
+  if (!conversion_rate) return;
+
+  // Tasa de IVA efectiva del documento (filas VAT aditivas, no retención)
+  let vat_rate = 0;
+  (this.frm.doc.taxes || []).forEach((tax) => {
+    if (
+      tax.charge_type === "VAT" &&
+      !cint(tax.is_tax_withholding_account) &&
+      (tax.add_deduct_tax || "Add") !== "Deduct" &&
+      (tax.category || "Total") !== "Valuation"
+    ) {
+      vat_rate += flt(tax.rate);
+    }
+  });
+  if (!vat_rate) return;
+
+  const factor = 1 + vat_rate / 100.0;
+
+  (this.frm.doc.items || []).forEach((item) => {
+    if (cint(item.vat_exempt)) return;
+
+    [
+      ["amount", "base_amount", "base_rate"],
+      ["net_amount", "base_net_amount", "base_net_rate"],
+    ].forEach(([src, base_field, base_rate_field]) => {
+      const amount_usd = flt(item[src]);
+      // Total comercial del ítem redondeado (25,86 x 1,16 = 29,9976 -> 30,00)
+      const total_usd = flt(amount_usd * factor, precision(src, item));
+      const total_bs = flt(total_usd * conversion_rate, precision(base_field, item));
+      item[base_field] = flt(total_bs / factor, precision(base_field, item));
+      if (item.qty) {
+        item[base_rate_field] = flt(
+          item[base_field] / item.qty,
+          precision(base_rate_field, item),
+        );
+      }
+    });
+  });
+};
