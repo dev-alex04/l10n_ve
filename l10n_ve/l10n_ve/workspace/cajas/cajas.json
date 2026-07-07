@@ -109,7 +109,7 @@
             "hidden": 0,
             "is_query_report": 0,
             "label": "Informes de Caja y Banco",
-            "link_count": 3,
+            "link_count": 4,
             "onboard": 0,
             "type": "Card Break"
         },
@@ -142,6 +142,17 @@
             "label": "Estado de Conciliación Bancaria",
             "link_count": 0,
             "link_to": "Bank Reconciliation Statement",
+            "link_type": "Report",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "dependencies": "",
+            "hidden": 0,
+            "is_query_report": 1,
+            "label": "Informe Avanzado de Conciliación",
+            "link_count": 0,
+            "link_to": "Advanced Bank Reconciliation",
             "link_type": "Report",
             "onboard": 1,
             "type": "Link"
