@@ -9,7 +9,11 @@
   "subtracting_calculation_factor",
   "mt_currency",
   "column_break_xsos",
-  "igtf_rate"
+  "igtf_rate",
+  "section_break_vat_calc",
+  "vat_calculation_method",
+  "column_break_vat_calc",
+  "vat_calculation_method_help"
  ],
  "fields": [
   {
@@ -38,6 +42,29 @@
    "fieldtype": "Link",
    "label": "Currency M.T",
    "options": "Currency"
+  },
+  {
+   "fieldname": "section_break_vat_calc",
+   "fieldtype": "Section Break",
+   "label": "Cálculo del IVA"
+  },
+  {
+   "default": "Desde la base imponible",
+   "description": "Aplica a la facturación de venta. Al cambiarlo, los precios (planes y listas) deben cargarse en la convención elegida.",
+   "fieldname": "vat_calculation_method",
+   "fieldtype": "Select",
+   "label": "Método de cálculo del IVA",
+   "options": "Desde la base imponible\nDesde el total de la factura",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_vat_calc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "vat_calculation_method_help",
+   "fieldtype": "HTML",
+   "options": "<div class=\"text-muted\" style=\"font-size: 12.5px; line-height: 1.5; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 10px 12px;\">\n<b>¿Cómo se comporta cada método?</b> Ejemplo con un plan de <b>$35</b>, IVA 16% y tasa Bs 633,3644:\n<table class=\"table table-bordered table-sm\" style=\"margin: 8px 0; font-size: 12px;\">\n<thead><tr><th></th><th>Desde la base imponible</th><th>Desde el total de la factura</th></tr></thead>\n<tbody>\n<tr><td><b>El precio cargado es…</b></td><td>la <b>base sin IVA</b>: $30,17</td><td>el <b>precio final con IVA</b>: $35,00</td></tr>\n<tr><td><b>El sistema calcula…</b></td><td>hacia adelante: base + 16%</td><td>hacia atrás: extrae el IVA del total</td></tr>\n<tr><td><b>Resultado USD</b></td><td>base 30,17 + IVA 4,8272 = <b>34,9972</b> (se muestra 35,00)</td><td>base 30,1724 + IVA 4,8276 = <b>35,00 exacto</b></td></tr>\n<tr><td><b>Resultado Bs</b></td><td>22.165,98</td><td><b>22.167,75</b> (= 35 × tasa)</td></tr>\n</tbody>\n</table>\n<b>⚠ Importante:</b> al cambiar el método, los precios de planes y listas deben <b>re-cargarse en la convención elegida</b> (en “Desde el total” los precios se cargan CON IVA incluido). El cambio aplica a las facturas que se creen a partir de ese momento; los borradores existentes conservan el método con el que fueron creados. En ambos métodos la factura fiscal es válida: el IVA siempre es exactamente el 16% de la base.\n</div>"
   }
  ],
  "grid_page_length": 50,
