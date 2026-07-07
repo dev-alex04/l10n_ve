@@ -212,5 +212,34 @@ class TestSettingsSync(unittest.TestCase):
         mock_frappe.db.set_value.assert_not_called()
 
 
+class TestVatMethodRequired(unittest.TestCase):
+    """_validate_vat_method_configured: throw si el método no está definido."""
+
+    def _engine_with_vat(self):
+        vat = make_mock_tax(charge_type="VAT", rate=16.0)
+        doc = frappe._dict({"taxes": [vat]})
+        doc.get = lambda k, d=None: dict(doc).get(k, d)
+        return _engine(doc=doc)
+
+    @patch("l10n_ve.controllers.taxes_and_totals.frappe.get_cached_value", return_value=None)
+    def test_throws_when_method_not_configured(self, _mock):
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            self._engine_with_vat()._validate_vat_method_configured()
+
+    @patch("l10n_ve.controllers.taxes_and_totals.frappe.get_cached_value",
+           return_value="Desde la base imponible")
+    def test_passes_when_method_configured(self, _mock):
+        self._engine_with_vat()._validate_vat_method_configured()  # no lanza
+
+    @patch("l10n_ve.controllers.taxes_and_totals.frappe.get_cached_value", return_value=None)
+    def test_docs_without_vat_are_not_blocked(self, mock_cached):
+        """Documentos sin fila VAT (p. ej. exentos puros) no consultan ni bloquean."""
+        tax = make_mock_tax(charge_type="On Net Total", rate=5.0)
+        doc = frappe._dict({"taxes": [tax]})
+        doc.get = lambda k, d=None: dict(doc).get(k, d)
+        _engine(doc=doc)._validate_vat_method_configured()
+        mock_cached.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

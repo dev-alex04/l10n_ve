@@ -33,7 +33,36 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         calcula outstanding) para 'Sales Invoice' y 'Purchase Invoice'.
         Se extiende para que los doctypes venezolanos también lo ejecuten.
         """
+        self._validate_vat_method_configured()
         super().calculate()
+
+    def _validate_vat_method_configured(self) -> None:
+        """Bloquea el cálculo de documentos con IVA sin método definido.
+
+        El "Método de cálculo del IVA" (Venezuela Account Settings) no tiene
+        valor por defecto a propósito: cada site debe elegirlo de forma
+        consciente, porque define qué extremo del precio es el ancla (base
+        imponible vs total con IVA) y con qué convención se cargan los
+        precios. Sin esa decisión tomada, calcular sería adivinar.
+        """
+        taxes = self.doc.get("taxes") or []
+        if not any(tax.charge_type == "VAT" for tax in taxes):
+            return
+
+        method = frappe.get_cached_value(
+            "Venezuela Account Settings", "Venezuela Account Settings",
+            "vat_calculation_method",
+        )
+        if not method:
+            frappe.throw(
+                frappe._(
+                    "No está definido el <b>Método de cálculo del IVA</b>. "
+                    "Configúrelo en <b>Venezuela Account Settings</b> "
+                    "(Desde la base imponible / Desde el total de la factura) "
+                    "antes de calcular documentos con IVA."
+                ),
+                title=frappe._("Método de cálculo del IVA requerido"),
+            )
 
         ve_invoice_doctypes: list = [
             "VE Sales Debit Note",
