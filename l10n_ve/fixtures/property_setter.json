@@ -1,6 +1,22 @@
 [
  {
   "default_value": null,
+  "doc_type": "Bank Transaction",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "field_name": "reference_number",
+  "is_system_generated": 0,
+  "modified": "2026-07-05 16:00:00",
+  "module": "L10N Ve",
+  "name": "Bank Transaction-reference_number-depends_on",
+  "property": "depends_on",
+  "property_type": "Data",
+  "row_name": null,
+  "value": "eval:frappe.session.user === 'Administrator'"
+ },
+ {
+  "default_value": null,
   "doc_type": "Bank Account",
   "docstatus": 0,
   "doctype": "Property Setter",
@@ -541,7 +557,7 @@
   "property": "label",
   "property_type": "",
   "row_name": null,
-  "value": "N\u00famero de Documento"
+  "value": "Número de Documento"
  },
  {
   "default_value": "1",
@@ -1869,7 +1885,7 @@
   "property": "description",
   "property_type": "Text",
   "row_name": null,
-  "value": "Si est\u00e1 habilitado, el sistema permitir\u00e1 seleccionar unidades de medida en transacciones de compra y venta solo si la tasa de conversi\u00f3n est\u00e1 configurada en el maestro de art\u00edculos."
+  "value": "Si está habilitado, el sistema permitirá seleccionar unidades de medida en transacciones de compra y venta solo si la tasa de conversión está configurada en el maestro de artículos."
  },
  {
   "default_value": null,
@@ -1885,7 +1901,7 @@
   "property": "description",
   "property_type": "Text",
   "row_name": null,
-  "value": "Si est\u00e1 habilitado, no actualice los valores de serie / lote en las transacciones de stock al crear el Paquete de Serie / Lote autom\u00e1tico."
+  "value": "Si está habilitado, no actualice los valores de serie / lote en las transacciones de stock al crear el Paquete de Serie / Lote automático."
  },
  {
   "default_value": null,
@@ -1934,22 +1950,6 @@
   "property_type": "Check",
   "row_name": null,
   "value": "1"
- },
- {
-  "default_value": null,
-  "doc_type": "Mode of Payment",
-  "docstatus": 0,
-  "doctype": "Property Setter",
-  "doctype_or_field": "DocField",
-  "field_name": "type",
-  "is_system_generated": 0,
-  "modified": "2025-09-12 10:00:00",
-  "module": "L10N Ve",
-  "name": "Mode of Payment-type-options",
-  "property": "options",
-  "property_type": "Text",
-  "row_name": null,
-  "value": "Cash\nBank\nGeneral\nPhone\nGangway"
  },
  {
   "default_value": null,
@@ -2077,7 +2077,7 @@
   "property": "label",
   "property_type": "Data",
   "row_name": null,
-  "value": "Descripci\u00f3n"
+  "value": "Descripción"
  },
  {
   "default_value": null,
@@ -2126,21 +2126,5 @@
   "property_type": "Int",
   "row_name": null,
   "value": "2"
- },
- {
-  "default_value": null,
-  "doc_type": "Bank Transaction",
-  "docstatus": 0,
-  "doctype": "Property Setter",
-  "doctype_or_field": "DocField",
-  "field_name": "reference_number",
-  "is_system_generated": 0,
-  "modified": "2026-07-05 16:00:00",
-  "module": "L10N Ve",
-  "name": "Bank Transaction-reference_number-depends_on",
-  "property": "depends_on",
-  "property_type": "Data",
-  "row_name": null,
-  "value": "eval:frappe.session.user === 'Administrator'"
  }
 ]

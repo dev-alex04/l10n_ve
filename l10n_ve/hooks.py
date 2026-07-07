@@ -446,6 +446,18 @@ fixtures = [
             ["parent", "=", "Sales Taxes and Charges Template"],
             ["role", "=", "System Manager"],
         ]
+    },
+    {
+        "doctype": "Workspace",
+        "filters": [
+            ["name", "in", ["Users", "Build", "ERPNext Settings"]]
+        ]
+    },
+    {
+        "doctype": "Role",
+        "filters": [
+            ["name", "=", "Desk User"]
+        ]
     }
 ]
 
