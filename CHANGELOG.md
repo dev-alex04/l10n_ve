@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.18.1] - 2026-07-07
+
+### 🐛 Correcciones (Fixes)
+- Se ajustó la visibilidad de los campos técnicos `hka_status` y `hka_series` en el módulo HKA para asegurar que permanezcan ocultos (`hidden=1`) en la interfaz. [ee16138]
+
+---
+
 ## [v2.18.0] - 2026-07-06
 
 ### ✨ Funcionalidades (Features)
