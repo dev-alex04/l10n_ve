@@ -18,6 +18,8 @@
   "set_posting_time",
   "bill_no",
   "bill_control",
+  "hka_series",
+  "hka_status",
   "column_break1",
   "customer",
   "customer_name",
@@ -1687,6 +1689,28 @@
    "in_standard_filter": 1,
    "label": "Número de Control",
    "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "hka_series",
+   "fieldtype": "Data",
+   "hide_days": 1,
+   "hide_seconds": 1,
+   "label": "Serie HKA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "hka_status",
+   "fieldtype": "Select",
+   "hide_days": 1,
+   "hide_seconds": 1,
+   "in_standard_filter": 1,
+   "label": "Estado HKA",
+   "no_copy": 1,
+   "options": "\nPendiente\nEmitida\nError\nAnulada",
    "read_only": 1
   },
   {

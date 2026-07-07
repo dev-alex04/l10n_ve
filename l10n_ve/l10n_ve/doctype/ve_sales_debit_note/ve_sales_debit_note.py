@@ -74,6 +74,15 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         super().on_submit()
         self._update_outstanding_amount()
         self._update_parent_invoice_status()
+        self._set_pending_hka_status()
+
+    def _set_pending_hka_status(self) -> None:
+        """Marca la ND como Pendiente de emisión HKA si su sucursal tiene serie digital activa."""
+        from l10n_ve.digital_invoice.tfhka_integration import has_active_digital_series
+
+        if has_active_digital_series(self.company, self.get("branch")):
+            self.db_set("hka_status", "Pendiente", update_modified=False)
+            self.hka_status = "Pendiente"
 
     def before_cancel(self) -> None:
         """
@@ -686,7 +695,9 @@ def void_debit_note(
 
     debit_note.db_set("avoid_reason", reason, update_modified=False)
     debit_note.db_set("is_void", True, update_modified=False)
+    debit_note.db_set("hka_status", "Anulada", update_modified=False)
     debit_note.is_void = True
+    debit_note.hka_status = "Anulada"
     debit_note._hka_void_confirmed = True
     debit_note.cancel()
 

@@ -13,14 +13,18 @@
   "section_break_dlfm",
   "branch_name",
   "company",
-  "email_branch",
   "lft",
   "rgt",
   "old_parent",
   "column_break_inzw",
   "parent_ve_branch",
   "cost_center",
+  "section_break_contacto",
+  "email_branch",
+  "column_break_contacto_2",
   "phone_cobranzas",
+  "column_break_soporte",
+  "phone_soporte",
   "impuestos_section",
   "num_license_economic",
   "column_break_ixms",
@@ -123,15 +127,34 @@
    "options": "VE Branch Payment Modes"
   },
   {
+   "fieldname": "section_break_contacto",
+   "fieldtype": "Section Break",
+   "label": "Contacto"
+  },
+  {
    "fieldname": "email_branch",
    "fieldtype": "Data",
    "label": "Email Branch",
    "options": "Email"
   },
   {
+   "fieldname": "column_break_contacto_2",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "phone_cobranzas",
    "fieldtype": "Data",
    "label": "Tel\u00e9fono de Cobranzas"
+  },
+  {
+   "fieldname": "column_break_soporte",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "N\u00famero de tel\u00e9fono para el enlace de contacto en el portal de clientes (ej: 584121112233).",
+   "fieldname": "phone_soporte",
+   "fieldtype": "Data",
+   "label": "Tel\u00e9fono de Soporte"
   },
   {
    "fieldname": "cost_center",

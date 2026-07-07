@@ -37,7 +37,7 @@ frappe.query_reports["VE HKA Invoices Status"] = {
 			"fieldname": "status",
 			"label": __("Estado HKA"),
 			"fieldtype": "Select",
-			"options": "All\nEmitida\nError\nPendiente",
+			"options": "All\nEmitida\nError\nPendiente\nAnulada\nNo aplica",
 			"default": "All",
 			"reqd": 0
 		}
