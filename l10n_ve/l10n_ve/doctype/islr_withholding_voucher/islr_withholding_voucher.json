@@ -7,12 +7,15 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
+  "column_break_xfmh",
+  "voucher_number",
+  "section_break_krnr",
   "supplier",
   "column_1",
   "empresa",
   "column_3",
-  "voucher_number",
-  "naming_series",
+  "branch",
   "section_6",
   "start_date",
   "end_date",
@@ -69,6 +72,13 @@
    "search_index": 1
   },
   {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Sucursal",
+   "options": "VE Branch"
+  },
+  {
    "fieldname": "column_3",
    "fieldtype": "Column Break"
   },
@@ -92,8 +102,7 @@
   },
   {
    "fieldname": "section_6",
-   "fieldtype": "Section Break",
-   "label": ""
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "start_date",
@@ -117,7 +126,7 @@
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "hidden": 1,
-   "label": "Fecha Creación",
+   "label": "Fecha Creaci\u00f3n",
    "search_index": 1
   },
   {
@@ -146,7 +155,7 @@
   {
    "fieldname": "totals_islr_base_amount",
    "fieldtype": "Currency",
-   "label": "Total Objeto a Retención",
+   "label": "Total Objeto a Retenci\u00f3n",
    "read_only": 1
   },
   {
@@ -166,16 +175,16 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "section_19",
    "fieldtype": "Section Break",
-   "label": "Direcciones",
-   "collapsible": 1
+   "label": "Direcciones"
   },
   {
    "fieldname": "company_address",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Dirección Empresa"
+   "label": "Direcci\u00f3n Empresa"
   },
   {
    "fieldname": "column_21",
@@ -185,20 +194,20 @@
    "fieldname": "supplier_address",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Dirección Proveedor"
+   "label": "Direcci\u00f3n Proveedor"
   },
   {
+   "collapsible": 1,
    "fieldname": "section_23",
    "fieldtype": "Section Break",
-   "label": "Factura Digital",
-   "collapsible": 1
+   "label": "Factura Digital"
   },
   {
    "fieldname": "digital_invoice_status",
    "fieldtype": "Select",
    "hidden": 1,
    "in_list_view": 1,
-   "label": "Estado Emisión Digital",
+   "label": "Estado Emisi\u00f3n Digital",
    "no_copy": 1,
    "options": "\nPending\nSent\nError\nVoided",
    "read_only": 1
@@ -223,15 +232,14 @@
    "in_filter": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "N° Control",
+   "label": "N\u00b0 Control",
    "no_copy": 1,
    "read_only": 1,
    "search_index": 1
   },
   {
    "fieldname": "section_28",
-   "fieldtype": "Section Break",
-   "label": ""
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "hka_response",
@@ -243,8 +251,7 @@
   },
   {
    "fieldname": "section_30",
-   "fieldtype": "Section Break",
-   "label": ""
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "hka_preview",
@@ -255,8 +262,7 @@
   },
   {
    "fieldname": "section_32",
-   "fieldtype": "Section Break",
-   "label": ""
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "amended_from",
@@ -267,13 +273,21 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "column_break_xfmh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_krnr",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-30 10:02:00.109785",
+ "modified": "2026-07-07 23:48:20.967853",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "ISLR Withholding Voucher",
@@ -281,6 +295,7 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -290,11 +305,11 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "write": 1,
    "submit": 1,
-   "cancel": 1
+   "write": 1
   },
   {
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -304,9 +319,8 @@
    "report": 1,
    "role": "Accounts Manager",
    "share": 1,
-   "write": 1,
    "submit": 1,
-   "cancel": 1
+   "write": 1
   },
   {
    "create": 1,

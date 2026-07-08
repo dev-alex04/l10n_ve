@@ -161,6 +161,7 @@ def get_valid_invoices(
     end_date: str,
     company: str,
     exclude_voucher: str = "",
+    branch: str = "",
 ) -> list[dict]:
     """Obtiene facturas de compra, NC y ND con retención ISLR para el comprobante.
 
@@ -188,7 +189,7 @@ def get_valid_invoices(
 
     # Fase 1: Exclusiones + candidatos
     excluded_set: set[tuple[str, str]] = _get_excluded_combinations(company, exclude_voucher)
-    doc_map: dict[str, dict] = _get_candidate_invoices(supplier, start_date, end_date, company)
+    doc_map: dict[str, dict] = _get_candidate_invoices(supplier, start_date, end_date, company, branch=branch)
 
     all_names: list[str] = list(doc_map)
     if not all_names:
@@ -239,6 +240,7 @@ def _get_candidate_invoices(
     start_date: str,
     end_date: str,
     company: str,
+    branch: str = "",
 ) -> dict[str, dict]:
     """Obtiene documentos candidatos con datos completos, indexados por name.
 
@@ -254,6 +256,13 @@ def _get_candidate_invoices(
 
     fields_sql: str = ", ".join(_ISLR_INVOICE_FIELDS)
 
+    branch_clause: str = ""
+    if branch:
+        branch_clause = "AND branch = %(branch)s"
+        params["branch"] = branch
+    else:
+        branch_clause = "AND (branch IS NULL OR branch = '')"
+
     unions: list[str] = []
     for dt in WithholdingVoucher.PURCHASE_PARENTTYPES:
         extra: str = "AND is_return = 0 AND is_debit_note = 0" if dt == "Purchase Invoice" else ""
@@ -265,6 +274,7 @@ def _get_candidate_invoices(
               AND company = %(company)s
               AND docstatus = 1
               {extra}
+              {branch_clause}
         """)
 
     rows: list[dict] = frappe.db.sql(
