@@ -210,6 +210,7 @@ def get_valid_invoices(
     end_date: str,
     company: str,
     exclude_voucher: str = "",
+    branch: str = "",
 ) -> list[dict]:
     """Obtiene facturas de compra, NC y ND válidas para un comprobante de retención IVA.
 
@@ -226,7 +227,7 @@ def get_valid_invoices(
 
     # Fase 2: Candidatos por DocType (1 query UNION ALL)
     names_by_doctype: dict[str, list[str]] = _get_candidate_invoices(
-        supplier, start_date, end_date, company, all_excluded_invoices,
+        supplier, start_date, end_date, company, all_excluded_invoices, branch=branch
     )
 
     all_valid_names: list[str] = []
@@ -293,6 +294,7 @@ def _get_candidate_invoices(
     end_date: str,
     company: str,
     excluded: list[str],
+    branch: str = "",
 ) -> dict[str, list[str]]:
     """Obtiene nombres de documentos candidatos agrupados por DocType.
 
@@ -310,6 +312,13 @@ def _get_candidate_invoices(
         exclusion_clause = "AND name NOT IN %(excluded)s"
         params["excluded"] = excluded
 
+    branch_clause: str = ""
+    if branch:
+        branch_clause = "AND branch = %(branch)s"
+        params["branch"] = branch
+    else:
+        branch_clause = "AND (branch IS NULL OR branch = '')"
+
     unions: list[str] = []
     for dt in _PURCHASE_PARENTTYPES:
         tab: str = f"`tab{dt}`"
@@ -320,6 +329,7 @@ def _get_candidate_invoices(
               AND company = %(company)s
               AND docstatus = 1
               {exclusion_clause}
+              {branch_clause}
         """)
 
     rows: list[dict] = frappe.db.sql(

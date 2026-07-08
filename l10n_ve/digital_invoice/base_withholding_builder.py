@@ -27,6 +27,27 @@ class BaseRetentionPayloadBuilder:
     def __init__(self, doc) -> None:
         self.doc = doc
         self.company_currency: str = "BSD"
+        self._serie: str = ""
+        self._branch_code: str = ""
+        self._load_series()
+
+    def _load_series(self) -> None:
+        """Carga la serie y branch_code resolviéndolas desde la sucursal del comprobante."""
+        branch = getattr(self.doc, "branch", "") or ""
+        company = getattr(self.doc, "empresa", "") or ""
+        if not branch or not company:
+            return
+        try:
+            from l10n_ve.digital_invoice.tfhka_integration import get_active_billing_series
+            series_doc, branch_code = get_active_billing_series(company=company, branch=branch)
+            self._serie = getattr(series_doc, "serie", "") or ""
+            self._branch_code = branch_code or ""
+        except Exception as e:
+            # Registrar advertencia en logs de Frappe pero no abortar la ejecución del comprobante
+            frappe.log_error(
+                title=f"Error al obtener serie HKA para la sucursal {branch}",
+                message=str(e)
+            )
 
     # ─────────────────────────────────────────────────────────────
     # Punto de entrada (Template Method)
@@ -106,8 +127,8 @@ class BaseRetentionPayloadBuilder:
             "HoraEmision": self._format_current_time(),
             "Anulado": False,
             "TipoDePago": "Contado",
-            "Serie": "",
-            "Sucursal": None,
+            "Serie": self._serie,
+            "Sucursal": self._branch_code or None,
             "TipoDeVenta": "Interna",
             "Moneda": self.company_currency,
             "TransaccionId": f"{self.TRANSACTION_PREFIX}{clean_number}",

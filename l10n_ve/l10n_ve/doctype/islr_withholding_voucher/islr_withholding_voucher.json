@@ -10,6 +10,7 @@
   "supplier",
   "column_1",
   "empresa",
+  "branch",
   "column_3",
   "voucher_number",
   "naming_series",
@@ -67,6 +68,13 @@
    "options": "Company",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Sucursal",
+   "options": "VE Branch"
   },
   {
    "fieldname": "column_3",

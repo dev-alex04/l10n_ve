@@ -62,7 +62,7 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
         });
       }
 
-      const fields = ["start_date", "end_date", "empresa", "supplier", ISLR_CHILD_TABLE];
+      const fields = ["start_date", "end_date", "empresa", "supplier", "branch", ISLR_CHILD_TABLE];
       fields_read_only(frm, fields);
     }
 
@@ -202,6 +202,12 @@ frappe.ui.form.on("ISLR Withholding Voucher", {
     frm.refresh_field("company_address");
     maybe_load_invoices(frm);
   },
+  
+  branch: function (frm) {
+    frm.clear_table(ISLR_CHILD_TABLE);
+    frm.refresh_field(ISLR_CHILD_TABLE);
+    maybe_load_invoices(frm);
+  },
 });
 
 frappe.ui.form.on("ISLR Withholding Voucher Item", {
@@ -240,6 +246,7 @@ function _do_load_invoices(frm) {
       end_date: frm.doc.end_date,
       company: frm.doc.empresa,
       exclude_voucher: frm.doc.name || "",
+      branch: frm.doc.branch || "",
     },
     callback: function (r) {
       // Reset totales

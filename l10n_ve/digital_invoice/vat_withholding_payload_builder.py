@@ -81,12 +81,24 @@ class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):
         monto_total: float = flt(item.total) + flt(item.total_exempt) + flt(item.taxes_and_charges_added)
         retenido: float = flt(item.taxes_and_charges_added) * flt(item.withholding_rate) / 100
 
+        bill_no = (item.bill_no or "").strip()
+        serie_doc = None
+        num_doc = bill_no
+        import re
+        match = re.match(r"^([A-Za-z]+)-?([0-9]+)$", bill_no)
+        if match:
+            prefix = match.group(1)
+            num = match.group(2)
+            if len(prefix) <= 5:
+                serie_doc = prefix
+                num_doc = num
+
         return {
             "NumeroLinea": str(line_number),
             "FechaDocumento": posting_date,
             "TipoDocumento": doc_type_code,
-            "SerieDocumento": None,
-            "NumeroDocumento": item.bill_no or "",
+            "SerieDocumento": serie_doc,
+            "NumeroDocumento": num_doc,
             "NumeroControl": item.bill_control or "",
             "TipoTransaccion": None,
             "MontoTotal": "{:.2f}".format(monto_total),
