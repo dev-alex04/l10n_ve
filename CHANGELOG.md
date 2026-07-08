@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.19.0] - 2026-07-08
+
+### ✨ Funcionalidades (Features)
+- Incorporación del reporte de conciliación bancaria avanzada en los espacios de trabajo. [8e743be]
+
+### 🐛 Correcciones (Fixes)
+- Resolución de incidencias en los fixtures de Workspace y Role, incluyendo la restauración del setter de propiedades. [e44d448]
+- Ajuste en la visibilidad de los espacios de trabajo administrativos y corrección en la lógica de redirección al escritorio mediante fixtures. [90b19df]
+
+---
+
 ## [v2.18.1] - 2026-07-07
 
 ### 🐛 Correcciones (Fixes)
