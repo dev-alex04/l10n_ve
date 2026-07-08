@@ -63,7 +63,7 @@ frappe.ui.form.on("VAT Withholding Voucher", {
 
       const fields = [
         "start_date", "end_date", "empresa", "supplier",
-        "fiscal_period", "issue_date", VAT_CHILD_TABLE,
+        "fiscal_period", "issue_date", "branch", VAT_CHILD_TABLE,
       ];
       fields_read_only(frm, fields);
     }
@@ -206,6 +206,12 @@ frappe.ui.form.on("VAT Withholding Voucher", {
     frm.refresh_field("company_address");
     maybe_load_invoices(frm);
   },
+  
+  branch: function (frm) {
+    frm.clear_table(VAT_CHILD_TABLE);
+    frm.refresh_field(VAT_CHILD_TABLE);
+    maybe_load_invoices(frm);
+  },
 });
 
 frappe.ui.form.on("VAT Withholding Voucher Item", {
@@ -244,6 +250,7 @@ function _do_load_invoices(frm) {
       end_date: frm.doc.end_date,
       company: frm.doc.empresa,
       exclude_voucher: frm.doc.name || "",
+      branch: frm.doc.branch || "",
     },
     callback: function (r) {
       // Reset totales
