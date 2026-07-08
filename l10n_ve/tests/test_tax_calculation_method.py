@@ -30,7 +30,7 @@ from unittest.mock import patch
 import frappe
 
 from l10n_ve.controllers.taxes_and_totals import TAX_FROM_TOTAL, TaxesAndTotals
-from l10n_ve.tests.helpers import make_mock_item, make_mock_tax
+from l10n_ve.tests.helpers import MockDoc, make_mock_item, make_mock_tax
 _ENGINE_MOD = "l10n_ve.controllers.taxes_and_totals"
 
 RATE = 633.3644
@@ -40,13 +40,12 @@ def _engine(items, taxes, method=TAX_FROM_TOTAL, multicurrency=True,
             conversion_rate=RATE) -> TaxesAndTotals:
     """Instancia el motor sin ejecutar __init__ (que calcularía)."""
     engine = TaxesAndTotals.__new__(TaxesAndTotals)
-    doc = frappe._dict({
-        "taxes": taxes,
-        "items": items,
-        "conversion_rate": conversion_rate,
-    })
-    doc.get = lambda k, d=None: dict(doc).get(k, d)
-    engine.doc = doc
+    # MockDoc y no frappe._dict: el acceso doc.items colisiona con dict.items()
+    engine.doc = MockDoc(
+        taxes=taxes,
+        items=items,
+        conversion_rate=conversion_rate,
+    )
     engine._is_multicurrency = lambda: multicurrency
     engine._get_tax_calculation_method = lambda: method
     return engine
@@ -122,6 +121,38 @@ class TestAnchorItemBaseAmounts(unittest.TestCase):
         original = item.base_net_amount
         _engine([item], [_vat_tax()], multicurrency=False)._anchor_item_base_amounts_ve()
         self.assertEqual(item.base_net_amount, original)
+
+    def test_exempt_only_with_islr_is_immune_to_method(self):
+        """Documento 100% exento con solo ISLR: sin impuesto aditivo no hay
+        ancla posible — ambos métodos dan lo mismo (validado en vivo con
+        ACC-SINV-2026-10834 exenta: ISLR Bs 690,00 idéntico)."""
+        item = _item(51.72, exempt=True)
+        original = item.base_net_amount
+        islr = make_mock_tax(charge_type="ISLR", rate=2.0, percentage_base=100.0)
+
+        _engine([item], [islr])._anchor_item_base_amounts_ve()
+
+        self.assertEqual(item.base_net_amount, original)
+
+    def test_withholding_follows_anchored_vat_base(self):
+        """La retención IVA Bs sigue al IVA del método: 75% del IVA derivado
+        de la base ANCLADA (invariante fiscal: el comprobante siempre cuadra
+        contra el IVA de su propia factura)."""
+        item = _item(25.86)
+        vat = _vat_tax(16.0)
+        wh = make_mock_tax(charge_type="VAT Withholding", rate=75.0,
+                           is_tax_withholding_account=True)
+
+        engine = _engine([item], [vat, wh])
+        engine._anchor_item_base_amounts_ve()          # base Bs -> 16.380,11
+        engine.doc.base_net_total = item.base_net_amount
+        engine._recalculate_base_tax_amounts_ve()      # deriva IVA y retención Bs
+
+        self.assertAlmostEqual(vat.base_tax_amount, 2620.82)          # 16% de 16.380,11
+        self.assertAlmostEqual(wh.base_tax_amount, 1965.62, places=2)  # 75% del IVA Bs
+        self.assertAlmostEqual(
+            wh.base_tax_amount, round(vat.base_tax_amount * 0.75, 2), places=2
+        )
 
 
 class TestVatMethodRequired(unittest.TestCase):
