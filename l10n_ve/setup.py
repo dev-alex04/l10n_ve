@@ -1776,7 +1776,40 @@ def setup_workspaces() -> None:
     add_links_to_selling_workspace()
     add_links_to_buying_workspace()
     remove_number_cards_from_accounting_workspace()
+    restrict_admin_workspaces()
 
+def restrict_admin_workspaces() -> None:
+    """
+    Agrega el rol 'System Manager' a los workspaces de administración para ocultarlos
+    del resto de usuarios. Esto corre en after_migrate para evitar clobbering.
+    """
+    print("Restringiendo Workspaces administrativos...")
+    workspaces = ["Users", "Build", "ERPNext Settings"]
+    
+    for ws_name in workspaces:
+        if not frappe.db.exists("Workspace", ws_name):
+            continue
+            
+        try:
+            ws = frappe.get_doc("Workspace", ws_name)
+            
+            # Buscar si ya tiene System Manager en roles
+            has_system_manager = any(r.role == "System Manager" for r in ws.roles)
+            
+            # Si no tiene System Manager pero tiene otros roles (o no tiene ninguno), aseguramos System Manager
+            if not has_system_manager:
+                # Limpiar cualquier rol previo que pudiera haber (para que solo sea System Manager)
+                # si se requiere, o simplemente añadirlo si es vacío
+                ws.set("roles", [])
+                ws.append("roles", {"role": "System Manager"})
+                ws.save(ignore_permissions=True)
+                print(f"  -> Workspace '{ws_name}' restringido a System Manager.")
+            else:
+                print(f"  -- Workspace '{ws_name}' ya estaba restringido.")
+                
+        except Exception as e:
+            print(f"  !! Error restringiendo Workspace '{ws_name}': {e}")
+            
 def remove_number_cards_from_accounting_workspace() -> None:
     """
     Remueve la tarjeta de 'Tasa BCV del Día' del Workspace de Contabilidad
