@@ -38,6 +38,12 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         self._validate_tax_method_configured()
         super().calculate()
 
+        ve_invoice_doctypes: list = [
+            "VE Sales Debit Note",
+        ]
+        if self.doc.doctype in ve_invoice_doctypes:
+            self.calculate_total_advance()
+
     def _validate_tax_method_configured(self) -> None:
         """Bloquea el cálculo de documentos con impuestos sin método definido.
 
@@ -65,12 +71,6 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 ),
                 title=frappe._("Método de cálculo de Impuestos requerido"),
             )
-
-        ve_invoice_doctypes: list = [
-            "VE Sales Debit Note",
-        ]
-        if self.doc.doctype in ve_invoice_doctypes:
-            self.calculate_total_advance()
 
     def _is_multicurrency(self) -> bool:
         """Indica si el documento usa moneda diferente a la de la compañía."""
@@ -113,6 +113,11 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         outstanding) fluye por la metodología VE existente, que deriva del
         base_net_amount por ítem.
         """
+        # Total gravado anclado (con IVA) en Bs: lo consume
+        # _recalculate_base_tax_amounts_ve para definir el IVA por diferencia
+        # (exactitud por construcción). None = ancla no aplicada.
+        self._ve_anchored_taxable_total_bs = None
+
         if not self._is_multicurrency():
             return
 
@@ -136,6 +141,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             return
 
         factor: float = 1 + (vat_rate / 100.0)
+        anchored_total_bs: float = 0.0
 
         for item in self.doc.get("items") or []:
             if item.get("vat_exempt"):
@@ -157,6 +163,10 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                         base_value / item.qty,
                         item.precision(base_rate_field),
                     ))
+                if base_field == "base_net_amount":
+                    anchored_total_bs += total_bs
+
+        self._ve_anchored_taxable_total_bs = flt(anchored_total_bs, 2)
 
     def calculate_total_exempt(self) -> None:
 
@@ -285,13 +295,41 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             if not item.get("vat_exempt")
         )
 
+        # Método "Desde el total": el IVA Bs se define por DIFERENCIA contra
+        # el total gravado anclado (base + IVA == total comercial x tasa,
+        # siempre). Recalcularlo como 16% de la base redondeada puede
+        # desviar ±0,01 por el viaje de redondeos.
+        anchored_total_bs = getattr(self, "_ve_anchored_taxable_total_bs", None)
+        anchored_iva_pending = None
+        anchored_vat_rows: list = []
+        if anchored_total_bs is not None:
+            anchored_vat_rows = [
+                t for t in self.doc.get("taxes")
+                if t.charge_type == "VAT" and not t.get("is_tax_withholding_account")
+            ]
+            if anchored_vat_rows:
+                anchored_iva_pending = flt(anchored_total_bs - base_taxable_vef, 2)
+
         for i, tax in enumerate(self.doc.get("taxes")):
 
             if tax.charge_type == "VAT" and not tax.get("is_tax_withholding_account"):
-                tax.base_tax_amount = flt(
-                    base_taxable_vef * flt(tax.rate) / 100,
-                    tax.precision("base_tax_amount")
-                )
+                if anchored_iva_pending is not None:
+                    if tax is anchored_vat_rows[-1]:
+                        # la última fila absorbe el remanente del redondeo
+                        share = anchored_iva_pending
+                    else:
+                        total_rate = sum(flt(t.rate) for t in anchored_vat_rows) or 1
+                        share = flt(
+                            anchored_iva_pending * flt(tax.rate) / total_rate,
+                            tax.precision("base_tax_amount"),
+                        )
+                    anchored_iva_pending = flt(anchored_iva_pending - share, 2)
+                    tax.base_tax_amount = flt(share, tax.precision("base_tax_amount"))
+                else:
+                    tax.base_tax_amount = flt(
+                        base_taxable_vef * flt(tax.rate) / 100,
+                        tax.precision("base_tax_amount")
+                    )
 
             elif tax.charge_type == "On Net Total":
                 tax.base_tax_amount = flt(

@@ -134,6 +134,27 @@ class TestAnchorItemBaseAmounts(unittest.TestCase):
 
         self.assertEqual(item.base_net_amount, original)
 
+    def test_ten_dollar_plan_iva_by_difference_exact(self):
+        """Caso plan $10 (base 8,62): el IVA Bs sale por DIFERENCIA contra el
+        total anclado, no re-multiplicando 16% — cierre exacto por
+        construcción: base + IVA == total comercial x tasa (6.333,64), sin la
+        fuga de ±1 céntimo del doble redondeo (16% de 5.460,03 = 873,60 pero
+        el ancla exige 873,61)."""
+        item = _item(8.62)
+        vat = _vat_tax(16.0)
+
+        engine = _engine([item], [vat])
+        engine._anchor_item_base_amounts_ve()          # total 10,00 -> Bs 6.333,64
+        engine.doc.base_net_total = item.base_net_amount
+        engine._recalculate_base_tax_amounts_ve()
+
+        self.assertAlmostEqual(item.base_net_amount, 5460.03)
+        self.assertAlmostEqual(vat.base_tax_amount, 873.61)  # diferencia, no 873,60
+        self.assertAlmostEqual(
+            round(item.base_net_amount + vat.base_tax_amount, 2), 6333.64
+        )
+        self.assertAlmostEqual(round(10.0 * RATE, 2), 6333.64)  # == total x tasa
+
     def test_withholding_follows_anchored_vat_base(self):
         """La retención IVA Bs sigue al IVA del método: 75% del IVA derivado
         de la base ANCLADA (invariante fiscal: el comprobante siempre cuadra
