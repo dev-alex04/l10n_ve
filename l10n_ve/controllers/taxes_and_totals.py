@@ -24,6 +24,60 @@ __VE_DOCTYPES__ = [
 ]
 
 
+def anchor_base_from_total(base_usd, vat_factor, rate, amount_precision=2, base_precision=2):
+    """Ancla el carril Bs "Desde el total de la factura" para un monto base.
+
+    Reconstruye el total comercial redondeado (base x (1+IVA)) a la precisión de
+    la moneda, lo lleva a Bs a la ``rate`` dada y deriva la base Bs hacia atrás
+    (total / (1+IVA)). Devuelve ``(base_bs, total_bs)``.
+
+    Primitiva PURA y ÚNICA del anclaje: la comparten el motor (por ítem, a la
+    tasa de la factura) y el portal de clientes (agregado, a la tasa del día)
+    para que ambos calculen idéntico y no re-divergir el número.
+    """
+    total_usd = flt(base_usd * vat_factor, amount_precision)
+    total_bs = flt(total_usd * rate, base_precision)
+    base_bs = flt(total_bs / vat_factor, base_precision) if vat_factor else total_bs
+    return base_bs, total_bs
+
+
+def compute_bs_tax_amounts(net_total_ref, iva_factor, rate, method):
+    """Deriva el carril Bs (subtotal, IVA, total) a una ``rate`` dada, según el
+    Método de cálculo de Impuestos (Venezuela Account Settings).
+
+    Pensado para consumidores que trabajan a nivel agregado (p. ej. el portal de
+    clientes, que re-valora a la tasa del día): mismo criterio que el motor pero
+    sin recorrer ítems.
+
+    - ``net_total_ref``: base imponible en moneda de referencia (USD).
+    - ``iva_factor``: fracción de IVA del documento (ej. 0,16).
+    - "Desde el total de la factura": ancla al total (misma primitiva que el
+      motor, :func:`anchor_base_from_total`) y el IVA sale por diferencia.
+    - Cualquier otro valor ("Desde la base imponible" o vacío): base Bs = base
+      USD x tasa; el IVA emerge (comportamiento histórico, sin cambios).
+
+    Nota: a nivel agregado coincide con el motor por construcción cuando hay una
+    sola línea gravada y difiere a lo sumo en céntimos con varias; el cobro se
+    valida en USD, así que ese residuo no afecta el pago.
+    """
+    net_total_ref = flt(net_total_ref)
+    iva_factor = flt(iva_factor)
+    if method == TAX_FROM_TOTAL and iva_factor:
+        subtotal_bs, gross_total_bs = anchor_base_from_total(
+            net_total_ref, 1 + iva_factor, rate
+        )
+        iva_bs = flt(gross_total_bs - subtotal_bs, 2)
+    else:
+        subtotal_bs = flt(net_total_ref * rate, 2)
+        iva_bs = flt(subtotal_bs * iva_factor, 2)
+        gross_total_bs = flt(subtotal_bs + iva_bs, 2)
+    return {
+        "subtotal_bs": subtotal_bs,
+        "iva_bs": iva_bs,
+        "gross_total_bs": gross_total_bs,
+    }
+
+
 class TaxesAndTotals(calculate_taxes_and_totals):
 
     def __init__(self, doc) -> None:
@@ -153,10 +207,13 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             ):
                 amount_usd: float = flt(item.get(src_field))
                 # Total comercial del ítem, redondeado a la precisión de la
-                # moneda del documento (25,86 x 1,16 = 29,9976 -> 30,00)
-                total_usd: float = flt(amount_usd * factor, item.precision(src_field))
-                total_bs: float = flt(total_usd * conversion_rate, item.precision(base_field))
-                base_value: float = flt(total_bs / factor, item.precision(base_field))
+                # moneda del documento (25,86 x 1,16 = 29,9976 -> 30,00) -> Bs ->
+                # base derivada hacia atrás. Primitiva compartida con el portal
+                # (compute_bs_tax_amounts) para no re-divergir el cálculo.
+                base_value, total_bs = anchor_base_from_total(
+                    amount_usd, factor, conversion_rate,
+                    item.precision(src_field), item.precision(base_field),
+                )
                 setattr(item, base_field, base_value)
                 if item.qty:
                     setattr(item, base_rate_field, flt(

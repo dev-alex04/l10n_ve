@@ -29,7 +29,11 @@ from unittest.mock import patch
 
 import frappe
 
-from l10n_ve.controllers.taxes_and_totals import TAX_FROM_TOTAL, TaxesAndTotals
+from l10n_ve.controllers.taxes_and_totals import (
+    TAX_FROM_TOTAL,
+    TaxesAndTotals,
+    compute_bs_tax_amounts,
+)
 from l10n_ve.tests.helpers import MockDoc, make_mock_item, make_mock_tax
 _ENGINE_MOD = "l10n_ve.controllers.taxes_and_totals"
 
@@ -174,6 +178,44 @@ class TestAnchorItemBaseAmounts(unittest.TestCase):
         self.assertAlmostEqual(
             wh.base_tax_amount, round(vat.base_tax_amount * 0.75, 2), places=2
         )
+
+
+class TestComputeBsTaxAmounts(unittest.TestCase):
+    """compute_bs_tax_amounts: derivación agregada del carril Bs (portal), a la
+    tasa dada, respetando el método. Comparte la primitiva de anclaje con el
+    motor, así que reproduce sus mismos números para una línea gravada."""
+
+    def test_from_total_matches_engine_anchor(self):
+        """Desde el total: base 25,86 -> total 30,00 -> Bs 19.000,93; base
+        16.380,11 (igual que _anchor_item_base_amounts_ve) e IVA por diferencia."""
+        r = compute_bs_tax_amounts(25.86, 0.16, RATE, TAX_FROM_TOTAL)
+        self.assertAlmostEqual(r["subtotal_bs"], 16380.11)
+        self.assertAlmostEqual(r["gross_total_bs"], 19000.93)
+        self.assertAlmostEqual(r["iva_bs"], 2620.82)
+        self.assertAlmostEqual(r["subtotal_bs"] + r["iva_bs"], r["gross_total_bs"])
+
+    def test_from_base_is_historical_behavior(self):
+        """Desde la base: subtotal = base USD x tasa; IVA emerge. Reproduce el
+        cálculo histórico del portal jurídico (18.999,41), sin regresión."""
+        r = compute_bs_tax_amounts(25.86, 0.16, RATE, "Desde la base imponible")
+        self.assertAlmostEqual(r["subtotal_bs"], 16378.80)
+        self.assertAlmostEqual(r["iva_bs"], 2620.61)
+        self.assertAlmostEqual(r["gross_total_bs"], 18999.41)
+
+    def test_empty_method_falls_back_to_base(self):
+        """Método vacío se comporta como 'desde la base' (el guard/aviso al
+        cliente vive en el portal, no en esta primitiva pura)."""
+        self.assertEqual(
+            compute_bs_tax_amounts(25.86, 0.16, RATE, ""),
+            compute_bs_tax_amounts(25.86, 0.16, RATE, "Desde la base imponible"),
+        )
+
+    def test_zero_iva_is_exempt_no_anchor(self):
+        """Sin IVA (iva_factor 0): conversión directa, IVA 0, aun en 'desde el
+        total' (no hay impuesto que anclar)."""
+        r = compute_bs_tax_amounts(51.72, 0.0, RATE, TAX_FROM_TOTAL)
+        self.assertEqual(r["iva_bs"], 0.0)
+        self.assertAlmostEqual(r["subtotal_bs"], r["gross_total_bs"])
 
 
 class TestVatMethodRequired(unittest.TestCase):
