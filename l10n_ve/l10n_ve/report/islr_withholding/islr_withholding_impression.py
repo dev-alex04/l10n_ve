@@ -53,27 +53,30 @@ def download_custom_excel(filters=None):
 
     # Determine headers and colspan based on group_by
     if group_by == "Por Proveedor":
-        headers = ["RIF Proveedor", "Nombre Proveedor", "Base Imponible Bs", "Monto Retenido Bs"]
-        merge_range = "A5:D5"
+        headers = ["RIF Proveedor", "Nombre Proveedor", "Base Imponible Bs", "Sustraendo Bs", "Monto Retenido Bs"]
+        merge_range = "A5:E5"
         total_col_label = 2
         total_col_base = 3
-        total_col_ret = 4
+        total_col_sub = 4
+        total_col_ret = 5
     elif group_by == "Por Concepto":
-        headers = ["Código Concepto", "Concepto de Retención", "Base Imponible Bs", "Monto Retenido Bs"]
-        merge_range = "A5:D5"
+        headers = ["Código Concepto", "Concepto de Retención", "Base Imponible Bs", "Sustraendo Bs", "Monto Retenido Bs"]
+        merge_range = "A5:E5"
         total_col_label = 2
         total_col_base = 3
-        total_col_ret = 4
+        total_col_sub = 4
+        total_col_ret = 5
     else:
         headers = [
             "RIF Proveedor", "Nombre Proveedor", "Nro. Factura", "Nro. Control", "Fecha Factura", 
             "Código Concepto", "Concepto de Retención", "Fecha Emisión", "Nro. Retención", "Factura Compra",
-            "Base Imponible Bs", "Monto Retenido Bs", "Estado del Documento", "Estado del Comprobante"
+            "Base Imponible Bs", "Sustraendo Bs", "Monto Retenido Bs", "Estado del Documento", "Estado del Comprobante"
         ]
-        merge_range = "A5:N5"
+        merge_range = "A5:O5"
         total_col_label = 10
         total_col_base = 11
-        total_col_ret = 12
+        total_col_sub = 12
+        total_col_ret = 13
 
     ws.merge_cells(merge_range)
     ws["A5"] = f"REPORTE DE RETENCIONES ISLR - {group_by.upper()}"
@@ -89,6 +92,7 @@ def download_custom_excel(filters=None):
 
     row_num = 7
     total_base = 0
+    total_sub = 0
     total_ret = 0
 
     for d in data:
@@ -96,12 +100,14 @@ def download_custom_excel(filters=None):
             ws.cell(row=row_num, column=1, value=d.tax_id)
             ws.cell(row=row_num, column=2, value=d.supplier)
             cell_base = ws.cell(row=row_num, column=3, value=d.islr_base_amount)
-            cell_ret = ws.cell(row=row_num, column=4, value=d.islr_amount)
+            cell_sub = ws.cell(row=row_num, column=4, value=d.subtracting)
+            cell_ret = ws.cell(row=row_num, column=5, value=d.islr_amount)
         elif group_by == "Por Concepto":
             ws.cell(row=row_num, column=1, value=d.concept_code)
             ws.cell(row=row_num, column=2, value=d.concept_description)
             cell_base = ws.cell(row=row_num, column=3, value=d.islr_base_amount)
-            cell_ret = ws.cell(row=row_num, column=4, value=d.islr_amount)
+            cell_sub = ws.cell(row=row_num, column=4, value=d.subtracting)
+            cell_ret = ws.cell(row=row_num, column=5, value=d.islr_amount)
         else:
             ws.cell(row=row_num, column=1, value=d.tax_id)
             ws.cell(row=row_num, column=2, value=d.supplier)
@@ -121,15 +127,18 @@ def download_custom_excel(filters=None):
             ws.cell(row=row_num, column=10, value=d.purchase_invoice)
             
             cell_base = ws.cell(row=row_num, column=11, value=d.islr_base_amount)
-            cell_ret = ws.cell(row=row_num, column=12, value=d.islr_amount)
+            cell_sub = ws.cell(row=row_num, column=12, value=d.subtracting)
+            cell_ret = ws.cell(row=row_num, column=13, value=d.islr_amount)
             
-            ws.cell(row=row_num, column=13, value=d.status)
-            ws.cell(row=row_num, column=14, value=d.declared_status)
+            ws.cell(row=row_num, column=14, value=d.status)
+            ws.cell(row=row_num, column=15, value=d.declared_status)
 
         cell_base.number_format = '#,##0.00'
+        cell_sub.number_format = '#,##0.00'
         cell_ret.number_format = '#,##0.00'
         
         total_base += (d.islr_base_amount or 0)
+        total_sub += (d.subtracting or 0)
         total_ret += (d.islr_amount or 0)
         row_num += 1
 
@@ -140,6 +149,10 @@ def download_custom_excel(filters=None):
     cell_total_base = ws.cell(row=row_num, column=total_col_base, value=total_base)
     cell_total_base.number_format = '#,##0.00'
     cell_total_base.font = bold_font
+
+    cell_total_sub = ws.cell(row=row_num, column=total_col_sub, value=total_sub)
+    cell_total_sub.number_format = '#,##0.00'
+    cell_total_sub.font = bold_font
 
     cell_total_ret = ws.cell(row=row_num, column=total_col_ret, value=total_ret)
     cell_total_ret.number_format = '#,##0.00'
@@ -165,11 +178,13 @@ def download_custom_pdf(filters=None):
     currency = frappe.get_cached_value('Company', company_name, 'default_currency')
 
     total_base = sum(d.islr_base_amount or 0 for d in data)
+    total_sub = sum(d.subtracting or 0 for d in data)
     total_ret = sum(d.islr_amount or 0 for d in data)
 
     # Formatear datos para el HTML
     for d in data:
         d["base_f"] = fmt_money(d.islr_base_amount, currency=currency)
+        d["sub_f"] = fmt_money(d.subtracting, currency=currency)
         d["ret_f"] = fmt_money(d.islr_amount, currency=currency)
         d["f_date"] = formatdate(d.bill_date) if d.get("bill_date") else ""
         d["p_date"] = formatdate(d.posting_date) if d.get("posting_date") else ""
@@ -207,26 +222,29 @@ def download_custom_pdf(filters=None):
                     {% if group_by == 'Por Proveedor' %}
                         <th style="width: 25%;">RIF Proveedor</th>
                         <th style="width: 35%;">Nombre Proveedor</th>
-                        <th style="width: 20%;">Base Imp. Bs</th>
-                        <th style="width: 20%;">Monto Ret. Bs</th>
+                        <th style="width: 13%;">Base Imp. Bs</th>
+                        <th style="width: 13%;">Sustraendo Bs</th>
+                        <th style="width: 14%;">Monto Ret. Bs</th>
                     {% elif group_by == 'Por Concepto' %}
                         <th style="width: 25%;">Código Concepto</th>
                         <th style="width: 35%;">Concepto de Retención</th>
-                        <th style="width: 20%;">Base Imp. Bs</th>
-                        <th style="width: 20%;">Monto Ret. Bs</th>
+                        <th style="width: 13%;">Base Imp. Bs</th>
+                        <th style="width: 13%;">Sustraendo Bs</th>
+                        <th style="width: 14%;">Monto Ret. Bs</th>
                     {% else %}
                         <th style="width: 8%;">RIF</th>
-                        <th style="width: 12%;">Proveedor</th>
-                        <th style="width: 7%;">Factura</th>
-                        <th style="width: 7%;">Control</th>
+                        <th style="width: 11%;">Proveedor</th>
+                        <th style="width: 6%;">Factura</th>
+                        <th style="width: 6%;">Control</th>
                         <th style="width: 7%;">Fecha Fact.</th>
-                        <th style="width: 6%;">Código</th>
-                        <th style="width: 12%;">Concepto</th>
+                        <th style="width: 5%;">Código</th>
+                        <th style="width: 10%;">Concepto</th>
                         <th style="width: 7%;">Fecha Emis.</th>
                         <th style="width: 8%;">Nro. Ret.</th>
                         <th style="width: 8%;">Factura Compra</th>
-                        <th style="width: 9%;">Base Imp. Bs</th>
-                        <th style="width: 9%;">Monto Ret. Bs</th>
+                        <th style="width: 8%;">Base Imp. Bs</th>
+                        <th style="width: 6%;">Sustraendo Bs</th>
+                        <th style="width: 8%;">Monto Ret. Bs</th>
                         <th style="width: 6%;">Doc. Estado</th>
                         <th style="width: 6%;">Comp. Estado</th>
                     {% endif %}
@@ -239,11 +257,13 @@ def download_custom_pdf(filters=None):
                         <td class="text-center">{{ row.tax_id }}</td>
                         <td>{{ row.supplier }}</td>
                         <td class="text-right">{{ row.base_f }}</td>
+                        <td class="text-right">{{ row.sub_f }}</td>
                         <td class="text-right">{{ row.ret_f }}</td>
                     {% elif group_by == 'Por Concepto' %}
                         <td class="text-center">{{ row.concept_code }}</td>
                         <td>{{ row.concept_description }}</td>
                         <td class="text-right">{{ row.base_f }}</td>
+                        <td class="text-right">{{ row.sub_f }}</td>
                         <td class="text-right">{{ row.ret_f }}</td>
                     {% else %}
                         <td class="text-center">{{ row.tax_id }}</td>
@@ -257,6 +277,7 @@ def download_custom_pdf(filters=None):
                         <td class="text-center">{{ row.voucher_no }}</td>
                         <td class="text-center">{{ row.purchase_invoice }}</td>
                         <td class="text-right">{{ row.base_f }}</td>
+                        <td class="text-right">{{ row.sub_f }}</td>
                         <td class="text-right">{{ row.ret_f }}</td>
                         <td class="text-center">{{ row.status }}</td>
                         <td class="text-center">{{ row.declared_status }}</td>
@@ -267,10 +288,12 @@ def download_custom_pdf(filters=None):
                     {% if group_by == 'Por Proveedor' or group_by == 'Por Concepto' %}
                         <td colspan="2" class="text-right">TOTALES</td>
                         <td class="text-right">{{ total_base_f }}</td>
+                        <td class="text-right">{{ total_sub_f }}</td>
                         <td class="text-right">{{ total_ret_f }}</td>
                     {% else %}
                         <td colspan="10" class="text-right">TOTALES</td>
                         <td class="text-right">{{ total_base_f }}</td>
+                        <td class="text-right">{{ total_sub_f }}</td>
                         <td class="text-right">{{ total_ret_f }}</td>
                         <td colspan="2"></td>
                     {% endif %}
@@ -289,6 +312,7 @@ def download_custom_pdf(filters=None):
         "data": data,
         "group_by": group_by,
         "total_base_f": fmt_money(total_base, currency=currency),
+        "total_sub_f": fmt_money(total_sub, currency=currency),
         "total_ret_f": fmt_money(total_ret, currency=currency)
     }
 

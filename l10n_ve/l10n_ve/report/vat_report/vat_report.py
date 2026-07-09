@@ -69,22 +69,6 @@ def get_data(main_data):
 			doctype_name = "Sales Invoice"
 
 		if row.get("is_void"):
-			rows.append({
-				"posting_date": row.get("posting_date"),
-				"branch": row.get("branch"),
-				"customer_name": "<b>" + _("ANULADO") + "</b>",
-				"customer_tax_id": row.get("customer_tax_id"),
-				"document_type": doc_type,
-				"bill_no": _("ANULADO"),
-				"bill_control": row.get("bill_control"),
-				"taxable_base": 0,
-				"tax_amount": 0,
-				"grand_total": 0,
-				"name": row.get("name"),
-				"doctype_link": doctype_name,
-				"is_void": 1,
-				"is_return": 0
-			})
 			continue
 
 		base = flt(row.get("base_general_taxpayer", 0) + row.get("base_general_non_taxpayer", 0) +

@@ -14,6 +14,9 @@ def generate_islr_report(voucher_name):
     footer_html = get_footer_html(doc)
     special_formats = {'rate': '{:.2f}'}
 
+    from frappe.utils import flt
+    doc.totals_subtracting = sum(flt(item.subtracting) for item in doc.islr_withholding_voucher_item)
+
     format_amounts(
         doc,
         [
@@ -21,6 +24,7 @@ def generate_islr_report(voucher_name):
             "totals_islr_amount",
             "totals_paid_amount",
             "totals_grand_total",
+            "totals_subtracting",
         ],
         [
             "grand_total",
@@ -299,7 +303,7 @@ def generate_content_table(items, doc, current_page, total_pages, start_index):
             <td class="text-right">{ doc.totals_islr_base_amount }</td>
             <td></td>
             <td></td>
-            <td class="text-right"></td>
+            <td class="text-right">{ doc.totals_subtracting }</td>
             <td class="text-right">{ doc.totals_islr_amount }</td>
         </tr>
         """
