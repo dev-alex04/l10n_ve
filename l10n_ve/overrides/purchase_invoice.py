@@ -440,6 +440,40 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
             elif not item.expense_account and for_validate:
                 frappe.throw(_("Expense account is mandatory for item {0}").format(item.item_code or item.item_name))
 
+    def make_precision_loss_gl_entry(self, gl_entries) -> None:
+        """Cancela el asiento de pérdida de precisión cuando el método VE es
+        "Desde el total de la factura".
+
+        El ancla (_anchor_item_base_amounts_ve) reduce base_net_amount
+        intencionalmente respecto a net_amount × conversion_rate. ERPNext
+        detecta esa brecha como "precision_loss" y crea un GL extra en la
+        cuenta de redondeo, rompiendo el cuadre débito/crédito (la diferencia
+        exacta de 2.17 en el caso de prueba). Con el ancla activa, la
+        diferencia ya está absorbida por el base_grand_total anclado, por lo
+        que no debe contabilizarse de nuevo.
+        """
+        from frappe.utils import flt as _flt
+        from l10n_ve.controllers.taxes_and_totals import TAX_FROM_TOTAL
+
+        if self._is_multicurrency_doc():
+            method = frappe.get_cached_value(
+                "Venezuela Account Settings", "Venezuela Account Settings",
+                "tax_calculation_method",
+            ) or ""
+            if method == TAX_FROM_TOTAL:
+                # El ancla ya absorbió la diferencia — no crear GL adicional
+                return
+
+        super().make_precision_loss_gl_entry(gl_entries)
+
+    def _is_multicurrency_doc(self) -> bool:
+        """True si el documento usa moneda distinta a la de la compañía."""
+        try:
+            company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
+            return bool(company_currency) and self.currency != company_currency
+        except Exception:
+            return False
+
     def get_gl_entries(self, warehouse_account=None):
         self.auto_accounting_for_stock = erpnext.is_perpetual_inventory_enabled(self.company)
 

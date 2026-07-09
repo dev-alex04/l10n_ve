@@ -708,6 +708,35 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         else:
             super().set_indicator()
 
+    def make_precision_loss_gl_entry(self, gl_entries) -> None:
+        """Cancela el asiento de pérdida de precisión cuando el método VE es
+        "Desde el total de la factura".
+
+        Mismo principio que en Purchase Invoice: el ancla reduce intencionalmente
+        base_net_amount respecto a net_amount × conversion_rate. ERPNext detecta
+        esa brecha como "precision_loss" y añade un GL extra que rompe el cuadre.
+        Con el ancla activa, la diferencia ya está absorbida por base_grand_total.
+        """
+        from l10n_ve.controllers.taxes_and_totals import TAX_FROM_TOTAL
+
+        if self._is_multicurrency_doc():
+            method = frappe.get_cached_value(
+                "Venezuela Account Settings", "Venezuela Account Settings",
+                "tax_calculation_method",
+            ) or ""
+            if method == TAX_FROM_TOTAL:
+                return
+
+        super().make_precision_loss_gl_entry(gl_entries)
+
+    def _is_multicurrency_doc(self) -> bool:
+        """True si el documento usa moneda distinta a la de la compañía."""
+        try:
+            company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
+            return bool(company_currency) and self.currency != company_currency
+        except Exception:
+            return False
+
     def get_gl_entries(self, warehouse_account=None):
         """
         Crea y retorna los asientos contables para la factura de venta.
