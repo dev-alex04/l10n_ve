@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.20.1] - 2026-07-09
+
+### 🐛 Correcciones (Fixes)
+- Restricción de permisos sobre el doctype de log de HKA para evitar su creación manual por parte de los usuarios, garantizando la integridad de los registros automáticos. [9c7dc39]
+
+---
+
 ## [v2.20.0] - 2026-07-08
 
 ### ✨ Funcionalidades (Features)
