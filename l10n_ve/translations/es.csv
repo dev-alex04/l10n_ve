@@ -776,4 +776,5 @@ VE HKA Invoices Status,Estado de Facturas VE HKA,
 "Download Started","Descarga Iniciada",
 "The download request has been started in the background. You will be notified when it completes.","La solicitud de descarga ha sido iniciada en segundo plano. Se le notificará al finalizar.",
 "Verifying quantity of vouchers...","Verificando cantidad de comprobantes...",
+"Trade Name","Nombre Comercial",
 
