@@ -53,8 +53,9 @@ def get_data(main_data):
 
 	for row in main_data:
 		if row.get("is_void"):
-			doc_type = "ANU"
-		elif row.get("is_debit_note"):
+			continue
+
+		if row.get("is_debit_note"):
 			doc_type = "ND"
 		elif row.get("is_return"):
 			doc_type = "NC"
@@ -67,9 +68,6 @@ def get_data(main_data):
 			doctype_name = "VE Sales Credit Note"
 		else:
 			doctype_name = "Sales Invoice"
-
-		if row.get("is_void"):
-			continue
 
 		base = flt(row.get("base_general_taxpayer", 0) + row.get("base_general_non_taxpayer", 0) +
 				   row.get("base_reduced_taxpayer", 0) + row.get("base_reduced_non_taxpayer", 0) +
@@ -106,8 +104,8 @@ def get_report_summary(data):
 	"""Extrae los totales del período para el dashboard superior."""
 	if not data: return []
 	
-	total_base = sum(flt(row.get("taxable_base", 0)) for row in data if not row.get("is_void"))
-	total_iva = sum(flt(row.get("tax_amount", 0)) for row in data if not row.get("is_void"))
+	total_base = sum(flt(row.get("taxable_base", 0)) for row in data)
+	total_iva = sum(flt(row.get("tax_amount", 0)) for row in data)
 
 	return [
 		{

@@ -85,7 +85,7 @@ def get_data(filters):
                 `tabSupplier` supp ON parent.supplier = supp.name
             WHERE
                 parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
-                AND parent.docstatus != 2
+                AND parent.docstatus = 1
                 {conditions}
             GROUP BY
                 parent.supplier, supp.tax_id
@@ -108,7 +108,7 @@ def get_data(filters):
                 `tabTabulator ISLR` tab_islr ON child.code = tab_islr.codigo
             WHERE
                 parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
-                AND parent.docstatus != 2
+                AND parent.docstatus = 1
                 {conditions}
             GROUP BY
                 child.code, tab_islr.descripcion

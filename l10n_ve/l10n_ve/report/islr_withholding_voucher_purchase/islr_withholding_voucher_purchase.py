@@ -1,11 +1,12 @@
 import frappe
 from frappe import _
-from frappe.utils import getdate, escape_html
+from frappe.utils import getdate, escape_html, flt
 
 from l10n_ve.utils.utils import format_amounts
 
 @frappe.whitelist()
 def generate_islr_report(voucher_name):
+    frappe.has_permission("ISLR Withholding Voucher", "read", throw=True)
     try:
         doc = frappe.get_doc("ISLR Withholding Voucher", voucher_name)
     except frappe.DoesNotExistError:
@@ -14,8 +15,7 @@ def generate_islr_report(voucher_name):
     footer_html = get_footer_html(doc)
     special_formats = {'rate': '{:.2f}'}
 
-    from frappe.utils import flt
-    doc.totals_subtracting = sum(flt(item.subtracting) for item in doc.islr_withholding_voucher_item)
+    doc.totals_subtracting = sum(flt(item.subtracting) * (-1 if item.doc_type == "N/CR" else 1) for item in doc.islr_withholding_voucher_item)
 
     format_amounts(
         doc,

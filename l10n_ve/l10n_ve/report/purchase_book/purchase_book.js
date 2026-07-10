@@ -24,9 +24,10 @@ function download_base64_file(filename, base64Content, mimeType) {
   document.body.appendChild(a);
   a.click();
 
-  // Cleanup con delay. No revocamos el URL para evitar conflictos en navegadores que destruyen el blob antes de tiempo
+  // Cleanup con delay. Revocamos el URL para evitar fugas de memoria
   setTimeout(() => {
     document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }, 1000);
 }
 
@@ -196,11 +197,9 @@ frappe.query_reports["purchase_book"] = {
  * Helper compartido para exportar Excel (ambos formatos).
  */
 function _export_excel(report, method) {
-  console.log("DEBUG: _export_excel iniciado para el método:", method);
   frappe.dom.freeze();
 
   const filters = report.get_filter_values();
-  console.log("DEBUG: Filtros obtenidos:", filters);
   if (!filters.company) {
     frappe.dom.unfreeze();
     frappe.throw(
@@ -216,7 +215,6 @@ function _export_excel(report, method) {
       filters: JSON.stringify(filters),
     },
     callback: function (r) {
-      console.log("DEBUG: Respuesta recibida del servidor:", r);
       frappe.dom.unfreeze();
       if (r.message && r.message.type === "download") {
         download_base64_file(
@@ -233,7 +231,7 @@ function _export_excel(report, method) {
       }
     },
     error: function (err) {
-      console.error("DEBUG: Error en frappe.call:", err);
+      console.error("Error en frappe.call:", err);
       frappe.dom.unfreeze();
       frappe.throw(
         __(

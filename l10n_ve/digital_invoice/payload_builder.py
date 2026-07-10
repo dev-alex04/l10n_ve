@@ -813,12 +813,7 @@ class TFHKAPayloadBuilder:
                 self._bill_no_original: str = si_data.get("bill_no") or ""
 
         if not subscription_name:
-            # Fallback to the customer's first internet service subscription
-            services = customer_doc.get("internet_services") or []
-            if services:
-                subscription_name = services[0].subscription
-            else:
-                return zona, nodo
+            return zona, nodo
 
         service_row = next(
             (row for row in (customer_doc.get("internet_services") or [])

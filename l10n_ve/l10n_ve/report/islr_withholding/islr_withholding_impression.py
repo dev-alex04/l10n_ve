@@ -25,6 +25,7 @@ def _get_company_details(company_name):
 
 @frappe.whitelist()
 def download_custom_excel(filters=None):
+    frappe.has_permission("ISLR Withholding Voucher", "read", throw=True)
     if isinstance(filters, str):
         filters = json.loads(filters)
 
@@ -168,6 +169,7 @@ def download_custom_excel(filters=None):
 
 @frappe.whitelist()
 def download_custom_pdf(filters=None):
+    frappe.has_permission("ISLR Withholding Voucher", "read", throw=True)
     if isinstance(filters, str):
         filters = json.loads(filters)
 
