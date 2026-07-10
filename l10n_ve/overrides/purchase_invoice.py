@@ -79,13 +79,15 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
         if frappe.db.exists(
             "VAT Withholding Voucher Item",
-            {"purchase_invoice": self.name}
+            {"purchase_invoice": self.name,
+            "docstatus": ["!=", 2]}
         ):
             reasons.append("un Comprobante de retención de IVA")
 
         if frappe.db.exists(
             "ISLR Withholding Voucher Item",
-            {"purchase_invoice": self.name}
+            {"purchase_invoice": self.name,
+            "docstatus": ["!=", 2]}
         ):
             reasons.append("un Comprobante de retención de ISLR")
 
