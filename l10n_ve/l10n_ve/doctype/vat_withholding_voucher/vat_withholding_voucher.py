@@ -427,3 +427,97 @@ def _build_invoice_row(
         "withholding_rate": abs(wh_details.get("withholding_rate", 0)),
         "tax_amount_vat": abs(wh_details.get("base_tax_amount", 0)),
     }
+
+
+# ── Creación desde la factura de compra ─────────────────────────────── #
+
+# Espejo de VAT_ITEM_TOTAL_MAP del JS del comprobante: los totales del
+# padre no se recalculan en el servidor, hay que sumarlos al construirlo.
+_VAT_TOTAL_ITEM_MAP: dict[str, str] = {
+    "totals_grand_total": "grand_total",
+    "totals_total_exempt": "total_exempt",
+    "totals_total": "total",
+    "totals_taxes_and_charges_added": "taxes_and_charges_added",
+    "totals_tax_amount_vat": "tax_amount_vat",
+}
+
+
+def _find_voucher_containing_invoice(purchase_invoice: str, docstatus: int) -> str | None:
+    """Retorna el nombre del comprobante IVA (con ese docstatus) que ya incluye la factura."""
+    rows = frappe.db.sql(
+        """
+        SELECT parent.name
+        FROM `tabVAT Withholding Voucher Item` child
+        INNER JOIN `tabVAT Withholding Voucher` parent ON parent.name = child.parent
+        WHERE child.purchase_invoice = %s AND parent.docstatus = %s
+        LIMIT 1
+        """,
+        (purchase_invoice, docstatus),
+    )
+    return rows[0][0] if rows else None
+
+
+@frappe.whitelist()
+def make_vat_withholding_voucher(source_name: str, target_doc=None):
+    """Crea (sin guardar) un Comprobante de Retención IVA desde una factura de compra.
+
+    Reusa get_valid_invoices para calcular la línea (mismos filtros y montos
+    que el flujo del formulario). Devuelve el borrador sin insertar: el
+    correlativo se consume recién al guardar (before_insert).
+    """
+    frappe.has_permission("VAT Withholding Voucher", "create", throw=True)
+
+    invoice = frappe.get_doc("Purchase Invoice", source_name)
+    if invoice.docstatus != 1:
+        frappe.throw(_("La factura debe estar validada para generar el comprobante de retención."))
+
+    draft = _find_voucher_containing_invoice(invoice.name, docstatus=0)
+    if draft:
+        frappe.throw(
+            _("La factura ya está incluida en el comprobante en borrador {0}.").format(draft)
+        )
+
+    posting_date = str(invoice.posting_date)
+    rows = [
+        row
+        for row in get_valid_invoices(
+            supplier=invoice.supplier,
+            start_date=posting_date,
+            end_date=posting_date,
+            company=invoice.company,
+            branch=invoice.get("branch") or "",
+        )
+        if row.get("purchase_invoice") == invoice.name
+    ]
+
+    if not rows:
+        submitted = _find_voucher_containing_invoice(invoice.name, docstatus=1)
+        if submitted:
+            frappe.throw(
+                _("La factura ya está incluida en el comprobante aprobado {0}.").format(submitted)
+            )
+        frappe.throw(
+            _("La factura no tiene retención de IVA aplicada "
+              "(fila 'VAT Withholding' en la tabla de impuestos).")
+        )
+
+    doc = frappe.new_doc("VAT Withholding Voucher")
+    doc.empresa = invoice.company
+    doc.supplier = invoice.supplier
+    doc.branch = invoice.get("branch") or ""
+    doc.start_date = posting_date
+    doc.end_date = posting_date
+    doc.issue_date = nowdate()
+    doc.delivery_date = nowdate()
+
+    totals: dict[str, float] = {field: 0.0 for field in _VAT_TOTAL_ITEM_MAP}
+    for row in rows:
+        doc.append("vat_withholding_voucher_item", row)
+        sign = -1 if row.get("is_return") else 1
+        for total_field, item_field in _VAT_TOTAL_ITEM_MAP.items():
+            totals[total_field] += flt(row.get(item_field)) * sign
+
+    for field, value in totals.items():
+        doc.set(field, value)
+
+    return doc

@@ -22,6 +22,7 @@ frappe.ui.form.on("Purchase Invoice", {
     set_islr_buttons(frm);
     setup_credit_note_button(frm);
     setup_debit_note_button(frm);
+    setup_withholding_voucher_buttons(frm);
   },
 
   is_debit_note: function (frm) {
@@ -481,4 +482,50 @@ function setup_debit_note_button(frm) {
     },
     __("Create"),
   );
+}
+
+/**
+ * Botones "Comprobante Retención IVA/ISLR" en el grupo "Create".
+ * Abren un comprobante pre-llenado (sin guardar) con la línea de esta
+ * factura, calculada por el mismo get_valid_invoices del formulario del
+ * comprobante. Cada botón solo aparece si la factura tiene la retención
+ * correspondiente en la tabla de impuestos; el servidor re-valida.
+ */
+function setup_withholding_voucher_buttons(frm) {
+  if (frm.doc.docstatus !== 1 || frm.doc.is_return || frm.doc.is_debit_note)
+    return;
+
+  const taxes = frm.doc.taxes || [];
+  const has_vat_withholding = taxes.some(
+    (tax) => tax.charge_type === "VAT Withholding" && flt(tax.base_tax_amount),
+  );
+  const has_islr = taxes.some((tax) => tax.charge_type === "ISLR");
+
+  if (has_vat_withholding) {
+    frm.add_custom_button(
+      __("Comprobante Retención IVA"),
+      function () {
+        frappe.model.open_mapped_doc({
+          method:
+            "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.make_vat_withholding_voucher",
+          frm: frm,
+        });
+      },
+      __("Create"),
+    );
+  }
+
+  if (has_islr) {
+    frm.add_custom_button(
+      __("Comprobante Retención ISLR"),
+      function () {
+        frappe.model.open_mapped_doc({
+          method:
+            "l10n_ve.l10n_ve.doctype.islr_withholding_voucher.islr_withholding_voucher.make_islr_withholding_voucher",
+          frm: frm,
+        });
+      },
+      __("Create"),
+    );
+  }
 }
