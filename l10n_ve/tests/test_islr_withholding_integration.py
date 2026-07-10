@@ -75,8 +75,14 @@ def _make_hka_success_response() -> dict:
 class TestValidateISLRIntegrity(FrappeTestCase):
     """Tests para _validate_islr_integrity(): validación pre-envío."""
 
+    @patch(
+        "l10n_ve.digital_invoice.islr_withholding_integration._validate_digital_series",
+        return_value=[],
+    )
     @patch("frappe.get_cached_value", return_value="J-12345678-9")
-    def test_valid_doc_returns_empty_errors(self, _mock_rif: MagicMock) -> None:
+    def test_valid_doc_returns_empty_errors(
+        self, _mock_rif: MagicMock, _mock_series: MagicMock
+    ) -> None:
         """Documento completamente válido → lista de errores vacía."""
         doc = _make_islr_doc()
 

@@ -16,6 +16,7 @@ from l10n_ve.digital_invoice.islr_payload_builder import TFHKAISLRPayloadBuilder
 from l10n_ve.digital_invoice.retention_integration import (
     _log_retention_request,
     _handle_retention_response,
+    _validate_digital_series,
 )
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 
@@ -45,6 +46,10 @@ def _validate_islr_integrity(doc) -> list[str]:
     """
     errors: list[str] = []
     items: list = doc.get(_ISLR_CHILD_TABLE, [])
+
+    # Serie digital fail-closed (mismo incidente que retención IVA:
+    # el builder traga el error de serie y emitiría con serie vacía)
+    errors.extend(_validate_digital_series(doc))
 
     if not items:
         errors.append("El comprobante no tiene facturas asociadas.")

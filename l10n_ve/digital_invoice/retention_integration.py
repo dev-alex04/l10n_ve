@@ -28,6 +28,33 @@ _RETENTION_DELAY_BETWEEN_CALLS: float = 0.5
 # Validación pre-envío
 # ---------------------------------------------------------------------------
 
+def _validate_digital_series(doc) -> list[str]:
+    """Valida que la sucursal del comprobante resuelva una serie digital activa.
+
+    Fail-closed: sin serie resuelta el comprobante NO debe emitirse — HKA
+    acepta payloads con serie vacía y esa emisión es irreversible.
+
+    Args:
+        doc: Comprobante de retención (IVA o ISLR) con branch y empresa.
+
+    Returns:
+        Lista con el mensaje de error de serie, o vacía si resuelve.
+    """
+    from l10n_ve.digital_invoice.tfhka_integration import get_active_billing_series
+
+    try:
+        get_active_billing_series(
+            company=doc.get("empresa") or "", branch=doc.get("branch") or ""
+        )
+    except frappe.ValidationError as e:
+        # frappe.throw encola el msgprint ANTES de lanzar; al atrapar la
+        # excepción hay que desencolarlo o el usuario ve el diálogo de un
+        # flujo que no se detuvo.
+        frappe.clear_last_message()
+        return [str(e)]
+    return []
+
+
 def _validate_retention_integrity(doc: Document) -> list[str]:
     """Valida la integridad del comprobante antes de enviar a HKA.
 
@@ -42,6 +69,10 @@ def _validate_retention_integrity(doc: Document) -> list[str]:
     """
     errors: list[str] = []
     items: list = doc.get("vat_withholding_voucher_item", [])
+
+    # Serie digital fail-closed (incidente COMP-RET-IVA-2026-00003:
+    # se emitió con serie vacía porque el builder traga este error)
+    errors.extend(_validate_digital_series(doc))
 
     # Validar que el comprobante tenga ítems
     if not items:
