@@ -12,6 +12,7 @@
   "is_group",
   "section_break_dlfm",
   "branch_name",
+  "trade_name",
   "company",
   "lft",
   "rgt",
@@ -101,6 +102,15 @@
    "label": "Branch Name",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "fieldname": "trade_name",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Trade Name"
   },
   {
    "fieldname": "column_break_inzw",
