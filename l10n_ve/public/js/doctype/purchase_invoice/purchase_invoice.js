@@ -486,9 +486,10 @@ function setup_debit_note_button(frm) {
 
 /**
  * Botones "Comprobante Retención IVA/ISLR" en el grupo "Create".
- * Abren un comprobante pre-llenado (sin guardar) con la línea de esta
- * factura, calculada por el mismo get_valid_invoices del formulario del
- * comprobante. Cada botón solo aparece si la factura tiene la retención
+ * Crean el comprobante por debajo (guardado, en borrador) con las líneas
+ * de esta factura, calculadas por el mismo get_valid_invoices del
+ * formulario del comprobante, y avisan con el enlace sin salir de la
+ * factura. Cada botón solo aparece si la factura tiene la retención
  * correspondiente en la tabla de impuestos; el servidor re-valida.
  */
 function setup_withholding_voucher_buttons(frm) {
@@ -501,15 +502,62 @@ function setup_withholding_voucher_buttons(frm) {
   );
   const has_islr = taxes.some((tax) => tax.charge_type === "ISLR");
 
+  const create_voucher = (method, doctype, confirm_message) => {
+    frappe.confirm(confirm_message, () => {
+      frappe.call({
+        method: method,
+        args: { source_name: frm.doc.name },
+        freeze: true,
+        freeze_message: __("Generando y emitiendo comprobante de retención..."),
+        callback: function (r) {
+          const result = r.message;
+          if (!result) return;
+          const link = frappe.utils.get_form_link(doctype, result.voucher, true);
+
+          if (result.emitted) {
+            // Enlace con el N° de comprobante (HKA) como texto, no el name
+            const route = `/app/${frappe.router.slug(doctype)}/${encodeURIComponent(result.voucher)}`;
+            const number_link = `<a href="${route}"><b>${result.voucher_number}</b></a>`;
+            frappe.msgprint({
+              title: __("Comprobante emitido"),
+              message:
+                __("El comprobante {0} fue generado y emitido exitosamente.", [
+                  number_link,
+                ]) +
+                (result.bill_control
+                  ? "<br>" + __("N° de Control: <b>{0}</b>", [result.bill_control])
+                  : ""),
+              indicator: "green",
+            });
+          } else {
+            frappe.msgprint({
+              title: __("Comprobante creado — emisión pendiente"),
+              message:
+                __(
+                  "El comprobante {0} fue creado y aprobado, pero la emisión a HKA falló. " +
+                    "El sistema la reintentará automáticamente.",
+                  [link],
+                ) +
+                (result.error
+                  ? `<br><br><b>${__("Motivo")}:</b> ${frappe.utils.escape_html(result.error)}`
+                  : ""),
+              indicator: "orange",
+            });
+          }
+        },
+      });
+    });
+  };
+
   if (has_vat_withholding) {
     frm.add_custom_button(
       __("Comprobante Retención IVA"),
       function () {
-        frappe.model.open_mapped_doc({
-          method:
-            "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.make_vat_withholding_voucher",
-          frm: frm,
-        });
+        create_voucher(
+          "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.make_vat_withholding_voucher",
+          "VAT Withholding Voucher",
+          __("¿Desea generar, aprobar y emitir a HKA el comprobante de retención de IVA para esta factura?"),
+        );
       },
       __("Create"),
     );
@@ -519,11 +567,11 @@ function setup_withholding_voucher_buttons(frm) {
     frm.add_custom_button(
       __("Comprobante Retención ISLR"),
       function () {
-        frappe.model.open_mapped_doc({
-          method:
-            "l10n_ve.l10n_ve.doctype.islr_withholding_voucher.islr_withholding_voucher.make_islr_withholding_voucher",
-          frm: frm,
-        });
+        create_voucher(
+          "l10n_ve.l10n_ve.doctype.islr_withholding_voucher.islr_withholding_voucher.make_islr_withholding_voucher",
+          "ISLR Withholding Voucher",
+          __("¿Desea generar, aprobar y emitir a HKA el comprobante de retención de ISLR para esta factura?"),
+        );
       },
       __("Create"),
     );

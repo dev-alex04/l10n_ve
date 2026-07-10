@@ -6,7 +6,7 @@ from __future__ import annotations
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, nowdate, getdate
+from frappe.utils import flt, nowdate, getdate, get_link_to_form
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 
 
@@ -44,9 +44,58 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
         self.validate_address()
         self.validate_fiscal_period()
         self.validate_unique_voucher_number()
+        self.validate_no_duplicate_invoices()
         if self.is_new() and self.amended_from:
             self._populate_withholding_rate()
         self.validate_withholding_amount()
+
+    def validate_no_duplicate_invoices(self) -> None:
+        """Bloquea si alguna factura de las líneas ya está en otro comprobante no cancelado.
+
+        Cubre todos los caminos (flujo manual, botón desde la factura,
+        inserción programática): el filtro de get_valid_invoices solo excluye
+        comprobantes aprobados y no protege contra borradores concurrentes.
+        """
+        items: list[tuple[str, str]] = [
+            (item.purchase_invoice_type or "Purchase Invoice", item.purchase_invoice)
+            for item in self.get("vat_withholding_voucher_item", [])
+            if item.purchase_invoice
+        ]
+        if not items:
+            return
+
+        seen: set[tuple[str, str]] = set()
+        for pair in items:
+            if pair in seen:
+                frappe.throw(
+                    _("La factura {0} está repetida en las líneas del comprobante.").format(pair[1])
+                )
+            seen.add(pair)
+
+        rows = frappe.db.sql(
+            """
+            SELECT child.purchase_invoice_type, child.purchase_invoice,
+                   parent.name, parent.voucher_number, parent.docstatus
+            FROM `tabVAT Withholding Voucher Item` child
+            INNER JOIN `tabVAT Withholding Voucher` parent ON parent.name = child.parent
+            WHERE child.purchase_invoice IN %(invoices)s
+              AND parent.docstatus < 2
+              AND parent.name != %(own_name)s
+            """,
+            {"invoices": [name for _type, name in items], "own_name": self.name or ""},
+            as_dict=True,
+        )
+
+        conflicts = [
+            _("{0} ya está en el comprobante {1}").format(
+                row.purchase_invoice,
+                _voucher_link(row),
+            )
+            for row in rows
+            if (row.purchase_invoice_type or "Purchase Invoice", row.purchase_invoice) in seen
+        ]
+        if conflicts:
+            frappe.throw("<br>".join(conflicts), title=_("Factura ya comprobada"))
 
     def validate_unique_voucher_number(self) -> None:
         """Valida que el número de comprobante no esté duplicado."""
@@ -442,28 +491,37 @@ _VAT_TOTAL_ITEM_MAP: dict[str, str] = {
 }
 
 
-def _find_voucher_containing_invoice(purchase_invoice: str, docstatus: int) -> str | None:
-    """Retorna el nombre del comprobante IVA (con ese docstatus) que ya incluye la factura."""
+def _find_voucher_containing_invoice(purchase_invoice: str, docstatus: int) -> dict | None:
+    """Retorna {name, voucher_number} del comprobante IVA (con ese docstatus) que ya incluye la factura."""
     rows = frappe.db.sql(
         """
-        SELECT parent.name
+        SELECT parent.name, parent.voucher_number
         FROM `tabVAT Withholding Voucher Item` child
         INNER JOIN `tabVAT Withholding Voucher` parent ON parent.name = child.parent
         WHERE child.purchase_invoice = %s AND parent.docstatus = %s
         LIMIT 1
         """,
         (purchase_invoice, docstatus),
+        as_dict=True,
     )
-    return rows[0][0] if rows else None
+    return rows[0] if rows else None
+
+
+def _voucher_link(voucher: dict) -> str:
+    """Enlace al comprobante con el N° de comprobante (no el name) como texto."""
+    return get_link_to_form(
+        "VAT Withholding Voucher", voucher["name"],
+        voucher.get("voucher_number") or voucher["name"],
+    )
 
 
 @frappe.whitelist()
-def make_vat_withholding_voucher(source_name: str, target_doc=None):
-    """Crea (sin guardar) un Comprobante de Retención IVA desde una factura de compra.
+def make_vat_withholding_voucher(source_name: str) -> dict:
+    """Crea, aprueba y emite a HKA un Comprobante de Retención IVA desde la factura de compra.
 
     Reusa get_valid_invoices para calcular la línea (mismos filtros y montos
-    que el flujo del formulario). Devuelve el borrador sin insertar: el
-    correlativo se consume recién al guardar (before_insert).
+    que el flujo del formulario). Si la emisión a HKA falla, el comprobante
+    queda aprobado en estado Error y el cron de emisión lo reintenta.
     """
     frappe.has_permission("VAT Withholding Voucher", "create", throw=True)
 
@@ -474,7 +532,9 @@ def make_vat_withholding_voucher(source_name: str, target_doc=None):
     draft = _find_voucher_containing_invoice(invoice.name, docstatus=0)
     if draft:
         frappe.throw(
-            _("La factura ya está incluida en el comprobante en borrador {0}.").format(draft)
+            _("La factura ya está incluida en el comprobante {0}.").format(
+                _voucher_link(draft)
+            )
         )
 
     posting_date = str(invoice.posting_date)
@@ -494,7 +554,9 @@ def make_vat_withholding_voucher(source_name: str, target_doc=None):
         submitted = _find_voucher_containing_invoice(invoice.name, docstatus=1)
         if submitted:
             frappe.throw(
-                _("La factura ya está incluida en el comprobante aprobado {0}.").format(submitted)
+                _("La factura ya está incluida en el comprobante {0}.").format(
+                    _voucher_link(submitted)
+                )
             )
         frappe.throw(
             _("La factura no tiene retención de IVA aplicada "
@@ -520,4 +582,47 @@ def make_vat_withholding_voucher(source_name: str, target_doc=None):
     for field, value in totals.items():
         doc.set(field, value)
 
-    return doc
+    doc.insert(ignore_permissions=True)
+    doc.flags.ignore_permissions = True
+    doc.submit()
+    # Persistir creación+aprobación antes de emitir: si la emisión a HKA
+    # falla, el comprobante queda aprobado en Error y el cron lo reintenta.
+    frappe.db.commit()
+
+    return _emit_vat_voucher(doc.name)
+
+
+def _emit_vat_voucher(voucher_name: str) -> dict:
+    """Emite el comprobante a HKA y arma la respuesta para el formulario."""
+    from l10n_ve.digital_invoice.retention_integration import process_retention_voucher
+
+    try:
+        emitted = bool(process_retention_voucher(voucher_name))
+    except Exception:
+        frappe.log_error(
+            title=f"Error emitiendo {voucher_name} a HKA desde la factura de compra",
+            message=frappe.get_traceback(),
+        )
+        emitted = False
+
+    info = frappe.db.get_value(
+        "VAT Withholding Voucher", voucher_name,
+        ["voucher_number", "bill_control"], as_dict=True,
+    ) or frappe._dict()
+
+    error_note = None
+    if not emitted:
+        error_note = frappe.db.get_value(
+            "VE Digital Invoice Log",
+            {"sales_invoice": voucher_name, "status": "Error",
+             "document_type": "VAT Withholding Voucher"},
+            "notes", order_by="creation desc",
+        )
+
+    return {
+        "voucher": voucher_name,
+        "emitted": emitted,
+        "voucher_number": info.get("voucher_number"),
+        "bill_control": info.get("bill_control"),
+        "error": error_note,
+    }
