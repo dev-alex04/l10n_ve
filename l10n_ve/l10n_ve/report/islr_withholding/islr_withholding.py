@@ -20,6 +20,7 @@ def get_columns(filters):
             {"fieldname": "tax_id", "label": _("RIF Proveedor"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "supplier", "label": _("Nombre Proveedor"), "fieldtype": "Link", "options": "Supplier", "width": "auto"},
             {"fieldname": "islr_base_amount", "label": _("Monto Objeto Retención"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "subtracting", "label": _("Sustraendo"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"}
         ]
     elif group_by == "Por Concepto":
@@ -27,6 +28,7 @@ def get_columns(filters):
             {"fieldname": "concept_code", "label": _("Código Concepto"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "concept_description", "label": _("Concepto de Retención"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "islr_base_amount", "label": _("Monto Objeto Retención"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "subtracting", "label": _("Sustraendo"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"}
         ]
     else:
@@ -42,6 +44,7 @@ def get_columns(filters):
             {"fieldname": "purchase_invoice", "label": _("Factura de Compra"), "fieldtype": "Link", "options": "Purchase Invoice", "width": "auto"},
             {"fieldname": "bill_control", "label": _("No. Control"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "islr_base_amount", "label": _("Monto Objeto Retención"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "subtracting", "label": _("Sustraendo"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "parent", "label": _("Documento Retención"), "fieldtype": "Link", "options": "ISLR Withholding Voucher", "width": "auto"},
             {"fieldname": "status", "label": _("Estado del Documento"), "fieldtype": "Data", "width": "auto"},
@@ -72,6 +75,7 @@ def get_data(filters):
                 supp.tax_id,
                 parent.supplier,
                 SUM(child.islr_base_amount) as islr_base_amount,
+                SUM(child.subtracting) as subtracting,
                 SUM(child.islr_amount) as islr_amount
             FROM
                 `tabISLR Withholding Voucher Item` child
@@ -81,6 +85,7 @@ def get_data(filters):
                 `tabSupplier` supp ON parent.supplier = supp.name
             WHERE
                 parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                AND parent.docstatus = 1
                 {conditions}
             GROUP BY
                 parent.supplier, supp.tax_id
@@ -93,6 +98,7 @@ def get_data(filters):
                 child.code as concept_code,
                 COALESCE(tab_islr.descripcion, child.code) as concept_description,
                 SUM(child.islr_base_amount) as islr_base_amount,
+                SUM(child.subtracting) as subtracting,
                 SUM(child.islr_amount) as islr_amount
             FROM
                 `tabISLR Withholding Voucher Item` child
@@ -102,6 +108,7 @@ def get_data(filters):
                 `tabTabulator ISLR` tab_islr ON child.code = tab_islr.codigo
             WHERE
                 parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                AND parent.docstatus = 1
                 {conditions}
             GROUP BY
                 child.code, tab_islr.descripcion
@@ -118,10 +125,11 @@ def get_data(filters):
                 child.code as concept_code,
                 COALESCE(tab_islr.descripcion, child.code) as concept_description,
                 child.posting_date as posting_date,
-                parent.name as voucher_no,
+                COALESCE(parent.voucher_number, parent.name) as voucher_no,
                 child.purchase_invoice,
                 child.bill_control,
                 child.islr_base_amount,
+                child.subtracting,
                 child.islr_amount,
                 child.parent,
                 parent.is_declared,
@@ -144,6 +152,7 @@ def get_data(filters):
                 `tabTabulator ISLR` tab_islr ON child.code = tab_islr.codigo
             WHERE
                 parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
+                AND parent.docstatus != 2
                 {conditions}
             ORDER BY
                 child.posting_date DESC, child.idx ASC

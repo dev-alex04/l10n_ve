@@ -11,7 +11,7 @@ import base64
 import json
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, Border, Side, Alignment
+from openpyxl.styles import Font, Border, Side, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 from frappe.utils import flt, getdate
 
@@ -139,13 +139,41 @@ class SeniatPurchaseExcelBuilder:
         self.ws = self.wb.active
         self.ws.title = "Libro de Compras"
 
+        # Definimos los estilos comunes
         self.font_default = Font(name="Calibri", size=8)
         self.font_header = Font(name="Calibri", size=8, bold=True)
-        self.font_title = Font(name="Calibri", size=10, bold=True)
-        self.border = Border(
-            left=Side("thin"), right=Side("thin"),
-            top=Side("thin"), bottom=Side("thin"),
+        self.font_header_white = Font(name="Calibri", size=8, bold=True, color="FFFFFF")
+        self.font_title = Font(name="Calibri", size=14, bold=True, color="1E293B")
+        self.font_meta_title = Font(name="Calibri", size=8, bold=True, color="475569")
+        self.font_meta_value = Font(name="Calibri", size=8, color="1E293B")
+
+        self.thin_border = Border(
+            left=Side(style="thin", color="E2E8F0"),
+            right=Side(style="thin", color="E2E8F0"),
+            top=Side(style="thin", color="E2E8F0"),
+            bottom=Side(style="thin", color="E2E8F0"),
         )
+        self.header_border = Border(
+            left=Side(style="thin", color="475569"),
+            right=Side(style="thin", color="475569"),
+            top=Side(style="thin", color="475569"),
+            bottom=Side(style="medium", color="1E293B"),
+        )
+        self.total_border = Border(
+            left=Side(style="thin", color="CBD5E1"),
+            right=Side(style="thin", color="CBD5E1"),
+            top=Side(style="medium", color="1E293B"),
+            bottom=Side(style="double", color="1E293B"),
+        )
+
+        self.header_fill_primary = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid") # Dark Slate
+        self.header_fill_secondary = PatternFill(start_color="334155", end_color="334155", fill_type="solid") # Lighter Slate
+        self.header_fill_tertiary = PatternFill(start_color="475569", end_color="475569", fill_type="solid") # Soft slate
+        self.sub_header_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid") # Soft light grey
+        self.zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid") # Very soft blue/grey
+        self.total_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid") # Total background
+        self.alert_fill = PatternFill(start_color="ECFDF5", end_color="ECFDF5", fill_type="solid") # Light emerald for summary
+
         self.align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
         self.align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
         self.align_right = Alignment(horizontal="right", vertical="center")
@@ -155,33 +183,96 @@ class SeniatPurchaseExcelBuilder:
 
     def _add_report_header(self) -> int:
         ws = self.ws
-        right_col: int = 12
+        
+        # 1. Título principal del Reporte
+        ws.row_dimensions[2].height = 30
+        title_cell = ws.cell(row=2, column=2, value=_("LIBRO DE COMPRAS FISCAL"))
+        title_font = Font(name="Calibri", size=16, bold=True, color="1E293B")
+        title_cell.font = title_font
+        title_cell.alignment = Alignment(vertical="center")
+        
+        # 2. Definimos estilos de la Ficha Técnica / Tarjeta
+        meta_label_font = Font(name="Calibri", size=9, bold=True, color="475569")
+        meta_value_font = Font(name="Calibri", size=9, color="1E293B")
+        card_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+        
+        # 3. Dibujamos y estilizamos el fondo y bordes del bloque de la tarjeta (Filas 4 a 8, columnas B a N)
+        start_row = 4
+        end_row = 8
+        start_col = 2  # Columna B
+        end_col = 14   # Columna N
+        
+        for r in range(start_row, end_row + 1):
+            ws.row_dimensions[r].height = 20
+            for c in range(start_col, end_col + 1):
+                cell = ws.cell(row=r, column=c)
+                cell.fill = card_fill
+                
+                # Bordes externos del bloque de ficha técnica
+                left_side = Side(style="thin", color="CBD5E1") if c == start_col else None
+                right_side = Side(style="thin", color="CBD5E1") if c == end_col else None
+                top_side = Side(style="thin", color="CBD5E1") if r == start_row else None
+                bottom_side = Side(style="thin", color="CBD5E1") if r == end_row else None
+                cell.border = Border(left=left_side, right=right_side, top=top_side, bottom=bottom_side)
 
-        title_cell = ws.cell(row=1, column=1, value=_("Libro de Compras Fiscal"))
-        title_cell.font = Font(name="Calibri", size=10, bold=True, underline="single")
+        # 4. Insertar datos alineados
+        # Nombre de Empresa
+        lbl_company = ws.cell(row=5, column=2, value=_("Nombre o Razón Social:"))
+        lbl_company.font = meta_label_font
+        lbl_company.alignment = Alignment(horizontal="right", vertical="center")
+        
+        val_company = ws.cell(row=5, column=4, value=self.company_data.get("company_name", ""))
+        val_company.font = Font(name="Calibri", size=9, bold=True, color="1E293B")
+        val_company.alignment = Alignment(horizontal="left", vertical="center")
+        ws.merge_cells(start_row=5, start_column=4, end_row=5, end_column=8)
+        
+        # RIF
+        lbl_rif = ws.cell(row=5, column=10, value=_("RIF de la Empresa:"))
+        lbl_rif.font = meta_label_font
+        lbl_rif.alignment = Alignment(horizontal="right", vertical="center")
+        
+        val_rif = ws.cell(row=5, column=12, value=self.company_data.get("tax_id", ""))
+        val_rif.font = meta_value_font
+        val_rif.alignment = Alignment(horizontal="left", vertical="center")
+        ws.merge_cells(start_row=5, start_column=12, end_row=5, end_column=14)
 
-        ws.cell(row=3, column=1, value=_("Nombre o Razón Social:")).font = self.font_header
-        ws.cell(row=4, column=1, value=self.company_data.get("company_name", "")).font = self.font_default
-
-        ws.cell(row=3, column=right_col,
-                value=_("Número de Registro de Información Fiscal (RIF):")).font = self.font_header
-        ws.cell(row=4, column=right_col,
-                value=self.company_data.get("tax_id", "")).font = self.font_default
-
-        ws.cell(row=6, column=1, value=_("Dirección:")).font = self.font_header
-        ws.cell(row=7, column=1, value=self.company_data.get("address", "")).font = self.font_default
-
-        ws.cell(row=6, column=right_col, value=_("Tipo de Contribuyente:")).font = self.font_header
+        # Dirección (con wrap_text por si es larga)
+        lbl_dir = ws.cell(row=6, column=2, value=_("Dirección Fiscal:"))
+        lbl_dir.font = meta_label_font
+        lbl_dir.alignment = Alignment(horizontal="right", vertical="center")
+        
+        val_address = ws.cell(row=6, column=4, value=self.company_data.get("address", ""))
+        val_address.font = meta_value_font
+        val_address.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        ws.merge_cells(start_row=6, start_column=4, end_row=6, end_column=8)
+        
+        # Contribuyente
+        lbl_contrib = ws.cell(row=6, column=10, value=_("Contribuyente:"))
+        lbl_contrib.font = meta_label_font
+        lbl_contrib.alignment = Alignment(horizontal="right", vertical="center")
+        
         taxpayer_type: str = _("ESPECIAL") if self.company_data.get("is_special_taxpayer") else _("ORDINARIO")
-        ws.cell(row=7, column=right_col, value=taxpayer_type).font = self.font_default
+        val_contrib = ws.cell(row=6, column=12, value=taxpayer_type)
+        val_contrib.font = meta_value_font
+        val_contrib.alignment = Alignment(horizontal="left", vertical="center")
+        ws.merge_cells(start_row=6, start_column=12, end_row=6, end_column=14)
 
-        ws.cell(row=9, column=1, value=_("Período Fiscal:")).font = self.font_header
-        ws.cell(row=10, column=1, value="{0} - {1}".format(
+        # Período Fiscal
+        lbl_period = ws.cell(row=7, column=2, value=_("Período Fiscal:"))
+        lbl_period.font = meta_label_font
+        lbl_period.alignment = Alignment(horizontal="right", vertical="center")
+        
+        period_str = "{0} - {1}".format(
             self.from_date.strftime("%d/%m/%Y"),
             self.to_date.strftime("%d/%m/%Y"),
-        )).font = self.font_default
+        )
+        val_period = ws.cell(row=7, column=4, value=period_str)
+        val_period.font = meta_value_font
+        val_period.alignment = Alignment(horizontal="left", vertical="center")
+        ws.merge_cells(start_row=7, start_column=4, end_row=7, end_column=8)
 
-        return 12
+        # Retornamos 11 para que los encabezados multinivel del libro inicien en la fila 11
+        return 11
 
     # ── Headers multinivel (3 filas) ──
 
@@ -191,13 +282,33 @@ class SeniatPurchaseExcelBuilder:
 
         def _cell(row, col, val):
             c = ws.cell(row=row, column=col, value=val)
-            c.font = self.font_header
-            c.border = self.border
+            c.font = self.font_header_white
+            c.border = self.header_border
             c.alignment = self.align_center
+            if row == r1:
+                c.fill = self.header_fill_primary
+            elif row == r2:
+                c.fill = self.header_fill_secondary
+            else:
+                c.fill = self.header_fill_tertiary
             return c
 
         def _merge(row1, col1, row2, col2, val):
-            _cell(row1, col1, val)
+            # Style and fill the entire block first to avoid openpyxl border bugs
+            for r_idx in range(row1, row2 + 1):
+                for c_idx in range(col1, col2 + 1):
+                    c = ws.cell(row=r_idx, column=c_idx)
+                    c.border = self.header_border
+                    if r_idx == r1:
+                        c.fill = self.header_fill_primary
+                    elif r_idx == r2:
+                        c.fill = self.header_fill_secondary
+                    else:
+                        c.fill = self.header_fill_tertiary
+            
+            c = ws.cell(row=row1, column=col1, value=val)
+            c.font = self.font_header_white
+            c.alignment = self.align_center
             if row1 != row2 or col1 != col2:
                 ws.merge_cells(start_row=row1, start_column=col1,
                                end_row=row2, end_column=col2)
@@ -267,7 +378,7 @@ class SeniatPurchaseExcelBuilder:
         _merge(r1, 35, r3, 35, _("Ret. ISLR"))
 
         for r in (r1, r2, r3):
-            ws.row_dimensions[r].height = 25
+            ws.row_dimensions[r].height = 28
 
         for i, col_def in enumerate(self.columns, start=1):
             ws.column_dimensions[get_column_letter(i)].width = col_def.get("width", 10)
@@ -278,12 +389,15 @@ class SeniatPurchaseExcelBuilder:
 
     def _write_data_rows(self, start_row: int) -> int:
         row_idx: int = start_row + 1
-        for row_data in self.data:
+        for i, row_data in enumerate(self.data):
+            fill = self.zebra_fill if i % 2 == 0 else None
             for col_idx, col_def in enumerate(self.columns, start=1):
                 value = row_data.get(col_def["fieldname"])
                 cell = self.ws.cell(row=row_idx, column=col_idx, value=value)
                 cell.font = self.font_default
-                cell.border = self.border
+                cell.border = self.thin_border
+                if fill:
+                    cell.fill = fill
 
                 if isinstance(value, (int, float)):
                     cell.number_format = "0" if col_def["fieldname"] == "sequence_number" else self.num_fmt
@@ -291,6 +405,7 @@ class SeniatPurchaseExcelBuilder:
                 else:
                     cell.alignment = self.align_left
 
+            self.ws.row_dimensions[row_idx].height = 18
             row_idx += 1
         return row_idx - 1
 
@@ -308,9 +423,18 @@ class SeniatPurchaseExcelBuilder:
             for field in currency_fields:
                 totals[field] = flt(totals[field]) + flt(row.get(field, 0))
 
+        # First, style the entire row
+        for col_idx in range(1, len(self.columns) + 1):
+            cell = self.ws.cell(row=row_idx, column=col_idx)
+            cell.font = self.font_header
+            cell.fill = self.total_fill
+            cell.border = self.total_border
+
         label_cell = self.ws.cell(row=row_idx, column=1, value=_("TOTALES"))
         label_cell.font = self.font_header
-        label_cell.border = self.border
+        label_cell.border = self.total_border
+        label_cell.fill = self.total_fill
+        
         self.ws.merge_cells(start_row=row_idx, start_column=1,
                             end_row=row_idx, end_column=2)
 
@@ -319,13 +443,16 @@ class SeniatPurchaseExcelBuilder:
             if fieldname in totals:
                 cell = self.ws.cell(row=row_idx, column=col_idx, value=totals[fieldname])
                 cell.font = self.font_header
-                cell.border = self.border
+                cell.border = self.total_border
+                cell.fill = self.total_fill
                 cell.number_format = self.num_fmt
                 cell.alignment = self.align_right
             elif col_idx > 2:
                 cell = self.ws.cell(row=row_idx, column=col_idx)
-                cell.border = self.border
+                cell.border = self.total_border
+                cell.fill = self.total_fill
 
+        self.ws.row_dimensions[row_idx].height = 20
         return row_idx
 
     # ── Tabla resumen ──
@@ -335,14 +462,38 @@ class SeniatPurchaseExcelBuilder:
         r: int = start_row + 2
         sc: int = 13  # columna M
 
-        ws.cell(row=r, column=sc, value=_("RESUMEN")).font = Font(bold=True, size=12)
+        # Header row background and borders
+        for c_offset in range(8):
+            cell = ws.cell(row=r, column=sc + c_offset)
+            cell.fill = self.header_fill_primary
+            cell.border = self.header_border
+            
+        title_cell = ws.cell(row=r, column=sc, value=_("RESUMEN"))
+        title_cell.font = self.font_header_white
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.merge_cells(start_row=r, start_column=sc, end_row=r, end_column=sc + 4)
+        ws.row_dimensions[r].height = 24
         r += 1
 
         headers = [_("Concepto"), _("Base Imponible"), _("Crédito Fiscal"), _("Retención")]
-        for i, h in enumerate(headers):
+        
+        for c_offset in range(5):
+            cell = ws.cell(row=r, column=sc + c_offset)
+            cell.fill = self.header_fill_secondary
+            cell.border = self.header_border
+            
+        concept_header_cell = ws.cell(row=r, column=sc, value=headers[0])
+        concept_header_cell.font = self.font_header_white
+        concept_header_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.merge_cells(start_row=r, start_column=sc, end_row=r, end_column=sc + 4)
+
+        for i, h in enumerate(headers[1:], start=5):
             c = ws.cell(row=r, column=sc + i, value=h)
-            c.font = self.font_header
-            c.border = self.border
+            c.font = self.font_header_white
+            c.fill = self.header_fill_secondary
+            c.border = self.header_border
+            c.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[r].height = 20
         r += 1
 
         rows_data = [
@@ -363,27 +514,161 @@ class SeniatPurchaseExcelBuilder:
              flt(self.summary_data.get("impuesto_reducida")), 0),
         ]
 
-        for concept, base, iva, ret in rows_data:
-            ws.cell(row=r, column=sc, value=concept).font = self.font_default
-            ws.cell(row=r, column=sc, value=concept).border = self.border
-            for j, val in enumerate([base, iva, ret], start=1):
+        for idx, (concept, base, iva, ret) in enumerate(rows_data):
+            fill = self.zebra_fill if idx % 2 == 0 else None
+            
+            for c_offset in range(5):
+                cell = ws.cell(row=r, column=sc + c_offset)
+                cell.border = self.thin_border
+                if fill:
+                    cell.fill = fill
+                    
+            c_cell = ws.cell(row=r, column=sc, value=concept)
+            c_cell.font = self.font_default
+            ws.merge_cells(start_row=r, start_column=sc, end_row=r, end_column=sc + 4)
+            
+            for j, val in enumerate([base, iva, ret], start=5):
                 c = ws.cell(row=r, column=sc + j, value=val)
                 c.font = self.font_default
                 c.number_format = self.num_fmt
-                c.border = self.border
+                c.border = self.thin_border
+                if fill:
+                    c.fill = fill
+                c.alignment = self.align_right
+            ws.row_dimensions[r].height = 18
             r += 1
 
         # Fila de totales del resumen
-        ws.cell(row=r, column=sc, value=_("Total")).font = self.font_header
+        for c_idx in range(sc, sc + 8):
+            cell = ws.cell(row=r, column=c_idx)
+            cell.font = self.font_header
+            cell.fill = self.total_fill
+            cell.border = self.total_border
+
+        total_label_cell = ws.cell(row=r, column=sc, value=_("Total"))
+        total_label_cell.font = self.font_header
+        ws.merge_cells(start_row=r, start_column=sc, end_row=r, end_column=sc + 4)
+        
         for j, val in enumerate([
             sum(row[1] for row in rows_data),
             sum(row[2] for row in rows_data),
             sum(row[3] for row in rows_data),
-        ], start=1):
+        ], start=5):
             c = ws.cell(row=r, column=sc + j, value=val)
             c.font = self.font_header
             c.number_format = self.num_fmt
-            c.border = self.border
+            c.border = self.total_border
+            c.fill = self.total_fill
+            c.alignment = self.align_right
+        ws.row_dimensions[r].height = 20
+
+        return r
+
+    # ── Tabla resumen base vs. IVA ──
+
+    def _build_taxable_vs_iva_table(self, start_row: int) -> int:
+        """Construye un cuadrito aparte con el resumen de la base imponible vs. IVA."""
+        ws = self.ws
+        r: int = start_row + 2
+        sc: int = 13  # columna M
+
+        # Título del cuadrito
+        for c_idx in range(sc, sc + 8):
+            cell = ws.cell(row=r, column=c_idx)
+            cell.fill = self.header_fill_primary
+            cell.border = self.header_border
+            
+        title_cell = ws.cell(row=r, column=sc, value=_("RESUMEN BASE IMPONIBLE vs. IVA"))
+        title_cell.font = self.font_header_white
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.merge_cells(start_row=r, start_column=sc, end_row=r, end_column=sc + 7)
+        ws.row_dimensions[r].height = 24
+        r += 1
+
+        headers = [_("Concepto / Alícuota"), _("Base Imponible"), _("Crédito Fiscal"), _("Retención")]
+        
+        for c_offset in range(5):
+            cell = ws.cell(row=r, column=sc + c_offset)
+            cell.fill = self.header_fill_secondary
+            cell.border = self.header_border
+            
+        concept_header_cell = ws.cell(row=r, column=sc, value=headers[0])
+        concept_header_cell.font = self.font_header_white
+        concept_header_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.merge_cells(start_row=r, start_column=sc, end_row=r, end_column=sc + 4)
+
+        for i, h in enumerate(headers[1:], start=5):
+            c = ws.cell(row=r, column=sc + i, value=h)
+            c.font = self.font_header_white
+            c.fill = self.header_fill_secondary
+            c.border = self.header_border
+            c.alignment = self.align_center
+        ws.row_dimensions[r].height = 20
+        r += 1
+
+        # Obtener valores desde self.summary_data
+        rows_data = [
+            (_("Compras Internas afectadas por alícuota general (16%)"),
+             flt(self.summary_data.get("base_general")),
+             flt(self.summary_data.get("impuesto_general")),
+             flt(self.summary_data.get("retencion_general"))),
+            (_("Compras Internas afectadas por alícuota reducida (8%)"),
+             flt(self.summary_data.get("base_reducida")),
+             flt(self.summary_data.get("impuesto_reducida")),
+             flt(self.summary_data.get("retencion_reducida"))),
+            (_("Compras Internas afectadas por alícuota general + adicional (31%)"),
+             flt(self.summary_data.get("base_adicional")),
+             flt(self.summary_data.get("impuesto_adicional")),
+             flt(self.summary_data.get("retencion_adicional"))),
+        ]
+
+        for idx, (concept, base, iva, ret) in enumerate(rows_data):
+            fill = self.zebra_fill if idx % 2 == 0 else None
+            
+            for c_offset in range(5):
+                cell = ws.cell(row=r, column=sc + c_offset)
+                cell.border = self.thin_border
+                if fill:
+                    cell.fill = fill
+                    
+            c_cell = ws.cell(row=r, column=sc, value=concept)
+            c_cell.font = self.font_default
+            ws.merge_cells(start_row=r, start_column=sc, end_row=r, end_column=sc + 4)
+            
+            for j, val in enumerate([base, iva, ret], start=5):
+                c = ws.cell(row=r, column=sc + j, value=val)
+                c.font = self.font_default
+                c.number_format = self.num_fmt
+                c.border = self.thin_border
+                if fill:
+                    c.fill = fill
+                c.alignment = self.align_right
+            ws.row_dimensions[r].height = 18
+            r += 1
+
+        # Fila de totales del resumen
+        for c_idx in range(sc, sc + 8):
+            cell = ws.cell(row=r, column=c_idx)
+            cell.font = self.font_header
+            cell.fill = self.alert_fill
+            cell.border = self.total_border
+
+        total_label_cell = ws.cell(row=r, column=sc, value=_("Total"))
+        total_label_cell.font = self.font_header
+        ws.merge_cells(start_row=r, start_column=sc, end_row=r, end_column=sc + 4)
+        
+        for j, val in enumerate([
+            sum(row[1] for row in rows_data),
+            sum(row[2] for row in rows_data),
+            sum(row[3] for row in rows_data),
+        ], start=5):
+            c = ws.cell(row=r, column=sc + j, value=val)
+            c.font = self.font_header
+            c.number_format = self.num_fmt
+            c.border = self.total_border
+            c.fill = self.alert_fill
+            c.alignment = self.align_right
+        ws.row_dimensions[r].height = 20
 
         return r
 
@@ -394,7 +679,8 @@ class SeniatPurchaseExcelBuilder:
         headers_row: int = self._build_multi_level_headers(header_end)
         last_data: int = self._write_data_rows(headers_row)
         totals_row: int = self._write_totals_row(last_data)
-        self._build_summary_table(totals_row)
+        summary_row: int = self._build_summary_table(totals_row)
+        self._build_taxable_vs_iva_table(summary_row)
 
         stream = BytesIO()
         self.wb.save(stream)

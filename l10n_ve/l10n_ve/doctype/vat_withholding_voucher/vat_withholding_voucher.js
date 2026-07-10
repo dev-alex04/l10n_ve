@@ -63,9 +63,14 @@ frappe.ui.form.on("VAT Withholding Voucher", {
 
       const fields = [
         "start_date", "end_date", "empresa", "supplier",
-        "fiscal_period", "issue_date", "branch", VAT_CHILD_TABLE,
+        "fiscal_period", "issue_date", VAT_CHILD_TABLE,
       ];
       fields_read_only(frm, fields);
+      if (frm.doc.branch) {
+        frm.set_df_property("branch", "read_only", true);
+      } else {
+        frm.set_df_property("branch", "read_only", false);
+      }
     }
 
     if (frm.doc.docstatus === 1 && !frm.doc.is_declared) {
@@ -257,6 +262,15 @@ function _do_load_invoices(frm) {
       VAT_TOTAL_FIELDS.forEach((f) => { frm.doc[f] = 0; });
 
       if (r.message && r.message.length > 0) {
+        // Auto-set branch if empty and all loaded invoices share the same branch
+        const unique_branches = [...new Set(r.message.map((inv) => inv.branch).filter(Boolean))];
+        if (unique_branches.length === 1 && !frm.doc.branch) {
+          frm.set_value("branch", unique_branches[0]);
+          if (!frm.is_new()) {
+            frm.set_df_property("branch", "read_only", true);
+          }
+        }
+
         r.message.forEach((invoice) => {
           const new_row = frm.add_child(VAT_CHILD_TABLE);
           VAT_ROW_FIELDS.forEach((f) => { new_row[f] = invoice[f]; });
