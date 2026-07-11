@@ -80,6 +80,11 @@ frappe.ui.form.on("Sales Invoice", {
       );
     }
 
+    // TODO: Eliminar esto (Habilitado temporalmente para cargar comprobantes de retención a facturas generadas sin ellos.)
+    has_vat_withholding = true;
+    has_islr_withholding = true;
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     // Mover esto a una funcion
 
     if (
@@ -582,10 +587,10 @@ function setup_force_send_hka_button(frm) {
       frappe.confirm(
         __(
           "<b>⚠️ Atención:</b> Esta acción enviará la factura a HKA " +
-            "<b>sin validar la tasa de cambio BCV</b>.<br><br>" +
-            "Solo debe usarse cuando la tasa BCV del documento difiere " +
-            "de la registrada por motivos operativos legítimos.<br><br>" +
-            "¿Desea continuar?",
+          "<b>sin validar la tasa de cambio BCV</b>.<br><br>" +
+          "Solo debe usarse cuando la tasa BCV del documento difiere " +
+          "de la registrada por motivos operativos legítimos.<br><br>" +
+          "¿Desea continuar?",
         ),
         function () {
           frappe.call({
@@ -1129,8 +1134,8 @@ function setup_hka_void_banners(frm) {
   frm.set_intro(
     __(
       "🚫 Esta factura fue <b>anulada ante HKA</b> (N° {0}). " +
-        "No puede ser corregida ni enmendada. " +
-        "Cree una nueva factura si es necesario.",
+      "No puede ser corregida ni enmendada. " +
+      "Cree una nueva factura si es necesario.",
       [frm.doc.bill_no],
     ),
     "red",
