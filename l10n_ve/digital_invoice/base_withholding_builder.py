@@ -61,6 +61,19 @@ class BaseRetentionPayloadBuilder:
 
     def build_payload(self) -> dict:
         """Construye el payload completo para la API de emisión TFHKA."""
+        # Defensa en profundidad (incidente COMP-RET-IVA-2026-00003): HKA acepta
+        # payloads con serie vacía y esa emisión es irreversible. Los flujos
+        # actuales validan la serie ANTES de instanciar el builder
+        # (_validate_digital_series), pero cualquier caller futuro que se salte
+        # esa validación NO debe poder emitir con serie vacía.
+        if not self._serie:
+            frappe.throw(
+                f"El comprobante {getattr(self.doc, 'name', '')} no resolvió una "
+                f"Serie de Facturación Digital activa para la sucursal "
+                f"'{getattr(self.doc, 'branch', '') or ''}': no se emite con serie vacía.",
+                title="Serie de Facturación No Encontrada",
+            )
+
         items: list = self.doc.get(self.CHILD_TABLE_FIELD, [])
 
         payload: dict = {

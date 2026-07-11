@@ -81,6 +81,15 @@ def _patch_commit():
     return patch("frappe.db.commit")
 
 
+def _patch_series_ok():
+    """Serie digital resuelta: neutraliza el pre-check fail-closed de make_*
+    (que aborta ANTES de crear el comprobante si la sucursal no tiene serie)."""
+    return patch(
+        "l10n_ve.digital_invoice.retention_integration._validate_digital_series",
+        return_value=[],
+    )
+
+
 def _vat_row(**overrides) -> dict:
     row = {
         "purchase_invoice_type": "Purchase Invoice",
@@ -134,7 +143,7 @@ class TestMakeVatWithholdingVoucher(FrappeTestCase):
                        "voucher_number": "20260700000010", "bill_control": "00-1",
                        "error": None}
         with _patch_get_doc(invoice), _patch_insert(inserted), \
-             _patch_submit(inserted), _patch_commit(), \
+             _patch_submit(inserted), _patch_commit(), _patch_series_ok(), \
              patch(f"{_VAT_MOD}._emit_vat_voucher", return_value=emit_result) as mock_emit, \
              patch(f"{_VAT_MOD}._find_voucher_containing_invoice", return_value=None), \
              patch(f"{_VAT_MOD}.get_valid_invoices", return_value=[_vat_row()]) as mock_fetch:
@@ -166,19 +175,21 @@ class TestMakeVatWithholdingVoucher(FrappeTestCase):
         self.assertAlmostEqual(doc.totals_taxes_and_charges_added, 108653.28)
         self.assertAlmostEqual(doc.totals_tax_amount_vat, 81489.96)
 
-    def test_branchless_invoice_passes_empty_branch(self) -> None:
-        """Factura sin sucursal → branch='' (semántica NULL-only de get_valid_invoices)."""
+    def test_branchless_invoice_blocked_before_creating_voucher(self) -> None:
+        """Factura sin sucursal → el pre-check de serie aborta ANTES de crear el
+        comprobante (sin sucursal jamás resolvería serie: el comprobante quedaría
+        aprobado y atascado en Error). El guard real lanza sin tocar la BD."""
         invoice = _fake_purchase_invoice(branch=None)
         inserted: dict = {}
         with _patch_get_doc(invoice), _patch_insert(inserted), \
-             _patch_submit(inserted), _patch_commit(), \
-             patch(f"{_VAT_MOD}._emit_vat_voucher", return_value={}), \
              patch(f"{_VAT_MOD}._find_voucher_containing_invoice", return_value=None), \
-             patch(f"{_VAT_MOD}.get_valid_invoices", return_value=[_vat_row()]) as mock_fetch:
-            make_vat_withholding_voucher(_PI_NAME)
+             patch(f"{_VAT_MOD}.get_valid_invoices", return_value=[_vat_row()]):
+            with self.assertRaises(frappe.ValidationError) as ctx:
+                make_vat_withholding_voucher(_PI_NAME)
 
-        self.assertEqual(mock_fetch.call_args.kwargs["branch"], "")
-        self.assertFalse(inserted["doc"].branch)
+        self.assertIn("sucursal", str(ctx.exception))
+        self.assertNotIn("doc", inserted)  # no se creó ningún comprobante
+        frappe.clear_messages()
 
     def test_draft_invoice_blocked(self) -> None:
         """Factura sin validar → throw."""
@@ -237,7 +248,7 @@ class TestMakeIslrWithholdingVoucher(FrappeTestCase):
         ]
         inserted: dict = {}
         with _patch_get_doc(invoice), _patch_insert(inserted), \
-             _patch_submit(inserted), _patch_commit(), \
+             _patch_submit(inserted), _patch_commit(), _patch_series_ok(), \
              patch(f"{_ISLR_MOD}._emit_islr_voucher", return_value={}) as mock_emit, \
              patch(f"{_ISLR_MOD}._find_voucher_containing_invoice", return_value=None), \
              patch(f"{_ISLR_MOD}.get_valid_invoices", return_value=rows) as mock_fetch:
