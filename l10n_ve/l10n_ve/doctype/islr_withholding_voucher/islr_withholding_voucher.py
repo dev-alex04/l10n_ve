@@ -6,7 +6,7 @@ from __future__ import annotations
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, nowdate, getdate
+from frappe.utils import flt, nowdate, getdate, get_link_to_form
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 from l10n_ve.utils.utils import format_amounts
 
@@ -32,7 +32,68 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
     def validate(self) -> None:
         self.validate_address()
         self.validate_unique_voucher_number()
+        self.validate_no_duplicate_invoices()
         self.validate_withholding_amount()
+
+    def validate_no_duplicate_invoices(self) -> None:
+        """Bloquea si algún par (factura, concepto) ya está en otro comprobante no cancelado.
+
+        Cubre todos los caminos (flujo manual, botón desde la factura,
+        inserción programática): el filtro de get_valid_invoices solo excluye
+        comprobantes aprobados y no protege contra borradores concurrentes.
+        La unidad es el par factura+código: conceptos distintos de la misma
+        factura pueden vivir en comprobantes distintos.
+        """
+        items: list[tuple[str, str, str]] = [
+            (
+                item.purchase_invoice_type or "Purchase Invoice",
+                item.purchase_invoice,
+                item.code or "",
+            )
+            for item in self.get("islr_withholding_voucher_item", [])
+            if item.purchase_invoice
+        ]
+        if not items:
+            return
+
+        seen: set[tuple[str, str, str]] = set()
+        for triple in items:
+            if triple in seen:
+                frappe.throw(
+                    _("La factura {0} con el concepto {1} está repetida en las "
+                      "líneas del comprobante.").format(triple[1], triple[2])
+                )
+            seen.add(triple)
+
+        rows = frappe.db.sql(
+            """
+            SELECT child.purchase_invoice_type, child.purchase_invoice, child.code,
+                   parent.name, parent.voucher_number, parent.docstatus
+            FROM `tabISLR Withholding Voucher Item` child
+            INNER JOIN `tabISLR Withholding Voucher` parent ON parent.name = child.parent
+            WHERE child.purchase_invoice IN %(invoices)s
+              AND parent.docstatus < 2
+              AND parent.name != %(own_name)s
+            """,
+            {"invoices": [name for _type, name, _code in items], "own_name": self.name or ""},
+            as_dict=True,
+        )
+
+        conflicts = [
+            _("{0} (concepto {1}) ya está en el comprobante {2}").format(
+                row.purchase_invoice,
+                row.code,
+                _voucher_link(row),
+            )
+            for row in rows
+            if (
+                row.purchase_invoice_type or "Purchase Invoice",
+                row.purchase_invoice,
+                row.code or "",
+            ) in seen
+        ]
+        if conflicts:
+            frappe.throw("<br>".join(conflicts), title=_("Factura ya comprobada"))
 
     def before_cancel(self) -> None:
         """Bloquea la cancelación si el comprobante ya fue emitido a HKA."""
@@ -354,4 +415,150 @@ def _build_islr_row(
         "affected_invoice_number": invoice.affected_invoice_number,
         "paid_amount": paid_amount,
         "is_return": 1 if is_return else 0,
+    }
+
+
+# ── Creación desde la factura de compra ─────────────────────────────── #
+
+# Espejo de ISLR_ITEM_TOTAL_MAP del JS del comprobante: los totales del
+# padre no se recalculan en el servidor, hay que sumarlos al construirlo.
+_ISLR_TOTAL_ITEM_MAP: dict[str, str] = {
+    "totals_islr_base_amount": "islr_base_amount",
+    "totals_islr_amount": "islr_amount",
+    "totals_grand_total": "grand_total",
+    "totals_paid_amount": "paid_amount",
+}
+
+
+def _find_voucher_containing_invoice(purchase_invoice: str, docstatus: int) -> dict | None:
+    """Retorna {name, voucher_number} del comprobante ISLR (con ese docstatus) que ya incluye la factura."""
+    rows = frappe.db.sql(
+        """
+        SELECT parent.name, parent.voucher_number
+        FROM `tabISLR Withholding Voucher Item` child
+        INNER JOIN `tabISLR Withholding Voucher` parent ON parent.name = child.parent
+        WHERE child.purchase_invoice = %s AND parent.docstatus = %s
+        LIMIT 1
+        """,
+        (purchase_invoice, docstatus),
+        as_dict=True,
+    )
+    return rows[0] if rows else None
+
+
+def _voucher_link(voucher: dict) -> str:
+    """Enlace al comprobante con el N° de comprobante (no el name) como texto."""
+    return get_link_to_form(
+        "ISLR Withholding Voucher", voucher["name"],
+        voucher.get("voucher_number") or voucher["name"],
+    )
+
+
+@frappe.whitelist()
+def make_islr_withholding_voucher(source_name: str) -> dict:
+    """Crea, aprueba y emite a HKA un Comprobante de Retención ISLR desde la factura de compra.
+
+    Reusa get_valid_invoices para calcular las líneas (una por concepto ISLR,
+    mismos filtros y montos que el flujo del formulario). Si la emisión a HKA
+    falla, el comprobante queda aprobado en estado Error y el cron lo reintenta.
+    """
+    frappe.has_permission("ISLR Withholding Voucher", "create", throw=True)
+
+    invoice = frappe.get_doc("Purchase Invoice", source_name)
+    if invoice.docstatus != 1:
+        frappe.throw(_("La factura debe estar validada para generar el comprobante de retención."))
+
+    draft = _find_voucher_containing_invoice(invoice.name, docstatus=0)
+    if draft:
+        frappe.throw(
+            _("La factura ya está incluida en el comprobante {0}.").format(
+                _voucher_link(draft)
+            )
+        )
+
+    posting_date = str(invoice.posting_date)
+    rows = [
+        row
+        for row in get_valid_invoices(
+            supplier=invoice.supplier,
+            start_date=posting_date,
+            end_date=posting_date,
+            company=invoice.company,
+            branch=invoice.get("branch") or "",
+        )
+        if row.get("purchase_invoice") == invoice.name
+    ]
+
+    if not rows:
+        submitted = _find_voucher_containing_invoice(invoice.name, docstatus=1)
+        if submitted:
+            frappe.throw(
+                _("Todos los conceptos ISLR de la factura ya están en el "
+                  "comprobante {0}.").format(_voucher_link(submitted))
+            )
+        frappe.throw(
+            _("La factura no tiene conceptos de ISLR aplicados "
+              "(botón 'Agregar ISLR' en la factura antes de validarla).")
+        )
+
+    doc = frappe.new_doc("ISLR Withholding Voucher")
+    doc.empresa = invoice.company
+    doc.supplier = invoice.supplier
+    doc.branch = invoice.get("branch") or ""
+    doc.start_date = posting_date
+    doc.end_date = posting_date
+
+    totals: dict[str, float] = {field: 0.0 for field in _ISLR_TOTAL_ITEM_MAP}
+    for row in rows:
+        doc.append("islr_withholding_voucher_item", row)
+        sign = -1 if row.get("is_return") else 1
+        for total_field, item_field in _ISLR_TOTAL_ITEM_MAP.items():
+            totals[total_field] += flt(row.get(item_field)) * sign
+
+    for field, value in totals.items():
+        doc.set(field, value)
+
+    doc.insert(ignore_permissions=True)
+    doc.flags.ignore_permissions = True
+    doc.submit()
+    # Persistir creación+aprobación antes de emitir: si la emisión a HKA
+    # falla, el comprobante queda aprobado en Error y el cron lo reintenta.
+    frappe.db.commit()
+
+    return _emit_islr_voucher(doc.name)
+
+
+def _emit_islr_voucher(voucher_name: str) -> dict:
+    """Emite el comprobante a HKA y arma la respuesta para el formulario."""
+    from l10n_ve.digital_invoice.islr_withholding_integration import process_islr_voucher
+
+    try:
+        emitted = bool(process_islr_voucher(voucher_name))
+    except Exception:
+        frappe.log_error(
+            title=f"Error emitiendo {voucher_name} a HKA desde la factura de compra",
+            message=frappe.get_traceback(),
+        )
+        emitted = False
+
+    info = frappe.db.get_value(
+        "ISLR Withholding Voucher", voucher_name,
+        ["voucher_number", "bill_control"], as_dict=True,
+    ) or frappe._dict()
+
+    error_note = None
+    if not emitted:
+        error_note = frappe.db.get_value(
+            "VE Digital Invoice Log",
+            {"sales_invoice": voucher_name, "status": "Error",
+             "document_type": "ISLR Withholding Voucher"},
+            "notes", order_by="creation desc",
+        )
+
+    return {
+        "voucher": voucher_name,
+        "emitted": emitted,
+        "voucher_number": info.get("voucher_number"),
+        "bill_control": info.get("bill_control"),
+        "error": error_note,
     }

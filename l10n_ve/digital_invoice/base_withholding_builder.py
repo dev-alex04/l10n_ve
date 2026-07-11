@@ -43,7 +43,13 @@ class BaseRetentionPayloadBuilder:
             self._serie = getattr(series_doc, "serie", "") or ""
             self._branch_code = branch_code or ""
         except Exception as e:
-            # Registrar advertencia en logs de Frappe pero no abortar la ejecución del comprobante
+            # Registrar advertencia en logs de Frappe pero no abortar la ejecución del comprobante.
+            # La validación pre-envío (_validate_digital_series) ya bloqueó este caso;
+            # esto queda como red de seguridad para otros callers del builder.
+            if isinstance(e, frappe.ValidationError):
+                # frappe.throw encola el msgprint antes de lanzar: desencolar
+                # para no mostrar el error de un flujo que continúa.
+                frappe.clear_last_message()
             frappe.log_error(
                 title=f"Error al obtener serie HKA para la sucursal {branch}",
                 message=str(e)
