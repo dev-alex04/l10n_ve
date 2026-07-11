@@ -16,6 +16,8 @@ try:
         RECON_REVIEW,
         REVIEW_OTHER_BANK,
         REVIEW_DUPLICATE_REFERENCE,
+        REVIEW_ALREADY_RECONCILED,
+        REVIEW_DEPOSIT_NOT_SUBMITTED,
         CASH_LIKE_TYPES,
         DEPOSIT_COVERAGE_TOLERANCE,
         DEPOSIT_FIELDS,
@@ -28,6 +30,8 @@ try:
         find_matching_deposit,
         find_deposit_other_bank,
         find_duplicate_deposits,
+        find_consumed_deposit,
+        find_unsubmitted_deposit,
         _apply_deposit_amount,
         reconcile_and_approve,
         _link_deposit_to_payment,
@@ -49,6 +53,8 @@ except ImportError:
     RECON_REVIEW = "Revisar"
     REVIEW_OTHER_BANK = "other_bank"
     REVIEW_DUPLICATE_REFERENCE = "duplicate_reference"
+    REVIEW_ALREADY_RECONCILED = "already_reconciled"
+    REVIEW_DEPOSIT_NOT_SUBMITTED = "deposit_not_submitted"
     CASH_LIKE_TYPES = ("Cash", "Gateway", "Gangway")
     DEPOSIT_COVERAGE_TOLERANCE = 1.0
     DEPOSIT_FIELDS = ["name", "deposit", "unallocated_amount", "currency", "bank_account"]
@@ -61,6 +67,8 @@ except ImportError:
     find_matching_deposit = lambda *a, **k: None
     find_deposit_other_bank = lambda *a, **k: None
     find_duplicate_deposits = lambda *a, **k: None
+    find_consumed_deposit = lambda *a, **k: None
+    find_unsubmitted_deposit = lambda *a, **k: None
     _apply_deposit_amount = lambda *a, **k: None
     reconcile_and_approve = lambda *a, **k: None
     _link_deposit_to_payment = lambda *a, **k: None
