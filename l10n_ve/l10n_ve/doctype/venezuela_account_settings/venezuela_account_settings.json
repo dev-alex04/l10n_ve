@@ -46,15 +46,17 @@
   {
    "fieldname": "section_break_tax_calc",
    "fieldtype": "Section Break",
-   "label": "Cálculo de Impuestos"
+   "label": "C\u00e1lculo de Impuestos"
   },
   {
-   "description": "Los precios siempre se cargan como base imponible; el método solo cambia cómo se deriva el cálculo fiscal (Bs). Aplica a venta y compra. Sin método definido, el sistema bloqueará el cálculo de documentos con impuestos.",
+   "default": "Desde el total de la factura",
+   "description": "Los precios siempre se cargan como base imponible; el m\u00e9todo solo cambia c\u00f3mo se deriva el c\u00e1lculo fiscal (Bs). Aplica a venta y compra. Sin m\u00e9todo definido, el sistema bloquear\u00e1 el c\u00e1lculo de documentos con impuestos.",
    "fieldname": "tax_calculation_method",
    "fieldtype": "Select",
-   "label": "Método de cálculo de Impuestos",
-   "options": "Desde la base imponible\nDesde el total de la factura",
-   "reqd": 1
+   "label": "M\u00e9todo de c\u00e1lculo de Impuestos",
+   "options": "Desde el total de la factura\nDesde la base imponible",
+   "reqd": 1,
+   "set_only_once": 1
   },
   {
    "fieldname": "column_break_tax_calc",
@@ -62,15 +64,14 @@
   },
   {
    "fieldname": "tax_calculation_method_help",
-   "fieldtype": "HTML",
-   "options": ""
+   "fieldtype": "HTML"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-11-13 11:39:24.636074",
+ "modified": "2026-07-11 00:27:15.644433",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "Venezuela Account Settings",
