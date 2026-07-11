@@ -81,6 +81,8 @@
   {
    "fieldname": "branch",
    "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Sucursal",
    "options": "VE Branch"
@@ -92,6 +94,7 @@
   {
    "fieldname": "voucher_number",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "No. de Comprobante",
    "no_copy": 1,
    "read_only": 1
@@ -304,7 +307,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-07 23:45:08.698382",
+ "modified": "2026-07-10 15:07:01.431615",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VAT Withholding Voucher",
