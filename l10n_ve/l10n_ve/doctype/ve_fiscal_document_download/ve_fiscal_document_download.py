@@ -22,7 +22,12 @@ class VEFiscalDocumentDownload(Document):
 		self.check_permission("write")
 		if self.status == "Processing":
 			return False
-		
+
+		# Borrar los ZIP de corridas previas antes de reintentar, para no
+		# acumular adjuntos duplicados (cada reintento generaba otro juego
+		# completo de partes en disco).
+		remove_download_attachments(self.name)
+
 		# Cambiar estado a Procesando y guardar
 		self.status = "Processing"
 		self.error_log = ""
@@ -78,9 +83,23 @@ def process_download_job(docname: str, request_user: str):
 		current_zip_count = 0
 		part_number = 1
 
-		# Master ZIP containing all PDFs without size splitting
+		# Master ZIP containing all PDFs without size splitting.
+		# Solo se mantiene mientras quepa bajo el límite de subida del site; si
+		# lo supera dejamos de alimentarlo para no construir en RAM un archivo
+		# que luego se descartaría al guardarlo (ver save_master_zip).
+		from frappe.utils.file_manager import get_max_file_size
 		master_zip_buffer = io.BytesIO()
 		master_zip_file = zipfile.ZipFile(master_zip_buffer, "w", zipfile.ZIP_DEFLATED)
+		master_zip_limit = get_max_file_size()
+		master_zip_viable = True
+
+		def add_to_master(fname, data):
+			nonlocal master_zip_viable
+			if not master_zip_viable:
+				return
+			master_zip_file.writestr(fname, data)
+			if master_zip_buffer.tell() > master_zip_limit:
+				master_zip_viable = False
 
 		# Instanciar el cliente HKA y obtener token y base_url una sola vez en el hilo principal
 		from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
@@ -315,7 +334,7 @@ def process_download_job(docname: str, request_user: str):
 					part_number += 1
 
 				zip_file.writestr(filename, pdf_data)
-				master_zip_file.writestr(filename, pdf_data)
+				add_to_master(filename, pdf_data)
 				downloaded_count += 1
 				current_zip_count += 1
 
@@ -346,7 +365,7 @@ def process_download_job(docname: str, request_user: str):
 						part_number += 1
 
 					zip_file.writestr(filename, pdf_bytes)
-					master_zip_file.writestr(filename, pdf_bytes)
+					add_to_master(filename, pdf_bytes)
 					downloaded_count += 1
 					current_zip_count += 1
 					consecutive_hka_failures = 0
@@ -372,7 +391,7 @@ def process_download_job(docname: str, request_user: str):
 							part_number += 1
 
 						zip_file.writestr(filename, pdf_bytes)
-						master_zip_file.writestr(filename, pdf_bytes)
+						add_to_master(filename, pdf_bytes)
 						downloaded_count += 1
 						current_zip_count += 1
 
@@ -408,7 +427,7 @@ def process_download_job(docname: str, request_user: str):
 			zip_file.close()
 
 		# Guardar el ZIP maestro con todas las facturas
-		master_file_url, master_file_name, master_size_str = save_master_zip(doc, master_zip_file, master_zip_buffer, downloaded_count)
+		master_file_url, master_file_name, master_size_str = save_master_zip(doc, master_zip_file, master_zip_buffer, downloaded_count, errors)
 
 		doc.downloaded_count = downloaded_count
 
@@ -475,33 +494,125 @@ def save_zip_part(doc, zip_buffer, zip_file, part_number, files):
 	return new_buffer, new_zip_file
 
 
-def save_master_zip(doc, master_zip_file, master_zip_buffer, downloaded_count):
+def remove_download_attachments(docname: str) -> int:
+	"""Borra los ZIP adjuntos a un documento de descarga (partes + maestro).
+
+	Los PDFs individuales quedan cacheados en cada Sales Invoice, así que estos
+	ZIP son 100% redundantes una vez descargados y solo ocupan disco.
+	"""
+	deleted = 0
+	attachments = frappe.get_all(
+		"File",
+		filters={
+			"attached_to_doctype": "VE Fiscal Document Download",
+			"attached_to_name": docname,
+		},
+		pluck="name",
+	)
+	for file_name in attachments:
+		try:
+			frappe.delete_doc("File", file_name, ignore_permissions=True, delete_permanently=True)
+			deleted += 1
+		except Exception as e:
+			frappe.logger("l10n_ve").error(f"No se pudo borrar adjunto {file_name} de {docname}: {str(e)}")
+	if deleted:
+		frappe.db.commit()
+	return deleted
+
+
+def purge_old_fiscal_download_zips(retention_days: int = 7) -> None:
+	"""Tarea programada: libera disco quitando los ZIP de descargas antiguas.
+
+	Conserva el registro ``VE Fiscal Document Download`` (metadata liviana, útil
+	como historial de auditoría) pero elimina sus ZIP adjuntos pasados
+	``retention_days`` días. Los PDFs siguen disponibles en cada factura y una
+	nueva descarga los re-empaqueta bajo demanda.
+	"""
+	from frappe.utils import add_days, nowdate
+
+	cutoff = add_days(nowdate(), -retention_days)
+	old_downloads = frappe.get_all(
+		"VE Fiscal Document Download",
+		filters={"modified": ["<", cutoff]},
+		pluck="name",
+	)
+	total_files = 0
+	for docname in old_downloads:
+		freed = remove_download_attachments(docname)
+		if freed:
+			total_files += freed
+			# Limpiar el HTML de enlaces que ahora apuntan a archivos borrados.
+			frappe.db.set_value(
+				"VE Fiscal Document Download", docname, "files_html", "",
+				update_modified=False,
+			)
+	if total_files:
+		frappe.db.commit()
+		frappe.logger("l10n_ve").info(
+			f"purge_old_fiscal_download_zips: {total_files} ZIP borrados "
+			f"de {len(old_downloads)} descargas > {retention_days} días."
+		)
+
+
+def save_master_zip(doc, master_zip_file, master_zip_buffer, downloaded_count, errors=None):
+	"""Guarda el ZIP maestro (todas las facturas juntas).
+
+	El ZIP maestro es una comodidad opcional: las partes de <=4,5 MB ya
+	contienen todos los PDFs. Si el maestro supera el límite de subida del
+	site (``max_file_size``, 10 MB por defecto) se omite en vez de reventar
+	el trabajo completo; el usuario sigue teniendo la descarga por partes.
+	"""
+	from frappe.utils.file_manager import get_max_file_size
+
 	master_file_url = None
 	master_size_str = "Desconocido"
 	master_file_name = ""
-	if downloaded_count > 0:
-		master_zip_file.close()
-		master_zip_buffer.seek(0)
-		cust_suffix = f"_{doc.customer}" if doc.customer else ""
-		master_file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}_Completo.zip"
-		
+
+	master_zip_file.close()
+	if downloaded_count <= 0:
+		return master_file_url, master_file_name, master_size_str
+
+	master_zip_buffer.seek(0)
+	master_bytes = master_zip_buffer.getvalue()
+	master_size = len(master_bytes)
+
+	# Omitir el maestro si excede el límite de subida del site.
+	if master_size > get_max_file_size():
+		if errors is not None:
+			errors.append(
+				f"ZIP maestro omitido: {round(master_size / (1024 * 1024), 2)} MB "
+				f"supera el límite de {round(get_max_file_size() / (1024 * 1024), 2)} MB. "
+				f"Use la descarga por partes."
+			)
+		return master_file_url, master_file_name, master_size_str
+
+	cust_suffix = f"_{doc.customer}" if doc.customer else ""
+	master_file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}_Completo.zip"
+
+	try:
 		master_file_doc = save_file(
 			fname=master_file_name,
-			content=master_zip_buffer.getvalue(),
+			content=master_bytes,
 			dt="VE Fiscal Document Download",
 			dn=doc.name,
 			folder="Home/Attachments",
 			is_private=1
 		)
-		master_file_url = master_file_doc.file_url
-		master_size = master_file_doc.file_size
-		if master_size and isinstance(master_size, (int, float)):
-			if master_size >= 1024 * 1024:
-				master_size_str = f"{round(master_size / (1024 * 1024), 2)} MB"
-			else:
-				master_size_str = f"{round(master_size / 1024, 2)} KB"
-	else:
-		master_zip_file.close()
+	except Exception as e:
+		# Cinturón de seguridad: un fallo al guardar el maestro nunca debe
+		# marcar como fallida una descarga que ya empaquetó todas las partes.
+		if errors is not None:
+			errors.append(f"No se pudo guardar el ZIP maestro: {str(e)}")
+		frappe.logger("l10n_ve").error(f"Fallo al guardar ZIP maestro de {doc.name}: {str(e)}")
+		return None, "", "Desconocido"
+
+	master_file_url = master_file_doc.file_url
+	master_size = master_file_doc.file_size
+	if master_size and isinstance(master_size, (int, float)):
+		if master_size >= 1024 * 1024:
+			master_size_str = f"{round(master_size / (1024 * 1024), 2)} MB"
+		else:
+			master_size_str = f"{round(master_size / 1024, 2)} KB"
 	return master_file_url, master_file_name, master_size_str
 
 
