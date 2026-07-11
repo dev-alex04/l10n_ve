@@ -178,14 +178,48 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
       }
     });
 
+    // Método "Desde el total": IVA Bs por DIFERENCIA contra el total anclado
+    // (base + IVA == total comercial x tasa, siempre). Espejo del Python.
+    const anchored_total_bs =
+      this._ve_anchored_taxable_total_bs === undefined
+        ? null
+        : this._ve_anchored_taxable_total_bs;
+    const anchored_vat_rows =
+      anchored_total_bs === null
+        ? []
+        : (this.frm.doc.taxes || []).filter(
+            (t) => t.charge_type === "VAT" && !cint(t.is_tax_withholding_account),
+          );
+    let anchored_iva_pending =
+      anchored_vat_rows.length > 0
+        ? flt(anchored_total_bs - base_taxable_vef, 2)
+        : null;
+
     for (let i = 0; i < this.frm.doc.taxes.length; i++) {
       const tax = this.frm.doc.taxes[i];
 
       if (tax.charge_type === "VAT" && !tax.is_tax_withholding_account) {
-        tax.base_tax_amount = flt(
-          (base_taxable_vef * flt(tax.rate)) / 100,
-          precision("base_tax_amount", tax),
-        );
+        if (anchored_iva_pending !== null) {
+          let share;
+          if (tax === anchored_vat_rows[anchored_vat_rows.length - 1]) {
+            // la última fila absorbe el remanente del redondeo
+            share = anchored_iva_pending;
+          } else {
+            let total_rate = 0;
+            anchored_vat_rows.forEach((t) => (total_rate += flt(t.rate)));
+            share = flt(
+              (anchored_iva_pending * flt(tax.rate)) / (total_rate || 1),
+              precision("base_tax_amount", tax),
+            );
+          }
+          anchored_iva_pending = flt(anchored_iva_pending - share, 2);
+          tax.base_tax_amount = flt(share, precision("base_tax_amount", tax));
+        } else {
+          tax.base_tax_amount = flt(
+            (base_taxable_vef * flt(tax.rate)) / 100,
+            precision("base_tax_amount", tax),
+          );
+        }
       } else if (tax.charge_type === "On Net Total") {
         tax.base_tax_amount = flt(
           (base_taxable_vef * flt(tax.rate)) / 100,
@@ -523,3 +557,77 @@ function calculate_base_total_with_vat(frm) {
   frm.doc.base_total_with_vat = result;
   frm.refresh_field("base_total_with_vat");
 }
+
+// ------------------------------------------------------------------ //
+// Método de cálculo de impuestos (Venezuela Account Settings)
+// "Desde el total de la factura": ancla el carril Bs al total comercial
+// redondeado x tasa. Espejo de _anchor_item_base_amounts_ve (Python) —
+// mantener en sync. Los precios y plantillas NO cambian.
+// ------------------------------------------------------------------ //
+
+const __ve_original_calculate_net_total =
+  erpnext.taxes_and_totals.prototype.calculate_net_total;
+
+erpnext.taxes_and_totals.prototype.calculate_net_total = function () {
+  this._anchor_item_base_amounts_ve();
+  __ve_original_calculate_net_total.apply(this);
+};
+
+erpnext.taxes_and_totals.prototype._anchor_item_base_amounts_ve = function () {
+  // Total gravado anclado (con IVA) en Bs — lo consume el recalc del IVA
+  // por diferencia (exactitud por construcción). null = ancla no aplicada.
+  this._ve_anchored_taxable_total_bs = null;
+
+  if (!this._is_multicurrency()) return;
+
+  // El método viaja en el boot (se refresca al recargar la página)
+  if (frappe.boot.tax_calculation_method !== "Desde el total de la factura") {
+    return;
+  }
+
+  const conversion_rate = flt(this.frm.doc.conversion_rate);
+  if (!conversion_rate) return;
+
+  // Tasa de IVA efectiva del documento (filas VAT aditivas, no retención)
+  let vat_rate = 0;
+  (this.frm.doc.taxes || []).forEach((tax) => {
+    if (
+      tax.charge_type === "VAT" &&
+      !cint(tax.is_tax_withholding_account) &&
+      (tax.add_deduct_tax || "Add") !== "Deduct" &&
+      (tax.category || "Total") !== "Valuation"
+    ) {
+      vat_rate += flt(tax.rate);
+    }
+  });
+  if (!vat_rate) return;
+
+  const factor = 1 + vat_rate / 100.0;
+  let anchored_total_bs = 0;
+
+  (this.frm.doc.items || []).forEach((item) => {
+    if (cint(item.vat_exempt)) return;
+
+    [
+      ["amount", "base_amount", "base_rate"],
+      ["net_amount", "base_net_amount", "base_net_rate"],
+    ].forEach(([src, base_field, base_rate_field]) => {
+      const amount_usd = flt(item[src]);
+      // Total comercial del ítem redondeado (25,86 x 1,16 = 29,9976 -> 30,00)
+      const total_usd = flt(amount_usd * factor, precision(src, item));
+      const total_bs = flt(total_usd * conversion_rate, precision(base_field, item));
+      item[base_field] = flt(total_bs / factor, precision(base_field, item));
+      if (item.qty) {
+        item[base_rate_field] = flt(
+          item[base_field] / item.qty,
+          precision(base_rate_field, item),
+        );
+      }
+      if (base_field === "base_net_amount") {
+        anchored_total_bs += total_bs;
+      }
+    });
+  });
+
+  this._ve_anchored_taxable_total_bs = flt(anchored_total_bs, 2);
+};

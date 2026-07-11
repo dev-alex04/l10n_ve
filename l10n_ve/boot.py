@@ -15,6 +15,14 @@ def get_boot_info(bootinfo: dict) -> None:
         bootinfo.tfhka_enabled = False
 
     try:
+        bootinfo.tax_calculation_method = frappe.get_cached_value(
+            "Venezuela Account Settings", "Venezuela Account Settings",
+            "tax_calculation_method",
+        ) or ""
+    except Exception:
+        bootinfo.tax_calculation_method = ""
+
+    try:
         from l10n_ve.utils.utils import get_exchange_rate
         bootinfo.today_exchange_rate = get_exchange_rate(nowdate(), "USD")
     except Exception:

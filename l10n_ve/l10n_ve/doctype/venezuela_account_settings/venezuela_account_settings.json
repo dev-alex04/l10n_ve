@@ -9,7 +9,11 @@
   "subtracting_calculation_factor",
   "mt_currency",
   "column_break_xsos",
-  "igtf_rate"
+  "igtf_rate",
+  "section_break_tax_calc",
+  "tax_calculation_method",
+  "column_break_tax_calc",
+  "tax_calculation_method_help"
  ],
  "fields": [
   {
@@ -38,6 +42,28 @@
    "fieldtype": "Link",
    "label": "Currency M.T",
    "options": "Currency"
+  },
+  {
+   "fieldname": "section_break_tax_calc",
+   "fieldtype": "Section Break",
+   "label": "Cálculo de Impuestos"
+  },
+  {
+   "description": "Los precios siempre se cargan como base imponible; el método solo cambia cómo se deriva el cálculo fiscal (Bs). Aplica a venta y compra. Sin método definido, el sistema bloqueará el cálculo de documentos con impuestos.",
+   "fieldname": "tax_calculation_method",
+   "fieldtype": "Select",
+   "label": "Método de cálculo de Impuestos",
+   "options": "Desde la base imponible\nDesde el total de la factura",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_tax_calc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tax_calculation_method_help",
+   "fieldtype": "HTML",
+   "options": ""
   }
  ],
  "grid_page_length": 50,

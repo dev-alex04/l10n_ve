@@ -17,7 +17,7 @@ _ISLR_INVOICE_FIELDS: list[str] = [
     "name", "bill_no", "bill_control", "posting_date",
     "grand_total", "total", "base_total", "base_grand_total",
     "outstanding_amount", "affected_invoice_number",
-    "conversion_rate", "currency",
+    "conversion_rate", "currency", "branch",
 ]
 
 _DOCTYPE_CONFIG: dict[str, tuple[str, bool]] = {
@@ -30,6 +30,16 @@ _DOCTYPE_CONFIG: dict[str, tuple[str, bool]] = {
 class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
     def validate(self) -> None:
+        if not self.branch:
+            branches = set()
+            for item in self.get("islr_withholding_voucher_item") or []:
+                if item.purchase_invoice and item.purchase_invoice_type:
+                    br = frappe.db.get_value(item.purchase_invoice_type, item.purchase_invoice, "branch")
+                    if br:
+                        branches.add(br)
+            if len(branches) == 1:
+                self.branch = list(branches)[0]
+
         self.validate_address()
         self.validate_unique_voucher_number()
         self.validate_no_duplicate_invoices()
@@ -415,6 +425,7 @@ def _build_islr_row(
         "affected_invoice_number": invoice.affected_invoice_number,
         "paid_amount": paid_amount,
         "is_return": 1 if is_return else 0,
+        "branch": invoice.branch,
     }
 
 
@@ -500,6 +511,16 @@ def make_islr_withholding_voucher(source_name: str) -> dict:
             _("La factura no tiene conceptos de ISLR aplicados "
               "(botón 'Agregar ISLR' en la factura antes de validarla).")
         )
+
+    # Fail-closed TEMPRANO: sin serie digital activa para la sucursal se aborta
+    # ANTES de crear el comprobante — no consumir correlativo de la Company ni
+    # dejar un comprobante aprobado atascado en Error reintentándose en el cron.
+    from l10n_ve.digital_invoice.retention_integration import _validate_digital_series
+    series_errors = _validate_digital_series(
+        frappe._dict(empresa=invoice.company, branch=invoice.get("branch") or "")
+    )
+    if series_errors:
+        frappe.throw(series_errors[0], title=_("Serie de Facturación No Encontrada"))
 
     doc = frappe.new_doc("ISLR Withholding Voucher")
     doc.empresa = invoice.company

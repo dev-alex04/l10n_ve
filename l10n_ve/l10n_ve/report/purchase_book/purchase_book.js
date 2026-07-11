@@ -23,8 +23,12 @@ function download_base64_file(filename, base64Content, mimeType) {
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
-  document.body.removeChild(a);
+
+  // Cleanup con delay. Revocamos el URL para evitar fugas de memoria
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
 }
 
 function _load_company_info(report) {
@@ -226,7 +230,8 @@ function _export_excel(report, method) {
         frappe.throw(__("No se pudo generar el archivo de Excel."));
       }
     },
-    error: function () {
+    error: function (err) {
+      console.error("Error en frappe.call:", err);
       frappe.dom.unfreeze();
       frappe.throw(
         __(

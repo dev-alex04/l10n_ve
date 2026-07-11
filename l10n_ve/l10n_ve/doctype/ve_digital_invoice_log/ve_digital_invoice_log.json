@@ -83,13 +83,14 @@
   }
  ],
  "grid_page_length": 50,
+ "in_create": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-11 08:13:40.907290",
+ "modified": "2026-07-08 08:22:31.978954",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Digital Invoice Log",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
