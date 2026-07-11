@@ -55,8 +55,7 @@
    "fieldtype": "Select",
    "label": "M\u00e9todo de c\u00e1lculo de Impuestos",
    "options": "Desde el total de la factura\nDesde la base imponible",
-   "reqd": 1,
-   "set_only_once": 1
+   "reqd": 1
   },
   {
    "fieldname": "column_break_tax_calc",
@@ -71,7 +70,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-11 00:27:15.644433",
+ "modified": "2026-07-11 00:55:22.250544",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "Venezuela Account Settings",
