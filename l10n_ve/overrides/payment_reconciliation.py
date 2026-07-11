@@ -32,6 +32,8 @@ try:
         find_consumed_deposit,
         find_unsubmitted_deposit,
         find_duplicate_deposits,
+        find_consumed_deposit,
+        find_unsubmitted_deposit,
         _apply_deposit_amount,
         reconcile_and_approve,
         _link_deposit_to_payment,
@@ -69,6 +71,8 @@ except ImportError:
     find_consumed_deposit = lambda *a, **k: None
     find_unsubmitted_deposit = lambda *a, **k: None
     find_duplicate_deposits = lambda *a, **k: None
+    find_consumed_deposit = lambda *a, **k: None
+    find_unsubmitted_deposit = lambda *a, **k: None
     _apply_deposit_amount = lambda *a, **k: None
     reconcile_and_approve = lambda *a, **k: None
     _link_deposit_to_payment = lambda *a, **k: None

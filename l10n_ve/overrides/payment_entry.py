@@ -185,6 +185,10 @@ class CustomPaymentEntry(PaymentEntry):
         for si_data in hka_invoices:
             if not si_data.remarks or "imprentaDigital" not in si_data.remarks:
                 continue
+            
+            # Si no tiene bill_no, significa que la factura quedó 'Por Emitir' a pesar de los remarks
+            if not si_data.bill_no:
+                continue
 
             # Nueva excepción: Permitir cancelación si existe una Nota de Crédito o de Débito aprobada
             # o si existe una factura de devolución estándar de ERPNext
