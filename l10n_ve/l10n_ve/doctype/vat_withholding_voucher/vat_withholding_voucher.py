@@ -21,19 +21,19 @@ _DOC_FIELDS: dict[str, list[str]] = {
         "base_grand_total", "base_total", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "is_return", "is_debit_note",
-        "credit_note_no", "debit_note_no", "affected_invoice_number",
+        "credit_note_no", "debit_note_no", "affected_invoice_number", "branch",
     ],
     "VE Purchase Credit Note": [
         "name", "bill_no", "bill_control", "posting_date",
         "base_grand_total", "base_total", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
-        "affected_invoice_number",
+        "affected_invoice_number", "branch",
     ],
     "VE Purchase Debit Note": [
         "name", "bill_no", "bill_control", "posting_date",
         "base_grand_total", "base_total", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
-        "affected_invoice_number",
+        "affected_invoice_number", "branch",
     ],
 }
 
@@ -41,6 +41,16 @@ _DOC_FIELDS: dict[str, list[str]] = {
 class VATWithholdingVoucher(Document, WithholdingVoucher):
 
     def validate(self) -> None:
+        if not self.branch:
+            branches = set()
+            for item in self.get("vat_withholding_voucher_item") or []:
+                if item.purchase_invoice and item.purchase_invoice_type:
+                    br = frappe.db.get_value(item.purchase_invoice_type, item.purchase_invoice, "branch")
+                    if br:
+                        branches.add(br)
+            if len(branches) == 1:
+                self.branch = list(branches)[0]
+
         self.validate_address()
         self.validate_fiscal_period()
         self.validate_unique_voucher_number()
@@ -471,10 +481,10 @@ def _build_invoice_row(
         "debit_note_no": inv.bill_no if is_nd else inv.get("debit_note_no"),
         "affected_invoice_number": inv.affected_invoice_number,
         "is_return": 1 if is_nc else inv.get("is_return", 0),
-        "is_debit_note": 1 if is_nd else inv.get("is_debit_note", 0),
         "rate": vat_details.get("rate", 0),
         "withholding_rate": abs(wh_details.get("withholding_rate", 0)),
         "tax_amount_vat": abs(wh_details.get("base_tax_amount", 0)),
+        "branch": inv.branch,
     }
 
 

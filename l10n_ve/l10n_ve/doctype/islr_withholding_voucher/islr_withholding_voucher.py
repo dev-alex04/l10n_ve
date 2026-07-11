@@ -17,7 +17,7 @@ _ISLR_INVOICE_FIELDS: list[str] = [
     "name", "bill_no", "bill_control", "posting_date",
     "grand_total", "total", "base_total", "base_grand_total",
     "outstanding_amount", "affected_invoice_number",
-    "conversion_rate", "currency",
+    "conversion_rate", "currency", "branch",
 ]
 
 _DOCTYPE_CONFIG: dict[str, tuple[str, bool]] = {
@@ -30,6 +30,16 @@ _DOCTYPE_CONFIG: dict[str, tuple[str, bool]] = {
 class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
     def validate(self) -> None:
+        if not self.branch:
+            branches = set()
+            for item in self.get("islr_withholding_voucher_item") or []:
+                if item.purchase_invoice and item.purchase_invoice_type:
+                    br = frappe.db.get_value(item.purchase_invoice_type, item.purchase_invoice, "branch")
+                    if br:
+                        branches.add(br)
+            if len(branches) == 1:
+                self.branch = list(branches)[0]
+
         self.validate_address()
         self.validate_unique_voucher_number()
         self.validate_no_duplicate_invoices()
@@ -415,6 +425,7 @@ def _build_islr_row(
         "affected_invoice_number": invoice.affected_invoice_number,
         "paid_amount": paid_amount,
         "is_return": 1 if is_return else 0,
+        "branch": invoice.branch,
     }
 
 
