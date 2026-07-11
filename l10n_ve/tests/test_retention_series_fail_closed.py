@@ -57,11 +57,17 @@ class TestValidateDigitalSeries(FrappeTestCase):
 
     def test_missing_series_returns_error(self) -> None:
         """Sucursal sin serie activa → lista con el mensaje del throw."""
-        with patch(_GET_SERIES, side_effect=_throw_no_series):
+        with patch(_GET_SERIES, side_effect=_throw_no_series) as mock_series:
             errors = _validate_digital_series(self.doc)
 
         self.assertEqual(len(errors), 1)
         self.assertIn("no está configurada en ninguna", errors[0])
+        # Pinnear que el mock interceptó de verdad (el patch depende del import
+        # diferido dentro de _validate_digital_series; si alguien sube el import
+        # al tope del módulo, esto lo detecta en vez de pasar en silencio).
+        mock_series.assert_called_once_with(
+            company="Galanet Solution C.A.", branch="HQ"
+        )
 
     def test_missing_series_clears_zombie_message(self) -> None:
         """El msgprint encolado por el throw tragado se desencola."""
@@ -72,24 +78,25 @@ class TestValidateDigitalSeries(FrappeTestCase):
 
     def test_resolved_series_returns_no_errors(self) -> None:
         """Serie resuelta → sin errores."""
-        with patch(_GET_SERIES, side_effect=_resolve_series):
+        with patch(_GET_SERIES, side_effect=_resolve_series) as mock_series:
             errors = _validate_digital_series(self.doc)
 
         self.assertEqual(errors, [])
+        mock_series.assert_called_once_with(
+            company="Galanet Solution C.A.", branch="HQ"
+        )
 
     def test_missing_branch_returns_error(self) -> None:
-        """Sin sucursal → get_active_billing_series lanza y el error se reporta."""
+        """Sin sucursal → el guard REAL de get_active_billing_series lanza
+        (sin mock: con branch vacío lanza antes de tocar la BD) y el error
+        se reporta fail-closed."""
         doc = frappe._dict(empresa="Galanet Solution C.A.", branch="")
 
-        def _throw_no_branch(**kwargs):
-            if not kwargs.get("branch"):
-                frappe.throw("La factura no tiene una sucursal asignada.")
-            return _resolve_series(**kwargs)
-
-        with patch(_GET_SERIES, side_effect=_throw_no_branch):
-            errors = _validate_digital_series(doc)
+        errors = _validate_digital_series(doc)
 
         self.assertEqual(len(errors), 1)
+        self.assertIn("sucursal", errors[0])
+        self.assertEqual(len(frappe.local.message_log), 0)
 
 
 class TestIntegrityValidatorsIncludeSeries(FrappeTestCase):
@@ -171,3 +178,141 @@ class TestLoadSeriesZombieMessage(FrappeTestCase):
 
         self.assertEqual(builder._serie, "HQ")
         self.assertEqual(builder._branch_code, "HQ")
+
+
+class TestGetActiveBillingSeries(FrappeTestCase):
+    """El guard REAL de resolución de serie (la causa raíz del incidente:
+    match por child.branch EXACTO — 'HQ' ≠ 'GALANET HQ')."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        frappe.clear_messages()
+
+    def tearDown(self) -> None:
+        frappe.clear_messages()
+        super().tearDown()
+
+    def test_empty_branch_throws_without_touching_db(self) -> None:
+        """Branch vacío → throw ANTES de consultar la BD."""
+        from l10n_ve.digital_invoice.tfhka_integration import get_active_billing_series
+
+        with patch.object(frappe.db, "sql") as mock_sql:
+            with self.assertRaises(frappe.ValidationError):
+                get_active_billing_series(company="Galanet Solution C.A.", branch="")
+        mock_sql.assert_not_called()
+
+    def test_unmatched_branch_throws_with_branch_in_message(self) -> None:
+        """Escenario del incidente: la fila de la serie dice 'GALANET HQ' pero el
+        comprobante trae 'HQ' → el match exacto no resuelve → throw con la
+        sucursal en el mensaje (fail-closed, no serie vacía)."""
+        from l10n_ve.digital_invoice.tfhka_integration import get_active_billing_series
+
+        with patch.object(frappe.db, "sql", return_value=[]) as mock_sql:
+            with self.assertRaises(frappe.ValidationError) as ctx:
+                get_active_billing_series(
+                    company="Galanet Solution C.A.", branch="HQ"
+                )
+        self.assertIn("'HQ'", str(ctx.exception))
+        mock_sql.assert_called_once()
+
+    def test_matched_row_returns_series_doc_and_branch_code(self) -> None:
+        """Fila resuelta → (series_doc, branch_code de la tabla hija)."""
+        from l10n_ve.digital_invoice.tfhka_integration import get_active_billing_series
+
+        row = [{"series_name": "SFD-2026-0007", "branch_code": "HQ01"}]
+        fake_series = MagicMock()
+        with patch.object(frappe.db, "sql", return_value=row), \
+             patch("frappe.get_doc", return_value=fake_series) as mock_get:
+            series_doc, branch_code = get_active_billing_series(
+                company="Galanet Solution C.A.", branch="GALANET HQ"
+            )
+
+        self.assertIs(series_doc, fake_series)
+        self.assertEqual(branch_code, "HQ01")
+        mock_get.assert_called_once_with("VE Digital Billing Series", "SFD-2026-0007")
+
+
+class TestProcessRetentionVoucherGate(FrappeTestCase):
+    """Enforcement e2e del carril IVA: process_retention_voucher NO emite si la
+    validación pre-envío falla (espejo del test análogo de ISLR — revertir el
+    gate reabre el incidente aunque _validate_digital_series siga existiendo)."""
+
+    _MOD = "l10n_ve.digital_invoice.retention_integration"
+
+    def setUp(self) -> None:
+        super().setUp()
+        frappe.clear_messages()
+
+    def tearDown(self) -> None:
+        frappe.clear_messages()
+        super().tearDown()
+
+    def _run(self, raise_on_error: bool):
+        fake_doc = MagicMock()
+        with patch("frappe.get_doc", return_value=fake_doc), \
+             patch(f"{self._MOD}._validate_retention_integrity",
+                   return_value=[_NO_SERIES_MSG]) as mock_validate, \
+             patch(f"{self._MOD}._log_retention_request") as mock_log, \
+             patch(f"{self._MOD}.TFHKAClient") as mock_client, \
+             patch(f"{self._MOD}.TFHKARetentionPayloadBuilder") as mock_builder, \
+             patch.object(frappe.db, "commit"):
+            from l10n_ve.digital_invoice.retention_integration import (
+                process_retention_voucher,
+            )
+            if raise_on_error:
+                with self.assertRaises(frappe.ValidationError) as ctx:
+                    process_retention_voucher("COMP-RET-IVA-TEST", raise_on_error=True)
+                result = ctx
+            else:
+                result = process_retention_voucher("COMP-RET-IVA-TEST")
+        return result, fake_doc, mock_validate, mock_log, mock_client, mock_builder
+
+    def test_validation_error_blocks_emission(self) -> None:
+        """Cron (raise_on_error=False): error de validación → False, estado
+        Error, log registrado, y NI el builder NI el cliente HKA se tocan."""
+        result, doc, mock_validate, mock_log, mock_client, mock_builder = self._run(
+            raise_on_error=False
+        )
+
+        self.assertFalse(result)
+        mock_validate.assert_called_once()
+        doc.db_set.assert_called_once_with("digital_invoice_status", "Error")
+        mock_log.assert_called_once()
+        mock_builder.assert_not_called()
+        mock_client.assert_not_called()
+
+    def test_validation_error_raises_for_manual_button(self) -> None:
+        """Botón manual (raise_on_error=True): error de validación → throw
+        con el mensaje, sin tocar HKA."""
+        ctx, doc, _, _, mock_client, mock_builder = self._run(raise_on_error=True)
+
+        self.assertIn("no está configurada en ninguna", str(ctx.exception))
+        doc.db_set.assert_called_once_with("digital_invoice_status", "Error")
+        mock_builder.assert_not_called()
+        mock_client.assert_not_called()
+
+
+class TestBuildPayloadFailClosed(FrappeTestCase):
+    """Defensa en profundidad: el builder NUNCA arma un payload con serie vacía,
+    aunque un caller futuro se salte la validación pre-envío."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        frappe.clear_messages()
+
+    def tearDown(self) -> None:
+        frappe.clear_messages()
+        super().tearDown()
+
+    def test_empty_serie_blocks_build_payload(self) -> None:
+        """Serie vacía (el builder tragó el error) → build_payload lanza."""
+        doc = frappe._dict(
+            name="COMP-RET-IVA-TEST", empresa="Galanet Solution C.A.", branch="HQ"
+        )
+        with patch(_GET_SERIES, side_effect=_throw_no_series):
+            builder = BaseRetentionPayloadBuilder(doc)
+
+        self.assertEqual(builder._serie, "")
+        with self.assertRaises(frappe.ValidationError) as ctx:
+            builder.build_payload()
+        self.assertIn("serie vacía", str(ctx.exception))

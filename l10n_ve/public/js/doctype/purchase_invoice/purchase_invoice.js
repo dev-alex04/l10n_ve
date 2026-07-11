@@ -486,10 +486,12 @@ function setup_debit_note_button(frm) {
 
 /**
  * Botones "Comprobante Retención IVA/ISLR" en el grupo "Create".
- * Crean el comprobante por debajo (guardado, en borrador) con las líneas
+ * Crean, APRUEBAN (submit) y emiten a HKA el comprobante con las líneas
  * de esta factura, calculadas por el mismo get_valid_invoices del
  * formulario del comprobante, y avisan con el enlace sin salir de la
- * factura. Cada botón solo aparece si la factura tiene la retención
+ * factura. Si la emisión a HKA falla, el comprobante queda aprobado en
+ * estado Error (el cron lo reintenta si el auto-envío está activo).
+ * Cada botón solo aparece si la factura tiene la retención
  * correspondiente en la tabla de impuestos; el servidor re-valida.
  */
 function setup_withholding_voucher_buttons(frm) {
@@ -511,13 +513,28 @@ function setup_withholding_voucher_buttons(frm) {
         freeze_message: __("Generando y emitiendo comprobante de retención..."),
         callback: function (r) {
           const result = r.message;
-          if (!result) return;
-          const link = frappe.utils.get_form_link(doctype, result.voucher, true);
+          if (!result) {
+            // Respuesta sin payload (p.ej. truncada): avisar en vez de un
+            // no-op mudo, para evitar un doble clic a ciegas.
+            frappe.msgprint({
+              title: __("Sin respuesta del servidor"),
+              message: __(
+                "No se recibió confirmación. Verifique en la lista de comprobantes " +
+                  "de retención si el documento fue creado antes de reintentar.",
+              ),
+              indicator: "orange",
+            });
+            return;
+          }
 
           if (result.emitted) {
-            // Enlace con el N° de comprobante (HKA) como texto, no el name
+            // Enlace con el N° de comprobante (HKA) como texto, no el name.
+            // Valores de la respuesta de HKA: escapar antes de insertar en HTML.
             const route = `/app/${frappe.router.slug(doctype)}/${encodeURIComponent(result.voucher)}`;
-            const number_link = `<a href="${route}"><b>${result.voucher_number}</b></a>`;
+            const number_text = frappe.utils.escape_html(
+              result.voucher_number || result.voucher,
+            );
+            const number_link = `<a href="${route}"><b>${number_text}</b></a>`;
             frappe.msgprint({
               title: __("Comprobante emitido"),
               message:
@@ -525,17 +542,22 @@ function setup_withholding_voucher_buttons(frm) {
                   number_link,
                 ]) +
                 (result.bill_control
-                  ? "<br>" + __("N° de Control: <b>{0}</b>", [result.bill_control])
+                  ? "<br>" +
+                    __("N° de Control: <b>{0}</b>", [
+                      frappe.utils.escape_html(result.bill_control),
+                    ])
                   : ""),
               indicator: "green",
             });
           } else {
+            const link = frappe.utils.get_form_link(doctype, result.voucher, true);
             frappe.msgprint({
               title: __("Comprobante creado — emisión pendiente"),
               message:
                 __(
                   "El comprobante {0} fue creado y aprobado, pero la emisión a HKA falló. " +
-                    "El sistema la reintentará automáticamente.",
+                    "Quedará pendiente de emisión: puede reintentarla desde el comprobante " +
+                    "(o la reintenta el envío automático, si está activo).",
                   [link],
                 ) +
                 (result.error

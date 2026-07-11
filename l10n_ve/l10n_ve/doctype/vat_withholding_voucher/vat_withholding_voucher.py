@@ -573,6 +573,16 @@ def make_vat_withholding_voucher(source_name: str) -> dict:
               "(fila 'VAT Withholding' en la tabla de impuestos).")
         )
 
+    # Fail-closed TEMPRANO: sin serie digital activa para la sucursal se aborta
+    # ANTES de crear el comprobante — no consumir correlativo de la Company ni
+    # dejar un comprobante aprobado atascado en Error reintentándose en el cron.
+    from l10n_ve.digital_invoice.retention_integration import _validate_digital_series
+    series_errors = _validate_digital_series(
+        frappe._dict(empresa=invoice.company, branch=invoice.get("branch") or "")
+    )
+    if series_errors:
+        frappe.throw(series_errors[0], title=_("Serie de Facturación No Encontrada"))
+
     doc = frappe.new_doc("VAT Withholding Voucher")
     doc.empresa = invoice.company
     doc.supplier = invoice.supplier

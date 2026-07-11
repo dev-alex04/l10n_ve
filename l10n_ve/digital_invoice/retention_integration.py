@@ -222,6 +222,10 @@ def process_retention_voucher(
             notes=error_msg,
         )
         doc.db_set("digital_invoice_status", "Error")
+        # Persistir estado+log antes del throw (el throw hace rollback del
+        # request y sin esto se pierde la traza de auditoría del intento
+        # fallido). Paridad con el módulo ISLR.
+        frappe.db.commit()
         if raise_on_error:
             frappe.throw(error_msg)
         return False
@@ -245,6 +249,8 @@ def process_retention_voucher(
             notes=error_msg,
         )
         doc.db_set("digital_invoice_status", "Error")
+        # Persistir estado+log antes del throw (paridad con el módulo ISLR).
+        frappe.db.commit()
         if raise_on_error:
             frappe.throw(error_msg)
         return False
