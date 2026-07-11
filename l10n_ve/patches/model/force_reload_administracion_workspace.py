@@ -17,7 +17,7 @@ def execute():
     frappe.db.delete("Workspace", {"name": workspace_name})
 
     # Reload from the app workspace JSON configuration file
-    frappe.reload_doc("l10n_ve", "workspace", "administracion", force=True)
+    frappe.reload_doc("l10n_ve", "workspace", "administración", force=True)
 
     # Clear workspace cache to force UI refresh
     frappe.clear_cache(doctype="Workspace")
