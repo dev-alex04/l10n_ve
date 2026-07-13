@@ -1974,7 +1974,7 @@
         "modified": "2025-09-02 00:00:00",
         "module": "L10N Ve",
         "name": "Sales Taxes and Charges-is_tax_withholding_account",
-        "no_copy": 0,
+        "no_copy": 1,
         "non_negative": 0,
         "options": null,
         "permlevel": 0,

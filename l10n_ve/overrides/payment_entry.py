@@ -221,7 +221,7 @@ class CustomPaymentEntry(PaymentEntry):
                 _(
                     "No se puede cancelar este pago porque la factura {0} "
                     "(Control: <b>{1}</b>) ya fue enviada a la imprenta "
-                    "digital (TFHKA) y tiene IGTF asociado. Cancelar el pago dejaría"
+                    "digital (TFHKA) y tiene IGTF asociado. Cancelar el pago dejaría "
                     "un monto pendiente distinto al reportado al SENIAT.<br><br>"
                     "Para revertir, emita una <b>Nota de Crédito</b>."
                 ).format(si_link, si_data.bill_control or "—"),

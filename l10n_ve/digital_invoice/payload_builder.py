@@ -882,7 +882,7 @@ class TFHKAPayloadBuilder:
         nota_periodo = notes or periodo_default
 
         periodo: str = ""
-        if subscription_name and not notes:
+        if subscription_name:
             try:
                 sub = frappe.get_cached_doc("Subscription", subscription_name)
                 if sub.current_invoice_start and sub.current_invoice_end:
