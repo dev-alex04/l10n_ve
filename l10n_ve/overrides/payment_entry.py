@@ -154,12 +154,14 @@ class CustomPaymentEntry(PaymentEntry):
         """
         Bloquea la cancelación del Payment Entry si alguna de sus
         referencias es una Sales Invoice que ya fue enviada a la
-        imprenta digital (TFHKA/HKA).
+        imprenta digital (TFHKA/HKA) siempre que este pago tenga IGTF.
 
-        Regla de negocio: una vez que la factura fue reportada al
-        SENIAT vía HKA, modificar su outstanding cancelando pagos
-        genera inconsistencia fiscal. La reversión debe hacerse
-        mediante Nota de Crédito.
+        Regla de negocio: sin IGTF, cancelar el pago no altera lo ya
+        reportado a HKA/SENIAT (el total de la factura legal sigue
+        coincidiendo con el sistema; el cobro pasa a ser un tema de
+        tesorería). Con IGTF, cancelar dejaría un monto de IGTF
+        distinto al ya registrado por HKA, por lo que la reversión
+        debe hacerse mediante Nota de Crédito.
 
         Excepción: Si la factura tiene una Nota de Crédito o de Débito
         aprobada (docstatus = 1), se permite la cancelación del pago.
@@ -168,6 +170,17 @@ class CustomPaymentEntry(PaymentEntry):
         con la clave 'imprentaDigital'. Facturas con numeración interna
         (bill_no asignado manualmente) NO son bloqueadas.
         """
+
+        has_igtf_in_payment = False
+        if self.get("taxes"):
+            for tax in self.get("taxes"):
+                if tax.charge_type == "IGTF" and flt(tax.tax_amount) > 0:
+                    has_igtf_in_payment = True
+                    break
+
+        if not has_igtf_in_payment:
+            return
+
         si_refs: list[str] = [
             ref.reference_name for ref in self.get("references") or []
             if ref.reference_doctype == "Sales Invoice"
@@ -210,8 +223,8 @@ class CustomPaymentEntry(PaymentEntry):
                 _(
                     "No se puede cancelar este pago porque la factura {0} "
                     "(Control: <b>{1}</b>) ya fue enviada a la imprenta "
-                    "digital (TFHKA). Cancelar el pago descuadraría el "
-                    "monto pendiente reportado al SENIAT.<br><br>"
+                    "digital (TFHKA) y tiene IGTF asociado. Cancelar el pago dejaría "
+                    "un monto de IGTF distinto al reportado al SENIAT.<br><br>"
                     "Para revertir, emita una <b>Nota de Crédito</b>."
                 ).format(si_link, si_data.bill_control or "—"),
                 title=_("Cancelación Bloqueada — Factura Digital"),

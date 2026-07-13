@@ -781,10 +781,10 @@ class TFHKAPayloadBuilder:
         return detalles
 
     def _resolve_zona_and_nodo(self) -> tuple:
-        """Resuelve Zona (territory del customer) y Nodo (via subscription → router → ISP Nodes).
+        """Resuelve Zona (territory del customer) y Nodo (el Nodo es dominio ISP, lo provee domina_isp vía monkeypatch).
 
         Para VE Sales Credit Note (sin campo subscription), intenta heredar
-        la suscripción desde la factura original (return_against).
+        el número de factura original (bill_no) para reportarlo.
         Usa get_cached_doc para minimizar queries SQL en envíos masivos.
         """
         zona: Optional[str] = None
@@ -799,38 +799,13 @@ class TFHKAPayloadBuilder:
         if not zona:
             zona = resolve_zone_from_address(self.doc.customer, self.doc.get("customer_address"))
 
-        subscription_name: Optional[str] = self.doc.get("subscription")
-
-        if not subscription_name and self.doc.get("return_against"):
-            si_data = frappe.db.get_value(
+        if not self.doc.get("subscription") and self.doc.get("return_against"):
+            bill_no = frappe.db.get_value(
                 "Sales Invoice",
                 self.doc.return_against,
-                ["subscription", "bill_no"],
-                as_dict=True,
+                "bill_no"
             )
-            if si_data:
-                subscription_name = si_data.get("subscription")
-                self._bill_no_original: str = si_data.get("bill_no") or ""
-
-        if not subscription_name:
-            return zona, nodo
-
-        service_row = next(
-            (row for row in (customer_doc.get("internet_services") or [])
-             if row.subscription == subscription_name),
-            None
-        )
-        if not service_row or not service_row.router:
-            return zona, nodo
-
-        try:
-            nodo = frappe.db.get_value(
-                "ISP Node Routers",
-                {"router": service_row.router},
-                "parent"
-            )
-        except Exception:
-            pass
+            self._bill_no_original = bill_no or ""
 
         return zona, nodo
 
@@ -876,7 +851,10 @@ class TFHKAPayloadBuilder:
         # Generar periodo en "Nota" basado en posting_date
         meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
         fecha_contab = getdate(doc.posting_date)
-        nota_periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+
+        notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
+        periodo_default = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+        nota_periodo = notes or periodo_default
 
         periodo: str = ""
         if subscription_name:
@@ -911,9 +889,6 @@ class TFHKAPayloadBuilder:
         if not self.zona:
             frappe.throw("El cliente no tiene asignada una 'Zona', campo requerido para HKA.")
 
-        if not self.nodo:
-            frappe.throw("El cliente no tiene asignado un 'Nodo', campo requerido para HKA.")
-
         serie: str = getattr(self.series_doc, "serie", "") or ""
         if not serie:
             frappe.throw(
@@ -928,14 +903,14 @@ class TFHKAPayloadBuilder:
         dict_pdf = {"DireccionServicio": direccion_servicio}
         dict_pdf["Serie"] = serie
         dict_pdf["TasaCambio"] = tasa_bcv
-        dict_pdf["Periodo"] = periodo if periodo else f"Desde {nota_periodo}"
+        dict_pdf["Periodo"] = periodo if periodo else f"Desde {periodo_default}"
 
         bill_no_original: str = getattr(self, "_bill_no_original", "")
         if bill_no_original:
             dict_pdf["FacturaOriginal"] = bill_no_original
 
         dict_pdf["Zona"] = self.zona
-        dict_pdf["Nodo"] = self.nodo
+        dict_pdf["Nodo"] = self.nodo or ""
         dict_pdf["IdServicio"] = id_servicio
         dict_pdf["Nota"] = nota_periodo
         dict_pdf["coletilla2"] = f"{coletilla_a} {coletilla_b}"

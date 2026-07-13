@@ -749,16 +749,11 @@ def process_invoice(
                 )
             return False
 
-        # Para NC y ND no se valida zona/nodo (no tienen suscripción asociada)
+        # Para NC y ND no se valida la zona (no tienen suscripción asociada)
         if not skip_si_validations:
-            if not builder.zona or not builder.nodo:
-                missing = []
-                if not builder.zona:
-                    missing.append("Zona (territory del cliente)")
-                if not builder.nodo:
-                    missing.append("Nodo (router/nodo del servicio)")
+            if not builder.zona:
                 notes = (
-                    f"No se pudo resolver: {', '.join(missing)}. "
+                    f"No se pudo resolver: Zona (territory del cliente). "
                     f"Cliente: {doc.customer}, Suscripción: {doc.get('subscription') or '-'}"
                 )
                 _set_hka_status(doc.doctype, doc.name, "Error")
@@ -939,22 +934,17 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         doc.customer, doc.get("customer_address")
     ) or ""
     nodo: str = ""
-    subscription_name: str = doc.get("subscription") or ""
-    if subscription_name:
-        service_row = next(
-            (r for r in (customer.get("internet_services") or [])
-             if r.subscription == subscription_name),
-            None
-        )
-        if service_row and service_row.router:
-            nodo = frappe.db.get_value(
-                "ISP Node Routers", {"router": service_row.router}, "parent"
-            ) or ""
 
     meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
              "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
     fecha_contab = getdate(doc.posting_date)
-    periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+    notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
+
+    # Espeja el payload real (dict_pdf en payload_builder): la nota del usuario
+    # solo reemplaza "Nota"; "Periodo" conserva el rango de la suscripción.
+    periodo_default: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+    nota: str = notes or periodo_default
+    periodo: str = periodo_default
     if subscription_name:
         try:
             sub = frappe.get_cached_doc("Subscription", subscription_name)
@@ -1032,6 +1022,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "zona": zona,
         "nodo": nodo,
         "periodo": periodo,
+        "nota": nota,
         "tasa_bcv": "{:.4f}".format(tc),
         "tasa_fecha": fecha_bcv.strftime("%d/%m/%Y"),
         "items": items_data,
