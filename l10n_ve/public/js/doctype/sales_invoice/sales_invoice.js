@@ -744,6 +744,7 @@ function show_hka_preview_dialog(frm, d) {
             <div class="hka-preview__field"><label>Zona</label><span>${frappe.utils.escape_html(d.zona || "—")}</span></div>
             <div class="hka-preview__field"><label>Nodo</label><span>${frappe.utils.escape_html(d.nodo || "—")}</span></div>
             <div class="hka-preview__field"><label>Período</label><span class="accent">${frappe.utils.escape_html(d.periodo)}</span></div>
+            <div class="hka-preview__field"><label>Nota</label><span class="accent">${frappe.utils.escape_html(d.nota || "—")}</span></div>
           </div>
         </div>
 

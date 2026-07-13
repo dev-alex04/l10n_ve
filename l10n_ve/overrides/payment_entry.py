@@ -156,10 +156,12 @@ class CustomPaymentEntry(PaymentEntry):
         referencias es una Sales Invoice que ya fue enviada a la
         imprenta digital (TFHKA/HKA) siempre que este pago tenga IGTF.
 
-        Regla de negocio: una vez que la factura fue reportada al
-        SENIAT vía HKA, modificar su outstanding cancelando pagos
-        genera inconsistencia fiscal. La reversión debe hacerse
-        mediante Nota de Crédito.
+        Regla de negocio: sin IGTF, cancelar el pago no altera lo ya
+        reportado a HKA/SENIAT (el total de la factura legal sigue
+        coincidiendo con el sistema; el cobro pasa a ser un tema de
+        tesorería). Con IGTF, cancelar dejaría un monto de IGTF
+        distinto al ya registrado por HKA, por lo que la reversión
+        debe hacerse mediante Nota de Crédito.
 
         Excepción: Si la factura tiene una Nota de Crédito o de Débito
         aprobada (docstatus = 1), se permite la cancelación del pago.
@@ -222,7 +224,7 @@ class CustomPaymentEntry(PaymentEntry):
                     "No se puede cancelar este pago porque la factura {0} "
                     "(Control: <b>{1}</b>) ya fue enviada a la imprenta "
                     "digital (TFHKA) y tiene IGTF asociado. Cancelar el pago dejaría "
-                    "un monto pendiente distinto al reportado al SENIAT.<br><br>"
+                    "un monto de IGTF distinto al reportado al SENIAT.<br><br>"
                     "Para revertir, emita una <b>Nota de Crédito</b>."
                 ).format(si_link, si_data.bill_control or "—"),
                 title=_("Cancelación Bloqueada — Factura Digital"),
