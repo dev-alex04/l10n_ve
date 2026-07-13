@@ -18,6 +18,7 @@ _ISLR_INVOICE_FIELDS: list[str] = [
     "grand_total", "total", "base_total", "base_grand_total",
     "outstanding_amount", "affected_invoice_number",
     "conversion_rate", "currency", "branch",
+    "base_taxes_and_charges_added",
 ]
 
 _DOCTYPE_CONFIG: dict[str, tuple[str, bool]] = {
@@ -399,8 +400,8 @@ def _build_islr_row(
         tax.base_tax_amount_after_discount_amount or tax.base_tax_amount, 2
     ))
 
-    # Grand total en moneda de la empresa
-    grand_total_vef: float = abs(flt(invoice.grand_total or 0) * rate)
+    # Grand total en moneda de la empresa (antes de retenciones: base + IVA)
+    grand_total_vef: float = abs(flt(invoice.base_total or 0)) + abs(flt(invoice.base_taxes_and_charges_added or 0))
 
     # Monto abonado (pagado) en moneda de la empresa
     paid_amount: float = max(
