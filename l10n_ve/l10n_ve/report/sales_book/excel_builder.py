@@ -2,26 +2,27 @@ import frappe
 from frappe import _
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font, Border, Side, Alignment, PatternFill
 import base64
 
 from l10n_ve.l10n_ve.report.sales_book.sales_book import (
     get_columns, get_total_row, prepare_excel_export, build_excel_filename,
 )
 
+
 class ExcelBuilder:
     """
-    Clase para construir el archivo de Excel en memoria con formato profesional.
+    Clase para construir el archivo de Excel en memoria con formato profesional,
+    replicando la misma estética del Libro de Compras.
     """
-    def __init__(self, title, columns, main_data, adjustment_data, summary_data, company_data, from_date, to_date):
+
+    def __init__(self, title, columns, main_data, adjustment_data, summary_data,
+                 company_data, from_date, to_date):
         self.title = title
         self.columns = columns
-
-        # Separar los datos para las tablas
         self.main_data = main_data
         self.adjustment_data = adjustment_data
-
         self.summary_data = summary_data
         self.company_data = company_data
         self.from_date = from_date
@@ -29,82 +30,139 @@ class ExcelBuilder:
 
         self.workbook = Workbook()
         self.sheet = self.workbook.active
-        self.sheet.title = "Reporte"
+        self.sheet.title = "Libro de Ventas"
 
-        # Definimos los estilos comunes
         self.default_font = Font(name='Calibri', size=8)
         self.header_font = Font(name='Calibri', size=8, bold=True)
-        self.data_border = Border(
-            left=Side(style="thin"),
-            right=Side(style="thin"),
-            top=Side(style="thin"),
-            bottom=Side(style="thin"),
+        self.header_font_white = Font(name='Calibri', size=8, bold=True, color="FFFFFF")
+        self.total_font = Font(name='Calibri', size=8, bold=True)
+        self.title_font = Font(name='Calibri', size=14, bold=True, color="1E293B")
+        self.meta_title_font = Font(name='Calibri', size=8, bold=True, color="475569")
+        self.meta_value_font = Font(name='Calibri', size=8, color="1E293B")
+
+        self.thin_border = Border(
+            left=Side(style="thin", color="E2E8F0"),
+            right=Side(style="thin", color="E2E8F0"),
+            top=Side(style="thin", color="E2E8F0"),
+            bottom=Side(style="thin", color="E2E8F0"),
         )
+        self.header_border = Border(
+            left=Side(style="thin", color="475569"),
+            right=Side(style="thin", color="475569"),
+            top=Side(style="thin", color="475569"),
+            bottom=Side(style="medium", color="1E293B"),
+        )
+        self.total_border = Border(
+            left=Side(style="thin", color="CBD5E1"),
+            right=Side(style="thin", color="CBD5E1"),
+            top=Side(style="medium", color="1E293B"),
+            bottom=Side(style="double", color="1E293B"),
+        )
+
+        self.header_fill_primary = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+        self.header_fill_secondary = PatternFill(start_color="334155", end_color="334155", fill_type="solid")
+        self.sub_header_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+        self.zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+        self.total_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+        self.alert_fill = PatternFill(start_color="ECFDF5", end_color="ECFDF5", fill_type="solid")
+
         self.data_alignment = Alignment(horizontal="left", vertical="center")
         self.numeric_format = '#,##0.00'
         self.int_format = '0'
 
+        self.data = self.main_data
+
     def _get_col_index(self, fieldname: str) -> int:
-        """Retorna el índice de columna (1-indexed) para el fieldname dado."""
         for i, col in enumerate(self.columns):
             if col.get("fieldname") == fieldname:
                 return i + 1
         return 0
 
+    def _add_report_header(self) -> int:
+        ws = self.sheet
 
-    def _add_report_header(self):
-        """
-        Agrega el encabezado con los datos de la compañía en un formato estructurado de 2x2.
-        """
-        current_row = 1
+        ws.row_dimensions[2].height = 30
+        title_cell = ws.cell(row=2, column=2, value=_("LIBRO DE VENTAS FISCAL"))
+        title_font = Font(name="Calibri", size=16, bold=True, color="1E293B")
+        title_cell.font = title_font
+        title_cell.alignment = Alignment(vertical="center")
 
-        self.sheet.cell(row=current_row, column=1, value=_("Libro de Ventas Fiscal")).font = Font(size=14, bold=True)
+        meta_label_font = Font(name="Calibri", size=9, bold=True, color="475569")
+        meta_value_font = Font(name="Calibri", size=9, color="1E293B")
+        card_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
 
-        current_row += 2
+        start_row = 4
+        end_row = 8
+        start_col = 2
+        end_col = 14
 
-        self.sheet.column_dimensions[get_column_letter(1)].width = 30
-        self.sheet.column_dimensions[get_column_letter(2)].width = 40
-        self.sheet.column_dimensions[get_column_letter(3)].width = 30
-        self.sheet.column_dimensions[get_column_letter(4)].width = 40
-        self.sheet.column_dimensions[get_column_letter(8)].width = 30
-        self.sheet.column_dimensions[get_column_letter(9)].width = 40
+        for r in range(start_row, end_row + 1):
+            ws.row_dimensions[r].height = 20
+            for c in range(start_col, end_col + 1):
+                cell = ws.cell(row=r, column=c)
+                cell.fill = card_fill
+                left_side = Side(style="thin", color="CBD5E1") if c == start_col else None
+                right_side = Side(style="thin", color="CBD5E1") if c == end_col else None
+                top_side = Side(style="thin", color="CBD5E1") if r == start_row else None
+                bottom_side = Side(style="thin", color="CBD5E1") if r == end_row else None
+                cell.border = Border(left=left_side, right=right_side, top=top_side, bottom=bottom_side)
 
-        title_font = Font(bold=True)
+        lbl_company = ws.cell(row=5, column=2, value=_("Nombre o Razón Social:"))
+        lbl_company.font = meta_label_font
+        lbl_company.alignment = Alignment(horizontal="right", vertical="center")
 
-        self.sheet.cell(row=current_row, column=1, value=_("Nombre o Razón Social:")).font = title_font
-        self.sheet.cell(row=current_row, column=12, value=_("Número de Registro de Información Fiscal (RIF):")).font = title_font
+        val_company = ws.cell(row=5, column=4, value=self.company_data.get("company_name", ""))
+        val_company.font = Font(name="Calibri", size=9, bold=True, color="1E293B")
+        val_company.alignment = Alignment(horizontal="left", vertical="center")
+        ws.merge_cells(start_row=5, start_column=4, end_row=5, end_column=8)
 
-        current_row += 1
-        self.sheet.cell(row=current_row, column=1, value=self.company_data.get("company_name"))
-        self.sheet.cell(row=current_row, column=12, value=self.company_data.get("tax_id"))
+        lbl_rif = ws.cell(row=5, column=10, value=_("RIF de la Empresa:"))
+        lbl_rif.font = meta_label_font
+        lbl_rif.alignment = Alignment(horizontal="right", vertical="center")
 
-        current_row += 2
+        val_rif = ws.cell(row=5, column=12, value=self.company_data.get("tax_id", ""))
+        val_rif.font = meta_value_font
+        val_rif.alignment = Alignment(horizontal="left", vertical="center")
+        ws.merge_cells(start_row=5, start_column=12, end_row=5, end_column=14)
 
-        is_special_taxpayer_text = _("ESPECIAL") if self.company_data.get("is_special_taxpayer") else _("NO ESPECIAL")
+        lbl_dir = ws.cell(row=6, column=2, value=_("Dirección Fiscal:"))
+        lbl_dir.font = meta_label_font
+        lbl_dir.alignment = Alignment(horizontal="right", vertical="center")
 
-        self.sheet.cell(row=current_row, column=1, value=_("Dirección:")).font = title_font
-        self.sheet.cell(row=current_row, column=12, value=_("Tipo de Contribuyente:")).font = title_font
+        val_address = ws.cell(row=6, column=4, value=self.company_data.get("address", ""))
+        val_address.font = meta_value_font
+        val_address.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        ws.merge_cells(start_row=6, start_column=4, end_row=6, end_column=8)
 
-        current_row += 1
-        self.sheet.cell(row=current_row, column=1, value=self.company_data.get("address"))
-        self.sheet.cell(row=current_row, column=12, value=is_special_taxpayer_text)
+        lbl_contrib = ws.cell(row=6, column=10, value=_("Contribuyente:"))
+        lbl_contrib.font = meta_label_font
+        lbl_contrib.alignment = Alignment(horizontal="right", vertical="center")
 
-        current_row += 2
+        taxpayer_type = _("ESPECIAL") if self.company_data.get("is_special_taxpayer") else _("ORDINARIO")
+        val_contrib = ws.cell(row=6, column=12, value=taxpayer_type)
+        val_contrib.font = meta_value_font
+        val_contrib.alignment = Alignment(horizontal="left", vertical="center")
+        ws.merge_cells(start_row=6, start_column=12, end_row=6, end_column=14)
 
-        # Período Fiscal
-        self.sheet.cell(row=current_row, column=1, value=_("Período Fiscal:")).font = title_font
-        current_row += 1
-        self.sheet.cell(row=current_row, column=1, value=f"{self.from_date.strftime('%d/%m/%Y')} - {self.to_date.strftime('%d/%m/%Y')}")
+        lbl_period = ws.cell(row=7, column=2, value=_("Período Fiscal:"))
+        lbl_period.font = meta_label_font
+        lbl_period.alignment = Alignment(horizontal="right", vertical="center")
 
-        return current_row + 2
+        period_str = "{0} - {1}".format(
+            self.from_date.strftime("%d/%m/%Y"),
+            self.to_date.strftime("%d/%m/%Y"),
+        )
+        val_period = ws.cell(row=7, column=4, value=period_str)
+        val_period.font = meta_value_font
+        val_period.alignment = Alignment(horizontal="left", vertical="center")
+        ws.merge_cells(start_row=7, start_column=4, end_row=7, end_column=8)
+
+        return 11
 
     def _build_multi_level_headers(self, start_row: int) -> int:
-        """
-        Construye los encabezados de varios niveles para la tabla principal.
-        """
+        ws = self.sheet
         current_row = start_row
 
-        # Configuración declarativa de los encabezados de varios niveles
         non_tp = self._get_col_index("base_reduced_non_taxpayer")
         tp = self._get_col_index("base_reduced_taxpayer")
         ret = self._get_col_index("iva_retained")
@@ -127,316 +185,237 @@ class ExcelBuilder:
             ]
         ]
 
-        for level_headers in header_levels:
+        for level_idx, level_headers in enumerate(header_levels):
+            fill = self.header_fill_primary if level_idx == 0 else self.header_fill_secondary
             for header_info in level_headers:
-                cell = self.sheet.cell(row=current_row, column=header_info["start_col"], value=header_info["text"])
-                cell.font = self.header_font
-                cell.border = self.data_border
+                span = header_info["span"]
+                start_col = header_info["start_col"]
+                for c_offset in range(span):
+                    cell = ws.cell(row=current_row, column=start_col + c_offset)
+                    cell.fill = fill
+                    cell.border = self.header_border
+                cell = ws.cell(row=current_row, column=start_col, value=header_info["text"])
+                cell.font = self.header_font_white
                 cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-                if header_info["span"] > 1:
-                    self.sheet.merge_cells(
+                if span > 1:
+                    ws.merge_cells(
                         start_row=current_row,
-                        start_column=header_info["start_col"],
+                        start_column=start_col,
                         end_row=current_row,
-                        end_column=header_info["start_col"] + header_info["span"] - 1
+                        end_column=start_col + span - 1,
                     )
             current_row += 1
 
-        # --- Encabezados principales de la tabla (Nivel 4) ---
         main_table_headers = [col.get("label") for col in self.columns]
-
         column_widths_config = {
-            "Nr Oper.": 5, "Tipo de Persona": 5, "RIF del Cliente": 12,
-            "Nro. de Control": 12, "Nro. Factura": 12, "Fecha": 10,
-            "Nro. de Maquina Fiscal": 10, "Nro. Nota de Credito": 12, "Nro. Nota de Debito": 12
+            "Nr Oper.": 5, "Sucursal": 8, "Fecha": 10, "RIF del Cliente": 14,
+            "Nombre del Cliente": 22, "Tipo de Persona": 5, "Serie Fiscal": 8,
+            "Nro. de Factura": 12, "Nro. de Control": 12,
+            "Nro. Nota de Credito": 12, "Nro. Nota de Debito": 12,
+            "Facturas afectadas": 12, "Tipo de Transaccion": 7,
+            "Total Incl. IVA": 14,
         }
 
         for i, header in enumerate(main_table_headers):
             col_index = i + 1
             col_letter = get_column_letter(col_index)
-
-            self.sheet.column_dimensions[col_letter].width = column_widths_config.get(header, 10)
-
-            cell = self.sheet.cell(row=current_row, column=col_index, value=header)
-            cell.font = self.header_font
-            cell.border = self.data_border
+            ws.column_dimensions[col_letter].width = column_widths_config.get(header, 10)
+            cell = ws.cell(row=current_row, column=col_index, value=header)
+            cell.font = self.header_font_white
+            cell.fill = self.header_fill_primary
+            cell.border = self.header_border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            self.sheet.row_dimensions[current_row].height = 40
+            ws.row_dimensions[current_row].height = 28
 
         return current_row
 
-    def _write_data_rows(self, start_row):
-        """
-        Escribe las filas de datos en la tabla principal y ajusta dinámicamente el ancho de las columnas.
-        """
-        current_row = start_row
-        column_widths = {get_column_letter(i + 1): self.sheet.column_dimensions[get_column_letter(i + 1)].width or 10 for i in range(len(self.columns))}
-
-        row_index = current_row + 1
-        for row_data in self.data:
-            row_alignment_text = Alignment(horizontal="left", vertical="center", wrap_text=True)
-            row_alignment_number = Alignment(horizontal="right", vertical="center")
-
+    def _write_data_rows(self, start_row: int) -> int:
+        ws = self.sheet
+        row_index = start_row + 1
+        for i, row_data in enumerate(self.data):
+            fill = self.zebra_fill if i % 2 == 0 else None
             for col_index, col in enumerate(self.columns, start=1):
                 fieldname = col.get("fieldname")
                 cell_value = row_data.get(fieldname)
-
-                cell = self.sheet.cell(row=row_index, column=col_index, value=cell_value)
+                cell = ws.cell(row=row_index, column=col_index, value=cell_value)
                 cell.font = self.default_font
-                cell.border = self.data_border
-
+                cell.border = self.thin_border
+                if fill:
+                    cell.fill = fill
                 if isinstance(cell_value, (int, float)):
-                    if fieldname == "sequence_number":
-                        cell.number_format = self.int_format
-                    else:
-                        cell.number_format = self.numeric_format
-
-                    cell.alignment = row_alignment_number
+                    cell.alignment = Alignment(horizontal="right", vertical="center", wrap_text=True)
+                    cell.number_format = self.int_format if fieldname == "sequence_number" else self.numeric_format
                 else:
-                    cell.alignment = row_alignment_text
-
-                col_letter = get_column_letter(col_index)
-                cell_length = len(str(cell_value)) if cell_value is not None else 0
-                current_width = column_widths.get(col_letter, 0)
-
-                col_fieldtype = col.get("fieldtype", "Data")
-                if col_fieldtype not in ("Currency", "Percent"):
-                    max_text_width = 30 if fieldname == "customer_name" else 15
-                    column_widths[col_letter] = min(max(current_width, cell_length + 2), max_text_width)
-                elif cell_length > 0:
-                    column_widths[col_letter] = min(max(current_width, cell_length + 1), 12)
-
+                    cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            ws.row_dimensions[row_index].height = 18
             row_index += 1
+        return row_index
 
-        for col, width in column_widths.items():
-            self.sheet.column_dimensions[col].width = width
-
-        return self.sheet.max_row
-
-    def _write_totals_row(self, start_row):
-        """
-        Escribe la fila de totales al final de la tabla principal.
-        """
+    def _write_totals_row(self, start_row: int) -> int:
+        ws = self.sheet
         totals = get_total_row(self.data)
-        current_row_for_totals = self.sheet.max_row + 2
+        total_row_index = start_row + 1
+
+        for col_index in range(1, len(self.columns) + 1):
+            cell = ws.cell(row=total_row_index, column=col_index)
+            cell.font = self.total_font
+            cell.fill = self.total_fill
+            cell.border = self.total_border
+
+        total_label_cell = ws.cell(row=total_row_index, column=1, value=_("Totales"))
+        total_label_cell.font = self.total_font
+        total_label_cell.border = self.total_border
+        total_label_cell.fill = self.total_fill
 
         for col_index, col in enumerate(self.columns, start=1):
             fieldname = col.get("fieldname")
-            cell_value = totals.get(fieldname)
+            if fieldname in totals:
+                total_value = totals.get(fieldname)
+                total_cell = ws.cell(row=total_row_index, column=col_index, value=total_value)
+                total_cell.font = self.total_font
+                total_cell.border = self.total_border
+                total_cell.fill = self.total_fill
+                total_cell.number_format = self.numeric_format
+                total_cell.alignment = Alignment(horizontal="right", vertical="center")
 
-            cell = self.sheet.cell(row=current_row_for_totals, column=col_index, value=cell_value)
-            cell.font = self.header_font
-            cell.border = self.data_border
+        ws.row_dimensions[total_row_index].height = 20
+        return total_row_index
 
-            if isinstance(cell_value, (int, float)):
-                cell.number_format = self.numeric_format
-                cell.alignment = Alignment(horizontal="right", vertical="center")
-            else:
-                cell.alignment = self.data_alignment
-
-        self.sheet.merge_cells(start_row=current_row_for_totals,
-                               start_column=1,
-                               end_row=current_row_for_totals,
-                               end_column=2)
-
-        return self.sheet.max_row
-
-    def _build_main_table(self, start_row):
-        """
-        Construye la tabla principal con todos los datos y encabezados,
-        usando anchos compactos y SEPARANDO LA FILA DE TOTALES.
-        """
+    def _build_main_table(self, start_row: int) -> int:
         self.data = self.main_data
-
         headers_last_row = self._build_multi_level_headers(start_row)
         data_last_row = self._write_data_rows(headers_last_row)
-        self._write_totals_row(data_last_row)
-        return self.sheet.max_row
+        totals_last_row = self._write_totals_row(data_last_row)
+        return totals_last_row
 
     def _build_adjustments_table(self, start_row: int) -> int:
-        """Construye una tabla separada para las transacciones de ajuste."""
         if not self.adjustment_data:
             return start_row
 
         current_row = start_row + 2
-
-        title_cell = self.sheet.cell(row=current_row,
-                                     column=1,
-                                     value=_("Ajustes de Períodos Anteriores (Retenciones)"))
+        title_cell = self.sheet.cell(row=current_row, column=1,
+                                      value=_("Ajustes de Períodos Anteriores (Retenciones)"))
         title_cell.font = Font(size=12, bold=True)
         current_row += 2
 
         self.data = self.adjustment_data
-
         headers_last_row = self._build_multi_level_headers(current_row)
         data_last_row = self._write_data_rows(headers_last_row)
-        self._write_totals_row(data_last_row)
+        totals_last_row = self._write_totals_row(data_last_row)
+        return totals_last_row
 
-        return self.sheet.max_row
+    def _build_summary_table(self, start_row: int) -> int:
+        ws = self.sheet
+        if not self.summary_data:
+            return start_row
 
-    def _build_summary_table(self, start_row):
         current_row = start_row + 2
+        summary_start_col = 13
 
-        thin_border_style = Side(style="thin")
-
-        summary_start_col = 10
-
-        self.sheet.cell(row=current_row,
-                        column=summary_start_col,
-                        value=_("Resumen de Totales")).font = Font(bold=True, size=12)
-
-        summary_row_index = current_row + 1
-        summary_headers = [_("Concepto"), _("Base Imponible"),
-                           _("Débito Fiscal"), _("Retención")]
-
-        concept_header_cell = self.sheet.cell(row=summary_row_index,
-                                              column=summary_start_col,
-                                              value=summary_headers[0])
-
-        concept_header_cell.font = self.header_font
-        concept_header_cell.border = Border(top=thin_border_style,
-                                             bottom=thin_border_style,
-                                             left=thin_border_style)
-
-        self.sheet.merge_cells(
-            start_row=summary_row_index, start_column=summary_start_col,
-            end_row=summary_row_index, end_column=summary_start_col + 4
-        )
-
-        for col_index, header_text in enumerate(summary_headers[1:], start=summary_start_col + 5):
-            cell = self.sheet.cell(row=summary_row_index, column=col_index, value=header_text)
-            cell.font = self.header_font
-            border = Border(top=thin_border_style, bottom=thin_border_style)
-
-            if col_index == summary_start_col + 6:
-                border.right = thin_border_style
-
-            cell.border = border
-
-        self.sheet.column_dimensions[get_column_letter(summary_start_col)].width = 10
-        self.sheet.column_dimensions[get_column_letter(summary_start_col + 1)].width = 10
-        self.sheet.column_dimensions[get_column_letter(summary_start_col + 2)].width = 10
-        self.sheet.column_dimensions[get_column_letter(summary_start_col + 3)].width = 10
-        self.sheet.column_dimensions[get_column_letter(summary_start_col + 4)].width = 10
-        self.sheet.column_dimensions[get_column_letter(summary_start_col + 5)].width = 11
-        self.sheet.column_dimensions[get_column_letter(summary_start_col + 6)].width = 11
-        self.sheet.column_dimensions[get_column_letter(summary_start_col + 7)].width = 11
-
-        summary_row_index += 1
-
-        # Configuración declarativa para las filas del resumen
-        summary_data_rows = [
-            {
-                "concepto": _("De las Ventas Internas NO Gravadas"),
-                "base": self.summary_data.get("total_exempt", 0),
-                "iva": 0,
-                "retencion": 0
-            },
-            {
-                "concepto": _("Ventas de exportación"),
-                "base": 0, "iva": 0, "retencion": 0
-            },
-            {
-                "concepto": _("De las Ventas Internas Solo Afecta Alicuota General"),
-                "base": self.summary_data.get("base_general_taxpayer", 0)
-                + self.summary_data.get("base_general_non_taxpayer", 0),
-                "iva": self.summary_data.get("iva_general_taxpayer", 0)
-                + self.summary_data.get("iva_general_non_taxpayer", 0),
-                "retencion": self.summary_data.get("iva_retained_general", 0)
-            },
-            {
-                "concepto": _("De las Ventas Internas Solo Afecta Alicuota General + Adicional"),
-                "base": self.summary_data.get("base_additional_taxpayer", 0)
-                + self.summary_data.get("base_additional_non_taxpayer", 0),
-                "iva": self.summary_data.get("iva_additional_taxpayer", 0)
-                + self.summary_data.get("iva_additional_non_taxpayer", 0),
-                "retencion": self.summary_data.get("iva_retained_additional", 0)
-            },
-            {
-                "concepto": _("De las Ventas Internas Solo Afecta Alicuota Reducida"),
-                "base": self.summary_data.get("base_reduced_taxpayer", 0)
-                + self.summary_data.get("base_reduced_non_taxpayer", 0),
-                "iva": self.summary_data.get("iva_reduced_taxpayer", 0)
-                + self.summary_data.get("iva_reduced_non_taxpayer", 0),
-                "retencion": self.summary_data.get("iva_retained_reduced", 0)
-            }
+        summary_headers = [
+            {"text": _("RESUMEN"), "start_col": summary_start_col, "span": 5, "align": "center"},
+            {"text": _("Base Imponible"), "start_col": summary_start_col + 5, "span": 1, "align": "center"},
+            {"text": _("Débito Fiscal"), "start_col": summary_start_col + 6, "span": 1, "align": "center"},
+            {"text": _("Retención"), "start_col": summary_start_col + 7, "span": 1, "align": "center"},
         ]
 
-        for i, row_data in enumerate(summary_data_rows):
-            is_last_row = (i == len(summary_data_rows) - 1)
-            bottom_border_style = thin_border_style if is_last_row else Side(style=None)
+        for header_info in summary_headers:
+            span = header_info["span"]
+            start_col = header_info["start_col"]
+            for c_offset in range(span):
+                cell = ws.cell(row=current_row, column=start_col + c_offset)
+                cell.fill = self.header_fill_primary
+                cell.border = self.header_border
+            cell = ws.cell(row=current_row, column=start_col, value=header_info["text"])
+            cell.font = self.header_font_white
+            cell.alignment = Alignment(horizontal=header_info["align"], vertical="center", wrap_text=True)
+            ws.column_dimensions[get_column_letter(start_col)].width = 12
+            if span > 1:
+                ws.merge_cells(
+                    start_row=current_row,
+                    start_column=start_col,
+                    end_row=current_row,
+                    end_column=start_col + span - 1,
+                )
+        ws.row_dimensions[current_row].height = 24
 
-            concept_cell = self.sheet.cell(row=summary_row_index,
-                                           column=summary_start_col,
-                                           value=row_data.get("concepto"))
+        current_row += 1
 
+        summary_rows = [
+            {"concept": _("De las Ventas Internas NO Gravadas"),
+             "base": self.summary_data.get("total_exempt", 0), "iva": 0, "retention": 0},
+            {"concept": _("Ventas de exportación"),
+             "base": 0, "iva": 0, "retention": 0},
+            {"concept": _("Alícuota General"),
+             "base": (self.summary_data.get("base_general_taxpayer", 0)
+                      + self.summary_data.get("base_general_non_taxpayer", 0)),
+             "iva": (self.summary_data.get("iva_general_taxpayer", 0)
+                     + self.summary_data.get("iva_general_non_taxpayer", 0)),
+             "retention": self.summary_data.get("iva_retained_general", 0)},
+            {"concept": _("Alícuota General + Adicional"),
+             "base": (self.summary_data.get("base_additional_taxpayer", 0)
+                      + self.summary_data.get("base_additional_non_taxpayer", 0)),
+             "iva": (self.summary_data.get("iva_additional_taxpayer", 0)
+                     + self.summary_data.get("iva_additional_non_taxpayer", 0)),
+             "retention": self.summary_data.get("iva_retained_additional", 0)},
+            {"concept": _("Alícuota Reducida"),
+             "base": (self.summary_data.get("base_reduced_taxpayer", 0)
+                      + self.summary_data.get("base_reduced_non_taxpayer", 0)),
+             "iva": (self.summary_data.get("iva_reduced_taxpayer", 0)
+                     + self.summary_data.get("iva_reduced_non_taxpayer", 0)),
+             "retention": self.summary_data.get("iva_retained_reduced", 0)},
+        ]
+
+        for i, row_data in enumerate(summary_rows):
+            fill = self.zebra_fill if i % 2 == 0 else None
+            for c_offset in range(5):
+                cell = ws.cell(row=current_row, column=summary_start_col + c_offset)
+                cell.border = self.thin_border
+                if fill:
+                    cell.fill = fill
+            concept_cell = ws.cell(row=current_row, column=summary_start_col, value=row_data["concept"])
             concept_cell.font = self.default_font
-            concept_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-            concept_cell.border = Border(left=thin_border_style, bottom=bottom_border_style)
-            self.sheet.merge_cells(
-                start_row=summary_row_index, start_column=summary_start_col,
-                end_row=summary_row_index, end_column=summary_start_col + 4
-            )
+            ws.merge_cells(start_row=current_row, start_column=summary_start_col,
+                           end_row=current_row, end_column=summary_start_col + 4)
 
-            base_cell = self.sheet.cell(row=summary_row_index, column=summary_start_col + 5, value=row_data.get("base"))
-            base_cell.font = self.default_font
-            base_cell.number_format = self.numeric_format
-            base_cell.border = Border(bottom=bottom_border_style)
+            for j, key in enumerate(["base", "iva", "retention"], start=1):
+                cell = ws.cell(row=current_row, column=summary_start_col + 5 - 1 + j, value=row_data[key])
+                cell.font = self.default_font
+                cell.border = self.thin_border
+                if fill:
+                    cell.fill = fill
+                cell.number_format = self.numeric_format
+                cell.alignment = Alignment(horizontal="right", vertical="center")
 
-            iva_cell = self.sheet.cell(row=summary_row_index, column=summary_start_col + 6, value=row_data.get("iva"))
-            iva_cell.font = self.default_font
-            iva_cell.number_format = self.numeric_format
-            iva_cell.border = Border(bottom=bottom_border_style)
+            ws.row_dimensions[current_row].height = 18
+            current_row += 1
 
-            retention_cell = self.sheet.cell(row=summary_row_index,
-                                             column=summary_start_col + 7,
-                                             value=row_data.get("retencion"))
+        total_base = sum(row["base"] for row in summary_rows)
+        total_iva = sum(row["iva"] for row in summary_rows)
+        total_retention = sum(row["retention"] for row in summary_rows)
 
-            retention_cell.font = self.default_font
-            retention_cell.number_format = self.numeric_format
-            retention_cell.border = Border(right=thin_border_style, bottom=bottom_border_style)
+        for c_idx in range(summary_start_col, summary_start_col + 8):
+            cell = ws.cell(row=current_row, column=c_idx)
+            cell.font = self.total_font
+            cell.fill = self.total_fill
+            cell.border = self.total_border
 
-            summary_row_index += 1
+        total_label_cell = ws.cell(row=current_row, column=summary_start_col, value=_("Total"))
+        total_label_cell.font = self.total_font
+        ws.merge_cells(start_row=current_row, start_column=summary_start_col,
+                       end_row=current_row, end_column=summary_start_col + 4)
 
-        current_row = self.sheet.max_row + 1
+        for j, val in enumerate([total_base, total_iva, total_retention], start=1):
+            cell = ws.cell(row=current_row, column=summary_start_col + 5 - 1 + j, value=val)
+            cell.font = self.total_font
+            cell.number_format = self.numeric_format
+            cell.alignment = Alignment(horizontal="right", vertical="center")
 
-        total_base = sum(row.get("base") for row in summary_data_rows)
-        total_iva = sum(row.get("iva") for row in summary_data_rows)
-        total_retencion = sum(row.get("retencion") for row in summary_data_rows)
-
-        # Fila de totales del resumen
-        total_cell = self.sheet.cell(row=current_row, column=summary_start_col, value=_("Totales"))
-        total_cell.font = self.header_font
-        total_cell.border = self.data_border
-        self.sheet.merge_cells(
-            start_row=current_row, start_column=summary_start_col,
-            end_row=current_row, end_column=summary_start_col + 4
-        )
-
-        base_total_cell = self.sheet.cell(row=current_row, column=summary_start_col + 5, value=total_base)
-        base_total_cell.font = self.header_font
-        base_total_cell.number_format = self.numeric_format
-        base_total_cell.border = self.data_border
-
-        iva_total_cell = self.sheet.cell(row=current_row, column=summary_start_col + 6, value=total_iva)
-        iva_total_cell.font = self.header_font
-        iva_total_cell.number_format = self.numeric_format
-        iva_total_cell.border = self.data_border
-
-        retention_total_cell = self.sheet.cell(row=current_row, column=summary_start_col + 7, value=total_retencion)
-        retention_total_cell.font = self.header_font
-        retention_total_cell.number_format = self.numeric_format
-        retention_total_cell.border = self.data_border
-
-        return self.sheet.max_row
+        ws.row_dimensions[current_row].height = 20
+        return ws.max_row
 
     def build(self):
-        """
-        Construye el libro de Excel orquestando los métodos de construcción.
-        """
         try:
-            # Restaurar los totales originales para la tabla de resumen principal
             original_summary_data = self.summary_data
 
             last_row_header = self._add_report_header()
@@ -445,12 +424,13 @@ class ExcelBuilder:
             self._build_adjustments_table(last_row_summary)
 
             file_stream = BytesIO()
-            self.summary_data = original_summary_data # Restaurar por si acaso
+            self.summary_data = original_summary_data
             self.workbook.save(file_stream)
             file_stream.seek(0)
             return file_stream
         except Exception as e:
             frappe.throw(_("Ocurrió un error al construir el archivo de Excel: {0}").format(e))
+
 
 @frappe.whitelist()
 def create_excel_file(report_name, filters=None, **kwargs):
@@ -459,8 +439,7 @@ def create_excel_file(report_name, filters=None, **kwargs):
         filters = kwargs.get("filters_json")
 
     try:
-        ctx: dict = prepare_excel_export(filters)
-
+        ctx = prepare_excel_export(filters)
         columns = get_columns()
         columns.insert(0, {"label": "Nr Oper.", "fieldname": "sequence_number", "width": 20})
 

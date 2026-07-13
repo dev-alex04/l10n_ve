@@ -74,8 +74,10 @@ def get_data(filters):
 		LEFT JOIN
             `tabPurchase Invoice` inv ON child.bill_no = inv.bill_no 
             AND parent.supplier = inv.supplier
+            AND inv.docstatus = 1
         WHERE
             parent.issue_date BETWEEN %(from_date)s AND %(to_date)s
+            AND parent.docstatus = 1
             {conditions}
         ORDER BY
             parent.issue_date DESC, child.bill_no ASC
