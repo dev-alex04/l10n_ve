@@ -380,6 +380,7 @@ scheduler_events = {
         "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
         "*/15 * * * *": ["l10n_ve.tasks.reset_all_prepared_reports"],
         "0 3 1 * *": ["l10n_ve.tasks.purge_old_digital_invoice_success_logs"],
+        "0 4 * * *": ["l10n_ve.l10n_ve.doctype.ve_fiscal_document_download.ve_fiscal_document_download.purge_old_fiscal_download_zips"],
     }
 }
 
