@@ -4,7 +4,6 @@ frappe.ui.form.on("Purchase Invoice", {
       frm.set_value("bill_control", "");
     }
 
-    realtime_numeric_validation(frm, "bill_no");
     realtime_alphanumeric_with_hyphen_validation(frm, "bill_control");
     realtime_numeric_validation(frm, "credit_note_no");
     realtime_numeric_validation(frm, "debit_note_no");
