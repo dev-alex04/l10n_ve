@@ -957,7 +957,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     notes: str = str(doc.get("notes") or "").strip()
 
     periodo: str = notes if notes else f"{meses[fecha_contab.month]} {fecha_contab.year}"
-    if subscription_name:
+    if subscription_name and not notes:
         try:
             sub = frappe.get_cached_doc("Subscription", subscription_name)
             if sub.current_invoice_start and sub.current_invoice_end:

@@ -154,7 +154,7 @@ class CustomPaymentEntry(PaymentEntry):
         """
         Bloquea la cancelación del Payment Entry si alguna de sus
         referencias es una Sales Invoice que ya fue enviada a la
-        imprenta digital (TFHKA/HKA).
+        imprenta digital (TFHKA/HKA) siempre que este pago tenga IGTF.
 
         Regla de negocio: una vez que la factura fue reportada al
         SENIAT vía HKA, modificar su outstanding cancelando pagos
@@ -172,10 +172,9 @@ class CustomPaymentEntry(PaymentEntry):
         has_igtf_in_payment = False
         if self.get("taxes"):
             for tax in self.get("taxes"):
-                if (tax.charge_type and "IGTF" in tax.charge_type) or (tax.account_head and "igtf" in tax.account_head.lower()):
-                    if float(tax.tax_amount or 0) > 0:
-                        has_igtf_in_payment = True
-                        break
+                if tax.charge_type == "IGTF" and flt(tax.tax_amount) > 0:
+                    has_igtf_in_payment = True
+                    break
 
         if not has_igtf_in_payment:
             return
@@ -222,8 +221,8 @@ class CustomPaymentEntry(PaymentEntry):
                 _(
                     "No se puede cancelar este pago porque la factura {0} "
                     "(Control: <b>{1}</b>) ya fue enviada a la imprenta "
-                    "digital (TFHKA) y tiene IGTF asociado. Cancelar el pago descuadraría el "
-                    "monto pendiente reportado al SENIAT.<br><br>"
+                    "digital (TFHKA) y tiene IGTF asociado. Cancelar el pago dejaría"
+                    "un monto pendiente distinto al reportado al SENIAT.<br><br>"
                     "Para revertir, emita una <b>Nota de Crédito</b>."
                 ).format(si_link, si_data.bill_control or "—"),
                 title=_("Cancelación Bloqueada — Factura Digital"),

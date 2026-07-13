@@ -877,11 +877,12 @@ class TFHKAPayloadBuilder:
         meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
         fecha_contab = getdate(doc.posting_date)
 
-        notes: str = str(doc.get("notes") or "").strip()
-        nota_periodo: str = notes if notes else f"{meses[fecha_contab.month]} {fecha_contab.year}"
+        notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
+        periodo_default = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+        nota_periodo = notes or periodo_default
 
         periodo: str = ""
-        if subscription_name:
+        if subscription_name and not notes:
             try:
                 sub = frappe.get_cached_doc("Subscription", subscription_name)
                 if sub.current_invoice_start and sub.current_invoice_end:
@@ -930,7 +931,7 @@ class TFHKAPayloadBuilder:
         dict_pdf = {"DireccionServicio": direccion_servicio}
         dict_pdf["Serie"] = serie
         dict_pdf["TasaCambio"] = tasa_bcv
-        dict_pdf["Periodo"] = periodo if periodo else f"Desde {nota_periodo}"
+        dict_pdf["Periodo"] = periodo if periodo else f"Desde {periodo_default}"
 
         bill_no_original: str = getattr(self, "_bill_no_original", "")
         if bill_no_original:
