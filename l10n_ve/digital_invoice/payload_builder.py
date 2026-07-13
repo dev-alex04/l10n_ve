@@ -876,7 +876,9 @@ class TFHKAPayloadBuilder:
         # Generar periodo en "Nota" basado en posting_date
         meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
         fecha_contab = getdate(doc.posting_date)
-        nota_periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+
+        notes: str = str(doc.get("notes") or "").strip()
+        nota_periodo: str = notes if notes else f"{meses[fecha_contab.month]} {fecha_contab.year}"
 
         periodo: str = ""
         if subscription_name:

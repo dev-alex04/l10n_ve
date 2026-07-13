@@ -954,7 +954,9 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
              "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
     fecha_contab = getdate(doc.posting_date)
-    periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+    notes: str = str(doc.get("notes") or "").strip()
+
+    periodo: str = notes if notes else f"{meses[fecha_contab.month]} {fecha_contab.year}"
     if subscription_name:
         try:
             sub = frappe.get_cached_doc("Subscription", subscription_name)

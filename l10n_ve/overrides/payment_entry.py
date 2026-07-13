@@ -168,6 +168,18 @@ class CustomPaymentEntry(PaymentEntry):
         con la clave 'imprentaDigital'. Facturas con numeración interna
         (bill_no asignado manualmente) NO son bloqueadas.
         """
+
+        has_igtf_in_payment = False
+        if self.get("taxes"):
+            for tax in self.get("taxes"):
+                if (tax.charge_type and "IGTF" in tax.charge_type) or (tax.account_head and "igtf" in tax.account_head.lower()):
+                    if float(tax.tax_amount or 0) > 0:
+                        has_igtf_in_payment = True
+                        break
+
+        if not has_igtf_in_payment:
+            return
+
         si_refs: list[str] = [
             ref.reference_name for ref in self.get("references") or []
             if ref.reference_doctype == "Sales Invoice"
@@ -210,7 +222,7 @@ class CustomPaymentEntry(PaymentEntry):
                 _(
                     "No se puede cancelar este pago porque la factura {0} "
                     "(Control: <b>{1}</b>) ya fue enviada a la imprenta "
-                    "digital (TFHKA). Cancelar el pago descuadraría el "
+                    "digital (TFHKA) y tiene IGTF asociado. Cancelar el pago descuadraría el "
                     "monto pendiente reportado al SENIAT.<br><br>"
                     "Para revertir, emita una <b>Nota de Crédito</b>."
                 ).format(si_link, si_data.bill_control or "—"),
