@@ -8,6 +8,7 @@ Cubre:
 - Bloqueo: facturas con JSON HKA en remarks (imprentaDigital)
 - Permitido: facturas internas, sin remarks, Purchase Invoice refs
 - Edge case: PE con mixed refs (interna + HKA)
+- Gate IGTF: sin IGTF (o IGTF en 0) la cancelación se permite siempre
 
 Discriminador: el campo 'remarks' de Sales Invoice contiene JSON
 de respuesta HKA con la clave 'imprentaDigital'. Las facturas con
@@ -38,6 +39,14 @@ HKA_REMARKS_SAMPLE: str = json.dumps({
     "codigo": "200",
     "mensaje": "Documento procesado correctamente"
 })
+
+
+def _make_igtf_tax(amount: float = 100.0, charge_type: str = "IGTF") -> _dict:
+    """Mock de una fila de impuestos (Advance Taxes and Charges) del PE."""
+    return _dict({
+        "charge_type": charge_type,
+        "tax_amount": amount,
+    })
 
 
 def _make_pe_reference(
@@ -74,19 +83,29 @@ def _make_si_data(
     })
 
 
-def _get_pe_instance(references: list = None) -> CustomPaymentEntry:
-    """Crea una instancia mock de CustomPaymentEntry sin tocar la BD."""
+def _get_pe_instance(
+    references: list = None, taxes: list = None
+) -> CustomPaymentEntry:
+    """Crea una instancia mock de CustomPaymentEntry sin tocar la BD.
+
+    Por defecto incluye una fila IGTF > 0 para que los tests del
+    discriminador de remarks pasen el gate de IGTF; los tests del
+    gate pasan `taxes` explícito.
+    """
     pe = CustomPaymentEntry.__new__(CustomPaymentEntry)
     pe.name = "ACC-PAY-2026-00001"
     pe.flags = frappe._dict()
     pe.meta = MagicMock()
 
-    # Simular self.get("references") usado en el método
+    # Simular self.get("references") / self.get("taxes") usados en el método
     ref_list: list = references or []
+    tax_list: list = taxes if taxes is not None else [_make_igtf_tax()]
 
     def _get(key, default=None):
         if key == "references":
             return ref_list
+        if key == "taxes":
+            return tax_list
         return default
     pe.get = _get
 
@@ -262,6 +281,71 @@ class TestHKACancelProtectionMixed(FrappeTestCase):
                 bill_no="2901",
                 bill_control="00-00233095",
             ),
+        ]
+
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            pe._block_cancel_if_invoice_sent_to_hka()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Gate de IGTF (solo pagos con IGTF > 0 se bloquean)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestHKACancelIGTFGate(FrappeTestCase):
+    """Sin IGTF la cancelación se permite aunque la factura esté en HKA."""
+
+    @patch("frappe.get_all")
+    def test_allows_cancel_without_taxes(self, mock_get_all: MagicMock) -> None:
+        """PE sin filas de impuestos: sale antes de consultar facturas."""
+        pe = _get_pe_instance(
+            references=[_make_pe_reference("Sales Invoice", "ACC-SINV-2026-00001")],
+            taxes=[],
+        )
+
+        pe._block_cancel_if_invoice_sent_to_hka()
+
+        mock_get_all.assert_not_called()
+
+    @patch("frappe.get_all")
+    def test_allows_cancel_with_zero_igtf(self, mock_get_all: MagicMock) -> None:
+        """Fila IGTF con monto 0: no cuenta como pago con IGTF."""
+        pe = _get_pe_instance(
+            references=[_make_pe_reference("Sales Invoice", "ACC-SINV-2026-00001")],
+            taxes=[_make_igtf_tax(amount=0.0)],
+        )
+
+        pe._block_cancel_if_invoice_sent_to_hka()
+
+        mock_get_all.assert_not_called()
+
+    @patch("frappe.get_all")
+    def test_allows_cancel_with_non_igtf_taxes(self, mock_get_all: MagicMock) -> None:
+        """Filas de otros impuestos no activan el bloqueo HKA."""
+        pe = _get_pe_instance(
+            references=[_make_pe_reference("Sales Invoice", "ACC-SINV-2026-00001")],
+            taxes=[_make_igtf_tax(amount=50.0, charge_type="On Net Total")],
+        )
+
+        pe._block_cancel_if_invoice_sent_to_hka()
+
+        mock_get_all.assert_not_called()
+
+    @patch("frappe.get_all")
+    def test_blocks_cancel_with_igtf_and_hka_invoice(
+        self, mock_get_all: MagicMock
+    ) -> None:
+        """Con IGTF > 0 y factura HKA el bloqueo sigue activo."""
+        pe = _get_pe_instance(
+            references=[_make_pe_reference("Sales Invoice", "ACC-SINV-2026-00001")],
+            taxes=[_make_igtf_tax(amount=25.0)],
+        )
+        mock_get_all.return_value = [
+            _make_si_data(
+                name="ACC-SINV-2026-00001",
+                remarks=HKA_REMARKS_SAMPLE,
+                bill_no="2900",
+                bill_control="00-00233094",
+            )
         ]
 
         with self.assertRaises(frappe.exceptions.ValidationError):

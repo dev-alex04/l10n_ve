@@ -258,6 +258,8 @@ frappe.ui.form.on("Sales Invoice", {
     }
 
     set_ve_form_indicator(frm, { doc_type: "sales_invoice" });
+
+    frm.get_field('notes')?.$wrapper?.find('textarea').css({ height: '35px', 'min-height': '35px' });
   },
 
   customer: function (frm) {
@@ -742,6 +744,7 @@ function show_hka_preview_dialog(frm, d) {
             <div class="hka-preview__field"><label>Zona</label><span>${frappe.utils.escape_html(d.zona || "—")}</span></div>
             <div class="hka-preview__field"><label>Nodo</label><span>${frappe.utils.escape_html(d.nodo || "—")}</span></div>
             <div class="hka-preview__field"><label>Período</label><span class="accent">${frappe.utils.escape_html(d.periodo)}</span></div>
+            <div class="hka-preview__field"><label>Nota</label><span class="accent">${frappe.utils.escape_html(d.nota || "—")}</span></div>
           </div>
         </div>
 

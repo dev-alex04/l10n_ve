@@ -938,7 +938,13 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
              "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
     fecha_contab = getdate(doc.posting_date)
-    periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+    notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
+
+    # Espeja el payload real (dict_pdf en payload_builder): la nota del usuario
+    # solo reemplaza "Nota"; "Periodo" conserva el rango de la suscripción.
+    periodo_default: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+    nota: str = notes or periodo_default
+    periodo: str = periodo_default
     if subscription_name:
         try:
             sub = frappe.get_cached_doc("Subscription", subscription_name)
@@ -1016,6 +1022,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "zona": zona,
         "nodo": nodo,
         "periodo": periodo,
+        "nota": nota,
         "tasa_bcv": "{:.4f}".format(tc),
         "tasa_fecha": fecha_bcv.strftime("%d/%m/%Y"),
         "items": items_data,

@@ -851,7 +851,10 @@ class TFHKAPayloadBuilder:
         # Generar periodo en "Nota" basado en posting_date
         meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
         fecha_contab = getdate(doc.posting_date)
-        nota_periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+
+        notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
+        periodo_default = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+        nota_periodo = notes or periodo_default
 
         periodo: str = ""
         if subscription_name:
@@ -900,7 +903,7 @@ class TFHKAPayloadBuilder:
         dict_pdf = {"DireccionServicio": direccion_servicio}
         dict_pdf["Serie"] = serie
         dict_pdf["TasaCambio"] = tasa_bcv
-        dict_pdf["Periodo"] = periodo if periodo else f"Desde {nota_periodo}"
+        dict_pdf["Periodo"] = periodo if periodo else f"Desde {periodo_default}"
 
         bill_no_original: str = getattr(self, "_bill_no_original", "")
         if bill_no_original:
