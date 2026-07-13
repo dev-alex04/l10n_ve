@@ -749,16 +749,11 @@ def process_invoice(
                 )
             return False
 
-        # Para NC y ND no se valida zona/nodo (no tienen suscripción asociada)
+        # Para NC y ND no se valida la zona (no tienen suscripción asociada)
         if not skip_si_validations:
-            if not builder.zona or not builder.nodo:
-                missing = []
-                if not builder.zona:
-                    missing.append("Zona (territory del cliente)")
-                if not builder.nodo:
-                    missing.append("Nodo (router/nodo del servicio)")
+            if not builder.zona:
                 notes = (
-                    f"No se pudo resolver: {', '.join(missing)}. "
+                    f"No se pudo resolver: Zona (territory del cliente). "
                     f"Cliente: {doc.customer}, Suscripción: {doc.get('subscription') or '-'}"
                 )
                 _set_hka_status(doc.doctype, doc.name, "Error")
@@ -939,17 +934,6 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         doc.customer, doc.get("customer_address")
     ) or ""
     nodo: str = ""
-    subscription_name: str = doc.get("subscription") or ""
-    if subscription_name:
-        service_row = next(
-            (r for r in (customer.get("internet_services") or [])
-             if r.subscription == subscription_name),
-            None
-        )
-        if service_row and service_row.router:
-            nodo = frappe.db.get_value(
-                "ISP Node Routers", {"router": service_row.router}, "parent"
-            ) or ""
 
     meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
              "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
