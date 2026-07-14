@@ -17,20 +17,20 @@ _PURCHASE_PARENTTYPES: list[str] = WithholdingVoucher.PURCHASE_PARENTTYPES
 
 _DOC_FIELDS: dict[str, list[str]] = {
     "Purchase Invoice": [
-        "name", "bill_no", "bill_control", "posting_date",
+        "name", "bill_no", "bill_control", "posting_date", "bill_date",
         "base_grand_total", "base_total", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "is_return", "is_debit_note",
         "credit_note_no", "debit_note_no", "affected_invoice_number", "branch",
     ],
     "VE Purchase Credit Note": [
-        "name", "bill_no", "bill_control", "posting_date",
+        "name", "bill_no", "bill_control", "posting_date", "bill_date",
         "base_grand_total", "base_total", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "affected_invoice_number", "branch",
     ],
     "VE Purchase Debit Note": [
-        "name", "bill_no", "bill_control", "posting_date",
+        "name", "bill_no", "bill_control", "posting_date", "bill_date",
         "base_grand_total", "base_total", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "affected_invoice_number", "branch",
