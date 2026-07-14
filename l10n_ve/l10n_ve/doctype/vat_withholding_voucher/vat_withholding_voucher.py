@@ -470,7 +470,7 @@ def _build_invoice_row(
         "purchase_invoice": inv.name,
         "bill_no": inv.bill_no,
         "bill_control": inv.bill_control,
-        "posting_date": inv.posting_date,
+        "posting_date": inv.bill_date or inv.posting_date,
         "grand_total": abs(inv.base_grand_total or 0) + abs(wh_details.get("base_tax_amount", 0)),
         "total": abs((inv.base_total or 0) - total_exempt),
         "total_exempt": abs(total_exempt),
