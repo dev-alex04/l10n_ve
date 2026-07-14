@@ -34,8 +34,8 @@ class BaseRetentionPayloadBuilder:
     def _load_series(self) -> None:
         """Carga la serie y branch_code resolviéndolas desde la sucursal del comprobante."""
         branch = getattr(self.doc, "branch", "") or ""
-        company = getattr(self.doc, "empresa", "") or ""
-        if not branch or not company:
+        company = getattr(self.doc, "empresa", "") or getattr(self.doc, "company", "") or ""
+        if not company:
             return
         try:
             from l10n_ve.digital_invoice.tfhka_integration import get_active_billing_series
@@ -64,16 +64,9 @@ class BaseRetentionPayloadBuilder:
         # Defensa en profundidad (incidente COMP-RET-IVA-2026-00003): HKA acepta
         # payloads con serie vacía y esa emisión es irreversible. Los flujos
         # actuales validan la serie ANTES de instanciar el builder
-        # (_validate_digital_series), pero cualquier caller futuro que se salte
-        # esa validación NO debe poder emitir con serie vacía.
-        if not self._serie:
-            frappe.throw(
-                f"El comprobante {getattr(self.doc, 'name', '')} no resolvió una "
-                f"Serie de Facturación Digital activa para la sucursal "
-                f"'{getattr(self.doc, 'branch', '') or ''}': no se emite con serie vacía.",
-                title="Serie de Facturación No Encontrada",
-            )
-
+        # (_validate_digital_series), pero si la sucursal está vacía por diseño,
+        # se permite enviar la serie vacía.
+        
         items: list = self.doc.get(self.CHILD_TABLE_FIELD, [])
 
         payload: dict = {

@@ -35,44 +35,28 @@ def get_active_billing_series(
 
     El branch_code se obtiene directamente de la fila de la tabla hija.
     """
-    if not branch:
-        # Fallback to the first active series of the company if no branch is provided
-        row = frappe.db.sql("""
-            SELECT
-                serie.name AS series_name,
-                child.branch_code AS branch_code
-            FROM `tabVE Digital Billing Series` serie
-            LEFT JOIN `tabVE Digital Billing Series Branch` child
-                ON serie.name = child.parent
-            WHERE serie.company = %s
-              AND serie.status  = 'Active'
-            LIMIT 1
-        """, (company,), as_dict=True)
-        if not row:
-            frappe.throw(
-                f"No hay ninguna Serie de Facturación Digital activa para la empresa '{company}'.",
-                title="Serie de Facturación No Encontrada"
-            )
-    else:
-        row = frappe.db.sql("""
-            SELECT
-                child.parent       AS series_name,
-                child.branch_code  AS branch_code
-            FROM `tabVE Digital Billing Series Branch` child
-            INNER JOIN `tabVE Digital Billing Series` serie
-                ON serie.name = child.parent
-            WHERE child.branch  = %s
-              AND serie.company = %s
-              AND serie.status  = 'Active'
-            LIMIT 1
-        """, (branch, company), as_dict=True)
+    if not branch or branch.upper() == "N/A":
+        return None, ""
 
-        if not row:
-            frappe.throw(
-                f"La sucursal '{branch}' no está configurada en ninguna "
-                f"Serie de Facturación Digital activa para '{company}'.",
-                title="Serie de Facturación No Encontrada"
-            )
+    row = frappe.db.sql("""
+        SELECT
+            child.parent       AS series_name,
+            child.branch_code  AS branch_code
+        FROM `tabVE Digital Billing Series Branch` child
+        INNER JOIN `tabVE Digital Billing Series` serie
+            ON serie.name = child.parent
+        WHERE child.branch = %s
+          AND serie.company = %s
+          AND serie.status  = 'Active'
+        LIMIT 1
+    """, (branch, company), as_dict=True)
+
+    if not row:
+        frappe.throw(
+            f"La sucursal '{branch}' no está configurada en ninguna "
+            f"Serie de Facturación Digital activa para '{company}'.",
+            title="Serie de Facturación No Encontrada"
+        )
 
     series_doc = frappe.get_doc("VE Digital Billing Series", row[0]["series_name"])
     branch_code: str = row[0]["branch_code"] or ""
@@ -83,14 +67,17 @@ def has_active_digital_series(company: str, branch: str | None) -> bool:
     """Retorna True si la sucursal tiene una serie digital activa (no lanza).
 
     Variante segura de get_active_billing_series para detección en submit:
-    con TFHKA deshabilitado, sin sucursal o sucursal no configurada retorna False.
+    con TFHKA deshabilitado, o sucursal no configurada retorna False.
     """
     try:
         enabled = frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "enabled")
     except Exception:
         return False
 
-    if not enabled or not branch:
+    if not enabled:
+        return False
+
+    if not branch or branch.upper() == "N/A":
         return False
 
     row = frappe.db.sql("""
@@ -102,7 +89,7 @@ def has_active_digital_series(company: str, branch: str | None) -> bool:
           AND serie.company = %s
           AND serie.status  = 'Active'
         LIMIT 1
-    """, (branch, company))
+    """, (branch, company), as_dict=True)
 
     return bool(row)
 
