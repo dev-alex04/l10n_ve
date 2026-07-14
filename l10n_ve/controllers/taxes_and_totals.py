@@ -150,42 +150,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             return None
 
     def _get_tax_calculation_method(self) -> str:
-        """Método de cálculo de impuestos elegido en Venezuela Account Settings.
-
-        Si el documento es un retorno (Nota de Crédito/Débito) con factura de origen,
-        se deduce automáticamente el método original de la factura afectada para
-        mantener la coherencia de céntimos.
-        """
-        parent_doc = self._get_return_parent_doc()
-        if parent_doc and parent_doc.get("conversion_rate"):
-            conversion_rate: float = flt(parent_doc.conversion_rate)
-            vat_rate: float = sum(
-                flt(tax.rate)
-                for tax in parent_doc.get("taxes") or []
-                if tax.charge_type == "VAT"
-                and not tax.get("is_tax_withholding_account")
-                and getattr(tax, "add_deduct_tax", "Add") != "Deduct"
-                and getattr(tax, "category", "Total") != "Valuation"
-            )
-            if vat_rate:
-                factor: float = 1 + (vat_rate / 100.0)
-                for item in parent_doc.get("items") or []:
-                    if item.get("vat_exempt") or not flt(item.get("net_amount")):
-                        continue
-
-                    val_base: float = flt(flt(item.net_amount) * conversion_rate, item.precision("base_net_amount"))
-                    val_total: float
-                    val_total, _ = anchor_base_from_total(
-                        flt(item.net_amount), factor, conversion_rate,
-                        item.precision("net_amount"), item.precision("base_net_amount")
-                    )
-
-                    real_base: float = flt(item.base_net_amount)
-                    if abs(real_base - val_total) < abs(real_base - val_base):
-                        return TAX_FROM_TOTAL
-                    elif abs(real_base - val_base) < abs(real_base - val_total):
-                        return "Desde la base imponible"
-
+        """Método de cálculo de impuestos elegido en Venezuela Account Settings."""
         return frappe.get_cached_value(
             "Venezuela Account Settings", "Venezuela Account Settings",
             "tax_calculation_method",
@@ -225,12 +190,15 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                             ref_item = parent_items_by_code[code].pop(0)
 
                     if ref_item:
-                        qty_ratio: float = flt(item.qty) / flt(ref_item.qty) if flt(ref_item.qty) else 0.0
-                        item.base_price_list_rate = ref_item.base_price_list_rate
-                        item.base_rate = ref_item.base_rate
-                        item.base_amount = flt(ref_item.base_amount * qty_ratio, item.precision("base_amount"))
-                        item.base_net_rate = ref_item.base_net_rate
-                        item.base_net_amount = flt(ref_item.base_net_amount * qty_ratio, item.precision("base_net_amount"))
+                        qty: float = flt(item.qty)
+                        amount_ratio: float = flt(item.net_amount) / flt(ref_item.net_amount) if flt(ref_item.net_amount) else 0.0
+                        item.base_net_amount = flt(ref_item.base_net_amount * amount_ratio, item.precision("base_net_amount"))
+                        item.base_amount = flt(ref_item.base_amount * amount_ratio, item.precision("base_amount"))
+                        item.base_net_rate = flt(item.base_net_amount / qty, item.precision("base_net_rate")) if qty else 0.0
+                        item.base_rate = flt(item.base_amount / qty, item.precision("base_rate")) if qty else 0.0
+
+                        rate_ratio: float = flt(item.price_list_rate) / flt(ref_item.price_list_rate) if flt(ref_item.price_list_rate) else 0.0
+                        item.base_price_list_rate = flt(ref_item.base_price_list_rate * rate_ratio, item.precision("base_price_list_rate"))
                 return
 
         if not self._is_multicurrency():
