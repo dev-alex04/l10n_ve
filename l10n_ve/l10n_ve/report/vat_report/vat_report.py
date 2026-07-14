@@ -54,6 +54,8 @@ def get_data(main_data):
 	for row in main_data:
 		if row.get("is_void"):
 			continue
+		if row.get("docstatus") != 1:
+			continue
 
 		if row.get("is_debit_note"):
 			doc_type = "ND"

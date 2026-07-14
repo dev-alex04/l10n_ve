@@ -131,6 +131,10 @@ def resolve_zone_from_address(customer_name: str, customer_address: Optional[str
     return None
 
 
+_CURRENCY_WORDS = {"BSD": "bolívares", "VES": "bolívares", "VEF": "bolívares",
+                   "USD": "dólares", "EUR": "euros"}
+
+
 class TFHKAPayloadBuilder:
     def __init__(self, doc, series_doc=None, branch_code: str = "", tasa_fecha: Optional[str] = None) -> None:
         """
@@ -461,11 +465,28 @@ class TFHKAPayloadBuilder:
     def _get_iva_rate(self) -> float:
         """Extrae la alícuota IVA real desde las filas de impuestos de la factura."""
         for tax in self.doc.get("taxes", []):
+            if (tax.get("charge_type") == "VAT"
+                    and (tax.get("add_deduct_tax") or "Add") == "Add"
+                    and flt(tax.rate) > 0):
+                return flt(tax.rate)
+        for tax in self.doc.get("taxes", []):
             account_lower = (tax.get("account_head") or "").lower()
             description_lower = (tax.get("description") or "").lower()
             if ("iva" in account_lower or "iva" in description_lower) and flt(tax.rate) > 0:
                 return flt(tax.rate)
         return 16.0
+
+    def _monto_en_letras(self, amount: float, currency: str) -> str:
+        from num2words import num2words
+        entero = int(flt(amount))
+        centimos = cint(round((flt(amount) - entero) * 100))
+        moneda = _CURRENCY_WORDS.get(currency, currency.lower())
+        try:
+            letras = f"{num2words(entero, lang='es')} {moneda}"
+            letras += f" con {num2words(centimos, lang='es')} céntimos"
+            return letras
+        except Exception:
+            return money_in_words(amount, currency).lower()
 
     def _build_totales(self) -> dict:
         """Totales principales en VES usando campos base_* almacenados.
@@ -534,7 +555,7 @@ class TFHKAPayloadBuilder:
             total_igtf_str = fmt(total_igtf_amount)
 
         try:
-            letras = money_in_words(total_a_pagar, "VES").lower()
+            letras = self._monto_en_letras(total_a_pagar, "VES")
         except Exception:
             letras = "monto en letras"
 
@@ -660,7 +681,7 @@ class TFHKAPayloadBuilder:
         total_a_pagar = flt(usd["total_a_pagar"], 2)
 
         try:
-            letras = money_in_words(total_a_pagar, self.doc.currency).lower()
+            letras = self._monto_en_letras(total_a_pagar, self.doc.currency)
         except Exception:
             letras = "monto en letras"
 
@@ -734,6 +755,13 @@ class TFHKAPayloadBuilder:
         detalles = []
         iva_rate = self._get_iva_rate()
 
+        has_vat_charge = any(
+            tax.get("charge_type") == "VAT"
+            and (tax.get("add_deduct_tax") or "Add") == "Add"
+            and flt(tax.rate) > 0
+            for tax in self.doc.get("taxes", [])
+        )
+
         for idx, item in enumerate(self.doc.items, start=1):
             is_exempt = item.get("is_exempt", 0) or item.get("vat_exempt", 0)
             item_amount = flt(item.amount, 2)
@@ -743,7 +771,7 @@ class TFHKAPayloadBuilder:
             tasa_iva = "0"
             codigo_impuesto = "E"
 
-            if not is_exempt and flt(self.doc.base_total_taxes_and_charges) > 0:
+            if not is_exempt and has_vat_charge:
                 tasa_iva = str(int(iva_rate))
                 codigo_impuesto = "G"
                 valor_iva = flt(item_amount * (iva_rate / 100), 2)
