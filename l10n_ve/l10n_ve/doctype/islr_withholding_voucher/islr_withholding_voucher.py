@@ -414,7 +414,7 @@ def _build_islr_row(
         "doc_no": invoice.bill_no,
         "doc_type": doc_type_label,
         "bill_control": invoice.bill_control,
-        "posting_date": invoice.posting_date,
+        "posting_date": invoice.bill_date or invoice.posting_date,
         "rate": flt(tax.rate),
         "subtracting": abs(flt(tax.subtracting)),
         "islr_amount": islr_amount,
