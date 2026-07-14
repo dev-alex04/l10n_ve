@@ -7,10 +7,17 @@ app_license = "mit"
 
 # Branding Domina de fábrica (kit oficial): wordmark en Desk/login, isotipo en el splash,
 # ícono en el favicon — el mismo mapeo que los sites brandeados a mano en Website Settings.
-# Mismo patrón de erpnext (app_logo_url + website_context). GANA la app instalada DESPUÉS:
-# en las imágenes de producto (erpnext -> l10n_ve -> ...) l10n_ve pisa a erpnext; en sites
-# viejos donde l10n_ve se instaló antes que erpnext, ajustar por site (Website Settings).
-# El wordmark por producto (ej. "Domina ISP") va en cada app de producto.
+# Mismo patrón de erpnext (app_logo_url + website_context).
+#
+# Es un DEFAULT, no una imposición: los logos configurados POR SITE ganan siempre —
+# frappe resuelve Website Settings/Navbar Settings ANTES del hook (navbar_settings.py:
+# get_app_logo usa el hook solo como fallback) y aplica settings.favicon/splash_image
+# DESPUÉS del hook (website_settings.py). Un site brandeado (ej. galanet prod con sus
+# logos Galanet) conserva lo suyo; un site virgen nace con la marca Domina.
+#
+# Entre apps GANA la instalada DESPUÉS: en las imágenes de producto (erpnext -> l10n_ve
+# -> ...) l10n_ve pisa a erpnext; en sites viejos donde l10n_ve se instaló antes que
+# erpnext, ajustar por site. El wordmark por producto (ej. "Domina ISP") va en su app.
 app_logo_url = "/assets/l10n_ve/images/domina-wordmark.png"
 website_context = {
     "favicon": "/assets/l10n_ve/images/domina-favicon.png",
