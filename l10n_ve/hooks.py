@@ -236,6 +236,8 @@ after_migrate = [
     "l10n_ve.patches.monkey_patches.apply_post_db_patches",
     "l10n_ve.setup.create_currency_exchange",
     "l10n_ve.setup.setup_workspaces",
+    # self-heal: los defaults de site_config (bcv_endpoint) se garantizan en cada migrate
+    "l10n_ve.setup.set_default_site_config",
 ]
 
 # Uninstallation
