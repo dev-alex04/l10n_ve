@@ -22,7 +22,6 @@ def get_columns():
         {"fieldname": "total", "label": _("Base Imponible Bs"), "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "tax_amount_vat", "label": _("Monto Retención Bs"), "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "parent", "label": _("Documento Retención"), "fieldtype": "Link", "options": "VAT Withholding Voucher", "width": "auto"},
-		{"fieldname": "status", "label": _("Estado del Documento"), "fieldtype": "Data", "width": "auto"},
 		{"fieldname": "declared_status", "label": _("Estado del Comprobante"), "fieldtype": "Data", "width": "auto"}
     ]
 
@@ -59,12 +58,7 @@ def get_data(filters):
             CASE 
                 WHEN parent.is_declared = 1 THEN '{_("Declarado")}'
                 ELSE '{_("Pendiente")}'
-            END as declared_status,
-            CASE 
-                WHEN parent.docstatus = 0 THEN '{_("Borrador")}'
-                WHEN parent.docstatus = 1 THEN '{_("Aprobado")}'
-                WHEN parent.docstatus = 2 THEN '{_("Cancelado")}'
-            END as status
+            END as declared_status
         FROM
             `tabVAT Withholding Voucher Item` child
         INNER JOIN

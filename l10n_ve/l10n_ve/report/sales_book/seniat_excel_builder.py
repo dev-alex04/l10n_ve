@@ -20,42 +20,44 @@ from l10n_ve.l10n_ve.report.sales_book.sales_book import (
 )
 
 
-SENIAT_COLUMNS: list[dict] = [
-    {"label": _("Sucursal"), "fieldname": "branch", "fieldtype": "Data", "width": 14},
-    {"label": _("Fecha Factura"), "fieldname": "posting_date", "fieldtype": "Data", "width": 10},
-    {"label": _("RIF"), "fieldname": "customer_tax_id", "fieldtype": "Data", "width": 12},
-    {"label": _("Nombre o Razón Social"), "fieldname": "customer_name", "fieldtype": "Data", "width": 30},
-    {"label": _("Serie Fiscal"), "fieldname": "fiscal_series", "fieldtype": "Data", "width": 10},
-    {"label": _("Nro. Factura"), "fieldname": "bill_no", "fieldtype": "Data", "width": 10},
-    {"label": _("Nro. Control"), "fieldname": "bill_control", "fieldtype": "Data", "width": 12},
-    {"label": _("Guía/Decl. Export."), "fieldname": "export_declaration", "fieldtype": "Data", "width": 10},
-    {"label": _("Nro. Nota de Débito"), "fieldname": "debit_note_no", "fieldtype": "Data", "width": 10},
-    {"label": _("Nro. Nota de Crédito"), "fieldname": "credit_note_no", "fieldtype": "Data", "width": 10},
-    {"label": _("Tipo Trans."), "fieldname": "transaction_type", "fieldtype": "Data", "width": 8},
-    {"label": _("Nro. Fact. Afectada"), "fieldname": "affected_invoice_number", "fieldtype": "Data", "width": 10},
-    {"label": _("Total Ventas Incl. IVA"), "fieldname": "grand_total", "fieldtype": "Currency", "width": 14},
-    {"label": _("No Sujetas"), "fieldname": "total_not_subject", "fieldtype": "Currency", "width": 10},
-    {"label": _("Exentas"), "fieldname": "total_exempt", "fieldtype": "Currency", "width": 10},
-    {"label": _("Exoneradas"), "fieldname": "total_exonerated", "fieldtype": "Currency", "width": 10},
-    {"label": _("Export. FOB"), "fieldname": "ve_fob", "fieldtype": "Currency", "width": 10},
-    {"label": _("Base"), "fieldname": "base_taxpayer", "fieldtype": "Currency", "width": 14},
-    {"label": _("%"), "fieldname": "rate_taxpayer", "fieldtype": "Percent", "width": 6},
-    {"label": _("Impuesto"), "fieldname": "iva_taxpayer", "fieldtype": "Currency", "width": 14},
-    {"label": _("Base"), "fieldname": "base_dto3584", "fieldtype": "Currency", "width": 14},
-    {"label": _("%"), "fieldname": "rate_dto3584", "fieldtype": "Percent", "width": 6},
-    {"label": _("Impuesto"), "fieldname": "iva_dto3584", "fieldtype": "Currency", "width": 14},
-    {"label": _("Base"), "fieldname": "base_non_taxpayer", "fieldtype": "Currency", "width": 14},
-    {"label": _("%"), "fieldname": "rate_non_taxpayer", "fieldtype": "Percent", "width": 6},
-    {"label": _("Impuesto"), "fieldname": "iva_non_taxpayer", "fieldtype": "Currency", "width": 14},
-    {"label": _("Ajustes Déb. Fiscales"), "fieldname": "fiscal_adjustments", "fieldtype": "Currency", "width": 10},
-    {"label": _("Fecha Comprobante"), "fieldname": "withholding_date", "fieldtype": "Data", "width": 10},
-    {"label": _("Nro. Comprobante"), "fieldname": "vat_withholding_voucher_number", "fieldtype": "Data", "width": 15},
-    {"label": _("%"), "fieldname": "vat_withholding_rate", "fieldtype": "Percent", "width": 6},
-    {"label": _("IVA Retenido"), "fieldname": "iva_retained", "fieldtype": "Currency", "width": 14},
-    {"label": _("Base IGTF"), "fieldname": "base_amount_igtf", "fieldtype": "Currency", "width": 14},
-    {"label": _("%"), "fieldname": "igtf_rate", "fieldtype": "Percent", "width": 6},
-    {"label": _("Monto IGTF"), "fieldname": "total_igtf", "fieldtype": "Currency", "width": 14},
-]
+def get_seniat_columns() -> list[dict]:
+    """Retorna las columnas del formato SENIAT (lazy, evalua _() en cada llamada)."""
+    return [
+        {"label": _("Sucursal"), "fieldname": "branch", "fieldtype": "Data", "width": 14},
+        {"label": _("Fecha Factura"), "fieldname": "posting_date", "fieldtype": "Data", "width": 10},
+        {"label": _("RIF"), "fieldname": "customer_tax_id", "fieldtype": "Data", "width": 12},
+        {"label": _("Nombre o Razón Social"), "fieldname": "customer_name", "fieldtype": "Data", "width": 30},
+        {"label": _("Serie Fiscal"), "fieldname": "fiscal_series", "fieldtype": "Data", "width": 10},
+        {"label": _("Nro. Factura"), "fieldname": "bill_no", "fieldtype": "Data", "width": 10},
+        {"label": _("Nro. Control"), "fieldname": "bill_control", "fieldtype": "Data", "width": 12},
+        {"label": _("Guía/Decl. Export."), "fieldname": "export_declaration", "fieldtype": "Data", "width": 10},
+        {"label": _("Nro. Nota de Débito"), "fieldname": "debit_note_no", "fieldtype": "Data", "width": 10},
+        {"label": _("Nro. Nota de Crédito"), "fieldname": "credit_note_no", "fieldtype": "Data", "width": 10},
+        {"label": _("Tipo Trans."), "fieldname": "transaction_type", "fieldtype": "Data", "width": 8},
+        {"label": _("Nro. Fact. Afectada"), "fieldname": "affected_invoice_number", "fieldtype": "Data", "width": 10},
+        {"label": _("Total Ventas Incl. IVA"), "fieldname": "grand_total", "fieldtype": "Currency", "width": 14},
+        {"label": _("No Sujetas"), "fieldname": "total_not_subject", "fieldtype": "Currency", "width": 10},
+        {"label": _("Exentas"), "fieldname": "total_exempt", "fieldtype": "Currency", "width": 10},
+        {"label": _("Exoneradas"), "fieldname": "total_exonerated", "fieldtype": "Currency", "width": 10},
+        {"label": _("Export. FOB"), "fieldname": "ve_fob", "fieldtype": "Currency", "width": 10},
+        {"label": _("Base"), "fieldname": "base_taxpayer", "fieldtype": "Currency", "width": 14},
+        {"label": _("%"), "fieldname": "rate_taxpayer", "fieldtype": "Percent", "width": 6},
+        {"label": _("Impuesto"), "fieldname": "iva_taxpayer", "fieldtype": "Currency", "width": 14},
+        {"label": _("Base"), "fieldname": "base_dto3584", "fieldtype": "Currency", "width": 14},
+        {"label": _("%"), "fieldname": "rate_dto3584", "fieldtype": "Percent", "width": 6},
+        {"label": _("Impuesto"), "fieldname": "iva_dto3584", "fieldtype": "Currency", "width": 14},
+        {"label": _("Base"), "fieldname": "base_non_taxpayer", "fieldtype": "Currency", "width": 14},
+        {"label": _("%"), "fieldname": "rate_non_taxpayer", "fieldtype": "Percent", "width": 6},
+        {"label": _("Impuesto"), "fieldname": "iva_non_taxpayer", "fieldtype": "Currency", "width": 14},
+        {"label": _("Ajustes Déb. Fiscales"), "fieldname": "fiscal_adjustments", "fieldtype": "Currency", "width": 10},
+        {"label": _("Fecha Comprobante"), "fieldname": "withholding_date", "fieldtype": "Data", "width": 10},
+        {"label": _("Nro. Comprobante"), "fieldname": "vat_withholding_voucher_number", "fieldtype": "Data", "width": 15},
+        {"label": _("%"), "fieldname": "vat_withholding_rate", "fieldtype": "Percent", "width": 6},
+        {"label": _("IVA Retenido"), "fieldname": "iva_retained", "fieldtype": "Currency", "width": 14},
+        {"label": _("Base IGTF"), "fieldname": "base_amount_igtf", "fieldtype": "Currency", "width": 14},
+        {"label": _("%"), "fieldname": "igtf_rate", "fieldtype": "Percent", "width": 6},
+        {"label": _("Monto IGTF"), "fieldname": "total_igtf", "fieldtype": "Currency", "width": 14},
+    ]
 
 
 def post_process_seniat_rows(
@@ -526,7 +528,7 @@ def create_seniat_excel_file(report_name: str, filters=None, **kwargs):
         main_data = post_process_seniat_rows(ctx["main_data"], general_rate, reduced_rate, additional_rate)
         adjustment_data = post_process_seniat_rows(ctx["adjustment_data"], general_rate, reduced_rate, additional_rate)
 
-        columns = list(SENIAT_COLUMNS)
+        columns = get_seniat_columns()
         columns.insert(0, {"label": "Nr Oper.", "fieldname": "sequence_number", "fieldtype": "Data", "width": 5})
 
         builder = SeniatExcelBuilder(
