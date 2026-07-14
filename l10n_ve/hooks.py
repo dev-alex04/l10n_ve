@@ -315,6 +315,7 @@ override_doctype_class = {
 
 override_doctype_dashboards = {
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.get_sales_invoice_dashboard_data",
+    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.get_purchase_invoice_dashboard_data",
 }
 
 
