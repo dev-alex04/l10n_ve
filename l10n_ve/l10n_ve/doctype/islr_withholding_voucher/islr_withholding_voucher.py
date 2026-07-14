@@ -14,7 +14,7 @@ from l10n_ve.utils.utils import format_amounts
 # ── Constantes de módulo ────────────────────────────────────────────── #
 
 _ISLR_INVOICE_FIELDS: list[str] = [
-    "name", "bill_no", "bill_control", "posting_date",
+    "name", "bill_no", "bill_control", "posting_date", "bill_date",
     "grand_total", "total", "base_total", "base_grand_total",
     "outstanding_amount", "affected_invoice_number",
     "conversion_rate", "currency", "branch",
@@ -415,7 +415,7 @@ def _build_islr_row(
         "doc_no": invoice.bill_no,
         "doc_type": doc_type_label,
         "bill_control": invoice.bill_control,
-        "posting_date": invoice.posting_date,
+        "posting_date": invoice.bill_date or invoice.posting_date,
         "rate": flt(tax.rate),
         "subtracting": abs(flt(tax.subtracting)),
         "islr_amount": islr_amount,
