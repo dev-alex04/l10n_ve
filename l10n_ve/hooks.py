@@ -4,6 +4,18 @@ app_publisher = "DominaERP"
 app_description = "Localizacion Venezolana para ERPNext"
 app_email = "dominaerp@domina.com.ve"
 app_license = "mit"
+
+# Branding Domina (isotipo neutro; el wordmark por producto va en cada app de producto).
+# Mismo patrón de erpnext: app_logo_url = logo del Desk/login; website_context pisa el
+# favicon y el splash. GANA la app instalada DESPUÉS: en las imágenes de producto
+# (erpnext -> l10n_ve -> ...) l10n_ve pisa a erpnext; en sites viejos donde l10n_ve se
+# instaló antes que erpnext, ajustar por site (Website Settings) si se quiere el logo.
+app_logo_url = "/assets/l10n_ve/images/domina-logo.png"
+website_context = {
+    "favicon": "/assets/l10n_ve/images/domina-logo.png",
+    "splash_image": "/assets/l10n_ve/images/domina-logo.png",
+}
+
 extend_bootinfo = "l10n_ve.boot.get_boot_info"
 app_include_js = [
     "/assets/l10n_ve/js/toolbar/toolbar.js",
