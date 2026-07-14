@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 
 import frappe
 import erpnext
@@ -131,8 +132,60 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         company_currency: str = erpnext.get_company_currency(self.doc.company)
         return self.doc.currency != company_currency
 
+    def _get_return_parent_doc(self) -> Optional[object]:
+        """Retorna el documento de la factura original asociada al retorno actual,
+        registrando cualquier error en el log de Frappe.
+        """
+        if not (self.doc.get("return_against") and self.doc.get("is_return")):
+            return None
+
+        affected_doctype: str = "Sales Invoice" if self.doc.doctype in ("VE Sales Credit Note", "VE Sales Debit Note") else "Purchase Invoice"
+        try:
+            return frappe.get_cached_doc(affected_doctype, self.doc.return_against)
+        except Exception as e:
+            frappe.log_error(
+                message=frappe.get_traceback(),
+                title=f"Error en TaxesAndTotals al obtener return_against para {self.doc.name}"
+            )
+            return None
+
     def _get_tax_calculation_method(self) -> str:
-        """Método de cálculo de impuestos elegido en Venezuela Account Settings."""
+        """Método de cálculo de impuestos elegido en Venezuela Account Settings.
+
+        Si el documento es un retorno (Nota de Crédito/Débito) con factura de origen,
+        se deduce automáticamente el método original de la factura afectada para
+        mantener la coherencia de céntimos.
+        """
+        parent_doc = self._get_return_parent_doc()
+        if parent_doc and parent_doc.get("conversion_rate"):
+            conversion_rate: float = flt(parent_doc.conversion_rate)
+            vat_rate: float = sum(
+                flt(tax.rate)
+                for tax in parent_doc.get("taxes") or []
+                if tax.charge_type == "VAT"
+                and not tax.get("is_tax_withholding_account")
+                and getattr(tax, "add_deduct_tax", "Add") != "Deduct"
+                and getattr(tax, "category", "Total") != "Valuation"
+            )
+            if vat_rate:
+                factor: float = 1 + (vat_rate / 100.0)
+                for item in parent_doc.get("items") or []:
+                    if item.get("vat_exempt") or not flt(item.get("net_amount")):
+                        continue
+
+                    val_base: float = flt(flt(item.net_amount) * conversion_rate, item.precision("base_net_amount"))
+                    val_total: float
+                    val_total, _ = anchor_base_from_total(
+                        flt(item.net_amount), factor, conversion_rate,
+                        item.precision("net_amount"), item.precision("base_net_amount")
+                    )
+
+                    real_base: float = flt(item.base_net_amount)
+                    if abs(real_base - val_total) < abs(real_base - val_base):
+                        return TAX_FROM_TOTAL
+                    elif abs(real_base - val_base) < abs(real_base - val_total):
+                        return "Desde la base imponible"
+
         return frappe.get_cached_value(
             "Venezuela Account Settings", "Venezuela Account Settings",
             "tax_calculation_method",
@@ -149,28 +202,36 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         """Método "Desde el total de la factura": ancla el carril Bs al total
         comercial redondeado.
 
-        Los precios se cargan SIEMPRE como base imponible y la plantilla no
-        cambia: lo único que cambia es la derivación del carril fiscal (Bs).
-
-        - "Desde la base imponible" (default histórico): base Bs = base USD x
-          tasa por ítem; el IVA y el total Bs emergen de ahí. El total Bs
-          puede diferir en céntimos del total comercial x tasa (el residuo de
-          la base a 2 decimales se amplifica por la tasa).
-        - "Desde el total de la factura": por cada ítem gravado se reconstruye
-          su total comercial redondeado (base x (1+IVA) a 2 decimales, p. ej.
-          25,86 -> 30,00), se convierte ESE total a Bs y la base Bs se deriva
-          hacia atrás (total Bs / 1,16). Así total Bs == total comercial x
-          tasa exacto, con IVA = 16% exacto de la base. Los ítems exentos no
-          llevan impuesto: se convierten directo (sin cambio).
-
-        Todo lo demás (base del IVA, acumulados, base_grand_total,
-        outstanding) fluye por la metodología VE existente, que deriva del
-        base_net_amount por ítem.
+        Si es un retorno (Nota de Crédito/Débito) con factura de origen,
+        se heredan y escalan proporcionalmente los montos base de los ítems
+        originales para asegurar consistencia matemática absoluta.
         """
-        # Total gravado anclado (con IVA) en Bs: lo consume
-        # _recalculate_base_tax_amounts_ve para definir el IVA por diferencia
-        # (exactitud por construcción). None = ancla no aplicada.
         self._ve_anchored_taxable_total_bs = None
+
+        parent_doc = self._get_return_parent_doc()
+        if parent_doc:
+                parent_items = {item.name: item for item in parent_doc.items}
+                parent_items_by_code: dict[str, list] = {}
+                for item in parent_doc.items:
+                    parent_items_by_code.setdefault(item.item_code, []).append(item)
+
+                for item in self.doc.items:
+                    ref_item = None
+                    if item.get("sales_invoice_item") and item.sales_invoice_item in parent_items:
+                        ref_item = parent_items[item.sales_invoice_item]
+                    else:
+                        code: str = item.item_code
+                        if code in parent_items_by_code and parent_items_by_code[code]:
+                            ref_item = parent_items_by_code[code].pop(0)
+
+                    if ref_item:
+                        qty_ratio: float = flt(item.qty) / flt(ref_item.qty) if flt(ref_item.qty) else 0.0
+                        item.base_price_list_rate = ref_item.base_price_list_rate
+                        item.base_rate = ref_item.base_rate
+                        item.base_amount = flt(ref_item.base_amount * qty_ratio, item.precision("base_amount"))
+                        item.base_net_rate = ref_item.base_net_rate
+                        item.base_net_amount = flt(ref_item.base_net_amount * qty_ratio, item.precision("base_net_amount"))
+                return
 
         if not self._is_multicurrency():
             return
@@ -351,6 +412,8 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             for item in self.doc.items
             if not item.get("vat_exempt")
         )
+
+
 
         # Método "Desde el total": el IVA Bs se define por DIFERENCIA contra
         # el total gravado anclado (base + IVA == total comercial x tasa,

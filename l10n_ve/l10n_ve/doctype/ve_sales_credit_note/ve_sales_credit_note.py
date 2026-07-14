@@ -636,6 +636,9 @@ def make_replacement_invoice(source_name: str) -> "Document":
         target_doc.posting_date = hoy
         target_doc.due_date = hoy
 
+        if source_doc.get("branch"):
+            target_doc.branch = source_doc.branch
+
         # Tasa de hoy desde Currency Exchange (Frappe core — sin dependencia de erpnext)
         if target_doc.currency and target_doc.currency != source_doc.company_currency:
             tasa_hoy: float | None = frappe.db.get_value(

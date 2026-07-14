@@ -98,6 +98,7 @@ function _set_items(frm, si) {
     row.income_account = item.income_account;
     row.cost_center = item.cost_center;
     row.warehouse = item.warehouse;
+    row.sales_invoice_item = item.name;
 
     row.qty = Math.abs(item.qty);
     row.stock_qty = Math.abs(item.stock_qty || item.qty);
