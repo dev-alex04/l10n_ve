@@ -245,6 +245,8 @@ after_migrate = [
     "l10n_ve.setup.setup_workspaces",
     # self-heal: los defaults de site_config (bcv_endpoint) se garantizan en cada migrate
     "l10n_ve.setup.set_default_site_config",
+    # self-heal: logo del login/Desk solo-si-vacío (get_app_logo ignora el hook con >2 apps)
+    "l10n_ve.setup.set_default_branding",
 ]
 
 # Uninstallation

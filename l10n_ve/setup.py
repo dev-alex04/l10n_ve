@@ -23,12 +23,32 @@ def set_default_site_config() -> None:
         )
 
 
+def set_default_branding() -> None:
+    """Logo del login/Desk de fábrica, SOLO si el site no tiene uno propio.
+
+    get_app_logo() de frappe ignora el hook app_logo_url cuando MÁS de dos apps
+    lo definen (toma logos[0] salvo len==2): con frappe+erpnext+l10n_ve el login
+    mostraba el logo de frappe. Fijar Navbar Settings.app_logo cubre login y Desk.
+    Los sites brandeados conservan lo suyo: Website Settings.app_logo SIEMPRE gana
+    en la resolución de frappe, y aquí además no se escribe nada si ya hay valor
+    en Website Settings o en Navbar Settings.
+    """
+    if frappe.get_website_settings("app_logo") or frappe.db.get_single_value(
+        "Navbar Settings", "app_logo"
+    ):
+        return
+    frappe.db.set_single_value(
+        "Navbar Settings", "app_logo", "/assets/l10n_ve/images/domina-wordmark.png"
+    )
+
+
 def set_data() -> None:
     print("Iniciando la configuración de datos para l10n_ve...")
 
     try:
 
         set_default_site_config()
+        set_default_branding()
         create_currency_exchange()
         create_tax_unit()
         create_islr_tabulator()
