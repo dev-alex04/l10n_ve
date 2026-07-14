@@ -945,6 +945,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     periodo_default: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
     nota: str = notes or periodo_default
     periodo: str = periodo_default
+    subscription_name: str = doc.get("subscription") or ""
     if subscription_name:
         try:
             sub = frappe.get_cached_doc("Subscription", subscription_name)
@@ -1060,17 +1061,12 @@ def send_pending_documents_to_hka() -> None:
     Paso 3: Comprobantes de retención ISLR pendientes.
 
     Respeta el flag 'enabled', 'enable_auto_send' y 'cutoff_date' de TFHKA Settings.
-    Solo opera entre las 5:00 y las 21:00.
     """
     tfhka_settings: dict | None = _get_tfhka_settings()
     if not tfhka_settings:
         return
 
     if not tfhka_settings.get("enable_auto_send"):
-        return
-
-    current_hour: int = frappe.utils.now_datetime().hour
-    if not (5 <= current_hour < 21):
         return
 
     # Paso 1: Facturas de venta
