@@ -431,7 +431,7 @@ def _get_common_columns() -> str:
             CASE WHEN siv.is_void = 1 THEN 'ANULADO' ELSE siv.customer END AS customer_name,
             siv.bill_no,
             siv.bill_control,
-            COALESCE(MAX(vdbs.serie), MAX(siv.hka_serie)) AS fiscal_series,
+            COALESCE(MAX(siv.hka_serie), MAX(vdbs.serie)) AS fiscal_series,
             siv.credit_note_no,
             siv.debit_note_no,
             siv.affected_invoice_number,
