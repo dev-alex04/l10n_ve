@@ -209,6 +209,12 @@ def process_retention_voucher(
     """
     doc = frappe.get_doc("VAT Withholding Voucher", voucher_name)
 
+    from l10n_ve.digital_invoice.tfhka_integration import has_active_digital_series
+    if not has_active_digital_series(doc.get("empresa") or "", doc.get("branch") or ""):
+        if doc.digital_invoice_status != "Not Applicable":
+            doc.db_set("digital_invoice_status", "Not Applicable")
+        return True
+
     # Validar integridad antes de enviar
     validation_errors: list[str] = _validate_retention_integrity(doc)
     if validation_errors:

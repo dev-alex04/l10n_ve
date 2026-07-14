@@ -30,17 +30,13 @@ def get_active_billing_series(
     Retorna (series_doc, branch_code) buscando la sucursal de la factura
     en la tabla hija 'VE Digital Billing Series Branch'.
 
-    - La sucursal es obligatoria: si la factura no tiene branch → throw.
     - Si la sucursal no está en ninguna serie activa de la empresa → throw.
+    - Si la factura no tiene sucursal, busca la primera serie activa de la empresa.
 
     El branch_code se obtiene directamente de la fila de la tabla hija.
     """
-    if not branch:
-        frappe.throw(
-            "La factura no tiene una sucursal asignada. "
-            "Asigne una sucursal antes de enviar a la imprenta digital.",
-            title="Sucursal Requerida"
-        )
+    if not branch or branch.upper() == "N/A":
+        return None, ""
 
     row = frappe.db.sql("""
         SELECT
@@ -49,7 +45,7 @@ def get_active_billing_series(
         FROM `tabVE Digital Billing Series Branch` child
         INNER JOIN `tabVE Digital Billing Series` serie
             ON serie.name = child.parent
-        WHERE child.branch  = %s
+        WHERE child.branch = %s
           AND serie.company = %s
           AND serie.status  = 'Active'
         LIMIT 1
@@ -71,14 +67,17 @@ def has_active_digital_series(company: str, branch: str | None) -> bool:
     """Retorna True si la sucursal tiene una serie digital activa (no lanza).
 
     Variante segura de get_active_billing_series para detección en submit:
-    con TFHKA deshabilitado, sin sucursal o sucursal no configurada retorna False.
+    con TFHKA deshabilitado, o sucursal no configurada retorna False.
     """
     try:
         enabled = frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "enabled")
     except Exception:
         return False
 
-    if not enabled or not branch:
+    if not enabled:
+        return False
+
+    if not branch or branch.upper() == "N/A":
         return False
 
     row = frappe.db.sql("""
@@ -90,7 +89,7 @@ def has_active_digital_series(company: str, branch: str | None) -> bool:
           AND serie.company = %s
           AND serie.status  = 'Active'
         LIMIT 1
-    """, (branch, company))
+    """, (branch, company), as_dict=True)
 
     return bool(row)
 
