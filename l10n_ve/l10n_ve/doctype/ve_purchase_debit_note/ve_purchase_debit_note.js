@@ -186,6 +186,8 @@ frappe.ui.form.on("VE Purchase Debit Note", {
             }
           });
 
+          new_item.sales_invoice_item = item.name;
+
           // stock_qty es reqd en Purchase Invoice Item
           if (!flt(new_item.conversion_factor)) {
             new_item.conversion_factor = 1;

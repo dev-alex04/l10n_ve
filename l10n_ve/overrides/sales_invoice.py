@@ -1378,6 +1378,9 @@ def make_replacement_invoice(source_name: str) -> "Document":
         target_doc.posting_date = hoy
         target_doc.due_date = hoy
 
+        if source_doc.get("branch"):
+            target_doc.branch = source_doc.branch
+
         # Cortocircuito: si ambas monedas son iguales, la tasa es 1.0
         if target_doc.currency == source_doc.company_currency:
             target_doc.conversion_rate = 1.0
