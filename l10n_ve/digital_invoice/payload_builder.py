@@ -4,9 +4,31 @@ import unicodedata
 from typing import Optional
 
 import frappe
-from frappe.utils import getdate, flt, cint
+from frappe.utils import getdate, flt, cint, get_datetime
 from frappe.utils.data import money_in_words
 from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
+
+
+def build_transaction_id(base: str, doc) -> str:
+    """TransaccionId único para HKA a partir de ``base`` + marca de creación.
+
+    HKA deduplica por TransaccionId: si dos documentos envían el mismo, el
+    segundo se rechaza con código 201 "Documento duplicado". El ``name`` de un
+    documento fiscal NO es único en el tiempo —Frappe reinicia el correlativo del
+    naming series al borrar el último de la serie (revert_series_if_last)—, así
+    que un name reciclado reusaría el TransaccionId de un documento ya emitido.
+    Se le añade la fecha de creación del documento (AAMMDDHHMMSS): es estable por
+    documento (idempotente ante reintentos del MISMO doc) y distinta entre dos
+    documentos que reciclaron el mismo name (creados en instantes diferentes).
+
+    Un documento fiscal guardado SIEMPRE tiene ``creation``; si faltara (doc en
+    memoria sin insertar) se devuelve solo ``base`` para no romper el llamador.
+    """
+    creation = getattr(doc, "creation", None)
+    if not creation:
+        return base
+    stamp: str = get_datetime(creation).strftime("%y%m%d%H%M%S")
+    return f"{base}{stamp}"
 
 
 def strip_html(html: str) -> str:
@@ -379,7 +401,8 @@ class TFHKAPayloadBuilder:
             "TipoDeVenta": "Interna",
             "Moneda": self.doc.currency,
             "TransaccionId": (
-                "".join(filter(str.isalnum, self.doc.name)) if is_third_party else None
+                build_transaction_id("".join(filter(str.isalnum, self.doc.name)), self.doc)
+                if is_third_party else None
             ),
         }
 
