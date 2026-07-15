@@ -1506,7 +1506,7 @@ def fix_missing_withholding(
     invoice_name: str,
     withholding_type: str,
     tax_account: str,
-    amount: float,
+    amount: float,  # <--- Este parámetro ahora recibe el monto en Bolívares (Bs)
     voucher_number: str = None,
     withholding_date: str = None,
     file_url: str = None,
@@ -1522,8 +1522,8 @@ def fix_missing_withholding(
 
     invoice = get_verified_invoice(invoice_name)
 
-    amount = flt(amount)
-    if amount <= 0:
+    base_amount = flt(amount)
+    if base_amount <= 0:
         frappe.throw(_("El monto de la retención debe ser mayor a cero."))
 
     is_overwrite = True if overwrite in [1, "1", True, "true", "True"] else False
@@ -1547,10 +1547,11 @@ def fix_missing_withholding(
         conversion_rate = flt(invoice.conversion_rate) or flt(invoice.plc_conversion_rate)
         if not conversion_rate:
             frappe.throw(_("La factura {0} está en moneda extranjera ({1}) pero no tiene una tasa de cambio de conversión válida configurada.").format(invoice.name, invoice_currency))
-        base_amount = flt(amount * conversion_rate, invoice.precision("base_tax_amount", "taxes") or 2)
+        
+        amount = flt(base_amount / conversion_rate, invoice.precision("tax_amount", "taxes") or 2)
     else:
         conversion_rate = 1.0
-        base_amount = amount
+        amount = base_amount
 
     tax_row = create_sales_taxes_row(
         invoice, charge_type, tax_account, withholding_type, amount, base_amount, rate
@@ -1565,7 +1566,7 @@ def fix_missing_withholding(
         "Sales Taxes and Charges",
         tax_row.name,
         "description",
-        f"Retención de {withholding_type} (Manual Admin) - Asiento: {je.name}"
+        f"Retención de {withholding_type} (Ajuste) - Asiento: {je.name}"
     )
 
     invoice.reload()
@@ -1581,7 +1582,7 @@ def fix_missing_withholding(
         "comment_type": "Comment",
         "reference_doctype": "Sales Invoice",
         "reference_name": invoice.name,
-        "content": f"Comprobante de Retención de {withholding_type} registrado por {frappe.session.user}. Monto: {amount}. Asiento: {je.name}",
+        "content": f"Comprobante de Retención de {'IVA' if withholding_type == 'VAT' else 'ISLR'} ajustado por {frappe.session.user}. Monto: {base_amount} Bs. Asiento: {je.name}",
         "comment_email": frappe.session.user
     })
     comment.flags.ignore_permissions = True
@@ -1694,7 +1695,7 @@ def create_sales_taxes_row(
     tax_row.add_deduct_tax = "Deduct"
     tax_row.category = "Total"
     tax_row.account_head = tax_account
-    tax_row.description = f"Retención de {withholding_type} (Manual Admin)"
+    tax_row.description = f"Retención de {withholding_type} (Ajuste)"
     tax_row.rate = flt(rate)
     tax_row.tax_amount = amount
     tax_row.base_tax_amount = base_amount

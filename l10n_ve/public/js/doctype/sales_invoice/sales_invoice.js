@@ -265,7 +265,7 @@ frappe.ui.form.on("Sales Invoice", {
                     const open_vat_modal = (account, rate) => {
                       let vat_amount = frm.doc.taxes
                         .filter(t => t.charge_type === 'VAT')
-                        .reduce((sum, t) => sum + flt(t.tax_amount), 0);
+                        .reduce((sum, t) => sum + flt(t.base_tax_amount), 0);
 
                       let suggested_amount = flt(vat_amount * (rate / 100.0), 2);
                       open_withholding_dialog(frm, invoice, frm.doc.customer, "VAT", account, rate, suggested_amount);
@@ -315,8 +315,8 @@ frappe.ui.form.on("Sales Invoice", {
                       percentage_base = flt(target_row.percentage_base) || 100;
                     }
 
-                    let net_total = flt(frm.doc.net_total);
-                    let calculated_base = flt(net_total * (percentage_base / 100));
+                    let base_net_total = flt(frm.doc.base_net_total);
+                    let calculated_base = flt(base_net_total * (percentage_base / 100));
 
                     let suggested_islr_amount = flt((calculated_base * (islr_rate / 100)) - subtrahend, 2);
                     if (suggested_islr_amount < 0) suggested_islr_amount = 0;
@@ -1339,7 +1339,7 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
     {
       label: __("Monto de Retención"),
       fieldname: "amount",
-      fieldtype: "Float",
+      fieldtype: "Currency",
       reqd: 1,
       default: suggested_amount || 0,
       read_only: 1,
