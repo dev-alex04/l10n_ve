@@ -13,7 +13,11 @@ from typing import Optional
 import frappe
 from frappe.utils import flt, getdate
 
-from l10n_ve.digital_invoice.payload_builder import clean_address, clean_payload
+from l10n_ve.digital_invoice.payload_builder import (
+    build_transaction_id,
+    clean_address,
+    clean_payload,
+)
 
 
 class BaseRetentionPayloadBuilder:
@@ -143,7 +147,7 @@ class BaseRetentionPayloadBuilder:
             "Sucursal": self._branch_code or None,
             "TipoDeVenta": "Interna",
             "Moneda": self.company_currency,
-            "TransaccionId": f"{self.TRANSACTION_PREFIX}{clean_number}",
+            "TransaccionId": build_transaction_id(f"{self.TRANSACTION_PREFIX}{clean_number}", self.doc),
         }
 
     # ─────────────────────────────────────────────────────────────
