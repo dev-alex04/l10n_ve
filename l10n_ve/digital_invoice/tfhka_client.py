@@ -438,7 +438,11 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
             "attached_to_name": invoice_name,
             "file_name": ["like", "%.pdf"]
         },
-        fields=["name", "file_name"]
+        fields=["name", "file_name"],
+        # El PDF de la última emisión es el vigente: al reemitir (p. ej. tras un
+        # 201 duplicado) se adjunta uno nuevo y el previo queda stale. Servir el
+        # más reciente evita mostrar en la vista previa el documento anterior.
+        order_by="creation desc",
     )
 
     if attached_files:
