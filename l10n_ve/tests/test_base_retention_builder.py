@@ -13,10 +13,14 @@ de retención IVA (tipo 05) e ISLR (tipo 06):
 - Totales placeholder
 """
 
+from unittest.mock import patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from l10n_ve.digital_invoice.base_withholding_builder import BaseRetentionPayloadBuilder
+
+_MOD = "l10n_ve.digital_invoice.base_withholding_builder"
 
 
 class TestParseRIF(FrappeTestCase):
@@ -211,3 +215,43 @@ class TestTotalsPlaceholder(FrappeTestCase):
         totals: dict = builder._build_totals_placeholder(1)
 
         self.assertEqual(totals["Subtotal"], "0.00")
+
+
+class TestSupplierContactInfo(FrappeTestCase):
+    """_get_supplier_contact_info(): cascada de correo del proveedor.
+
+    email_id del contacto → correos secundarios (email_ids) → email de la Dirección.
+    Evita que un proveedor con el correo cargado solo en la Dirección emita el
+    comprobante sin notificación (caso DESIGNET SERVICES 1815 C.A).
+    """
+
+    def _resolve(self, contact: frappe._dict, addr: frappe._dict) -> tuple[str, str]:
+        builder = BaseRetentionPayloadBuilder(frappe._dict({"name": "X", "supplier": "SUP"}))
+        # get_value: 1º el Address (Dynamic Link), 2º el Contact.
+        # get_cached_doc: 1º el Address, 2º el Contact.
+        with patch(f"{_MOD}.frappe.db.get_value", side_effect=["ADDR", "CONTACT"]), \
+             patch(f"{_MOD}.frappe.get_cached_doc", side_effect=[addr, contact]):
+            return builder._get_supplier_contact_info("SUP")
+
+    def test_prefers_contact_email_id(self) -> None:
+        contact = frappe._dict({"email_id": "contacto@x.com", "email_ids": [], "mobile_no": "", "phone": ""})
+        addr = frappe._dict({"phone": "", "email_id": "direccion@x.com"})
+        _, email = self._resolve(contact, addr)
+        self.assertEqual(email, "contacto@x.com")
+
+    def test_falls_back_to_secondary_email_ids(self) -> None:
+        contact = frappe._dict({
+            "email_id": "", "email_ids": [frappe._dict({"email_id": "sec@x.com"})],
+            "mobile_no": "", "phone": "",
+        })
+        addr = frappe._dict({"phone": "", "email_id": ""})
+        _, email = self._resolve(contact, addr)
+        self.assertEqual(email, "sec@x.com")
+
+    def test_falls_back_to_address_email(self) -> None:
+        """Caso DESIGNET: correo solo en la Dirección → se toma de la Dirección."""
+        contact = frappe._dict({"email_id": "", "email_ids": [], "mobile_no": "0412", "phone": ""})
+        addr = frappe._dict({"phone": "", "email_id": "ventasdesignet@gmail.com"})
+        phone, email = self._resolve(contact, addr)
+        self.assertEqual(email, "ventasdesignet@gmail.com")
+        self.assertEqual(phone, "0412")
