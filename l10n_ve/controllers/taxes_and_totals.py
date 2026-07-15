@@ -142,7 +142,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
         affected_doctype: str = "Sales Invoice" if self.doc.doctype in ("VE Sales Credit Note", "VE Sales Debit Note") else "Purchase Invoice"
         try:
             return frappe.get_cached_doc(affected_doctype, self.doc.return_against)
-        except Exception as e:
+        except Exception:
             frappe.log_error(
                 message=frappe.get_traceback(),
                 title=f"Error en TaxesAndTotals al obtener return_against para {self.doc.name}"
@@ -175,31 +175,31 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
         parent_doc = self._get_return_parent_doc()
         if parent_doc:
-                parent_items = {item.name: item for item in parent_doc.items}
-                parent_items_by_code: dict[str, list] = {}
-                for item in parent_doc.items:
-                    parent_items_by_code.setdefault(item.item_code, []).append(item)
+            parent_items = {item.name: item for item in parent_doc.items}
+            parent_items_by_code: dict[str, list] = {}
+            for item in parent_doc.items:
+                parent_items_by_code.setdefault(item.item_code, []).append(item)
 
-                for item in self.doc.items:
-                    ref_item = None
-                    if item.get("sales_invoice_item") and item.sales_invoice_item in parent_items:
-                        ref_item = parent_items[item.sales_invoice_item]
-                    else:
-                        code: str = item.item_code
-                        if code in parent_items_by_code and parent_items_by_code[code]:
-                            ref_item = parent_items_by_code[code].pop(0)
+            for item in self.doc.items:
+                ref_item = None
+                if item.get("sales_invoice_item") and item.sales_invoice_item in parent_items:
+                    ref_item = parent_items[item.sales_invoice_item]
+                else:
+                    code: str = item.item_code
+                    if code in parent_items_by_code and parent_items_by_code[code]:
+                        ref_item = parent_items_by_code[code].pop(0)
 
-                    if ref_item:
-                        qty: float = flt(item.qty)
-                        amount_ratio: float = flt(item.net_amount) / flt(ref_item.net_amount) if flt(ref_item.net_amount) else 0.0
-                        item.base_net_amount = flt(ref_item.base_net_amount * amount_ratio, item.precision("base_net_amount"))
-                        item.base_amount = flt(ref_item.base_amount * amount_ratio, item.precision("base_amount"))
-                        item.base_net_rate = flt(item.base_net_amount / qty, item.precision("base_net_rate")) if qty else 0.0
-                        item.base_rate = flt(item.base_amount / qty, item.precision("base_rate")) if qty else 0.0
+                if ref_item:
+                    qty: float = flt(item.qty)
+                    amount_ratio: float = flt(item.net_amount) / flt(ref_item.net_amount) if flt(ref_item.net_amount) else 0.0
+                    item.base_net_amount = flt(ref_item.base_net_amount * amount_ratio, item.precision("base_net_amount"))
+                    item.base_amount = flt(ref_item.base_amount * amount_ratio, item.precision("base_amount"))
+                    item.base_net_rate = flt(item.base_net_amount / qty, item.precision("base_net_rate")) if qty else 0.0
+                    item.base_rate = flt(item.base_amount / qty, item.precision("base_rate")) if qty else 0.0
 
-                        rate_ratio: float = flt(item.price_list_rate) / flt(ref_item.price_list_rate) if flt(ref_item.price_list_rate) else 0.0
-                        item.base_price_list_rate = flt(ref_item.base_price_list_rate * rate_ratio, item.precision("base_price_list_rate"))
-                return
+                    rate_ratio: float = flt(item.price_list_rate) / flt(ref_item.price_list_rate) if flt(ref_item.price_list_rate) else 0.0
+                    item.base_price_list_rate = flt(ref_item.base_price_list_rate * rate_ratio, item.precision("base_price_list_rate"))
+            return
 
         if not self._is_multicurrency():
             return
@@ -380,8 +380,6 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             for item in self.doc.items
             if not item.get("vat_exempt")
         )
-
-
 
         # Método "Desde el total": el IVA Bs se define por DIFERENCIA contra
         # el total gravado anclado (base + IVA == total comercial x tasa,
