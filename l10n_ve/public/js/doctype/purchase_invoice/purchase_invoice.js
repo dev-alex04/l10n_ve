@@ -501,7 +501,9 @@ function setup_withholding_voucher_buttons(frm) {
   const has_vat_withholding = taxes.some(
     (tax) => tax.charge_type === "VAT Withholding" && flt(tax.base_tax_amount),
   );
-  const has_islr = taxes.some((tax) => tax.charge_type === "ISLR");
+  const has_islr = taxes.some(
+    (tax) => tax.charge_type === "ISLR" && flt(tax.base_tax_amount),
+  );
 
   const create_voucher = (method, doctype, confirm_message) => {
     frappe.confirm(confirm_message, () => {
