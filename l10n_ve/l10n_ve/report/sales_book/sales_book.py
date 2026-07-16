@@ -142,7 +142,7 @@ def get_columns() -> list[dict]:
         # Campos de Retencion de IVA
         {"label": _("IVA Retenido"), "fieldname": "iva_retained", "fieldtype": "Currency", "width": "auto"},
         {"label": _("Nro. Comprobante de Retencion IVA"), "fieldname": "vat_withholding_voucher_number", "fieldtype": "Data", "width": "auto"},
-        {"label": _("Fecha Comprobante"), "fieldname": "withholding_date", "fieldtype": "Date", "width": "auto"},
+        {"label": _("Fecha Comprobante"), "fieldname": "withholding_date", "fieldtype": "Data", "width": "auto"},
         {"label": _("Tasa de Retencion IVA"), "fieldname": "vat_withholding_rate", "fieldtype": "Percent", "width": "auto"},
 
         # Columnas para IGTF Impuesto a las Grandes Transacciones Financieras
