@@ -17,7 +17,27 @@ class CustomSupplier(Supplier):
                             "Por favor, ingrese una dirección usando el botón "
                             "'Agregar Dirección' en la parte superior derecha"))
 
+        if self.supplier_primary_address:
+            if frappe.db.exists("Address", self.supplier_primary_address):
+                links: list[dict] = frappe.db.get_all(
+                    "Dynamic Link",
+                    filters={"parenttype": "Address", "parent": self.supplier_primary_address},
+                    fields=["link_doctype", "link_name"]
+                )
+                other_suppliers: list[str] = [
+                    l.get("link_name") for l in links 
+                    if l.get("link_doctype") == "Supplier" and l.get("link_name") != self.name
+                ]
+                if other_suppliers:
+                    frappe.throw(
+                        _("La dirección seleccionada ya está vinculada a otro proveedor ({0}). "
+                          "Por favor, cree una nueva dirección para este proveedor.")
+                        .format(", ".join(other_suppliers)),
+                        title=_("Dirección de otro Proveedor")
+                    )
+
     def on_update(self):
         super().on_update()
         if self.supplier_primary_address:
             link_address_to_party(self.supplier_primary_address, self.doctype, self.name)
+
