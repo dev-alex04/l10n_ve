@@ -223,6 +223,11 @@ def has_ve_branch_permission(doc: Any, ptype: str = "read", user: str = None) ->
     allowed: List[str] = get_allowed_branches(user, include_ancestors=False)
     if not allowed:
         return False
+
+    # Permitir inicialización y creación general si el usuario tiene sucursales asignadas.
+    # La validación estricta de la sucursal específica se ejecutará al guardar (save/write).
+    if ptype in ("create", "select"):
+        return len(allowed) > 0
         
     # Caso especial: El documento es VE Branch mismo
     if doc.doctype == "VE Branch":
