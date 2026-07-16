@@ -1,9 +1,17 @@
+from typing import TYPE_CHECKING
+
 import frappe
 from frappe import _
 from frappe.utils import flt, cint, getdate
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice, make_regional_gl_entries
+
+if TYPE_CHECKING:
+    from erpnext.accounts.doctype.journal_entry.journal_entry import JournalEntry
+    from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import (
+        SalesTaxesandCharges,
+    )
 
 from l10n_ve.overrides.company import CustomCompany
 from l10n_ve.controllers.taxes_mixin import TaxesMixin

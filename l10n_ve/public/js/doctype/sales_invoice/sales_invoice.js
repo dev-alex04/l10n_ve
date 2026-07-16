@@ -1298,9 +1298,13 @@ function setup_replacement_invoice_button(frm) {
 }
 
 function open_withholding_dialog(frm, invoice, customer, type, default_account, suggested_rate, suggested_amount) {
+  // Se refleja el criterio del backend (handle_voucher_metadata): un comprobante
+  // "existe" si ya hay número o imagen. Los campos de fecha reales son
+  // withholding_date (IVA) e islr_date (ISLR); no existen vat_withholding_date
+  // ni islr_withholding_date, así que no se consultan aquí.
   const has_existing = type === "VAT"
-    ? !!(frm.doc.vat_withholding_voucher_number || frm.doc.voucher_image || frm.doc.vat_withholding_date)
-    : !!(frm.doc.islr_receipt_number || frm.doc.voucher_image_islr || frm.doc.islr_withholding_date);
+    ? !!(frm.doc.vat_withholding_voucher_number || frm.doc.voucher_image)
+    : !!(frm.doc.islr_receipt_number || frm.doc.voucher_image_islr);
 
   const is_required = has_existing ? 0 : 1;
 
@@ -1411,8 +1415,8 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
         return;
       }
 
-      dialog.hide();
-
+      // No se oculta el diálogo aquí: si el servidor lanza un error, el operador
+      // conserva lo que tecleó. Se oculta solo tras aplicar la retención con éxito.
       const ejecutar_peticion = (overwrite_value = 0, only_line_value = 0) => {
         frappe.call({
           method: "l10n_ve.overrides.sales_invoice.fix_missing_withholding",
@@ -1457,13 +1461,9 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
                   frm.reload_doc();
                 }
               );
-            } else if (r.message && r.message.status === "error") {
-              frappe.msgprint({
-                title: __("Error al guardar"),
-                indicator: "red",
-                message: __(r.message.msg),
-              });
             }
+            // El backend nunca devuelve status "error": ante un fallo hace
+            // frappe.throw, que frappe.call surfacea por su propio manejador.
           },
         });
       };
@@ -1534,7 +1534,9 @@ function validate_voucher_file_frontend(file_url, allowed_extensions) {
   if (!allowed_extensions.includes(ext)) {
     frappe.msgprint({
       title: __("Archivo no permitido"),
-      message: __("Solo se permiten archivos PDF, JPG o JPEG."),
+      message: __("Solo se permiten archivos: {0}.", [
+        allowed_extensions.map((e) => e.toUpperCase()).join(", "),
+      ]),
       indicator: "red",
     });
     return false;
