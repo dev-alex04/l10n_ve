@@ -387,9 +387,12 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         """
         return
 
-    # ------------------------------------------------------------------ #
-    # GL Entries — corazón de la reversión contable                        #
-    # ------------------------------------------------------------------ #
+    def make_precision_loss_gl_entry(self, gl_entries) -> None:
+        """En notas de crédito de retorno no se debe generar pérdida de precisión contable,
+        ya que la diferencia entre base_net_amount y net_amount * conversion_rate
+        ya está absorbida por la base de la factura de origen heredada.
+        """
+        return
 
     def get_gl_entries(self, warehouse_account=None):
         """
@@ -685,6 +688,7 @@ def make_replacement_invoice(source_name: str) -> "Document":
             },
         },
         postprocess=_ajustar_fecha_y_tasa,
+        ignore_permissions=True,
     )
 
 

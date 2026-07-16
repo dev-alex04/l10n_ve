@@ -9,6 +9,9 @@ frappe.ui.form.on("Supplier", {
     }
   },
   onload: function (frm) {
+    if (frm.is_new()) {
+      frm.set_value('supplier_primary_address', '');
+    }
     setup_phone_validation(frm, "mobile_no");
   },
   refresh: function (frm) {
@@ -19,6 +22,7 @@ frappe.ui.form.on("Supplier", {
       frm.set_value('type_of_document', '');
       frm.set_value('nature_of_the_taxpayer', '');
       frm.set_value('type_of_person', '');
+      frm.set_value('supplier_primary_address', '');
       hidden_address_contact(frm);
     } else {
       get_address_link(frm);
