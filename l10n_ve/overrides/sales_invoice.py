@@ -1431,12 +1431,12 @@ def make_replacement_invoice(source_name: str) -> "Document":
                     "conversion_rate",
                     "plc_conversion_rate",
                     # Retenciones: la nueva factura gestiona las propias
-                    "custom_vat_withholding_voucher_number",
-                    "custom_withholding_date",
-                    "custom_voucher_image",
-                    "custom_islr_receipt_number",
-                    "custom_islr_date",
-                    "custom_voucher_image_islr",
+                    "vat_withholding_voucher_number",
+                    "withholding_date",
+                    "voucher_image",
+                    "islr_receipt_number",
+                    "islr_date",
+                    "voucher_image_islr",
                 ],
             },
             "Sales Invoice Item": {
