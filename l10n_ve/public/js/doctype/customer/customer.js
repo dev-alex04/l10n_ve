@@ -44,6 +44,7 @@ frappe.ui.form.on("Customer", {
 
     if (!frm.is_new()) {
       render_balance_indicators(frm);
+      render_custom_account_summary(frm);
     }
   },
 
@@ -157,8 +158,9 @@ function render_balance_indicators(frm) {
   var balance = flt(data.total_unpaid);
   var currency = data.currency;
 
-  // Limpiar indicadores generados por ERPNext para este campo
-  frm.dashboard.clear_indicators();
+  // Limpiar indicadores generados por ERPNext (stats_area_row es el contenedor real)
+  frm.dashboard.stats_area_row.empty();
+  frm.dashboard.stats_area.show();
 
   // Facturación anual (se mantiene igual que ERPNext)
   frm.dashboard.add_indicator(
@@ -188,4 +190,121 @@ function render_balance_indicators(frm) {
       'blue'
     );
   }
+}
+
+/**
+ * Agrega una sección HTML en el tablero del cliente que muestra
+ * de forma resumida el total facturado, cobrado, retenciones/créditos
+ * y la tabla de facturas pendientes con sus días de vencimiento.
+ */
+function render_custom_account_summary(frm) {
+  frappe.call({
+    method: "l10n_ve.overrides.customer.get_balance_summary",
+    args: { customer: frm.doc.name },
+    callback: function (r) {
+      if (r.message) {
+        var data = r.message;
+        
+        // Limpiar sección previa si ya existe
+        frm.dashboard.parent.find(".custom-account-summary-section").remove();
+        
+        var currency = data.account_currency || "VEF";
+        
+        // Construir filas de la tabla de facturas abiertas
+        var rows_html = "";
+        if (data.open_invoices && data.open_invoices.length > 0) {
+          data.open_invoices.forEach(function (inv) {
+            var badge_class = inv.days_overdue > 0 ? "label-danger" : "label-success";
+            var overdue_text = inv.days_overdue > 0 ? inv.days_overdue + " días" : "Al día";
+            
+            rows_html += `
+              <tr>
+                <td><a href="/app/sales-invoice/${inv.name}" style="font-weight: bold; color: #1b9de2;">${inv.bill_no}</a></td>
+                <td>${inv.posting_date}</td>
+                <td>${inv.due_date}</td>
+                <td><span class="label ${badge_class}" style="font-size: 10px; padding: 2px 5px;">${overdue_text}</span></td>
+                <td style="text-align: right; font-weight: bold;">${format_currency(inv.outstanding_amount, currency)}</td>
+              </tr>
+            `;
+          });
+        }
+        
+        var table_html = rows_html ? `
+          <table class="table table-bordered table-condensed" style="margin-bottom: 0; background: #ffffff; font-size: 12px; border-radius: 4px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #f7f9fa; color: #5a6b7c;">
+                <th>Nro. Factura</th>
+                <th>Fecha Emisión</th>
+                <th>Vencimiento</th>
+                <th>Estado</th>
+                <th style="text-align: right;">Monto Pendiente</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows_html}
+            </tbody>
+          </table>
+        ` : `
+          <div style="text-align: center; color: #8d99a6; padding: 15px 0; background: #ffffff; border: 1px dashed #d1d8dd; border-radius: 4px;">
+            <i class="fa fa-check-circle" style="color: #2ecc71; font-size: 16px; margin-right: 5px;"></i> No hay facturas pendientes de pago.
+          </div>
+        `;
+        
+        var total_credits_withholdings = data.total_credits + data.total_withholdings;
+        
+        // Tarjeta dinámica para anticipos sin aplicar
+        var unapplied_card_html = "";
+        if (data.unapplied_credits > 0.01) {
+          unapplied_card_html = `
+            <div style="flex: 1; min-width: 150px; background: #ffffff; padding: 10px; border-radius: 4px; border-left: 4px solid #f1c40f; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+              <div style="font-size: 10px; text-transform: uppercase; color: #8d99a6; font-weight: bold; margin-bottom: 4px;">Anticipos sin aplicar</div>
+              <div style="font-size: 14px; font-weight: bold; color: #2c3e50;">${format_currency(data.unapplied_credits, currency)}</div>
+            </div>
+          `;
+        }
+
+        // Explicación de los montos contables vs comerciales
+        var math_explanation = "";
+        if (data.unapplied_credits > 0.01) {
+          math_explanation = `
+            <div style="margin-top: 10px; font-size: 11px; color: #6f7c87; background: #fffde7; padding: 8px 12px; border-radius: 4px; border-left: 3px solid #f1c40f; margin-bottom: 15px; border-top: 1px solid #ffe082; border-right: 1px solid #ffe082; border-bottom: 1px solid #ffe082;">
+              <i class="fa fa-info-circle" style="color: #f39c12; margin-right: 5px;"></i>
+              <strong>Conciliación de Saldos:</strong> El cliente tiene facturas por pagar por un total de <strong>${format_currency(data.open_invoices_total, currency)}</strong>, pero dispone de <strong>${format_currency(data.unapplied_credits, currency)}</strong> en anticipos o créditos no cruzados. Por lo tanto, el saldo neto por cobrar real es de <strong>${format_currency(data.net_balance, currency)}</strong>.
+            </div>
+          `;
+        }
+        
+        var section_html = `
+          <div class="custom-account-summary-section" style="margin-top: 20px; border: 1px solid #d1d8dd; border-radius: 4px; padding: 15px; background-color: #fafbfc;">
+            <h5 style="margin-top: 0; margin-bottom: 15px; color: #5a6b7c; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+              <i class="fa fa-info-circle" style="margin-right: 5px;"></i> Resumen de Cuenta del Cliente
+            </h5>
+            <!-- Fila de totales -->
+            <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 150px; background: #ffffff; padding: 10px; border-radius: 4px; border-left: 4px solid #1b9de2; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                <div style="font-size: 10px; text-transform: uppercase; color: #8d99a6; font-weight: bold; margin-bottom: 4px;">Total Facturado</div>
+                <div style="font-size: 14px; font-weight: bold; color: #2c3e50;">${format_currency(data.total_invoiced, currency)}</div>
+              </div>
+              <div style="flex: 1; min-width: 150px; background: #ffffff; padding: 10px; border-radius: 4px; border-left: 4px solid #2ecc71; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                <div style="font-size: 10px; text-transform: uppercase; color: #8d99a6; font-weight: bold; margin-bottom: 4px;">Total Cobrado</div>
+                <div style="font-size: 14px; font-weight: bold; color: #2c3e50;">${format_currency(data.total_paid, currency)}</div>
+              </div>
+              <div style="flex: 1; min-width: 150px; background: #ffffff; padding: 10px; border-radius: 4px; border-left: 4px solid #e67e22; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                <div style="font-size: 10px; text-transform: uppercase; color: #8d99a6; font-weight: bold; margin-bottom: 4px;">Retenciones y Créditos</div>
+                <div style="font-size: 14px; font-weight: bold; color: #2c3e50;">${format_currency(total_credits_withholdings, currency)}</div>
+              </div>
+              ${unapplied_card_html}
+            </div>
+            
+            ${math_explanation}
+            
+            <div style="font-size: 11px; text-transform: uppercase; color: #8d99a6; font-weight: bold; margin-bottom: 8px;">Detalle de Facturas Pendientes</div>
+            ${table_html}
+          </div>
+        `;
+        
+        frm.dashboard.add_section(section_html);
+      }
+    }
+  });
 }
