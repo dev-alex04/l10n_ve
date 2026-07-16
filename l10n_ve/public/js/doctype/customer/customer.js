@@ -41,6 +41,10 @@ frappe.ui.form.on("Customer", {
     if (!is_system_manager) {
       frm.fields_dict.contact_html.$wrapper.find("a").hide();
     }
+
+    if (!frm.is_new()) {
+      render_balance_indicators(frm);
+    }
   },
 
   nature_of_the_taxpayer: function (frm) {
@@ -133,4 +137,55 @@ function reorganize_customer_fields(frm) {
   tabulator_islr_field_wrapper.insertAfter(
     tax_withholding_category_field_wrapper,
   );
+}
+
+/**
+ * Reemplaza el indicador genérico de "Total Unpaid" de ERPNext por
+ * etiquetas en español que muestran el saldo del cliente de forma clara:
+ *   - Saldo a Favor (verde, valor positivo) cuando el cliente pagó de más.
+ *   - Saldo en Contra (naranja) cuando tiene deuda pendiente.
+ *   - Sin Saldo Pendiente (verde) cuando está al día.
+ */
+function render_balance_indicators(frm) {
+  var info = frm.doc.__onload && frm.doc.__onload.dashboard_info;
+  if (!info || info.length === 0) return;
+
+  // Solo aplica cuando hay una única empresa (caso habitual)
+  if (info.length !== 1) return;
+
+  var data = info[0];
+  var balance = flt(data.total_unpaid);
+  var currency = data.currency;
+
+  // Limpiar indicadores generados por ERPNext para este campo
+  frm.dashboard.clear_indicators();
+
+  // Facturación anual (se mantiene igual que ERPNext)
+  frm.dashboard.add_indicator(
+    __('Facturación Anual: {0}', [format_currency(data.billing_this_year, currency)]),
+    'blue'
+  );
+
+  // Saldo: interpretamos el signo contable
+  if (balance > 0) {
+    frm.dashboard.add_indicator(
+      __('Saldo en Contra: {0}', [format_currency(balance, currency)]),
+      'orange'
+    );
+  } else if (balance < 0) {
+    frm.dashboard.add_indicator(
+      __('Saldo a Favor: {0}', [format_currency(Math.abs(balance), currency)]),
+      'green'
+    );
+  } else {
+    frm.dashboard.add_indicator(__('Sin Saldo Pendiente'), 'green');
+  }
+
+  // Puntos de fidelidad (si aplica)
+  if (data.loyalty_points) {
+    frm.dashboard.add_indicator(
+      __('Puntos de Fidelidad: {0}', [data.loyalty_points]),
+      'blue'
+    );
+  }
 }
