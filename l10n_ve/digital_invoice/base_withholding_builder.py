@@ -13,7 +13,11 @@ from typing import Optional
 import frappe
 from frappe.utils import flt, getdate
 
-from l10n_ve.digital_invoice.payload_builder import clean_address, clean_payload
+from l10n_ve.digital_invoice.payload_builder import (
+    build_transaction_id,
+    clean_address,
+    clean_payload,
+)
 
 
 class BaseRetentionPayloadBuilder:
@@ -143,7 +147,7 @@ class BaseRetentionPayloadBuilder:
             "Sucursal": self._branch_code or None,
             "TipoDeVenta": "Interna",
             "Moneda": self.company_currency,
-            "TransaccionId": f"{self.TRANSACTION_PREFIX}{clean_number}",
+            "TransaccionId": build_transaction_id(f"{self.TRANSACTION_PREFIX}{clean_number}", self.doc),
         }
 
     # ─────────────────────────────────────────────────────────────
@@ -172,10 +176,18 @@ class BaseRetentionPayloadBuilder:
         }
 
     def _get_supplier_contact_info(self, supplier_name: str) -> tuple[str, str]:
-        """Obtiene teléfono y correo del proveedor."""
+        """Obtiene teléfono y correo del proveedor.
+
+        El correo se busca en cascada para no depender de que esté justo en el
+        ``email_id`` del contacto principal: ``Contact.email_id`` → correos
+        secundarios del contacto (``email_ids``) → ``email_id`` de la Dirección.
+        Sin esta cascada, un proveedor con el correo cargado solo en la Dirección
+        emitía el comprobante sin notificación (``Correo: []``).
+        """
         phone: str = ""
         email: str = ""
 
+        addr = None
         address_name: Optional[str] = frappe.db.get_value(
             "Dynamic Link",
             {"link_doctype": "Supplier", "link_name": supplier_name, "parenttype": "Address"},
@@ -193,8 +205,16 @@ class BaseRetentionPayloadBuilder:
         if contact_name:
             contact = frappe.get_cached_doc("Contact", contact_name)
             email = (contact.email_id or "").strip()
+            if not email and contact.get("email_ids"):
+                email = next(
+                    (e.email_id.strip() for e in contact.email_ids if e.email_id), ""
+                )
             if not phone:
                 phone = (contact.mobile_no or contact.phone or "").strip()
+
+        # Fallback: correo cargado en la Dirección (no en el Contacto).
+        if not email and addr is not None:
+            email = (addr.get("email_id") or "").strip()
 
         return phone, email
 

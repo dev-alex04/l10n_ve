@@ -5,6 +5,7 @@ import frappe
 from frappe.utils import flt
 from l10n_ve.digital_invoice.payload_builder import (
     TFHKAPayloadBuilder,
+    build_transaction_id,
     resolve_zone_from_address,
 )
 from l10n_ve.tests.helpers import MockDoc
@@ -525,3 +526,41 @@ class TestResolveZoneFromAddress(unittest.TestCase):
                    side_effect=[None, None, "VE-CITY-hash", "Colonia Tovar"]):
             zone = resolve_zone_from_address("Customer A", "ADDR-001")
         self.assertEqual(zone, "Colonia Tovar")
+
+
+class TestBuildTransactionId(unittest.TestCase):
+    """build_transaction_id: TransaccionId único para HKA aunque el name se recicle.
+
+    El correlativo del naming series se reinicia al borrar el último documento de
+    la serie (revert_series_if_last de Frappe), así que un name puede reaparecer;
+    la marca de creación evita que el TransaccionId choque en HKA (código 201).
+    """
+
+    @staticmethod
+    def _doc(name, creation):
+        return frappe._dict({"name": name, "creation": creation})
+
+    def test_appends_creation_stamp(self):
+        doc = self._doc("ND-2026-00001", "2026-07-15 10:54:29.997142")
+        base = "".join(filter(str.isalnum, doc.name))
+        self.assertEqual(build_transaction_id(base, doc), "ND202600001260715105429")
+
+    def test_recycled_name_gives_distinct_ids(self):
+        """Mismo name reciclado, distinta creación → TransaccionId distinto (no choca en HKA)."""
+        base = "ND202600001"
+        borrada = build_transaction_id(base, self._doc("ND-2026-00001", "2026-04-20 14:06:53"))
+        nueva = build_transaction_id(base, self._doc("ND-2026-00001", "2026-07-15 10:54:29"))
+        self.assertNotEqual(borrada, nueva)
+
+    def test_same_doc_is_idempotent(self):
+        """El MISMO doc produce SIEMPRE el mismo TransaccionId (idempotente ante reintentos)."""
+        doc = self._doc("ND-2026-00001", "2026-07-15 10:54:29.997142")
+        self.assertEqual(
+            build_transaction_id("ND202600001", doc),
+            build_transaction_id("ND202600001", doc),
+        )
+
+    def test_missing_creation_falls_back_to_base(self):
+        """Sin creation (doc en memoria, sin insertar) → devuelve solo la base sin romper."""
+        doc = frappe._dict({"name": "ND-2026-00001"})
+        self.assertEqual(build_transaction_id("ND202600001", doc), "ND202600001")

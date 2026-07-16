@@ -23,6 +23,7 @@ def _make_islr_doc(**overrides) -> frappe._dict:
     doc = frappe._dict({
         "name": "COMP-RET-ISLR-2026-00001",
         "voucher_number": "20260400000001",
+        "creation": "2026-04-30 09:15:00",
         "posting_date": "2026-04-30",
         "supplier": "DESIGNET SERVICES 1815 C.A",
         "supplier_address": "CALLE ROSCIO EDIF CENTRO EMPRESARIAL",
@@ -92,13 +93,15 @@ class TestISLRPayloadBuilder(FrappeTestCase):
     @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
     @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
     def test_transaction_id_prefix(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
-        """transaccionId debe iniciar con 'RISLR'."""
+        """transaccionId = 'RISLR' + número + fecha de creación (AAMMDDHHMMSS), único en el tiempo."""
         doc = _make_islr_doc()
         builder = TFHKAISLRPayloadBuilder(doc)
         payload: dict = builder.build_payload()
 
         id_doc: dict = payload["documentoElectronico"]["encabezado"]["identificacionDocumento"]
         self.assertTrue(id_doc["transaccionId"].startswith("RISLR"))
+        # creation "2026-04-30 09:15:00" → sufijo 260430091500 (evita choque HKA 201 si el name se recicla)
+        self.assertEqual(id_doc["transaccionId"], "RISLR20260400000001260430091500")
 
     # ─────────────────────────────────────────────
     # totalesRetencion
