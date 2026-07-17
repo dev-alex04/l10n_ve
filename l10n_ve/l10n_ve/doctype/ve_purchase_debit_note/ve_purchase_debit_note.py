@@ -88,6 +88,20 @@ class VEPurchaseDebitNote(TaxesMixin, PurchaseInvoice):
         self._update_outstanding_amount()
         self._update_parent_invoice_status()
 
+    def set_status(
+        self,
+        update: bool = False,
+        status: str | None = None,
+        update_modified: bool = True,
+    ) -> None:
+        """
+        Sobrescribe set_status para evitar AttributeError por falta de due_date,
+        el cual no existe en el esquema de base de datos de la ND.
+        """
+        if not self.get("due_date"):
+            self.due_date = self.posting_date or frappe.utils.today()
+        super().set_status(update=update, status=status, update_modified=update_modified)
+
     def _update_parent_invoice_status(self) -> None:
         """Recalcula el status de la PI original tras emitir/cancelar esta ND."""
         if not self.return_against:
