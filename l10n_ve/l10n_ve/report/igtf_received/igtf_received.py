@@ -144,7 +144,7 @@ def get_data(filters):
 			except ValueError:
 				pass
 
-		data.append({
+		data.append(frappe._dict({
 			"date": posting_date,
 			"invoice": row.get("name"),
 			"bill_no": row.get("bill_no"),
@@ -154,6 +154,6 @@ def get_data(filters):
 			"base_igtf": base_igtf,
 			"igtf_rate": row.get("igtf_rate") or 0,
 			"igtf_amount": total_igtf,
-		})
+		}))
 
 	return data
