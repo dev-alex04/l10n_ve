@@ -5,6 +5,7 @@ import time
 import frappe
 from frappe.utils import flt, getdate, cint, today
 
+from l10n_ve.digital_invoice.emission_rerate import rerate_to_emission_rate
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder, resolve_zone_from_address
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
@@ -691,6 +692,15 @@ def process_invoice(
 
     try:
         doc = frappe.get_doc(doctype, doc_name)
+
+        # Retasado a tasa de emisión (jurídicos): la factura fiscal debe
+        # expresarse en Bs a la tasa BCV vigente en la fecha de emisión
+        # (Ley IVA Art. 25 / Providencia SNAT/2011/0071). Corre ANTES de
+        # calcular tasa_fecha para que el lookup inverso, la validación de
+        # coherencia y el payload salgan con la tasa nueva. En modo force
+        # se respeta la tasa que porta el documento.
+        if not force and not skip_si_validations:
+            rerate_to_emission_rate(doc)
 
         # Calcular la fecha real de la tasa BCV ANTES de actualizar posting_date.
         # En modo forzado, usar la fecha exacta del posting_date para que
