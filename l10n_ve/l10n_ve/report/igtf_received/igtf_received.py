@@ -3,6 +3,8 @@
 
 import frappe
 from frappe import _
+from frappe.utils import flt
+from datetime import datetime
 
 
 def execute(filters=None):
@@ -106,77 +108,52 @@ def get_columns():
 
 
 def get_data(filters):
-	company = filters.get("company")
-	sales_igtf_account = frappe.db.get_value("Company", company, "sales_igtf_account")
-	igtf_rate = frappe.db.get_single_value("Venezuela Account Settings", "igtf_rate") or 3.0
+	"""Construye los datos del reporte usando EXACTAMENTE la misma fuente que el
+	Libro de Ventas (sales_book.get_sales_data), de modo que el IGTF percibido
+	cuadre al céntimo con el IGTF mostrado en el Libro de Ventas.
 
-	if not sales_igtf_account:
-		if not company:
-			company = frappe.defaults.get_user_default("company") or frappe.db.get_single_value("Global Defaults", "default_company")
-			if not company:
-				frappe.throw(_("Debe seleccionar una empresa para generar este reporte."))
-			sales_igtf_account = frappe.db.get_value("Company", company, "sales_igtf_account")
-		
-		if not sales_igtf_account:
-			frappe.throw(_("No se ha configurado la Cuenta IGTF en ventas para la empresa {0}.").format(company))
+	Antes este reporte leía los créditos de la cuenta IGTF en el libro mayor
+	(tabGL Entry). Eso generaba diferencias respecto al Libro de Ventas porque:
+	  - contabilizaba IGTF de comprobantes anulados (cuyo reverso es un débito),
+	  - duplicaba cuando una factura se pagaba en varios abonos,
+	  - e ignoraba que el Libro de Ventas usa el campo total_igtf de la factura.
+	Ahora se reusa la consulta del Libro de Ventas para garantizar paridad total.
+	"""
+	from l10n_ve.l10n_ve.report.sales_book.sales_book import get_sales_data
 
-	conditions = ""
-	if company:
-		conditions += " AND gle.company = %(company)s"
-	if filters.get("from_date"):
-		conditions += " AND gle.posting_date >= %(from_date)s"
-	if filters.get("to_date"):
-		conditions += " AND gle.posting_date <= %(to_date)s"
+	main_data, adjustment_data = get_sales_data(filters)
+	rows = main_data + adjustment_data
 
-	query_params = {
-		"company": company,
-		"sales_igtf_account": sales_igtf_account,
-		"igtf_rate": igtf_rate,
-		"from_date": filters.get("from_date"),
-		"to_date": filters.get("to_date")
-	}
+	data = []
+	for row in rows:
+		total_igtf = flt(row.get("total_igtf") or 0.0)
+		base_igtf = flt(row.get("base_amount_igtf") or 0.0)
 
-	data = frappe.db.sql(f"""
-		SELECT
-			gle.posting_date as date,
-			CASE 
-				WHEN gle.voucher_type = 'Sales Invoice' THEN gle.voucher_no
-				ELSE MIN(per.reference_name)
-			END as invoice,
-			CASE 
-				WHEN gle.voucher_type = 'Sales Invoice' THEN MAX(si_direct.bill_no)
-				ELSE MIN(si.bill_no)
-			END as bill_no,
-			MAX(c.customer_name) as customer,
-			MAX(c.tax_id) as tax_id,
-			CASE 
-				WHEN gle.voucher_type = 'Sales Invoice' THEN MAX(si_direct.base_grand_total)
-				ELSE COALESCE(MAX(si.base_grand_total), MAX(pe.paid_amount))
-			END as total,
-			gle.credit as igtf_amount,
-			(gle.credit * 100.0 / %(igtf_rate)s) as base_igtf,
-			%(igtf_rate)s as igtf_rate
-		FROM
-			`tabGL Entry` gle
-		LEFT JOIN
-			`tabPayment Entry` pe ON gle.voucher_no = pe.name AND gle.voucher_type = 'Payment Entry'
-		LEFT JOIN
-			`tabPayment Entry Reference` per ON pe.name = per.parent AND per.reference_doctype = 'Sales Invoice'
-		LEFT JOIN
-			`tabSales Invoice` si ON per.reference_name = si.name
-		LEFT JOIN
-			`tabSales Invoice` si_direct ON gle.voucher_no = si_direct.name AND gle.voucher_type = 'Sales Invoice'
-		LEFT JOIN
-			`tabCustomer` c ON COALESCE(pe.party, si_direct.customer, CASE WHEN gle.party_type = 'Customer' THEN gle.party ELSE NULL END) = c.name
-		WHERE
-			gle.docstatus = 1
-			AND gle.account = %(sales_igtf_account)s
-			AND gle.credit > 0
-			{conditions}
-		GROUP BY
-			gle.name, gle.posting_date, gle.voucher_type, gle.voucher_no, gle.credit
-		ORDER BY
-			gle.posting_date DESC
-	""", query_params, as_dict=True)
+		# Solo incluir documentos que efectivamente tengan IGTF.
+		# (El Libro de Ventas deja en 0 el IGTF de facturas anuladas, así que
+		# al filtrar por ~0 se excluyen automáticamente y se mantiene la paridad.)
+		if abs(total_igtf) < 0.001 and abs(base_igtf) < 0.001:
+			continue
+
+		posting_date = row.get("posting_date")
+		# get_sales_data devuelve posting_date como texto DD/MM/YYYY; lo
+		# normalizamos a date para la columna Date del reporte.
+		if isinstance(posting_date, str) and "/" in posting_date:
+			try:
+				posting_date = datetime.strptime(posting_date, "%d/%m/%Y").date()
+			except ValueError:
+				pass
+
+		data.append(frappe._dict({
+			"date": posting_date,
+			"invoice": row.get("name"),
+			"bill_no": row.get("bill_no"),
+			"customer": row.get("customer_name"),
+			"tax_id": row.get("customer_tax_id"),
+			"total": flt(row.get("grand_total") or 0.0),
+			"base_igtf": base_igtf,
+			"igtf_rate": row.get("igtf_rate") or 0,
+			"igtf_amount": total_igtf,
+		}))
 
 	return data
