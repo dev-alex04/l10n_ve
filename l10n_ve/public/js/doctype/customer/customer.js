@@ -210,46 +210,6 @@ function render_custom_account_summary(frm) {
         
         var currency = data.account_currency || "VEF";
         
-        // Construir filas de la tabla de facturas abiertas
-        var rows_html = "";
-        if (data.open_invoices && data.open_invoices.length > 0) {
-          data.open_invoices.forEach(function (inv) {
-            var badge_class = inv.days_overdue > 0 ? "label-danger" : "label-success";
-            var overdue_text = inv.days_overdue > 0 ? inv.days_overdue + " días" : "Al día";
-            
-            rows_html += `
-              <tr>
-                <td><a href="/app/sales-invoice/${inv.name}" style="font-weight: bold; color: #1b9de2;">${inv.bill_no}</a></td>
-                <td>${inv.posting_date}</td>
-                <td>${inv.due_date}</td>
-                <td><span class="label ${badge_class}" style="font-size: 10px; padding: 2px 5px;">${overdue_text}</span></td>
-                <td style="text-align: right; font-weight: bold;">${format_currency(inv.outstanding_amount, currency)}</td>
-              </tr>
-            `;
-          });
-        }
-        
-        var table_html = rows_html ? `
-          <table class="table table-bordered table-condensed" style="margin-bottom: 0; background: #ffffff; font-size: 12px; border-radius: 4px; overflow: hidden;">
-            <thead>
-              <tr style="background-color: #f7f9fa; color: #5a6b7c;">
-                <th>Nro. Factura</th>
-                <th>Fecha Emisión</th>
-                <th>Vencimiento</th>
-                <th>Estado</th>
-                <th style="text-align: right;">Monto Pendiente</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows_html}
-            </tbody>
-          </table>
-        ` : `
-          <div style="text-align: center; color: #8d99a6; padding: 15px 0; background: #ffffff; border: 1px dashed #d1d8dd; border-radius: 4px;">
-            <i class="fa fa-check-circle" style="color: #2ecc71; font-size: 16px; margin-right: 5px;"></i> No hay facturas pendientes de pago.
-          </div>
-        `;
-        
         var total_credits_withholdings = data.total_credits + data.total_withholdings;
         
         // Tarjeta dinámica para anticipos sin aplicar
@@ -297,13 +257,15 @@ function render_custom_account_summary(frm) {
             </div>
             
             ${math_explanation}
-            
-            <div style="font-size: 11px; text-transform: uppercase; color: #8d99a6; font-weight: bold; margin-bottom: 8px;">Detalle de Facturas Pendientes</div>
-            ${table_html}
           </div>
         `;
         
-        frm.dashboard.add_section(section_html);
+        var $section = $(section_html);
+        if (frm.dashboard.stats_area && frm.dashboard.stats_area.wrapper && frm.dashboard.stats_area.wrapper.length) {
+          $section.insertAfter(frm.dashboard.stats_area.wrapper);
+        } else {
+          frm.dashboard.add_section($section);
+        }
       }
     }
   });
