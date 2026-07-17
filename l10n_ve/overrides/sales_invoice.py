@@ -1449,6 +1449,7 @@ def make_replacement_invoice(source_name: str) -> "Document":
             },
         },
         postprocess=_adjust_date_and_rate,
+        ignore_permissions=True,
     )
 
 
