@@ -85,11 +85,11 @@ class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):
         serie_doc = None
         num_doc = bill_no
         import re
-        match = re.match(r"^([A-Za-z]+)-?([0-9]+)$", bill_no)
+        match = re.match(r"^([A-Za-z0-9\-]+)-([0-9]+)$", bill_no)
         if match:
             prefix = match.group(1)
             num = match.group(2)
-            if len(prefix) <= 5:
+            if len(prefix) <= 10:
                 serie_doc = prefix
                 num_doc = num
 
