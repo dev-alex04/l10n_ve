@@ -21,6 +21,7 @@ from frappe.utils import cint, flt, today
 
 from l10n_ve.utils.utils import (
     get_exchange_rate,
+    get_ve_exchange_rate_for_customer,
     is_juridical_customer,
     resolve_exchange_rate_date,
 )
@@ -364,10 +365,42 @@ def _post_fx_difference(doc: object, old_rate: float, new_rate: float) -> None:
 
 
 def _make_fx_journal_entry(doc: object, delta: float, old_rate: float, new_rate: float) -> None:
+    """Wrapper del retasado de Sales Invoice: arma el remark y delega."""
+    make_fx_adjustment_je(
+        company=doc.company,
+        debit_to=doc.debit_to,
+        customer=doc.customer,
+        reference_invoice=doc.name,
+        delta=delta,
+        remark=(
+            f"{RERATE_TAG} Diferencial cambiario por retasado a tasa de "
+            f"emisión de {doc.name}: {old_rate} → {new_rate}."
+        ),
+        branch=doc.get("branch"),
+        cost_center=doc.get("cost_center"),
+    )
+
+
+def make_fx_adjustment_je(
+    *,
+    company: str,
+    debit_to: str,
+    customer: str,
+    reference_invoice: str,
+    delta: float,
+    remark: str,
+    branch: str | None = None,
+    cost_center: str | None = None,
+) -> None:
     """
-    delta > 0: la tasa subió después del cobro → el CxC quedó inflado en Bs
-    respecto a lo cobrado → crédito al CxC contra la cuenta de PÉRDIDA.
-    delta < 0: tasa bajó → débito al CxC contra la cuenta de GANANCIA.
+    Postea un Journal Entry de diferencial cambiario contra el CxC, con la
+    fila del CxC referenciando la Sales Invoice para que su PLE cierre el
+    outstanding.
+
+    delta > 0: el CxC quedó inflado en Bs → crédito al CxC contra la
+    cuenta de PÉRDIDA en cambio.
+    delta < 0: el CxC quedó corto en Bs → débito al CxC contra la cuenta
+    de GANANCIA en cambio.
 
     No se usa create_gain_loss_journal de erpnext: usa una sola cuenta de
     Company. Galanet separa 7101005 Ganancia en Cambio (configurada en
@@ -376,40 +409,37 @@ def _make_fx_journal_entry(doc: object, delta: float, old_rate: float, new_rate:
     """
     loss_account, gain_account = frappe.get_cached_value(
         "Company",
-        doc.company,
+        company,
         ["exchange_gain_loss_account", "unrealized_exchange_gain_loss_account"],
     )
     counter_account = loss_account if delta > 0 else (gain_account or loss_account)
     if not counter_account:
         frappe.throw(
             "La Company no tiene configurada la cuenta de ganancia/pérdida "
-            "cambiaria (exchange_gain_loss_account); no se puede retasar "
-            f"la factura {doc.name}."
+            "cambiaria (exchange_gain_loss_account); no se puede ajustar "
+            f"el diferencial de la factura {reference_invoice}."
         )
 
-    cost_center = doc.get("cost_center") or frappe.get_cached_value(
-        "Company", doc.company, "cost_center"
+    cost_center = cost_center or frappe.get_cached_value(
+        "Company", company, "cost_center"
     )
     amount = abs(delta)
 
     je = frappe.new_doc("Journal Entry")
     je.voucher_type = "Exchange Gain Or Loss"
-    je.company = doc.company
+    je.company = company
     je.posting_date = today()
-    if je.meta.has_field("branch") and doc.get("branch"):
-        je.branch = doc.branch
-    je.user_remark = (
-        f"{RERATE_TAG} Diferencial cambiario por retasado a tasa de emisión "
-        f"de {doc.name}: {old_rate} → {new_rate}."
-    )
+    if je.meta.has_field("branch") and branch:
+        je.branch = branch
+    je.user_remark = remark
     je.append(
         "accounts",
         {
-            "account": doc.debit_to,
+            "account": debit_to,
             "party_type": "Customer",
-            "party": doc.customer,
+            "party": customer,
             "reference_type": "Sales Invoice",
-            "reference_name": doc.name,
+            "reference_name": reference_invoice,
             "cost_center": cost_center,
             "credit_in_account_currency": amount if delta > 0 else 0,
             "debit_in_account_currency": amount if delta < 0 else 0,
@@ -427,6 +457,143 @@ def _make_fx_journal_entry(doc: object, delta: float, old_rate: float, new_rate:
     je.flags.ignore_permissions = True
     je.insert()
     je.submit()
+
+
+def validate_note_rate_freshness(doc: object) -> None:
+    """
+    Guard de emisión para NC/ND: la nota debe portar la tasa de su fecha
+    de emisión (para naturales la del 1° del mes, que intra-mes siempre
+    coincide, así que en la práctica solo bloquea jurídicos).
+
+    Las notas no se retasan en caliente: son documentos submitted cuyo
+    ledger apunta a la factura afectada y su emisión es manual (botón),
+    así que el mensaje accionable le llega directo al usuario. Una nota
+    con tasa de otra fecha se anula y se genera de nuevo.
+    """
+    company_currency = frappe.get_cached_value(
+        "Company", doc.company, "default_currency"
+    )
+    if (doc.currency or company_currency) == company_currency:
+        return
+    if not flt(doc.conversion_rate):
+        return
+
+    expected = flt(get_ve_exchange_rate_for_customer(doc.customer, today()))
+    if not expected:
+        # Sin tasa BCV disponible: lo decide _validate_tasa_coherencia.
+        return
+
+    current_date = resolve_exchange_rate_date(flt(doc.conversion_rate), doc.currency)
+    target_date = resolve_exchange_rate_date(expected, doc.currency)
+    if current_date and target_date and str(current_date) == str(target_date):
+        return
+    if abs(expected - flt(doc.conversion_rate)) < _RATE_TOLERANCE:
+        return
+
+    frappe.throw(
+        f"La nota {doc.name} porta la tasa {flt(doc.conversion_rate)}, que "
+        f"no corresponde a la fecha de emisión (tasa vigente: {expected}). "
+        "Anule la nota y génerela de nuevo para emitirla con la tasa de "
+        "su fecha de emisión.",
+        title="Tasa desactualizada",
+    )
+
+
+def true_up_credit_note_fx(nc_doc: object) -> None:
+    """
+    Cierra el diferencial en Bs que una NC introduce sobre la factura
+    afectada cuando sus tasas difieren (la NC usa la tasa de su propia
+    fecha de emisión; la factura quedó certificada con la suya).
+
+    La NC acredita el CxC contra la factura original (against_voucher =
+    return_against) por su base_grand_total (tasa de la NC), mientras el
+    receivable de la factura está expresado a la tasa de la factura: el
+    exceso/defecto en Bs es diferencial cambiario y sin este asiento
+    quedaría como saldo a favor/deuda fantasma en el Auxiliar de CxC.
+    En el carril USD la NC devuelve exactamente su grand_total: ahí no
+    hay nada que ajustar.
+
+    Naturales intra-mes (misma tasa del 1°) y documentos en moneda de la
+    Company producen delta 0 y no generan asiento. La ND no lo necesita:
+    su ledger se referencia a sí misma, no a la factura afectada.
+    """
+    if not nc_doc.get("return_against"):
+        return
+
+    company_currency = frappe.get_cached_value(
+        "Company", nc_doc.company, "default_currency"
+    )
+    if (nc_doc.currency or company_currency) == company_currency:
+        return
+
+    si = frappe.db.get_value(
+        "Sales Invoice",
+        nc_doc.return_against,
+        ["conversion_rate", "docstatus"],
+        as_dict=True,
+    )
+    if not si or cint(si.docstatus) != 1 or not flt(si.conversion_rate):
+        return
+
+    nc_bs = flt(nc_doc.get("base_rounded_total") or nc_doc.base_grand_total)
+    nc_transaction = flt(nc_doc.get("rounded_total") or nc_doc.grand_total)
+    credit_excess = flt(nc_bs - nc_transaction * flt(si.conversion_rate), 2)
+    if abs(credit_excess) < _MIN_FX_DELTA:
+        return
+
+    # Idempotencia ante amend/reintentos: un JE vigente de esta NC ya
+    # cerró el diferencial (al cancelar la NC se anula y aquí renace).
+    if frappe.db.exists(
+        "Journal Entry",
+        {
+            "docstatus": 1,
+            "user_remark": (
+                "like",
+                f"{RERATE_TAG} Ajuste cambiario por NC {nc_doc.name}:%",
+            ),
+        },
+    ):
+        return
+
+    make_fx_adjustment_je(
+        company=nc_doc.company,
+        debit_to=nc_doc.debit_to,
+        customer=nc_doc.customer,
+        reference_invoice=nc_doc.return_against,
+        # La NC acreditó de más (excess > 0) → hay que DEBITAR el CxC:
+        # signo invertido respecto al exceso de crédito.
+        delta=-credit_excess,
+        remark=(
+            f"{RERATE_TAG} Ajuste cambiario por NC {nc_doc.name}: tasa NC "
+            f"{flt(nc_doc.conversion_rate)} vs factura "
+            f"{flt(si.conversion_rate)} ({nc_doc.return_against})."
+        ),
+        branch=nc_doc.get("branch"),
+        cost_center=nc_doc.get("cost_center"),
+    )
+
+
+def cancel_credit_note_fx_truing(nc_doc: object) -> None:
+    """
+    Anula los JEs de ajuste cambiario creados por esta NC. Solo aplica a
+    cancelaciones pre-HKA: después de certificada, la cancelación de la
+    NC está bloqueada por _block_cancel_if_sent_to_hka.
+    """
+    jes = frappe.get_all(
+        "Journal Entry",
+        filters={
+            "docstatus": 1,
+            "user_remark": (
+                "like",
+                f"{RERATE_TAG} Ajuste cambiario por NC {nc_doc.name}:%",
+            ),
+        },
+        pluck="name",
+    )
+    for name in jes:
+        je = frappe.get_doc("Journal Entry", name)
+        je.flags.ignore_permissions = True
+        je.cancel()
 
 
 def _close_outstanding_and_status(doc: object) -> None:
