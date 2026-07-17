@@ -158,6 +158,18 @@ class TestGetTargetRate(unittest.TestCase):
 
 
 class TestBlockingCondition(unittest.TestCase):
+    def setUp(self):
+        # Cliente habilitado por defecto para todos los tests de la clase.
+        patcher = patch("frappe.get_cached_value", return_value=0)
+        self.mock_cached = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_blocks_disabled_customer(self):
+        """Cliente deshabilitado: regenerar su GL revienta en PartyDisabled."""
+        self.mock_cached.return_value = 1
+        reason = _blocking_condition(FakeDoc())
+        self.assertIn("deshabilitado", reason)
+
     def test_blocks_advances(self):
         """Anticipos aplicados: make_gl_entries duplicaría JEs de gain/loss."""
         reason = _blocking_condition(FakeDoc(advances=[SimpleNamespace()]))
