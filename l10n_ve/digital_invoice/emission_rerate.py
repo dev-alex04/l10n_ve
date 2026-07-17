@@ -163,6 +163,12 @@ def _blocking_condition(doc: object) -> str | None:
     el documento, comportamiento previo) y se deja rastro en el Error Log.
     Retorna la razón o None.
     """
+    if cint(frappe.get_cached_value("Customer", doc.customer, "disabled")):
+        # Regenerar el GL de un cliente deshabilitado revienta en la
+        # validación de party (PartyDisabled) — la emisión SIN retasa no
+        # toca el GL y sí procede. Descubierto en smoke (17-jul-2026).
+        return "el cliente está deshabilitado (no se puede regenerar su GL)"
+
     if doc.get("advances"):
         # make_gl_entries() dispararía make_exchange_gain_loss_journal
         # contra los PEs de anticipo, duplicando asientos en reintentos.
