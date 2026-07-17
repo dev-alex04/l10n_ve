@@ -251,7 +251,8 @@ frappe.ui.form.on("VE Sales Credit Note", {
   },
 
   // Al seleccionar la factura original:
-  //   1. Auto-carga cliente, branch, tasa e ítems en positivo
+  //   1. Auto-carga cliente, branch e ítems en positivo. La tasa NO se
+  //      copia: se deriva de la fecha propia de la nota (posting_date).
   return_against: function (frm) {
     populate_from_sales_invoice(frm);
   },

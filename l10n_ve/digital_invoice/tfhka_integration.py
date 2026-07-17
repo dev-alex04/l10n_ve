@@ -5,7 +5,10 @@ import time
 import frappe
 from frappe.utils import flt, getdate, cint, today
 
-from l10n_ve.digital_invoice.emission_rerate import rerate_to_emission_rate
+from l10n_ve.digital_invoice.emission_rerate import (
+    rerate_to_emission_rate,
+    validate_note_rate_freshness,
+)
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder, resolve_zone_from_address
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
@@ -693,14 +696,21 @@ def process_invoice(
     try:
         doc = frappe.get_doc(doctype, doc_name)
 
-        # Retasado a tasa de emisión (jurídicos): la factura fiscal debe
-        # expresarse en Bs a la tasa BCV vigente en la fecha de emisión
-        # (Ley IVA Art. 25 / Providencia SNAT/2011/0071). Corre ANTES de
-        # calcular tasa_fecha para que el lookup inverso, la validación de
-        # coherencia y el payload salgan con la tasa nueva. En modo force
-        # se respeta la tasa que porta el documento.
-        if not force and not skip_si_validations:
-            rerate_to_emission_rate(doc)
+        # Tasa de emisión (Ley IVA Art. 25 / Providencia SNAT/2011/0071):
+        # el documento fiscal debe expresarse en Bs a la tasa BCV vigente
+        # en su fecha de emisión. Corre ANTES de calcular tasa_fecha para
+        # que el lookup inverso, la coherencia y el payload salgan con la
+        # tasa correcta. En modo force se respeta la tasa que porta el
+        # documento.
+        # - Sales Invoice: se retasa en caliente (jurídicos).
+        # - NC/ND: no se retasan (su ledger apunta a la factura afectada);
+        #   si la tasa quedó de otra fecha, se bloquea con instrucción de
+        #   anular y regenerar la nota.
+        if not force:
+            if skip_si_validations:
+                validate_note_rate_freshness(doc)
+            else:
+                rerate_to_emission_rate(doc)
 
         # Calcular la fecha real de la tasa BCV ANTES de actualizar posting_date.
         # En modo forzado, usar la fecha exacta del posting_date para que
@@ -717,8 +727,11 @@ def process_invoice(
         #   así que el flujo sano pasa trivialmente; si no hubo fila
         #   coincidente cayó al posting_date y esto bloquea la emisión de
         #   una tasa que no existe en Currency Exchange.
-        # NC y ND se omiten: su tasa es heredada de la factura original.
-        if not skip_si_validations and not force:
+        # Aplica también a NC/ND: desde el 16-jul-2026 las notas usan la
+        # tasa de su propia fecha de emisión (ya no la heredan de la
+        # factura afectada), así que su par tasa/fecha debe existir en
+        # Currency Exchange igual que el de la factura.
+        if not force:
             _validate_tasa_coherencia(doc, tasa_fecha)
 
         fecha_hka: str = today()

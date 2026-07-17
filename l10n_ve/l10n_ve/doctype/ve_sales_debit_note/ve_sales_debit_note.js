@@ -260,7 +260,8 @@ frappe.ui.form.on("VE Sales Debit Note", {
     }
   },
 
-  // Al seleccionar la factura original: auto-carga cliente, branch, tasa e ítems
+  // Al seleccionar la factura original: auto-carga cliente, branch e ítems.
+  // La tasa NO se copia: se deriva de la fecha propia de la nota (posting_date).
   return_against: function (frm) {
     populate_from_sales_invoice(frm);
   },
