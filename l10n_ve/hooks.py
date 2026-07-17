@@ -34,6 +34,7 @@ app_include_js = [
     "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
     "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
     "/assets/l10n_ve/js/widgets/number_card_widget.js",
+    "/assets/l10n_ve/js/report/payment_period_based_on_invoice_date.js",
 ]
 
 # Apps
@@ -192,6 +193,7 @@ query_report_js = {
     "General Ledger": "public/js/report/general_ledger.js",
     "Accounts Receivable": "public/js/report/accounts_receivable.js",
     "Accounts Payable": "public/js/report/accounts_payable.js",
+    "Payment Period Based On Invoice Date": "public/js/report/payment_period_based_on_invoice_date.js",
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
