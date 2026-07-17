@@ -41,6 +41,7 @@ frappe.ui.form.on("VE Purchase Debit Note", {
   refresh: function (frm) {
     calculate_base_total_with_vat(frm);
     set_islr_buttons(frm);
+    setup_withholding_voucher_buttons(frm);
 
     // Vista previa del asiento contable
     erpnext.accounts.ledger_preview.show_accounting_ledger_preview(frm);
@@ -523,4 +524,111 @@ function update_islr_preview(dialog, frm, type_of_person) {
       `);
     },
   });
+}
+
+function setup_withholding_voucher_buttons(frm) {
+  if (frm.doc.docstatus !== 1)
+    return;
+
+  const taxes = frm.doc.taxes || [];
+  const has_vat_withholding = taxes.some(
+    (tax) => tax.charge_type === "VAT Withholding" && flt(tax.base_tax_amount),
+  );
+  const has_islr = taxes.some(
+    (tax) => tax.charge_type === "ISLR" && flt(tax.base_tax_amount),
+  );
+
+  const create_voucher = (method, doctype, confirm_message) => {
+    frappe.confirm(confirm_message, () => {
+      frappe.call({
+        method: method,
+        args: {
+          source_name: frm.doc.name,
+          source_doctype: "VE Purchase Debit Note",
+        },
+        freeze: true,
+        freeze_message: __("Generando y emitiendo comprobante de retención..."),
+        callback: function (r) {
+          const result = r.message;
+          if (!result) {
+            frappe.msgprint({
+              title: __("Sin respuesta del servidor"),
+              message: __(
+                "No se recibió confirmación. Verifique en la lista de comprobantes " +
+                  "de retención si el documento fue creado antes de reintentar.",
+              ),
+              indicator: "orange",
+            });
+            return;
+          }
+
+          if (result.emitted) {
+            const route = `/app/${frappe.router.slug(doctype)}/${encodeURIComponent(result.voucher)}`;
+            const number_text = frappe.utils.escape_html(
+              result.voucher_number || result.voucher,
+            );
+            const number_link = `<a href="${route}"><b>${number_text}</b></a>`;
+            frappe.msgprint({
+              title: __("Comprobante emitido"),
+              message:
+                __("El comprobante {0} fue generado y emitido exitosamente.", [
+                  number_link,
+                ]) +
+                (result.bill_control
+                  ? "<br>" +
+                    __("N° de Control: <b>{0}</b>", [
+                      frappe.utils.escape_html(result.bill_control),
+                    ])
+                  : ""),
+              indicator: "green",
+            });
+          } else {
+            const link = frappe.utils.get_form_link(doctype, result.voucher, true);
+            frappe.msgprint({
+              title: __("Comprobante creado — emisión pendiente"),
+              message:
+                __(
+                  "El comprobante {0} fue creado y aprobado, pero la emisión a HKA falló. " +
+                    "Quedará pendiente de emisión: puede reintentarla desde el comprobante " +
+                    "(o la reintenta el envío automático, si está activo).",
+                  [link],
+                ) +
+                (result.error
+                  ? `<br><br><b>${__("Motivo")}:</b> ${frappe.utils.escape_html(result.error)}`
+                  : ""),
+              indicator: "orange",
+            });
+          }
+        },
+      });
+    });
+  };
+
+  if (has_vat_withholding) {
+    frm.add_custom_button(
+      __("Comprobante Retención IVA"),
+      function () {
+        create_voucher(
+          "l10n_ve.l10n_ve.doctype.vat_withholding_voucher.vat_withholding_voucher.make_vat_withholding_voucher",
+          "VAT Withholding Voucher",
+          __("¿Desea generar, aprobar y emitir a HKA el comprobante de retención de IVA para esta nota de débito?"),
+        );
+      },
+      __("Create"),
+    );
+  }
+
+  if (has_islr) {
+    frm.add_custom_button(
+      __("Comprobante Retención ISLR"),
+      function () {
+        create_voucher(
+          "l10n_ve.l10n_ve.doctype.islr_withholding_voucher.islr_withholding_voucher.make_islr_withholding_voucher",
+          "ISLR Withholding Voucher",
+          __("¿Desea generar, aprobar y emitir a HKA el comprobante de retención de ISLR para esta nota de débito?"),
+        );
+      },
+      __("Create"),
+    );
+  }
 }
