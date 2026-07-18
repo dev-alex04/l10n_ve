@@ -11,7 +11,11 @@ def get_row_exchange_rate(entry: list, invoice_col_idx: int, invoice_data: dict[
     inv_id: str | None = entry[invoice_col_idx] if len(entry) > invoice_col_idx else None
     inv_doc: dict | None = invoice_data.get(inv_id) if inv_id else None
 
-    rate: float = 1.0
+    # Devuelve 0.0 cuando no se puede resolver una tasa válida. El llamador
+    # trata ese 0.0 como "sin tasa" y omite la conversión de la fila, en lugar
+    # de usar una tasa ficticia de 1.0 que mostraría un monto en VES bajo el
+    # encabezado USD (sobrevalorándolo ~30-40x de forma silenciosa).
+    rate: float = 0.0
     if inv_doc:
         # Caso 1: Si la lista de precios es en USD, la tasa real de la transacción está en plc_conversion_rate
         if inv_doc.get("price_list_currency") == "USD" and flt(inv_doc.get("plc_conversion_rate")) > 0:
@@ -23,22 +27,22 @@ def get_row_exchange_rate(entry: list, invoice_col_idx: int, invoice_data: dict[
             # Caso 3: Factura en VES sin tasa en el documento, buscamos la tasa histórica BCV de la fecha de factura
             inv_date: str | None = inv_doc.get("posting_date")
             try:
-                rate = flt(get_exchange_rate(inv_date, "USD") or 1.0)
+                rate = flt(get_exchange_rate(inv_date, "USD"))
             except Exception:
-                rate = 1.0
+                rate = 0.0
     else:
         # Caso 4: Sin factura asociada (ej. anticipo o Journal Entry), usamos la tasa de la fecha del pago
         pay_date: str | None = None
         if posting_date_col_idx != -1 and len(entry) > posting_date_col_idx:
             pay_date = entry[posting_date_col_idx]
-            
+
         if pay_date:
             try:
-                rate = flt(get_exchange_rate(pay_date, "USD") or 1.0)
+                rate = flt(get_exchange_rate(pay_date, "USD"))
             except Exception:
-                rate = 1.0
+                rate = 0.0
 
-    return rate if rate > 0 else 1.0
+    return rate if rate > 0 else 0.0
 
 
 def custom_execute(filters: dict | None = None) -> tuple[list[dict], list[list]]:
@@ -139,10 +143,18 @@ def custom_execute(filters: dict | None = None) -> tuple[list[dict], list[list]]
                 posting_date_col_idx = i
                 break
 
+        missing_rate_rows: int = 0
         for row in data:
             if isinstance(row, list):
                 rate: float = get_row_exchange_rate(row, invoice_col_idx, invoice_data, posting_date_col_idx)
-                
+
+                # Sin tasa resoluble (0): no convertimos la fila. Preferimos dejar
+                # el monto original antes que dividir por una tasa ficticia de 1.0;
+                # se contabiliza para dejar traza y que el fallo no sea silencioso.
+                if rate <= 0:
+                    missing_rate_rows += 1
+                    continue
+
                 # Convertir montos dividiendo por la tasa
                 if amount_col_idx != -1 and len(row) > amount_col_idx and row[amount_col_idx] is not None:
                     row[amount_col_idx] = flt(row[amount_col_idx]) / rate
@@ -154,6 +166,12 @@ def custom_execute(filters: dict | None = None) -> tuple[list[dict], list[list]]
                     row[range3_col_idx] = flt(row[range3_col_idx]) / rate
                 if range4_col_idx != -1 and len(row) > range4_col_idx and row[range4_col_idx] is not None:
                     row[range4_col_idx] = flt(row[range4_col_idx]) / rate
+
+        if missing_rate_rows:
+            frappe.logger("l10n_ve").warning(
+                f"Payment Period (USD): {missing_rate_rows} fila(s) sin tasa de cambio "
+                "resoluble; se muestran sin convertir."
+            )
 
         # Ajustar el formateo de las columnas a USD
         for col in columns:

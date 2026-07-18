@@ -82,15 +82,31 @@
         };
     }
 
-    // Interceptar el resolvedor de moneda de Frappe para devolver USD en las celdas
+    // Interceptar el resolvedor de moneda de Frappe para devolver USD en las celdas.
+    // get_field_currency es una función COMPARTIDA por todo el Desk, y frappe.query_report
+    // conserva la última instancia aunque naveguemos fuera del reporte. Sin el guard de
+    // ruta, tras ver este reporte en USD, cualquier campo Currency de otra vista (p.ej. un
+    // formulario de Sales Invoice) se renderizaría en USD hasta recargar. Por eso limitamos
+    // el override a cuando realmente estamos en la ruta de este query report.
     if (frappe.meta && frappe.meta.get_field_currency) {
         const original_get_field_currency = frappe.meta.get_field_currency;
         frappe.meta.get_field_currency = function (df, doc) {
-            if (df && df.fieldtype === "Currency" && frappe.query_report && frappe.query_report.report_name === "Payment Period Based On Invoice Date") {
-                const currency_filter = frappe.query_report.get_filter_value("presentation_currency");
-                if (currency_filter === "USD") {
+            try {
+                const route = (frappe.get_route && frappe.get_route()) || [];
+                const on_this_report =
+                    route[0] === "query-report" &&
+                    route[1] === "Payment Period Based On Invoice Date";
+                if (
+                    on_this_report &&
+                    df && df.fieldtype === "Currency" &&
+                    frappe.query_report &&
+                    frappe.query_report.report_name === "Payment Period Based On Invoice Date" &&
+                    frappe.query_report.get_filter_value("presentation_currency") === "USD"
+                ) {
                     return "USD";
                 }
+            } catch (e) {
+                // Ante cualquier problema, caemos al comportamiento original de Frappe.
             }
             return original_get_field_currency.call(this, df, doc);
         };

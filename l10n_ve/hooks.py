@@ -193,7 +193,6 @@ query_report_js = {
     "General Ledger": "public/js/report/general_ledger.js",
     "Accounts Receivable": "public/js/report/accounts_receivable.js",
     "Accounts Payable": "public/js/report/accounts_payable.js",
-    "Payment Period Based On Invoice Date": "public/js/report/payment_period_based_on_invoice_date.js",
 }
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
