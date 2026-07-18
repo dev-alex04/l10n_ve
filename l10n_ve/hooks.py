@@ -34,6 +34,7 @@ app_include_js = [
     "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
     "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
     "/assets/l10n_ve/js/widgets/number_card_widget.js",
+    "/assets/l10n_ve/js/report/payment_period_based_on_invoice_date.js",
 ]
 
 # Apps
@@ -314,6 +315,7 @@ override_doctype_class = {
 }
 
 override_doctype_dashboards = {
+    "Customer": "l10n_ve.overrides.customer.get_customer_dashboard_data",
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.get_sales_invoice_dashboard_data",
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.get_purchase_invoice_dashboard_data",
 }

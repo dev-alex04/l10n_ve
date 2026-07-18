@@ -467,8 +467,8 @@ def _voucher_link(voucher: dict) -> str:
 
 
 @frappe.whitelist()
-def make_islr_withholding_voucher(source_name: str) -> dict:
-    """Crea, aprueba y emite a HKA un Comprobante de Retención ISLR desde la factura de compra.
+def make_islr_withholding_voucher(source_name: str, source_doctype: str = "Purchase Invoice") -> dict:
+    """Crea, aprueba y emite a HKA un Comprobante de Retención ISLR desde la factura de compra o ND.
 
     Reusa get_valid_invoices para calcular las líneas (una por concepto ISLR,
     mismos filtros y montos que el flujo del formulario). Si la emisión a HKA
@@ -476,9 +476,9 @@ def make_islr_withholding_voucher(source_name: str) -> dict:
     """
     frappe.has_permission("ISLR Withholding Voucher", "create", throw=True)
 
-    invoice = frappe.get_doc("Purchase Invoice", source_name)
+    invoice = frappe.get_doc(source_doctype, source_name)
     if invoice.docstatus != 1:
-        frappe.throw(_("La factura debe estar validada para generar el comprobante de retención."))
+        frappe.throw(_("El documento de compra debe estar validado para generar el comprobante de retención."))
 
     draft = _find_voucher_containing_invoice(invoice.name, docstatus=0)
     if draft:
