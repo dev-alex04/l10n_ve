@@ -247,9 +247,10 @@ frappe.ui.form.on("Sales Invoice", {
 
       if (frm.doc.docstatus === 1) {
         let invoice = frm.doc.bill_no ? frm.doc.bill_no : frm.doc.name;
+        let company = frm.doc.company;
 
         frappe.db.get_value('Customer', frm.doc.customer,
-          ['is_special_taxpayer', 'tax_withholding_category', 'tabulator_islr'],
+          ['is_special_taxpayer', 'tax_withholding_category', 'tabulator_islr', "type_of_person"],
           (customer_data) => {
             if (customer_data && customer_data.is_special_taxpayer) {
 
@@ -268,7 +269,7 @@ frappe.ui.form.on("Sales Invoice", {
                         .reduce((sum, t) => sum + flt(t.base_tax_amount), 0);
 
                       let suggested_amount = flt(vat_amount * (rate / 100.0), 2);
-                      open_withholding_dialog(frm, invoice, frm.doc.customer, "VAT", account, rate, suggested_amount);
+                      open_withholding_dialog(frm, invoice, frm.doc.customer, "VAT", account, rate, suggested_amount, company);
                     };
 
                     if (vat_account) {
@@ -298,13 +299,18 @@ frappe.ui.form.on("Sales Invoice", {
                     let percentage_base = 75;
 
                     let target_row = null;
-                    let client_person_type = customer_data.type_of_person || customer_data.types_of_person;
+                    let client_person_type = customer_data.type_of_person;
 
                     if (tab_doc.aliquot && tab_doc.aliquot.length > 0) {
                       if (client_person_type) {
                         target_row = tab_doc.aliquot.find(row => row.types_of_person === client_person_type);
                       }
                       if (!target_row) {
+                        frappe.msgprint({
+                          title: __('Configuración Incompleta'),
+                          indicator: 'orange',
+                          message: __('No se encontró un tramo en el Tabulador para "{0}". Se usará el primer tramo por defecto, verifique los montos sugeridos.', [client_person_type])
+                        });
                         target_row = tab_doc.aliquot[0];
                       }
                     }
@@ -322,7 +328,7 @@ frappe.ui.form.on("Sales Invoice", {
                     if (suggested_islr_amount < 0) suggested_islr_amount = 0;
 
                     const open_islr_modal = (final_account) => {
-                      open_withholding_dialog(frm, invoice, frm.doc.customer, "ISLR", final_account, islr_rate, suggested_islr_amount);
+                      open_withholding_dialog(frm, invoice, frm.doc.customer, "ISLR", final_account, islr_rate, suggested_islr_amount, company);
                     };
 
                     frappe.db.get_value('Company', frm.doc.company, 'sales_islr_account', (co) => {
@@ -1297,7 +1303,7 @@ function setup_replacement_invoice_button(frm) {
   });
 }
 
-function open_withholding_dialog(frm, invoice, customer, type, default_account, suggested_rate, suggested_amount) {
+function open_withholding_dialog(frm, invoice, customer, type, default_account, suggested_rate, suggested_amount, company) {
   // Se refleja el criterio del backend (handle_voucher_metadata): un comprobante
   // "existe" si ya hay número o imagen. Los campos de fecha reales son
   // withholding_date (IVA) e islr_date (ISLR); no existen vat_withholding_date
@@ -1376,6 +1382,7 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
       fieldname: "rate",
       fieldtype: "Percent",
       reqd: 1,
+      read_only: 1,
       default: suggested_rate || 0,
     });
   }
@@ -1424,13 +1431,13 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
             invoice_name: invoice,
             withholding_type: type,
             tax_account: values.tax_account,
-            amount: values.amount,
             voucher_number: values.voucher_number,
             withholding_date: values.withholding_date,
             file_url: values.file_url,
             rate: values.rate !== undefined ? values.rate : suggested_rate,
             overwrite: overwrite_value,
             only_line: only_line_value,
+            company: company,
           },
           freeze: true,
           freeze_message: __("Aplicando retención y generando asiento..."),
@@ -1462,8 +1469,6 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
                 }
               );
             }
-            // El backend nunca devuelve status "error": ante un fallo hace
-            // frappe.throw, que frappe.call surfacea por su propio manejador.
           },
         });
       };
