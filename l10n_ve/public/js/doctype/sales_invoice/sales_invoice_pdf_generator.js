@@ -284,7 +284,7 @@ async function generate_custom_invoice_preview(frm) {
       document_label,
       document_number,
       posting_date: formatDate(frm.doc.posting_date),
-      customer_name: frm.doc.customer_name || frm.doc.customer,
+      customer_name: frm.doc.customer_name,
       customer_tax_id: customer_data.tax_id || "RIF no disponible",
       customer_address,
       items_html,

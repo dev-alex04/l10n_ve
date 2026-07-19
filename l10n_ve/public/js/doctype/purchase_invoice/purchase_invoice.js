@@ -199,7 +199,7 @@ function show_islr_dialog(frm) {
           message: __(
             "El proveedor <b>{0}</b> no tiene configurado el Tipo de Persona. " +
               "Configúrelo antes de asignar retención de ISLR.",
-            [frm.doc.supplier_name || frm.doc.supplier],
+            [frm.doc.supplier_name],
           ),
           indicator: "red",
         });
@@ -225,7 +225,7 @@ function show_islr_dialog(frm) {
                           border-radius: var(--border-radius);
                           background: var(--bg-color);">
                 <div style="margin-bottom: 4px;">
-                  <strong>Proveedor:</strong> ${frm.doc.supplier_name || frm.doc.supplier}
+                  <strong>Proveedor:</strong> ${frm.doc.supplier_name}
                 </div>
                 <div style="margin-bottom: 4px;">
                   <strong>Tipo de Persona:</strong> ${type_of_person_label}

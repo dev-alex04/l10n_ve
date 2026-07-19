@@ -68,10 +68,9 @@ def get_columns():
 			"width": 140
 		},
 		{
-			"fieldname": "customer",
+			"fieldname": "customer_name",
 			"label": _("Cliente"),
-			"fieldtype": "Link",
-			"options": "Customer",
+			"fieldtype": "Data",
 			"width": 200
 		},
 		{
@@ -148,7 +147,7 @@ def get_data(filters):
 			"date": posting_date,
 			"invoice": row.get("name"),
 			"bill_no": row.get("bill_no"),
-			"customer": row.get("customer_name"),
+			"customer_name": row.get("customer_name"),
 			"tax_id": row.get("customer_tax_id"),
 			"total": flt(row.get("grand_total") or 0.0),
 			"base_igtf": base_igtf,

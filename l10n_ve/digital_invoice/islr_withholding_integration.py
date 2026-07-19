@@ -63,7 +63,7 @@ def _validate_islr_integrity(doc) -> list[str]:
     ) or ""
     if not supplier_tax_id.strip():
         errors.append(
-            f"El proveedor '{doc.supplier}' no tiene RIF (Tax ID) configurado."
+            f"El proveedor '{doc.supplier_name}' no tiene RIF (Tax ID) configurado."
         )
 
     # Validar datos de cada línea

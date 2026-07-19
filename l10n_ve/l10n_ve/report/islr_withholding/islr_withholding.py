@@ -18,7 +18,7 @@ def get_columns(filters):
     if group_by == "Por Proveedor":
         return [
             {"fieldname": "tax_id", "label": _("RIF Proveedor"), "fieldtype": "Data", "width": "auto"},
-            {"fieldname": "supplier", "label": _("Nombre Proveedor"), "fieldtype": "Link", "options": "Supplier", "width": "auto"},
+            {"fieldname": "supplier_name", "label": _("Nombre Proveedor"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "islr_base_amount", "label": _("Monto Objeto Retención"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "subtracting", "label": _("Sustraendo"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"}
@@ -34,7 +34,8 @@ def get_columns(filters):
     else:
         return [
             {"fieldname": "tax_id", "label": _("RIF Proveedor"), "fieldtype": "Data", "width": "auto"},
-            {"fieldname": "supplier", "label": _("Nombre Proveedor"), "fieldtype": "Link", "options": "Supplier", "width": "auto"},
+            {"fieldname": "supplier_name", "label": _("Nombre Proveedor"), "fieldtype": "Data", "width": "auto"},
+            {"fieldname": "supplier", "label": _("Proveedor"), "fieldtype": "Link", "options": "Supplier", "width": "auto"},
             {"fieldname": "doc_no", "label": _("Número de Factura"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "bill_date", "label": _("Fecha Factura"), "fieldtype": "Date", "width": "auto"},
             {"fieldname": "concept_code", "label": _("Código Concepto"), "fieldtype": "Data", "width": "auto"},
@@ -74,6 +75,7 @@ def get_data(filters):
             SELECT
                 supp.tax_id,
                 parent.supplier,
+                supp.supplier_name,
                 SUM(child.islr_base_amount) as islr_base_amount,
                 SUM(child.subtracting) as subtracting,
                 SUM(child.islr_amount) as islr_amount
@@ -88,7 +90,7 @@ def get_data(filters):
                 AND parent.docstatus = 1
                 {conditions}
             GROUP BY
-                parent.supplier, supp.tax_id
+                parent.supplier, supp.tax_id, supp.supplier_name
             ORDER BY
                 supp.tax_id ASC
         """
@@ -120,6 +122,7 @@ def get_data(filters):
             SELECT
                 supp.tax_id,
                 parent.supplier,
+                supp.supplier_name,
                 child.doc_no,
                 child.posting_date as bill_date,
                 child.code as concept_code,

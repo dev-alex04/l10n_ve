@@ -90,7 +90,7 @@ def download_custom_excel(filters=None):
 	for d in data:
 		ws.cell(row=row_num, column=1, value=d.date)
 		ws.cell(row=row_num, column=2, value=d.bill_no)
-		ws.cell(row=row_num, column=3, value=d.customer)
+		ws.cell(row=row_num, column=3, value=d.customer_name)
 		ws.cell(row=row_num, column=4, value=d.tax_id)
 		ws.cell(row=row_num, column=5, value=d.total)
 		ws.cell(row=row_num, column=6, value=d.base_igtf)
@@ -193,7 +193,7 @@ def download_custom_pdf(filters=None):
 				<tr>
 					<td class="text-center">{{ row.date }}</td>
 					<td class="text-center">{{ row.bill_no }}</td>
-					<td>{{ row.customer }}</td>
+					<td>{{ row.customer_name }}</td>
 					<td class="text-center">{{ row.tax_id }}</td>
 					<td class="text-right">{{ row.total_formatted }}</td>
 					<td class="text-right">{{ row.base_igtf_formatted }}</td>
