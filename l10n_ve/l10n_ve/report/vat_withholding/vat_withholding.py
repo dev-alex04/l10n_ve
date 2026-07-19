@@ -12,7 +12,7 @@ def execute(filters=None):
 def get_columns():
     return [
 		{"fieldname": "tax_id", "label": _("RIF Proveedor"), "fieldtype": "Data", "width": "auto"},
-        {"fieldname": "supplier", "label": _("Nombre del Proveedor"), "fieldtype": "Link", "options": "Supplier", "width": "auto"},
+        {"fieldname": "supplier_name", "label": _("Nombre del Proveedor"), "fieldtype": "Data", "width": "auto"},
         {"fieldname": "bill_no", "label": _("Número de Factura"), "fieldtype": "Data", "width": "auto"},
         {"fieldname": "bill_control", "label": _("Número de Control"), "fieldtype": "Data", "width": "auto"},
         {"fieldname": "posting_date", "label": _("Fecha Factura"), "fieldtype": "Date", "width": "auto"},
@@ -44,7 +44,7 @@ def get_data(filters):
     query = f"""
         SELECT
 			supp.tax_id,
-            parent.supplier,
+            supp.supplier_name,
             child.bill_no,
             child.posting_date,
 			inv.tax_withholding_category,

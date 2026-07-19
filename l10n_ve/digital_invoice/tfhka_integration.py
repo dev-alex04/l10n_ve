@@ -776,7 +776,7 @@ def process_invoice(
             if not builder.zona:
                 notes = (
                     f"No se pudo resolver: Zona (territory del cliente). "
-                    f"Cliente: {doc.customer}, Suscripción: {doc.get('subscription') or '-'}"
+                    f"Cliente: {doc.customer_name}, Suscripción: {doc.get('subscription') or '-'}"
                 )
                 _set_hka_status(doc.doctype, doc.name, "Error")
                 _log_request("Emision", doc.name, payload,

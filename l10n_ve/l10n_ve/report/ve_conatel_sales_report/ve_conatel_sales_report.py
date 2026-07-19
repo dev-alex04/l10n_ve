@@ -53,11 +53,17 @@ def get_columns(filters):
             "width": 120
         },
         {
-            "fieldname": "customer",
+            "fieldname": "customer_name",
             "label": _("Customer"),
+            "fieldtype": "Data",
+            "width": 200
+        },
+        {
+            "fieldname": "customer",
+            "label": _("Customer ID"),
             "fieldtype": "Link",
             "options": "Customer",
-            "width": 200
+            "width": 120
         },
         {
             "fieldname": "tax_id",

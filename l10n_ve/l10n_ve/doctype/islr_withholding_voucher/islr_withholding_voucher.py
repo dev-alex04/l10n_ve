@@ -156,6 +156,7 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
     def before_print(self, settings) -> None:
         company_tax_id: str = frappe.get_cached_value("Company", self.empresa, "tax_id") or "N/A"
         supplier_tax_id: str = frappe.get_cached_value("Supplier", self.supplier, "tax_id") or "N/A"
+        supplier_name: str = frappe.get_cached_value("Supplier", self.supplier, "supplier_name") or self.supplier
 
         main_fields: list[str] = [
             "totals_islr_base_amount",
@@ -173,6 +174,7 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
         self.company_tax_id = company_tax_id
         self.supplier_tax_id = supplier_tax_id
+        self.supplier_name = supplier_name
         format_amounts(self, main_fields, child_fields, child_table_field="islr_withholding_voucher_item")
 
     def before_insert(self) -> None:

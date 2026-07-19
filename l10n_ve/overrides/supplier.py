@@ -25,14 +25,18 @@ class CustomSupplier(Supplier):
                     fields=["link_doctype", "link_name"]
                 )
                 other_suppliers: list[str] = [
-                    l.get("link_name") for l in links 
+                    l.get("link_name") for l in links
                     if l.get("link_doctype") == "Supplier" and l.get("link_name") != self.name
                 ]
                 if other_suppliers:
+                    other_supplier_names: list[str] = [
+                        frappe.get_cached_value("Supplier", s, "supplier_name") or s
+                        for s in other_suppliers
+                    ]
                     frappe.throw(
                         _("La dirección seleccionada ya está vinculada a otro proveedor ({0}). "
                           "Por favor, cree una nueva dirección para este proveedor.")
-                        .format(", ".join(other_suppliers)),
+                        .format(", ".join(other_supplier_names)),
                         title=_("Dirección de otro Proveedor")
                     )
 
