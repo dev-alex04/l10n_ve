@@ -272,13 +272,24 @@ def validate_return_in_same_month(self):
     """
     Valida que una Nota de Crédito o Débito se cree en el mismo mes
     que la factura original a la que hace referencia.
+
+    Además de la regla fiscal, el diseño de tasas depende de este guard:
+    los naturales usan la tasa del 1° del mes, así que intra-mes la tasa
+    propia de la nota coincide con la de la factura afectada.
     """
     if not (self.is_return or self.is_debit_note) or not self.return_against:
         return
 
+    # return_against apunta a la factura ORIGINAL, no al doctype de la
+    # nota: para VE Sales Credit/Debit Note consultar self.doctype
+    # devolvía None y la validación pasaba en silencio.
+    reference_doctype = (
+        "Purchase Invoice" if "Purchase" in self.doctype else "Sales Invoice"
+    )
+
     current_posting_date = getdate(self.posting_date)
     origin_invoice_date = frappe.db.get_value(
-        self.doctype, self.return_against, "posting_date"
+        reference_doctype, self.return_against, "posting_date"
     )
 
     if not origin_invoice_date:

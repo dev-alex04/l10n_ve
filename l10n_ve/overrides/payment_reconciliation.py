@@ -59,7 +59,7 @@ except ImportError:
     REVIEW_DEPOSIT_NOT_SUBMITTED = "deposit_not_submitted"
     CASH_LIKE_TYPES = ("Cash", "Gateway", "Gangway")
     DEPOSIT_COVERAGE_TOLERANCE = 1.0
-    DEPOSIT_FIELDS = ["name", "deposit", "unallocated_amount", "currency", "bank_account"]
+    DEPOSIT_FIELDS = ["name", "deposit", "unallocated_amount", "currency", "bank_account", "date"]
     _is_bank_receive = lambda *a, **k: None
     _is_cash_like_receive = lambda *a, **k: None
     deposit_covers_payment = lambda *a, **k: None

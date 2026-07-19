@@ -54,16 +54,6 @@ frappe.query_reports["VAT Withholding"] = {
                      </span>`;
 		}
 
-		if (column.fieldname == "status" && data) {
-			let color = "blue";
-			if (data.status === "Aprobado") color = "green";
-			else if (data.status === "Cancelado") color = "red";
-			else if (data.status === "Borrador") color = "gray";
-			value = `<span class="indicator-pill ${color}" style="display: inline-flex; align-items: center;">
-                        ${__(value)}
-                     </span>`;
-		}
-
 		return value;
 	},
 	"onload": function (report) {

@@ -142,7 +142,7 @@ def get_columns() -> list[dict]:
         # Campos de Retencion de IVA
         {"label": _("IVA Retenido"), "fieldname": "iva_retained", "fieldtype": "Currency", "width": "auto"},
         {"label": _("Nro. Comprobante de Retencion IVA"), "fieldname": "vat_withholding_voucher_number", "fieldtype": "Data", "width": "auto"},
-        {"label": _("Fecha Comprobante"), "fieldname": "withholding_date", "fieldtype": "Date", "width": "auto"},
+        {"label": _("Fecha Comprobante"), "fieldname": "withholding_date", "fieldtype": "Data", "width": "auto"},
         {"label": _("Tasa de Retencion IVA"), "fieldname": "vat_withholding_rate", "fieldtype": "Percent", "width": "auto"},
 
         # Columnas para IGTF Impuesto a las Grandes Transacciones Financieras
@@ -330,14 +330,14 @@ def _get_cte() -> str:
     return """
         WITH InvoiceData AS (
 
-            -- FUENTE A: Facturas de venta y Notas de Débito
+            -- FUENTE A: Facturas de venta, devoluciones y Notas de Débito
             SELECT
                 siv.name, siv.branch, siv.posting_date, siv.customer,
                 TRIM(siv.customer) AS customer_name, siv.bill_no, siv.bill_control,
                 siv.credit_note_no, siv.debit_note_no,
                 siv.affected_invoice_number,
                 siv.vat_withholding_voucher_number, siv.withholding_date,
-                siv.is_void, siv.is_return, siv.is_debit_note,
+                siv.is_void, siv.is_return, siv.is_debit_note, siv.docstatus,
                 (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) AS conversion_rate,
                 1 AS amount_sign,
                 siv.base_net_total,
@@ -348,7 +348,6 @@ def _get_cte() -> str:
                 JSON_UNQUOTE(JSON_EXTRACT(siv.remarks, '$.resultado.serie')) AS hka_serie
             FROM `tabSales Invoice` siv
             WHERE siv.company = %(company)s
-                AND siv.is_return = 0
                 AND (siv.docstatus = 1 OR (siv.docstatus = 2 AND siv.is_void = 1))
                 AND siv.bill_no IS NOT NULL AND siv.bill_no != ''
                 AND siv.bill_control IS NOT NULL AND siv.bill_control != ''
@@ -364,7 +363,7 @@ def _get_cte() -> str:
                 NULL AS debit_note_no,
                 COALESCE(si_orig.bill_no, nc.return_against) AS affected_invoice_number,
                 nc.vat_withholding_voucher_number, nc.withholding_date,
-                0 AS is_void, 1 AS is_return, 0 AS is_debit_note,
+                nc.is_void, 1 AS is_return, 0 AS is_debit_note, nc.docstatus,
                 (CASE WHEN nc.currency != %(company_currency)s THEN nc.conversion_rate ELSE 1 END) AS conversion_rate,
                 -1 AS amount_sign,
                 nc.base_net_total,
@@ -384,7 +383,7 @@ def _get_cte() -> str:
             FROM `tabVE Sales Credit Note` nc
             LEFT JOIN `tabSales Invoice` si_orig ON si_orig.name = nc.return_against
             WHERE nc.company = %(company)s
-                AND nc.docstatus = 1
+                AND (nc.docstatus = 1 OR (nc.docstatus = 2 AND nc.is_void = 1))
                 AND nc.bill_no IS NOT NULL AND nc.bill_no != ''
                 AND nc.bill_control IS NOT NULL AND nc.bill_control != ''
                 AND {nc_cond}
@@ -399,7 +398,7 @@ def _get_cte() -> str:
                 nd.bill_no AS debit_note_no,
                 COALESCE(si_orig.bill_no, nd.return_against) AS affected_invoice_number,
                 NULL AS vat_withholding_voucher_number, NULL AS withholding_date,
-                nd.is_void, 0 AS is_return, 1 AS is_debit_note,
+                nd.is_void, 0 AS is_return, 1 AS is_debit_note, nd.docstatus,
                 (CASE WHEN nd.currency != %(company_currency)s THEN nd.conversion_rate ELSE 1 END) AS conversion_rate,
                 1 AS amount_sign,
                 nd.base_net_total,
@@ -425,13 +424,14 @@ def _get_common_columns() -> str:
             {transaction_type_placeholder}
             siv.is_void,
             siv.is_return,
+            siv.docstatus,
             siv.branch,
             DATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,
             tc.tax_id AS customer_tax_id,
             CASE WHEN siv.is_void = 1 THEN 'ANULADO' ELSE siv.customer END AS customer_name,
             siv.bill_no,
             siv.bill_control,
-            COALESCE(MAX(vdbs.serie), MAX(siv.hka_serie)) AS fiscal_series,
+            COALESCE(MAX(siv.hka_serie), MAX(vdbs.serie)) AS fiscal_series,
             siv.credit_note_no,
             siv.debit_note_no,
             siv.affected_invoice_number,
@@ -463,13 +463,23 @@ def _get_common_joins() -> str:
             ON CAST(SUBSTRING_INDEX(siv.bill_control, '-', -1) AS UNSIGNED)
                 BETWEEN vdbs.range_from AND vdbs.range_to
                 AND vdbs.company = %(company)s
+                AND (
+                    NOT EXISTS (
+                        SELECT 1 FROM `tabVE Digital Billing Series Branch` vdbsb
+                        WHERE vdbsb.parent = vdbs.name
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM `tabVE Digital Billing Series Branch` vdbsb
+                        WHERE vdbsb.parent = vdbs.name AND vdbsb.branch = siv.branch
+                    )
+                )
     """
 
 
 def _get_legacy_calc_columns() -> str:
     """Columnas de cálculo LEGACY (facturas declaradas al SENIAT hasta el corte).
 
-    Usa tax_amount * conversion_rate — sin filtro charge_type='VAT' en bases,
+    Usa tax_amount * conversion_rate — filtra charge_type='VAT' en bases,
     sin base_net_total. Incluye (1-is_void) para anular montos en facturas void.
     """
     return """
@@ -486,19 +496,19 @@ def _get_legacy_calc_columns() -> str:
             MAX(siv.base_amount_igtf) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_amount_igtf,
             MAX(siv.total_igtf) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS total_igtf,
 
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_non_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_non_taxpayer,
 
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_taxpayer,
+            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_taxpayer,
             MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_retained,
             MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END) * (1 - MAX(siv.is_void)) AS vat_withholding_rate,
             MAX(siv.posting_date) AS posting_date_sort,
@@ -530,19 +540,22 @@ def _get_new_calc_columns() -> str:
             -- Base por alícuota derivada del IVA por fila: base_tax_amount * (100/rate)
             -- base_tax_amount ya está en VEF (no requiere conversion_rate). Soporta multi-alícuota:
             -- cada columna recibe SOLO la porción de su tasa, no la base imponible total.
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_non_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 0 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_non_taxpayer,
+            -- No contribuyente: RIF cuyo primer caracter (sin guion) es V o E, o sin RIF
+            -- Se usa REPLACE para cubrir formatos con guion (V-) y sin guion (V)
+            SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_non_taxpayer,
+            SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_non_taxpayer,
+            SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_non_taxpayer,
+            SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_non_taxpayer,
+            SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_non_taxpayer,
+            SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_non_taxpayer,
 
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_taxpayer,
-            SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_taxpayer,
+            -- Contribuyente: RIF con primer caracter (sin guion) distinto de V/E
+            SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_taxpayer,
+            SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_taxpayer,
+            SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_taxpayer,
+            SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_taxpayer,
+            SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_taxpayer,
+            SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_taxpayer,
             -- IVA retenido solo cuando existe comprobante de retención emitido
             CASE WHEN MAX(siv.vat_withholding_voucher_number) IS NOT NULL AND MAX(siv.vat_withholding_voucher_number) != ''
                 THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.base_tax_amount) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void))

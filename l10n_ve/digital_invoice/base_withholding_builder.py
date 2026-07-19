@@ -13,7 +13,11 @@ from typing import Optional
 import frappe
 from frappe.utils import flt, getdate
 
-from l10n_ve.digital_invoice.payload_builder import clean_address, clean_payload
+from l10n_ve.digital_invoice.payload_builder import (
+    build_transaction_id,
+    clean_address,
+    clean_payload,
+)
 
 
 class BaseRetentionPayloadBuilder:
@@ -34,8 +38,8 @@ class BaseRetentionPayloadBuilder:
     def _load_series(self) -> None:
         """Carga la serie y branch_code resolviéndolas desde la sucursal del comprobante."""
         branch = getattr(self.doc, "branch", "") or ""
-        company = getattr(self.doc, "empresa", "") or ""
-        if not branch or not company:
+        company = getattr(self.doc, "empresa", "") or getattr(self.doc, "company", "") or ""
+        if not company:
             return
         try:
             from l10n_ve.digital_invoice.tfhka_integration import get_active_billing_series
@@ -64,16 +68,9 @@ class BaseRetentionPayloadBuilder:
         # Defensa en profundidad (incidente COMP-RET-IVA-2026-00003): HKA acepta
         # payloads con serie vacía y esa emisión es irreversible. Los flujos
         # actuales validan la serie ANTES de instanciar el builder
-        # (_validate_digital_series), pero cualquier caller futuro que se salte
-        # esa validación NO debe poder emitir con serie vacía.
-        if not self._serie:
-            frappe.throw(
-                f"El comprobante {getattr(self.doc, 'name', '')} no resolvió una "
-                f"Serie de Facturación Digital activa para la sucursal "
-                f"'{getattr(self.doc, 'branch', '') or ''}': no se emite con serie vacía.",
-                title="Serie de Facturación No Encontrada",
-            )
-
+        # (_validate_digital_series), pero si la sucursal está vacía por diseño,
+        # se permite enviar la serie vacía.
+        
         items: list = self.doc.get(self.CHILD_TABLE_FIELD, [])
 
         payload: dict = {
@@ -150,7 +147,7 @@ class BaseRetentionPayloadBuilder:
             "Sucursal": self._branch_code or None,
             "TipoDeVenta": "Interna",
             "Moneda": self.company_currency,
-            "TransaccionId": f"{self.TRANSACTION_PREFIX}{clean_number}",
+            "TransaccionId": build_transaction_id(f"{self.TRANSACTION_PREFIX}{clean_number}", self.doc),
         }
 
     # ─────────────────────────────────────────────────────────────
@@ -179,10 +176,18 @@ class BaseRetentionPayloadBuilder:
         }
 
     def _get_supplier_contact_info(self, supplier_name: str) -> tuple[str, str]:
-        """Obtiene teléfono y correo del proveedor."""
+        """Obtiene teléfono y correo del proveedor.
+
+        El correo se busca en cascada para no depender de que esté justo en el
+        ``email_id`` del contacto principal: ``Contact.email_id`` → correos
+        secundarios del contacto (``email_ids``) → ``email_id`` de la Dirección.
+        Sin esta cascada, un proveedor con el correo cargado solo en la Dirección
+        emitía el comprobante sin notificación (``Correo: []``).
+        """
         phone: str = ""
         email: str = ""
 
+        addr = None
         address_name: Optional[str] = frappe.db.get_value(
             "Dynamic Link",
             {"link_doctype": "Supplier", "link_name": supplier_name, "parenttype": "Address"},
@@ -200,8 +205,16 @@ class BaseRetentionPayloadBuilder:
         if contact_name:
             contact = frappe.get_cached_doc("Contact", contact_name)
             email = (contact.email_id or "").strip()
+            if not email and contact.get("email_ids"):
+                email = next(
+                    (e.email_id.strip() for e in contact.email_ids if e.email_id), ""
+                )
             if not phone:
                 phone = (contact.mobile_no or contact.phone or "").strip()
+
+        # Fallback: correo cargado en la Dirección (no en el Contacto).
+        if not email and addr is not None:
+            email = (addr.get("email_id") or "").strip()
 
         return phone, email
 

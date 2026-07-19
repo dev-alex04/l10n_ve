@@ -757,3 +757,47 @@ def get_tabulators_by_person_type(
         """,
         params,
     )
+
+
+def get_purchase_invoice_dashboard_data(data: dict) -> dict:
+    """
+    Extiende el dashboard de conexiones de Purchase Invoice para incluir
+    las retenciones de IVA e ISLR y las Notas de Débito/Crédito de Compra de Venezuela.
+    """
+    # Mapeo de campos de relación para las notas
+    non_std = data.setdefault("non_standard_fieldnames", {})
+    non_std["VE Purchase Debit Note"] = "return_against"
+    non_std["VE Purchase Credit Note"] = "return_against"
+
+    # 1. Agregar a Retenciones
+    withholdings_candidates = {_("Withholdings"), "Withholdings", _("Retenciones"), "Retenciones"}
+    for group in data.setdefault("transactions", []):
+        if group.get("label", "") in withholdings_candidates:
+            items = group.setdefault("items", [])
+            for item in ["VAT Withholding Voucher", "ISLR Withholding Voucher"]:
+                if item not in items:
+                    items.append(item)
+            break
+    else:
+        data["transactions"].append({
+            "label": _("Withholdings"),
+            "items": ["VAT Withholding Voucher", "ISLR Withholding Voucher"],
+        })
+
+    # 2. Agregar a Devoluciones / Retornos
+    returns_candidates = {_("Returns"), "Returns", _("Devoluciones"), "Devoluciones"}
+    for group in data["transactions"]:
+        if group.get("label", "") in returns_candidates:
+            items = group.setdefault("items", [])
+            for item in ["VE Purchase Credit Note", "VE Purchase Debit Note"]:
+                if item not in items:
+                    items.append(item)
+            break
+    else:
+        data["transactions"].append({
+            "label": _("Returns"),
+            "items": ["VE Purchase Credit Note", "VE Purchase Debit Note"],
+        })
+
+    return data
+

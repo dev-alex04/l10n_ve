@@ -4,9 +4,31 @@ import unicodedata
 from typing import Optional
 
 import frappe
-from frappe.utils import getdate, flt, cint
+from frappe.utils import getdate, flt, cint, get_datetime
 from frappe.utils.data import money_in_words
 from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
+
+
+def build_transaction_id(base: str, doc) -> str:
+    """TransaccionId único para HKA a partir de ``base`` + marca de creación.
+
+    HKA deduplica por TransaccionId: si dos documentos envían el mismo, el
+    segundo se rechaza con código 201 "Documento duplicado". El ``name`` de un
+    documento fiscal NO es único en el tiempo —Frappe reinicia el correlativo del
+    naming series al borrar el último de la serie (revert_series_if_last)—, así
+    que un name reciclado reusaría el TransaccionId de un documento ya emitido.
+    Se le añade la fecha de creación del documento (AAMMDDHHMMSS): es estable por
+    documento (idempotente ante reintentos del MISMO doc) y distinta entre dos
+    documentos que reciclaron el mismo name (creados en instantes diferentes).
+
+    Un documento fiscal guardado SIEMPRE tiene ``creation``; si faltara (doc en
+    memoria sin insertar) se devuelve solo ``base`` para no romper el llamador.
+    """
+    creation = getattr(doc, "creation", None)
+    if not creation:
+        return base
+    stamp: str = get_datetime(creation).strftime("%y%m%d%H%M%S")
+    return f"{base}{stamp}"
 
 
 def strip_html(html: str) -> str:
@@ -129,6 +151,10 @@ def resolve_zone_from_address(customer_name: str, customer_address: Optional[str
             return label
 
     return None
+
+
+_CURRENCY_WORDS = {"BSD": "bolívares", "VES": "bolívares", "VEF": "bolívares",
+                   "USD": "dólares", "EUR": "euros"}
 
 
 class TFHKAPayloadBuilder:
@@ -375,7 +401,8 @@ class TFHKAPayloadBuilder:
             "TipoDeVenta": "Interna",
             "Moneda": self.doc.currency,
             "TransaccionId": (
-                "".join(filter(str.isalnum, self.doc.name)) if is_third_party else None
+                build_transaction_id("".join(filter(str.isalnum, self.doc.name)), self.doc)
+                if is_third_party else None
             ),
         }
 
@@ -461,11 +488,28 @@ class TFHKAPayloadBuilder:
     def _get_iva_rate(self) -> float:
         """Extrae la alícuota IVA real desde las filas de impuestos de la factura."""
         for tax in self.doc.get("taxes", []):
+            if (tax.get("charge_type") == "VAT"
+                    and (tax.get("add_deduct_tax") or "Add") == "Add"
+                    and flt(tax.rate) > 0):
+                return flt(tax.rate)
+        for tax in self.doc.get("taxes", []):
             account_lower = (tax.get("account_head") or "").lower()
             description_lower = (tax.get("description") or "").lower()
             if ("iva" in account_lower or "iva" in description_lower) and flt(tax.rate) > 0:
                 return flt(tax.rate)
         return 16.0
+
+    def _monto_en_letras(self, amount: float, currency: str) -> str:
+        from num2words import num2words
+        entero = int(flt(amount))
+        centimos = cint(round((flt(amount) - entero) * 100))
+        moneda = _CURRENCY_WORDS.get(currency, currency.lower())
+        try:
+            letras = f"{num2words(entero, lang='es')} {moneda}"
+            letras += f" con {num2words(centimos, lang='es')} céntimos"
+            return letras
+        except Exception:
+            return money_in_words(amount, currency).lower()
 
     def _build_totales(self) -> dict:
         """Totales principales en VES usando campos base_* almacenados.
@@ -534,7 +578,7 @@ class TFHKAPayloadBuilder:
             total_igtf_str = fmt(total_igtf_amount)
 
         try:
-            letras = money_in_words(total_a_pagar, "VES").lower()
+            letras = self._monto_en_letras(total_a_pagar, "VES")
         except Exception:
             letras = "monto en letras"
 
@@ -660,7 +704,7 @@ class TFHKAPayloadBuilder:
         total_a_pagar = flt(usd["total_a_pagar"], 2)
 
         try:
-            letras = money_in_words(total_a_pagar, self.doc.currency).lower()
+            letras = self._monto_en_letras(total_a_pagar, self.doc.currency)
         except Exception:
             letras = "monto en letras"
 
@@ -734,6 +778,13 @@ class TFHKAPayloadBuilder:
         detalles = []
         iva_rate = self._get_iva_rate()
 
+        has_vat_charge = any(
+            tax.get("charge_type") == "VAT"
+            and (tax.get("add_deduct_tax") or "Add") == "Add"
+            and flt(tax.rate) > 0
+            for tax in self.doc.get("taxes", [])
+        )
+
         for idx, item in enumerate(self.doc.items, start=1):
             is_exempt = item.get("is_exempt", 0) or item.get("vat_exempt", 0)
             item_amount = flt(item.amount, 2)
@@ -743,7 +794,7 @@ class TFHKAPayloadBuilder:
             tasa_iva = "0"
             codigo_impuesto = "E"
 
-            if not is_exempt and flt(self.doc.base_total_taxes_and_charges) > 0:
+            if not is_exempt and has_vat_charge:
                 tasa_iva = str(int(iva_rate))
                 codigo_impuesto = "G"
                 valor_iva = flt(item_amount * (iva_rate / 100), 2)
@@ -781,10 +832,10 @@ class TFHKAPayloadBuilder:
         return detalles
 
     def _resolve_zona_and_nodo(self) -> tuple:
-        """Resuelve Zona (territory del customer) y Nodo (via subscription → router → ISP Nodes).
+        """Resuelve Zona (territory del customer) y Nodo (el Nodo es dominio ISP, lo provee domina_isp vía monkeypatch).
 
         Para VE Sales Credit Note (sin campo subscription), intenta heredar
-        la suscripción desde la factura original (return_against).
+        el número de factura original (bill_no) para reportarlo.
         Usa get_cached_doc para minimizar queries SQL en envíos masivos.
         """
         zona: Optional[str] = None
@@ -799,38 +850,13 @@ class TFHKAPayloadBuilder:
         if not zona:
             zona = resolve_zone_from_address(self.doc.customer, self.doc.get("customer_address"))
 
-        subscription_name: Optional[str] = self.doc.get("subscription")
-
-        if not subscription_name and self.doc.get("return_against"):
-            si_data = frappe.db.get_value(
+        if not self.doc.get("subscription") and self.doc.get("return_against"):
+            bill_no = frappe.db.get_value(
                 "Sales Invoice",
                 self.doc.return_against,
-                ["subscription", "bill_no"],
-                as_dict=True,
+                "bill_no"
             )
-            if si_data:
-                subscription_name = si_data.get("subscription")
-                self._bill_no_original: str = si_data.get("bill_no") or ""
-
-        if not subscription_name:
-            return zona, nodo
-
-        service_row = next(
-            (row for row in (customer_doc.get("internet_services") or [])
-             if row.subscription == subscription_name),
-            None
-        )
-        if not service_row or not service_row.router:
-            return zona, nodo
-
-        try:
-            nodo = frappe.db.get_value(
-                "ISP Node Routers",
-                {"router": service_row.router},
-                "parent"
-            )
-        except Exception:
-            pass
+            self._bill_no_original = bill_no or ""
 
         return zona, nodo
 
@@ -876,7 +902,10 @@ class TFHKAPayloadBuilder:
         # Generar periodo en "Nota" basado en posting_date
         meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
         fecha_contab = getdate(doc.posting_date)
-        nota_periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+
+        notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
+        periodo_default = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+        nota_periodo = notes or periodo_default
 
         periodo: str = ""
         if subscription_name:
@@ -911,9 +940,6 @@ class TFHKAPayloadBuilder:
         if not self.zona:
             frappe.throw("El cliente no tiene asignada una 'Zona', campo requerido para HKA.")
 
-        if not self.nodo:
-            frappe.throw("El cliente no tiene asignado un 'Nodo', campo requerido para HKA.")
-
         serie: str = getattr(self.series_doc, "serie", "") or ""
         if not serie:
             frappe.throw(
@@ -928,14 +954,14 @@ class TFHKAPayloadBuilder:
         dict_pdf = {"DireccionServicio": direccion_servicio}
         dict_pdf["Serie"] = serie
         dict_pdf["TasaCambio"] = tasa_bcv
-        dict_pdf["Periodo"] = periodo if periodo else f"Desde {nota_periodo}"
+        dict_pdf["Periodo"] = periodo if periodo else f"Desde {periodo_default}"
 
         bill_no_original: str = getattr(self, "_bill_no_original", "")
         if bill_no_original:
             dict_pdf["FacturaOriginal"] = bill_no_original
 
         dict_pdf["Zona"] = self.zona
-        dict_pdf["Nodo"] = self.nodo
+        dict_pdf["Nodo"] = self.nodo or ""
         dict_pdf["IdServicio"] = id_servicio
         dict_pdf["Nota"] = nota_periodo
         dict_pdf["coletilla2"] = f"{coletilla_a} {coletilla_b}"

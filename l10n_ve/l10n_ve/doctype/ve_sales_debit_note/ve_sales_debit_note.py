@@ -10,6 +10,10 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
+from l10n_ve.utils.utils import (
+    get_ve_exchange_rate_for_customer,
+    validate_return_in_same_month,
+)
 
 
 class VESalesDebitNote(TaxesMixin, SalesInvoice):
@@ -58,6 +62,9 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         self._inherit_branch_from_si()
         self._enforce_positive_amounts()
         self._validate_unique_note_per_invoice()
+        # Intra-mes obligatorio (regla fiscal; para naturales además ancla
+        # la coincidencia de tasa del 1° del mes con la factura afectada).
+        validate_return_in_same_month(self)
         self.set_posting_time = 1
         self._run_super_validate_safely()
         self._set_base_total_with_vat()
@@ -310,7 +317,15 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
 
     def _inherit_branch_from_si(self) -> None:
         """
-        Hereda branch, debit_to, tasa de cambio y fechas de la Factura Original (return_against).
+        Hereda branch y debit_to de la Factura Original (return_against) y
+        deriva la tasa de cambio PROPIA de la nota.
+
+        Decisión 16-jul-2026 (hilo "TASA- FACTURA FISCAL CARACAS"): la nota
+        fiscal usa la tasa BCV de SU propia fecha de emisión (Ley IVA
+        Art. 25), ya NO la de la factura afectada, y tiene su propia fecha
+        de expedición. A diferencia de la NC, la ND no necesita asiento de
+        ajuste: su ledger se referencia a sí misma (against_voucher =
+        self.name), no a la factura afectada.
         """
         if not self.get("return_against"):
             return
@@ -318,10 +333,7 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         si_values: dict = frappe.get_cached_value(
             "Sales Invoice",
             self.return_against,
-            [
-                "branch", "debit_to", "conversion_rate",
-                "plc_conversion_rate", "posting_date", "due_date",
-            ],
+            ["branch", "debit_to"],
             as_dict=True,
         ) or {}
 
@@ -331,19 +343,18 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         if si_values.get("debit_to") and not self.get("debit_to"):
             self.debit_to = si_values["debit_to"]
 
-        if self.is_new():
-            si_rate: float = flt(si_values.get("conversion_rate"))
-            if si_rate and si_rate != flt(self.conversion_rate):
-                self.conversion_rate = si_rate
-            si_plc_rate: float = flt(si_values.get("plc_conversion_rate"))
-            if si_plc_rate and si_plc_rate != flt(self.plc_conversion_rate):
-                self.plc_conversion_rate = si_plc_rate
+        # Tasa propia, solo en docs nuevos (el JS re-deriva al cambiar
+        # posting_date; la emisión valida frescura y coherencia).
+        if self.is_new() and self.get("posting_date"):
+            own_rate: float = flt(get_ve_exchange_rate_for_customer(
+                self.customer, str(self.posting_date)
+            ))
+            if own_rate:
+                self.conversion_rate = own_rate
+                self.plc_conversion_rate = own_rate
 
-        if self.is_new() and si_values.get("posting_date"):
-            self.posting_date = si_values["posting_date"]
-            self.set_posting_time = 1
-        if self.is_new() and si_values.get("due_date"):
-            self.due_date = si_values["due_date"]
+        if self.is_new() and self.get("posting_date") and not self.get("due_date"):
+            self.due_date = self.posting_date
 
     def _init_si_defaults(self) -> None:
         """

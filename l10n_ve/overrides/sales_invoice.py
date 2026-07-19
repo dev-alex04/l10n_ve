@@ -718,7 +718,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
     def make_precision_loss_gl_entry(self, gl_entries) -> None:
         """Cancela el asiento de pérdida de precisión cuando el método VE es
-        "Desde el total de la factura".
+        "Desde el total de la factura" o si el documento es un retorno.
 
         Mismo principio que en Purchase Invoice: el ancla reduce intencionalmente
         base_net_amount respecto a net_amount × conversion_rate. ERPNext detecta
@@ -726,6 +726,10 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         Con el ancla activa, la diferencia ya está absorbida por base_grand_total.
         """
         from l10n_ve.controllers.taxes_and_totals import TAX_FROM_TOTAL
+
+        # En retornos, la diferencia ya está absorbida por el reverso contable de bases heredadas
+        if self.is_return:
+            return
 
         if self._is_multicurrency_doc():
             method = frappe.get_cached_value(
@@ -1392,6 +1396,9 @@ def make_replacement_invoice(source_name: str) -> "Document":
         target_doc.posting_date = hoy
         target_doc.due_date = hoy
 
+        if source_doc.get("branch"):
+            target_doc.branch = source_doc.branch
+
         # Cortocircuito: si ambas monedas son iguales, la tasa es 1.0
         if target_doc.currency == source_doc.company_currency:
             target_doc.conversion_rate = 1.0
@@ -1456,6 +1463,7 @@ def make_replacement_invoice(source_name: str) -> "Document":
             },
         },
         postprocess=_adjust_date_and_rate,
+        ignore_permissions=True,
     )
 
 

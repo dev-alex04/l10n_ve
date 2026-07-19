@@ -2,8 +2,10 @@ import unittest
 from unittest.mock import patch
 
 import frappe
+from frappe.utils import flt
 from l10n_ve.digital_invoice.payload_builder import (
     TFHKAPayloadBuilder,
+    build_transaction_id,
     resolve_zone_from_address,
 )
 from l10n_ve.tests.helpers import MockDoc
@@ -223,6 +225,122 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
         self.assertEqual(totales["montoGravadoTotal"], "50.00")
         self.assertEqual(totales["totalIVA"], "0.00")
 
+    # ── Línea gravada con retención IVA 100% (Bug A fix) ──────────
+
+    def test_line_stays_taxable_with_100pct_vat_withholding(self):
+        """Con VAT Add 16% + VAT Withholding Deduct 100% que netean a 0,
+        la línea debe ser G/16 (no EXENTA)."""
+        doc = _make_base_doc(
+            base_total_taxes_and_charges=0.0,
+            taxes=[
+                frappe._dict({
+                    "account_head": "IVA 16% - TC",
+                    "description": "IVA 16%",
+                    "rate": 16.0,
+                    "charge_type": "VAT",
+                    "tax_amount": 16.0,
+                    "base_tax_amount": 16.0,
+                    "add_deduct_tax": "Add",
+                }),
+                frappe._dict({
+                    "account_head": "1110003 - Retencion de IVA Clientes",
+                    "description": "IVA Retencion 100%",
+                    "rate": 100.0,
+                    "charge_type": "VAT Withholding",
+                    "tax_amount": -16.0,
+                    "base_tax_amount": -16.0,
+                    "add_deduct_tax": "Deduct",
+                }),
+            ],
+        )
+        with self._COMMON_PATCHES["get_cached_value"], \
+             patch("frappe.get_system_settings", return_value=None):
+            builder = TFHKAPayloadBuilder(doc, series_doc=_make_series_doc())
+        with patch.object(TFHKAPayloadBuilder, "_resolve_tfhka_code", return_value="CODE01"), \
+             patch("frappe.get_system_settings", return_value=None):
+            items = builder._build_items()
+
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item["CodigoImpuesto"], "G")
+        self.assertEqual(item["TasaIVA"], "16")
+        self.assertEqual(item["ValorIVA"], "16.00")
+        self.assertEqual(item["ValorTotalItem"], "116.00")
+
+    def test_line_exempt_when_no_vat_rows(self):
+        """Sin filas VAT en taxes, la línea debe salir E (exenta)
+        — regresión del caso exento sin retención."""
+        doc = _make_base_doc(
+            base_total_taxes_and_charges=0.0,
+            taxes=[],
+        )
+        with self._COMMON_PATCHES["get_cached_value"], \
+             patch("frappe.get_system_settings", return_value=None):
+            builder = TFHKAPayloadBuilder(doc, series_doc=_make_series_doc())
+        with patch.object(TFHKAPayloadBuilder, "_resolve_tfhka_code", return_value="CODE01"), \
+             patch("frappe.get_system_settings", return_value=None):
+            items = builder._build_items()
+
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item["CodigoImpuesto"], "E")
+        self.assertEqual(item["TasaIVA"], "0")
+        self.assertEqual(item["ValorIVA"], "0.00")
+
+    # ── _get_iva_rate (Bug B fix) ─────────────────────────────────
+
+    def test_get_iva_rate_ignores_withholding_row(self):
+        """Con la fila de retención (VAT Withholding, rate=100) primero,
+        _get_iva_rate() debe devolver 16, no 100."""
+        doc = _make_base_doc(
+            taxes=[
+                frappe._dict({
+                    "account_head": "1110003 - Retencion de IVA Clientes",
+                    "description": "IVA Retencion 100%",
+                    "rate": 100.0,
+                    "charge_type": "VAT Withholding",
+                    "add_deduct_tax": "Deduct",
+                }),
+                frappe._dict({
+                    "account_head": "IVA 16% - TC",
+                    "description": "IVA 16%",
+                    "rate": 16.0,
+                    "charge_type": "VAT",
+                    "add_deduct_tax": "Add",
+                }),
+            ],
+        )
+        with self._COMMON_PATCHES["get_cached_value"]:
+            builder = TFHKAPayloadBuilder(doc, series_doc=_make_series_doc())
+        rate = builder._get_iva_rate()
+        self.assertEqual(rate, 16.0)
+
+    # ── MontoEnLetras (Bug C fix) ─────────────────────────────────
+
+    def test_monto_en_letras_spanish(self):
+        """_monto_en_letras produce texto en español, sin depender del lang de sesión."""
+        with self._COMMON_PATCHES["get_cached_value"]:
+            builder = TFHKAPayloadBuilder(_make_base_doc(), series_doc=_make_series_doc())
+
+        # VES: 55102.70 → "cincuenta y cinco mil ... bolívares con setenta céntimos"
+        letras_ves = builder._monto_en_letras(55102.70, "VES")
+        self.assertIn("bolívares", letras_ves)
+        self.assertIn("céntimos", letras_ves)
+        self.assertIn("cincuenta", letras_ves)
+        self.assertIn("cinco mil", letras_ves)
+        self.assertNotIn("ves", letras_ves)
+        self.assertNotIn("fifty", letras_ves)
+        self.assertNotIn("only", letras_ves)
+
+        # USD: 100.50 → "cien dólares con cincuenta céntimos"
+        letras_usd = builder._monto_en_letras(100.50, "USD")
+        self.assertIn("dólares", letras_usd)
+        self.assertIn("cien", letras_usd)
+
+        # 0 → maneja cero
+        letras_cero = builder._monto_en_letras(0.0, "VES")
+        self.assertIn("cero", letras_cero)
+
     # ── Multimoneda ───────────────────────────────────────────────
 
     def test_factura_multimoneda_totales_otra_moneda(self):
@@ -408,3 +526,41 @@ class TestResolveZoneFromAddress(unittest.TestCase):
                    side_effect=[None, None, "VE-CITY-hash", "Colonia Tovar"]):
             zone = resolve_zone_from_address("Customer A", "ADDR-001")
         self.assertEqual(zone, "Colonia Tovar")
+
+
+class TestBuildTransactionId(unittest.TestCase):
+    """build_transaction_id: TransaccionId único para HKA aunque el name se recicle.
+
+    El correlativo del naming series se reinicia al borrar el último documento de
+    la serie (revert_series_if_last de Frappe), así que un name puede reaparecer;
+    la marca de creación evita que el TransaccionId choque en HKA (código 201).
+    """
+
+    @staticmethod
+    def _doc(name, creation):
+        return frappe._dict({"name": name, "creation": creation})
+
+    def test_appends_creation_stamp(self):
+        doc = self._doc("ND-2026-00001", "2026-07-15 10:54:29.997142")
+        base = "".join(filter(str.isalnum, doc.name))
+        self.assertEqual(build_transaction_id(base, doc), "ND202600001260715105429")
+
+    def test_recycled_name_gives_distinct_ids(self):
+        """Mismo name reciclado, distinta creación → TransaccionId distinto (no choca en HKA)."""
+        base = "ND202600001"
+        borrada = build_transaction_id(base, self._doc("ND-2026-00001", "2026-04-20 14:06:53"))
+        nueva = build_transaction_id(base, self._doc("ND-2026-00001", "2026-07-15 10:54:29"))
+        self.assertNotEqual(borrada, nueva)
+
+    def test_same_doc_is_idempotent(self):
+        """El MISMO doc produce SIEMPRE el mismo TransaccionId (idempotente ante reintentos)."""
+        doc = self._doc("ND-2026-00001", "2026-07-15 10:54:29.997142")
+        self.assertEqual(
+            build_transaction_id("ND202600001", doc),
+            build_transaction_id("ND202600001", doc),
+        )
+
+    def test_missing_creation_falls_back_to_base(self):
+        """Sin creation (doc en memoria, sin insertar) → devuelve solo la base sin romper."""
+        doc = frappe._dict({"name": "ND-2026-00001"})
+        self.assertEqual(build_transaction_id("ND202600001", doc), "ND202600001")

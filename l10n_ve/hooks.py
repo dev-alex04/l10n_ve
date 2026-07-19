@@ -4,6 +4,26 @@ app_publisher = "DominaERP"
 app_description = "Localizacion Venezolana para ERPNext"
 app_email = "dominaerp@domina.com.ve"
 app_license = "mit"
+
+# Branding Domina de fábrica (kit oficial): wordmark en Desk/login, isotipo en el splash,
+# ícono en el favicon — el mismo mapeo que los sites brandeados a mano en Website Settings.
+# Mismo patrón de erpnext (app_logo_url + website_context).
+#
+# Es un DEFAULT, no una imposición: los logos configurados POR SITE ganan siempre —
+# frappe resuelve Website Settings/Navbar Settings ANTES del hook (navbar_settings.py:
+# get_app_logo usa el hook solo como fallback) y aplica settings.favicon/splash_image
+# DESPUÉS del hook (website_settings.py). Un site brandeado (ej. galanet prod con sus
+# logos Galanet) conserva lo suyo; un site virgen nace con la marca Domina.
+#
+# Entre apps GANA la instalada DESPUÉS: en las imágenes de producto (erpnext -> l10n_ve
+# -> ...) l10n_ve pisa a erpnext; en sites viejos donde l10n_ve se instaló antes que
+# erpnext, ajustar por site. El wordmark por producto (ej. "Domina ISP") va en su app.
+app_logo_url = "/assets/l10n_ve/images/domina-wordmark.png"
+website_context = {
+    "favicon": "/assets/l10n_ve/images/domina-favicon.png",
+    "splash_image": "/assets/l10n_ve/images/domina-logo.png",
+}
+
 extend_bootinfo = "l10n_ve.boot.get_boot_info"
 app_include_js = [
     "/assets/l10n_ve/js/toolbar/toolbar.js",
@@ -14,6 +34,7 @@ app_include_js = [
     "/assets/l10n_ve/js/doctype/sales_invoice/fiscal_invoice_preview.js",
     "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
     "/assets/l10n_ve/js/widgets/number_card_widget.js",
+    "/assets/l10n_ve/js/report/payment_period_based_on_invoice_date.js",
 ]
 
 # Apps
@@ -223,6 +244,10 @@ after_migrate = [
     "l10n_ve.patches.monkey_patches.apply_post_db_patches",
     "l10n_ve.setup.create_currency_exchange",
     "l10n_ve.setup.setup_workspaces",
+    # self-heal: los defaults de site_config (bcv_endpoint) se garantizan en cada migrate
+    "l10n_ve.setup.set_default_site_config",
+    # self-heal: logo del login/Desk solo-si-vacío (get_app_logo ignora el hook con >2 apps)
+    "l10n_ve.setup.set_default_branding",
 ]
 
 # Uninstallation
@@ -290,7 +315,9 @@ override_doctype_class = {
 }
 
 override_doctype_dashboards = {
+    "Customer": "l10n_ve.overrides.customer.get_customer_dashboard_data",
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.get_sales_invoice_dashboard_data",
+    "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.get_purchase_invoice_dashboard_data",
 }
 
 
@@ -380,6 +407,7 @@ scheduler_events = {
         "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
         "*/15 * * * *": ["l10n_ve.tasks.reset_all_prepared_reports"],
         "0 3 1 * *": ["l10n_ve.tasks.purge_old_digital_invoice_success_logs"],
+        "0 4 * * *": ["l10n_ve.l10n_ve.doctype.ve_fiscal_document_download.ve_fiscal_document_download.purge_old_fiscal_download_zips"],
     }
 }
 

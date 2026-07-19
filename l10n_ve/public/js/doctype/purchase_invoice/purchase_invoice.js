@@ -4,7 +4,6 @@ frappe.ui.form.on("Purchase Invoice", {
       frm.set_value("bill_control", "");
     }
 
-    realtime_numeric_validation(frm, "bill_no");
     realtime_alphanumeric_with_hyphen_validation(frm, "bill_control");
     realtime_numeric_validation(frm, "credit_note_no");
     realtime_numeric_validation(frm, "debit_note_no");
@@ -502,7 +501,9 @@ function setup_withholding_voucher_buttons(frm) {
   const has_vat_withholding = taxes.some(
     (tax) => tax.charge_type === "VAT Withholding" && flt(tax.base_tax_amount),
   );
-  const has_islr = taxes.some((tax) => tax.charge_type === "ISLR");
+  const has_islr = taxes.some(
+    (tax) => tax.charge_type === "ISLR" && flt(tax.base_tax_amount),
+  );
 
   const create_voucher = (method, doctype, confirm_message) => {
     frappe.confirm(confirm_message, () => {

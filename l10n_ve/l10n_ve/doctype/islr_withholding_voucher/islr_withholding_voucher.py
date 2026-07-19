@@ -14,10 +14,11 @@ from l10n_ve.utils.utils import format_amounts
 # ── Constantes de módulo ────────────────────────────────────────────── #
 
 _ISLR_INVOICE_FIELDS: list[str] = [
-    "name", "bill_no", "bill_control", "posting_date",
+    "name", "bill_no", "bill_control", "posting_date", "bill_date",
     "grand_total", "total", "base_total", "base_grand_total",
     "outstanding_amount", "affected_invoice_number",
     "conversion_rate", "currency", "branch",
+    "base_taxes_and_charges_added",
 ]
 
 _DOCTYPE_CONFIG: dict[str, tuple[str, bool]] = {
@@ -399,8 +400,8 @@ def _build_islr_row(
         tax.base_tax_amount_after_discount_amount or tax.base_tax_amount, 2
     ))
 
-    # Grand total en moneda de la empresa
-    grand_total_vef: float = abs(flt(invoice.grand_total or 0) * rate)
+    # Grand total en moneda de la empresa (antes de retenciones: base + IVA)
+    grand_total_vef: float = abs(flt(invoice.base_total or 0)) + abs(flt(invoice.base_taxes_and_charges_added or 0))
 
     # Monto abonado (pagado) en moneda de la empresa
     paid_amount: float = max(
@@ -414,7 +415,7 @@ def _build_islr_row(
         "doc_no": invoice.bill_no,
         "doc_type": doc_type_label,
         "bill_control": invoice.bill_control,
-        "posting_date": invoice.posting_date,
+        "posting_date": invoice.bill_date or invoice.posting_date,
         "rate": flt(tax.rate),
         "subtracting": abs(flt(tax.subtracting)),
         "islr_amount": islr_amount,
@@ -466,8 +467,8 @@ def _voucher_link(voucher: dict) -> str:
 
 
 @frappe.whitelist()
-def make_islr_withholding_voucher(source_name: str) -> dict:
-    """Crea, aprueba y emite a HKA un Comprobante de Retención ISLR desde la factura de compra.
+def make_islr_withholding_voucher(source_name: str, source_doctype: str = "Purchase Invoice") -> dict:
+    """Crea, aprueba y emite a HKA un Comprobante de Retención ISLR desde la factura de compra o ND.
 
     Reusa get_valid_invoices para calcular las líneas (una por concepto ISLR,
     mismos filtros y montos que el flujo del formulario). Si la emisión a HKA
@@ -475,9 +476,9 @@ def make_islr_withholding_voucher(source_name: str) -> dict:
     """
     frappe.has_permission("ISLR Withholding Voucher", "create", throw=True)
 
-    invoice = frappe.get_doc("Purchase Invoice", source_name)
+    invoice = frappe.get_doc(source_doctype, source_name)
     if invoice.docstatus != 1:
-        frappe.throw(_("La factura debe estar validada para generar el comprobante de retención."))
+        frappe.throw(_("El documento de compra debe estar validado para generar el comprobante de retención."))
 
     draft = _find_voucher_containing_invoice(invoice.name, docstatus=0)
     if draft:

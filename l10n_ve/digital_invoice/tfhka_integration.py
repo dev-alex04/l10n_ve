@@ -5,6 +5,10 @@ import time
 import frappe
 from frappe.utils import flt, getdate, cint, today
 
+from l10n_ve.digital_invoice.emission_rerate import (
+    rerate_to_emission_rate,
+    validate_note_rate_freshness,
+)
 from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder, resolve_zone_from_address
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
@@ -30,17 +34,13 @@ def get_active_billing_series(
     Retorna (series_doc, branch_code) buscando la sucursal de la factura
     en la tabla hija 'VE Digital Billing Series Branch'.
 
-    - La sucursal es obligatoria: si la factura no tiene branch → throw.
     - Si la sucursal no está en ninguna serie activa de la empresa → throw.
+    - Si la factura no tiene sucursal, busca la primera serie activa de la empresa.
 
     El branch_code se obtiene directamente de la fila de la tabla hija.
     """
-    if not branch:
-        frappe.throw(
-            "La factura no tiene una sucursal asignada. "
-            "Asigne una sucursal antes de enviar a la imprenta digital.",
-            title="Sucursal Requerida"
-        )
+    if not branch or branch.upper() == "N/A":
+        return None, ""
 
     row = frappe.db.sql("""
         SELECT
@@ -49,7 +49,7 @@ def get_active_billing_series(
         FROM `tabVE Digital Billing Series Branch` child
         INNER JOIN `tabVE Digital Billing Series` serie
             ON serie.name = child.parent
-        WHERE child.branch  = %s
+        WHERE child.branch = %s
           AND serie.company = %s
           AND serie.status  = 'Active'
         LIMIT 1
@@ -71,14 +71,17 @@ def has_active_digital_series(company: str, branch: str | None) -> bool:
     """Retorna True si la sucursal tiene una serie digital activa (no lanza).
 
     Variante segura de get_active_billing_series para detección en submit:
-    con TFHKA deshabilitado, sin sucursal o sucursal no configurada retorna False.
+    con TFHKA deshabilitado, o sucursal no configurada retorna False.
     """
     try:
         enabled = frappe.get_cached_value("TFHKA Settings", "TFHKA Settings", "enabled")
     except Exception:
         return False
 
-    if not enabled or not branch:
+    if not enabled:
+        return False
+
+    if not branch or branch.upper() == "N/A":
         return False
 
     row = frappe.db.sql("""
@@ -90,7 +93,7 @@ def has_active_digital_series(company: str, branch: str | None) -> bool:
           AND serie.company = %s
           AND serie.status  = 'Active'
         LIMIT 1
-    """, (branch, company))
+    """, (branch, company), as_dict=True)
 
     return bool(row)
 
@@ -693,6 +696,22 @@ def process_invoice(
     try:
         doc = frappe.get_doc(doctype, doc_name)
 
+        # Tasa de emisión (Ley IVA Art. 25 / Providencia SNAT/2011/0071):
+        # el documento fiscal debe expresarse en Bs a la tasa BCV vigente
+        # en su fecha de emisión. Corre ANTES de calcular tasa_fecha para
+        # que el lookup inverso, la coherencia y el payload salgan con la
+        # tasa correcta. En modo force se respeta la tasa que porta el
+        # documento.
+        # - Sales Invoice: se retasa en caliente (jurídicos).
+        # - NC/ND: no se retasan (su ledger apunta a la factura afectada);
+        #   si la tasa quedó de otra fecha, se bloquea con instrucción de
+        #   anular y regenerar la nota.
+        if not force:
+            if skip_si_validations:
+                validate_note_rate_freshness(doc)
+            else:
+                rerate_to_emission_rate(doc)
+
         # Calcular la fecha real de la tasa BCV ANTES de actualizar posting_date.
         # En modo forzado, usar la fecha exacta del posting_date para que
         # el texto del PDF refleje la fecha real de la tasa del documento.
@@ -708,8 +727,11 @@ def process_invoice(
         #   así que el flujo sano pasa trivialmente; si no hubo fila
         #   coincidente cayó al posting_date y esto bloquea la emisión de
         #   una tasa que no existe en Currency Exchange.
-        # NC y ND se omiten: su tasa es heredada de la factura original.
-        if not skip_si_validations and not force:
+        # Aplica también a NC/ND: desde el 16-jul-2026 las notas usan la
+        # tasa de su propia fecha de emisión (ya no la heredan de la
+        # factura afectada), así que su par tasa/fecha debe existir en
+        # Currency Exchange igual que el de la factura.
+        if not force:
             _validate_tasa_coherencia(doc, tasa_fecha)
 
         fecha_hka: str = today()
@@ -749,16 +771,11 @@ def process_invoice(
                 )
             return False
 
-        # Para NC y ND no se valida zona/nodo (no tienen suscripción asociada)
+        # Para NC y ND no se valida la zona (no tienen suscripción asociada)
         if not skip_si_validations:
-            if not builder.zona or not builder.nodo:
-                missing = []
-                if not builder.zona:
-                    missing.append("Zona (territory del cliente)")
-                if not builder.nodo:
-                    missing.append("Nodo (router/nodo del servicio)")
+            if not builder.zona:
                 notes = (
-                    f"No se pudo resolver: {', '.join(missing)}. "
+                    f"No se pudo resolver: Zona (territory del cliente). "
                     f"Cliente: {doc.customer}, Suscripción: {doc.get('subscription') or '-'}"
                 )
                 _set_hka_status(doc.doctype, doc.name, "Error")
@@ -939,22 +956,18 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         doc.customer, doc.get("customer_address")
     ) or ""
     nodo: str = ""
-    subscription_name: str = doc.get("subscription") or ""
-    if subscription_name:
-        service_row = next(
-            (r for r in (customer.get("internet_services") or [])
-             if r.subscription == subscription_name),
-            None
-        )
-        if service_row and service_row.router:
-            nodo = frappe.db.get_value(
-                "ISP Node Routers", {"router": service_row.router}, "parent"
-            ) or ""
 
     meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
              "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
     fecha_contab = getdate(doc.posting_date)
-    periodo: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+    notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
+
+    # Espeja el payload real (dict_pdf en payload_builder): la nota del usuario
+    # solo reemplaza "Nota"; "Periodo" conserva el rango de la suscripción.
+    periodo_default: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
+    nota: str = notes or periodo_default
+    periodo: str = periodo_default
+    subscription_name: str = doc.get("subscription") or ""
     if subscription_name:
         try:
             sub = frappe.get_cached_doc("Subscription", subscription_name)
@@ -1032,6 +1045,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "zona": zona,
         "nodo": nodo,
         "periodo": periodo,
+        "nota": nota,
         "tasa_bcv": "{:.4f}".format(tc),
         "tasa_fecha": fecha_bcv.strftime("%d/%m/%Y"),
         "items": items_data,
@@ -1069,17 +1083,12 @@ def send_pending_documents_to_hka() -> None:
     Paso 3: Comprobantes de retención ISLR pendientes.
 
     Respeta el flag 'enabled', 'enable_auto_send' y 'cutoff_date' de TFHKA Settings.
-    Solo opera entre las 5:00 y las 21:00.
     """
     tfhka_settings: dict | None = _get_tfhka_settings()
     if not tfhka_settings:
         return
 
     if not tfhka_settings.get("enable_auto_send"):
-        return
-
-    current_hour: int = frappe.utils.now_datetime().hour
-    if not (5 <= current_hour < 21):
         return
 
     # Paso 1: Facturas de venta

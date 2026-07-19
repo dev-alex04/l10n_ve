@@ -5,11 +5,50 @@ import frappe
 from frappe import _
 from frappe.utils import getdate
 
+def set_default_site_config() -> None:
+    """Defaults de site_config que TODO site con l10n_ve debe tener.
+
+    - bcv_endpoint: API pública de la tasa BCV (tasks.py la lee de site_config; sin
+      ella cae a web scraping). Es igual para todos los sites -> default de la app.
+      NO se pisa si el site ya la definió.
+
+    Las credenciales por cliente (digital_billing_settings/HKA, pasarelas) NUNCA van
+    aquí: son secretos por servidor y se aprovisionan al crear el site.
+    """
+    from frappe.installer import update_site_config
+
+    if not frappe.get_site_config().get("bcv_endpoint"):
+        update_site_config(
+            "bcv_endpoint", "https://api.dolarvzla.com/public/exchange-rate"
+        )
+
+
+def set_default_branding() -> None:
+    """Logo del login/Desk de fábrica, SOLO si el site no tiene uno propio.
+
+    get_app_logo() de frappe ignora el hook app_logo_url cuando MÁS de dos apps
+    lo definen (toma logos[0] salvo len==2): con frappe+erpnext+l10n_ve el login
+    mostraba el logo de frappe. Fijar Navbar Settings.app_logo cubre login y Desk.
+    Los sites brandeados conservan lo suyo: Website Settings.app_logo SIEMPRE gana
+    en la resolución de frappe, y aquí además no se escribe nada si ya hay valor
+    en Website Settings o en Navbar Settings.
+    """
+    if frappe.get_website_settings("app_logo") or frappe.db.get_single_value(
+        "Navbar Settings", "app_logo"
+    ):
+        return
+    frappe.db.set_single_value(
+        "Navbar Settings", "app_logo", "/assets/l10n_ve/images/domina-wordmark.png"
+    )
+
+
 def set_data() -> None:
     print("Iniciando la configuración de datos para l10n_ve...")
 
     try:
 
+        set_default_site_config()
+        set_default_branding()
         create_currency_exchange()
         create_tax_unit()
         create_islr_tabulator()
