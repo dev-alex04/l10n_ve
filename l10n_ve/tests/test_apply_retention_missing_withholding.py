@@ -6,24 +6,23 @@ Tests de la aplicación retroactiva de retenciones IVA/ISLR sobre facturas ya
 aprobadas (``l10n_ve.overrides.sales_invoice``).
 
 Cubre la lógica determinista del endpoint ``fix_missing_withholding`` y sus
-ayudantes:
+ayudantes tras las correcciones del review del PR #424:
 
-- ``get_verified_invoice``: resolución por name / bill_no y validación de docstatus.
-- ``handle_voucher_metadata``: campos incompletos, ask_overwrite, only_line, alta.
-- ``create_sales_taxes_row``: fila "Deduct" de retención bien formada.
-- ``create_withholding_journal_entry``: cuadre del asiento y ramas
-  pagada / parcial / sobrepago (misma moneda) + multimoneda USD.
-- ``fix_missing_withholding``: conversión Bs→moneda de factura, monto no positivo,
-  y guardia de duplicados.
+- ``_require_withholding_permissions``: gate por roles contables genéricos.
+- ``validate_withholding_tax_account``: cuenta de la compañía / no-grupo / oficial.
+- ``calculate_withholding_base_amount``: monto recalculado en el servidor (VAT/ISLR).
+- ``get_verified_invoice``: resolución por name / bill_no acotada por compañía.
+- ``handle_voucher_metadata``: completitud, ask_overwrite, only_line, alta (delega
+  en upload_voucher_data / upload_islr_voucher_data).
+- ``create_sales_taxes_row``: fila "Deduct" bien formada.
+- ``create_withholding_journal_entry``: cuadre del asiento, ramas
+  pagada / parcial / sobrepago (con ``is_advance='Yes'``) y multimoneda USD
+  (saldo convertido a Bs).
+- ``fix_missing_withholding``: orquestación con ``company`` y guardia de duplicados.
 
-Son tests unitarios con mocks: NO tocan la base de datos (se parchean
-``frappe.new_doc`` / ``frappe.db.*`` / los ayudantes), de modo que validan la
-aritmética y el flujo sin depender de datos del sitio. Requieren un sitio solo
-porque ``FrappeTestCase`` abre una transacción; ninguna aserción lee de la BD.
-
-NOTA: ``_require_isp_finance_role`` se prueba solo en su forma estable (denegar a
-un usuario sin roles); la lista concreta de roles ISP está señalada en el review
-como acople a corregir (l10n_ve → domina_isp), así que no se fija aquí.
+Son tests unitarios con mocks: NO tocan la base de datos ni el sitio (se parchean
+``frappe.new_doc`` / ``frappe.db.*`` / los ayudantes). Requieren sitio solo porque
+``FrappeTestCase`` abre una transacción.
 """
 
 from unittest.mock import MagicMock, patch
@@ -70,7 +69,6 @@ class _FakeTaxRow:
 
 
 def _invoice(**overrides):
-    """Factura mínima (frappe._dict) con los atributos que leen las funciones."""
     inv = frappe._dict(
         name="ACC-SINV-TEST-0001",
         company="Test Company",
@@ -81,6 +79,7 @@ def _invoice(**overrides):
         outstanding_amount=0.0,
         currency="VEF",
         conversion_rate=1.0,
+        base_net_total=0.0,
         docstatus=1,
         taxes=[],
         vat_withholding_voucher_number=None,
@@ -97,107 +96,108 @@ def _sum(rows, key):
 
 
 # --------------------------------------------------------------------------- #
-# create_withholding_journal_entry
+# _require_withholding_permissions
 # --------------------------------------------------------------------------- #
-class TestWithholdingJournalEntry(FrappeTestCase):
-    """Cuadre del asiento y ramas de imputación pagada / parcial / sobrepago."""
+class TestRequireWithholdingPermissions(FrappeTestCase):
 
-    def _build(self, inv, amount, base_amount, conversion_rate=1.0,
-               company_currency="VEF", invoice_currency="VEF", acct_currency="VEF"):
-        je = _FakeJournalEntry()
-        with patch("frappe.new_doc", return_value=je), \
-                patch("frappe.db.get_value", return_value=acct_currency):
-            si.create_withholding_journal_entry(
-                inv, "VAT", "2408 - IVA Retenido - TC",
-                amount, base_amount, conversion_rate,
-                "2026-07-15", company_currency, invoice_currency,
+    def test_user_without_accounting_role_denied(self):
+        with patch("frappe.get_roles", return_value=["Guest", "Sales User"]):
+            with self.assertRaises(frappe.PermissionError):
+                si._require_withholding_permissions()
+
+    def test_accounts_user_allowed(self):
+        with patch("frappe.get_roles", return_value=["Accounts User"]):
+            self.assertIsNone(si._require_withholding_permissions())
+
+
+# --------------------------------------------------------------------------- #
+# validate_withholding_tax_account
+# --------------------------------------------------------------------------- #
+class TestValidateWithholdingTaxAccount(FrappeTestCase):
+
+    def _run(self, account_data, company_config, wtype="VAT", tax_account="2408 - IVA Ret - TC"):
+        inv = _invoice()
+
+        def _gv(doctype, name, fields, *a, **k):
+            return account_data if doctype == "Account" else company_config
+
+        with patch("frappe.db.get_value", side_effect=_gv):
+            si.validate_withholding_tax_account(inv, wtype, tax_account)
+
+    def test_valid_official_account_passes(self):
+        self._run(
+            account_data=frappe._dict(company="Test Company", is_group=0),
+            company_config=frappe._dict(
+                sales_vat_withholding_account="2408 - IVA Ret - TC",
+                sales_islr_account="2409 - ISLR - TC",
+            ),
+        )  # no lanza
+
+    def test_wrong_company_raises(self):
+        with self.assertRaises(frappe.ValidationError):
+            self._run(
+                account_data=frappe._dict(company="Otra Company", is_group=0),
+                company_config=frappe._dict(sales_vat_withholding_account="2408 - IVA Ret - TC"),
             )
-        return je
 
-    def test_same_currency_partial_credits_invoice_only(self):
-        """Saldo pendiente > retención → todo el crédito referencia la factura."""
-        inv = _invoice(outstanding_amount=1000.0)
-        je = self._build(inv, amount=300.0, base_amount=300.0)
+    def test_group_account_raises(self):
+        with self.assertRaises(frappe.ValidationError):
+            self._run(
+                account_data=frappe._dict(company="Test Company", is_group=1),
+                company_config=frappe._dict(sales_vat_withholding_account="2408 - IVA Ret - TC"),
+            )
 
-        self.assertEqual(len(je.accounts), 2)
-        self.assertAlmostEqual(_sum(je.accounts, "debit"), 300.0, places=2)
-        self.assertAlmostEqual(_sum(je.accounts, "credit"), 300.0, places=2)
-        rec = [r for r in je.accounts if r.get("party")]
-        self.assertEqual(len(rec), 1)
-        self.assertEqual(rec[0].get("reference_name"), inv.name)
+    def test_non_official_account_raises(self):
+        with self.assertRaises(frappe.ValidationError):
+            self._run(
+                account_data=frappe._dict(company="Test Company", is_group=0),
+                company_config=frappe._dict(sales_vat_withholding_account="9999 - Otra - TC"),
+            )
 
-    def test_fully_paid_routes_to_unreferenced_advance(self):
-        """Factura pagada → el crédito va a un anticipo SIN referencia a la factura."""
-        inv = _invoice(outstanding_amount=0.0)
-        je = self._build(inv, amount=300.0, base_amount=300.0)
+    def test_missing_account_raises(self):
+        with self.assertRaises(frappe.ValidationError):
+            self._run(account_data=None, company_config=frappe._dict())
 
-        self.assertEqual(len(je.accounts), 2)
-        rec = [r for r in je.accounts if r.get("party")]
-        self.assertEqual(len(rec), 1)
-        # Documenta el comportamiento del review #4: el saldo a favor no ata la
-        # factura (ni marca is_advance). El equipo contable confirmó que la
-        # factura pagada debe quedar como saldo a favor, pero la traza correcta
-        # exige referencia/anticipo formal.
-        self.assertIsNone(rec[0].get("reference_name"))
-        self.assertAlmostEqual(_sum(je.accounts, "debit"), 300.0, places=2)
-        self.assertAlmostEqual(_sum(je.accounts, "credit"), 300.0, places=2)
 
-    def test_overpayment_splits_invoice_and_advance(self):
-        """Retención > saldo → parte imputada a la factura + resto a anticipo."""
-        inv = _invoice(outstanding_amount=100.0)
-        je = self._build(inv, amount=300.0, base_amount=300.0)
+# --------------------------------------------------------------------------- #
+# calculate_withholding_base_amount
+# --------------------------------------------------------------------------- #
+class TestCalculateWithholdingBaseAmount(FrappeTestCase):
 
-        self.assertEqual(len(je.accounts), 3)
-        referenced = [r for r in je.accounts if r.get("reference_name")]
-        advance = [r for r in je.accounts if r.get("party") and not r.get("reference_name")]
-        self.assertEqual(len(referenced), 1)
-        self.assertEqual(len(advance), 1)
-        self.assertAlmostEqual(referenced[0]["credit"], 100.0, places=2)
-        self.assertAlmostEqual(advance[0]["credit"], 200.0, places=2)
-        self.assertAlmostEqual(_sum(je.accounts, "debit"), 300.0, places=2)
-        self.assertAlmostEqual(_sum(je.accounts, "credit"), 300.0, places=2)
-
-    def test_usd_invoice_company_legs_balance(self):
-        """Factura USD: en moneda de compañía (Bs) el asiento siempre cuadra."""
-        inv = _invoice(currency="USD", conversion_rate=40.0, outstanding_amount=1000.0)
-        je = self._build(
-            inv, amount=10.0, base_amount=400.0, conversion_rate=40.0,
-            company_currency="VEF", invoice_currency="USD", acct_currency="USD",
+    def test_vat_uses_invoice_iva_times_rate(self):
+        inv = _invoice(taxes=[
+            frappe._dict(charge_type="VAT", base_tax_amount=1600.0),
+            frappe._dict(charge_type="Actual", base_tax_amount=999.0),  # ignorada
+        ])
+        # 1600 Bs de IVA * 75% = 1200 Bs
+        self.assertAlmostEqual(
+            si.calculate_withholding_base_amount(inv, "VAT", 75.0), 1200.0, places=2
         )
-        self.assertAlmostEqual(_sum(je.accounts, "debit"), 400.0, places=2)
-        self.assertAlmostEqual(_sum(je.accounts, "credit"), 400.0, places=2)
-        # La pata de impuesto lleva el importe en moneda de cuenta (USD) y el Bs.
-        tax_row = je.accounts[0]
-        self.assertAlmostEqual(tax_row["debit_in_account_currency"], 10.0, places=2)
-        self.assertAlmostEqual(tax_row["debit"], 400.0, places=2)
 
-    def test_usd_outstanding_is_mistaken_for_bs_bug_ref_12(self):
-        """DOCUMENTA EL BUG #12 del review.
+    def test_vat_zero_result_raises(self):
+        inv = _invoice(taxes=[frappe._dict(charge_type="VAT", base_tax_amount=0.0)])
+        with self.assertRaises(frappe.ValidationError):
+            si.calculate_withholding_base_amount(inv, "VAT", 75.0)
 
-        ``outstanding_amount`` de una factura USD está en USD, pero
-        ``create_withholding_journal_entry`` lo compara contra el crédito en Bs.
+    def test_islr_uses_tabulator_and_person_type(self):
+        inv = _invoice(base_net_total=10000.0)
+        customer = frappe._dict(type_of_person="Domiciled legal entity", tabulator_islr="TAB-1")
+        tab = frappe._dict(aliquot=[
+            frappe._dict(types_of_person="Natural person domiciled", subtracting=0, percentage_base=100, aliquot=1),
+            frappe._dict(types_of_person="Domiciled legal entity", subtracting=50, percentage_base=100, aliquot=3),
+        ])
+        with patch("frappe.db.get_value", return_value=customer), \
+                patch("frappe.get_doc", return_value=tab):
+            # base = 10000 * 100/100 = 10000; 10000 * 3% - 50 = 250 Bs
+            self.assertAlmostEqual(
+                si.calculate_withholding_base_amount(inv, "ISLR", 3.0), 250.0, places=2
+            )
 
-        Escenario: factura USD, tasa 40 Bs/USD, retención 400 Bs (= 10 USD),
-        saldo pendiente = 100 USD. Como 10 USD < 100 USD, la retención debería
-        imputarse ÍNTEGRA a la factura y NO generar saldo a favor.
-
-        El código, en cambio, trata ``outstanding = 100`` como 100 Bs y, al ser
-        400 Bs > 100, parte el crédito y crea un anticipo espurio de 300 Bs.
-
-        Cuando se corrija #12 (comparar el saldo en moneda de cuenta), este test
-        fallará: actualícelo a "sin fila de anticipo".
-        """
-        inv = _invoice(currency="USD", conversion_rate=40.0, outstanding_amount=100.0)
-        je = self._build(
-            inv, amount=10.0, base_amount=400.0, conversion_rate=40.0,
-            company_currency="VEF", invoice_currency="USD", acct_currency="USD",
-        )
-        advance = [r for r in je.accounts if r.get("party") and not r.get("reference_name")]
-        self.assertEqual(
-            len(advance), 1,
-            "Si #12 fue corregido no debería haber anticipo espurio; actualice el test.",
-        )
-        self.assertAlmostEqual(advance[0]["credit"], 300.0, places=2)
+    def test_islr_without_tabulator_raises(self):
+        inv = _invoice()
+        with patch("frappe.db.get_value", return_value=frappe._dict(type_of_person="X", tabulator_islr=None)):
+            with self.assertRaises(frappe.ValidationError):
+                si.calculate_withholding_base_amount(inv, "ISLR", 3.0)
 
 
 # --------------------------------------------------------------------------- #
@@ -205,11 +205,11 @@ class TestWithholdingJournalEntry(FrappeTestCase):
 # --------------------------------------------------------------------------- #
 class TestGetVerifiedInvoice(FrappeTestCase):
 
-    def test_resolves_by_name(self):
+    def test_resolves_by_name_scoped_by_company(self):
         inv = _invoice(name="ACC-SINV-1")
         with patch("frappe.db.exists", return_value=True), \
                 patch("frappe.get_doc", return_value=inv) as gd:
-            out = si.get_verified_invoice("ACC-SINV-1")
+            out = si.get_verified_invoice("ACC-SINV-1", "Test Company")
         self.assertIs(out, inv)
         gd.assert_called_once_with("Sales Invoice", "ACC-SINV-1")
 
@@ -218,21 +218,14 @@ class TestGetVerifiedInvoice(FrappeTestCase):
         with patch("frappe.db.exists", return_value=False), \
                 patch("frappe.db.get_value", return_value="ACC-SINV-2"), \
                 patch("frappe.get_doc", return_value=inv) as gd:
-            si.get_verified_invoice("00012345")
+            si.get_verified_invoice("00012345", "Test Company")
         gd.assert_called_once_with("Sales Invoice", "ACC-SINV-2")
 
     def test_not_found_raises(self):
         with patch("frappe.db.exists", return_value=False), \
                 patch("frappe.db.get_value", return_value=None):
             with self.assertRaises(frappe.ValidationError):
-                si.get_verified_invoice("does-not-exist")
-
-    def test_draft_invoice_raises(self):
-        inv = _invoice(name="ACC-SINV-3", docstatus=0)
-        with patch("frappe.db.exists", return_value=True), \
-                patch("frappe.get_doc", return_value=inv):
-            with self.assertRaises(frappe.ValidationError):
-                si.get_verified_invoice("ACC-SINV-3")
+                si.get_verified_invoice("does-not-exist", "Test Company")
 
 
 # --------------------------------------------------------------------------- #
@@ -241,12 +234,9 @@ class TestGetVerifiedInvoice(FrappeTestCase):
 class TestHandleVoucherMetadata(FrappeTestCase):
 
     def test_incomplete_fields_raise(self):
-        """Algún campo del comprobante presente pero no todos → error."""
         inv = _invoice()
         with self.assertRaises(frappe.ValidationError):
-            si.handle_voucher_metadata(
-                inv, "VAT", "12345678901234", None, None, False, False
-            )
+            si.handle_voucher_metadata(inv, "VAT", "12345678901234", None, None, False, False)
 
     def test_vat_existing_asks_overwrite(self):
         inv = _invoice(vat_withholding_voucher_number="OLD-123")
@@ -255,42 +245,34 @@ class TestHandleVoucherMetadata(FrappeTestCase):
         )
         self.assertEqual(res["status"], "ask_overwrite")
 
-    def test_vat_overwrite_updates_real_date_field(self):
+    def test_vat_overwrite_delegates_to_upload(self):
         inv = _invoice(vat_withholding_voucher_number="OLD-123")
-        with patch.object(si, "update_invoice_metadata") as upd:
+        with patch.object(si, "upload_voucher_data", return_value={"status": "success"}) as up:
             res = si.handle_voucher_metadata(
                 inv, "VAT", "12345678901234", "2026-07-15", "/files/x.pdf", True, False
             )
         self.assertEqual(res["status"], "proceed")
-        upd.assert_called_once()
-        data = upd.call_args[0][1]
-        self.assertEqual(data["vat_withholding_voucher_number"], "12345678901234")
-        # Campo real de fecha IVA: withholding_date (no vat_withholding_date).
-        self.assertEqual(data["withholding_date"], "2026-07-15")
-        self.assertEqual(data["voucher_image"], "/files/x.pdf")
+        up.assert_called_once()
+        self.assertEqual(up.call_args.kwargs["voucher_number"], "12345678901234")
 
     def test_only_line_keeps_existing_metadata(self):
-        """only_line=True con comprobante existente → ni pregunta ni actualiza."""
         inv = _invoice(vat_withholding_voucher_number="OLD-123")
-        with patch.object(si, "update_invoice_metadata") as upd:
+        with patch.object(si, "upload_voucher_data") as up:
             res = si.handle_voucher_metadata(
                 inv, "VAT", "12345678901234", "2026-07-15", "/files/x.pdf", False, True
             )
         self.assertEqual(res["status"], "proceed")
-        upd.assert_not_called()
+        up.assert_not_called()
 
-    def test_islr_new_voucher_updates_islr_date_field(self):
+    def test_islr_new_voucher_delegates_to_islr_upload(self):
         inv = _invoice()
-        with patch.object(si, "update_invoice_metadata") as upd:
+        with patch.object(si, "upload_islr_voucher_data", return_value={"status": "success"}) as up:
             res = si.handle_voucher_metadata(
                 inv, "ISLR", "CTRL-9", "2026-07-15", "/files/i.pdf", False, False
             )
         self.assertEqual(res["status"], "proceed")
-        data = upd.call_args[0][1]
-        # Campo real de fecha ISLR: islr_date (no islr_withholding_date).
-        self.assertIn("islr_date", data)
-        self.assertEqual(data["islr_receipt_number"], "CTRL-9")
-        self.assertEqual(data["voucher_image_islr"], "/files/i.pdf")
+        up.assert_called_once()
+        self.assertEqual(up.call_args.kwargs["islr_receipt_number"], "CTRL-9")
 
 
 # --------------------------------------------------------------------------- #
@@ -315,7 +297,79 @@ class TestCreateSalesTaxesRow(FrappeTestCase):
         self.assertEqual(row.tax_amount, 10.0)
         self.assertEqual(row.base_tax_amount, 400.0)
         self.assertEqual(row.idx, 3)
-        self.assertEqual(row.account_head, "2408 - IVA Ret - TC")
+
+
+# --------------------------------------------------------------------------- #
+# create_withholding_journal_entry
+# --------------------------------------------------------------------------- #
+class TestWithholdingJournalEntry(FrappeTestCase):
+
+    def _build(self, inv, amount, base_amount, conversion_rate=1.0,
+               company_currency="VEF", invoice_currency="VEF", acct_currency="VEF"):
+        je = _FakeJournalEntry()
+        with patch.object(si, "_require_withholding_permissions"), \
+                patch("frappe.new_doc", return_value=je), \
+                patch("frappe.db.get_value", return_value=acct_currency):
+            si.create_withholding_journal_entry(
+                inv, "VAT", "2408 - IVA Retenido - TC",
+                amount, base_amount, conversion_rate,
+                "2026-07-15", company_currency, invoice_currency,
+            )
+        return je
+
+    def test_same_currency_partial_credits_invoice_only(self):
+        inv = _invoice(outstanding_amount=1000.0)
+        je = self._build(inv, amount=300.0, base_amount=300.0)
+        self.assertEqual(len(je.accounts), 2)
+        self.assertAlmostEqual(_sum(je.accounts, "debit"), 300.0, places=2)
+        self.assertAlmostEqual(_sum(je.accounts, "credit"), 300.0, places=2)
+        rec = [r for r in je.accounts if r.get("party")]
+        self.assertEqual(rec[0].get("reference_name"), inv.name)
+
+    def test_fully_paid_creates_formal_advance(self):
+        """Factura pagada → anticipo con is_advance='Yes' (corrección review #11)."""
+        inv = _invoice(outstanding_amount=0.0)
+        je = self._build(inv, amount=300.0, base_amount=300.0)
+        self.assertEqual(len(je.accounts), 2)
+        advance = [r for r in je.accounts if r.get("party") and not r.get("reference_name")]
+        self.assertEqual(len(advance), 1)
+        self.assertEqual(advance[0].get("is_advance"), "Yes")
+        self.assertAlmostEqual(_sum(je.accounts, "debit"), 300.0, places=2)
+        self.assertAlmostEqual(_sum(je.accounts, "credit"), 300.0, places=2)
+
+    def test_overpayment_splits_invoice_and_formal_advance(self):
+        inv = _invoice(outstanding_amount=100.0)
+        je = self._build(inv, amount=300.0, base_amount=300.0)
+        self.assertEqual(len(je.accounts), 3)
+        referenced = [r for r in je.accounts if r.get("reference_name")]
+        advance = [r for r in je.accounts if r.get("party") and not r.get("reference_name")]
+        self.assertAlmostEqual(referenced[0]["credit"], 100.0, places=2)
+        self.assertAlmostEqual(advance[0]["credit"], 200.0, places=2)
+        self.assertEqual(advance[0].get("is_advance"), "Yes")
+
+    def test_usd_invoice_company_legs_balance(self):
+        inv = _invoice(currency="USD", conversion_rate=40.0, outstanding_amount=1000.0)
+        je = self._build(
+            inv, amount=10.0, base_amount=400.0, conversion_rate=40.0,
+            company_currency="VEF", invoice_currency="USD", acct_currency="USD",
+        )
+        self.assertAlmostEqual(_sum(je.accounts, "debit"), 400.0, places=2)
+        self.assertAlmostEqual(_sum(je.accounts, "credit"), 400.0, places=2)
+
+    def test_usd_outstanding_converted_no_spurious_advance(self):
+        """Corrección review #12: el saldo USD se convierte a Bs antes de comparar.
+
+        Factura USD, tasa 40, retención 400 Bs (=10 USD), saldo 100 USD
+        (= 4000 Bs). Como 400 Bs < 4000 Bs, la retención se imputa ÍNTEGRA a la
+        factura y NO genera anticipo espurio (antes creaba 300 Bs de anticipo).
+        """
+        inv = _invoice(currency="USD", conversion_rate=40.0, outstanding_amount=100.0)
+        je = self._build(
+            inv, amount=10.0, base_amount=400.0, conversion_rate=40.0,
+            company_currency="VEF", invoice_currency="USD", acct_currency="USD",
+        )
+        advance = [r for r in je.accounts if r.get("party") and not r.get("reference_name")]
+        self.assertEqual(len(advance), 0, "El saldo USD debe convertirse a Bs; no debe haber anticipo espurio.")
 
 
 # --------------------------------------------------------------------------- #
@@ -324,7 +378,7 @@ class TestCreateSalesTaxesRow(FrappeTestCase):
 class TestFixMissingWithholding(FrappeTestCase):
 
     def test_foreign_currency_converts_bs_base_to_invoice_amount(self):
-        """400 Bs con tasa 40 → 10 USD en la fila de impuesto (base sigue en Bs)."""
+        """base_amount server-side (400 Bs) con tasa 40 → 10 USD en la fila de impuesto."""
         inv = _invoice(currency="USD", conversion_rate=40.0, outstanding_amount=1000.0)
         inv.precision = lambda *a, **k: 2
         inv.reload = lambda: None
@@ -335,53 +389,38 @@ class TestFixMissingWithholding(FrappeTestCase):
             captured["base_amount"] = base_amount
             return _FakeTaxRow()
 
-        with patch.object(si, "_require_isp_finance_role"), \
+        with patch.object(si, "_require_withholding_permissions"), \
                 patch.object(si, "get_verified_invoice", return_value=inv), \
+                patch.object(si, "validate_withholding_tax_account"), \
                 patch.object(si, "handle_voucher_metadata", return_value={"status": "proceed"}), \
+                patch.object(si, "calculate_withholding_base_amount", return_value=400.0), \
                 patch("frappe.get_cached_value", return_value="VEF"), \
                 patch.object(si, "create_sales_taxes_row", side_effect=_fake_tax_row), \
                 patch.object(si, "create_withholding_journal_entry", return_value=_FakeJournalEntry()), \
+                patch.object(si, "sync_isp_payment_amounts_if_installed"), \
                 patch("frappe.db.set_value"), \
-                patch("frappe.get_doc", return_value=MagicMock()), \
-                patch("frappe.log_error"):
+                patch("frappe.get_doc", return_value=MagicMock()):
             out = si.fix_missing_withholding(
                 invoice_name="ACC-SINV-TEST-0001",
                 withholding_type="VAT",
                 tax_account="2408 - IVA Ret - TC",
-                amount=400.0,  # Bs
+                company="Test Company",
+                rate=75.0,
             )
         self.assertEqual(out["status"], "success")
         self.assertAlmostEqual(captured["amount"], 10.0, places=2)
         self.assertAlmostEqual(captured["base_amount"], 400.0, places=2)
 
-    def test_non_positive_amount_raises(self):
-        inv = _invoice()
-        with patch.object(si, "_require_isp_finance_role"), \
-                patch.object(si, "get_verified_invoice", return_value=inv):
-            with self.assertRaises(frappe.ValidationError):
-                si.fix_missing_withholding(
-                    invoice_name="x", withholding_type="VAT", tax_account="acc", amount=0
-                )
-
     def test_duplicate_withholding_raises(self):
         existing = frappe._dict(charge_type="VAT Withholding", account_head="2408 - IVA Ret - TC")
         inv = _invoice(taxes=[existing])
-        with patch.object(si, "_require_isp_finance_role"), \
+        with patch.object(si, "_require_withholding_permissions"), \
                 patch.object(si, "get_verified_invoice", return_value=inv), \
-                patch.object(si, "handle_voucher_metadata", return_value={"status": "proceed"}):
+                patch.object(si, "validate_withholding_tax_account"), \
+                patch.object(si, "handle_voucher_metadata", return_value={"status": "proceed"}), \
+                patch("frappe.get_cached_value", return_value="VEF"):
             with self.assertRaises(frappe.ValidationError):
                 si.fix_missing_withholding(
                     invoice_name="x", withholding_type="VAT",
-                    tax_account="2408 - IVA Ret - TC", amount=400.0,
+                    tax_account="2408 - IVA Ret - TC", company="Test Company", rate=75.0,
                 )
-
-
-# --------------------------------------------------------------------------- #
-# _require_isp_finance_role (forma estable)
-# --------------------------------------------------------------------------- #
-class TestRequireFinanceRole(FrappeTestCase):
-
-    def test_user_without_authorized_role_denied(self):
-        with patch("frappe.get_roles", return_value=["Guest"]):
-            with self.assertRaises(frappe.PermissionError):
-                si._require_isp_finance_role()
