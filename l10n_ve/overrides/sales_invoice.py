@@ -1,9 +1,17 @@
+from typing import TYPE_CHECKING
+
 import frappe
 from frappe import _
-from frappe.utils import flt, cint, getdate
+from frappe.utils import flt, cint, getdate, nowdate
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice, make_regional_gl_entries
+
+if TYPE_CHECKING:
+    from erpnext.accounts.doctype.journal_entry.journal_entry import JournalEntry
+    from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import (
+        SalesTaxesandCharges,
+    )
 
 from l10n_ve.overrides.company import CustomCompany
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
@@ -926,7 +934,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
 
 @frappe.whitelist()
-def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None) -> dict:
+def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None, registration_date=None) -> dict:
     try:
         if not withholding_date or not file_url:
             frappe.throw(_("Faltan datos obligatorios."))
@@ -955,10 +963,13 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
                 "attached_to_name": docname
             })
 
+        registration_date = registration_date if registration_date else nowdate()
+
         frappe.db.set_value("Sales Invoice", docname, {
             'vat_withholding_voucher_number': voucher_number,
             'withholding_date': withholding_date,
-            'voucher_image': file_url
+            'voucher_image': file_url,
+            'vat_registration_date': registration_date
         }, update_modified=True)
 
         comment = frappe.get_doc({
@@ -980,7 +991,7 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
 
 
 @frappe.whitelist()
-def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_url=None) -> dict:
+def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_url=None, registration_date=None) -> dict:
     try:
         if not islr_date or not file_url:
             frappe.throw(_("La fecha y el archivo del comprobante de ISLR son obligatorios."))
@@ -1008,10 +1019,13 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
                 "attached_to_name": docname
             })
 
+        registration_date = registration_date if registration_date else nowdate()
+
         frappe.db.set_value("Sales Invoice", docname, {
             'islr_receipt_number': islr_receipt_number,
             'islr_date': islr_date,
-            'voucher_image_islr': file_url
+            'voucher_image_islr': file_url,
+            'islr_registration_date': registration_date
         }, update_modified=True)
 
         comment_text = f"Comprobante de Retención de ISLR actualizado. Número: {islr_receipt_number or 'S/N'}. Fecha: {islr_date}."
@@ -1496,3 +1510,491 @@ def get_withholding_types(invoice_names: str) -> dict:
             entry["has_islr"] = True
 
     return result
+
+
+@frappe.whitelist()
+def fix_missing_withholding(
+    invoice_name: str,
+    withholding_type: str,
+    tax_account: str,
+    company: str,
+    voucher_number: str = None,
+    withholding_date: str = None,
+    file_url: str = None,
+    rate: float = 0.0,
+    overwrite: int = 0,
+    only_line: int = 0,
+    registration_date: str = None
+) -> dict:
+    """Retroactively injects VAT/ISLR withholdings and their corresponding accounting entry into a submitted invoice.
+    Handles rounding differences, fully paid invoices, and voucher replacement validations.
+    """
+
+    _require_withholding_permissions()
+
+    invoice = get_verified_invoice(invoice_name, company)
+
+    validate_withholding_tax_account(invoice, withholding_type, tax_account)
+
+    is_overwrite = True if overwrite in [1, "1", True, "true", "True"] else False
+    is_only_line = True if only_line in [1, "1", True, "true", "True"] else False
+    charge_type = "VAT Withholding" if withholding_type == "VAT" else "ISLR"
+
+    metadata_status = handle_voucher_metadata(
+        invoice, withholding_type, voucher_number, withholding_date, file_url, is_overwrite, is_only_line, registration_date
+    )
+    if metadata_status.get("status") == "ask_overwrite":
+        return metadata_status
+
+    duplicate = any(t.charge_type == charge_type and t.account_head == tax_account for t in invoice.taxes)
+    if duplicate:
+        frappe.throw(_("La factura {0} ya tiene una retención de tipo {1} con la cuenta {2}.").format(invoice.name, charge_type, tax_account))
+
+    company_currency = frappe.get_cached_value("Company", invoice.company, "default_currency") or "VEF"
+    invoice_currency = invoice.currency or "USD"
+
+    base_amount = calculate_withholding_base_amount(invoice, withholding_type)
+
+    if invoice_currency != company_currency:
+        conversion_rate = flt(invoice.conversion_rate) or flt(invoice.plc_conversion_rate)
+        if not conversion_rate:
+            frappe.throw(_("La factura {0} está en moneda extranjera ({1}) pero no tiene una tasa de cambio de conversión válida configurada.").format(invoice.name, invoice_currency))
+        
+        amount = flt(base_amount / conversion_rate, invoice.precision("tax_amount", "taxes") or 2)
+    else:
+        conversion_rate = 1.0
+        amount = base_amount
+
+    tax_row = create_sales_taxes_row(
+        invoice, charge_type, tax_account, withholding_type, amount, base_amount, rate
+    )
+
+    je = create_withholding_journal_entry(
+        invoice, withholding_type, tax_account, amount, base_amount, conversion_rate, 
+        withholding_date, company_currency, invoice_currency
+    )
+
+    frappe.db.set_value(
+        "Sales Taxes and Charges",
+        tax_row.name,
+        "description",
+        f"Retención de {withholding_type} (Ajuste) - Asiento: {je.name}"
+    )
+
+    invoice.reload()
+
+    sync_isp_payment_amounts_if_installed(invoice)
+
+    return {"status": "success", "msg": f"Retención aplicada y Asiento {je.name} creado con éxito."}
+
+
+def get_verified_invoice(invoice_name: str, company: str) -> "SalesInvoice":
+    """Resolves the real invoice name (considering bill_no fallback) and returns the validated Sales Invoice document."""
+    real_invoice_name = None
+    
+    if invoice_name:
+        if frappe.db.exists("Sales Invoice", {"name": invoice_name, "company": company, "docstatus": 1}):
+            real_invoice_name = invoice_name
+        else:
+            real_invoice_name = frappe.db.get_value("Sales Invoice", {"bill_no": invoice_name, "company": company, "docstatus": 1}, "name")
+
+    if not real_invoice_name:
+        frappe.throw(_("No se encontró ninguna factura aprobada (Submitted) con el identificador o número de control '{0}' para la empresa {1}.").format(invoice_name, company))
+
+    invoice = frappe.get_doc("Sales Invoice", real_invoice_name)
+
+    return invoice
+
+
+def handle_voucher_metadata(
+    invoice: "SalesInvoice",
+    withholding_type: str,
+    voucher_number: str,
+    withholding_date: str,
+    file_url: str,
+    is_overwrite: bool,
+    is_only_line: bool,
+    registration_date: str
+) -> dict:
+    """Validates data completeness, handles overwrite warnings, and delegates
+    the database updates to existing legacy functions to preserve business logic.
+    """
+    is_vat = withholding_type == "VAT"
+    has_any = bool(voucher_number or withholding_date or file_url)
+    has_all = bool(voucher_number and withholding_date and file_url)
+    
+    if has_any and not has_all:
+        msg = _("Debe completar todos los campos del formulario para el comprobante de IVA (Número, Fecha y Archivo).") if is_vat else \
+            _("Debe completar todos los campos del formulario para el comprobante de ISLR (Número, Fecha y Archivo).")
+        frappe.throw(msg)
+    
+    if is_vat:
+        has_existing = bool(invoice.vat_withholding_voucher_number or invoice.voucher_image)
+        if has_all:
+            if has_existing and not is_overwrite and not is_only_line:
+                return {
+                    "status": "ask_overwrite",
+                    "message": _("La factura {0} ya tiene un comprobante de IVA registrado ({1}). ¿Desea reemplazarlo con la nueva información?").format(
+                        invoice.name, invoice.vat_withholding_voucher_number or "Imagen cargada"
+                    )
+                }
+
+            if is_overwrite or not has_existing:
+                res = upload_voucher_data(
+                    docname=invoice.name, 
+                    voucher_number=voucher_number, 
+                    withholding_date=withholding_date, 
+                    file_url=file_url,
+                    registration_date=registration_date
+                )
+                if res.get("status") == "error":
+                    frappe.throw(_("Error procesando comprobante de IVA: {0}").format(res.get("msg")))
+                
+    else:  # ISLR
+        has_existing = bool(invoice.islr_receipt_number or invoice.voucher_image_islr)
+        if has_all:
+            if has_existing and not is_overwrite and not is_only_line:
+                return {
+                    "status": "ask_overwrite",
+                    "message": _("La factura {0} ya tiene un comprobante de ISLR registrado ({1}). ¿Desea reemplazarlo con la nueva información?").format(
+                        invoice.name, invoice.islr_receipt_number or "Imagen cargada"
+                    )
+                }
+
+            if is_overwrite or not has_existing:
+                res = upload_islr_voucher_data(
+                    docname=invoice.name, 
+                    islr_date=withholding_date, 
+                    islr_receipt_number=voucher_number, 
+                    file_url=file_url,
+                    registration_date=registration_date
+                )
+                if res.get("status") == "error":
+                    frappe.throw(_("Error procesando comprobante de ISLR: {0}").format(res.get("msg")))
+                
+    return {"status": "proceed"}
+
+
+def update_invoice_metadata(invoice: "SalesInvoice", data: dict) -> None:
+    """Updates invoice metadata fields bypassing docstatus validation using db_set."""
+    frappe.db.set_value("Sales Invoice", invoice.name, data, update_modified=False)
+    for field, value in data.items():
+        setattr(invoice, field, value)
+
+
+def create_sales_taxes_row(
+    invoice: "SalesInvoice",
+    charge_type: str,
+    tax_account: str,
+    withholding_type: str,
+    amount: float,
+    base_amount: float,
+    rate: float
+) -> "SalesTaxesandCharges":
+    """Appends and inserts a new row in Sales Taxes and Charges."""
+    idx = len(invoice.taxes) + 1
+    tax_row = frappe.new_doc("Sales Taxes and Charges")
+    tax_row.parent = invoice.name
+    tax_row.parenttype = "Sales Invoice"
+    tax_row.parentfield = "taxes"
+    tax_row.idx = idx
+    tax_row.charge_type = charge_type
+    tax_row.add_deduct_tax = "Deduct"
+    tax_row.category = "Total"
+    tax_row.account_head = tax_account
+    tax_row.description = f"Retención de {withholding_type} (Ajuste)"
+    tax_row.rate = flt(rate)
+    tax_row.tax_amount = amount
+    tax_row.base_tax_amount = base_amount
+    tax_row.tax_amount_after_discount_amount = amount
+    tax_row.base_tax_amount_after_discount_amount = base_amount
+    tax_row.is_tax_withholding_account = 1
+    tax_row.dont_recompute_tax = 1
+    tax_row.cost_center = invoice.cost_center
+    tax_row.db_insert()
+    return tax_row
+
+
+def create_withholding_journal_entry(
+    invoice: "SalesInvoice",
+    withholding_type: str,
+    tax_account: str,
+    amount: float,
+    base_amount: float,
+    conversion_rate: float,
+    withholding_date: str,
+    company_currency: str,
+    invoice_currency: str
+) -> "JournalEntry":
+    """Builds and submits the multi-currency Journal Entry for the withholding, splitting overpayments if necessary."""
+    tax_account_currency = frappe.db.get_value("Account", tax_account, "account_currency") or company_currency
+    receivable_account_currency = frappe.db.get_value("Account", invoice.debit_to, "account_currency") or company_currency
+
+    posting_date = frappe.utils.today()
+
+    outstanding_bs = flt(invoice.outstanding_amount)
+    if receivable_account_currency != company_currency:
+        outstanding_bs = flt(invoice.outstanding_amount * conversion_rate)
+    
+    total_credit_bs = base_amount
+
+    je = frappe.new_doc("Journal Entry")
+    je.company = invoice.company
+    je.posting_date = posting_date
+    je.user_remark = f"Retención de {withholding_type} registrada para la factura {invoice.name}."
+    
+    je.multi_currency = 1 if (
+        invoice_currency != company_currency or 
+        tax_account_currency != company_currency or 
+        receivable_account_currency != company_currency
+    ) else 0
+
+    tax_je_row = {
+        "account": tax_account,
+        "cost_center": invoice.cost_center,
+    }
+    if tax_account_currency != company_currency:
+        tax_je_row.update({
+            "account_currency": tax_account_currency,
+            "exchange_rate": conversion_rate if tax_account_currency == invoice_currency else 1.0,
+            "debit_in_account_currency": amount if tax_account_currency == invoice_currency else base_amount,
+            "debit": base_amount
+        })
+    else:
+        tax_je_row.update({
+            "debit_in_account_currency": base_amount,
+            "debit": base_amount,
+            "exchange_rate": 1.0
+        })
+    je.append("accounts", tax_je_row)
+
+    is_invoice_fully_paid = outstanding_bs <= 0
+    if is_invoice_fully_paid:
+        credit_invoice_bs = 0.0
+        credit_advance_bs = total_credit_bs
+    else:
+        has_overpayment = total_credit_bs > outstanding_bs
+        if has_overpayment:
+            credit_invoice_bs = outstanding_bs
+            credit_advance_bs = flt(total_credit_bs - outstanding_bs, 2)
+        else:
+            credit_invoice_bs = total_credit_bs
+            credit_advance_bs = 0.0
+
+    rec_exchange_rate = conversion_rate if (receivable_account_currency != company_currency and receivable_account_currency == invoice_currency) else 1.0
+
+    if credit_invoice_bs > 0:
+        rec_je_row_invoice = {
+            "account": invoice.debit_to,
+            "party_type": "Customer",
+            "party": invoice.customer,
+            "reference_type": "Sales Invoice",
+            "reference_name": invoice.name,
+            "cost_center": invoice.cost_center,
+        }
+        if receivable_account_currency != company_currency:
+            proportional_amount_usd = flt(credit_invoice_bs / rec_exchange_rate, 2) if rec_exchange_rate else 0.0
+            rec_je_row_invoice.update({
+                "account_currency": receivable_account_currency,
+                "exchange_rate": rec_exchange_rate,
+                "credit_in_account_currency": proportional_amount_usd,
+                "credit": credit_invoice_bs
+            })
+        else:
+            rec_je_row_invoice.update({
+                "credit_in_account_currency": credit_invoice_bs,
+                "credit": credit_invoice_bs,
+                "exchange_rate": 1.0
+            })
+        je.append("accounts", rec_je_row_invoice)
+
+    if credit_advance_bs > 0:
+        rec_je_row_advance = {
+            "account": invoice.debit_to,
+            "party_type": "Customer",
+            "party": invoice.customer,
+            "cost_center": invoice.cost_center,
+            "is_advance": "Yes"
+        }
+        if receivable_account_currency != company_currency:
+            overpayment_amount_usd = flt(credit_advance_bs / rec_exchange_rate, 2) if rec_exchange_rate else 0.0
+            rec_je_row_advance.update({
+                "account_currency": receivable_account_currency,
+                "exchange_rate": rec_exchange_rate,
+                "credit_in_account_currency": overpayment_amount_usd,
+                "credit": credit_advance_bs
+            })
+        else:
+            rec_je_row_advance.update({
+                "credit_in_account_currency": credit_advance_bs,
+                "credit": credit_advance_bs,
+                "exchange_rate": 1.0
+            })
+        je.append("accounts", rec_je_row_advance)
+
+    try:
+        je.insert(ignore_permissions=True)
+        je.submit()
+    except ClosedAccountingPeriod:
+        frappe.throw(
+            _("No se pudo publicar el asiento contable de la retención: El período contable para la fecha {0} se encuentra cerrado. Comuníquese con el departamento de administración/contabilidad.")
+            .format(je.posting_date)
+        )
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error Contabilizando Retención")
+        frappe.throw(_("Error al intentar contabilizar la retención: {0}").format(str(e)))    
+
+    return je
+
+
+def calculate_withholding_base_amount(invoice: "SalesInvoice", withholding_type: str) -> float:
+    """Calculates and returns the withholding amount in local currency (Bs) 
+    strictly using the invoice values stored in the database.
+    """
+    base_amount = 0.0
+
+    if withholding_type == "VAT":
+        tax_withholding_category = frappe.db.get_value("Customer", invoice.customer, "tax_withholding_category")
+        vat_rate = get_vat_category_rate(tax_withholding_category, invoice.company)
+
+        vat_base_bs = sum(flt(t.base_tax_amount) for t in invoice.taxes if t.charge_type == "VAT")
+        base_amount = flt(vat_base_bs * (vat_rate / 100.0), 2)
+
+    elif withholding_type == "ISLR":
+        customer_data = frappe.db.get_value(
+            "Customer", 
+            invoice.customer, 
+            ["type_of_person", "tabulator_islr"], 
+            as_dict=True
+        )
+        
+        if not customer_data or not customer_data.tabulator_islr:
+            frappe.throw(_("El cliente {0} no tiene configurado un Tabulador de ISLR.").format(invoice.customer))
+        
+        tab_doc = frappe.get_doc("Tabulator ISLR", customer_data.tabulator_islr)
+        client_person_type = customer_data.type_of_person
+        
+        target_row = None
+        if tab_doc.aliquot:
+            if client_person_type:
+                target_row = next((row for row in tab_doc.aliquot if row.types_of_person == client_person_type), None)
+            if not target_row:
+                target_row = tab_doc.aliquot[0]
+        
+        if not target_row:
+            frappe.throw(_("No se encontró una alícuota válida en el Tabulador de ISLR para el cliente."))
+
+        subtrahend = flt(target_row.subtracting)
+        percentage_base = flt(target_row.percentage_base) or 100.0
+        
+        net_total_bs = flt(invoice.base_net_total)
+        calculated_base_bs = flt(net_total_bs * (percentage_base / 100.0))
+
+        islr_rate = flt(target_row.aliquot)
+        
+        base_amount = flt((calculated_base_bs * (islr_rate / 100.0)) - subtrahend, 2)
+        if base_amount < 0:
+            base_amount = 0.0
+
+    if base_amount <= 0:
+        frappe.throw(_("El monto de la retención recalculado en el servidor ({0} Bs) debe ser mayor a cero.").format(base_amount))
+
+    return base_amount
+
+
+def validate_withholding_tax_account(invoice: "SalesInvoice", withholding_type: str, tax_account: str) -> None:
+    """Validates that the selected tax account exists, belongs to the correct company,
+    is not a group account, and matches the configured company-wide withholding account.
+    """
+    if not tax_account:
+        frappe.throw(_("Debe especificar una cuenta de retención contable."))
+
+    account_data = frappe.db.get_value(
+        "Account", 
+        tax_account, 
+        ["company", "is_group"], 
+        as_dict=True
+    )
+
+    if not account_data:
+        frappe.throw(_("La cuenta contable {0} no existe.").format(tax_account))
+
+    if account_data.company != invoice.company:
+        frappe.throw(
+            _("La cuenta contable {0} pertenece a la compañía {1}, pero la factura es de la compañía {2}.")
+            .format(tax_account, account_data.company, invoice.company)
+        )
+
+    if account_data.is_group:
+        frappe.throw(_("La cuenta contable {0} es de tipo Grupo y no puede recibir asientos directos.").format(tax_account))
+
+    company_fields = ["sales_vat_withholding_account", "sales_islr_account"]
+    company_config = frappe.db.get_value("Company", invoice.company, company_fields, as_dict=True)
+
+    if not company_config:
+        frappe.throw(_("No se encontró la configuración de la compañía {0}.").format(invoice.company))
+
+    if withholding_type == "VAT":
+        official_account = company_config.sales_vat_withholding_account
+        error_msg = _("La cuenta contable {0} no coincide con la cuenta de Retención de IVA oficial de la compañía ({1}).")
+    else:
+        official_account = company_config.sales_islr_account
+        error_msg = _("La cuenta contable {0} no coincide con la cuenta de Retención de ISLR oficial de la compañía ({1}).")
+
+    if official_account and tax_account != official_account:
+        frappe.throw(error_msg.format(tax_account, official_account))
+
+
+def _require_withholding_permissions() -> None:
+    """Verifies that the current user has permission to submit/update Sales Invoices
+    or belongs to core accounting roles. Avoids hardcoded ISP roles.
+    """
+    user_roles = frappe.get_roles()
+    allowed_roles = {"Accounts Manager", "Accounts User", "System Manager"}
+    if allowed_roles.intersection(user_roles):
+        return
+
+    frappe.throw(
+        _("No tiene los permisos suficientes para aplicar retenciones sobre esta factura."),
+        frappe.PermissionError
+    )
+
+def sync_isp_payment_amounts_if_installed(invoice: "SalesInvoice") -> None:
+    """Detects if 'domina_isp' is installed and triggers its payment entry 
+    amount synchronization to keep accounts aligned.
+    """
+    if "domina_isp" not in frappe.get_installed_apps():
+        return
+
+    try:
+        from domina_isp.domina_isp.doctype.isp_payment_entry.isp_payment_entry import sync_isp_payment_entry_amounts
+        sync_isp_payment_entry_amounts(invoice)
+    except (ImportError, AttributeError):
+        frappe.log_error(
+            title="Error sync ISP Payment Entry",
+            message=f"Error syncing ISP Payment Entry para la factura {invoice.name}:\n\n{frappe.get_traceback()}"
+        )
+
+def get_vat_category_rate(category_name: str, company: str) -> float:
+    """Replica la lógica de la función JS para resolver la tasa de retención 
+    de IVA desde el backend de forma segura.
+    """
+    if not category_name:
+        frappe.throw(_("El cliente no tiene asignada una categoría de retención de impuestos."))
+
+    category_doc = frappe.get_doc("Tax Withholding Category", category_name)
+    rate = None
+
+    if category_doc.get("accounts"):
+        has_company_account = any(a.company == company for a in category_doc.accounts)
+
+        if has_company_account and category_doc.get("rates") and len(category_doc.rates) > 0:
+            rate = flt(category_doc.rates[0].tax_withholding_rate)
+
+    if rate is None or rate == 0:
+        rate = flt(category_doc.get("default_rate")) or flt(category_doc.get("rate")) or None
+
+    if rate is None or rate == 0:
+        frappe.throw(_("No se encontró ninguna tasa (Rate) válida o configurada para la categoría de retención {0}.").format(category_name))
+
+    return rate
