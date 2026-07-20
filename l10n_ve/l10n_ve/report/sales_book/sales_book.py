@@ -435,8 +435,16 @@ def _get_common_columns() -> str:
             siv.credit_note_no,
             siv.debit_note_no,
             siv.affected_invoice_number,
-            siv.vat_withholding_voucher_number,
-            DATE_FORMAT(siv.withholding_date, '%%d/%%m/%%Y') AS withholding_date,
+            CASE 
+                WHEN siv.withholding_date BETWEEN %(from_date)s AND %(to_date)s 
+                THEN siv.vat_withholding_voucher_number 
+                ELSE NULL 
+            END AS vat_withholding_voucher_number,
+            CASE 
+                WHEN siv.withholding_date BETWEEN %(from_date)s AND %(to_date)s 
+                THEN DATE_FORMAT(siv.withholding_date, '%%d/%%m/%%Y') 
+                ELSE NULL 
+            END AS withholding_date,
             CASE
                 WHEN tc.type_of_person = 'Domiciled legal entity' THEN 'PJD'
                 WHEN tc.type_of_person = 'Non-domiciled legal entity' THEN 'PJND'
@@ -509,8 +517,16 @@ def _get_legacy_calc_columns() -> str:
             SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_taxpayer,
             SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_taxpayer,
             SUM(CASE WHEN tc.is_special_taxpayer = 1 AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.tax_amount ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_taxpayer,
-            MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_retained,
-            MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END) * (1 - MAX(siv.is_void)) AS vat_withholding_rate,
+            CASE 
+                WHEN MAX(siv.withholding_date) BETWEEN %(from_date)s AND %(to_date)s 
+                THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.tax_amount) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void))
+                ELSE 0 
+            END AS iva_retained,
+            CASE 
+                WHEN MAX(siv.withholding_date) BETWEEN %(from_date)s AND %(to_date)s 
+                THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END) * (1 - MAX(siv.is_void))
+                ELSE 0 
+            END AS vat_withholding_rate,
             MAX(siv.posting_date) AS posting_date_sort,
             MAX(siv.withholding_date) AS withholding_date_sort
     """
@@ -556,12 +572,16 @@ def _get_new_calc_columns() -> str:
             SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_taxpayer,
             SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_taxpayer,
             SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_taxpayer,
-            -- IVA retenido solo cuando existe comprobante de retención emitido
-            CASE WHEN MAX(siv.vat_withholding_voucher_number) IS NOT NULL AND MAX(siv.vat_withholding_voucher_number) != ''
+            -- IVA retenido solo cuando existe comprobante de retención emitido Y la retención pertenece al período consultado
+            CASE WHEN MAX(siv.vat_withholding_voucher_number) IS NOT NULL 
+                      AND MAX(siv.vat_withholding_voucher_number) != '' 
+                      AND MAX(siv.withholding_date) BETWEEN %(from_date)s AND %(to_date)s
                 THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN ABS(tstac.base_tax_amount) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void))
                 ELSE 0
             END AS iva_retained,
-            CASE WHEN MAX(siv.vat_withholding_voucher_number) IS NOT NULL AND MAX(siv.vat_withholding_voucher_number) != ''
+            CASE WHEN MAX(siv.vat_withholding_voucher_number) IS NOT NULL 
+                      AND MAX(siv.vat_withholding_voucher_number) != '' 
+                      AND MAX(siv.withholding_date) BETWEEN %(from_date)s AND %(to_date)s
                 THEN MAX(CASE WHEN tstac.charge_type = 'VAT Withholding' THEN tstac.rate ELSE 0 END) * (1 - MAX(siv.is_void))
                 ELSE 0
             END AS vat_withholding_rate,
