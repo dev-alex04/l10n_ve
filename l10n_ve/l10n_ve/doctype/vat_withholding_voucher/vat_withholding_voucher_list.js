@@ -6,6 +6,7 @@ frappe.listview_settings["VAT Withholding Voucher"] = {
   add_fields: [
     "voucher_number",
     "supplier",
+    "supplier_name",
     "fiscal_period",
     "digital_invoice_status",
     "bill_control",
@@ -67,9 +68,9 @@ frappe.listview_settings["VAT Withholding Voucher"] = {
       { type: "Status" },
       {
         type: "Field",
-        df: get_df("supplier") || {
+        df: get_df("supplier_name") || {
           label: __("Proveedor"),
-          fieldname: "supplier",
+          fieldname: "supplier_name",
         },
       },
       {

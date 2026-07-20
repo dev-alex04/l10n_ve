@@ -74,7 +74,7 @@ def download_custom_excel(filters=None):
 
     for d in data:
         ws.cell(row=row_num, column=1, value=d.tax_id)
-        ws.cell(row=row_num, column=2, value=d.supplier)
+        ws.cell(row=row_num, column=2, value=d.supplier_name)
         ws.cell(row=row_num, column=3, value=d.bill_no)
         ws.cell(row=row_num, column=4, value=d.bill_control)
         cell_date = ws.cell(row=row_num, column=5, value=d.posting_date)
@@ -188,7 +188,7 @@ def download_custom_pdf(filters=None):
                 {% for row in data %}
                 <tr>
                     <td class="text-center">{{ row.tax_id }}</td>
-                    <td>{{ row.supplier }}</td>
+                    <td>{{ row.supplier_name }}</td>
                     <td class="text-center">{{ row.bill_no }}</td>
                     <td class="text-center">{{ row.bill_control }}</td>
                     <td class="text-center">{{ row.p_date }}</td>

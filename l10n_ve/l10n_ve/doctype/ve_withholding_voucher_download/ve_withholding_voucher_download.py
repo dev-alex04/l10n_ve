@@ -175,7 +175,7 @@ def process_download_job(docname: str, request_user: str):
 		if current_zip_count > 0:
 			zip_file.close()
 			zip_buffer.seek(0)
-			supp_suffix = f"_{doc.supplier}" if doc.supplier else ""
+			supp_suffix = f"_{frappe.get_cached_value('Supplier', doc.supplier, 'supplier_name') or doc.supplier}" if doc.supplier else ""
 			part_suffix = f"_Part{part_number}" if part_number > 1 else ""
 			file_name = f"Withholding_Vouchers_{doc.from_date}_to_{doc.to_date}{supp_suffix}{part_suffix}.zip"
 			
@@ -278,7 +278,7 @@ def get_withholding_vouchers(doc):
 def save_zip_part(doc, zip_buffer, zip_file, part_number, files):
 	zip_file.close()
 	zip_buffer.seek(0)
-	supp_suffix = f"_{doc.supplier}" if doc.supplier else ""
+	supp_suffix = f"_{frappe.get_cached_value('Supplier', doc.supplier, 'supplier_name') or doc.supplier}" if doc.supplier else ""
 	file_name = f"Withholding_Vouchers_{doc.from_date}_to_{doc.to_date}{supp_suffix}_Part{part_number}.zip"
 	
 	file_doc = save_file(
@@ -303,7 +303,7 @@ def save_master_zip(doc, master_zip_file, master_zip_temp, downloaded_count):
 	try:
 		if downloaded_count > 0:
 			master_zip_file.close()
-			supp_suffix = f"_{doc.supplier}" if doc.supplier else ""
+			supp_suffix = f"_{frappe.get_cached_value('Supplier', doc.supplier, 'supplier_name') or doc.supplier}" if doc.supplier else ""
 			master_file_name = f"Withholding_Vouchers_{doc.from_date}_to_{doc.to_date}{supp_suffix}_Full.zip"
 			
 			with open(master_zip_temp.name, "rb") as f:

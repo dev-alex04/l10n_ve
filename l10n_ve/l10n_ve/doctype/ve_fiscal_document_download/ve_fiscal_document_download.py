@@ -410,7 +410,7 @@ def process_download_job(docname: str, request_user: str):
 		if current_zip_count > 0:
 			zip_file.close()
 			zip_buffer.seek(0)
-			cust_suffix = f"_{doc.customer}" if doc.customer else ""
+			cust_suffix = f"_{frappe.get_cached_value('Customer', doc.customer, 'customer_name') or doc.customer}" if doc.customer else ""
 			part_suffix = f"_Parte{part_number}" if part_number > 1 else ""
 			file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}{part_suffix}.zip"
 			
@@ -474,7 +474,7 @@ def get_mock_pdf_content():
 def save_zip_part(doc, zip_buffer, zip_file, part_number, files):
 	zip_file.close()
 	zip_buffer.seek(0)
-	cust_suffix = f"_{doc.customer}" if doc.customer else ""
+	cust_suffix = f"_{frappe.get_cached_value('Customer', doc.customer, 'customer_name') or doc.customer}" if doc.customer else ""
 	file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}_Parte{part_number}.zip"
 	
 	# Guardar y adjuntar archivo al documento
@@ -586,7 +586,7 @@ def save_master_zip(doc, master_zip_file, master_zip_buffer, downloaded_count, e
 			)
 		return master_file_url, master_file_name, master_size_str
 
-	cust_suffix = f"_{doc.customer}" if doc.customer else ""
+	cust_suffix = f"_{frappe.get_cached_value('Customer', doc.customer, 'customer_name') or doc.customer}" if doc.customer else ""
 	master_file_name = f"Facturas_HKA_{doc.from_date}_a_{doc.to_date}{cust_suffix}_Completo.zip"
 
 	try:

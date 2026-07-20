@@ -215,7 +215,7 @@
             %}
             <tr class="leaf-row">
                 <td>{%= row.tax_id || "" %}</td>
-                <td>{%= row.supplier || "" %}</td>
+                <td>{%= row.supplier_name || "" %}</td>
                 <td class="text-right">{%= format_val(row.islr_base_amount) %}</td>
                 <td class="text-right">{%= format_val(row.islr_amount) %}</td>
             </tr>
@@ -226,7 +226,7 @@
                 <td class="text-right">{%= format_val(sum_amount) %}</td>
             </tr>
         </tbody>
-        
+
         {% } else if (group_by === "Por Concepto") { %}
         <thead>
             <tr>
@@ -286,7 +286,7 @@
             %}
             <tr class="leaf-row">
                 <td>{%= row.tax_id || "" %}</td>
-                <td>{%= row.supplier || "" %}</td>
+                <td>{%= row.supplier_name || "" %}</td>
                 <td>{%= row.doc_no || "" %}</td>
                 <td class="text-center">{%= format_date(row.bill_date) %}</td>
                 <td>{%= row.concept_code || "" %}</td>

@@ -20,7 +20,7 @@ def execute(filters=None):
     columns = [
         {"fieldname": "posting_date", "label": _("Fecha"), "fieldtype": "Date", "width": 90},
         {"fieldname": "voucher_no", "label": _("Número de Comprob."), "fieldtype": "Data", "width": 130},
-        {"fieldname": "party", "label": _("Auxiliar"), "fieldtype": "Data", "width": 100},
+        {"fieldname": "party_name", "label": _("Auxiliar"), "fieldtype": "Data", "width": 100},
         {"fieldname": "ref_code", "label": _("Ref."), "fieldtype": "Data", "width": 80},
         {"fieldname": "remarks", "label": _("Descripción"), "fieldtype": "Data", "width": 250},
         {"fieldname": "debit", "label": _("Monto Debe"), "fieldtype": "Currency", "width": 110},
@@ -114,6 +114,7 @@ def execute(filters=None):
             "posting_date": "",
             "voucher_no": "",
             "party": "",
+            "party_name": "",
             "ref_code": "",
             "remarks": "",
             "debit": 0.0,
@@ -131,6 +132,7 @@ def execute(filters=None):
             "posting_date": from_date,
             "voucher_no": _("SALDO INICIAL"),
             "party": "",
+            "party_name": "",
             "ref_code": "",
             "remarks": "",
             "debit": 0.0,
@@ -186,6 +188,7 @@ def execute(filters=None):
             "posting_date": "",
             "voucher_no": _("Total Cuenta"),
             "party": "",
+            "party_name": "",
             "ref_code": "",
             "remarks": "",
             "debit": total_debit,
@@ -200,7 +203,7 @@ def execute(filters=None):
         
         # Spacer row
         data.append({
-            "posting_date": "", "voucher_no": "", "party": "", "ref_code": "", "remarks": "",
+            "posting_date": "", "voucher_no": "", "party": "", "party_name": "", "ref_code": "", "remarks": "",
             "debit": 0, "credit": 0, "balance": 0, "posting_date_ref": "", "is_spacer": 1,
             "company_rif": company_rif
         })

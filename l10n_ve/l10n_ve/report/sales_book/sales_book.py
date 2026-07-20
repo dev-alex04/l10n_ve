@@ -333,7 +333,7 @@ def _get_cte() -> str:
             -- FUENTE A: Facturas de venta, devoluciones y Notas de Débito
             SELECT
                 siv.name, siv.branch, siv.posting_date, siv.customer,
-                TRIM(siv.customer) AS customer_name, siv.bill_no, siv.bill_control,
+                siv.customer_name AS customer_name, siv.bill_no, siv.bill_control,
                 siv.credit_note_no, siv.debit_note_no,
                 siv.affected_invoice_number,
                 siv.vat_withholding_voucher_number, siv.withholding_date,
@@ -358,7 +358,7 @@ def _get_cte() -> str:
             -- FUENTE B: Notas de Crédito venezolanas
             SELECT
                 nc.name, nc.branch, nc.posting_date, nc.customer,
-                TRIM(nc.customer) AS customer_name, nc.bill_no, nc.bill_control,
+                nc.customer_name AS customer_name, nc.bill_no, nc.bill_control,
                 nc.bill_no AS credit_note_no,
                 NULL AS debit_note_no,
                 COALESCE(si_orig.bill_no, nc.return_against) AS affected_invoice_number,
@@ -393,7 +393,7 @@ def _get_cte() -> str:
             -- FUENTE C: Notas de Débito venezolanas
             SELECT
                 nd.name, nd.branch, nd.posting_date, nd.customer,
-                TRIM(nd.customer) AS customer_name, nd.bill_no, nd.bill_control,
+                nd.customer_name AS customer_name, nd.bill_no, nd.bill_control,
                 NULL AS credit_note_no,
                 nd.bill_no AS debit_note_no,
                 COALESCE(si_orig.bill_no, nd.return_against) AS affected_invoice_number,
@@ -428,7 +428,7 @@ def _get_common_columns() -> str:
             siv.branch,
             DATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,
             tc.tax_id AS customer_tax_id,
-            CASE WHEN siv.is_void = 1 THEN 'ANULADO' ELSE siv.customer END AS customer_name,
+            CASE WHEN siv.is_void = 1 THEN 'ANULADO' ELSE siv.customer_name END AS customer_name,
             siv.bill_no,
             siv.bill_control,
             COALESCE(MAX(siv.hka_serie), MAX(vdbs.serie)) AS fiscal_series,
