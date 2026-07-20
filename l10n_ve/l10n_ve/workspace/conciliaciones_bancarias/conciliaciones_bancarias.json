@@ -87,7 +87,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Informes de Conciliación",
-   "link_count": 2,
+   "link_count": 3,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -106,15 +106,27 @@
    "dependencies": "",
    "hidden": 0,
    "is_query_report": 1,
-   "label": "Resumen de Conciliación Bancaria",
+   "label": "Informe de Conciliación Avanzada",
    "link_count": 0,
-   "link_to": "Bank Clearance Summary",
+   "link_to": "Advanced Bank Reconciliation",
    "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  },
+
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Generador de Resumen (PDF)",
+   "link_count": 0,
+   "link_to": "reconciliation-pdf",
+   "link_type": "Page",
    "onboard": 1,
    "type": "Link"
   }
  ],
- "modified": "2026-07-09 22:20:00.000000",
+ "modified": "2026-07-20 20:40:00.000000",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "Conciliaciones Bancarias",
