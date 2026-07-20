@@ -10,10 +10,12 @@ ayudantes tras las correcciones del review del PR #424:
 
 - ``_require_withholding_permissions``: gate por roles contables genéricos.
 - ``validate_withholding_tax_account``: cuenta de la compañía / no-grupo / oficial.
-- ``calculate_withholding_base_amount``: monto recalculado en el servidor (VAT/ISLR).
+- ``calculate_withholding_base_amount``: monto recalculado en el servidor, con la
+  TASA resuelta server-side (get_vat_category_rate para IVA, alícuota del Tabulador
+  para ISLR) — no se confía el ``rate`` del cliente.
 - ``get_verified_invoice``: resolución por name / bill_no acotada por compañía.
 - ``handle_voucher_metadata``: completitud, ask_overwrite, only_line, alta (delega
-  en upload_voucher_data / upload_islr_voucher_data).
+  en upload_voucher_data / upload_islr_voucher_data, propagando registration_date).
 - ``create_sales_taxes_row``: fila "Deduct" bien formada.
 - ``create_withholding_journal_entry``: cuadre del asiento, ramas
   pagada / parcial / sobrepago (con ``is_advance='Yes'``) y multimoneda USD
@@ -160,26 +162,32 @@ class TestValidateWithholdingTaxAccount(FrappeTestCase):
 
 
 # --------------------------------------------------------------------------- #
-# calculate_withholding_base_amount
+# calculate_withholding_base_amount  (tasa resuelta en el servidor)
 # --------------------------------------------------------------------------- #
 class TestCalculateWithholdingBaseAmount(FrappeTestCase):
 
-    def test_vat_uses_invoice_iva_times_rate(self):
+    def test_vat_uses_invoice_iva_times_server_rate(self):
+        """La tasa IVA se resuelve en el server (get_vat_category_rate), no del cliente."""
         inv = _invoice(taxes=[
             frappe._dict(charge_type="VAT", base_tax_amount=1600.0),
             frappe._dict(charge_type="Actual", base_tax_amount=999.0),  # ignorada
         ])
-        # 1600 Bs de IVA * 75% = 1200 Bs
-        self.assertAlmostEqual(
-            si.calculate_withholding_base_amount(inv, "VAT", 75.0), 1200.0, places=2
-        )
+        with patch("frappe.db.get_value", return_value="CAT-1"), \
+                patch.object(si, "get_vat_category_rate", return_value=75.0):
+            # 1600 Bs de IVA * 75% = 1200 Bs
+            self.assertAlmostEqual(
+                si.calculate_withholding_base_amount(inv, "VAT"), 1200.0, places=2
+            )
 
     def test_vat_zero_result_raises(self):
         inv = _invoice(taxes=[frappe._dict(charge_type="VAT", base_tax_amount=0.0)])
-        with self.assertRaises(frappe.ValidationError):
-            si.calculate_withholding_base_amount(inv, "VAT", 75.0)
+        with patch("frappe.db.get_value", return_value="CAT-1"), \
+                patch.object(si, "get_vat_category_rate", return_value=75.0):
+            with self.assertRaises(frappe.ValidationError):
+                si.calculate_withholding_base_amount(inv, "VAT")
 
-    def test_islr_uses_tabulator_and_person_type(self):
+    def test_islr_uses_tabulator_aliquot_and_person_type(self):
+        """La alícuota ISLR se toma del tramo del Tabulador (server), no del cliente."""
         inv = _invoice(base_net_total=10000.0)
         customer = frappe._dict(type_of_person="Domiciled legal entity", tabulator_islr="TAB-1")
         tab = frappe._dict(aliquot=[
@@ -190,14 +198,14 @@ class TestCalculateWithholdingBaseAmount(FrappeTestCase):
                 patch("frappe.get_doc", return_value=tab):
             # base = 10000 * 100/100 = 10000; 10000 * 3% - 50 = 250 Bs
             self.assertAlmostEqual(
-                si.calculate_withholding_base_amount(inv, "ISLR", 3.0), 250.0, places=2
+                si.calculate_withholding_base_amount(inv, "ISLR"), 250.0, places=2
             )
 
     def test_islr_without_tabulator_raises(self):
         inv = _invoice()
         with patch("frappe.db.get_value", return_value=frappe._dict(type_of_person="X", tabulator_islr=None)):
             with self.assertRaises(frappe.ValidationError):
-                si.calculate_withholding_base_amount(inv, "ISLR", 3.0)
+                si.calculate_withholding_base_amount(inv, "ISLR")
 
 
 # --------------------------------------------------------------------------- #
@@ -229,19 +237,19 @@ class TestGetVerifiedInvoice(FrappeTestCase):
 
 
 # --------------------------------------------------------------------------- #
-# handle_voucher_metadata
+# handle_voucher_metadata  (ahora propaga registration_date)
 # --------------------------------------------------------------------------- #
 class TestHandleVoucherMetadata(FrappeTestCase):
 
     def test_incomplete_fields_raise(self):
         inv = _invoice()
         with self.assertRaises(frappe.ValidationError):
-            si.handle_voucher_metadata(inv, "VAT", "12345678901234", None, None, False, False)
+            si.handle_voucher_metadata(inv, "VAT", "12345678901234", None, None, False, False, "2026-07-20")
 
     def test_vat_existing_asks_overwrite(self):
         inv = _invoice(vat_withholding_voucher_number="OLD-123")
         res = si.handle_voucher_metadata(
-            inv, "VAT", "12345678901234", "2026-07-15", "/files/x.pdf", False, False
+            inv, "VAT", "12345678901234", "2026-07-15", "/files/x.pdf", False, False, "2026-07-20"
         )
         self.assertEqual(res["status"], "ask_overwrite")
 
@@ -249,17 +257,18 @@ class TestHandleVoucherMetadata(FrappeTestCase):
         inv = _invoice(vat_withholding_voucher_number="OLD-123")
         with patch.object(si, "upload_voucher_data", return_value={"status": "success"}) as up:
             res = si.handle_voucher_metadata(
-                inv, "VAT", "12345678901234", "2026-07-15", "/files/x.pdf", True, False
+                inv, "VAT", "12345678901234", "2026-07-15", "/files/x.pdf", True, False, "2026-07-20"
             )
         self.assertEqual(res["status"], "proceed")
         up.assert_called_once()
         self.assertEqual(up.call_args.kwargs["voucher_number"], "12345678901234")
+        self.assertEqual(up.call_args.kwargs["registration_date"], "2026-07-20")
 
     def test_only_line_keeps_existing_metadata(self):
         inv = _invoice(vat_withholding_voucher_number="OLD-123")
         with patch.object(si, "upload_voucher_data") as up:
             res = si.handle_voucher_metadata(
-                inv, "VAT", "12345678901234", "2026-07-15", "/files/x.pdf", False, True
+                inv, "VAT", "12345678901234", "2026-07-15", "/files/x.pdf", False, True, "2026-07-20"
             )
         self.assertEqual(res["status"], "proceed")
         up.assert_not_called()
@@ -268,7 +277,7 @@ class TestHandleVoucherMetadata(FrappeTestCase):
         inv = _invoice()
         with patch.object(si, "upload_islr_voucher_data", return_value={"status": "success"}) as up:
             res = si.handle_voucher_metadata(
-                inv, "ISLR", "CTRL-9", "2026-07-15", "/files/i.pdf", False, False
+                inv, "ISLR", "CTRL-9", "2026-07-15", "/files/i.pdf", False, False, "2026-07-20"
             )
         self.assertEqual(res["status"], "proceed")
         up.assert_called_once()
@@ -327,7 +336,7 @@ class TestWithholdingJournalEntry(FrappeTestCase):
         self.assertEqual(rec[0].get("reference_name"), inv.name)
 
     def test_fully_paid_creates_formal_advance(self):
-        """Factura pagada → anticipo con is_advance='Yes' (corrección review #11)."""
+        """Factura pagada → anticipo con is_advance='Yes' (corrección review)."""
         inv = _invoice(outstanding_amount=0.0)
         je = self._build(inv, amount=300.0, base_amount=300.0)
         self.assertEqual(len(je.accounts), 2)
@@ -357,12 +366,7 @@ class TestWithholdingJournalEntry(FrappeTestCase):
         self.assertAlmostEqual(_sum(je.accounts, "credit"), 400.0, places=2)
 
     def test_usd_outstanding_converted_no_spurious_advance(self):
-        """Corrección review #12: el saldo USD se convierte a Bs antes de comparar.
-
-        Factura USD, tasa 40, retención 400 Bs (=10 USD), saldo 100 USD
-        (= 4000 Bs). Como 400 Bs < 4000 Bs, la retención se imputa ÍNTEGRA a la
-        factura y NO genera anticipo espurio (antes creaba 300 Bs de anticipo).
-        """
+        """El saldo USD se convierte a Bs antes de comparar: no hay anticipo espurio."""
         inv = _invoice(currency="USD", conversion_rate=40.0, outstanding_amount=100.0)
         je = self._build(
             inv, amount=10.0, base_amount=400.0, conversion_rate=40.0,
@@ -405,7 +409,6 @@ class TestFixMissingWithholding(FrappeTestCase):
                 withholding_type="VAT",
                 tax_account="2408 - IVA Ret - TC",
                 company="Test Company",
-                rate=75.0,
             )
         self.assertEqual(out["status"], "success")
         self.assertAlmostEqual(captured["amount"], 10.0, places=2)
@@ -422,5 +425,5 @@ class TestFixMissingWithholding(FrappeTestCase):
             with self.assertRaises(frappe.ValidationError):
                 si.fix_missing_withholding(
                     invoice_name="x", withholding_type="VAT",
-                    tax_account="2408 - IVA Ret - TC", company="Test Company", rate=75.0,
+                    tax_account="2408 - IVA Ret - TC", company="Test Company",
                 )
