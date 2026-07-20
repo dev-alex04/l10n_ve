@@ -108,9 +108,17 @@ frappe.ui.form.on("Sales Invoice", {
                   reqd: 1,
                 },
                 {
-                  label: __("Fecha de Comprobante"),
+                  label: __("Fecha de registro"),
                   fieldname: "withholding_date",
                   fieldtype: "Date",
+                  default: frappe.datetime.get_today(),
+                  reqd: 1,
+                },
+                {
+                  label: __("Fecha de Comprobante"),
+                  fieldname: "registration_date",
+                  fieldtype: "Date",
+                  default: frappe.datetime.get_today(),
                   reqd: 1,
                 },
                 {
@@ -151,6 +159,7 @@ frappe.ui.form.on("Sales Invoice", {
                     voucher_number: values.vat_withholding_voucher_number,
                     withholding_date: values.withholding_date,
                     file_url: values.voucher_image,
+                    registration_date: values.registration_date,
                   },
                   callback: function (r) {
                     if (r.message && r.message.status === "success") {
@@ -189,10 +198,18 @@ frappe.ui.form.on("Sales Invoice", {
                   reqd: 0, // No es obligatorio
                 },
                 {
-                  label: __("Fecha de Comprobante ISLR"),
+                  label: __("Fecha de registro"),
                   fieldname: "islr_date",
                   fieldtype: "Date",
+                  default: frappe.datetime.get_today(),
                   reqd: 1, // La fecha sigue siendo obligatoria
+                },
+                {
+                  label: __("Fecha de Comprobante ISLR"),
+                  fieldname: "registration_date",
+                  fieldtype: "Date",
+                  default: frappe.datetime.get_today(),
+                  reqd: 1,
                 },
                 {
                   label: __("Imagen/PDF del Comprobante ISLR"),
@@ -221,6 +238,7 @@ frappe.ui.form.on("Sales Invoice", {
                     islr_receipt_number: values.islr_receipt_number,
                     islr_date: values.islr_date,
                     file_url: values.voucher_image_islr,
+                    registration_date: values.registration_date,
                   },
                   callback: function (r) {
                     if (r.message && r.message.status === "success") {
@@ -1366,9 +1384,17 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
       description: type === "VAT" ? __("Debe tener exactamente 14 caracteres numéricos.") : "",
     },
     {
-      label: __("Fecha de Comprobante"),
+      label: __("Fecha de Registro"),
       fieldname: "withholding_date",
       fieldtype: "Date",
+      default: frappe.datetime.get_today(),
+      reqd: is_required,
+    },
+    {
+      label: __("Fecha de Comprobante"),
+      fieldname: "registration_date",
+      fieldtype: "Date",
+      default: frappe.datetime.get_today(),
       reqd: is_required,
     },
     {
@@ -1441,6 +1467,7 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
             overwrite: overwrite_value,
             only_line: only_line_value,
             company: company,
+            registration_date: values.registration_date,
           },
           freeze: true,
           freeze_message: __("Aplicando retención y generando asiento..."),

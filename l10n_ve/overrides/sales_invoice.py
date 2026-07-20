@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 import frappe
 from frappe import _
-from frappe.utils import flt, cint, getdate
+from frappe.utils import flt, cint, getdate, nowdate
 
 from erpnext.accounts.utils import get_account_currency
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice, make_regional_gl_entries
@@ -934,7 +934,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
 
 @frappe.whitelist()
-def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None) -> dict:
+def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None, registration_date=None) -> dict:
     try:
         if not withholding_date or not file_url:
             frappe.throw(_("Faltan datos obligatorios."))
@@ -963,7 +963,7 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
                 "attached_to_name": docname
             })
 
-        registration_date = frappe.utils.nowdate()
+        registration_date = registration_date if registration_date else nowdate()
 
         frappe.db.set_value("Sales Invoice", docname, {
             'vat_withholding_voucher_number': voucher_number,
@@ -991,7 +991,7 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
 
 
 @frappe.whitelist()
-def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_url=None) -> dict:
+def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_url=None, registration_date=None) -> dict:
     try:
         if not islr_date or not file_url:
             frappe.throw(_("La fecha y el archivo del comprobante de ISLR son obligatorios."))
@@ -1019,7 +1019,7 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
                 "attached_to_name": docname
             })
 
-        registration_date = frappe.utils.nowdate()
+        registration_date = registration_date if registration_date else nowdate()
 
         frappe.db.set_value("Sales Invoice", docname, {
             'islr_receipt_number': islr_receipt_number,
@@ -1524,6 +1524,7 @@ def fix_missing_withholding(
     rate: float = 0.0,
     overwrite: int = 0,
     only_line: int = 0,
+    registration_date: str = None
 ) -> dict:
     """Retroactively injects VAT/ISLR withholdings and their corresponding accounting entry into a submitted invoice.
     Handles rounding differences, fully paid invoices, and voucher replacement validations.
@@ -1540,7 +1541,7 @@ def fix_missing_withholding(
     charge_type = "VAT Withholding" if withholding_type == "VAT" else "ISLR"
 
     metadata_status = handle_voucher_metadata(
-        invoice, withholding_type, voucher_number, withholding_date, file_url, is_overwrite, is_only_line
+        invoice, withholding_type, voucher_number, withholding_date, file_url, is_overwrite, is_only_line, registration_date
     )
     if metadata_status.get("status") == "ask_overwrite":
         return metadata_status
@@ -1612,7 +1613,8 @@ def handle_voucher_metadata(
     withholding_date: str,
     file_url: str,
     is_overwrite: bool,
-    is_only_line: bool
+    is_only_line: bool,
+    registration_date: str
 ) -> dict:
     """Validates data completeness, handles overwrite warnings, and delegates
     the database updates to existing legacy functions to preserve business logic.
@@ -1642,7 +1644,8 @@ def handle_voucher_metadata(
                     docname=invoice.name, 
                     voucher_number=voucher_number, 
                     withholding_date=withholding_date, 
-                    file_url=file_url
+                    file_url=file_url,
+                    registration_date=registration_date
                 )
                 if res.get("status") == "error":
                     frappe.throw(_("Error procesando comprobante de IVA: {0}").format(res.get("msg")))
@@ -1663,7 +1666,8 @@ def handle_voucher_metadata(
                     docname=invoice.name, 
                     islr_date=withholding_date, 
                     islr_receipt_number=voucher_number, 
-                    file_url=file_url
+                    file_url=file_url,
+                    registration_date=registration_date
                 )
                 if res.get("status") == "error":
                     frappe.throw(_("Error procesando comprobante de ISLR: {0}").format(res.get("msg")))
