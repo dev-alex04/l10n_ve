@@ -1552,7 +1552,7 @@ def fix_missing_withholding(
     company_currency = frappe.get_cached_value("Company", invoice.company, "default_currency") or "VEF"
     invoice_currency = invoice.currency or "USD"
 
-    base_amount = calculate_withholding_base_amount(invoice, withholding_type, rate)
+    base_amount = calculate_withholding_base_amount(invoice, withholding_type)
 
     if invoice_currency != company_currency:
         conversion_rate = flt(invoice.conversion_rate) or flt(invoice.plc_conversion_rate)
@@ -1583,17 +1583,6 @@ def fix_missing_withholding(
     invoice.reload()
 
     sync_isp_payment_amounts_if_installed(invoice)
-
-    comment = frappe.get_doc({
-        "doctype": "Comment",
-        "comment_type": "Comment",
-        "reference_doctype": "Sales Invoice",
-        "reference_name": invoice.name,
-        "content": f"Comprobante de Retención de {'IVA' if withholding_type == 'VAT' else 'ISLR'} ajustado por {frappe.session.user}. Monto: {base_amount} Bs. Asiento: {je.name}",
-        "comment_email": frappe.session.user
-    })
-    comment.flags.ignore_permissions = True
-    comment.insert(ignore_permissions=True)
 
     return {"status": "success", "msg": f"Retención aplicada y Asiento {je.name} creado con éxito."}
 
@@ -1738,7 +1727,6 @@ def create_withholding_journal_entry(
     receivable_account_currency = frappe.db.get_value("Account", invoice.debit_to, "account_currency") or company_currency
 
     posting_date = frappe.utils.today()
-    _require_withholding_permissions()
 
     outstanding_bs = flt(invoice.outstanding_amount)
     if receivable_account_currency != company_currency:
@@ -1840,22 +1828,33 @@ def create_withholding_journal_entry(
             })
         je.append("accounts", rec_je_row_advance)
 
-    je.flags.ignore_permissions = True
-    je.insert(ignore_permissions=True)
-    je.submit()
+    try:
+        je.insert(ignore_permissions=True)
+        je.submit()
+    except ClosedAccountingPeriod:
+        frappe.throw(
+            _("No se pudo publicar el asiento contable de la retención: El período contable para la fecha {0} se encuentra cerrado. Comuníquese con el departamento de administración/contabilidad.")
+            .format(je.posting_date)
+        )
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error Contabilizando Retención")
+        frappe.throw(_("Error al intentar contabilizar la retención: {0}").format(str(e)))    
+
     return je
 
 
-def calculate_withholding_base_amount(invoice: "SalesInvoice", withholding_type: str, rate: float) -> float:
+def calculate_withholding_base_amount(invoice: "SalesInvoice", withholding_type: str) -> float:
     """Calculates and returns the withholding amount in local currency (Bs) 
     strictly using the invoice values stored in the database.
     """
-    rate = flt(rate)
     base_amount = 0.0
 
     if withholding_type == "VAT":
+        tax_withholding_category = frappe.db.get_value("Customer", invoice.customer, "tax_withholding_category")
+        vat_rate = get_vat_category_rate(tax_withholding_category, invoice.company)
+
         vat_base_bs = sum(flt(t.base_tax_amount) for t in invoice.taxes if t.charge_type == "VAT")
-        base_amount = flt(vat_base_bs * (rate / 100.0), 2)
+        base_amount = flt(vat_base_bs * (vat_rate / 100.0), 2)
 
     elif withholding_type == "ISLR":
         customer_data = frappe.db.get_value(
@@ -1886,8 +1885,10 @@ def calculate_withholding_base_amount(invoice: "SalesInvoice", withholding_type:
         
         net_total_bs = flt(invoice.base_net_total)
         calculated_base_bs = flt(net_total_bs * (percentage_base / 100.0))
+
+        islr_rate = flt(target_row.aliquot)
         
-        base_amount = flt((calculated_base_bs * (rate / 100.0)) - subtrahend, 2)
+        base_amount = flt((calculated_base_bs * (islr_rate / 100.0)) - subtrahend, 2)
         if base_amount < 0:
             base_amount = 0.0
 
@@ -1969,3 +1970,27 @@ def sync_isp_payment_amounts_if_installed(invoice: "SalesInvoice") -> None:
             title="Error sync ISP Payment Entry",
             message=f"Error syncing ISP Payment Entry para la factura {invoice.name}:\n\n{frappe.get_traceback()}"
         )
+
+def get_vat_category_rate(category_name: str, company: str) -> float:
+    """Replica la lógica de la función JS para resolver la tasa de retención 
+    de IVA desde el backend de forma segura.
+    """
+    if not category_name:
+        frappe.throw(_("El cliente no tiene asignada una categoría de retención de impuestos."))
+
+    category_doc = frappe.get_doc("Tax Withholding Category", category_name)
+    rate = None
+
+    if category_doc.get("accounts"):
+        has_company_account = any(a.company == company for a in category_doc.accounts)
+
+        if has_company_account and category_doc.get("rates") and len(category_doc.rates) > 0:
+            rate = flt(category_doc.rates[0].tax_withholding_rate)
+
+    if rate is None or rate == 0:
+        rate = flt(category_doc.get("default_rate")) or flt(category_doc.get("rate")) or None
+
+    if rate is None or rate == 0:
+        frappe.throw(_("No se encontró ninguna tasa (Rate) válida o configurada para la categoría de retención {0}.").format(category_name))
+
+    return rate
