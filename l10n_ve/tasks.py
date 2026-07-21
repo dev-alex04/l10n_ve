@@ -537,13 +537,23 @@ def purge_old_digital_invoice_success_logs() -> None:
 
 def get_test_email() -> str | None:
     """
-    Evalúa si el sitio o módulo está en producción o sandbox.
-    Si está en modo producción (is_production_mode=1), retorna None para enviar a correos reales.
-    Si está en modo pruebas (is_production_mode=0), retorna el correo de pruebas configurado.
+    Evalúa si l10n_ve está en modo producción o sandbox.
+    Revisa prioritariamente la configuración propia `l10n_ve_settings` o `ve_settings` en site_config.json:
+    - Si is_production_mode es 1 (Producción), retorna None (se envía a correos reales de clientes).
+    - Si is_production_mode es 0 (Sandbox), retorna test_email.
+    Fallback a otras configuraciones si no existe l10n_ve_settings.
     """
     site_config = frappe.get_site_config()
 
-    # 1. isp_settings (Módulo ISP)
+    # 1. Configuración propia del módulo l10n_ve (l10n_ve_settings o ve_settings)
+    ve_settings = site_config.get("l10n_ve_settings") or site_config.get("ve_settings") or {}
+    if ve_settings:
+        if bool(ve_settings.get("is_production_mode")):
+            return None
+        elif ve_settings.get("test_email"):
+            return ve_settings.get("test_email")
+
+    # 2. isp_settings (Módulo ISP)
     isp_settings = site_config.get("isp_settings") or {}
     if isp_settings:
         if bool(isp_settings.get("is_production_mode")):
@@ -551,7 +561,7 @@ def get_test_email() -> str | None:
         elif isp_settings.get("test_email"):
             return isp_settings.get("test_email")
 
-    # 2. bdv_settings (Pasarela BDV)
+    # 3. bdv_settings (Pasarela BDV)
     bdv_settings = site_config.get("bdv_settings") or {}
     if bdv_settings:
         if bool(bdv_settings.get("is_production_mode")):
@@ -559,7 +569,7 @@ def get_test_email() -> str | None:
         elif bdv_settings.get("test_email"):
             return bdv_settings.get("test_email")
 
-    # 3. Raíz del site_config
+    # 4. Raíz del site_config
     if bool(site_config.get("is_production_mode")):
         return None
 
