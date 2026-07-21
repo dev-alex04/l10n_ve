@@ -1,10 +1,30 @@
 import frappe
-from frappe import _
-from frappe.utils import flt
+from frappe import _, scrub
+from frappe.utils import flt, getdate
 from erpnext.accounts.report.accounts_receivable.accounts_receivable import ReceivablePayableReport
 
 
 erpnext_get_columns = ReceivablePayableReport.get_columns
+erpnext_get_ple_entries = ReceivablePayableReport.get_ple_entries
+erpnext_get_return_entries = ReceivablePayableReport.get_return_entries
+
+
+def _resolve_date_range(self):
+    """Resuelve el rango (from_date, to_date) y sincroniza report_date con to_date.
+
+    El reporte estandar usa ``report_date`` como limite superior. Si el usuario
+    define ``to_date`` lo usamos como limite superior y pisamos ``report_date``
+    para que el resto del reporte (ageing, future payments, etc.) sea consistente.
+    """
+    from_date = self.filters.get("from_date")
+    to_date = self.filters.get("to_date") or self.filters.report_date
+    if from_date:
+        from_date = getdate(from_date)
+    if to_date:
+        to_date = getdate(to_date)
+        self.filters.report_date = to_date
+    return from_date, to_date
+
 
 def get_columns(self) -> None:
     erpnext_get_columns(self)
@@ -98,42 +118,104 @@ def build_data(self) -> None:
             self.data.append(self.total_row_map.get("Total", {}))
 
 
+def get_ple_entries(self):
+    """Wrapper sobre ``get_ple_entries`` estandar que anade ``posting_date >= from_date``."""
+    from_date, _to_date = _resolve_date_range(self)
+    if not from_date:
+        return erpnext_get_ple_entries(self)
+
+    # El estandar reconstruye qb_selection_filter dentro de prepare_conditions.
+    # Parcheamos temporalmente ese metodo para inyectar la condicion extra sin
+    # duplicar la logica original.
+    ple = self.ple
+    original_prepare_conditions = self.prepare_conditions
+
+    def patched_prepare_conditions():
+        original_prepare_conditions()
+        self.qb_selection_filter.append(ple.posting_date.gte(from_date))
+
+    self.prepare_conditions = patched_prepare_conditions
+    try:
+        return erpnext_get_ple_entries(self)
+    finally:
+        self.prepare_conditions = original_prepare_conditions
+
+
+def get_return_entries(self):
+    """Wrapper sobre ``get_return_entries`` estandar que filtra por rango."""
+    from_date, _to_date = _resolve_date_range(self)
+    if not from_date:
+        return erpnext_get_return_entries(self)
+
+    doctype = "Sales Invoice" if self.account_type == "Receivable" else "Purchase Invoice"
+    filters = [
+        ["posting_date", "<=", self.filters.report_date],
+        ["posting_date", ">=", from_date],
+        ["is_return", "=", 1],
+        ["docstatus", "=", 1],
+        ["company", "=", self.filters.company],
+        ["update_outstanding_for_self", "=", 0],
+    ]
+
+    or_filters = {}
+    if party_type := self.filters.party_type:
+        party_field = scrub(party_type)
+        if parties := self.filters.get("party"):
+            or_filters.update({party_field: ["in", parties]})
+
+    self.return_entries = frappe._dict(
+        frappe.get_all(
+            doctype, filters=filters, or_filters=or_filters, fields=["name", "return_against"], as_list=1
+        )
+    )
+
+
 def get_invoice_details(self):
+    from_date, _to_date = _resolve_date_range(self)
     self.invoice_details = frappe._dict()
-    if self.account_type == "Receivable":
-        # nosemgrep
-        si_list = frappe.db.sql(
-            """
-            select name, due_date, po_no, bill_no
-            from `tabSales Invoice`
+
+    def _block(fields_to_select, table):
+        """Construye un bloque SQL `select ... from <table> where ...` con su
+        tupla de parametros asociada, ya con from_date embebido si aplica."""
+        select_cols = ", ".join(fields_to_select)
+        params = [self.filters.report_date, self.filters.company]
+        from_clause = ""
+        if from_date:
+            from_clause = "and posting_date >= %s"
+            # el from_date se inserta DESPUES del primer %s (report_date)
+            params = [self.filters.report_date, from_date, self.filters.company]
+        sql = f"""
+            select {select_cols}
+            from `{table}`
             where posting_date <= %s
+                {from_clause}
                 and company = %s
                 and docstatus = 1
-        """,
-            (self.filters.report_date, self.filters.company),
-            as_dict=1,
-        )
+        """
+        return sql, tuple(params)
+
+    def _union(blocks):
+        """Encadena bloques con UNION ALL y returns (sql, params)."""
+        sql_parts = []
+        all_params = ()
+        for sql, params in blocks:
+            sql_parts.append(sql)
+            all_params += params
+        return "\n            union all\n".join(sql_parts), all_params
+
+    if self.account_type == "Receivable":
+        # nosemgrep
+        sql, params = _block(["name", "due_date", "po_no", "bill_no"], "tabSales Invoice")
+        si_list = frappe.db.sql(sql, params, as_dict=1)
         for d in si_list:
             self.invoice_details.setdefault(d.name, d)
 
         # Get Custom VE Sales Debit/Credit Notes
-        custom_si = frappe.db.sql(
-            """
-            select name, due_date, po_no, bill_no
-            from `tabVE Sales Debit Note`
-            where posting_date <= %s
-                and company = %s
-                and docstatus = 1
-            union all
-            select name, due_date, po_no, bill_no
-            from `tabVE Sales Credit Note`
-            where posting_date <= %s
-                and company = %s
-                and docstatus = 1
-            """,
-            (self.filters.report_date, self.filters.company, self.filters.report_date, self.filters.company),
-            as_dict=1
-        )
+        sql, params = _union([
+            _block(["name", "due_date", "po_no", "bill_no"], "tabVE Sales Debit Note"),
+            _block(["name", "due_date", "po_no", "bill_no"], "tabVE Sales Credit Note"),
+        ])
+        custom_si = frappe.db.sql(sql, params, as_dict=1)
         for d in custom_si:
             self.invoice_details.setdefault(d.name, d)
 
@@ -155,55 +237,23 @@ def get_invoice_details(self):
 
     if self.account_type == "Payable":
         # nosemgrep
-        for pi in frappe.db.sql(
-            """
-            select name, due_date, bill_no, bill_date
-            from `tabPurchase Invoice`
-            where
-                posting_date <= %s
-                and company = %s
-                and docstatus = 1
-        """,
-            (self.filters.report_date, self.filters.company),
-            as_dict=1,
-        ):
+        sql, params = _block(["name", "due_date", "bill_no", "bill_date"], "tabPurchase Invoice")
+        for pi in frappe.db.sql(sql, params, as_dict=1):
             self.invoice_details.setdefault(pi.name, pi)
 
         # Get Custom VE Purchase Debit/Credit Notes
-        custom_pi = frappe.db.sql(
-            """
-            select name, posting_date as due_date, bill_no, bill_date
-            from `tabVE Purchase Debit Note`
-            where posting_date <= %s
-                and company = %s
-                and docstatus = 1
-            union all
-            select name, posting_date as due_date, bill_no, bill_date
-            from `tabVE Purchase Credit Note`
-            where posting_date <= %s
-                and company = %s
-                and docstatus = 1
-            """,
-            (self.filters.report_date, self.filters.company, self.filters.report_date, self.filters.company),
-            as_dict=1
-        )
+        sql, params = _union([
+            _block(["name", "posting_date as due_date", "bill_no", "bill_date"], "tabVE Purchase Debit Note"),
+            _block(["name", "posting_date as due_date", "bill_no", "bill_date"], "tabVE Purchase Credit Note"),
+        ])
+        custom_pi = frappe.db.sql(sql, params, as_dict=1)
         for d in custom_pi:
             self.invoice_details.setdefault(d.name, d)
 
     # Invoices booked via Journal Entries
     # nosemgrep
-    journal_entries = frappe.db.sql(
-        """
-        select name, due_date, bill_no, bill_date
-        from `tabJournal Entry`
-        where
-            posting_date <= %s
-            and company = %s
-            and docstatus = 1
-    """,
-        (self.filters.report_date, self.filters.company),
-        as_dict=1,
-    )
+    je_sql, je_params = _block(["name", "due_date", "bill_no", "bill_date"], "tabJournal Entry")
+    journal_entries = frappe.db.sql(je_sql, je_params, as_dict=1)
 
     for je in journal_entries:
         if je.bill_no:
@@ -220,4 +270,6 @@ def custom_is_invoice(self, ple):
 ReceivablePayableReport.build_data = build_data
 ReceivablePayableReport.get_columns = get_columns
 ReceivablePayableReport.get_invoice_details = get_invoice_details
+ReceivablePayableReport.get_ple_entries = get_ple_entries
+ReceivablePayableReport.get_return_entries = get_return_entries
 ReceivablePayableReport.is_invoice = custom_is_invoice
