@@ -52,6 +52,11 @@ try:
 except Exception as e:
     log_patch_error('l10n_ve.patches.stock.utils', e)
 
+try:
+    import l10n_ve.patches.stock.packed_item
+except Exception as e:
+    log_patch_error('l10n_ve.patches.stock.packed_item', e)
+
 def apply_post_db_patches() -> None:
     try:
         import l10n_ve.patches.reports.general_ledger
