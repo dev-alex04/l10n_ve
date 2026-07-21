@@ -655,20 +655,20 @@ def send_missing_retentions_reminders() -> None:
 
         subject = "Recordatorio: Comprobantes de Retención Pendientes"
         try:
-            if email_template:
-                subject = email_template.subject or subject
-                template_html = email_template.response_html or email_template.response
-                email_body = frappe.render_template(template_html, {
-                    "customer_name": customer_name,
-                    "invoices": invoices_data,
-                    "company": company
-                })
-            else:
-                email_body = frappe.get_template("templates/emails/missing_retention_reminder.html").render({
-                    "customer_name": customer_name,
-                    "invoices": invoices_data,
-                    "company": company
-                })
+            if not email_template:
+                frappe.log_error(
+                    title="Error al enviar recordatorio de retención",
+                    message="La plantilla 'Recordatorio de Retenciones Pendientes' no se encuentra en la base de datos."
+                )
+                continue
+
+            subject = email_template.subject or subject
+            template_html = email_template.response_html or email_template.response
+            email_body = frappe.render_template(template_html, {
+                "customer_name": customer_name,
+                "invoices": invoices_data,
+                "company": company
+            })
         except Exception as e:
             frappe.log_error(
                 title="Error al renderizar plantilla de retención",
