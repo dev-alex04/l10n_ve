@@ -4,6 +4,10 @@ import erpnext.stock.doctype.packed_item.packed_item as packed_item_module
 import erpnext.stock.doctype.delivery_note.delivery_note as delivery_note_module
 import erpnext.selling.doctype.sales_order.sales_order as sales_order_module
 
+# Parche validado contra ERPNext v15.106.0. Si una actualizacion de ERPNext
+# cambia las firmas de get_indexed_packed_items_table / add_packed_item_row /
+# make_packing_list, re-verificar este parche.
+
 # Referencias a las funciones originales de ERPNext
 original_get_indexed_packed_items_table = packed_item_module.get_indexed_packed_items_table
 original_add_packed_item_row = packed_item_module.add_packed_item_row
@@ -79,7 +83,7 @@ def make_packing_list(doc):
     return original_make_packing_list(doc)
 
 
-# Patch the module-level functions
+# Parchear las funciones a nivel de modulo
 packed_item_module.get_indexed_packed_items_table = get_indexed_packed_items_table
 packed_item_module.add_packed_item_row = add_packed_item_row
 packed_item_module.make_packing_list = make_packing_list
@@ -88,13 +92,3 @@ packed_item_module.make_packing_list = make_packing_list
 # so that their local `make_packing_list` references point to our patched version
 delivery_note_module.make_packing_list = make_packing_list
 sales_order_module.make_packing_list = make_packing_list
-
-# Sentinel: confirma que el parche CORREGIDO (v2, por ocurrencia) esta cargado.
-# Revisalo despues de `bench restart`:  cat /tmp/l10n_ve_packed_patch_active
-try:
-    from datetime import datetime
-
-    with open("/tmp/l10n_ve_packed_patch_active", "w") as _f:
-        _f.write("v2-counter " + datetime.now().isoformat())
-except Exception:
-    pass
