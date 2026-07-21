@@ -533,3 +533,160 @@ def purge_old_digital_invoice_success_logs() -> None:
         f"Purga de retención ({SUCCESS_LOG_RETENTION_YEARS} años): "
         f"{count} logs de éxito anteriores a {cutoff} eliminados"
     )
+
+
+def send_missing_retentions_reminders() -> None:
+    """Busca facturas de venta con retenciones pendientes y envía un correo consolidado a los clientes."""
+    from l10n_ve.overrides.customer import get_customer_emails
+    from frappe.utils import formatdate, fmt_money
+
+    print("[Recordatorio Retenciones] Iniciando búsqueda de facturas...")
+
+    # Buscar facturas de venta sometidas (docstatus=1) de clientes que tengan el check de Contribuyente Especial (is_special_taxpayer=1)
+    # o tengan configurado el Concepto de ISLR (tabulator_islr), con bill_no y bill_control, y comprobantes pendientes.
+    invoices = frappe.db.sql("""
+        SELECT 
+            si.name, si.customer, si.customer_name, si.branch, si.company,
+            si.posting_date, si.outstanding_amount, si.grand_total, si.currency,
+            si.bill_no, si.bill_control,
+            si.vat_withholding_voucher_number, si.islr_receipt_number,
+            c.is_special_taxpayer, c.tabulator_islr,
+            GROUP_CONCAT(DISTINCT stc.charge_type) as charge_types
+        FROM `tabSales Invoice` si
+        JOIN `tabSales Taxes and Charges` stc ON stc.parent = si.name
+        JOIN `tabCustomer` c ON c.name = si.customer
+        WHERE si.docstatus = 1
+          AND (c.is_special_taxpayer = 1 OR (c.tabulator_islr IS NOT NULL AND c.tabulator_islr != '' AND c.tabulator_islr != 'None'))
+          AND si.bill_no IS NOT NULL AND si.bill_no != ''
+          AND si.bill_control IS NOT NULL AND si.bill_control != ''
+          AND stc.charge_type IN ('VAT Withholding', 'ISLR')
+          AND stc.tax_amount != 0
+          AND (
+              (stc.charge_type = 'VAT Withholding' AND (si.vat_withholding_voucher_number IS NULL OR si.vat_withholding_voucher_number = '' OR si.vat_withholding_voucher_number = 'None'))
+              OR 
+              (stc.charge_type = 'ISLR' AND (si.islr_receipt_number IS NULL OR si.islr_receipt_number = '' OR si.islr_receipt_number = 'None'))
+          )
+        GROUP BY si.name
+        ORDER BY si.customer, si.posting_date DESC
+    """, as_dict=True)
+
+    print(f"[Recordatorio Retenciones] Facturas pendientes encontradas en base de datos: {len(invoices)}")
+
+    if not invoices:
+        print("[Recordatorio Retenciones] No hay facturas que requieran recordatorio. Proceso finalizado.")
+        return
+
+    # Agrupar facturas por cliente
+    customer_invoices = {}
+    for inv in invoices:
+        customer_invoices.setdefault(inv.customer, []).append(inv)
+
+    # Obtener correo de pruebas (Sandbox)
+    test_email = (
+        frappe.conf.get("test_email") 
+        or frappe.conf.get("isp_settings", {}).get("test_email") 
+        or frappe.conf.get("bdv_settings", {}).get("test_email")
+    )
+
+    for customer, inv_list in customer_invoices.items():
+        # Obtener correos del cliente desde su ficha
+        try:
+            recipients = get_customer_emails(customer)
+        except frappe.DoesNotExistError:
+            frappe.log_error(
+                title="Recordatorio de Retenciones - Cliente No Existe",
+                message=f"El cliente '{customer}' no existe en la base de datos, omitiendo recordatorio para sus facturas."
+            )
+            continue
+
+        if not recipients and not test_email:
+            frappe.log_error(
+                title="Recordatorio de Retenciones - Sin Correo",
+                message=f"El cliente {customer} tiene facturas con retenciones pendientes pero no tiene correos configurados."
+            )
+            continue
+
+        if test_email:
+            recipients = [test_email]
+
+        # Obtener información de la Empresa de la primera factura
+        company = None
+        if inv_list[0].company:
+            company = frappe.db.get_value("Company", inv_list[0].company, "company_name") or inv_list[0].company
+
+        # Preparar los datos de las facturas para el contexto de la plantilla
+        invoices_data = []
+        for inv in inv_list:
+            missing_vat = False
+            missing_islr = False
+            
+            # Para el IVA: El cliente debe ser Contribuyente Especial (is_special_taxpayer)
+            if 'VAT Withholding' in (inv.charge_types or "") and inv.is_special_taxpayer and (not inv.vat_withholding_voucher_number or inv.vat_withholding_voucher_number == "None"):
+                missing_vat = True
+            
+            # Para el ISLR: El cliente debe tener asignado el Concepto de ISLR (tabulator_islr) o ser Contribuyente Especial
+            has_islr_concept = inv.tabulator_islr and inv.tabulator_islr != "None"
+            if 'ISLR' in (inv.charge_types or "") and (has_islr_concept or inv.is_special_taxpayer) and (not inv.islr_receipt_number or inv.islr_receipt_number == "None"):
+                missing_islr = True
+
+            if not missing_vat and not missing_islr:
+                continue
+
+            invoices_data.append({
+                "name": inv.bill_no,  # Mostramos el número de factura fiscal (bill_no) en lugar del correlativo interno del sistema
+                "bill_control": inv.bill_control,
+                "formatted_date": formatdate(inv.posting_date, "dd-MM-yyyy"),
+                "formatted_total": fmt_money(inv.grand_total, currency=inv.currency),
+                "missing_vat": missing_vat,
+                "missing_islr": missing_islr
+            })
+
+        if not invoices_data:
+            continue
+
+        customer_name = inv_list[0].customer_name or customer
+
+        # Obtener y renderizar la plantilla de correo general
+        email_template = None
+        try:
+            email_template = frappe.get_doc("Email Template", "Recordatorio de Retenciones Pendientes")
+        except Exception:
+            pass
+
+        subject = "Recordatorio: Comprobantes de Retención Pendientes"
+        try:
+            if email_template:
+                subject = email_template.subject or subject
+                template_html = email_template.response_html or email_template.response
+                email_body = frappe.render_template(template_html, {
+                    "customer_name": customer_name,
+                    "invoices": invoices_data,
+                    "company": company
+                })
+            else:
+                email_body = frappe.get_template("templates/emails/missing_retention_reminder.html").render({
+                    "customer_name": customer_name,
+                    "invoices": invoices_data,
+                    "company": company
+                })
+        except Exception as e:
+            frappe.log_error(
+                title="Error al renderizar plantilla de retención",
+                message=f"No se pudo renderizar la plantilla para el cliente {customer}. Error: {str(e)}"
+            )
+            continue
+
+        try:
+            frappe.sendmail(
+                recipients=recipients,
+                subject=subject,
+                message=email_body
+            )
+            print(f"[Recordatorio Retenciones] ✓ Correo encolado exitosamente para el cliente '{customer}' a los destinatarios {recipients}")
+        except Exception as e:
+            frappe.log_error(
+                title="Error al enviar recordatorio de retención",
+                message=f"No se pudo enviar el correo al cliente {customer}. Error: {str(e)}"
+            )
+            print(f"[Recordatorio Retenciones] ✗ Error al enviar correo al cliente '{customer}': {str(e)}")
+

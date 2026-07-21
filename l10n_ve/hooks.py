@@ -399,6 +399,7 @@ doc_events = {
 
 scheduler_events = {
        "cron": {
+        "0 8 10,20 * *": ["l10n_ve.tasks.send_missing_retentions_reminders"],
         "0 * * * *": [
             "l10n_ve.tasks.create_currency_exchange",
             "l10n_ve.tasks.cleanup_resolved_digital_invoice_error_logs",
