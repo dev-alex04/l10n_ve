@@ -535,6 +535,37 @@ def purge_old_digital_invoice_success_logs() -> None:
     )
 
 
+def get_test_email() -> str | None:
+    """
+    Evalúa si el sitio o módulo está en producción o sandbox.
+    Si está en modo producción (is_production_mode=1), retorna None para enviar a correos reales.
+    Si está en modo pruebas (is_production_mode=0), retorna el correo de pruebas configurado.
+    """
+    site_config = frappe.get_site_config()
+
+    # 1. isp_settings (Módulo ISP)
+    isp_settings = site_config.get("isp_settings") or {}
+    if isp_settings:
+        if bool(isp_settings.get("is_production_mode")):
+            return None
+        elif isp_settings.get("test_email"):
+            return isp_settings.get("test_email")
+
+    # 2. bdv_settings (Pasarela BDV)
+    bdv_settings = site_config.get("bdv_settings") or {}
+    if bdv_settings:
+        if bool(bdv_settings.get("is_production_mode")):
+            return None
+        elif bdv_settings.get("test_email"):
+            return bdv_settings.get("test_email")
+
+    # 3. Raíz del site_config
+    if bool(site_config.get("is_production_mode")):
+        return None
+
+    return site_config.get("test_email")
+
+
 def send_missing_retentions_reminders() -> None:
     """Busca facturas de venta con retenciones pendientes y envía un correo consolidado a los clientes."""
     from l10n_ve.overrides.customer import get_customer_emails
@@ -581,12 +612,8 @@ def send_missing_retentions_reminders() -> None:
     for inv in invoices:
         customer_invoices.setdefault(inv.customer, []).append(inv)
 
-    # Obtener correo de pruebas (Sandbox)
-    test_email = (
-        frappe.conf.get("test_email") 
-        or frappe.conf.get("isp_settings", {}).get("test_email") 
-        or frappe.conf.get("bdv_settings", {}).get("test_email")
-    )
+    # Obtener correo de pruebas (Sandbox) respetando el is_production_mode del sitio/módulos
+    test_email = get_test_email()
 
     for customer, inv_list in customer_invoices.items():
         # Obtener correos del cliente desde su ficha
