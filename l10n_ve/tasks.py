@@ -535,45 +535,12 @@ def purge_old_digital_invoice_success_logs() -> None:
     )
 
 
-def get_test_email() -> str | None:
+def get_l10n_ve_settings() -> dict | None:
     """
-    Evalúa si l10n_ve está en modo producción o sandbox.
-    Revisa prioritariamente la configuración propia `l10n_ve_settings` o `ve_settings` en site_config.json:
-    - Si is_production_mode es 1 (Producción), retorna None (se envía a correos reales de clientes).
-    - Si is_production_mode es 0 (Sandbox), retorna test_email.
-    Fallback a otras configuraciones si no existe l10n_ve_settings.
+    Obtiene la configuración propia del módulo l10n_ve_settings en site_config.json.
     """
     site_config = frappe.get_site_config()
-
-    # 1. Configuración propia del módulo l10n_ve (l10n_ve_settings o ve_settings)
-    ve_settings = site_config.get("l10n_ve_settings") or site_config.get("ve_settings") or {}
-    if ve_settings:
-        if bool(ve_settings.get("is_production_mode")):
-            return None
-        elif ve_settings.get("test_email"):
-            return ve_settings.get("test_email")
-
-    # 2. isp_settings (Módulo ISP)
-    isp_settings = site_config.get("isp_settings") or {}
-    if isp_settings:
-        if bool(isp_settings.get("is_production_mode")):
-            return None
-        elif isp_settings.get("test_email"):
-            return isp_settings.get("test_email")
-
-    # 3. bdv_settings (Pasarela BDV)
-    bdv_settings = site_config.get("bdv_settings") or {}
-    if bdv_settings:
-        if bool(bdv_settings.get("is_production_mode")):
-            return None
-        elif bdv_settings.get("test_email"):
-            return bdv_settings.get("test_email")
-
-    # 4. Raíz del site_config
-    if bool(site_config.get("is_production_mode")):
-        return None
-
-    return site_config.get("test_email")
+    return site_config.get("l10n_ve_settings") or site_config.get("ve_settings")
 
 
 def send_missing_retentions_reminders() -> None:
@@ -582,6 +549,19 @@ def send_missing_retentions_reminders() -> None:
     from frappe.utils import formatdate, fmt_money
 
     print("[Recordatorio Retenciones] Iniciando búsqueda de facturas...")
+
+    # 0. Requisito obligatorio: La configuración l10n_ve_settings debe existir en site_config.json
+    ve_settings = get_l10n_ve_settings()
+    if not ve_settings:
+        print("[Recordatorio Retenciones] Omitido: No se encontró 'l10n_ve_settings' en site_config.json.")
+        return
+
+    is_production = bool(ve_settings.get("is_production_mode"))
+    test_email = ve_settings.get("test_email")
+
+    if not is_production and not test_email:
+        print("[Recordatorio Retenciones] Omitido: Modo Sandbox activo (is_production_mode=0) pero falta 'test_email' en l10n_ve_settings.")
+        return
 
     # Buscar facturas de venta sometidas (docstatus=1) de clientes que tengan el check de Contribuyente Especial (is_special_taxpayer=1)
     # o tengan configurado el Concepto de ISLR (tabulator_islr), con bill_no y bill_control, y comprobantes pendientes.
@@ -622,29 +602,26 @@ def send_missing_retentions_reminders() -> None:
     for inv in invoices:
         customer_invoices.setdefault(inv.customer, []).append(inv)
 
-    # Obtener correo de pruebas (Sandbox) respetando el is_production_mode del sitio/módulos
-    test_email = get_test_email()
-
     for customer, inv_list in customer_invoices.items():
-        # Obtener correos del cliente desde su ficha
-        try:
-            recipients = get_customer_emails(customer)
-        except frappe.DoesNotExistError:
-            frappe.log_error(
-                title="Recordatorio de Retenciones - Cliente No Existe",
-                message=f"El cliente '{customer}' no existe en la base de datos, omitiendo recordatorio para sus facturas."
-            )
-            continue
-
-        if not recipients and not test_email:
-            frappe.log_error(
-                title="Recordatorio de Retenciones - Sin Correo",
-                message=f"El cliente {customer} tiene facturas con retenciones pendientes pero no tiene correos configurados."
-            )
-            continue
-
-        if test_email:
+        if not is_production:
             recipients = [test_email]
+        else:
+            # Obtener correos del cliente desde su ficha en producción
+            try:
+                recipients = get_customer_emails(customer)
+            except frappe.DoesNotExistError:
+                frappe.log_error(
+                    title="Recordatorio de Retenciones - Cliente No Existe",
+                    message=f"El cliente '{customer}' no existe en la base de datos, omitiendo recordatorio para sus facturas."
+                )
+                continue
+
+            if not recipients:
+                frappe.log_error(
+                    title="Recordatorio de Retenciones - Sin Correo",
+                    message=f"El cliente {customer} tiene facturas con retenciones pendientes pero no tiene correos configurados."
+                )
+                continue
 
         # Obtener información de la Empresa de la primera factura
         company = None
