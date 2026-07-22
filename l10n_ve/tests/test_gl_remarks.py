@@ -61,6 +61,16 @@ class TestGLRemarksVE(unittest.TestCase):
         result = gl_remarks._sales_invoice_remarks(doc)
         self.assertTrue(result.startswith("Devolución en venta a ACME (RIF J-1)"))
 
+    def test_sales_invoice_return_shows_positive_amount(self):
+        # grand_total negativo (devolución) → se muestra en magnitud
+        doc = _doc(
+            doctype="Sales Invoice", customer_name="ACME",
+            grand_total=-50, currency="USD", is_return=1,
+        )
+        result = gl_remarks._sales_invoice_remarks(doc)
+        self.assertIn("por USD 50.00", result)
+        self.assertNotIn("-50", result)
+
     def test_sales_invoice_without_fiscal_numbers(self):
         doc = _doc(
             doctype="Sales Invoice", customer_name="ACME", grand_total=10,
@@ -134,6 +144,28 @@ class TestGLRemarksVE(unittest.TestCase):
         doc = _doc(doctype="Payment Entry", payment_type="Receive", custom_remarks=1)
         self.assertIsNone(gl_remarks._payment_entry_remarks(doc))
 
+    def test_payment_entry_lists_applied_references(self):
+        doc = _doc(
+            doctype="Payment Entry", payment_type="Receive", party_name="Cliente",
+            paid_amount=100, paid_from_account_currency="VEF", custom_remarks=0,
+            references=[
+                frappe._dict(reference_name="ACC-SINV-1"),
+                frappe._dict(reference_name="ACC-SINV-2"),
+            ],
+        )
+        result = gl_remarks._payment_entry_remarks(doc)
+        self.assertIn("aplicado a ACC-SINV-1, ACC-SINV-2", result)
+
+    def test_payment_entry_references_are_capped(self):
+        refs = [frappe._dict(reference_name=f"SINV-{i}") for i in range(6)]
+        doc = _doc(
+            doctype="Payment Entry", payment_type="Pay", party_name="Prov",
+            received_amount=50, paid_to_account_currency="VEF", custom_remarks=0,
+            references=refs,
+        )
+        result = gl_remarks._payment_entry_remarks(doc)
+        self.assertIn("aplicado a SINV-0, SINV-1, SINV-2, SINV-3 y 2 más", result)
+
     # --- Notas fiscales VE -----------------------------------------------
 
     def test_ve_sales_credit_note(self):
@@ -174,21 +206,36 @@ class TestGLRemarksVE(unittest.TestCase):
             customer_name="ACME", tax_id="J-1", bill_no="F-9", bill_control="C-9",
             grand_total=10, currency="VEF", is_return=0,
         )
-        captured = {}
+        calls = []
         fake_db = MagicMock()
         fake_db.get_value.return_value = row
-        fake_db.sql.side_effect = lambda query, params: captured.update(query=query, params=params)
+        # apply_gl_remarks hace COUNT (>0) y luego UPDATE.
+        fake_db.sql.side_effect = lambda query, params: (calls.append((query, params)) or [[1]])
 
         with patch.object(gl_remarks, "frappe") as fake_frappe:
             fake_frappe.db = fake_db
             gl_remarks.refresh_gl_remarks("Sales Invoice", "ACC-SINV-2026-00001")
 
         self.assertTrue(fake_db.get_value.called)
-        self.assertIn("UPDATE `tabGL Entry`", captured["query"])
-        self.assertIn("is_cancelled = 0", captured["query"])
-        # el remark calculado es el primer y el último parámetro
-        self.assertTrue(captured["params"][0].startswith("Venta a ACME"))
-        self.assertEqual(captured["params"][-1], captured["params"][0])
+        queries = [q for q, _ in calls]
+        self.assertTrue(any("SELECT COUNT(*)" in q for q in queries), "falta el COUNT")
+        updates = [(q, p) for q, p in calls if "UPDATE `tabGL Entry`" in q]
+        self.assertEqual(len(updates), 1, "debe haber exactamente un UPDATE")
+        uq, up = updates[0]
+        self.assertIn("is_cancelled = 0", uq)
+        self.assertTrue(up[0].startswith("Venta a ACME"))  # SET remarks primero
+        self.assertEqual(up[-1], up[0])  # idempotencia: <> new_remark al final
+
+    def test_apply_gl_remarks_skips_update_when_count_zero(self):
+        from unittest.mock import MagicMock
+
+        fake_db = MagicMock()
+        fake_db.sql.return_value = [[0]]  # nada que cambiar
+        with patch.object(gl_remarks, "frappe") as fake_frappe:
+            fake_frappe.db = fake_db
+            n = gl_remarks.apply_gl_remarks("Sales Invoice", "X", "Venta a Y")
+        self.assertEqual(n, 0)
+        self.assertEqual(fake_db.sql.call_count, 1)  # solo el COUNT, sin UPDATE
 
     def test_refresh_gl_remarks_skips_unsupported_doctype(self):
         from unittest.mock import MagicMock

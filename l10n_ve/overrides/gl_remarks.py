@@ -109,14 +109,47 @@ def build_remarks_for(doctype: str, doc) -> str | None:
     return builder(doc) if builder else None
 
 
+def _gl_remarks_filter(doctype: str, voucher_no: str, new_remark: str):
+    """Devuelve ``(where_sql, params)`` para las líneas GL de un voucher que
+    deben recibir el remark VE: no anuladas, no protegidas (stock/reversa/
+    dimensión) y distintas del texto nuevo (idempotencia)."""
+    protected = " ".join(
+        "AND COALESCE(remarks, '') NOT LIKE %s" for _ in PROTECTED_REMARK_PREFIXES
+    )
+    where = (
+        "voucher_type = %s AND voucher_no = %s AND is_cancelled = 0 "
+        f"{protected} AND COALESCE(remarks, '') <> %s"
+    )
+    params = (
+        [doctype, voucher_no]
+        + [f"{prefix}%" for prefix in PROTECTED_REMARK_PREFIXES]
+        + [new_remark]
+    )
+    return where, params
+
+
+def apply_gl_remarks(doctype: str, voucher_no: str, new_remark: str, dry_run: bool = False) -> int:
+    """Cuenta (``dry_run``) o aplica el remark VE a las líneas GL de un voucher
+    con un solo UPDATE. Idempotente. Devuelve las líneas afectadas.
+
+    Única fuente de la lógica "qué líneas tocar", compartida por el hook de
+    certificación (refresh_gl_remarks) y el backfill."""
+    where, params = _gl_remarks_filter(doctype, voucher_no, new_remark)
+    count = frappe.db.sql(f"SELECT COUNT(*) FROM `tabGL Entry` WHERE {where}", params)[0][0]
+    if count and not dry_run:
+        frappe.db.sql(
+            f"UPDATE `tabGL Entry` SET remarks = %s WHERE {where}", [new_remark] + params
+        )
+    return count
+
+
 def refresh_gl_remarks(doctype: str, voucher_no: str) -> None:
     """Recalcula el remark VE de los GL Entry de un comprobante y lo reescribe.
 
     Pensado para llamarse tras la certificación HKA (cuando ya existen bill_no/
     bill_control), de modo que el número fiscal aparezca en el Mayor sin esperar
     al backfill manual. Idempotente y defensivo: no propaga excepciones para no
-    romper el flujo llamador (la certificación). No toca líneas protegidas ni
-    anuladas.
+    romper el flujo llamador (la certificación).
     """
     try:
         fields = DOC_FIELDS.get(doctype)
@@ -126,28 +159,8 @@ def refresh_gl_remarks(doctype: str, voucher_no: str) -> None:
         if not row:
             return
         new_remark = build_remarks_for(doctype, row)
-        if not new_remark:
-            return
-
-        protected = " ".join(
-            "AND COALESCE(remarks, '') NOT LIKE %s" for _ in PROTECTED_REMARK_PREFIXES
-        )
-        params: list = [new_remark, doctype, voucher_no]
-        params += [f"{prefix}%" for prefix in PROTECTED_REMARK_PREFIXES]
-        params.append(new_remark)
-
-        frappe.db.sql(
-            f"""
-            UPDATE `tabGL Entry`
-            SET remarks = %s
-            WHERE voucher_type = %s
-              AND voucher_no = %s
-              AND is_cancelled = 0
-              {protected}
-              AND COALESCE(remarks, '') <> %s
-            """,
-            params,
-        )
+        if new_remark:
+            apply_gl_remarks(doctype, voucher_no, new_remark)
     except Exception as exc:  # nunca romper la certificación por el remark
         frappe.logger("l10n_ve").error(
             f"refresh_gl_remarks {doctype} {voucher_no}: {exc}"
@@ -164,10 +177,15 @@ def _join(*parts: str) -> str:
 
 
 def _money(amount, currency: str | None) -> str:
-    """Formatea un monto en su moneda; vacío si falta la moneda."""
+    """Formatea un monto (en magnitud) en su moneda; vacío si falta la moneda.
+
+    Se usa abs() a propósito: la dirección la da el rótulo (Venta / Devolución /
+    Nota de crédito…), no el signo. Una devolución trae grand_total negativo y
+    no queremos mostrar "por USD -50,00".
+    """
     if not currency:
         return ""
-    return fmt_money(flt(amount), currency=currency)
+    return fmt_money(abs(flt(amount)), currency=currency)
 
 
 def _date(value) -> str:
@@ -265,7 +283,21 @@ def _payment_entry_remarks(doc) -> str | None:
     monto = _money(amount, currency)
     monto_part = f"por {monto}" if monto else ""
 
-    return _join(cabeza, monto_part, modo_part, ref_part)
+    # Documentos a los que se aplicó el pago (recupera el detalle que el remark
+    # nativo daba por línea). doc.references está en el doc vivo; el backfill lo
+    # inyecta. Se capa para no inflar la descripción.
+    ref_names = [
+        r.get("reference_name")
+        for r in (doc.get("references") or [])
+        if r.get("reference_name")
+    ]
+    aplicado = ""
+    if ref_names:
+        aplicado = "aplicado a " + ", ".join(ref_names[:4])
+        if len(ref_names) > 4:
+            aplicado += f" y {len(ref_names) - 4} más"
+
+    return _join(cabeza, monto_part, aplicado, modo_part, ref_part)
 
 
 def _sales_note_remarks(doc, lead: str) -> str:
