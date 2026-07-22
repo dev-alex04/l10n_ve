@@ -547,6 +547,12 @@ def create_stamp_tax_rates() -> None:
         settings = frappe.get_single('Venezuela Account Settings')
         existing_states = {row.state for row in settings.stamp_tax_rates}
 
+        # Default de la tarifa de Responsabilidad Social (fija) si no está configurada.
+        dirty = False
+        if not frappe.utils.flt(settings.responsibility_social_rate):
+            settings.responsibility_social_rate = 3
+            dirty = True
+
         added = 0
         with open(csv_file_path, mode='r', encoding='utf-8') as f:
             for record in csv.DictReader(f):
@@ -570,10 +576,10 @@ def create_stamp_tax_rates() -> None:
                 existing_states.add(state_name)
                 added += 1
 
-        if added:
+        if added or dirty:
             settings.save(ignore_permissions=True)
             frappe.db.commit()
-        print(f"Success: {added} tarifa(s) de timbre sembrada(s).")
+        print(f"Success: {added} tarifa(s) de timbre sembrada(s); Resp. Social {settings.responsibility_social_rate}%.")
 
     except Exception as e:
         print(f"  !! ERROR sembrando tarifas de timbre: {e}")
