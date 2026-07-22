@@ -54,6 +54,7 @@ def set_data() -> None:
         create_islr_tabulator()
         set_chart_of_accounts()
         create_government_withholding_custom_fields()
+        link_government_withholding_account()
         create_vat_withholding()
         create_sales_taxes_and_charges_template()
         set_title_field_on_purchase_invoice()
@@ -527,6 +528,33 @@ def create_government_withholding_custom_fields() -> None:
     create_custom_fields(custom_fields, ignore_validate=True)
     frappe.db.commit()
     print("Success: Custom fields de retenciones gubernamentales creados.")
+
+
+def link_government_withholding_account(company_name: str = None) -> None:
+    """Enlaza Company.government_withholding_account por NOMBRE de cuenta ('Retenciones
+    Gubernamentales'), en cada company donde esté vacío. Robusto a la numeración: funciona con
+    6.2.01.14 (plantilla genérica/Galanet), 6203009 (Galanet/Black renumerado) o cualquier número.
+    Solo setea si el campo está vacío (respeta la cuenta que ya haya elegido contabilidad). Idempotente.
+    """
+    print("Enlazando cuenta de Retenciones Gubernamentales por nombre...")
+    try:
+        filters = {"name": company_name} if company_name else {}
+        for company in frappe.get_all("Company", filters=filters, pluck="name"):
+            if frappe.db.get_value("Company", company, "government_withholding_account"):
+                continue  # ya configurada; no la pisamos
+            account = frappe.db.get_value(
+                "Account",
+                {"company": company, "account_name": "Retenciones Gubernamentales", "is_group": 0},
+                "name",
+            )
+            if account:
+                frappe.db.set_value("Company", company, "government_withholding_account", account)
+                print(f"  -> {company}: government_withholding_account = {account}")
+            else:
+                print(f"  -- {company}: no existe la cuenta 'Retenciones Gubernamentales'; se omite.")
+        frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Error en link_government_withholding_account")
 
 
 def create_stamp_tax_rates() -> None:
