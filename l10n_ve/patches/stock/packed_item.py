@@ -1,25 +1,23 @@
 import frappe
 
 import erpnext.stock.doctype.packed_item.packed_item as packed_item_module
-import erpnext.stock.doctype.delivery_note.delivery_note as delivery_note_module
-import erpnext.selling.doctype.sales_order.sales_order as sales_order_module
 
 # Parche validado contra ERPNext v15.106.0. Si una actualizacion de ERPNext
-# cambia las firmas de get_indexed_packed_items_table / add_packed_item_row /
-# make_packing_list, re-verificar este parche.
+# cambia las firmas de get_indexed_packed_items_table / add_packed_item_row,
+# re-verificar este parche.
 
 # Referencias a las funciones originales de ERPNext
 original_get_indexed_packed_items_table = packed_item_module.get_indexed_packed_items_table
 original_add_packed_item_row = packed_item_module.add_packed_item_row
-original_make_packing_list = packed_item_module.make_packing_list
 
 
 def get_indexed_packed_items_table(doc):
     """
     MONKEYPATCH l10n_ve:
-    Indexa la tabla de packed_items con una clave estable y consistente con
-    add_packed_item_row, basada en (parent_item, item_code, ocurrencia) en lugar
-    de `packed_item.idx` / `main_item_row.idx` / `parent_detail_docname`.
+    Solo aplica a documentos NUEVOS (doc.is_new()): indexa la tabla de
+    packed_items con una clave estable y consistente con add_packed_item_row,
+    basada en (parent_item, item_code, ocurrencia) en lugar de `packed_item.idx`
+    / `main_item_row.idx`.
 
     El codigo original usaba `packed_item.idx` (idx de la fila empaquetada: 1,2,3)
     frente a `main_item_row.idx` (idx del item padre, siempre 1 para el bundle),
@@ -30,10 +28,23 @@ def get_indexed_packed_items_table(doc):
 
     Usar un contador de ocurrencia por (parent_item, item_code) evita depender
     de `parent_detail_docname` (que es None para docs nuevos mientras el doc aun
-    no tiene name asignado) y funciona igual para docs nuevos y ya guardados.
+    no tiene name asignado).
+
+    Para documentos ya guardados (is_new()==False) se delega a la funcion
+    original, que indexa por `parent_detail_docname` / `main_item_row.name`
+    (identidad estable y unica por linea) y nunca tuvo este bug. Sobrescribir
+    tambien ese camino romperia la identidad por `name` ante borrar/reordenar
+    lineas del mismo conjunto, asignando lote/almacen equivocado en silencio.
+
+    El reset del contador por run vive aqui porque esta funcion se llama una
+    sola vez al inicio de make_packing_list (antes del loop de items).
     """
-    indexed_table = {}
-    counters = {}
+    doc._packed_seq = {}
+
+    if not doc.is_new():
+        return original_get_indexed_packed_items_table(doc)
+
+    indexed_table, counters = {}, {}
     for packed_item in doc.get("packed_items"):
         base = (packed_item.parent_item, packed_item.item_code)
         counters[base] = counters.get(base, 0) + 1
@@ -46,10 +57,18 @@ def get_indexed_packed_items_table(doc):
 def add_packed_item_row(doc, packing_item, main_item_row, packed_items_table, reset):
     """
     MONKEYPATCH l10n_ve:
-    Usa la misma clave por ocurrencia que get_indexed_packed_items_table para
-    que la fila ya existente (con su batch_no / serial_no / warehouse) sea
-    reutilizada y no reconstruida en blanco al validar un doc nuevo.
+    Solo aplica a documentos NUEVOS (doc.is_new()): usa la misma clave por
+    ocurrencia que get_indexed_packed_items_table para que la fila ya existente
+    (con su batch_no / serial_no / warehouse) sea reutilizada y no reconstruida
+    en blanco al validar un doc nuevo.
+
+    Para documentos guardados delega en la original (identidad por `name`).
     """
+    if not doc.is_new():
+        return original_add_packed_item_row(
+            doc, packing_item, main_item_row, packed_items_table, reset
+        )
+
     base = (main_item_row.item_code, packing_item.item_code)
 
     # ocurrencia de este componente entre las filas ya agregadas en este run
@@ -72,23 +91,6 @@ def add_packed_item_row(doc, packing_item, main_item_row, packed_items_table, re
     return pi_row
 
 
-def make_packing_list(doc):
-    """
-    MONKEYPATCH l10n_ve:
-    Reinicia el contador de ocurrencia por run antes de delegar a la funcion
-    original de ERPNext (que usa las versiones parcheadas de
-    get_indexed_packed_items_table / add_packed_item_row).
-    """
-    doc._packed_seq = {}
-    return original_make_packing_list(doc)
-
-
 # Parchear las funciones a nivel de modulo
 packed_item_module.get_indexed_packed_items_table = get_indexed_packed_items_table
 packed_item_module.add_packed_item_row = add_packed_item_row
-packed_item_module.make_packing_list = make_packing_list
-
-# ALSO patch the local bindings in delivery_note and sales_order modules
-# so that their local `make_packing_list` references point to our patched version
-delivery_note_module.make_packing_list = make_packing_list
-sales_order_module.make_packing_list = make_packing_list

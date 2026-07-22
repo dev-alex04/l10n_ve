@@ -56,6 +56,19 @@ try:
     import l10n_ve.patches.stock.packed_item
 except Exception as e:
     log_patch_error('l10n_ve.patches.stock.packed_item', e)
+    # El parche de packed_item sobrescribe internals de ERPNext
+    # (get_indexed_packed_items_table / add_packed_item_row). Si un
+    # upgrade renombra un simbolo, el ImportError/AttributeError se
+    # traga en silencio y el bug de lotes vuelve. Forzamos un log
+    # dedicated de nivel ERROR para que se vea en el Error Log.
+    if not isinstance(e, RuntimeError) and frappe.local and getattr(frappe.local, "db", None):
+        try:
+            frappe.log_error(
+                frappe.get_traceback(),
+                f"ERROR cargando parche l10n_ve.patches.stock.packed_item: {e}",
+            )
+        except Exception:
+            pass
 
 def apply_post_db_patches() -> None:
     try:
