@@ -413,6 +413,7 @@ def create_independent_address(address_values: str) -> str:
 
     address_doc = frappe.new_doc("Address")
     address_doc.update(address_values)
+    address_doc.flags.skip_link_address = True
 
     if not address_doc.address_title:
         address_doc.address_title = address_doc.address_line1 or _("Nueva Dirección")
@@ -457,6 +458,7 @@ def update_independent_address(address_name: str, address_values: str) -> str:
 
     address_values = frappe.parse_json(address_values)
     address_doc = frappe.get_doc("Address", address_name)
+    address_doc.flags.skip_link_address = True
 
     updatable_fields: list[str] = [
         "address_line1", "address_type", "country", "state",
