@@ -328,6 +328,21 @@ override_doctype_dashboards = {
 }
 
 
+# Regional Overrides
+# ------------------
+# Venezolaniza la descripción (remarks) de cada asiento del Mayor. ERPNext
+# expone update_gl_dict_with_regional_fields (accounts_controller.py:1320,
+# decorado @erpnext.allow_regional) como punto de extensión por país; la clave
+# es el país de la Company (get_region -> Company.country).
+
+regional_overrides = {
+    "Venezuela, Bolivarian Republic of": {
+        "erpnext.controllers.accounts_controller.update_gl_dict_with_regional_fields":
+            "l10n_ve.overrides.gl_remarks.update_gl_dict_with_regional_fields",
+    },
+}
+
+
 # Document Events
 # ---------------
 # Hook on document methods and events
