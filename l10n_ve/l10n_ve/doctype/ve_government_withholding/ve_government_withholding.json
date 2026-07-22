@@ -1,0 +1,69 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-21 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "withholding_type",
+  "state",
+  "municipality",
+  "enabled"
+ ],
+ "fields": [
+  {
+   "columns": 3,
+   "description": "Tipo de retención que el ente practica al pagar. Todas se contabilizan como gasto.",
+   "fieldname": "withholding_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Tipo de Retención",
+   "options": "Timbre Fiscal\nISAE\nResponsabilidad Social",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "depends_on": "eval:doc.withholding_type=='Timbre Fiscal'",
+   "description": "Estado que fija la tarifa del timbre (busca en Venezuela Account Settings > Tarifas de Timbre).",
+   "fieldname": "state",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Estado (Timbre)",
+   "options": "VE State"
+  },
+  {
+   "columns": 3,
+   "depends_on": "eval:doc.withholding_type=='ISAE'",
+   "description": "Municipio que fija la alícuota del ISAE (busca en VE Municipality Taxes por municipio + actividad).",
+   "fieldname": "municipality",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Municipio (ISAE)",
+   "options": "VE Municipality"
+  },
+  {
+   "columns": 1,
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Habilitado"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VE Government Withholding",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

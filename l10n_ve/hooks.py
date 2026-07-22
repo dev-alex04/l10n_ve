@@ -251,6 +251,10 @@ after_migrate = [
     "l10n_ve.setup.set_default_site_config",
     # self-heal: logo del login/Desk solo-si-vacío (get_app_logo ignora el hook con >2 apps)
     "l10n_ve.setup.set_default_branding",
+    # self-heal: custom fields, enlace de cuenta y seed de tarifas de retenciones gubernamentales (idempotentes)
+    "l10n_ve.setup.create_government_withholding_custom_fields",
+    "l10n_ve.setup.link_government_withholding_account",
+    "l10n_ve.setup.create_stamp_tax_rates",
 ]
 
 # Uninstallation

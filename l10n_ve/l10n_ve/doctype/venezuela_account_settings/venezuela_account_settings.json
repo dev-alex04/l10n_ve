@@ -13,7 +13,11 @@
   "section_break_tax_calc",
   "tax_calculation_method",
   "column_break_tax_calc",
-  "tax_calculation_method_help"
+  "tax_calculation_method_help",
+  "government_withholding_section",
+  "stamp_tax_rates",
+  "gw_column_break",
+  "responsibility_social_rate"
  ],
  "fields": [
   {
@@ -64,6 +68,30 @@
   {
    "fieldname": "tax_calculation_method_help",
    "fieldtype": "HTML"
+  },
+  {
+   "fieldname": "government_withholding_section",
+   "fieldtype": "Section Break",
+   "label": "Retenciones Gubernamentales"
+  },
+  {
+   "description": "Tarifas del timbre fiscal estadal por estado (una fila por estado). La alícuota va en % (ej. 0,1 = 1×1000 Distrito Capital; 0,2 = 1×500 Miranda).",
+   "fieldname": "stamp_tax_rates",
+   "fieldtype": "Table",
+   "label": "Tarifas de Timbre Fiscal por Estado",
+   "options": "VE Stamp Tax Rate"
+  },
+  {
+   "fieldname": "gw_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "3",
+   "description": "Alícuota del Compromiso de Responsabilidad Social en % (tarifa fija nacional). Confirmar con contabilidad Galanet.",
+   "fieldname": "responsibility_social_rate",
+   "fieldtype": "Float",
+   "label": "Tarifa Responsabilidad Social %",
+   "precision": "3"
   }
  ],
  "grid_page_length": 50,
