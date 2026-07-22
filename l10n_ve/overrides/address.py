@@ -24,6 +24,11 @@ class CustomAddress(Address):
         self.validate_address()
         self.prevent_unlinking()
 
+    def link_address(self) -> bool:
+        if self.flags.skip_link_address:
+            return False
+        return super().link_address()
+
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         self.update_primary_address()
