@@ -178,6 +178,9 @@ doctype_js = {
     "Mode of Payment": [
          "public/js/doctype/mode_of_payment/mode_of_payment.js"
     ],
+    "Payment Reconciliation": [
+        "public/js/doctype/payment_reconciliation/payment_reconciliation.js"
+    ],
 
 }
 
