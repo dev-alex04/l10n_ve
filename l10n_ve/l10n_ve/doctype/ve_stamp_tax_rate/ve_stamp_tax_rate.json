@@ -1,0 +1,77 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-21 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "state",
+  "rate",
+  "threshold",
+  "threshold_unit",
+  "enabled"
+ ],
+ "fields": [
+  {
+   "columns": 3,
+   "fieldname": "state",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Estado",
+   "options": "VE State",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "description": "Alícuota del timbre en porcentaje (ej. 0,1 = 1×1000; 0,2 = 1×500). Nunca divisores.",
+   "fieldname": "rate",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Tarifa %",
+   "precision": "3",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "description": "Monto mínimo a partir del cual aplica el timbre (0 = sin umbral).",
+   "fieldname": "threshold",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Umbral mínimo",
+   "precision": "2"
+  },
+  {
+   "columns": 2,
+   "default": "U.T.",
+   "fieldname": "threshold_unit",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Unidad del umbral",
+   "options": "U.T.\nVEF\nSin umbral"
+  },
+  {
+   "columns": 1,
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Habilitado"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VE Stamp Tax Rate",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

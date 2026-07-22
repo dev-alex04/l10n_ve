@@ -53,6 +53,7 @@ def set_data() -> None:
         create_tax_unit()
         create_islr_tabulator()
         set_chart_of_accounts()
+        create_government_withholding_custom_fields()
         create_vat_withholding()
         create_sales_taxes_and_charges_template()
         set_title_field_on_purchase_invoice()
@@ -69,6 +70,7 @@ def set_data() -> None:
         set_selling_settings()
         set_stock_naming_series()
         create_municipality_taxes()
+        create_stamp_tax_rates()
         create_conatel_tax_types()
         set_stock_settings()
         create_bank_transaction_mappings()
@@ -358,6 +360,11 @@ def set_chart_of_accounts(company_name: str = None) -> None:
                 'company_field': 'purchase_igtf_account',
             },
             {
+                'account_name': 'Retenciones Gubernamentales',
+                'account_number': '6.2.01.14',
+                'company_field': 'government_withholding_account',
+            },
+            {
                 'account_name': 'Cuenta de Inventario Predeterminada',
                 'account_number': '1.1.5.1.01',
                 'company_field': 'default_inventory_account',
@@ -452,6 +459,125 @@ def set_chart_of_accounts(company_name: str = None) -> None:
         frappe.log_error(frappe.get_traceback(), 'Error en set_chart_of_accounts')
 
     print("Success: Configuración de cuentas contables en las compañías completada.")
+
+
+def create_government_withholding_custom_fields() -> None:
+    """Custom fields de las retenciones gubernamentales (timbre, ISAE, Responsabilidad Social).
+
+    - Company.government_withholding_account: cuenta ÚNICA de gasto (6.2.01.14 Retenciones
+      Gubernamentales) donde se registran TODAS estas retenciones (directiva contable 21-jul:
+      todas son gasto, no anticipo). La enlaza set_chart_of_accounts vía account_map.
+    - Customer.government_withholdings: tabla opt-in que declara QUÉ retenciones practica el ente
+      y su jurisdicción (estado para timbre, municipio para ISAE).
+    - Payment Entry.government_withholdings: tabla de captura en el cobro (monto sugerido calculado
+      read-only + monto real del comprobante + n° + adjunto). El motor la usa para poblar deductions.
+    """
+    from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+    print("Creando custom fields de retenciones gubernamentales...")
+
+    custom_fields = {
+        "Company": [
+            {
+                "fieldname": "government_withholding_account",
+                "label": "Cuenta de Retenciones Gubernamentales",
+                "fieldtype": "Link",
+                "options": "Account",
+                "insert_after": "sales_igtf_account",
+                "description": "Cuenta de gasto única (6.2.01.14) para timbre, ISAE y Responsabilidad Social.",
+            },
+        ],
+        "Customer": [
+            {
+                "fieldname": "government_withholding_section",
+                "label": "Retenciones Gubernamentales",
+                "fieldtype": "Section Break",
+                "insert_after": "nature_of_the_taxpayer",
+                "depends_on": "eval:doc.nature_of_the_taxpayer=='Government'",
+                "collapsible": 1,
+            },
+            {
+                "fieldname": "government_withholdings",
+                "label": "Retenciones que practica el ente",
+                "fieldtype": "Table",
+                "options": "VE Government Withholding",
+                "insert_after": "government_withholding_section",
+                "description": "Qué retenciones descuenta este ente al pagar (y de qué estado/municipio).",
+            },
+        ],
+        "Payment Entry": [
+            {
+                "fieldname": "government_withholding_section",
+                "label": "Retenciones Gubernamentales",
+                "fieldtype": "Section Break",
+                "insert_after": "received_amount",
+                "collapsible": 1,
+            },
+            {
+                "fieldname": "government_withholdings",
+                "label": "Retenciones Gubernamentales",
+                "fieldtype": "Table",
+                "options": "VE Payment Government Withholding",
+                "insert_after": "government_withholding_section",
+                "description": "Retenciones capturadas en este cobro. El monto sugerido es de solo lectura; ajuste el monto real según el comprobante del ente.",
+            },
+        ],
+    }
+
+    create_custom_fields(custom_fields, ignore_validate=True)
+    frappe.db.commit()
+    print("Success: Custom fields de retenciones gubernamentales creados.")
+
+
+def create_stamp_tax_rates() -> None:
+    """Siembra la tabla de tarifas de timbre fiscal por estado en Venezuela Account Settings.
+
+    Patrón idéntico a create_municipality_taxes: lee resources/ve_stamp_tax_rates.csv y puebla el
+    child stamp_tax_rates del Single. Idempotente: no duplica un estado ya cargado (respeta ediciones
+    posteriores de contabilidad). Valores con base legal verificada 21-jul (ver plan).
+    """
+    print("Sembrando tarifas de timbre fiscal por estado...")
+
+    try:
+        csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 've_stamp_tax_rates.csv')
+        if not os.path.exists(csv_file_path):
+            print(f"  !! ADVERTENCIA: no existe {csv_file_path}. Se omite el seed de timbre.")
+            return
+
+        settings = frappe.get_single('Venezuela Account Settings')
+        existing_states = {row.state for row in settings.stamp_tax_rates}
+
+        added = 0
+        with open(csv_file_path, mode='r', encoding='utf-8') as f:
+            for record in csv.DictReader(f):
+                state_label = (record.get('state') or '').strip()
+                if not state_label:
+                    continue
+                # VE State se nombra por el campo `state`; resolvemos el name real por el label.
+                state_name = frappe.db.get_value('VE State', {'state': state_label}, 'name')
+                if not state_name:
+                    print(f"  !! Estado '{state_label}' no existe (VE State); se omite su tarifa de timbre.")
+                    continue
+                if state_name in existing_states:
+                    continue
+                settings.append('stamp_tax_rates', {
+                    'state': state_name,
+                    'rate': frappe.utils.flt(record.get('rate')),
+                    'threshold': frappe.utils.flt(record.get('threshold')),
+                    'threshold_unit': (record.get('threshold_unit') or 'Sin umbral').strip(),
+                    'enabled': 1,
+                })
+                existing_states.add(state_name)
+                added += 1
+
+        if added:
+            settings.save(ignore_permissions=True)
+            frappe.db.commit()
+        print(f"Success: {added} tarifa(s) de timbre sembrada(s).")
+
+    except Exception as e:
+        print(f"  !! ERROR sembrando tarifas de timbre: {e}")
+        frappe.log_error(frappe.get_traceback(), 'Error en create_stamp_tax_rates')
 
 
 def create_vat_withholding(company_name: str = None) -> None:
