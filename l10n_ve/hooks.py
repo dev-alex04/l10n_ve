@@ -35,6 +35,9 @@ app_include_js = [
     "/assets/l10n_ve/js/controllers/populate_from_invoice.js",
     "/assets/l10n_ve/js/widgets/number_card_widget.js",
     "/assets/l10n_ve/js/report/payment_period_based_on_invoice_date.js",
+    "/assets/l10n_ve/js/report/general_ledger.js",
+    "/assets/l10n_ve/js/report/accounts_receivable.js",
+    "/assets/l10n_ve/js/report/accounts_payable.js",
 ]
 
 # Apps
@@ -399,6 +402,7 @@ doc_events = {
 
 scheduler_events = {
        "cron": {
+        "0 8 10,20 * *": ["l10n_ve.tasks.send_missing_retentions_reminders"],
         "0 * * * *": [
             "l10n_ve.tasks.create_currency_exchange",
             "l10n_ve.tasks.cleanup_resolved_digital_invoice_error_logs",

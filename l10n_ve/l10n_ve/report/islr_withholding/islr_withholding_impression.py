@@ -99,7 +99,7 @@ def download_custom_excel(filters=None):
     for d in data:
         if group_by == "Por Proveedor":
             ws.cell(row=row_num, column=1, value=d.tax_id)
-            ws.cell(row=row_num, column=2, value=d.supplier)
+            ws.cell(row=row_num, column=2, value=d.supplier_name)
             cell_base = ws.cell(row=row_num, column=3, value=d.islr_base_amount)
             cell_sub = ws.cell(row=row_num, column=4, value=d.subtracting)
             cell_ret = ws.cell(row=row_num, column=5, value=d.islr_amount)
@@ -111,7 +111,7 @@ def download_custom_excel(filters=None):
             cell_ret = ws.cell(row=row_num, column=5, value=d.islr_amount)
         else:
             ws.cell(row=row_num, column=1, value=d.tax_id)
-            ws.cell(row=row_num, column=2, value=d.supplier)
+            ws.cell(row=row_num, column=2, value=d.supplier_name)
             ws.cell(row=row_num, column=3, value=d.doc_no)
             ws.cell(row=row_num, column=4, value=d.bill_control)
             
@@ -257,7 +257,7 @@ def download_custom_pdf(filters=None):
                 <tr>
                     {% if group_by == 'Por Proveedor' %}
                         <td class="text-center">{{ row.tax_id }}</td>
-                        <td>{{ row.supplier }}</td>
+                        <td>{{ row.supplier_name }}</td>
                         <td class="text-right">{{ row.base_f }}</td>
                         <td class="text-right">{{ row.sub_f }}</td>
                         <td class="text-right">{{ row.ret_f }}</td>
@@ -269,7 +269,7 @@ def download_custom_pdf(filters=None):
                         <td class="text-right">{{ row.ret_f }}</td>
                     {% else %}
                         <td class="text-center">{{ row.tax_id }}</td>
-                        <td>{{ row.supplier }}</td>
+                        <td>{{ row.supplier_name }}</td>
                         <td class="text-center">{{ row.doc_no }}</td>
                         <td class="text-center">{{ row.bill_control }}</td>
                         <td class="text-center">{{ row.f_date }}</td>

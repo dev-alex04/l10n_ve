@@ -184,6 +184,7 @@ def get_company_logo_url(doc):
 def get_header_html(doc, current_page, total_pages):
     company_tax_id = frappe.db.get_value("Company", doc.empresa, "tax_id", cache=True)
     supplier_tax_id = frappe.db.get_value("Supplier", doc.supplier, "tax_id", cache=True)
+    supplier_name = frappe.db.get_value("Supplier", doc.supplier, "supplier_name", cache=True)
 
     company_logo_url = get_company_logo_url(doc)
 
@@ -232,7 +233,7 @@ def get_header_html(doc, current_page, total_pages):
             <tbody>
                 <tr>
                     <td>
-                        Proveedor / Beneficiario: { doc.supplier }<br>
+                        Proveedor / Beneficiario: { escape_html(supplier_name) }<br>
                         R.I.F.: { escape_html(supplier_tax_id) }<br>
                         Dirección: { escape_html(doc.supplier_address) }
                     </td>

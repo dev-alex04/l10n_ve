@@ -629,7 +629,7 @@ def _log_skip(doc: object, reason: str) -> None:
     frappe.log_error(
         title=f"Retasado a tasa de emisión omitido: {doc.name}",
         message=(
-            f"La factura {doc.name} (jurídico {doc.customer}) se emitió con "
+            f"La factura {doc.name} (jurídico {doc.customer_name}) se emitió con "
             f"la tasa que portaba ({flt(doc.conversion_rate)}) porque {reason}. "
             "Evaluar ajuste manual por nota de débito/crédito si aplica."
         ),

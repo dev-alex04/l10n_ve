@@ -88,7 +88,7 @@ def _validate_retention_integrity(doc: Document) -> list[str]:
     ) or ""
     if not supplier_tax_id.strip():
         errors.append(
-            f"El proveedor '{doc.supplier}' no tiene RIF (Tax ID) configurado."
+            f"El proveedor '{doc.supplier_name}' no tiene RIF (Tax ID) configurado."
         )
 
     # Validar datos y aritmética de cada factura (mismas reglas que HKA)

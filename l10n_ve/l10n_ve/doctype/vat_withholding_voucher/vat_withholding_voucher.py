@@ -161,6 +161,7 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
         """Populate tax_id fields before printing so the print format can render them."""
         self.company_tax_id = frappe.get_cached_value("Company", self.empresa, "tax_id") or "N/A"
         self.supplier_tax_id = frappe.get_cached_value("Supplier", self.supplier, "tax_id") or "N/A"
+        self.supplier_name = frappe.get_cached_value("Supplier", self.supplier, "supplier_name") or self.supplier
 
     def before_cancel(self) -> None:
         """Bloquea la cancelación si el comprobante ya fue emitido a HKA.

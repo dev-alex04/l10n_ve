@@ -10,13 +10,14 @@
  "field_order": [
   "gesti\u00f3n_tab",
   "is_group",
-  "section_break_dlfm",
-  "branch_name",
-  "trade_name",
-  "company",
   "lft",
   "rgt",
   "old_parent",
+  "column_break_jafg",
+  "company",
+  "section_break_dlfm",
+  "branch_name",
+  "trade_name",
   "column_break_inzw",
   "parent_ve_branch",
   "cost_center",
@@ -226,13 +227,17 @@
    "fieldname": "gesti\u00f3n_tab",
    "fieldtype": "Tab Break",
    "label": "Gesti\u00f3n"
+  },
+  {
+   "fieldname": "column_break_jafg",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-06-07 18:42:26.426712",
+ "modified": "2026-07-20 08:52:43.366044",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",

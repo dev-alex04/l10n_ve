@@ -188,6 +188,7 @@ def generate_vat_report(voucher_name):
 def get_header_html(doc):
     company_tax_id = frappe.db.get_value("Company", doc.empresa, "tax_id", cache=True)
     supplier_tax_id = frappe.db.get_value("Supplier", doc.supplier, "tax_id", cache=True)
+    supplier_name = frappe.db.get_value("Supplier", doc.supplier, "supplier_name", cache=True)
 
     return f"""
     <div class="page-header">
@@ -249,7 +250,7 @@ def get_header_html(doc):
                 <tr>
                     <td style="width: 40%;">
                         <h6 class="mt-7" style="font-weight: bold;">NOMBRE O RAZÓN SOCIAL DEL CONTRIBUYENTE</h6>
-                        <p class="mb-7">{doc.supplier}</p>
+                        <p class="mb-7">{supplier_name}</p>
                     </td>
                     <td style="width: 30%;">
                         <h6 class="mt-7" style="font-weight: bold; margin-bottom: 0px !important;">REGISTRO DE INFORMACIÓN FISCAL </br> DEL CONTRIBUYENTE (R.I.F) </h6>

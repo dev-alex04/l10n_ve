@@ -12,6 +12,7 @@
   "voucher_number",
   "section_break_krnr",
   "supplier",
+  "supplier_name",
   "column_1",
   "empresa",
   "column_3",
@@ -50,12 +51,19 @@
    "fieldname": "supplier",
    "fieldtype": "Link",
    "in_filter": 1,
-   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Proveedor",
    "options": "Supplier",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fetch_from": "supplier.supplier_name",
+   "fieldname": "supplier_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Proveedor",
+   "read_only": 1
   },
   {
    "fieldname": "column_1",

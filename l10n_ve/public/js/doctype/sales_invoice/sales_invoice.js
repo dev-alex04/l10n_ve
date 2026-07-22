@@ -108,9 +108,17 @@ frappe.ui.form.on("Sales Invoice", {
                   reqd: 1,
                 },
                 {
-                  label: __("Fecha de Comprobante"),
+                  label: __("Fecha de registro"),
                   fieldname: "withholding_date",
                   fieldtype: "Date",
+                  default: frappe.datetime.get_today(),
+                  reqd: 1,
+                },
+                {
+                  label: __("Fecha de Comprobante"),
+                  fieldname: "registration_date",
+                  fieldtype: "Date",
+                  default: frappe.datetime.get_today(),
                   reqd: 1,
                 },
                 {
@@ -151,6 +159,7 @@ frappe.ui.form.on("Sales Invoice", {
                     voucher_number: values.vat_withholding_voucher_number,
                     withholding_date: values.withholding_date,
                     file_url: values.voucher_image,
+                    registration_date: values.registration_date,
                   },
                   callback: function (r) {
                     if (r.message && r.message.status === "success") {
@@ -189,10 +198,18 @@ frappe.ui.form.on("Sales Invoice", {
                   reqd: 0, // No es obligatorio
                 },
                 {
-                  label: __("Fecha de Comprobante ISLR"),
+                  label: __("Fecha de registro"),
                   fieldname: "islr_date",
                   fieldtype: "Date",
+                  default: frappe.datetime.get_today(),
                   reqd: 1, // La fecha sigue siendo obligatoria
+                },
+                {
+                  label: __("Fecha de Comprobante ISLR"),
+                  fieldname: "registration_date",
+                  fieldtype: "Date",
+                  default: frappe.datetime.get_today(),
+                  reqd: 1,
                 },
                 {
                   label: __("Imagen/PDF del Comprobante ISLR"),
@@ -221,6 +238,7 @@ frappe.ui.form.on("Sales Invoice", {
                     islr_receipt_number: values.islr_receipt_number,
                     islr_date: values.islr_date,
                     file_url: values.voucher_image_islr,
+                    registration_date: values.registration_date,
                   },
                   callback: function (r) {
                     if (r.message && r.message.status === "success") {
@@ -242,6 +260,119 @@ frappe.ui.form.on("Sales Invoice", {
             dialog.show();
           },
           button_group,
+        );
+      }
+
+      if (frm.doc.docstatus === 1) {
+        let invoice = frm.doc.bill_no ? frm.doc.bill_no : frm.doc.name;
+        let company = frm.doc.company;
+
+        frappe.db.get_value('Customer', frm.doc.customer,
+          ['is_special_taxpayer', 'tax_withholding_category', 'tabulator_islr', "type_of_person"],
+          (customer_data) => {
+            if (customer_data && customer_data.is_special_taxpayer) {
+
+              let has_vat = frm.doc.taxes.some(t => t.charge_type === 'VAT Withholding');
+              let has_islr = frm.doc.taxes.some(t => t.charge_type === 'ISLR');
+
+              if (!has_vat && customer_data.tax_withholding_category) {
+                frm.page.add_inner_button(__('Aplicar Retención de IVA'), () => {
+
+                  frappe.db.get_value("Company", frm.doc.company, "sales_vat_withholding_account", (co) => {
+                    let vat_account = co ? co.sales_vat_withholding_account : null;
+
+                    const open_vat_modal = (account, rate) => {
+                      let vat_amount = frm.doc.taxes
+                        .filter(t => t.charge_type === 'VAT')
+                        .reduce((sum, t) => sum + flt(t.base_tax_amount), 0);
+
+                      let suggested_amount = flt(vat_amount * (rate / 100.0), 2);
+                      open_withholding_dialog(frm, invoice, frm.doc.customer, "VAT", account, rate, suggested_amount, company);
+                    };
+
+                    if (vat_account) {
+                      get_vat_category_rate(customer_data.tax_withholding_category, frm.doc.company, (rate) => {
+                        open_vat_modal(vat_account, rate);
+                      });
+                    } else {
+                      frappe.db.get_value("Tax Withholding Account",
+                        { "parent": customer_data.tax_withholding_category, "company": frm.doc.company }, "account", (twa) => {
+                          let fallback_account = twa ? twa.account : "";
+                          get_vat_category_rate(customer_data.tax_withholding_category, frm.doc.company, (rate) => {
+                            open_vat_modal(fallback_account, rate);
+                          });
+                        });
+                    }
+                  });
+                }, __('Cargar Comprobante'));
+              }
+
+              if (!has_islr && customer_data.tabulator_islr) {
+                frm.page.add_inner_button(__('Aplicar Retención de ISLR'), () => {
+
+                  frappe.db.get_doc('Tabulator ISLR', customer_data.tabulator_islr).then(tab_doc => {
+
+                    let islr_rate = 0;
+                    let subtrahend = 0;
+                    let percentage_base = 75;
+
+                    let target_row = null;
+                    let client_person_type = customer_data.type_of_person;
+
+                    if (tab_doc.aliquot && tab_doc.aliquot.length > 0) {
+                      if (client_person_type) {
+                        target_row = tab_doc.aliquot.find(row => row.types_of_person === client_person_type);
+                      }
+                      if (!target_row) {
+                        frappe.msgprint({
+                          title: __('Configuración Incompleta'),
+                          indicator: 'orange',
+                          message: __('No se encontró un tramo en el Tabulador para "{0}". Se usará el primer tramo por defecto, verifique los montos sugeridos.', [client_person_type])
+                        });
+                        target_row = tab_doc.aliquot[0];
+                      }
+                    }
+
+                    if (target_row) {
+                      islr_rate = flt(target_row.aliquot);
+                      subtrahend = flt(target_row.subtracting);
+                      percentage_base = flt(target_row.percentage_base) || 100;
+                    }
+
+                    let base_net_total = flt(frm.doc.base_net_total);
+                    let calculated_base = flt(base_net_total * (percentage_base / 100));
+
+                    let suggested_islr_amount = flt((calculated_base * (islr_rate / 100)) - subtrahend, 2);
+                    if (suggested_islr_amount < 0) suggested_islr_amount = 0;
+
+                    const open_islr_modal = (final_account) => {
+                      open_withholding_dialog(frm, invoice, frm.doc.customer, "ISLR", final_account, islr_rate, suggested_islr_amount, company);
+                    };
+
+                    frappe.db.get_value('Company', frm.doc.company, 'sales_islr_account', (co) => {
+                      let company_account = co ? co.sales_islr_account : "";
+
+                      if (company_account) {
+                        open_islr_modal(company_account);
+                      }
+                      else if (customer_data.tax_withholding_category) {
+                        frappe.db.get_value("Tax Withholding Account",
+                          { "parent": customer_data.tax_withholding_category, "company": frm.doc.company }, "account", (twa) => {
+                            let category_account = twa ? twa.account : "";
+                            open_islr_modal(category_account);
+                          });
+                      }
+                      else {
+                        open_islr_modal("");
+                      }
+                    });
+                  }).catch(err => {
+                    frappe.msgprint(__('Error leyendo el Tabulador de ISLR del cliente: {0}', [err.message]));
+                  });
+                }, __('Cargar Comprobante'));
+              }
+            }
+          }
         );
       }
     }
@@ -1191,4 +1322,259 @@ function setup_replacement_invoice_button(frm) {
       frm: frm,
     });
   });
+}
+
+function open_withholding_dialog(frm, invoice, customer, type, default_account, suggested_rate, suggested_amount, company) {
+  // Se refleja el criterio del backend (handle_voucher_metadata): un comprobante
+  // "existe" si ya hay número o imagen. Los campos de fecha reales son
+  // withholding_date (IVA) e islr_date (ISLR); no existen vat_withholding_date
+  // ni islr_withholding_date, así que no se consultan aquí.
+  const has_existing = type === "VAT"
+    ? !!(frm.doc.vat_withholding_voucher_number || frm.doc.voucher_image)
+    : !!(frm.doc.islr_receipt_number || frm.doc.voucher_image_islr);
+
+  const is_required = has_existing ? 0 : 1;
+
+  const fields = [
+    {
+      label: __("Factura"),
+      fieldname: "invoice",
+      fieldtype: "Link",
+      options: "Sales Invoice",
+      default: invoice,
+      read_only: 1,
+    },
+    {
+      label: __("Cliente"),
+      fieldname: "customer",
+      fieldtype: "Link",
+      options: "Customer",
+      default: customer,
+      read_only: 1,
+    },
+    {
+      label: __("Cuenta de Retención"),
+      fieldname: "tax_account",
+      fieldtype: "Link",
+      options: "Account",
+      reqd: 1,
+      default: default_account,
+      read_only: 1,
+      get_query: () => ({
+        filters: {
+          company: frm.doc.company,
+          is_group: 0,
+        },
+      }),
+    },
+    {
+      label: __("Monto de Retención"),
+      fieldname: "amount",
+      fieldtype: "Currency",
+      reqd: 1,
+      default: suggested_amount || 0,
+      read_only: 1,
+      description: __("Monto de la retención aplicada por el cliente."),
+    },
+    {
+      label: type === "VAT" ? __("Número de Comprobante IVA") : __("Número de Comprobante/Control ISLR"),
+      fieldname: "voucher_number",
+      fieldtype: "Data",
+      reqd: type === "VAT" ? is_required : 0,
+      description: type === "VAT" ? __("Debe tener exactamente 14 caracteres numéricos.") : "",
+    },
+    {
+      label: __("Fecha de Registro"),
+      fieldname: "withholding_date",
+      fieldtype: "Date",
+      default: frappe.datetime.get_today(),
+      reqd: is_required,
+    },
+    {
+      label: __("Fecha de Comprobante"),
+      fieldname: "registration_date",
+      fieldtype: "Date",
+      default: frappe.datetime.get_today(),
+      reqd: is_required,
+    },
+    {
+      label: __("Archivo de Comprobante (PDF/Imagen)"),
+      fieldname: "file_url",
+      fieldtype: "Attach",
+      reqd: is_required,
+    },
+  ];
+
+  if (type === "ISLR") {
+    fields.push({
+      label: __("Alícuota ISLR (%)"),
+      fieldname: "rate",
+      fieldtype: "Percent",
+      reqd: 1,
+      read_only: 1,
+      default: suggested_rate || 0,
+    });
+  }
+
+  const dialog = new frappe.ui.Dialog({
+    title: type === "VAT" ? __("Corregir Retención de IVA") : __("Corregir Retención de ISLR"),
+    fields: fields,
+    primary_action_label: __("Aplicar y Guardar"),
+    primary_action(values) {
+      const has_any = !!(values.voucher_number || values.withholding_date || values.file_url);
+      const has_all = !!(values.voucher_number && values.withholding_date && values.file_url);
+
+      if (has_any && !has_all) {
+        frappe.msgprint({
+          title: __("Campos Incompletos"),
+          indicator: "orange",
+          message: type === "VAT"
+            ? __("Debe completar todos los campos del formulario para el comprobante de IVA (Número, Fecha y Archivo).")
+            : __("Debe completar todos los campos del formulario para el comprobante de ISLR (Número, Fecha y Archivo).")
+        });
+        return;
+      }
+
+      if (type === "VAT" && values.voucher_number) {
+        const regex = /^\d{14}$/;
+        if (!regex.test(values.voucher_number)) {
+          frappe.msgprint({
+            title: __("Error de Formato"),
+            indicator: "red",
+            message: __("El Número de Comprobante de IVA debe tener exactamente 14 caracteres numéricos."),
+          });
+          return;
+        }
+      }
+
+      if (!validate_voucher_file_frontend(values.file_url, ["pdf", "jpg", "jpeg", "png"])) {
+        return;
+      }
+
+      // No se oculta el diálogo aquí: si el servidor lanza un error, el operador
+      // conserva lo que tecleó. Se oculta solo tras aplicar la retención con éxito.
+      const ejecutar_peticion = (overwrite_value = 0, only_line_value = 0) => {
+        frappe.call({
+          method: "l10n_ve.overrides.sales_invoice.fix_missing_withholding",
+          args: {
+            invoice_name: invoice,
+            withholding_type: type,
+            tax_account: values.tax_account,
+            voucher_number: values.voucher_number,
+            withholding_date: values.withholding_date,
+            file_url: values.file_url,
+            rate: values.rate !== undefined ? values.rate : suggested_rate,
+            overwrite: overwrite_value,
+            only_line: only_line_value,
+            company: company,
+            registration_date: values.registration_date,
+          },
+          freeze: true,
+          freeze_message: __("Aplicando retención y generando asiento..."),
+          callback(r) {
+            if (r.message && r.message.status === "success") {
+              dialog.hide();
+              frappe.show_alert({
+                message: __(r.message.msg),
+                indicator: "green",
+              });
+              frm.reload_doc();
+            } else if (r.message && r.message.status === "ask_overwrite") {
+              frappe.confirm(
+                r.message.message,
+                () => {
+                  // SÍ: Reemplaza datos de comprobante + Crea línea de impuestos
+                  ejecutar_peticion(1, 0);
+                },
+                () => {
+                  // NO: Mantiene datos viejos de comprobante + Crea línea de impuestos
+                  ejecutar_peticion(0, 1);
+                },
+                () => {
+                  frappe.show_alert({
+                    message: __("Se creó el impuesto y corrigió el asiento pero no se modificó la información del comprobante."),
+                    indicator: "orange"
+                  });
+                  frm.reload_doc();
+                }
+              );
+            }
+          },
+        });
+      };
+
+      ejecutar_peticion(0, 0);
+    },
+  });
+
+  dialog.show();
+
+  if (dialog.fields_dict.voucher_number) {
+    const $input = dialog.fields_dict.voucher_number.$input;
+    $input.attr("maxlength", 14);
+    $input.on("input", function () {
+      this.value = this.value.replace(/\D/g, "");
+    });
+  }
+}
+
+function get_vat_category_rate(category, company, callback) {
+  if (!category) {
+    frappe.msgprint({
+      title: __("Categoría Faltante"),
+      message: __("El cliente no tiene asignada una categoría de retención de impuestos."),
+      indicator: "orange"
+    });
+    return;
+  }
+
+  frappe.db.get_doc("Tax Withholding Category", category).then(doc => {
+    let rate = null;
+
+    if (doc.accounts && doc.accounts.length > 0) {
+      let account_row = doc.accounts.find(a => a.company === company);
+
+      if (account_row && doc.rates && doc.rates.length > 0) {
+        rate = flt(doc.rates[0].tax_withholding_rate);
+      }
+    }
+
+    if (rate === null || rate === 0) {
+      rate = flt(doc.default_rate) || flt(doc.rate) || null;
+    }
+
+    if (rate === null || rate === 0) {
+      frappe.msgprint({
+        title: __("Tasa no Configurada"),
+        message: __("No se encontró ninguna tasa (Rate) válida o configurada para la categoría de retención {0}.", [category]),
+        indicator: "red"
+      });
+      return;
+    }
+
+    callback(rate);
+  }).catch((err) => {
+    frappe.msgprint({
+      title: __("Error de Servidor"),
+      message: __("Ocurrió un error al intentar consultar la Categoría de Retención del cliente."),
+      indicator: "red"
+    });
+  });
+}
+
+function validate_voucher_file_frontend(file_url, allowed_extensions) {
+  if (!file_url) return true;
+
+  const ext = file_url.split(".").pop().toLowerCase();
+  if (!allowed_extensions.includes(ext)) {
+    frappe.msgprint({
+      title: __("Archivo no permitido"),
+      message: __("Solo se permiten archivos: {0}.", [
+        allowed_extensions.map((e) => e.toUpperCase()).join(", "),
+      ]),
+      indicator: "red",
+    });
+    return false;
+  }
+  return true;
 }

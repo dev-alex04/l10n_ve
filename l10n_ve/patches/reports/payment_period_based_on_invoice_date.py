@@ -30,6 +30,10 @@ def get_row_exchange_rate(entry: list, invoice_col_idx: int, invoice_data: dict[
                 rate = flt(get_exchange_rate(inv_date, "USD"))
             except Exception:
                 rate = 0.0
+                frappe.log_error(
+                    title="payment_period USD: sin tasa BCV de factura",
+                    message=f"factura {inv_id} fecha {inv_date}: {frappe.get_traceback()}",
+                )
     else:
         # Caso 4: Sin factura asociada (ej. anticipo o Journal Entry), usamos la tasa de la fecha del pago
         pay_date: str | None = None
@@ -41,6 +45,10 @@ def get_row_exchange_rate(entry: list, invoice_col_idx: int, invoice_data: dict[
                 rate = flt(get_exchange_rate(pay_date, "USD"))
             except Exception:
                 rate = 0.0
+                frappe.log_error(
+                    title="payment_period USD: sin tasa BCV de pago",
+                    message=f"pago fecha {pay_date}: {frappe.get_traceback()}",
+                )
 
     return rate if rate > 0 else 0.0
 
