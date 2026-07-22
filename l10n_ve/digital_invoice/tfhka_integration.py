@@ -497,6 +497,12 @@ def _sync_gl_entries_date(
                 f"bill_control='{bill_control}' sincronizados desde HKA."
             )
 
+        # Refrescar la descripción venezolana del Mayor ahora que el número
+        # fiscal ya está confirmado por HKA (idempotente; no rompe si falla).
+        from l10n_ve.overrides.gl_remarks import refresh_gl_remarks
+
+        refresh_gl_remarks(doctype, voucher_no)
+
         frappe.db.sql("""
             UPDATE `tabPayment Schedule`
             SET due_date = %s
