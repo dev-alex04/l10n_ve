@@ -502,7 +502,8 @@
                         "ENVÍOS Y ENCOMIENDAS": { "account_type": "Expense Account", "account_number": "6.1.3.1.06" },
                         "ESTACIONAMIENTOS": { "account_type": "Expense Account", "account_number": "6.1.3.1.07" },
                         "PÓLIZAS DE SEGURO": { "account_type": "Expense Account", "account_number": "6.1.3.1.08" },
-                        "OTROS GASTOS": { "account_type": "Expense Account", "account_number": "6.1.3.1.09" }
+                        "OTROS GASTOS": { "account_type": "Expense Account", "account_number": "6.1.3.1.09" },
+                        "Retenciones Gubernamentales": { "account_type": "Expense Account", "account_number": "6.2.01.14" }
                     }
                 },
                 "GASTOS DE VIAJES": {
