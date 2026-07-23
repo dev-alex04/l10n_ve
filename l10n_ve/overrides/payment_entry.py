@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import frappe
 from frappe import _, _dict
-from frappe.utils import flt
+from frappe.utils import cint, flt
 from frappe.model.document import Document
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
@@ -148,6 +148,7 @@ class CustomPaymentEntry(PaymentEntry):
                 "base_amount": base_amount,
                 "suggested_amount": suggested,
                 "actual_amount": flt(prev.actual_amount) if prev else 0.0,
+                "not_withheld": (cint(prev.get("not_withheld")) if prev else 0),
                 "voucher_number": (prev.voucher_number if prev else None),
                 "voucher_attachment": (prev.voucher_attachment if prev else None),
                 "account": account,
@@ -219,11 +220,23 @@ class CustomPaymentEntry(PaymentEntry):
         return None, ""
 
     def _threshold_in_currency(self, rate_row) -> float:
-        """Umbral de la tarifa en moneda de la compañía (U.T. -> VEF; VEF directo)."""
+        """Umbral de la tarifa en moneda de la compañía (U.T. -> VEF; VEF directo).
+
+        Fail-closed: si el umbral está en U.T. pero no hay una Unidad Tributaria activa, el valor
+        sería 0 y el umbral colapsaría a 0 -> el timbre se aplicaría SIEMPRE (incluso bajo el mínimo
+        legal exento). En vez de eso, se bloquea con un mensaje accionable para que se configure la U.T.
+        """
         unit = (rate_row.threshold_unit or "").strip()
         threshold = flt(rate_row.threshold)
         if unit == "U.T.":
-            return threshold * self._current_tax_unit_value()
+            ut_value = self._current_tax_unit_value()
+            if ut_value <= 0:
+                frappe.throw(_(
+                    "No se puede evaluar el umbral del timbre fiscal ({0} U.T.): no hay una Unidad "
+                    "Tributaria (Tax Unit) activa configurada. Configure el valor vigente de la U.T. "
+                    "antes de registrar retenciones de timbre con umbral."
+                ).format(threshold))
+            return threshold * ut_value
         return threshold
 
     def _current_tax_unit_value(self) -> float:
@@ -246,9 +259,21 @@ class CustomPaymentEntry(PaymentEntry):
         cost_center = self._withholding_cost_center()
         gov_deductions = []
         for w in self.get("government_withholdings") or []:
+            # "No retenido": el ente no practicó ESTA retención en este cobro -> sin deducción.
+            # (Distingue el 0 explícito del campo vacío, que sí cae al sugerido por el `or`.)
+            if cint(w.get("not_withheld")):
+                continue
             amount = flt(w.actual_amount) or flt(w.suggested_amount)
             if amount <= 0:
                 continue
+            # Cota superior: una retención no puede exceder la base bruta del cobro. Atrapa
+            # un monto real mal tecleado (typo) que inflaría el gasto y sobre-acreditaría al cliente.
+            base = flt(w.base_amount)
+            if base > 0 and amount > base + 0.01:
+                frappe.throw(_(
+                    "La retención gubernamental ({0}) no puede exceder la base del cobro: "
+                    "{1} > {2}."
+                ).format(w.withholding_type, amount, base))
             if not account:
                 frappe.throw(_(
                     "No se puede aplicar la retención gubernamental ({0}): falta configurar la "

@@ -30,10 +30,52 @@ MODE_OF_PAYMENT = "Efectivo"
 GOV_ACCT = "6203009 - Retenciones Gubernamentales - Galanet"
 COST_CENTER = "Principal - Galanet"
 INCOME = "4101001 - Ingresos Servicios de Internet - Galanet"
-MIRANDA_STATE = "6abtlr8p4f"
+
+
+def setUpModule() -> None:
+    """Aprovisiona el esquema (doctypes + custom fields) para no depender de un `bench migrate`
+    previo del site: sincroniza los 3 doctypes de la feature y crea los custom fields de
+    Company/Customer/Payment Entry que enganchan las tablas hijas."""
+    from l10n_ve.setup import (
+        create_government_withholding_custom_fields,
+        create_stamp_tax_rates,
+        link_government_withholding_account,
+    )
+
+    for dt in ("ve_stamp_tax_rate", "ve_government_withholding", "ve_payment_government_withholding",
+               "venezuela_account_settings"):
+        frappe.reload_doc("l10n_ve", "doctype", dt)
+    create_government_withholding_custom_fields()
+    link_government_withholding_account()  # enlaza Company.government_withholding_account por nombre
+    create_stamp_tax_rates()  # siembra las tarifas por estado (incl. Miranda) de forma idempotente
+    frappe.clear_cache()
 
 
 class TestGovernmentWithholdingsE2E(FrappeTestCase):
+    def setUp(self) -> None:
+        # El E2E está atado al plan de cuentas de Galanet. En un site sin él (o sin el estado
+        # Miranda) se SALTA limpio en vez de ERROR. La master-data (territorio/grupo/ítem) se
+        # RESUELVE de lo existente en el site en vez de hardcodear nombres que pueden no existir.
+        if not frappe.db.exists("Company", COMPANY):
+            self.skipTest(f"compañía {COMPANY} ausente en este site")
+        for acct in (CXC, CASH, GOV_ACCT, INCOME):
+            if not frappe.db.exists("Account", acct):
+                self.skipTest(f"cuenta {acct} ausente: el E2E requiere el plan de cuentas de {COMPANY}")
+        self.miranda_state = frappe.db.get_value("VE State", {"state": "Miranda"}, "name")
+        if not self.miranda_state:
+            self.skipTest("VE State 'Miranda' ausente en este site")
+        self.territory = frappe.db.get_value("Territory", {"is_group": 0}, "name")
+        self.customer_group = frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
+        if not self.territory or not self.customer_group:
+            self.skipTest("faltan Territory / Customer Group hoja en este site")
+        self.item = frappe.db.get_value("Item", {"is_sales_item": 1, "is_stock_item": 0}, "name")
+        if not self.item:
+            item_group = frappe.db.get_value("Item Group", {"is_group": 0}, "name")
+            self.item = frappe.get_doc({
+                "doctype": "Item", "item_code": "E2E-GOV-ITEM", "item_name": "E2E-GOV-ITEM",
+                "item_group": item_group, "stock_uom": "Nos.", "is_stock_item": 0, "is_sales_item": 1,
+            }).insert(ignore_permissions=True).name
+
     def test_full_flow_timbre_and_social(self) -> None:
         # Resp. Social a 3% (config flat)
         settings = frappe.get_single("Venezuela Account Settings")
@@ -44,14 +86,14 @@ class TestGovernmentWithholdingsE2E(FrappeTestCase):
         cust = frappe.get_doc({
             "doctype": "Customer",
             "customer_name": "E2E ENTE GUBERNAMENTAL",
-            "customer_group": "ALBORADA",
-            "territory": "CARACAS",
+            "customer_group": self.customer_group,
+            "territory": self.territory,
             "nature_of_the_taxpayer": "Government",
             "tax_id": "G200000001",
             "mobile_no": "04120000000",
             "email_id": "e2e-ente@example.com",
             "government_withholdings": [
-                {"withholding_type": "Timbre Fiscal", "state": MIRANDA_STATE, "enabled": 1},
+                {"withholding_type": "Timbre Fiscal", "state": self.miranda_state, "enabled": 1},
                 {"withholding_type": "Responsabilidad Social", "enabled": 1},
             ],
         }).insert(ignore_permissions=True)
@@ -68,7 +110,7 @@ class TestGovernmentWithholdingsE2E(FrappeTestCase):
             "cost_center": COST_CENTER,
             "update_stock": 0,
             "items": [{
-                "item_code": "ACC-01",
+                "item_code": self.item,
                 "qty": 1,
                 "rate": 100000,
                 "income_account": INCOME,
@@ -139,6 +181,10 @@ class TestGovernmentWithholdingsE2E(FrappeTestCase):
         si.reload()
         self.assertAlmostEqual(flt(si.outstanding_amount), 0.0, places=2, msg="la factura debe quedar en 0")
 
-        # (5) Guard de mint: el objetivo de cobertura es el depósito neto, no el bruto
-        self.assertAlmostEqual(flt(pe.base_paid_amount), deposit, places=2,
-                               msg="base_paid_amount = depósito neto (el 'pago corto' se resuelve solo)")
+        # (5) Es un pago corto REAL (el banco recibió MENOS que la factura) y aun así se saldó,
+        # porque el faltante lo cubren EXACTAMENTE las deducciones de retención que creó el hook
+        # (no la aritmética del test): esa es la esencia del "pago corto" que la feature resuelve.
+        self.assertLess(flt(pe.base_paid_amount), base, "el depósito debe ser corto vs la factura")
+        self.assertAlmostEqual(flt(base) - flt(pe.base_paid_amount),
+                               sum(flt(d.amount) for d in gov), places=2,
+                               msg="el faltante del depósito = suma de las retenciones registradas")
