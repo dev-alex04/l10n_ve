@@ -12,6 +12,7 @@
   "base_amount",
   "suggested_amount",
   "actual_amount",
+  "not_withheld",
   "account",
   "voucher_number",
   "voucher_attachment"
@@ -68,6 +69,15 @@
    "in_list_view": 1,
    "label": "Monto real retenido",
    "precision": "2"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "description": "Marque si el ente NO practicó esta retención en este cobro (fuerza el monto a 0, ignorando el sugerido).",
+   "fieldname": "not_withheld",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "No retenido"
   },
   {
    "fieldname": "account",
