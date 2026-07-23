@@ -161,6 +161,7 @@ class BaseRetentionPayloadBuilder:
         tipo_id, num_id = self._parse_tax_id(supplier.tax_id)
         direccion: str = clean_address(self.doc.supplier_address or "")
         phone, email = self._get_supplier_contact_info(supplier.name)
+        email_list = [e.strip() for e in re.split(r"[,;]", email or "") if e.strip()]
 
         return {
             "TipoIdentificacion": tipo_id,
@@ -169,9 +170,9 @@ class BaseRetentionPayloadBuilder:
             "Direccion": direccion or "Sin dirección fiscal",
             "Ubigeo": None,
             "Pais": "VE",
-            "Notificar": "Si" if email else None,
+            "Notificar": "Si" if email_list else None,
             "Telefono": [phone] if phone else [],
-            "Correo": [email] if email else [],
+            "Correo": email_list,
             "OtrosEnvios": None,
         }
 

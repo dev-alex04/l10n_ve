@@ -233,8 +233,8 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
     def validate_duplicate_invoice_numbers(self) -> None:
         if self.bill_no:
             import re
-            if not re.match(r'^[A-Za-z0-9\-]+$', self.bill_no):
-                frappe.throw("El número de factura solo debe contener letras, números y guiones.")
+            if re.search(r'\s', self.bill_no):
+                frappe.throw(_("El número de factura no debe contener espacios."))
 
             filters_bill_no = {
                 'docstatus': ['!=', 2],
