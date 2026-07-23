@@ -1,0 +1,61 @@
+{
+ "cards": [
+  {
+   "card": "Cantidad de ventas"
+  },
+  {
+   "card": "Cobrado"
+  },
+  {
+   "card": "Total Facturado USD"
+  },
+  {
+   "card": "USD Factura de venta"
+  },
+  {
+   "card": "Impuestos USD"
+  },
+  {
+   "card": "Total facturado BS"
+  },
+  {
+   "card": "Pendiente por Cobrar USD"
+  },
+  {
+   "card": "Retenci\u00f3n IVA Clientes USD"
+  },
+  {
+   "card": "Retenci\u00f3n ISLR Clientes USD"
+  },
+  {
+   "card": "IGTF por Pagar USD"
+  },
+  {
+   "card": "Gastos USD (Mes)"
+  },
+  {
+   "card": "Gastos USD (A\u00f1o)"
+  },
+  {
+   "card": "Disponible USD"
+  }
+ ],
+ "charts": [
+  {
+   "chart": "Ventas VS Gastos",
+   "width": "Half"
+  }
+ ],
+ "creation": "2026-05-21 08:46:39.759224",
+ "dashboard_name": "Estatus financiero para gerente",
+ "docstatus": 0,
+ "doctype": "Dashboard",
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "modified": "2026-05-28 18:53:33.879689",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "Estatus financiero para gerente",
+ "owner": "Administrator"
+}

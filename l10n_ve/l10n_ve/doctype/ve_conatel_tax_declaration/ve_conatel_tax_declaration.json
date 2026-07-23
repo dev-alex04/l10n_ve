@@ -1,0 +1,332 @@
+{
+    "actions": [],
+    "allow_events_in_timeline": 1,
+    "allow_import": 1,
+    "allow_rename": 1,
+    "autoname": "autoname",
+    "creation": "2026-03-25 11:15:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "tab_break_declaration",
+        "section_break_header",
+        "naming_series",
+        "company",
+        "branch",
+        "tax_id",
+        "legal_representative",
+        "fiscal_address",
+        "conatel_reg_number",
+        "column_break_period",
+        "declaration_year",
+        "from_date",
+        "to_date",
+        "declaration_date",
+        "status",
+        "amended_from",
+        "section_break_period",
+        "section_break_items",
+        "items",
+        "section_break_taxes",
+        "taxes",
+        "section_break_totals",
+        "total_taxable_base",
+        "total_to_pay",
+        "currency",
+        "tab_break_accounting",
+        "section_break_accounting",
+        "tax_payable_account",
+        "tax_expense_account",
+        "journal_entry",
+        "tab_break_portal",
+        "section_break_portal",
+        "num_declaration",
+        "declaration_document",
+        "payment_receipt",
+        "tab_break_info",
+        "section_break_info",
+        "amended_from",
+        "naming_series"
+    ],
+    "fields": [
+        {
+            "fieldname": "tab_break_declaration",
+            "fieldtype": "Tab Break",
+            "label": "Declaración"
+        },
+        {
+            "fieldname": "section_break_header",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "company",
+            "fieldtype": "Link",
+            "get_query": "function() { return { filters: { is_group: 0 } }; }",
+            "in_list_view": 1,
+            "label": "Company",
+            "options": "Company",
+            "reqd": 1
+        },
+        {
+            "fieldname": "branch",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Sucursal",
+            "options": "VE Branch",
+            "search_index": 1
+        },
+        {
+            "fieldname": "tax_id",
+            "fieldtype": "Data",
+            "label": "RIF",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_period",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "declaration_year",
+            "fieldtype": "Int",
+            "label": "Año Fiscal",
+            "reqd": 1
+        },
+        {
+            "fieldname": "from_date",
+            "fieldtype": "Date",
+            "label": "Desde",
+            "reqd": 1
+        },
+        {
+            "fieldname": "to_date",
+            "fieldtype": "Date",
+            "label": "Hasta",
+            "reqd": 1
+        },
+        {
+            "fieldname": "declaration_date",
+            "fieldtype": "Date",
+            "label": "Fecha de Declaración",
+            "reqd": 1
+        },
+        {
+            "allow_on_submit": 1,
+            "default": "Por Procesar",
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Estado",
+            "options": "Por Procesar\nPor Declarar\nDeclarado",
+            "read_only": 1
+        },
+        {
+            "fieldname": "legal_representative",
+            "fieldtype": "Data",
+            "label": "Representante Legal",
+            "read_only": 1
+        },
+        {
+            "fieldname": "fiscal_address",
+            "fieldtype": "Small Text",
+            "label": "Direcci\u00f3n Fiscal",
+            "read_only": 1
+        },
+        {
+            "fieldname": "conatel_reg_number",
+            "fieldtype": "Data",
+            "label": "No. Inscripci\u00f3n CONATEL"
+        },
+        {
+            "fieldname": "section_break_period",
+            "fieldtype": "Section Break",
+            "label": "Periodo de Declaración"
+        },
+        {
+            "fieldname": "section_break_totals",
+            "fieldtype": "Section Break",
+            "label": "Totales"
+        },
+        {
+            "default": "0",
+            "fieldname": "total_taxable_base",
+            "fieldtype": "Currency",
+            "label": "Base Imponible Total",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "total_to_pay",
+            "fieldtype": "Currency",
+            "label": "Total a Pagar",
+            "read_only": 1
+        },
+        {
+            "fieldname": "currency",
+            "fieldtype": "Link",
+            "label": "Moneda",
+            "options": "Currency",
+            "read_only": 1
+        },
+        {
+            "fieldname": "section_break_items",
+            "fieldtype": "Section Break",
+            "label": "Resumen de Facturación"
+        },
+        {
+            "fieldname": "items",
+            "fieldtype": "Table",
+            "label": "Resumen de Ingresos",
+            "options": "VE Conatel Tax Declaration Item",
+            "read_only": 1
+        },
+        {
+            "fieldname": "section_break_taxes",
+            "fieldtype": "Section Break",
+            "label": "Desglose de Tributos"
+        },
+        {
+            "fieldname": "taxes",
+            "fieldtype": "Table",
+            "label": "Tributos Aplicados",
+            "options": "VE Conatel Tax Declaration Tax"
+        },
+        {
+            "fieldname": "tab_break_portal",
+            "fieldtype": "Tab Break",
+            "label": "Datos Portal (CONATEL)"
+        },
+        {
+            "fieldname": "section_break_portal",
+            "fieldtype": "Section Break",
+            "label": "Datos de Declaración (CONATEL)"
+        },
+        {
+            "allow_on_submit": 1,
+            "fieldname": "num_declaration",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Declaration Number"
+        },
+        {
+            "allow_on_submit": 1,
+            "fieldname": "declaration_document",
+            "fieldtype": "Attach",
+            "label": "Certificado de Declaraci\u00f3n"
+        },
+        {
+            "allow_on_submit": 1,
+            "fieldname": "payment_receipt",
+            "fieldtype": "Attach",
+            "label": "Comprobante de Pago"
+        },
+        {
+            "fieldname": "tab_break_accounting",
+            "fieldtype": "Tab Break",
+            "label": "Integración Contable"
+        },
+        {
+            "fieldname": "section_break_accounting",
+            "fieldtype": "Section Break"
+        },
+        {
+            "allow_on_submit": 1,
+            "fieldname": "tax_payable_account",
+            "fieldtype": "Link",
+            "label": "Cuenta por Pagar (Pasivo)",
+            "options": "Account"
+        },
+        {
+            "allow_on_submit": 1,
+            "fieldname": "tax_expense_account",
+            "fieldtype": "Link",
+            "label": "Cuenta de Gasto",
+            "options": "Account"
+        },
+        {
+            "allow_on_submit": 1,
+            "fieldname": "journal_entry",
+            "fieldtype": "Link",
+            "label": "Asiento Contable",
+            "options": "Journal Entry",
+            "read_only": 1
+        },
+        {
+            "fieldname": "tab_break_info",
+            "fieldtype": "Tab Break",
+            "label": "Más Información"
+        },
+        {
+            "fieldname": "section_break_info",
+            "fieldtype": "Section Break"
+        },
+        {
+            "fieldname": "amended_from",
+            "fieldtype": "Link",
+            "label": "Amended From",
+            "no_copy": 1,
+            "options": "VE Conatel Tax Declaration",
+            "print_hide": 1,
+            "read_only": 1
+        },
+        {
+            "fieldname": "naming_series",
+            "fieldtype": "Autocomplete",
+            "hidden": 1,
+            "label": "Naming Series"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "is_submittable": 1,
+    "modified": "2026-03-25 11:15:00.000000",
+    "modified_by": "Administrator",
+    "module": "L10N Ve",
+    "name": "VE Conatel Tax Declaration",
+    "naming_rule": "Autoname",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "amend": 1,
+            "cancel": 1,
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Accounts Manager",
+            "share": 1,
+            "submit": 1,
+            "write": 1
+        },
+        {
+            "amend": 1,
+            "cancel": 1,
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "submit": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Accounts User",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "track_changes": 1
+}

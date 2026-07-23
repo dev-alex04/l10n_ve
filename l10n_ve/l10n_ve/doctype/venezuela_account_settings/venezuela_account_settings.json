@@ -1,0 +1,137 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "allow_rename": 1,
+ "creation": "2025-08-14 14:44:24.350917",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "subtracting_calculation_factor",
+  "mt_currency",
+  "column_break_xsos",
+  "igtf_rate",
+  "section_break_tax_calc",
+  "tax_calculation_method",
+  "column_break_tax_calc",
+  "tax_calculation_method_help",
+  "government_withholding_section",
+  "stamp_tax_rates",
+  "gw_column_break",
+  "responsibility_social_rate"
+ ],
+ "fields": [
+  {
+   "default": "83.33",
+   "fieldname": "subtracting_calculation_factor",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Subtracting Calculation Factor",
+   "precision": "4",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_xsos",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "3",
+   "fieldname": "igtf_rate",
+   "fieldtype": "Float",
+   "label": "IGTF Rate",
+   "reqd": 1
+  },
+  {
+   "default": "EUR",
+   "fieldname": "mt_currency",
+   "fieldtype": "Link",
+   "label": "Currency M.T",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "section_break_tax_calc",
+   "fieldtype": "Section Break",
+   "label": "C\u00e1lculo de Impuestos"
+  },
+  {
+   "default": "Desde el total de la factura",
+   "description": "Los precios siempre se cargan como base imponible; el m\u00e9todo solo cambia c\u00f3mo se deriva el c\u00e1lculo fiscal (Bs). Aplica a venta y compra. Sin m\u00e9todo definido, el sistema bloquear\u00e1 el c\u00e1lculo de documentos con impuestos.",
+   "fieldname": "tax_calculation_method",
+   "fieldtype": "Select",
+   "label": "M\u00e9todo de c\u00e1lculo de Impuestos",
+   "options": "Desde el total de la factura\nDesde la base imponible",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_tax_calc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tax_calculation_method_help",
+   "fieldtype": "HTML"
+  },
+  {
+   "fieldname": "government_withholding_section",
+   "fieldtype": "Section Break",
+   "label": "Retenciones Gubernamentales"
+  },
+  {
+   "description": "Tarifas del timbre fiscal estadal por estado (una fila por estado). La alícuota va en % (ej. 0,1 = 1×1000 Distrito Capital; 0,2 = 1×500 Miranda).",
+   "fieldname": "stamp_tax_rates",
+   "fieldtype": "Table",
+   "label": "Tarifas de Timbre Fiscal por Estado",
+   "options": "VE Stamp Tax Rate"
+  },
+  {
+   "fieldname": "gw_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "3",
+   "description": "Alícuota del Compromiso de Responsabilidad Social en % (tarifa fija nacional). Confirmar con contabilidad Galanet.",
+   "fieldname": "responsibility_social_rate",
+   "fieldtype": "Float",
+   "label": "Tarifa Responsabilidad Social %",
+   "precision": "3"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-07-11 00:55:22.250544",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "Venezuela Account Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

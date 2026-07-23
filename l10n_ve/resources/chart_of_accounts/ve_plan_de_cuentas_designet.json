@@ -1,0 +1,2066 @@
+{
+    "country_code": "ve",
+    "name": "Plan de Cuentas Designet",
+    "tree": {
+        "ACTIVO": {
+            "account_number": "1",
+            "root_type": "Asset",
+            "ACTIVOS CORRIENTES": {
+                "account_number": "1.1",
+                "EFECTIVO DISPONIBLE": {
+                    "account_number": "1.1.1",
+                    "CAJA": {
+                        "account_number": "1.1.1.1",
+                        "account_type": "Cash",
+                        "CAJA PRINCIPAL": {
+                            "account_number": "1.1.1.1.10",
+                            "account_type": "Cash"
+                        },
+                        "TARJETAS DE CREDITO EN CAJA": {
+                            "account_number": "1.1.1.1.40",
+                            "account_type": "Cash"
+                        },
+                        "CHEQUES EN CAJA": {
+                            "account_number": "1.1.1.1.50",
+                            "account_type": "Cash"
+                        }
+                    },
+                    "BANCOS  NACIONALES": {
+                        "account_number": "1.1.1.2",
+                        "account_type": "Bank",
+                        "BANCARIBE (8832)": {
+                            "account_number": "1.1.1.2.10",
+                            "account_type": "Bank"
+                        },
+                        "BANCO TESORO": {
+                            "account_number": "1.1.1.2.20",
+                            "account_type": "Bank"
+                        },
+                        "BANCO C": {
+                            "account_number": "1.1.1.2.30",
+                            "account_type": "Bank"
+                        },
+                        "BANCO BANCAMIGA": {
+                            "account_number": "1.1.1.2.40",
+                            "account_type": "Bank"
+                        },
+                        "BANCO DE VENEZUELA": {
+                            "account_number": "1.1.1.2.50",
+                            "account_type": "Bank"
+                        }
+                    },
+                    "BANCOS EN EL EXTERIOR": {
+                        "account_number": "1.1.1.3",
+                        "account_type": "Bank",
+                        "FACEBANK (1369)": {
+                            "account_number": "1.1.1.3.10"
+                        },
+                        "BANCO B": {
+                            "account_number": "1.1.1.3.20",
+                            "account_type": "Bank"
+                        },
+                        "BANCO C": {
+                            "account_number": "1.1.1.3.30",
+                            "account_type": "Bank"
+                        }
+                    }
+                },
+                "DEUDORES COMERCIALES Y OTROS": {
+                    "account_number": "1.1.2",
+                    "account_type": "Receivable",
+                    "DEUDORES COMERCIALES": {
+                        "account_number": "1.1.2.1",
+                        "account_type": "Receivable",
+                        "DEUDORES COMERCIALES NACIONALES": {
+                            "account_number": "1.1.2.1.10",
+                            "account_type": "Receivable"
+                        },
+                        "DEUDORES COMERCIALES EN EL EXTERIOR": {
+                            "account_number": "1.1.2.1.20",
+                            "account_type": "Receivable"
+                        },
+                        "DEUDORES CON CLAUSULAS REAJUSTABILIDAD": {
+                            "account_number": "1.1.2.1.30"
+                        },
+                        "PROVISIONES DE DEUDAS INCOBRABLES": {
+                            "account_number": "1.1.2.1.80"
+                        },
+                        "DETERIORO DE VALOR DE LAS DEUDAS COMERCIALES": {
+                            "account_number": "1.1.2.1.90"
+                        }
+                    },
+                    "OTROS DEUDORES": {
+                        "account_number": "1.1.2.2",
+                        "TRABAJADORES": {
+                            "account_number": "1.1.2.2.10"
+                        },
+                        "SOCIOS O DIRECTORES": {
+                            "account_number": "1.1.2.2.30"
+                        },
+                        "EMPRESAS AFILIADAS": {
+                            "account_number": "1.1.2.2.40"
+                        },
+                        "DETERIORO DE VALOR DE LAS DEUDAS DE EMPRESAS AFILI": {
+                            "account_number": "1.1.2.2.90"
+                        }
+                    }
+                },
+                "INVENTARIOS": {
+                    "account_number": "1.1.3",
+                    "account_type": "Stock",
+                    "MERCANCIAS": {
+                        "account_number": "1.1.3.1",
+                        "account_type": "Stock",
+                        "MERCANCIAS DISPONIBLES": {
+                            "account_number": "1.1.3.1.10",
+                            "account_type": "Stock"
+                        },
+                        "MERCANCIAS EN TRANSITO": {
+                            "account_number": "1.1.3.1.20",
+                            "account_type": "Stock"
+                        },
+                        "MERCANCIAS EN CONSIGNACION": {
+                            "account_number": "1.1.3.1.30",
+                            "account_type": "Stock"
+                        }
+                    },
+                    "MATERIAS PRIMAS": {
+                        "account_number": "1.1.3.2",
+                        "MATERIAS PRIMAS DISPONIBLES": {
+                            "account_number": "1.1.3.2.10",
+                            "account_type": "Stock"
+                        },
+                        "MATERIAS PRIMAS EN TRANSITO": {
+                            "account_number": "1.1.3.2.20",
+                            "account_type": "Stock"
+                        },
+                        "MATERIALES Y SUMINISTROS": {
+                            "account_number": "1.1.3.2.30",
+                            "account_type": "Stock"
+                        }
+                    },
+                    "PRODUCTOS EN PROCESO": {
+                        "account_number": "1.1.3.3",
+                        "PRODUCTOS EN PROCESO": {
+                            "account_number": "1.1.3.3.10",
+                            "account_type": "Stock"
+                        }
+                    },
+                    "PRODUCTOS TERMINADOS": {
+                        "account_number": "1.1.3.4",
+                        "PRODUCTOS TERMINADOS": {
+                            "account_number": "1.1.3.4.10",
+                            "account_type": "Stock"
+                        },
+                        "PRODUCTOS SEMI-TERMINADOS": {
+                            "account_number": "1.1.3.4.20",
+                            "account_type": "Stock"
+                        }
+                    },
+                    "DETERIORO DE VALOR DEL INVENTARIO": {
+                        "account_number": "1.1.3.5",
+                        "account_type": "Stock",
+                        "DETERIORO DE VALOR DE LAS MERCANCIAS": {
+                            "account_number": "1.1.3.5.10",
+                            "account_type": "Stock"
+                        },
+                        "DETERIORO DE VALOR DE LAS MATERIAS PRIMAS": {
+                            "account_number": "1.1.3.5.20",
+                            "account_type": "Stock"
+                        },
+                        "DETERIORO DE VALOR DE LOS PRODUCTOS EN PROCESO": {
+                            "account_number": "1.1.3.5.30",
+                            "account_type": "Stock"
+                        },
+                        "DETERIORO DE VALOR DE LOS PRODUCTOS TERMINADOS": {
+                            "account_number": "1.1.3.5.90",
+                            "account_type": "Stock"
+                        }
+                    }
+                },
+                "GASTOS PREPAGADOS Y ANTICIPOS": {
+                    "account_number": "1.1.4",
+                    "GASTOS PREPAGADOS": {
+                        "account_number": "1.1.4.1",
+                        "SEGUROS PAGADOS POR ANTICIPADOS": {
+                            "account_number": "1.1.4.1.10"
+                        }
+                    },
+                    "ANTICIPOS": {
+                        "account_number": "1.1.4.2",
+                        "ANTICIPO  A PROVEEDORES": {
+                            "account_number": "1.1.4.2.10",
+                            "account_type": "Payable"
+                        },
+                        "ANTICIPO SUELDO DIRECTORES": {
+                            "account_number": "1.1.4.2.11"
+                        },
+                        "ANTICIPO SUELDOS EMPLEADOS": {
+                            "account_number": "1.1.4.2.12"
+                        },
+                        "ANTICIPO INVENTARIO FINAL": {
+                            "account_number": "1.1.4.2.13",
+                            "account_type": "Stock"
+                        },
+                        "ANTICIPO CESTA TICKET": {
+                            "account_number": "1.1.4.2.14"
+                        },
+                        "ANTICIPO APORTE L.P.H.": {
+                            "account_number": "1.1.4.2.15"
+                        },
+                        "ANTICIPO APORTE S.S.O": {
+                            "account_number": "1.1.4.2.16"
+                        },
+                        "ANTICIPO IMPUESTOS MUNICIPALES": {
+                            "account_number": "1.1.4.2.17"
+                        },
+                        "ANTICIPO GASTOS DE DEP. EQUIPO OFICINA": {
+                            "account_number": "1.1.4.2.18"
+                        },
+                        "ANTICIPO GASTOS DE DEP. EQUIPO DE TELECOMUNICACION": {
+                            "account_number": "1.1.4.2.19"
+                        },
+                        "ANTICIPO COMISIONES BANCARIAS": {
+                            "account_number": "1.1.4.2.20",
+                            "account_type": "Bank"
+                        },
+                        "ANTICIPO IMPUESTO A LAS TRANSACCIONES FINANCIERAS": {
+                            "account_number": "1.1.4.2.21"
+                        },
+                        "ANTICIPO OTROS INGRESOS POR DIFERENCIAL CAMBIARIO": {
+                            "account_number": "1.1.4.2.22"
+                        },
+                        "ANTICIPO OTROS EGRESOS POR DIFERENCIAL CAMBIARIO": {
+                            "account_number": "1.1.4.2.23"
+                        }
+                    }
+                },
+                "INVERSIONES FINANCIERAS A CORTO PLAZO": {
+                    "account_number": "1.1.5",
+                    "INVERSIONES NACIONALES": {
+                        "account_number": "1.1.5.1",
+                        "COLOCACIONES EN MESA DE DINERO": {
+                            "account_number": "1.1.5.1.10"
+                        },
+                        "INVERSIONES PACTADAS  CON REAJUSTES": {
+                            "account_number": "1.1.5.1.20"
+                        },
+                        "OTRAS INVERSIONES A CORTO PLAZO": {
+                            "account_number": "1.1.5.1.30"
+                        }
+                    },
+                    "INVERSIONES EN EL EXTERIOR": {
+                        "account_number": "1.1.5.2",
+                        "DEPOSITO A PLAZO FIJO": {
+                            "account_number": "1.1.5.2.10"
+                        }
+                    },
+                    "DETERIORO DE VALOR DE INVERSIONES FINANCIERAS A CO": {
+                        "account_number": "1.1.5.3",
+                        "DETERIORO DE VALOR DE INVERSIONES PACTADAS  CON RE": {
+                            "account_number": "1.1.5.3.20"
+                        }
+                    }
+                },
+                "PRODUCTOS EN PROCESO": {
+                    "account_number": "1.1.6",
+                    "MATERIAS PRIMAS": {
+                        "account_number": "1.1.6.1",
+                        "MATERIAS PRIMAS UTILIZADAS": {
+                            "account_number": "1.1.6.1.01"
+                        }
+                    },
+                    "MANO DE OBRA DIRECTA": {
+                        "account_number": "1.1.6.2",
+                        "SALARIOS OBREROS": {
+                            "account_number": "1.1.6.2.01"
+                        },
+                        "BONO ALIMENTACION": {
+                            "account_number": "1.1.6.2.02"
+                        },
+                        "HORAS EXTRAS": {
+                            "account_number": "1.1.6.2.03"
+                        },
+                        "BONO DE PRODUCCION": {
+                            "account_number": "1.1.6.2.04"
+                        },
+                        "VACACIONES": {
+                            "account_number": "1.1.6.2.10"
+                        },
+                        "UTILIDADES": {
+                            "account_number": "1.1.6.2.11"
+                        },
+                        "BONO VACACIONAL": {
+                            "account_number": "1.1.6.2.12"
+                        },
+                        "ANTIGUEDAD LABORAL": {
+                            "account_number": "1.1.6.2.13"
+                        },
+                        "APORTE INCES": {
+                            "account_number": "1.1.6.2.20"
+                        },
+                        "APORTES SEGUROS SOCIAL": {
+                            "account_number": "1.1.6.2.21"
+                        },
+                        "APORTE RPE": {
+                            "account_number": "1.1.6.2.22"
+                        },
+                        "APORTE FAOV": {
+                            "account_number": "1.1.6.2.23"
+                        }
+                    },
+                    "GASTOS DE FABRICACION": {
+                        "account_number": "1.1.6.3",
+                        "ALQUILER GALPON": {
+                            "account_number": "1.1.6.3.01"
+                        },
+                        "ELECTRICIDAD": {
+                            "account_number": "1.1.6.3.10"
+                        },
+                        "AGUA POTABLE": {
+                            "account_number": "1.1.6.3.11"
+                        },
+                        "TELEFONO": {
+                            "account_number": "1.1.6.3.12"
+                        },
+                        "INTERNET": {
+                            "account_number": "1.1.6.3.13"
+                        },
+                        "MANTENIMIENTO DE GALPON": {
+                            "account_number": "1.1.6.3.20"
+                        },
+                        "MANTENIMIENTO DE MAQUINARIAS": {
+                            "account_number": "1.1.6.3.21"
+                        }
+                    },
+                    "MANO DE OBRA INDIRECTA": {
+                        "account_number": "1.1.6.4",
+                        "SALARIOS": {
+                            "account_number": "1.1.6.4.01"
+                        },
+                        "BONO ALIMENTACION": {
+                            "account_number": "1.1.6.4.02"
+                        },
+                        "HORAS EXTRAS": {
+                            "account_number": "1.1.6.4.03"
+                        },
+                        "BONO DE PRODUCCION": {
+                            "account_number": "1.1.6.4.04"
+                        },
+                        "VACACIONES": {
+                            "account_number": "1.1.6.4.10"
+                        },
+                        "UTILIDADES": {
+                            "account_number": "1.1.6.4.11"
+                        },
+                        "BONO VACACIONAL": {
+                            "account_number": "1.1.6.4.12"
+                        },
+                        "ANTIGUEDAD LABORAL": {
+                            "account_number": "1.1.6.4.13"
+                        },
+                        "APORTE INCES": {
+                            "account_number": "1.1.6.4.20"
+                        },
+                        "APORTES SEGURO SOCIAL": {
+                            "account_number": "1.1.6.4.21"
+                        },
+                        "APORTE RPE": {
+                            "account_number": "1.1.6.4.22"
+                        },
+                        "APORTE FAOV": {
+                            "account_number": "1.1.6.4.23"
+                        }
+                    },
+                    "DEPRECIACIONES": {
+                        "account_number": "1.1.6.5",
+                        "account_type": "Accumulated Depreciation",
+                        "DEPRECIACION MAQUINARIA": {
+                            "account_number": "1.1.6.5.01",
+                            "account_type": "Accumulated Depreciation"
+                        },
+                        "DEPRECIACION HERRAMIENTAS": {
+                            "account_number": "1.1.6.5.02",
+                            "account_type": "Accumulated Depreciation"
+                        },
+                        "DEPRECIACION VEHICULOS": {
+                            "account_number": "1.1.6.5.03",
+                            "account_type": "Accumulated Depreciation"
+                        }
+                    },
+                    "MATERIALES INDIRECTOS": {
+                        "account_number": "1.1.6.6",
+                        "DOTACIONES OBREROS": {
+                            "account_number": "1.1.6.6.01"
+                        },
+                        "INSUMOS DE HERRAMIENTAS": {
+                            "account_number": "1.1.6.6.02"
+                        },
+                        "MATERIALES DE ESTERILIZACION": {
+                            "account_number": "1.1.6.6.03"
+                        }
+                    }
+                }
+            },
+            "ACTIVOS NO CORRIENTE": {
+                "account_number": "1.2",
+                "PROPIEDADES, PLANTA Y EQUIPOS": {
+                    "account_number": "1.2.1",
+                    "INMUEBLES": {
+                        "account_number": "1.2.1.1",
+                        "EDIFICIO PRINCIPAL": {
+                            "account_number": "1.2.1.1.15",
+                            "account_type": "Fixed Asset"
+                        },
+                        "ANEXO EDIFICIO SEDE": {
+                            "account_number": "1.2.1.1.20",
+                            "account_type": "Fixed Asset"
+                        },
+                        "INSTALACIONES DEL EDIFICIO SEDE": {
+                            "account_number": "1.2.1.1.25",
+                            "account_type": "Fixed Asset"
+                        },
+                        "TERRENO EDIFICIO SEDE": {
+                            "account_number": "1.2.1.1.30",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "INMUEBLES EN CONSTRUCCION": {
+                        "account_number": "1.2.1.2",
+                        "GALPONES": {
+                            "account_number": "1.2.1.2.35",
+                            "account_type": "Fixed Asset"
+                        },
+                        "TERRENO DE LA PLANTA": {
+                            "account_number": "1.2.1.2.40"
+                        },
+                        "CENTRO COMERCIAL": {
+                            "account_number": "1.2.1.2.45",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "LOCALES Y OFICINAS": {
+                        "account_number": "1.2.1.3",
+                        "LOCALES COMERCIALES": {
+                            "account_number": "1.2.1.3.50",
+                            "account_type": "Fixed Asset"
+                        },
+                        "OFICINA DE VENTAS": {
+                            "account_number": "1.2.1.3.55",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "MAQUINARIAS, EQUIPOS Y HERRAMIENTAS": {
+                        "account_number": "1.2.1.4",
+                        "MAQUINARIAS": {
+                            "account_number": "1.2.1.4.60",
+                            "account_type": "Fixed Asset"
+                        },
+                        "EQUIPO DE TELECOMUNICACIONES": {
+                            "account_number": "1.2.1.4.65",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "MOBILIARIOS Y EQUIPOS DE OFICINA": {
+                        "account_number": "1.2.1.5",
+                        "MOBILIARIOS": {
+                            "account_number": "1.2.1.5.70",
+                            "account_type": "Fixed Asset"
+                        },
+                        "EQUIPOS DE OFICINA": {
+                            "account_number": "1.2.1.5.75",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "VEHICULOS": {
+                        "account_number": "1.2.1.6",
+                        "VEHICULOS DE REPARTO": {
+                            "account_number": "1.2.1.6.80",
+                            "account_type": "Fixed Asset"
+                        },
+                        "VEHICULOS DE OFICINA": {
+                            "account_number": "1.2.1.6.85",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "DEPREC. ACUM.  DE PROPIEDADES, PLANTA Y EQUIPOS": {
+                        "account_number": "1.2.1.7",
+                        "DEPREC. ACUM. EDIFICIO PRINCIPAL": {
+                            "account_number": "1.2.1.7.15",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. ANEXO EDIFICIO SEDE": {
+                            "account_number": "1.2.1.7.20",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. INSTALACIONES DEL EDIFICIO SEDE": {
+                            "account_number": "1.2.1.7.25",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. GALPONES": {
+                            "account_number": "1.2.1.7.35",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. LOCALES COMERCIALES": {
+                            "account_number": "1.2.1.7.50",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. OFICINA DE VENTAS": {
+                            "account_number": "1.2.1.7.55",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. MAQUINARIAS": {
+                            "account_number": "1.2.1.7.60",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. EQUIPO DE TELECOMUNICACIONES Y EQUIP": {
+                            "account_number": "1.2.1.7.65",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. MOBILIARIOS": {
+                            "account_number": "1.2.1.7.70",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. EQUIPOS DE OFICINA": {
+                            "account_number": "1.2.1.7.75",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. VEHICULOS DE REPARTO": {
+                            "account_number": "1.2.1.7.80",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM. VEHICULOS DE OFICINA": {
+                            "account_number": "1.2.1.7.85",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "REVALUACIàN DE PROPIEDADES, PLANTA Y EQUIPOS": {
+                        "account_number": "1.2.1.8",
+                        "REVALUACIàN EDIFICIO PRINCIPAL": {
+                            "account_number": "1.2.1.8.15",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN ANEXO EDIFICIO SEDE": {
+                            "account_number": "1.2.1.8.20",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN INSTALACIONES DEL EDIFICIO SEDE": {
+                            "account_number": "1.2.1.8.25",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN TERRENO EDIFICIO SEDE": {
+                            "account_number": "1.2.1.8.30",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN GALPONES": {
+                            "account_number": "1.2.1.8.35",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN TERRENO DE LA PLANTA": {
+                            "account_number": "1.2.1.8.40",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN CENTRO COMERCIAL": {
+                            "account_number": "1.2.1.8.45",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN LOCALES COMERCIALES": {
+                            "account_number": "1.2.1.8.50",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàNOFICINA DE VENTAS": {
+                            "account_number": "1.2.1.8.55",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN MAQUINARIAS": {
+                            "account_number": "1.2.1.8.60",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN HERRAMIENTAS": {
+                            "account_number": "1.2.1.8.65",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN MOBILIARIOS": {
+                            "account_number": "1.2.1.8.70",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN EQUIPOS DE OFICINA": {
+                            "account_number": "1.2.1.8.75",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN VEHICULOS DE REPARTO": {
+                            "account_number": "1.2.1.8.80",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN VEHICULOS DE OFICINA": {
+                            "account_number": "1.2.1.8.85",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "DETERIORO DE VALOR DE PROPIEDADES, PLANTA Y EQUIPO": {
+                        "account_number": "1.2.1.9",
+                        "DETERIORO DE VALOR DE EDIFICIO PRINCIPAL": {
+                            "account_number": "1.2.1.9.15",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE ANEXO EDIFICIO SEDE": {
+                            "account_number": "1.2.1.9.20",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE INSTALACIONES DEL EDIFICIO S": {
+                            "account_number": "1.2.1.9.25",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE TERRENO EDIFICIO SEDE": {
+                            "account_number": "1.2.1.9.30",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE DETERIORO DE VALOR DEGALPONE": {
+                            "account_number": "1.2.1.9.35",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE TERRENO DE LA PLANTA": {
+                            "account_number": "1.2.1.9.40",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE CENTRO COMERCIAL": {
+                            "account_number": "1.2.1.9.45",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE LOCALES COMERCIALES": {
+                            "account_number": "1.2.1.9.50",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE OFICINA DE VENTAS": {
+                            "account_number": "1.2.1.9.55",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE MAQUINARIAS": {
+                            "account_number": "1.2.1.9.60",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE HERRAMIENTAS": {
+                            "account_number": "1.2.1.9.65",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE MOBILIARIOS": {
+                            "account_number": "1.2.1.9.70",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE EQUIPOS DE OFICINA": {
+                            "account_number": "1.2.1.9.75",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE VEHICULOS DE REPARTO": {
+                            "account_number": "1.2.1.9.80",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DEVEHICULOS DE OFICINA": {
+                            "account_number": "1.2.1.9.85",
+                            "account_type": "Fixed Asset"
+                        }
+                    }
+                },
+                "PROPIEDADES DE INVERSIàN": {
+                    "account_number": "1.2.2",
+                    "PROPIEDADES EN ARRENDAMIENTOS": {
+                        "account_number": "1.2.2.1",
+                        "EDIFICIO ANTIGUA SEDE": {
+                            "account_number": "1.2.2.1.10",
+                            "account_type": "Fixed Asset"
+                        },
+                        "REVALUACIàN DE PROPIEDADES DE INVERSION": {
+                            "account_number": "1.2.2.1.70",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DEPREC. ACUM, EDIFICIO ANTIGUA SEDE": {
+                            "account_number": "1.2.2.1.80",
+                            "account_type": "Fixed Asset"
+                        },
+                        "DETERIORO DE VALOR DE PROPIEDADES DE INVERSIàN.": {
+                            "account_number": "1.2.2.1.90",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "INVERSIONES EN EMPRESAS ASOCIADAS": {
+                        "account_number": "1.2.2.2",
+                        "INVERSIONES VALORIZADAS AL METODO DE PARTICIPACIàN": {
+                            "account_number": "1.2.2.2.10",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "PROPIEDADES CON PLUSVALIA": {
+                        "account_number": "1.2.2.3",
+                        "FONDO DE COMERCIO": {
+                            "account_number": "1.2.2.3.10",
+                            "account_type": "Fixed Asset"
+                        },
+                        "PLUSVALIA PAGADA": {
+                            "account_number": "1.2.2.3.90",
+                            "account_type": "Fixed Asset"
+                        }
+                    }
+                },
+                "ACTIVOS INTANGIBLES": {
+                    "account_number": "1.2.3",
+                    "DERECHOS, MARCAS Y PATENTES": {
+                        "account_number": "1.2.3.1",
+                        "CONCESIONES MINERAS": {
+                            "account_number": "1.2.3.1.10"
+                        },
+                        "DERECHOS DE FABRICACION": {
+                            "account_number": "1.2.3.1.15"
+                        },
+                        "DERECHOS DE MARCA": {
+                            "account_number": "1.2.3.1.20"
+                        },
+                        "PATENTES DE INVENCION": {
+                            "account_number": "1.2.3.1.25"
+                        },
+                        "PLUSVALIA O GOODWILL": {
+                            "account_number": "1.2.3.1.30"
+                        },
+                        "DERECHOS DE FORMULAS": {
+                            "account_number": "1.2.3.1.35"
+                        },
+                        "DERECHOS DE PROCEDIMIENTOS": {
+                            "account_number": "1.2.3.1.40"
+                        },
+                        "DERECHOS DE DENOMINACION COMERCIAL": {
+                            "account_number": "1.2.3.1.45"
+                        },
+                        "DERECHOS DE ACREENCIAS": {
+                            "account_number": "1.2.3.1.50"
+                        },
+                        "DERECHOS DE ARRENDAMIENTOS": {
+                            "account_number": "1.2.3.1.55"
+                        },
+                        "OTROS DERECHOS INTANGIBLES": {
+                            "account_number": "1.2.3.1.60"
+                        }
+                    },
+                    "AMORTIZACIàN ACUMULADA ACTIVOS INTANGIBLES": {
+                        "account_number": "1.2.3.7",
+                        "AMORT. ACUM. CONCESIONES MINERAS": {
+                            "account_number": "1.2.3.7.10"
+                        },
+                        "AMORT. ACUM. DERECHOS DE FABRICACION": {
+                            "account_number": "1.2.3.7.15"
+                        },
+                        "AMORT. ACUM. DERECHOS DE MARCA": {
+                            "account_number": "1.2.3.7.20"
+                        },
+                        "AMORT. ACUM. PATENTES DE INVENCION": {
+                            "account_number": "1.2.3.7.25"
+                        },
+                        "AMORT. ACUM. PLUSVALIA O GOODWILL": {
+                            "account_number": "1.2.3.7.30"
+                        },
+                        "AMORT. ACUM. DERECHOS DE FORMULAS": {
+                            "account_number": "1.2.3.7.35"
+                        },
+                        "AMORT. ACUM. DERECHOS DE PROCEDIMIENTOS": {
+                            "account_number": "1.2.3.7.40"
+                        },
+                        "AMORT. ACUM. DERECHOS DE DENOMINACION COMERCIAL": {
+                            "account_number": "1.2.3.7.45"
+                        },
+                        "AMORT. ACUM. DERECHOS DE ACREENCIAS": {
+                            "account_number": "1.2.3.7.50"
+                        },
+                        "AMORT. ACUM. DERECHOS DE ARRENDAMIENTOS": {
+                            "account_number": "1.2.3.7.55"
+                        },
+                        "AMORT. ACUM. OTROS DERECHOS INTANGIBLES": {
+                            "account_number": "1.2.3.7.60"
+                        }
+                    },
+                    "DETERIORO DE VALOR DE ANTIVOS INTANGIBLES": {
+                        "account_number": "1.2.3.9",
+                        "AMORT. ACUM. CONCESIONES MINERAS": {
+                            "account_number": "1.2.3.9.10"
+                        },
+                        "AMORT. ACUM. DERECHOS DE FABRICACION": {
+                            "account_number": "1.2.3.9.15"
+                        },
+                        "AMORT. ACUM. DERECHOS DE MARCA": {
+                            "account_number": "1.2.3.9.20"
+                        },
+                        "AMORT. ACUM. PATENTES DE INVENCION": {
+                            "account_number": "1.2.3.9.25"
+                        },
+                        "AMORT. ACUM. PLUSVALIA O GOODWILL": {
+                            "account_number": "1.2.3.9.30"
+                        },
+                        "AMORT. ACUM. DERECHOS DE FORMULAS": {
+                            "account_number": "1.2.3.9.35"
+                        },
+                        "AMORT. ACUM. DERECHOS DE PROCEDIMIENTOS": {
+                            "account_number": "1.2.3.9.40"
+                        },
+                        "AMORT. ACUM. DERECHOS DE DENOMINACION COMERCIAL": {
+                            "account_number": "1.2.3.9.45"
+                        },
+                        "AMORT. ACUM. DERECHOS DE ACREENCIAS": {
+                            "account_number": "1.2.3.9.50"
+                        },
+                        "AMORT. ACUM. DERECHOS DE ARRENDAMIENTOS": {
+                            "account_number": "1.2.3.9.55"
+                        },
+                        "AMORT. ACUM. OTROS DERECHOS INTANGIBLES": {
+                            "account_number": "1.2.3.9.60"
+                        }
+                    }
+                },
+                "CARGOS DIFERIDOS": {
+                    "account_number": "1.2.4",
+                    "PROYECTO DE INVESTIGACIàN CIENTIFICA": {
+                        "account_number": "1.2.4.1",
+                        "GASTOS DE INVESTIGACIàN Y DESARROLLO": {
+                            "account_number": "1.2.4.1.10"
+                        }
+                    },
+                    "IMPUESTOS DIFERIDOS": {
+                        "account_number": "1.2.4.2",
+                        "ISLR PAGADOS EN EXCESO EJERC. ANTERIORES": {
+                            "account_number": "1.2.4.2.10"
+                        },
+                        "ISLR DECLARACION ESTIMADA DE RENTAS": {
+                            "account_number": "1.2.4.2.15"
+                        },
+                        "ISLR PAGADOS POR DECLARACION SUSTITUTIVA": {
+                            "account_number": "1.2.4.2.20"
+                        },
+                        "ISLR RETENIDO  POR CLIENTES": {
+                            "account_number": "1.2.4.2.25"
+                        },
+                        "ISLR POR ANTICIPOS ENAJENACION INMUEBLES": {
+                            "account_number": "1.2.4.2.30"
+                        },
+                        "EXCEDENTE DE CREDITO FISCAL": {
+                            "account_number": "1.2.4.2.35"
+                        },
+                        "IVA CREDITO FISCAL PENDIENTE POR DECLARA": {
+                            "account_number": "1.2.4.2.40"
+                        },
+                        "IVA CREDITO FISCAL": {
+                            "account_number": "1.2.4.2.45"
+                        },
+                        "RETENCION IVA CLIENTES": {
+                            "account_number": "1.2.4.2.50"
+                        },
+                        "ANTICIPO ISLR": {
+                            "account_number": "1.2.4.2.55"
+                        },
+                        "ESTIMADA LEY DE DEPORTE (FND)": {
+                            "account_number": "1.2.4.2.60"
+                        }
+                    }
+                },
+                "ACTIVOS BIOLàGICOS": {
+                    "account_number": "1.2.5",
+                    "SEMOVIENTES": {
+                        "account_number": "1.2.5.1",
+                        "CABALLOS DE CARRERA": {
+                            "account_number": "1.2.5.1.10"
+                        }
+                    }
+                },
+                "OTROS ACTIVOS": {
+                    "account_number": "1.2.6",
+                    "DEPOSITOS EN GARANTIA": {
+                        "account_number": "1.2.6.1",
+                        "DEPOSITO LOCAL": {
+                            "account_number": "1.2.6.1.10"
+                        }
+                    },
+                    "DEUDORES A LARGO PLAZO": {
+                        "account_number": "1.2.6.2",
+                        "HIPOTECA CON INTERES FIJO": {
+                            "account_number": "1.2.6.2.10"
+                        }
+                    }
+                }
+            }
+        },
+        "PASIVO": {
+            "account_number": "2",
+            "root_type": "Liability",
+            "PASIVOS CORRIENTES": {
+                "account_number": "2.1",
+                "ACREEDORES COMERCIALES Y OTROS": {
+                    "account_number": "2.1.1",
+                    "account_type": "Payable",
+                    "ACREEDORES NACIONALES": {
+                        "account_number": "2.1.1.1",
+                        "PROVEEDORES": {
+                            "account_number": "2.1.1.1.10",
+                            "account_type": "Payable"
+                        },
+                        "SOBREGIRO BANCARIO": {
+                            "account_number": "2.1.1.1.15",
+                            "account_type": "Bank"
+                        },
+                        "PAGAR BANCARIO": {
+                            "account_number": "2.1.1.1.20",
+                            "account_type": "Bank"
+                        }
+                    },
+                    "ACREEDORES EN EL EXTERIOR": {
+                        "account_number": "2.1.1.2",
+                        "PROVEEDORES": {
+                            "account_number": "2.1.1.2.10",
+                            "account_type": "Payable"
+                        },
+                        "EFECTOS POR PAGAR": {
+                            "account_number": "2.1.1.2.15"
+                        }
+                    },
+                    "OTRAS CUENTAS POR PAGAR": {
+                        "account_number": "2.1.1.3",
+                        "account_type": "Payable",
+                        "CUENTAS POR PAGAR EMPRESAS AFILIADAS": {
+                            "account_number": "2.1.1.3.10",
+                            "account_type": "Payable"
+                        },
+                        "CUENTAS POR PAGAR SOCIOS": {
+                            "account_number": "2.1.1.3.15",
+                            "account_type": "Payable"
+                        },
+                        "DIVIDENDOS POR PAGAR": {
+                            "account_number": "2.1.1.3.20"
+                        },
+                        "ANTICIPOS DE CLIENTES": {
+                            "account_number": "2.1.1.3.30"
+                        }
+                    }
+                },
+                "IMPUESTOS POR PAGAR": {
+                    "account_number": "2.1.2",
+                    "IMPUESTO AL VALOR AGREGADO - IVA": {
+                        "account_number": "2.1.2.1",
+                        "DEBITOS FISCALES": {
+                            "account_number": "2.1.2.1.10"
+                        },
+                        "DEBITO FISCAL PENDIENTE POR DECLARAR": {
+                            "account_number": "2.1.2.1.11"
+                        },
+                        "CREDITOS FISCALES": {
+                            "account_number": "2.1.2.1.15"
+                        },
+                        "RETENCION IVA CLIENTES": {
+                            "account_number": "2.1.2.1.20"
+                        },
+                        "IVA PERCIBIDO POR CUENTA DE TERCEROS": {
+                            "account_number": "2.1.2.1.30"
+                        }
+                    },
+                    "IMPUESTOS POR PAGAR": {
+                        "account_number": "2.1.2.2",
+                        "IMPUESTO SOBRE LA RENTA": {
+                            "account_number": "2.1.2.2.10"
+                        },
+                        "IMPUESTOS MUNICIPALES": {
+                            "account_number": "2.1.2.2.15"
+                        },
+                        "IMPUESTOS ONA": {
+                            "account_number": "2.1.2.2.20"
+                        },
+                        "LOCTI": {
+                            "account_number": "2.1.2.2.25"
+                        },
+                        "IMPUESTO A LAS TRANSACCIONES FINANCIERAS": {
+                            "account_number": "2.1.2.2.26"
+                        },
+                        "IVA POR PAGAR": {
+                            "account_number": "2.1.2.2.27"
+                        },
+                        "ANTICIPO ISLR POR PAGAR": {
+                            "account_number": "2.1.2.2.28"
+                        },
+                        "IGTF PAGOS EN EFECTIVO POR PAGAR 2%": {
+                            "account_number": "2.1.2.2.29"
+                        },
+                        "IGTF COBROS EN EFECTIVO POR PAGAR 3%": {
+                            "account_number": "2.1.2.2.30"
+                        }
+                    },
+                    "RETENCIONES POR ENTERAR": {
+                        "account_number": "2.1.2.3",
+                        "RETENCIONES ISLR": {
+                            "account_number": "2.1.2.3.10"
+                        },
+                        "RETENCIONES DE IVA": {
+                            "account_number": "2.1.2.3.15"
+                        }
+                    }
+                },
+                "OBLIGACIONES LABORALES ORDINARIAS": {
+                    "account_number": "2.1.3",
+                    "APORTES Y APARTADOS": {
+                        "account_number": "2.1.3.1",
+                        "APARTADO INCE": {
+                            "account_number": "2.1.3.1.10"
+                        },
+                        "APARTADO IVSS": {
+                            "account_number": "2.1.3.1.15"
+                        },
+                        "APARTADO REGIMEN PRESTACIONAL DE EMPLEO": {
+                            "account_number": "2.1.3.1.20"
+                        },
+                        "APARTADO LEY DE VIVIENDA Y HABITAD": {
+                            "account_number": "2.1.3.1.25"
+                        }
+                    },
+                    "REMUNERACIONES DEVENGADAS": {
+                        "account_number": "2.1.3.2",
+                        "NOMINA POR PAGAR": {
+                            "account_number": "2.1.3.2.10"
+                        },
+                        "BONO ALIMENTARIO": {
+                            "account_number": "2.1.3.2.15"
+                        },
+                        "COMISIONES": {
+                            "account_number": "2.1.3.2.20"
+                        },
+                        "IVSS POR PAGAR": {
+                            "account_number": "2.1.3.2.25"
+                        },
+                        "FAOV POR PAGAR": {
+                            "account_number": "2.1.3.2.30"
+                        },
+                        "INCES POR PAGAR": {
+                            "account_number": "2.1.3.2.35"
+                        },
+                        "LEY DE PENSIONES POR PAGAR": {
+                            "account_number": "2.1.3.2.40"
+                        }
+                    }
+                }
+            },
+            "PASIVOS NO CORRIENTES": {
+                "account_number": "2.2",
+                "OBLIGACIONES MERCANTILES": {
+                    "account_number": "2.2.1",
+                    "OBLIGACIONES A LARGO PLAZO": {
+                        "account_number": "2.2.1.1",
+                        "PRESTAMO BANCARIO": {
+                            "account_number": "2.2.1.1.10",
+                            "account_type": "Bank"
+                        },
+                        "HIPOTECA DE PRIMER GRADO": {
+                            "account_number": "2.2.1.1.15"
+                        }
+                    }
+                },
+                "OBLIGACIONES LABORALES ESTRAORDINARIAS": {
+                    "account_number": "2.2.2",
+                    "PRESTACIONES SOCIALES": {
+                        "account_number": "2.2.2.1",
+                        "ANTIGUEDAD LABORAL": {
+                            "account_number": "2.2.2.1.10"
+                        },
+                        "INTERESES SOBRE ANTIGUEDAD": {
+                            "account_number": "2.2.2.1.15"
+                        }
+                    },
+                    "BENEFICIOS LABORALES": {
+                        "account_number": "2.2.2.2",
+                        "VACACIONES": {
+                            "account_number": "2.2.2.2.10"
+                        },
+                        "BONO VACACIONAL": {
+                            "account_number": "2.2.2.2.15"
+                        },
+                        "UTILIDADES (AGUINALDOS)": {
+                            "account_number": "2.2.2.2.20"
+                        },
+                        "OTROS BONOS": {
+                            "account_number": "2.2.2.2.25"
+                        }
+                    }
+                },
+                "CREDITOS DIFERIDOS": {
+                    "account_number": "2.2.3",
+                    "INGRESOS NO REALIZADOS": {
+                        "account_number": "2.2.3.1",
+                        "ARRENDAMIENTOS Y SUB ARRENDAMIENTOS": {
+                            "account_number": "2.2.3.1.10"
+                        },
+                        "INGRESOS COBRADOS POR ANTICIPADOS": {
+                            "account_number": "2.2.3.1.20"
+                        }
+                    }
+                }
+            }
+        },
+        "PATRIMONIO": {
+            "account_number": "3",
+            "root_type": "Equity",
+            "CAPITAL SOCIAL PAGADO": {
+                "account_number": "3.1",
+                "CAPITAL SOCIAL SUSCRITO": {
+                    "account_number": "3.1.1",
+                    "ACCIONES COMUNES": {
+                        "account_number": "3.1.1.1",
+                        "MARIELA JOHANA JIMENEZ DE MARTINES": {
+                            "account_number": "3.1.1.1.10"
+                        },
+                        "CRISTIAN EDUARDO MARTINS HERNANDEZ": {
+                            "account_number": "3.1.1.1.20"
+                        },
+                        "MANUEL ENRIQUE SAN MARTIN IBORRA": {
+                            "account_number": "3.1.1.1.30"
+                        },
+                        "APORTES POR CAPITALIZAR": {
+                            "account_number": "3.1.1.1.40"
+                        }
+                    },
+                    "ACCIONES PREFERENTES": {
+                        "account_number": "3.1.1.2",
+                        "ACCIONISTA A": {
+                            "account_number": "3.1.1.2.10"
+                        },
+                        "ACCIONISTA B": {
+                            "account_number": "3.1.1.2.20"
+                        },
+                        "ACCIONISTA C": {
+                            "account_number": "3.1.1.2.30"
+                        }
+                    }
+                },
+                "ACCIONES NO PAGADAS": {
+                    "account_number": "3.1.2",
+                    "ACCIONES COMUNES": {
+                        "account_number": "3.1.2.1",
+                        "ACCIONISTA A": {
+                            "account_number": "3.1.2.1.10"
+                        },
+                        "ACCIONISTA B": {
+                            "account_number": "3.1.2.1.20"
+                        },
+                        "ACCIONISTA C": {
+                            "account_number": "3.1.2.1.30"
+                        }
+                    },
+                    "ACCIONES PREFERENTES": {
+                        "account_number": "3.1.2.2",
+                        "ACCIONISTA A": {
+                            "account_number": "3.1.2.2.10"
+                        },
+                        "ACCIONISTA B": {
+                            "account_number": "3.1.2.2.20"
+                        },
+                        "ACCIONISTA C": {
+                            "account_number": "3.1.2.2.30"
+                        }
+                    }
+                }
+            },
+            "RESERVAS": {
+                "account_number": "3.2",
+                "RESERVAS DE CAPITAL": {
+                    "account_number": "3.2.1",
+                    "RESERVA LEGAL": {
+                        "account_number": "3.2.1.1",
+                        "RESERVA LEGAL": {
+                            "account_number": "3.2.1.1.10"
+                        }
+                    },
+                    "RESERVAS ESTATUTARIAS": {
+                        "account_number": "3.2.1.2",
+                        "RESERVA PARA AMPLIACION DE PLANTA": {
+                            "account_number": "3.2.1.2.10"
+                        }
+                    }
+                }
+            },
+            "RESULTADOS ACUMULADOS": {
+                "account_number": "3.3",
+                "UTILIDADES ACUMULADAS": {
+                    "account_number": "3.3.1",
+                    "UTILIDADES POR DISTRIBUIR": {
+                        "account_number": "3.3.1.1",
+                        "UTILIDADES NO DISTRIBUIDAS": {
+                            "account_number": "3.3.1.1.10"
+                        },
+                        "RESULTADO DEL EJERCICIO": {
+                            "account_number": "3.3.1.1.20"
+                        }
+                    },
+                    "UTILIDADES RETENIDAS": {
+                        "account_number": "3.3.1.2",
+                        "GANANCIA/PERDIDA P/TENENCIA NO REALIZADA": {
+                            "account_number": "3.3.1.2.10"
+                        },
+                        "SUPERAVIT POR REVALUACIàN DE ACTIVOS": {
+                            "account_number": "3.3.1.2.20"
+                        }
+                    },
+                    "AJUSTES FISCALES": {
+                        "account_number": "3.3.1.3",
+                        "REAJUSTES POR INFLACION - FISCAL": {
+                            "account_number": "3.3.1.3.10"
+                        },
+                        "ACTUALIZACION DEL PATRIMONIO": {
+                            "account_number": "3.3.1.3.20"
+                        },
+                        "EXCLUSIONES FISCALES HISTORICAS AL PATRIMONIO": {
+                            "account_number": "3.3.1.3.30"
+                        }
+                    }
+                }
+            }
+        },
+        "INGRESOS": {
+            "account_number": "4",
+            "root_type": "Income",
+            "VENTAS ORDINARIAS": {
+                "account_number": "4.1",
+                "VENTAS NETAS": {
+                    "account_number": "4.1.1",
+                    "VENTAS BRUTAS": {
+                        "account_number": "4.1.1.1",
+                        "SERVICIOS DE INTENET": {
+                            "account_number": "4.1.1.1.10"
+                        },
+                        "SERVICIO TECNOLOGICOS": {
+                            "account_number": "4.1.1.1.11"
+                        },
+                        "VENTAS AL EXTERIOR": {
+                            "account_number": "4.1.1.1.20"
+                        },
+                        "VENTAS DE INMUEBLES CONTADO": {
+                            "account_number": "4.1.1.1.30"
+                        },
+                        "VENTAS DE INMUEBLES CREDITO": {
+                            "account_number": "4.1.1.1.31"
+                        },
+                        "ARRENDAMIENTOS Y SUB ARRENDAMIENTOS": {
+                            "account_number": "4.1.1.1.40"
+                        }
+                    },
+                    "DESCUENTOS Y DEVOLUCIONES EN VENTAS": {
+                        "account_number": "4.1.1.2",
+                        "DEVOLUCIONES EN VENTAS": {
+                            "account_number": "4.1.1.2.10"
+                        },
+                        "DESCUENTOS EN VENTAS": {
+                            "account_number": "4.1.1.2.20"
+                        },
+                        "BONIFICACIONES EN VENTAS": {
+                            "account_number": "4.1.1.2.30"
+                        },
+                        "RECARGOS EN VENTAS": {
+                            "account_number": "4.1.1.2.40"
+                        }
+                    }
+                }
+            }
+        },
+        "COSTOS": {
+            "account_number": "5",
+            "root_type": "Expense",
+            "COSTO DE VENTAS": {
+                "account_number": "5.1",
+                "COSTO DE VENTAS DE MERCANCIAS": {
+                    "account_number": "5.1.1",
+                    "account_type": "Stock",
+                    "INVENTARIO INICIAL DE MERCANCIAS": {
+                        "account_number": "5.1.1.1",
+                        "account_type": "Stock",
+                        "INVENTARIO INICIAL DE MERCANCIAS": {
+                            "account_number": "5.1.1.1.10",
+                            "account_type": "Stock"
+                        }
+                    },
+                    "COMPRAS NETAS NACIONALES": {
+                        "account_number": "5.1.1.2",
+                        "COMPRAS BRUTAS": {
+                            "account_number": "5.1.1.2.10"
+                        },
+                        "DCTOS. EN COMPRAS": {
+                            "account_number": "5.1.1.2.20"
+                        },
+                        "DEV. EN COMPRAS": {
+                            "account_number": "5.1.1.2.30"
+                        },
+                        "RECARGO S/COMPRAS": {
+                            "account_number": "5.1.1.2.40"
+                        }
+                    },
+                    "COMPRAS NETAS EN EL EXTERIOR": {
+                        "account_number": "5.1.1.3",
+                        "COMPRAS BRUTAS": {
+                            "account_number": "5.1.1.3.10"
+                        },
+                        "DCTOS. EN COMPRAS": {
+                            "account_number": "5.1.1.3.20"
+                        },
+                        "DEV. EN COMPRAS": {
+                            "account_number": "5.1.1.3.30"
+                        },
+                        "RECARGO S/COMPRAS": {
+                            "account_number": "5.1.1.3.40"
+                        }
+                    },
+                    "COSTO DE VENTA (INV. CONTINUO)": {
+                        "account_number": "5.1.1.8",
+                        "COSTO DE VENTA (INV. CONTINUO)": {
+                            "account_number": "5.1.1.8.10"
+                        }
+                    },
+                    "INVENTARIO FINAL   DE MERCANCIAS": {
+                        "account_number": "5.1.1.9",
+                        "account_type": "Stock",
+                        "INVENTARIO FINAL   DE MERCANCIAS": {
+                            "account_number": "5.1.1.9.10",
+                            "account_type": "Stock"
+                        }
+                    }
+                },
+                "COSTO DE PRODUCCION": {
+                    "account_number": "5.1.2",
+                    "MATERIA PRIMA UTILIZADA": {
+                        "account_number": "5.1.2.1",
+                        "INVENTARIO INICIAL DE MATERIA PRIMA": {
+                            "account_number": "5.1.2.1.01",
+                            "account_type": "Stock"
+                        },
+                        "COMPRAS BRUTAS MATERIA PRIMA": {
+                            "account_number": "5.1.2.1.10"
+                        },
+                        "DCTOS. EN COMPRAS": {
+                            "account_number": "5.1.2.1.20"
+                        },
+                        "DEV. EN COMPRAS": {
+                            "account_number": "5.1.2.1.30"
+                        },
+                        "RECARGO S/COMPRAS": {
+                            "account_number": "5.1.2.1.40"
+                        },
+                        "AJUSTES DE INVENTARIO": {
+                            "account_number": "5.1.2.1.98",
+                            "account_type": "Stock"
+                        },
+                        "INVENTARIO FINAL   DE MATERIA PRIMA": {
+                            "account_number": "5.1.2.1.99",
+                            "account_type": "Stock"
+                        }
+                    },
+                    "PRODUCTOS EN PROCESO": {
+                        "account_number": "5.1.2.2",
+                        "INVENTARIO INICIAL PRODUCTOS EN PROCESO": {
+                            "account_number": "5.1.2.2.10",
+                            "account_type": "Stock"
+                        },
+                        "INVENTARIO FINAL   PRODUCTOS EN PROCESO": {
+                            "account_number": "5.1.2.2.99",
+                            "account_type": "Stock"
+                        }
+                    },
+                    "PRODUCTOS TERMINADOS": {
+                        "account_number": "5.1.2.3",
+                        "INVENTARIO INICIAL PRODUCTOS TERMINADOS": {
+                            "account_number": "5.1.2.3.10",
+                            "account_type": "Stock"
+                        },
+                        "INVENTARIO FINAL   PRODUCTOS TERMINADOS": {
+                            "account_number": "5.1.2.3.99",
+                            "account_type": "Stock"
+                        }
+                    },
+                    "MANO DE OBRA DIRECTA": {
+                        "account_number": "5.1.2.4",
+                        "SALARIOS DE OBREROS": {
+                            "account_number": "5.1.2.4.12"
+                        },
+                        "DOMINGOS Y DIAS FERIADOS": {
+                            "account_number": "5.1.2.4.13"
+                        },
+                        "HORAS EXTRAS": {
+                            "account_number": "5.1.2.4.14"
+                        },
+                        "BONIFICACIONES CONTRACTUALES": {
+                            "account_number": "5.1.2.4.15"
+                        },
+                        "PRESTACIONES SOCIALES - ANTIGUEDAD": {
+                            "account_number": "5.1.2.4.17"
+                        },
+                        "VACACIONES": {
+                            "account_number": "5.1.2.4.18"
+                        },
+                        "UTILIDADES": {
+                            "account_number": "5.1.2.4.19"
+                        },
+                        "PREAVISO NO TRABAJADO": {
+                            "account_number": "5.1.2.4.20"
+                        },
+                        "PRESTACIONES SOCIALES": {
+                            "account_number": "5.1.2.4.40"
+                        },
+                        "APORTE S.S.O": {
+                            "account_number": "5.1.2.4.61"
+                        },
+                        "APORTE I.N.C.E": {
+                            "account_number": "5.1.2.4.63"
+                        },
+                        "APORTE L.P.H.": {
+                            "account_number": "5.1.2.4.64"
+                        },
+                        "TRANSPORTES": {
+                            "account_number": "5.1.2.4.87"
+                        },
+                        "ALIMENTACION EMPLEADO A": {
+                            "account_number": "5.1.2.4.95"
+                        }
+                    },
+                    "GASTOS DE FABRICACION": {
+                        "account_number": "5.1.2.5",
+                        "REPARACION MAQUINA A": {
+                            "account_number": "5.1.2.5.10"
+                        },
+                        "REPARACION EQUIPO A": {
+                            "account_number": "5.1.2.5.40"
+                        },
+                        "SERVICIO DE AGUA": {
+                            "account_number": "5.1.2.5.46"
+                        },
+                        "ASEO URBANO DOMICILIARIO": {
+                            "account_number": "5.1.2.5.47"
+                        },
+                        "CONSUMO DE TELEFONO": {
+                            "account_number": "5.1.2.5.48"
+                        },
+                        "CONSUMO DE ELECTRICIDAD": {
+                            "account_number": "5.1.2.5.49"
+                        },
+                        "COMIDAS, VIAJES Y TRASLADOS": {
+                            "account_number": "5.1.2.5.65"
+                        },
+                        "REGALIAS": {
+                            "account_number": "5.1.2.5.66"
+                        },
+                        "PAPELERIA VARIOS": {
+                            "account_number": "5.1.2.5.69"
+                        },
+                        "COMBUSTIBLES Y LUBRICANTES": {
+                            "account_number": "5.1.2.5.70"
+                        },
+                        "MANTENIMIENTO EQUIPO DE OFICINA": {
+                            "account_number": "5.1.2.5.71"
+                        },
+                        "MANTENIMIENTO MAQUINARIA": {
+                            "account_number": "5.1.2.5.72"
+                        },
+                        "SEGUROS": {
+                            "account_number": "5.1.2.5.91"
+                        },
+                        "ALQUILER GALPON": {
+                            "account_number": "5.1.2.5.94"
+                        },
+                        "PRODUCTOS DE LIMPIEZA Y AFINES": {
+                            "account_number": "5.1.2.5.97"
+                        }
+                    },
+                    "COSTOS DIRECTOS": {
+                        "account_number": "5.1.2.6",
+                        "MAQUILA": {
+                            "account_number": "5.1.2.6.01"
+                        },
+                        "ALQUILER DE MAQUINARIAS Y EQUIPOS": {
+                            "account_number": "5.1.2.6.02"
+                        },
+                        "SERVICIOS ESPECIALES": {
+                            "account_number": "5.1.2.6.03"
+                        },
+                        "INSUMOS Y MATERIALES": {
+                            "account_number": "5.1.2.6.04"
+                        }
+                    },
+                    "DEPRECIACIONES": {
+                        "account_number": "5.1.2.7",
+                        "account_type": "Accumulated Depreciation",
+                        "GASTOS DE DEPREC. MAQUINARIAS Y EQUIPOS": {
+                            "account_number": "5.1.2.7.12",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEPREC.MOBILIARIO": {
+                            "account_number": "5.1.2.7.20",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEPREC.EDIFICACIONES": {
+                            "account_number": "5.1.2.7.30",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEPREC.VEHICULOS": {
+                            "account_number": "5.1.2.7.40",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "MANO DE OBRA INDIRECTA": {
+                        "account_number": "5.1.2.8",
+                        "SALARIOS DE OBREROS": {
+                            "account_number": "5.1.2.8.12"
+                        },
+                        "BONO ALIMENTACION": {
+                            "account_number": "5.1.2.8.13"
+                        },
+                        "HORAS EXTRAS": {
+                            "account_number": "5.1.2.8.14"
+                        },
+                        "DOMINGOS Y DIAS FERIADOS": {
+                            "account_number": "5.1.2.8.15"
+                        },
+                        "BONIFICACIONES CONTRACTUALES": {
+                            "account_number": "5.1.2.8.16"
+                        },
+                        "ANTIGUEDAD": {
+                            "account_number": "5.1.2.8.30"
+                        },
+                        "VACACIONES": {
+                            "account_number": "5.1.2.8.31"
+                        },
+                        "UTILIDADES": {
+                            "account_number": "5.1.2.8.32"
+                        },
+                        "BONO VACACIONAL": {
+                            "account_number": "5.1.2.8.33"
+                        },
+                        "APORTE SEGURO SOCIAL": {
+                            "account_number": "5.1.2.8.61"
+                        },
+                        "APORTE IINCES": {
+                            "account_number": "5.1.2.8.63"
+                        },
+                        "APORTE RPE": {
+                            "account_number": "5.1.2.8.64"
+                        },
+                        "APORTES FAOV": {
+                            "account_number": "5.1.2.8.67"
+                        },
+                        "SEGURO HCM": {
+                            "account_number": "5.1.2.8.95"
+                        }
+                    },
+                    "MATERIALES INDIRECTOS": {
+                        "account_number": "5.1.2.9",
+                        "DOTACIONES OBREROS": {
+                            "account_number": "5.1.2.9.01"
+                        },
+                        "INSUMOS DE HERRAMIENTAS": {
+                            "account_number": "5.1.2.9.02"
+                        },
+                        "MATERIALES DE ESTERILIZACION": {
+                            "account_number": "5.1.2.9.03"
+                        }
+                    }
+                },
+                "COSTO DE SERVICIOS": {
+                    "account_number": "5.1.6",
+                    "REMUNERACIONES": {
+                        "account_number": "5.1.6.1",
+                        "SUELDOS DIRECTORES": {
+                            "account_number": "5.1.6.1.10"
+                        },
+                        "SUELDOS EMPLEADOS": {
+                            "account_number": "5.1.6.1.11"
+                        },
+                        "SALARIOS DE OBREROS": {
+                            "account_number": "5.1.6.1.12"
+                        },
+                        "DOMINGOS Y DIAS FERIADOS": {
+                            "account_number": "5.1.6.1.13"
+                        },
+                        "HORAS EXTRAS": {
+                            "account_number": "5.1.6.1.14"
+                        },
+                        "BONIFICACIONES CONTRACTUALES": {
+                            "account_number": "5.1.6.1.15"
+                        },
+                        "COMISIONES VENDEDORES": {
+                            "account_number": "5.1.6.1.16"
+                        },
+                        "BONO VACACIONAL": {
+                            "account_number": "5.1.6.1.17"
+                        },
+                        "VACACIONES": {
+                            "account_number": "5.1.6.1.18"
+                        },
+                        "UTILIDADES": {
+                            "account_number": "5.1.6.1.19"
+                        },
+                        "ANTIGUEDAD": {
+                            "account_number": "5.1.6.1.20"
+                        },
+                        "APORTE SEGURO SOCIAL": {
+                            "account_number": "5.1.6.1.61"
+                        },
+                        "APORTE INCES": {
+                            "account_number": "5.1.6.1.63"
+                        },
+                        "APORTE RPE": {
+                            "account_number": "5.1.6.1.64"
+                        },
+                        "APORTE FAOV": {
+                            "account_number": "5.1.6.1.95"
+                        },
+                        "INSUMOS": {
+                            "account_number": "5.1.6.1.96"
+                        }
+                    },
+                    "GASTOS GENERALES": {
+                        "account_number": "5.1.6.2",
+                        "ALQUILER LOCAL": {
+                            "account_number": "5.1.6.2.10"
+                        },
+                        "SERVICIO DE AGUA": {
+                            "account_number": "5.1.6.2.46"
+                        },
+                        "ASEO URBANO DOMICILIARIO": {
+                            "account_number": "5.1.6.2.47"
+                        },
+                        "CONSUMO DE TELEFONO": {
+                            "account_number": "5.1.6.2.48"
+                        },
+                        "CONSUMO DE ELECTRICIDAD": {
+                            "account_number": "5.1.6.2.49"
+                        },
+                        "GASTOS BANCARIOS VARIOS": {
+                            "account_number": "5.1.6.2.57",
+                            "account_type": "Bank"
+                        },
+                        "COMIDAS, VIAJES Y TRASLADOS": {
+                            "account_number": "5.1.6.2.65"
+                        },
+                        "REGALIAS": {
+                            "account_number": "5.1.6.2.66"
+                        },
+                        "SERVICIOS INTERNET": {
+                            "account_number": "5.1.6.2.67"
+                        },
+                        "PAPELERIA VARIOS": {
+                            "account_number": "5.1.6.2.69"
+                        },
+                        "COMBUSTIBLES Y LUBRICANTES": {
+                            "account_number": "5.1.6.2.73"
+                        },
+                        "MANTENIMIENTO EQUIPO DE OFICINA": {
+                            "account_number": "5.1.6.2.81"
+                        },
+                        "MANTENIMIENTO MAQUINARIA": {
+                            "account_number": "5.1.6.2.82"
+                        },
+                        "TRANSPORTE B": {
+                            "account_number": "5.1.6.2.86"
+                        },
+                        "VIATICOS, COMIDAD, PASAJES": {
+                            "account_number": "5.1.6.2.87"
+                        },
+                        "SEGUROS  DE BIENES": {
+                            "account_number": "5.1.6.2.91"
+                        },
+                        "ALQUILER  EQUIPOS": {
+                            "account_number": "5.1.6.2.94"
+                        },
+                        "PRODUCTOS DE LIMPIEZA Y AFINES": {
+                            "account_number": "5.1.6.2.97"
+                        }
+                    },
+                    "PERSONAL INDIRECTO": {
+                        "account_number": "5.1.6.7",
+                        "SUELDOS Y SALARIOS": {
+                            "account_number": "5.1.6.7.10"
+                        },
+                        "BONO ALIMENTACION": {
+                            "account_number": "5.1.6.7.11"
+                        },
+                        "HORAS EXTRAS": {
+                            "account_number": "5.1.6.7.12"
+                        },
+                        "BONOS CONTRACTUALES": {
+                            "account_number": "5.1.6.7.13"
+                        },
+                        "VACACIONES": {
+                            "account_number": "5.1.6.7.20"
+                        },
+                        "BONO VACACIONAL": {
+                            "account_number": "5.1.6.7.21"
+                        },
+                        "UTILIDADES": {
+                            "account_number": "5.1.6.7.22"
+                        },
+                        "ANTIGUEDAD": {
+                            "account_number": "5.1.6.7.23"
+                        },
+                        "APORTE INCES": {
+                            "account_number": "5.1.6.7.30"
+                        },
+                        "APORTE SEGURO SOCIAL": {
+                            "account_number": "5.1.6.7.31"
+                        },
+                        "APORTE RPE": {
+                            "account_number": "5.1.6.7.32"
+                        },
+                        "APORTE FAOV": {
+                            "account_number": "5.1.6.7.33"
+                        }
+                    },
+                    "DEPRECIACIONES": {
+                        "account_number": "5.1.6.8",
+                        "account_type": "Accumulated Depreciation",
+                        "GASTOS DE DEPREC. MAQUINARIAS Y EQUIPOS": {
+                            "account_number": "5.1.6.8.12",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEPREC.MOBILIARIO": {
+                            "account_number": "5.1.6.8.20",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEPREC.EDIFICACIONES": {
+                            "account_number": "5.1.6.8.30",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEPREC.VEHICULOS": {
+                            "account_number": "5.1.6.8.40",
+                            "account_type": "Fixed Asset"
+                        }
+                    },
+                    "MATERIALES INDIRECTOS": {
+                        "account_number": "5.1.6.9",
+                        "UNIFORMES PERSONAL": {
+                            "account_number": "5.1.6.9.01"
+                        },
+                        "INSUMOS DE OFICINA": {
+                            "account_number": "5.1.6.9.02"
+                        }
+                    }
+                }
+            }
+        },
+        "EGRESOS": {
+            "account_number": "6",
+            "root_type": "Expense",
+            "GASTOS OPERACIONALES": {
+                "account_number": "6.1",
+                "GASTOS  DEL PERSONAL": {
+                    "account_number": "6.1.1",
+                    "REMUNERACIONES": {
+                        "account_number": "6.1.1.1",
+                        "SUELDOS DIRECTORES": {
+                            "account_number": "6.1.1.1.10"
+                        },
+                        "SUELDOS EMPLEADOS": {
+                            "account_number": "6.1.1.1.11"
+                        },
+                        "SALARIOS DE OBREROS": {
+                            "account_number": "6.1.1.1.12"
+                        },
+                        "DOMINGOS Y DIAS FERIADOS": {
+                            "account_number": "6.1.1.1.13"
+                        },
+                        "HORAS EXTRAS": {
+                            "account_number": "6.1.1.1.14"
+                        },
+                        "BONIFICACIONES CONTRACTUALES": {
+                            "account_number": "6.1.1.1.15"
+                        },
+                        "COMISIONES VENDEDORES": {
+                            "account_number": "6.1.1.1.16"
+                        },
+                        "CESTA TICKET": {
+                            "account_number": "6.1.1.1.17"
+                        },
+                        "BONO TRANSPORTE": {
+                            "account_number": "6.1.1.1.23"
+                        }
+                    },
+                    "BENEFICIOS LABORALES Y OTROS": {
+                        "account_number": "6.1.1.2",
+                        "PRESTACIONES SOCIALES - ANTIGUEDAD": {
+                            "account_number": "6.1.1.2.10"
+                        },
+                        "VACACIONES": {
+                            "account_number": "6.1.1.2.11"
+                        },
+                        "UTILIDADES": {
+                            "account_number": "6.1.1.2.12"
+                        },
+                        "PREAVISO NO TRABAJADO": {
+                            "account_number": "6.1.1.2.13"
+                        },
+                        "APORTE S.S.O": {
+                            "account_number": "6.1.1.2.14"
+                        },
+                        "APORTE I.N.C.E": {
+                            "account_number": "6.1.1.2.15"
+                        },
+                        "APORTE L.P.H.": {
+                            "account_number": "6.1.1.2.16"
+                        },
+                        "ALIMENTACION EMPLEADO": {
+                            "account_number": "6.1.1.2.17"
+                        },
+                        "APORTE F.A.O.V.": {
+                            "account_number": "6.1.1.2.18"
+                        },
+                        "FONACIT": {
+                            "account_number": "6.1.1.2.19"
+                        }
+                    }
+                },
+                "GASTOS DE ADMINISTRACION Y VENTAS": {
+                    "account_number": "6.1.2",
+                    "GASTOS ADMINISTRATIVOS": {
+                        "account_number": "6.1.2.1",
+                        "PAPELERIA": {
+                            "account_number": "6.1.2.1.01"
+                        },
+                        "SERVICIO DE AGUA": {
+                            "account_number": "6.1.2.1.05"
+                        },
+                        "ASEO URBANO DOMICILIARIO": {
+                            "account_number": "6.1.2.1.10"
+                        },
+                        "CONSUMO DE TELEFONO": {
+                            "account_number": "6.1.2.1.15"
+                        },
+                        "CONSUMO DE ELECTRICIDAD": {
+                            "account_number": "6.1.2.1.20"
+                        },
+                        "POLIZAS DE SEGURO": {
+                            "account_number": "6.1.2.1.25"
+                        },
+                        "COMIDAS, VIAJES Y TRASLADOS": {
+                            "account_number": "6.1.2.1.30"
+                        },
+                        "GASTOS DE REPUESTOS": {
+                            "account_number": "6.1.2.1.35"
+                        },
+                        "IMPUESTOS MUNICIPALES": {
+                            "account_number": "6.1.2.1.40"
+                        },
+                        "PAPELERIA VARIOS": {
+                            "account_number": "6.1.2.1.45"
+                        },
+                        "ALQUILES DE LOCAL": {
+                            "account_number": "6.1.2.1.50"
+                        },
+                        "MANTENIMIENTO Y REPARACIONES": {
+                            "account_number": "6.1.2.1.55"
+                        },
+                        "CONDOMINIO": {
+                            "account_number": "6.1.2.1.60"
+                        },
+                        "LEY DE PENSIONES": {
+                            "account_number": "6.1.2.1.65"
+                        },
+                        "GASTOS DIFERENCIA EN PARAFISCALES": {
+                            "account_number": "6.1.2.1.66"
+                        },
+                        "MULTAS SENIAT": {
+                            "account_number": "6.1.2.1.70"
+                        },
+                        "MULTAS INCES": {
+                            "account_number": "6.1.2.1.71"
+                        },
+                        "GASTOS NO DEDUCIBLE ISLR": {
+                            "account_number": "6.1.2.1.99"
+                        },
+                        "Retenciones Gubernamentales": {
+                            "account_type": "Expense Account",
+                            "account_number": "6.2.01.14"
+                        }
+                    },
+                    "SERVICIOS PROFESIONALES Y ASESORIAS": {
+                        "account_number": "6.1.2.2",
+                        "HONORARIOS ABOGADOS": {
+                            "account_number": "6.1.2.2.10"
+                        },
+                        "HONORARIOS CONTADORES": {
+                            "account_number": "6.1.2.2.15"
+                        },
+                        "HONORARIOS SERVICIOS TECNOLàGICOS": {
+                            "account_number": "6.1.2.2.20"
+                        },
+                        "HONORARIOS AUDITORES": {
+                            "account_number": "6.1.2.2.25"
+                        },
+                        "CAPACITACIàN DEL PERSONAL": {
+                            "account_number": "6.1.2.2.30"
+                        },
+                        "TRANSFERENCIA TECNOLàGICA.": {
+                            "account_number": "6.1.2.2.40"
+                        }
+                    },
+                    "GASTOS DE VENTAS Y MERCADEO": {
+                        "account_number": "6.1.2.3",
+                        "PUBLICIDAD EN PRENSA": {
+                            "account_number": "6.1.2.3.01"
+                        },
+                        "PUBLICIDAD EN RADIO": {
+                            "account_number": "6.1.2.3.02"
+                        },
+                        "MATERIALES DEL MERCADEO Y VENTA.": {
+                            "account_number": "6.1.2.3.03"
+                        }
+                    },
+                    "GASTOS DEPRECIACION": {
+                        "account_number": "6.1.2.4",
+                        "account_type": "Accumulated Depreciation",
+                        "GASTOS DE DEP. EDIFICIO": {
+                            "account_number": "6.1.2.4.01",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEP. MOBILIARIO": {
+                            "account_number": "6.1.2.4.02",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEP. EQUIPO OFICINA": {
+                            "account_number": "6.1.2.4.03",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEP. VEHICULO": {
+                            "account_number": "6.1.2.4.04",
+                            "account_type": "Fixed Asset"
+                        },
+                        "GASTOS DE DEP. EQUIPO DE TELECOMUNICACIONES": {
+                            "account_number": "6.1.2.4.05"
+                        }
+                    },
+                    "GASTOS BANCARIOS Y FINANCIEROS": {
+                        "account_number": "6.1.2.5",
+                        "account_type": "Bank",
+                        "IMPUESTO AL DEBITO BANCARIO": {
+                            "account_number": "6.1.2.5.01",
+                            "account_type": "Bank"
+                        },
+                        "COMISIONES BANCARIAS": {
+                            "account_number": "6.1.2.5.02",
+                            "account_type": "Bank"
+                        },
+                        "GASTOS BANCARIOS": {
+                            "account_number": "6.1.2.5.03",
+                            "account_type": "Bank"
+                        },
+                        "IMPUESTO A LAS TRANSACCIONES FINANCIERAS": {
+                            "account_number": "6.1.2.5.04"
+                        },
+                        "GASTOS DE REGISTROS": {
+                            "account_number": "6.1.2.5.06"
+                        }
+                    }
+                }
+            }
+        },
+        "OTROS INGRESOS Y EGRESOS": {
+            "account_number": "7",
+            "root_type": "Income",
+            "OTROS INGRESOS": {
+                "account_number": "7.1",
+                "INGRESOS EXTRAORDINARIOS": {
+                    "account_number": "7.1.1",
+                    "INTERESES DEVENGADOS": {
+                        "account_number": "7.1.1.1",
+                        "INTERESES BANCARIOS": {
+                            "account_number": "7.1.1.1.15",
+                            "account_type": "Bank"
+                        },
+                        "OTROS INGRESOS POR DIFERENCIAL CAMBIARIO": {
+                            "account_number": "7.1.1.1.16"
+                        },
+                        "INTERESES SOBRE CREDITOS": {
+                            "account_number": "7.1.1.1.20"
+                        },
+                        "OTROS INGRESOS": {
+                            "account_number": "7.1.1.1.25"
+                        },
+                        "OTROS EGRESOS": {
+                            "account_number": "7.1.1.1.30"
+                        },
+                        "OTROS EGRESOS POR DIFERENCIAL CAMBIARIO": {
+                            "account_number": "7.1.1.1.31"
+                        }
+                    },
+                    "GANANCIAS EXTRAORDINARIAS": {
+                        "account_number": "7.1.1.2",
+                        "GANANCIA/PERDIDA P/TENENCIA REALIZADA": {
+                            "account_number": "7.1.1.2.10"
+                        },
+                        "GANANCIAS POR VENTAS DE ACTIVOS FIJOS": {
+                            "account_number": "7.1.1.2.15"
+                        }
+                    },
+                    "INGRESOS POR DIVIDENDOS": {
+                        "account_number": "7.1.1.3",
+                        "DIVIDENDOS DE EMPRESAS HIDROCARBUROS": {
+                            "account_number": "7.1.1.3.10"
+                        }
+                    },
+                    "REGALIAS": {
+                        "account_number": "7.1.1.4",
+                        "REGALIAS NO MINERAS Y ANALOGAS": {
+                            "account_number": "7.1.1.4.10"
+                        },
+                        "REGALIAS MINERAS Y PARTICIP. ANALOGAS": {
+                            "account_number": "7.1.1.4.20"
+                        }
+                    }
+                }
+            },
+            "OTROS EGRESOS": {
+                "account_number": "7.2",
+                "EGRESOS EXTRAORDINARIOS": {
+                    "account_number": "7.2.1",
+                    "AMORTIZACIàN DE INTANGIBLES": {
+                        "account_number": "7.2.1.1",
+                        "AMORTIZACION PLUSVALIA": {
+                            "account_number": "7.2.1.1.10"
+                        },
+                        "AMORTIZACION GASTOS PREOPERACIONALES": {
+                            "account_number": "7.2.1.1.20"
+                        }
+                    },
+                    "DETERIORO DE VALOR DE ACTIVOS": {
+                        "account_number": "7.2.1.2",
+                        "DETERIORO DE VALOR DE LAS DEUDAS COMERCIALES": {
+                            "account_number": "7.2.1.2.10"
+                        },
+                        "DETERIORO DE VALOR DE LAS DEUDAS DE EMPRESAS AFILI": {
+                            "account_number": "7.2.1.2.15"
+                        },
+                        "DETERIORO DE VALOR DEL INVENTARIO": {
+                            "account_number": "7.2.1.2.20",
+                            "account_type": "Stock"
+                        },
+                        "DETERIORO DE VALOR DE INVERSIONES FINANCIERAS A CO": {
+                            "account_number": "7.2.1.2.25"
+                        },
+                        "DETERIORO DE VALOR DE PROPIEDADES, PLANTA Y EQUIPO": {
+                            "account_number": "7.2.1.2.30"
+                        },
+                        "DETERIORO DE VALOR DE PROPIEDADES DE INVERSIàN.": {
+                            "account_number": "7.2.1.2.35"
+                        }
+                    },
+                    "APARTADOS": {
+                        "account_number": "7.2.1.3",
+                        "IMPUESTO SOBRE LA RENTA": {
+                            "account_number": "7.2.1.3.10"
+                        },
+                        "RESERVA LEGAL": {
+                            "account_number": "7.2.1.3.20"
+                        }
+                    },
+                    "COSTO INTEGRAL DE FINANCIAMIENTO": {
+                        "account_number": "7.2.1.4",
+                        "RESULTADO MONETARIO DEL EJERCICIO (REME)": {
+                            "account_number": "7.2.1.4.10"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "is_allied_client_chart": 1
+}

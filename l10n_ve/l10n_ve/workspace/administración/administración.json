@@ -1,0 +1,266 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"adm_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Administración</b></span>\",\"col\":12}},{\"id\":\"adm_sc_customer\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Clientes\",\"col\":3}},{\"id\":\"adm_sc_supplier\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Proveedores\",\"col\":3}},{\"id\":\"adm_sc_item\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Inventario\",\"col\":3}},{\"id\":\"adm_sc_bank\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Bancos\",\"col\":3}},{\"id\":\"adm_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"adm_links_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documentos y Catálogos</b></span>\",\"col\":12}},{\"id\":\"adm_card1\",\"type\":\"card\",\"data\":{\"card_name\":\"Administración\",\"col\":4}},{\"id\":\"adm_card_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Reportes Importantes\",\"col\":4}}]",
+ "creation": "2026-05-31 12:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "organization",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Administración",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Administración",
+   "link_count": 8,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Clientes",
+   "link_count": 0,
+   "link_to": "Customer",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Proveedores",
+   "link_count": 0,
+   "link_to": "Supplier",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Inventario",
+   "link_count": 0,
+   "link_to": "Item",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Bancos",
+   "link_count": 0,
+   "link_to": "Bank Account",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reporte Gerencial",
+   "link_count": 0,
+   "link_to": "Reporte Gerencial",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Descarga Masiva de Archivos Fiscales",
+   "link_count": 0,
+   "link_to": "VE Fiscal Document Download",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Descarga Masiva de Comprobantes",
+   "link_count": 0,
+   "link_to": "VE Withholding Voucher Download",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reporte Pro",
+   "link_count": 0,
+   "link_to": "reporte-pro",
+   "link_type": "Page",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reportes Importantes",
+   "link_count": 9,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Movimientos de entradas y salidas del Inventario",
+   "link_count": 0,
+   "link_to": "Stock Ledger",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Conciliación Bancaria",
+   "link_count": 0,
+   "link_to": "Bank Reconciliation Statement",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Conciliación de Cajas",
+   "link_count": 0,
+   "link_to": "/app/workspace/cajas",
+   "link_type": "URL",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Libro de Compra (Retenciones)",
+   "link_count": 0,
+   "link_to": "purchase_book",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Libro de Venta (Retenciones)",
+   "link_count": 0,
+   "link_to": "Sales book",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Estado de Cuentas Por Cobrar Por Clientes",
+   "link_count": 0,
+   "link_to": "Accounts Receivable",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Estado de Cuentas Por pagar por Proveedor",
+   "link_count": 0,
+   "link_to": "Accounts Payable",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Estado de Facturas HKA",
+   "link_count": 0,
+   "link_to": "VE HKA Invoices Status",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-09 22:20:00.000000",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "Administración",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "Accounts User"
+  }
+ ],
+ "sequence_id": 1.0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "format": "{}",
+   "label": "Clientes",
+   "link_to": "Customer",
+   "stats_filter": "{}",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "format": "{}",
+   "label": "Proveedores",
+   "link_to": "Supplier",
+   "stats_filter": "{}",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "format": "{}",
+   "label": "Inventario",
+   "link_to": "Item",
+   "stats_filter": "{}",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "format": "{}",
+   "label": "Bancos",
+   "link_to": "Bank Account",
+   "stats_filter": "{}",
+   "type": "DocType"
+  }
+ ],
+ "title": "Administración",
+ "type": "Workspace"
+}

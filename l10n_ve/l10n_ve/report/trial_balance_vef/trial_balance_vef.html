@@ -1,0 +1,388 @@
+<style>
+    @media print {
+        @page {
+            size: letter portrait;
+            margin: 12mm 15mm 12mm 15mm;
+        }
+        .report-container {
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background-color: #fff !important;
+        }
+    }
+    
+    @media screen {
+        body {
+            background-color: #f1f5f9;
+            padding: 30px 15px;
+        }
+        .report-container {
+            max-width: 8.5in;
+            margin: 0 auto 30px auto;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            padding: 40px !important;
+            background-color: #fff;
+        }
+    }
+    
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
+        font-size: 9px;
+        background-color: #fff;
+        margin: 0;
+        padding: 0;
+        line-height: 1.45;
+    }
+    
+    .report-header {
+        width: 100%;
+        margin-bottom: 8px;
+        border-collapse: collapse;
+    }
+    
+    .report-header td {
+        border: none !important;
+        padding: 0 !important;
+        background-color: transparent !important;
+    }
+    
+    .title-badge {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #84cc16; /* Verde Galanet */
+        border-radius: 0 4px 4px 0;
+        padding: 10px 14px;
+        text-align: left;
+        margin: 15px 0 20px 0;
+    }
+    
+    .title-badge h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: #0f172a;
+    }
+    
+    .title-badge p {
+        margin: 4px 0 0 0;
+        font-size: 7.5px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .ledger-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    
+    thead {
+        display: table-header-group;
+    }
+    
+    tr, td {
+        page-break-inside: avoid !important;
+    }
+    
+    .ledger-table th {
+        font-size: 8px;
+        font-weight: 700;
+        color: #1e293b;
+        background-color: #f8fafc;
+        border-top: 2px solid #1e293b;
+        border-bottom: 2px solid #84cc16; /* Verde Galanet bottom line */
+        padding: 8px 6px;
+        text-align: left;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .ledger-table td {
+        padding: 7px 6px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9 !important;
+        line-height: 1.4;
+        color: #334155;
+    }
+    
+    .ledger-table tr.leaf-row:nth-child(even) {
+        background-color: #f8fafc;
+    }
+    
+    .text-right {
+        text-align: right;
+        white-space: nowrap !important;
+    }
+    
+    .bold {
+        font-weight: bold;
+    }
+    
+    .indent-line {
+        border-left: 1.5px solid #cbd5e1;
+        padding-left: 8px;
+        display: inline-block;
+    }
+    
+    .group-header-row td {
+        font-weight: 700;
+        color: #0f172a;
+        background-color: #f1f5f9;
+        padding-top: 9px;
+        padding-bottom: 9px;
+        font-size: 9px;
+        border-top: 1px solid #e2e8f0;
+        border-bottom: 1px solid #cbd5e1;
+    }
+    
+    .totals-row td {
+        font-weight: 700;
+        background-color: #f8fafc;
+        border-top: 1.5px solid #84cc16;
+        border-bottom: 1.5px solid #cbd5e1;
+        color: #0f172a;
+        padding: 8px 6px;
+        font-size: 8.5px;
+    }
+    
+    .grand-totals-row td {
+        font-weight: 800;
+        background-color: #f1f5f9;
+        border-top: 2px solid #1e293b;
+        border-bottom: 4px double #1e293b;
+        color: #0f172a;
+        padding: 10px 6px;
+        font-size: 9px;
+    }
+    
+    .negative-val {
+        color: #df2020;
+        font-weight: inherit;
+    }
+</style>
+
+<div class="report-container">
+    {%
+        var format_val = function(val) {
+            if (val === null || val === undefined || val === "") return "";
+            var formatted = format_currency(val);
+            if (val < -0.005) {
+                return '<span class="negative-val">' + formatted + '</span>';
+            }
+            return formatted;
+        };
+    %}
+
+    {%
+        var company_name = (filters && filters.company) || "";
+        var comp_doc = (company_name && typeof frappe !== "undefined" && frappe.model && frappe.model.get_doc) ? frappe.model.get_doc("Company", company_name) : null;
+        var company_logo = (comp_doc && comp_doc.company_logo) || "/files/galanet_logo.jpg";
+        var company_rif = (comp_doc && comp_doc.tax_id) || "";
+    %}
+    <table class="report-header" style="width: 100%; border-collapse: collapse; margin-bottom: 5px;">
+        <tr>
+            <td style="width: 45%; vertical-align: middle; border: none; padding: 0;">
+                <img src="{%= company_logo %}" style="max-height: 40px; display: block;" alt="Logo">
+            </td>
+            <td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #334155; line-height: 1.35;">
+                <div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">{%= company_name %}</div>
+                <div style="font-size: 8px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: {%= company_rif %}</div>
+                <div style="font-size: 8px; color: #64748b; margin-top: 2px;">{%= new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %}</div>
+            </td>
+        </tr>
+    </table>
+    <div style="width: 100%; height: 3px; background: linear-gradient(90deg, #84cc16 0%, #1e293b 100%); margin-top: 5px; margin-bottom: 10px;"></div>
+    
+    <div class="title-badge">
+        <h1>Balance de Comprobación Detallado</h1>
+        <p>Período: {%= (filters && filters.from_date) ? filters.from_date.split("-").reverse().join("/") : "" %} al {%= (filters && filters.to_date) ? filters.to_date.split("-").reverse().join("/") : "" %} &nbsp;|&nbsp; Expresado en Bolívares (VEF) &nbsp;|&nbsp; Incluye cuentas con saldo o movimientos</p>
+    </div>
+
+    <table class="ledger-table">
+        <thead>
+            <tr>
+                <th class="text-left">Cuenta Contable</th>
+                <th class="text-right" style="width: 120px;">Saldo Inicial</th>
+                <th class="text-right" style="width: 120px;">Debe</th>
+                <th class="text-right" style="width: 120px;">Haber</th>
+                <th class="text-right" style="width: 140px;">
+                    Saldo a la fecha {%= (filters && filters.to_date) ? filters.to_date.split("-").reverse().join("/") : "" %}
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for (var i=0, l=data.length; i<l; i++) {
+                var row = data[i]; %}
+            {% if (row.is_header) { 
+                var acc_html = row.account_name;
+                if (row.indent > 0) {
+                    acc_html = '<span class="indent-line" style="margin-left: ' + (row.indent * 10) + 'px;">' + row.account_name + '</span>';
+                }
+            %}
+            <tr class="group-header-row">
+                <td colspan="5">
+                    <span class="acc-num">{%= row.account_number || "" %}</span>
+                    {%= acc_html %}
+                </td>
+            </tr>
+            {% } else if (row.is_total) { 
+                var acc_html = row.account_name;
+                if (row.indent > 0) {
+                    acc_html = '<span class="indent-line" style="margin-left: ' + (row.indent * 10) + 'px;">' + row.account_name + '</span>';
+                }
+            %}
+            <tr class="totals-row">
+                <td>
+                    {%= acc_html %}
+                </td>
+                <td class="text-right">{%= format_val(row.opening_balance) %}</td>
+                <td class="text-right">{%= format_val(row.debit) %}</td>
+                <td class="text-right">{%= format_val(row.credit) %}</td>
+                <td class="text-right">{%= format_val(row.closing_balance) %}</td>
+            </tr>
+            {% } else { 
+                var acc_html = row.account_name;
+                if (row.indent > 0) {
+                    acc_html = '<span class="indent-line" style="margin-left: ' + (row.indent * 10) + 'px;">' + row.account_name + '</span>';
+                }
+            %}
+            <tr class="leaf-row">
+                <td>
+                    <span class="acc-num">{%= row.account_number || "" %}</span>
+                    {%= acc_html %}
+                </td>
+                <td class="text-right">{%= format_val(row.opening_balance) %}</td>
+                <td class="text-right">{%= format_val(row.debit) %}</td>
+                <td class="text-right">{%= format_val(row.credit) %}</td>
+                <td class="text-right">{%= format_val(row.closing_balance) %}</td>
+            </tr>
+            {% } %}
+            {% } %}
+        </tbody>
+    </table>
+
+    {%
+        var total_activo = 0.0;
+        var total_pasivo_capital = 0.0;
+        var total_ingresos = 0.0;
+        var total_gastos = 0.0;
+        var grand_total_opening = 0.0;
+        var grand_total_debit = 0.0;
+        var grand_total_credit = 0.0;
+        var grand_total_closing = 0.0;
+
+        for (var i = 0; i < data.length; i++) {
+            var row = data[i];
+            if (row.is_group === 0) {
+                var closing = row.closing_balance || 0.0;
+                var debit   = row.debit || 0.0;
+                var credit  = row.credit || 0.0;
+                var opening = row.opening_balance || 0.0;
+
+                grand_total_opening += opening;
+                grand_total_debit   += debit;
+                grand_total_credit  += credit;
+                grand_total_closing += closing;
+
+                if (row.root_type === "Asset") {
+                    total_activo += closing;
+                } else if (row.root_type === "Liability" || row.root_type === "Equity") {
+                    total_pasivo_capital += closing;
+                } else if (row.root_type === "Income") {
+                    total_ingresos += closing;
+                } else if (row.root_type === "Expense") {
+                    total_gastos += closing;
+                }
+            }
+        }
+
+        var utilidad = (-total_ingresos) - total_gastos;
+        var diff_cuadre = grand_total_debit - grand_total_credit;
+        var cuadrado = Math.abs(diff_cuadre) < 0.01;
+    %}
+
+    <!-- ═══ SECCIÓN DE TOTALES Y VERIFICACIÓN DE CUADRE ═══ -->
+    <div style="margin-top: 20px;">
+
+        <!-- FILA 1: Totales de las columnas Saldo Inicial / Debe / Haber / Saldo Final -->
+        <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt; font-weight: 700; color: #0f172a;">
+            <thead>
+                <tr>
+                    <th style="border-top: 2px solid #0f172a; border-bottom: 1px solid #0f172a; text-align: left; padding: 7px 6px; background: #f1f5f9 !important; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px;">
+                        TOTALES GENERALES
+                    </th>
+                    <th style="border-top: 2px solid #0f172a; border-bottom: 1px solid #0f172a; text-align: right; padding: 7px 6px; width: 120px; background: #f1f5f9 !important;">
+                        Saldo Inicial
+                    </th>
+                    <th style="border-top: 2px solid #0f172a; border-bottom: 1px solid #0f172a; text-align: right; padding: 7px 6px; width: 120px; background: #f1f5f9 !important;">
+                        Total Debe
+                    </th>
+                    <th style="border-top: 2px solid #0f172a; border-bottom: 1px solid #0f172a; text-align: right; padding: 7px 6px; width: 120px; background: #f1f5f9 !important;">
+                        Total Haber
+                    </th>
+                    <th style="border-top: 2px solid #0f172a; border-bottom: 1px solid #0f172a; text-align: right; padding: 7px 6px; width: 140px; background: #f1f5f9 !important;">
+                        Saldo Final
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 7px 6px; border-bottom: 2px solid #0f172a;"></td>
+                    <td style="padding: 7px 6px; text-align: right; border-bottom: 2px solid #0f172a;">{%= format_val(grand_total_opening) %}</td>
+                    <td style="padding: 7px 6px; text-align: right; border-bottom: 2px solid #0f172a;">{%= format_val(grand_total_debit) %}</td>
+                    <td style="padding: 7px 6px; text-align: right; border-bottom: 2px solid #0f172a;">{%= format_val(grand_total_credit) %}</td>
+                    <td style="padding: 7px 6px; text-align: right; border-bottom: 2px solid #0f172a; color: {%= cuadrado ? '#16a34a' : '#dc2626' %};">
+                        {%= format_val(grand_total_closing) %}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- FILA 2: Balance Activo vs Pasivo + Capital + Utilidad/Pérdida -->
+        <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-top: 10px;">
+            <tbody>
+                <tr>
+                    <!-- Activo -->
+                    <td style="width: 33%; padding: 8px 6px; border: 1px solid #cbd5e1; background: #f8fafc !important; vertical-align: top;">
+                        <div style="font-size: 7.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px;">Total Activo</div>
+                        <div style="font-size: 9.5pt; font-weight: 800; color: #0f172a;">{%= format_val(total_activo) %}</div>
+                    </td>
+                    <!-- Pasivo + Capital -->
+                    <td style="width: 33%; padding: 8px 6px; border: 1px solid #cbd5e1; border-left: none; background: #f8fafc !important; vertical-align: top;">
+                        <div style="font-size: 7.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px;">Total Pasivo + Capital</div>
+                        <div style="font-size: 9.5pt; font-weight: 800; color: #0f172a;">{%= format_val(-total_pasivo_capital) %}</div>
+                    </td>
+                    <!-- Utilidad o Pérdida -->
+                    <td style="width: 34%; padding: 8px 6px; border: 1px solid #cbd5e1; border-left: none; background: #f8fafc !important; vertical-align: top;">
+                        <div style="font-size: 7.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px;">
+                            {%= utilidad >= 0 ? 'Utilidad del Ejercicio' : 'Pérdida del Ejercicio' %}
+                        </div>
+                        <div style="font-size: 9.5pt; font-weight: 800; color: {%= utilidad >= 0 ? '#16a34a' : '#dc2626' %};">
+                            {%= format_val(Math.abs(utilidad)) %}
+                        </div>
+                        <div style="font-size: 7pt; color: #64748b; margin-top: 2px;">
+                            Ingresos: {%= format_val(-total_ingresos) %} &nbsp;|&nbsp; Gastos: {%= format_val(total_gastos) %}
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- FILA 3: Indicador de cuadre del EEFF -->
+        <div style="margin-top: 8px; padding: 6px 10px; background: {%= cuadrado ? '#dcfce7' : '#fee2e2' %} !important; border: 1px solid {%= cuadrado ? '#86efac' : '#fca5a5' %}; font-size: 8pt; font-weight: 700; color: {%= cuadrado ? '#15803d' : '#b91c1c' %}; text-align: center;">
+            {%= cuadrado
+                ? '✓  El Balance de Comprobación está CUADRADO — Debe = Haber'
+                : '✗  Diferencia detectada: el Balance NO está cuadrado — Debe ≠ Haber (Diferencia: ' + format_val(diff_cuadre) + ')'
+            %}
+        </div>
+
+    </div>
+</div>

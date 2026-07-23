@@ -1,0 +1,371 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2025-08-26 16:06:42.540261",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "empresa",
+  "column_break_idyo",
+  "voucher_number",
+  "naming_series",
+  "section_break_mgat",
+  "supplier",
+  "supplier_name",
+  "column_2",
+  "fiscal_period",
+  "column_4",
+  "branch",
+  "section_7",
+  "start_date",
+  "end_date",
+  "column_10",
+  "issue_date",
+  "delivery_date",
+  "section_13",
+  "vat_withholding_voucher_item",
+  "section_15",
+  "totals_grand_total",
+  "totals_total",
+  "totals_tax_amount_vat",
+  "column_19",
+  "totals_total_exempt",
+  "totals_taxes_and_charges_added",
+  "section_22",
+  "company_address",
+  "column_24",
+  "supplier_address",
+  "section_26",
+  "digital_invoice_status",
+  "is_declared",
+  "column_29",
+  "bill_control",
+  "section_31",
+  "hka_response",
+  "section_33",
+  "hka_preview",
+  "section_35",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Proveedor",
+   "options": "Supplier",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "supplier.supplier_name",
+   "fieldname": "supplier_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Proveedor",
+   "read_only": 1
+  },
+  {
+   "fieldname": "fiscal_period",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Periodo Fiscal",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "empresa",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_standard_filter": 1,
+   "label": "Empresa",
+   "options": "Company",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sucursal",
+   "options": "VE Branch"
+  },
+  {
+   "fieldname": "column_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "voucher_number",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "No. de Comprobante",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "COMP-RET-IVA-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "COMP-RET-IVA-.YYYY.-",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_7",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Fecha Inicio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "Fecha Fin",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_10",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Fecha Emisi\u00f3n",
+   "no_copy": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "delivery_date",
+   "fieldtype": "Date",
+   "label": "Fecha Entrega",
+   "no_copy": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_13",
+   "fieldtype": "Section Break",
+   "label": "Facturas"
+  },
+  {
+   "fieldname": "vat_withholding_voucher_item",
+   "fieldtype": "Table",
+   "label": "Facturas",
+   "options": "VAT Withholding Voucher Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_15",
+   "fieldtype": "Section Break",
+   "label": "Totales"
+  },
+  {
+   "fieldname": "totals_grand_total",
+   "fieldtype": "Currency",
+   "label": "Total Compras + IVA",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_total",
+   "fieldtype": "Currency",
+   "label": "Total Base Imponible",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_tax_amount_vat",
+   "fieldtype": "Currency",
+   "label": "Total IVA Retenido",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_19",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "totals_total_exempt",
+   "fieldtype": "Currency",
+   "label": "Total Compras sin cr\u00e9dito fiscal",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_taxes_and_charges_added",
+   "fieldtype": "Currency",
+   "label": "Total IVA",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_22",
+   "fieldtype": "Section Break",
+   "label": "Direcciones"
+  },
+  {
+   "fieldname": "company_address",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Direcci\u00f3n Empresa"
+  },
+  {
+   "fieldname": "column_24",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier_address",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Direcci\u00f3n Proveedor"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_26",
+   "fieldtype": "Section Break",
+   "label": "Factura Digital"
+  },
+  {
+   "fieldname": "digital_invoice_status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Estado Emisi\u00f3n Digital",
+   "no_copy": 1,
+   "options": "\nPending\nSent\nError\nVoided",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_declared",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Declarado",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_29",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bill_control",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "N\u00b0 Control HKA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_31",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "hka_response",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Respuesta HKA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_33",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "hka_preview",
+   "fieldtype": "HTML",
+   "label": "Vista Previa Fiscal",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_35",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "VAT Withholding Voucher",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_idyo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_mgat",
+   "fieldtype": "Section Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-07-10 15:07:01.431615",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VAT Withholding Voucher",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "voucher_number",
+ "track_changes": 1
+}

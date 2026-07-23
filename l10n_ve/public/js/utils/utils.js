@@ -1,0 +1,731 @@
+const RIF_LEGAL_NATURES = ["Juridical", "Government", "Communal", "Educational"];
+const RIF_NATURAL_NATURES = ["Venezuelan", "Extranjero", "Passport"];
+
+/**
+ * @param {string} document_type
+ * @param {string} nature
+ * @returns {number|Array<number>}
+ */
+function get_tax_id_config(document_type, nature) {
+  const config = {
+    RIF: { default: 9 },
+    Cedula: {
+      default: [6, 8],
+    },
+    Passport: {
+      default: [5, 12],
+    },
+    DEA: { default: 8 },
+  };
+
+  const doc_config = config[document_type] || config["RIF"];
+  return doc_config[nature] || doc_config.default;
+}
+
+/**
+ * @param {object} frm
+ * @param {string} fieldname
+ */
+function handle_field_change(frm, fieldname) {
+  if (fieldname === "type_of_document") {
+    frm.set_value("nature_of_the_taxpayer", "");
+    frm.set_value("type_of_person", "");
+
+    if (frm.doc.type_of_document === "DEA") {
+      frm.set_value("nature_of_the_taxpayer", "Educational");
+      frm.set_value("type_of_person", "Domiciled legal entity");
+    }
+  }
+
+  set_nature_filter(frm);
+
+  if (fieldname === "nature_of_the_taxpayer") {
+    build_tax_id(frm);
+  }
+
+  set_person_type_filter(frm);
+}
+
+/**
+ *
+ * @param {object} frm -
+ */
+function build_tax_id(frm) {
+  const nature = frm.doc.nature_of_the_taxpayer;
+  const document_type = frm.doc.type_of_document;
+  const tax_id_value = frm.doc.tax_id || "";
+
+  if (!nature || !document_type) {
+    return;
+  }
+
+  const length_config = get_tax_id_config(document_type, nature);
+  const max_length = Array.isArray(length_config)
+    ? length_config[1]
+    : length_config;
+  let full_tax_id = "";
+
+  if (document_type === "Passport") {
+    let passport_number = tax_id_value
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .toUpperCase();
+
+    let letter_count = 0;
+    let cleaned_passport = "";
+    for (const char of passport_number) {
+      if (/[A-Z]/.test(char)) {
+        if (letter_count < 3) {
+          cleaned_passport += char;
+          letter_count++;
+        }
+      } else {
+        cleaned_passport += char;
+      }
+    }
+    passport_number = cleaned_passport;
+
+    if (passport_number.length > max_length) {
+      passport_number = passport_number.substring(0, max_length);
+    }
+    full_tax_id = passport_number;
+  } else if (document_type === "DEA") {
+    const cleaned_id = tax_id_value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const match = cleaned_id.match(/^(DEA)?(OD|OC|PD|PC|O|P|D)?/);
+    const prefix = match ? match[0] : "";
+    let number_part = cleaned_id.substring(prefix.length).replace(/\D/g, "");
+    if (max_length && number_part.length > max_length) {
+      number_part = number_part.substring(0, max_length);
+    }
+    full_tax_id = prefix + number_part;
+  } else {
+    // Lógica para Cédula y RIF
+    const letter = nature.charAt(0).toUpperCase();
+    let number_part = tax_id_value.replace(/^[a-zA-Z]*/, "").replace(/\D/g, "");
+
+    if (max_length && number_part.length > max_length) {
+      number_part = number_part.substring(0, max_length);
+    }
+    full_tax_id = letter + number_part;
+  }
+
+  frm.set_value("tax_id", full_tax_id);
+}
+
+/**
+ * Construye el RIF para la Compañía.
+ * @param {object} frm -
+ */
+function build_rif(frm) {
+  const nature = frm.doc.nature_of_the_taxpayer;
+  const tax_id_value = frm.doc.tax_id || "";
+
+  if (!nature) {
+    return;
+  }
+
+  const letter = nature.charAt(0).toUpperCase();
+  let number_part = tax_id_value.replace(/^[a-zA-Z]*/, "").replace(/\D/g, "");
+
+  if (number_part.length > 9) {
+    number_part = number_part.substring(0, 9);
+  }
+
+  frm.set_value("tax_id", letter + number_part);
+}
+
+/**
+ *
+ * @param {object} frm
+ */
+function set_person_type_filter(frm) {
+  const nature = frm.doc.nature_of_the_taxpayer;
+  const doc_type = frm.doc.type_of_document;
+
+  let allowed_person_types = [];
+
+  if (doc_type === "Cedula" || doc_type === "Passport") {
+    allowed_person_types = [
+      "Natural person domiciled",
+      "Non-domiciled natural person",
+    ];
+    // Una empresa extranjera puede identificarse con pasaporte como
+    // persona jurídica no domiciliada.
+    if (doc_type === "Passport") {
+      allowed_person_types.push("Non-domiciled legal entity");
+    }
+  } else if (doc_type === "DEA") {
+    allowed_person_types = ["Domiciled legal entity"];
+  } else if (RIF_LEGAL_NATURES.includes(nature)) {
+    allowed_person_types = [
+      "Domiciled legal entity",
+      "Non-domiciled legal entity",
+    ];
+  } else if (RIF_NATURAL_NATURES.includes(nature)) {
+    allowed_person_types = [
+      "Natural person domiciled",
+      "Non-domiciled natural person",
+    ];
+  }
+
+  if (
+    frm.doc.type_of_person &&
+    !allowed_person_types.includes(frm.doc.type_of_person)
+  ) {
+    frm.set_value("type_of_person", "");
+  }
+
+  frm.set_df_property(
+    "type_of_person",
+    "options",
+    allowed_person_types.join("\n"),
+  );
+}
+
+/**
+ * Filtra las opciones de Naturaleza del Contribuyente según el Tipo de Documento.
+ * @param {object} frm
+ */
+function set_nature_filter(frm) {
+  const doc_type = frm.doc.type_of_document;
+  let allowed_natures = [];
+
+  if (doc_type === "Cedula") {
+    allowed_natures = ["Venezuelan", "Extranjero"];
+  } else if (doc_type === "Passport") {
+    allowed_natures = ["Extranjero"];
+    frm.set_value("nature_of_the_taxpayer", "Extranjero");
+  } else if (doc_type === "DEA") {
+    allowed_natures = ["Educational"];
+    frm.set_value("nature_of_the_taxpayer", "Educational");
+  } else {
+    // Para RIF u otros, permitir todas las opciones
+    allowed_natures = RIF_LEGAL_NATURES.concat(RIF_NATURAL_NATURES);
+  }
+
+  if (
+    frm.doc.nature_of_the_taxpayer &&
+    !allowed_natures.includes(frm.doc.nature_of_the_taxpayer)
+  ) {
+    frm.set_value("nature_of_the_taxpayer", "");
+  }
+
+  frm.set_df_property(
+    "nature_of_the_taxpayer",
+    "options",
+    allowed_natures.join("\n"),
+  );
+}
+
+function validate_cedula(frm, fieldname) {
+  const value = frm.doc[fieldname];
+  if (!value) return;
+
+  let cleanedValue = value.toUpperCase().replace(/[^VE\d]/g, "");
+  let firstChar = cleanedValue.charAt(0);
+  let restOfChars = cleanedValue.substring(1).replace(/\D/g, "");
+
+  if (firstChar !== "V" && firstChar !== "E") {
+    frm.set_value(fieldname, "");
+    frappe.throw({
+      title: __("Formato de Cédula Inválido"),
+      message: __("El primer carácter de la cédula debe ser 'V' o 'E'."),
+      indicator: "red",
+    });
+    return;
+  }
+
+  const length_config = get_tax_id_config("Cedula");
+  const min_length = length_config[0];
+  const max_length = length_config[1];
+
+  if (restOfChars.length > max_length) {
+    restOfChars = restOfChars.substring(0, max_length);
+  }
+
+  const final_value = firstChar + restOfChars;
+
+  if (frm.doc[fieldname] !== final_value) {
+    frm.set_value(fieldname, final_value);
+  }
+}
+
+function get_address_link(frm) {
+  const field_primary_address = {
+    Company: "custom_company_primary_address",
+    Supplier: "supplier_primary_address",
+    Customer: "customer_primary_address",
+  };
+
+  const fieldname_address_link = field_primary_address[frm.doctype];
+
+  if (!fieldname_address_link) {
+    return;
+  }
+
+  if (frm.is_new()) {
+    frm.toggle_display(fieldname_address_link, false);
+    return;
+  }
+
+  frappe
+    .call({
+      method: "l10n_ve.overrides.address.get_address_link_count",
+      args: {
+        link_doctype: frm.doctype,
+        link_name: frm.doc.name,
+      },
+    })
+    .then((r) => {
+      frm.toggle_display(fieldname_address_link, r.message > 0);
+    });
+}
+
+function hidden_address_contact(frm) {
+  const field_primary_address = {
+    Company: "custom_company_primary_address",
+    Supplier: "supplier_primary_address",
+    Customer: "customer_primary_address",
+  };
+
+  const field_primary_contact = {
+    Supplier: "supplier_primary_contact",
+    Customer: "customer_primary_contact",
+  };
+
+  const fieldname_address_link = field_primary_address[frm.doctype];
+  const fieldname_contact_link = field_primary_contact[frm.doctype];
+
+  if (fieldname_address_link) {
+    frm.toggle_display(fieldname_address_link, false);
+  }
+
+  if (fieldname_contact_link) {
+    frm.toggle_display(fieldname_contact_link, false);
+  }
+}
+
+function realtime_numeric_validation(frm, fieldname) {
+  const input = frm.get_field(fieldname).$input;
+  if (!input) return;
+
+  input.on("input", function () {
+    const value = $(this).val();
+    const numeric_value = value.replace(/\D/g, "");
+
+    if (value !== numeric_value) {
+      frm.set_value(fieldname, numeric_value, false);
+      frm.get_field(fieldname).refresh();
+    }
+  });
+}
+
+// Permite letras (mayúsculas/minúsculas), números y guiones.
+// Usado para números de control de facturas de máquina fiscal.
+function realtime_alphanumeric_with_hyphen_validation(frm, fieldname) {
+  const input = frm.get_field(fieldname).$input;
+  if (!input) return;
+
+  input.on("input", function () {
+    const value = $(this).val();
+    const clean_value = value.replace(/[^A-Za-z0-9-]/g, "");
+
+    if (value !== clean_value) {
+      frm.set_value(fieldname, clean_value, false);
+      frm.get_field(fieldname).refresh();
+    }
+  });
+}
+
+function format_phone_input(value) {
+  if (!value) return "";
+  let formatted_value = value.replace(/[^\d+]/g, "");
+
+  if (formatted_value.lastIndexOf("+") > 0) {
+    formatted_value =
+      formatted_value[0] +
+      formatted_value.substring(1).replace(/\+/g, "");
+  }
+
+  if (formatted_value.length > 25) {
+    formatted_value = formatted_value.substring(0, 25);
+  }
+  return formatted_value;
+}
+
+function setup_phone_validation(frm, fieldname) {
+  const input = frm.get_field(fieldname).$input;
+  if (!input) return;
+
+  input.on("input", function () {
+    const original_value = $(this).val();
+    const numeric_value = format_phone_input(original_value);
+
+    if (original_value !== numeric_value) {
+      frm.set_value(fieldname, numeric_value, false);
+      frm.get_field(fieldname).refresh();
+    }
+  });
+}
+
+const PHONE_FORMAT_REGEX = /^\+?\d{7,25}$/;
+
+function is_valid_phone_format(phone_no) {
+  if (!phone_no) return true;
+  return PHONE_FORMAT_REGEX.test(phone_no);
+}
+
+function validate_phone_format(frm, fieldname) {
+  const phone_no = frm.doc[fieldname];
+  if (!is_valid_phone_format(phone_no)) {
+    frappe.throw({
+      title: __("Número de Teléfono Inválido"),
+      message: __(
+        "El número de teléfono debe contener entre 7 y 25 caracteres.\nSolo puede incluir números y el signo '+' al principio.",
+      ),
+      indicator: "red",
+    });
+  }
+}
+
+function add_address_button(frm) {
+  if (frm.is_new()) {
+    if (!frm.custom_buttons[__("Agregar Dirección")]) {
+      frm.add_custom_button(__("Agregar Dirección"), () => {
+        const dialog = _get_address_dialog(frm, null);
+        dialog.set_value("email_id", frm.doc.email_id || "");
+        dialog.show();
+      });
+    }
+  } else {
+    const address_field =
+      frm.doctype === "Supplier"
+        ? "supplier_primary_address"
+        : "customer_primary_address";
+    const address_name = frm.doc[address_field];
+
+    if (address_name) {
+      if (!frm.custom_buttons[__("Editar Dirección")]) {
+        frm.add_custom_button(__("Editar Dirección"), () => {
+          frappe.call({
+            method: "l10n_ve.utils.utils.get_address_data",
+            args: { address_name: address_name },
+            callback: (r) => {
+              if (r.message) {
+                const dialog = _get_address_dialog(frm, address_name);
+                const data = r.message;
+                dialog.set_values({
+                  address_line1: data.address_line1 || "",
+                  address_type: data.address_type || "Billing",
+                  country: data.country || "",
+                  state: data.state || "",
+                  city: data.city || "",
+                  county: data.county || "",
+                  parish: data.parish || "",
+                  pincode: data.pincode || "",
+                  phone: data.phone || "",
+                  email_id: frm.doc.email_id || "",
+                  is_primary_address: data.is_primary_address || 0,
+                  is_shipping_address: data.is_shipping_address || 0,
+                });
+                dialog.show();
+              }
+            },
+          });
+        });
+      }
+    } else {
+      if (!frm.custom_buttons[__("Agregar Dirección")]) {
+        frm.add_custom_button(__("Agregar Dirección"), () => {
+          const dialog = _get_address_dialog(frm, null);
+          dialog.set_value("email_id", frm.doc.email_id || "");
+          dialog.show();
+        });
+      }
+    }
+  }
+}
+
+function _get_address_dialog(frm, existing_address_name) {
+  const is_edit = !!existing_address_name;
+  const dialog_title = is_edit ? __("Editar Dirección") : __("Nueva Dirección");
+  const action_label = is_edit ? __("Actualizar") : __("Guardar");
+
+  const dialog = new frappe.ui.Dialog({
+    title: dialog_title,
+    fields: [
+      {
+        label: __("Dirección Línea 1"),
+        fieldname: "address_line1",
+        fieldtype: "Data",
+        reqd: 1,
+      },
+      {
+        label: __("Tipo de Dirección"),
+        fieldname: "address_type",
+        fieldtype: "Select",
+        options: "Billing\nShipping\nOffice\nPersonal\nPlant\nWarehouse",
+        default: "Billing",
+        reqd: 1,
+      },
+      {
+        label: __("País"),
+        fieldname: "country",
+        fieldtype: "Link",
+        options: "Country",
+        default: frappe.defaults.get_user_default("country"),
+        reqd: 1,
+      },
+      {
+        label: __("Estado/Provincia"),
+        fieldname: "state",
+        fieldtype: "Link",
+        options: "VE State",
+        default: null,
+        reqd: 1,
+      },
+      {
+        label: __("Ciudad/Pueblo"),
+        fieldname: "city",
+        fieldtype: "Link",
+        options: "VE City",
+        default: null,
+        reqd: 1,
+      },
+      {
+        label: __("Municipio"),
+        fieldname: "county",
+        fieldtype: "Link",
+        options: "VE Municipality",
+        default: null,
+        reqd: 1,
+      },
+      {
+        label: __("Parroquia"),
+        fieldname: "parish",
+        fieldtype: "Link",
+        options: "VE Parish",
+        default: null,
+      },
+      {
+        label: __("Código Postal"),
+        fieldname: "pincode",
+        fieldtype: "Data",
+        default: null,
+      },
+      {
+        label: __("Teléfono"),
+        fieldname: "phone",
+        fieldtype: "Data",
+        default: null,
+      },
+      {
+        label: __("Correo Electrónico"),
+        fieldname: "email_id",
+        fieldtype: "Small Text",
+        default: null,
+        reqd: 1,
+      },
+      {
+        label: __("Es Dirección Principal"),
+        fieldname: "is_primary_address",
+        fieldtype: "Check",
+        default: 1,
+      },
+      {
+        label: __("Es Dirección de Envío"),
+        fieldname: "is_shipping_address",
+        fieldtype: "Check",
+        default: 1,
+      },
+    ],
+    primary_action_label: action_label,
+    primary_action: (values) => {
+      if (!is_valid_phone_format(values.phone)) {
+        frappe.msgprint({
+          title: __("Número de Teléfono Inválido"),
+          message: __(
+            "El número de teléfono debe contener entre 7 y 25 caracteres.\nSolo puede incluir números y el signo '+' al principio.",
+          ),
+          indicator: "red",
+        });
+        return;
+      }
+
+      const email_error = validate_multiple_emails(values.email_id);
+      if (email_error) {
+        frappe.msgprint({
+          title: __("Correo Electrónico Inválido"),
+          message: email_error,
+          indicator: "red",
+        });
+        return;
+      }
+
+      if (is_edit) {
+        frappe.call({
+          method: "l10n_ve.utils.utils.update_independent_address",
+          args: {
+            address_name: existing_address_name,
+            address_values: values,
+          },
+          callback: (r) => {
+            if (!r.exc) {
+              dialog.hide();
+              frm.set_value("mobile_no", values.phone);
+              frm.set_value("email_id", values.email_id);
+              frm.save();
+              frappe.show_alert({
+                message: __("Dirección actualizada exitosamente"),
+                indicator: "green",
+              });
+            }
+          },
+          error: (err) => {
+            frappe.msgprint(__("Ocurrió un error al actualizar la dirección."));
+            console.error(err);
+          },
+        });
+      } else {
+        values.doctype = "Address";
+
+        frappe.call({
+          method: "l10n_ve.utils.utils.create_independent_address",
+          args: {
+            address_values: values,
+          },
+          callback: (r) => {
+            if (!r.exc && r.message) {
+              frappe.msgprint(__("Dirección creada exitosamente."));
+              dialog.hide();
+
+              const address_field =
+                frm.doctype === "Supplier"
+                  ? "supplier_primary_address"
+                  : "customer_primary_address";
+              frm.set_value(address_field, r.message);
+              frm.toggle_display(address_field, true);
+              frm.set_value("mobile_no", values.phone);
+              frm.set_value("email_id", values.email_id);
+              frm.save();
+              frappe.show_alert({
+                message: __("La nueva dirección ha sido asignada"),
+                indicator: "green",
+              });
+            }
+          },
+          error: (err) => {
+            frappe.msgprint(__("Ocurrió un error al crear la dirección."));
+            console.error(err);
+          },
+        });
+      }
+    },
+  });
+
+  dialog.on_page_show = () => {
+    const phone_field = dialog.get_field("phone");
+    if (phone_field && phone_field.$input) {
+      phone_field.$input.on("input", function () {
+        const original_value = $(this).val();
+        const numeric_value = format_phone_input(original_value);
+
+        if (original_value !== numeric_value) {
+          $(this).val(numeric_value);
+        }
+      });
+    }
+  };
+
+  dialog.get_field("state").get_query = function () {
+    return {
+      filters: { country: dialog.get_value("country") },
+    };
+  };
+  dialog.get_field("city").get_query = function () {
+    return { filters: { state: dialog.get_value("state") } };
+  };
+  dialog.get_field("county").get_query = function () {
+    return { filters: { state: dialog.get_value("state") } };
+  };
+  dialog.get_field("parish").get_query = function () {
+    return { filters: { municipality: dialog.get_value("county") } };
+  };
+
+  dialog.fields_dict.state.df.onchange = () => {
+    dialog.set_value("city", "");
+    dialog.set_value("county", "");
+    dialog.set_value("parish", "");
+  };
+  dialog.fields_dict.county.df.onchange = () => {
+    dialog.set_value("parish", "");
+  };
+
+  return dialog;
+}
+
+function validate_multiple_emails(value) {
+  if (!value || value.trim() === "") return null;
+
+  const emails = value.split(",");
+  const email_regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // Helper to escape HTML
+  const escapeHTML = (str) => {
+    const p = document.createElement("p");
+    p.textContent = str;
+    return p.innerHTML;
+  };
+
+  for (let email of emails) {
+    const trimmedEmail = email.trim();
+
+    if (trimmedEmail === "") {
+      return __("Se encontró una coma extra o falta un correo entre comas.");
+    }
+    if (!trimmedEmail.includes("@")) {
+      return __("El correo '{0}' no es válido: falta el arroba (@).", [
+        escapeHTML(trimmedEmail),
+      ]);
+    }
+    const parts = trimmedEmail.split("@");
+    if (parts.length > 2) {
+      return __(
+        "El correo '{0}' no es válido: contiene múltiples arrobas. Si intenta ingresar varios correos, sepárelos con comas.",
+        [escapeHTML(trimmedEmail)],
+      );
+    }
+    if (parts[0].length === 0) {
+      return __("El correo '{0}' no es válido: falta el usuario antes del @.", [
+        escapeHTML(trimmedEmail),
+      ]);
+    }
+    if (parts[1].length === 0 || !parts[1].includes(".")) {
+      return __(
+        "El correo '{0}' no es válido: falta el dominio o la extensión (ej: .com).",
+        [escapeHTML(trimmedEmail)],
+      );
+    }
+    if (!email_regex.test(trimmedEmail)) {
+      return __(
+        "El correo '{0}' contiene caracteres inválidos o formato incorrecto.",
+        [escapeHTML(trimmedEmail)],
+      );
+    }
+  }
+  return null;
+}
+window.validate_multiple_emails = validate_multiple_emails;
+
+function validate_party_emails(frm) {
+  if (frm.doc.email_id && typeof validate_multiple_emails === "function") {
+    const error_message = validate_multiple_emails(frm.doc.email_id);
+    if (error_message) {
+      frappe.throw({
+        title: __("Correo Electrónico Inválido"),
+        message: error_message,
+        indicator: "red",
+      });
+    }
+  }
+}
+window.validate_party_emails = validate_party_emails;

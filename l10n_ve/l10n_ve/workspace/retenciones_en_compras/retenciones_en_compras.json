@@ -1,0 +1,197 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"rc_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documentos de Compra - Comprobantes de Retención de IVA / ISLR / Municipales</b></span>\",\"col\":12}},{\"id\":\"rc_sc_vat\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Nueva Retención IVA\",\"col\":3}},{\"id\":\"rc_sc_islr\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Nueva Retención ISLR\",\"col\":3}},{\"id\":\"rc_sc_vat_rep\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reporte IVA\",\"col\":3}},{\"id\":\"rc_sc_islr_rep\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reporte ISLR\",\"col\":3}},{\"id\":\"rc_spacer\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"rc_links_hdr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documentos y Catálogos</b></span>\",\"col\":12}},{\"id\":\"rc_card_vouchers\",\"type\":\"card\",\"data\":{\"card_name\":\"Comprobantes Emitidos (Proveedores)\",\"col\":4}},{\"id\":\"rc_card_municipal\",\"type\":\"card\",\"data\":{\"card_name\":\"Impuestos Municipales\",\"col\":4}},{\"id\":\"rc_card_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Informes Oficiales (Compras - Venezuela)\",\"col\":4}}]",
+ "creation": "2026-06-01 11:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "arrow-left",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Retenciones en Compras",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Comprobantes Emitidos (Proveedores)",
+   "link_count": 4,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Comprobantes de Retención de IVA",
+   "link_count": 0,
+   "link_to": "VAT Withholding Voucher",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Comprobantes de Retención de ISLR",
+   "link_count": 0,
+   "link_to": "ISLR Withholding Voucher",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Facturas de Compra",
+   "link_count": 0,
+   "link_to": "Purchase Invoice",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Proveedores",
+   "link_count": 0,
+   "link_to": "Supplier",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Impuestos Municipales",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Declaración de Impuestos Municipales",
+   "link_count": 0,
+   "link_to": "VE Municipality Tax Declaration",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Actividades Económicas (Patente)",
+   "link_count": 0,
+   "link_to": "VE Economic Activity",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Informes Oficiales (Compras - Venezuela)",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Relación de Retenciones de IVA (Proveedores)",
+   "link_count": 0,
+   "link_to": "VAT Withholding",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Relación de Retenciones de ISLR (Proveedores)",
+   "link_count": 0,
+   "link_to": "ISLR Withholding",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Libro de Compras (Oficial)",
+   "link_count": 0,
+   "link_to": "purchase_book",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-09 22:20:00.000000",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "Retenciones en Compras",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "Administración",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "Accounts User"
+  }
+ ],
+ "sequence_id": 13.0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "format": "{}",
+   "label": "Nueva Retención IVA",
+   "link_to": "VAT Withholding Voucher",
+   "stats_filter": "{}",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "format": "{}",
+   "label": "Nueva Retención ISLR",
+   "link_to": "ISLR Withholding Voucher",
+   "stats_filter": "{}",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "format": "{}",
+   "label": "Reporte IVA",
+   "link_to": "VAT Withholding",
+   "stats_filter": "{}",
+   "type": "Report"
+  },
+  {
+   "color": "Grey",
+   "format": "{}",
+   "label": "Reporte ISLR",
+   "link_to": "ISLR Withholding",
+   "stats_filter": "{}",
+   "type": "Report"
+  }
+ ],
+ "title": "Retenciones en Compras",
+ "type": "Workspace"
+}
