@@ -11,7 +11,9 @@ E2E de las retenciones gubernamentales: cobro real de un ente Government con tim
 - La factura queda saldada (outstanding = 0).
 - El objetivo del guard de mint (base_paid_amount) = depósito neto, no el bruto → el "pago corto" se resuelve.
 
-FrappeTestCase envuelve cada test en transacción y hace rollback: NO persiste nada.
+Los on_submit de SI/PE (retención/mint) COMMITEAN, así que el rollback de FrappeTestCase
+no basta: setUp/tearDown limpian por RIF los artefactos del ente de prueba y restauran el
+rate del singleton Venezuela Account Settings.
 """
 
 import frappe
@@ -75,6 +77,47 @@ class TestGovernmentWithholdingsE2E(FrappeTestCase):
                 "doctype": "Item", "item_code": "E2E-GOV-ITEM", "item_name": "E2E-GOV-ITEM",
                 "item_group": item_group, "stock_uom": "Nos.", "is_stock_item": 0, "is_sales_item": 1,
             }).insert(ignore_permissions=True).name
+        self._orig_social = frappe.db.get_single_value("Venezuela Account Settings", "responsibility_social_rate")
+        self._cleanup()  # barre residuos de corridas previas (idempotente)
+
+    def tearDown(self) -> None:
+        self._cleanup()
+        frappe.db.set_single_value("Venezuela Account Settings", "responsibility_social_rate", getattr(self, "_orig_social", None))
+        frappe.db.commit()
+
+    def _cleanup(self) -> None:
+        """Los on_submit de SI/PE (hooks de retención/mint) commitean, así que el rollback de
+        FrappeTestCase no basta. Barre los artefactos del ente de prueba por RIF (PE -> SI ->
+        Address -> Customer). Idempotente."""
+        for c in frappe.get_all("Customer", filters={"tax_id": "G200000001"}, pluck="name"):
+            for pe in frappe.get_all("Payment Entry",
+                    filters={"party_type": "Customer", "party": c}, fields=["name", "docstatus"]):
+                try:
+                    if pe.docstatus == 1:
+                        frappe.get_doc("Payment Entry", pe.name).cancel()
+                    frappe.delete_doc("Payment Entry", pe.name, force=True, ignore_permissions=True)
+                except Exception:
+                    pass
+            for si in frappe.get_all("Sales Invoice",
+                    filters={"customer": c}, fields=["name", "docstatus"]):
+                try:
+                    if si.docstatus == 1:
+                        frappe.get_doc("Sales Invoice", si.name).cancel()
+                    frappe.delete_doc("Sales Invoice", si.name, force=True, ignore_permissions=True)
+                except Exception:
+                    pass
+            for dl in frappe.get_all("Dynamic Link",
+                    filters={"link_doctype": "Customer", "link_name": c},
+                    fields=["parent", "parenttype"]):
+                try:
+                    frappe.delete_doc(dl.parenttype, dl.parent, force=True, ignore_permissions=True)
+                except Exception:
+                    pass
+            try:
+                frappe.delete_doc("Customer", c, force=True, ignore_permissions=True)
+            except Exception:
+                pass
+        frappe.db.commit()
 
     def test_full_flow_timbre_and_social(self) -> None:
         # Resp. Social a 3% (config flat)
