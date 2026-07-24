@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import frappe
 from frappe import _, _dict
-from frappe.utils import flt
+from frappe.utils import cint, flt
 from frappe.model.document import Document
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
@@ -100,8 +100,221 @@ class CustomPaymentEntry(PaymentEntry):
                 'account_head': self.igtf_account
             })
 
+    # --- Retenciones de entes gubernamentales (timbre / ISAE / Responsabilidad Social) ---
+    # Directiva contable 21-jul: TODAS se contabilizan como GASTO a la cuenta única
+    # Company.government_withholding_account (no anticipo, no crédito). Se capturan al PAGO y
+    # se reflejan como filas en Payment Entry.deductions (Debe gasto / Haber CxC del cliente).
+    GOV_WITHHOLDING_MARKER = "Retención Gubernamental:"
+
+    def calculate_government_withholdings(self) -> None:
+        """Pobla las retenciones gubernamentales del cobro.
+
+        Solo aplica a cobros (Receive) de clientes Government con retenciones configuradas en su
+        ficha (Customer.government_withholdings). El monto sugerido = base × tarifa% es de solo
+        lectura; el monto real del comprobante manda si se captura. Idempotente: preserva los
+        comprobantes ya cargados y no duplica filas al re-guardar.
+        """
+        if self.docstatus == 2:
+            return
+        if self.payment_type != "Receive" or self.party_type != "Customer" or not self.party:
+            self._clear_government_withholdings()
+            return
+
+        config_rows = self._get_customer_withholding_config()
+        if not config_rows:
+            self._clear_government_withholdings()
+            return
+
+        account = frappe.db.get_value("Company", self.company, "government_withholding_account")
+        base_amount = self._government_withholding_base()
+
+        # Preservar comprobante / monto real ya capturados (guard anti-borrado)
+        prev_by_key = {
+            (w.withholding_type, w.jurisdiction): w
+            for w in (self.get("government_withholdings") or [])
+        }
+
+        new_rows = []
+        for cfg in config_rows:
+            rate, jurisdiction = self._resolve_withholding_rate(cfg, base_amount)
+            if rate is None:
+                continue
+            suggested = flt(base_amount * flt(rate) / 100.0, 2)
+            prev = prev_by_key.get((cfg["withholding_type"], jurisdiction))
+            new_rows.append({
+                "withholding_type": cfg["withholding_type"],
+                "jurisdiction": jurisdiction,
+                "rate": flt(rate),
+                "base_amount": base_amount,
+                "suggested_amount": suggested,
+                "actual_amount": flt(prev.actual_amount) if prev else 0.0,
+                "not_withheld": (cint(prev.get("not_withheld")) if prev else 0),
+                "voucher_number": (prev.voucher_number if prev else None),
+                "voucher_attachment": (prev.voucher_attachment if prev else None),
+                "account": account,
+            })
+
+        self.set("government_withholdings", new_rows)
+        self._sync_withholdings_to_deductions(account)
+
+    def _get_customer_withholding_config(self) -> list:
+        """Filas opt-in habilitadas del ente (solo si el cliente es Government)."""
+        nature = frappe.db.get_value("Customer", self.party, "nature_of_the_taxpayer")
+        if nature != "Government":
+            return []
+        return frappe.get_all(
+            "VE Government Withholding",
+            filters={"parent": self.party, "parenttype": "Customer", "enabled": 1},
+            fields=["withholding_type", "state", "municipality"],
+        )
+
+    def _government_withholding_base(self) -> float:
+        """Base bruta del cobro (lo que el ente liquida antes de retener), en moneda de la compañía.
+
+        Se calcula desde campos disponibles ANTES de super().validate() (que todavía no pobló los
+        base_*): la suma de lo asignado a facturas, o el monto pagado, por la tasa de la fuente.
+        (v1 asume entes en VEF = moneda de la compañía, tasa 1.)
+        """
+        allocated = sum(flt(r.allocated_amount) for r in (self.get("references") or []))
+        base = allocated or flt(self.paid_amount) or flt(self.received_amount)
+        rate = flt(getattr(self, "source_exchange_rate", 0)) or flt(getattr(self, "exchange_rate", 0)) or 1.0
+        return flt(base * rate, 2)
+
+    def _resolve_withholding_rate(self, cfg: dict, base_amount: float):
+        """(rate%, etiqueta_jurisdicción) para una fila de config; (None, _) si no aplica (skip)."""
+        wtype = cfg.get("withholding_type")
+
+        if wtype == "Timbre Fiscal":
+            state = cfg.get("state")
+            if not state:
+                return None, ""
+            state_label = frappe.db.get_value("VE State", state, "state") or state
+            settings = frappe.get_cached_doc("Venezuela Account Settings")
+            row = next((r for r in settings.stamp_tax_rates if r.state == state and r.enabled), None)
+            if not row or not flt(row.rate):
+                return None, state_label
+            if flt(row.threshold) > 0 and base_amount < self._threshold_in_currency(row):
+                return None, state_label
+            return flt(row.rate), state_label
+
+        if wtype == "ISAE":
+            municipality = cfg.get("municipality")
+            if not municipality:
+                return None, ""
+            muni_label = frappe.db.get_value("VE Municipality", municipality, "municipality") or municipality
+            # La alícuota ISAE varía por municipio Y por rubro. Solo sugerimos un número si el
+            # municipio tiene una única alícuota; si hay varias, dejamos 0 y el monto real del
+            # comprobante manda (no arriesgamos una sugerencia errada). Fuente: verificación 21-jul.
+            aliquots = [flt(a) for a in frappe.get_all(
+                "VE Municipality Taxes", filters={"municipality": municipality}, pluck="aliquot"
+            ) if flt(a)]
+            if not aliquots:
+                return None, muni_label
+            distinct = sorted(set(aliquots))
+            return (distinct[0] if len(distinct) == 1 else 0.0), muni_label
+
+        if wtype == "Responsabilidad Social":
+            rate = flt(frappe.db.get_single_value("Venezuela Account Settings", "responsibility_social_rate"))
+            return (rate, "Nacional") if rate else (None, "Nacional")
+
+        return None, ""
+
+    def _threshold_in_currency(self, rate_row) -> float:
+        """Umbral de la tarifa en moneda de la compañía (U.T. -> VEF; VEF directo).
+
+        Fail-closed: si el umbral está en U.T. pero no hay una Unidad Tributaria activa, el valor
+        sería 0 y el umbral colapsaría a 0 -> el timbre se aplicaría SIEMPRE (incluso bajo el mínimo
+        legal exento). En vez de eso, se bloquea con un mensaje accionable para que se configure la U.T.
+        """
+        unit = (rate_row.threshold_unit or "").strip()
+        threshold = flt(rate_row.threshold)
+        if unit == "U.T.":
+            ut_value = self._current_tax_unit_value()
+            if ut_value <= 0:
+                frappe.throw(_(
+                    "No se puede evaluar el umbral del timbre fiscal ({0} U.T.): no hay una Unidad "
+                    "Tributaria (Tax Unit) activa configurada. Configure el valor vigente de la U.T. "
+                    "antes de registrar retenciones de timbre con umbral."
+                ).format(threshold))
+            return threshold * ut_value
+        return threshold
+
+    def _current_tax_unit_value(self) -> float:
+        """Valor vigente de la Unidad Tributaria (Tax Unit) en VEF; 0 si no hay dato."""
+        return flt(frappe.db.get_value(
+            "Tax Unit", {"is_active": 1}, "value", order_by="effective_date desc"
+        ))
+
+    def _sync_withholdings_to_deductions(self, account: str) -> None:
+        """Refleja las retenciones capturadas como filas en deductions (Debe gasto / Haber CxC).
+
+        Reconstruye SOLO nuestras filas (marcadas por descripción); respeta otras deducciones.
+        Fail-closed: si hay retención a aplicar y no hay cuenta configurada -> throw.
+        """
+        others = [
+            d for d in (self.get("deductions") or [])
+            if not (d.description or "").startswith(self.GOV_WITHHOLDING_MARKER)
+        ]
+
+        cost_center = self._withholding_cost_center()
+        gov_deductions = []
+        for w in self.get("government_withholdings") or []:
+            # "No retenido": el ente no practicó ESTA retención en este cobro -> sin deducción.
+            # (Distingue el 0 explícito del campo vacío, que sí cae al sugerido por el `or`.)
+            if cint(w.get("not_withheld")):
+                continue
+            amount = flt(w.actual_amount) or flt(w.suggested_amount)
+            if amount <= 0:
+                continue
+            # Cota superior: una retención no puede exceder la base bruta del cobro. Atrapa
+            # un monto real mal tecleado (typo) que inflaría el gasto y sobre-acreditaría al cliente.
+            base = flt(w.base_amount)
+            if base > 0 and amount > base + 0.01:
+                frappe.throw(_(
+                    "La retención gubernamental ({0}) no puede exceder la base del cobro: "
+                    "{1} > {2}."
+                ).format(w.withholding_type, amount, base))
+            if not account:
+                frappe.throw(_(
+                    "No se puede aplicar la retención gubernamental ({0}): falta configurar la "
+                    "cuenta de Retenciones Gubernamentales en la compañía {1}."
+                ).format(w.withholding_type, self.company))
+            gov_deductions.append({
+                "account": account,
+                "cost_center": cost_center,
+                "amount": amount,
+                "description": "{0} {1} - {2}".format(
+                    self.GOV_WITHHOLDING_MARKER, w.withholding_type, w.jurisdiction or ""
+                ).strip(),
+            })
+
+        self.set("deductions", others + gov_deductions)
+
+    def _withholding_cost_center(self) -> str:
+        """Cost center de la retención = el de la SUCURSAL del pago (para atribución por sucursal
+        en los reportes/dashboard, que agregan por branch). Cae a self.cost_center o al de la
+        compañía si el pago no trae sucursal.
+        """
+        branch = getattr(self, "branch", None)
+        if branch:
+            branch_cc = frappe.db.get_value("VE Branch", branch, "cost_center")
+            if branch_cc:
+                return branch_cc
+        return self.cost_center or frappe.get_cached_value("Company", self.company, "cost_center")
+
+    def _clear_government_withholdings(self) -> None:
+        """Quita nuestras filas de captura y de deductions (cuando ya no aplica)."""
+        if self.get("government_withholdings"):
+            self.set("government_withholdings", [])
+        if self.get("deductions"):
+            self.set("deductions", [
+                d for d in self.deductions
+                if not (d.description or "").startswith(self.GOV_WITHHOLDING_MARKER)
+            ])
+
     def validate(self) -> None:
         self.calculate_igtf_taxes()
+        self.calculate_government_withholdings()
         super().validate()
 
         self.validate_reference_no()

@@ -1,0 +1,117 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-21 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "withholding_type",
+  "jurisdiction",
+  "rate",
+  "base_amount",
+  "suggested_amount",
+  "actual_amount",
+  "not_withheld",
+  "account",
+  "voucher_number",
+  "voucher_attachment"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "withholding_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Tipo",
+   "options": "Timbre Fiscal\nISAE\nResponsabilidad Social",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "description": "Estado o municipio que aplica la retención.",
+   "fieldname": "jurisdiction",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Jurisdicción",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "rate",
+   "fieldtype": "Float",
+   "label": "Tarifa %",
+   "precision": "3",
+   "read_only": 1
+  },
+  {
+   "fieldname": "base_amount",
+   "fieldtype": "Currency",
+   "label": "Base",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "description": "Monto calculado por el sistema (base × tarifa). Solo lectura.",
+   "fieldname": "suggested_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Monto sugerido",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "description": "Monto realmente retenido según el comprobante del ente. Si se deja vacío, se usa el sugerido.",
+   "fieldname": "actual_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Monto real retenido",
+   "precision": "2"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "description": "Marque si el ente NO practicó esta retención en este cobro (fuerza el monto a 0, ignorando el sugerido).",
+   "fieldname": "not_withheld",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "No retenido"
+  },
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "label": "Cuenta",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "voucher_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "N° de comprobante"
+  },
+  {
+   "fieldname": "voucher_attachment",
+   "fieldtype": "Attach",
+   "label": "Comprobante (adjunto)"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "L10N Ve",
+ "name": "VE Payment Government Withholding",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

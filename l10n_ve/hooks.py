@@ -181,6 +181,9 @@ doctype_js = {
     "Mode of Payment": [
          "public/js/doctype/mode_of_payment/mode_of_payment.js"
     ],
+    "Payment Reconciliation": [
+        "public/js/doctype/payment_reconciliation/payment_reconciliation.js"
+    ],
 
 }
 
@@ -251,6 +254,10 @@ after_migrate = [
     "l10n_ve.setup.set_default_site_config",
     # self-heal: logo del login/Desk solo-si-vacío (get_app_logo ignora el hook con >2 apps)
     "l10n_ve.setup.set_default_branding",
+    # self-heal: custom fields, enlace de cuenta y seed de tarifas de retenciones gubernamentales (idempotentes)
+    "l10n_ve.setup.create_government_withholding_custom_fields",
+    "l10n_ve.setup.link_government_withholding_account",
+    "l10n_ve.setup.create_stamp_tax_rates",
 ]
 
 # Uninstallation
@@ -321,6 +328,21 @@ override_doctype_dashboards = {
     "Customer": "l10n_ve.overrides.customer.get_customer_dashboard_data",
     "Sales Invoice": "l10n_ve.overrides.sales_invoice.get_sales_invoice_dashboard_data",
     "Purchase Invoice": "l10n_ve.overrides.purchase_invoice.get_purchase_invoice_dashboard_data",
+}
+
+
+# Regional Overrides
+# ------------------
+# Venezolaniza la descripción (remarks) de cada asiento del Mayor. ERPNext
+# expone update_gl_dict_with_regional_fields (accounts_controller.py:1320,
+# decorado @erpnext.allow_regional) como punto de extensión por país; la clave
+# es el país de la Company (get_region -> Company.country).
+
+regional_overrides = {
+    "Venezuela, Bolivarian Republic of": {
+        "erpnext.controllers.accounts_controller.update_gl_dict_with_regional_fields":
+            "l10n_ve.overrides.gl_remarks.update_gl_dict_with_regional_fields",
+    },
 }
 
 

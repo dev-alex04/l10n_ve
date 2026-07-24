@@ -5,7 +5,7 @@ from erpnext.accounts.report.accounts_receivable.accounts_receivable import Rece
 
 
 erpnext_get_columns = ReceivablePayableReport.get_columns
-erpnext_get_ple_entries = ReceivablePayableReport.get_ple_entries
+erpnext_prepare_ple_query = ReceivablePayableReport.prepare_ple_query
 erpnext_get_return_entries = ReceivablePayableReport.get_return_entries
 
 
@@ -118,11 +118,15 @@ def build_data(self) -> None:
             self.data.append(self.total_row_map.get("Total", {}))
 
 
-def get_ple_entries(self):
-    """Wrapper sobre ``get_ple_entries`` estandar que anade ``posting_date >= from_date``."""
+def prepare_ple_query(self):
+    """Wrapper sobre el prepare_ple_query estandar: anade ``posting_date >= from_date``.
+
+    ERPNext (>=15.106) refactorizo el reporte AR: el metodo unico de lectura fue
+    reemplazado por ``prepare_ple_query`` (arma el query) + fetch por cursor. El query se
+    arma aca y sigue llamando a ``prepare_conditions``, asi que inyectamos igual."""
     from_date, _to_date = _resolve_date_range(self)
     if not from_date:
-        return erpnext_get_ple_entries(self)
+        return erpnext_prepare_ple_query(self)
 
     # El estandar reconstruye qb_selection_filter dentro de prepare_conditions.
     # Parcheamos temporalmente ese metodo para inyectar la condicion extra sin
@@ -136,7 +140,7 @@ def get_ple_entries(self):
 
     self.prepare_conditions = patched_prepare_conditions
     try:
-        return erpnext_get_ple_entries(self)
+        return erpnext_prepare_ple_query(self)
     finally:
         self.prepare_conditions = original_prepare_conditions
 
@@ -270,6 +274,6 @@ def custom_is_invoice(self, ple):
 ReceivablePayableReport.build_data = build_data
 ReceivablePayableReport.get_columns = get_columns
 ReceivablePayableReport.get_invoice_details = get_invoice_details
-ReceivablePayableReport.get_ple_entries = get_ple_entries
+ReceivablePayableReport.prepare_ple_query = prepare_ple_query
 ReceivablePayableReport.get_return_entries = get_return_entries
 ReceivablePayableReport.is_invoice = custom_is_invoice
