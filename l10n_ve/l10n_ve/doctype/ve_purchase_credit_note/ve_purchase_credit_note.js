@@ -3,6 +3,9 @@
 
 frappe.ui.form.on("VE Purchase Credit Note", {
   onload: function (frm) {
+    frm.set_df_property("conversion_rate", "read_only", 1);
+    frm.set_df_property("plc_conversion_rate", "read_only", 1);
+
     // Solo PIs aprobadas, sin NC previa, de la misma empresa y proveedor
     frm.set_query("return_against", function () {
       return {
@@ -37,6 +40,8 @@ frappe.ui.form.on("VE Purchase Credit Note", {
     });
   },
   refresh: function (frm) {
+    frm.set_df_property("conversion_rate", "read_only", 1);
+    frm.set_df_property("plc_conversion_rate", "read_only", 1);
     calculate_base_total_with_vat(frm);
     set_islr_buttons(frm);
 

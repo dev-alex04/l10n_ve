@@ -3,6 +3,9 @@
 
 frappe.ui.form.on("VE Purchase Debit Note", {
   onload: function (frm) {
+    frm.set_df_property("conversion_rate", "read_only", 0);
+    frm.set_df_property("plc_conversion_rate", "read_only", 0);
+
     // Solo PIs aprobadas, sin NC/ND previa, de la misma empresa y proveedor
     frm.set_query("return_against", function () {
       return {
@@ -39,6 +42,8 @@ frappe.ui.form.on("VE Purchase Debit Note", {
   },
 
   refresh: function (frm) {
+    frm.set_df_property("conversion_rate", "read_only", 0);
+    frm.set_df_property("plc_conversion_rate", "read_only", 0);
     calculate_base_total_with_vat(frm);
     set_islr_buttons(frm);
     setup_withholding_voucher_buttons(frm);

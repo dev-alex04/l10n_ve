@@ -6,6 +6,10 @@ frappe.ui.form.on("VE Sales Credit Note", {
     // NC nunca requiere fecha de vencimiento
     frm.toggle_reqd("due_date", false);
 
+    // NC toma siempre la tasa de la factura original (no editable)
+    frm.set_df_property("conversion_rate", "read_only", 1);
+    frm.set_df_property("plc_conversion_rate", "read_only", 1);
+
     // Solo SI aprobadas, sin NC/ND previa, de la misma empresa y cliente
     frm.set_query("return_against", function () {
       return {
@@ -32,6 +36,8 @@ frappe.ui.form.on("VE Sales Credit Note", {
 
   refresh: function (frm) {
     frm.toggle_reqd("due_date", false);
+    frm.set_df_property("conversion_rate", "read_only", 1);
+    frm.set_df_property("plc_conversion_rate", "read_only", 1);
     calculate_base_total_with_vat(frm);
 
     // Indicador fiscal VE (centralizado en sales_billing_indicators.js)
@@ -302,6 +308,8 @@ frappe.ui.form.on("VE Sales Credit Note Item", {
  * @param {object} frm - Instancia del formulario Frappe.
  */
 function apply_ve_exchange_rate_nc(frm) {
+  // Las NC toman siempre la tasa de la factura original
+  if (frm.doc.return_against) return;
   if (!frappe.boot.tfhka_enabled) return;
   if (frm.doc.docstatus !== 0) return;
   if (!frm.doc.customer || !frm.doc.posting_date) return;
