@@ -10,6 +10,7 @@ import base64
 import os
 from frappe.model.document import Document
 from frappe.utils.file_manager import save_file
+from l10n_ve.digital_invoice.tfhka_client import FISCAL_PDF_LIKE_PATTERN
 
 class VEFiscalDocumentDownload(Document):
 	def validate(self):
@@ -119,15 +120,19 @@ def process_download_job(docname: str, request_user: str):
 			chunk = valid_invoices[chunk_start:chunk_start + chunk_size]
 			chunk_invoice_names = [inv.get("name") for inv in chunk]
 
-			# Buscar todos los archivos PDF adjuntos localmente en una sola consulta para el lote actual
+			# Buscar los PDF fiscales adjuntos localmente en una sola consulta para el lote actual.
+			# Se filtra por el prefijo con el que se guardan: los comprobantes de retención de
+			# IVA/ISLR cuelgan de la misma factura y si no se excluyen terminan dentro del ZIP
+			# haciéndose pasar por la factura. El order_by deja primero el de la última emisión.
 			attached_files_list = frappe.get_all(
 				"File",
 				filters={
 					"attached_to_doctype": "Sales Invoice",
 					"attached_to_name": ["in", chunk_invoice_names],
-					"file_name": ["like", "%.pdf"]
+					"file_name": ["like", FISCAL_PDF_LIKE_PATTERN],
 				},
-				fields=["name", "file_name", "attached_to_name", "file_url"]
+				fields=["name", "file_name", "attached_to_name", "file_url"],
+				order_by="creation desc",
 			)
 
 			attached_by_invoice = {}
@@ -173,7 +178,10 @@ def process_download_job(docname: str, request_user: str):
 								filename = f"Factura_{inv_name}_{doc_no}.pdf"
 
 						if not pdf_data:
-							file_doc = frappe.get_doc("File", invoice_files[0].get("name")).check_permission("read")
+							# check_permission() no retorna el documento: encadenarlo dejaba
+							# file_doc en None y el fallback reventaba con AttributeError.
+							file_doc = frappe.get_doc("File", invoice_files[0].get("name"))
+							file_doc.check_permission("read")
 							pdf_data = file_doc.get_content()
 							if isinstance(pdf_data, str):
 								pdf_data = pdf_data.encode("utf-8")
