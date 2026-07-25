@@ -380,6 +380,17 @@ ALLOWED_DOCTYPES: list[str] = [
     "VAT Withholding Voucher", "ISLR Withholding Voucher",
 ]
 
+# Prefijo con el que se guarda el PDF fiscal bajado de HKA (ver save_file al final de
+# get_fiscal_invoice_pdf). Al documento se le adjuntan además los comprobantes de retención
+# de IVA/ISLR (campos voucher_image / voucher_image_islr), que llevan nombres libres: sin
+# este prefijo la búsqueda del PDF cacheado los toma por factura y los muestra en su lugar.
+FISCAL_PDF_PREFIX = "Factura_"
+
+# Patrón LIKE para localizar ese PDF. El guion bajo queda como comodín de un carácter, lo
+# cual es inocuo con un prefijo fijo: escaparlo (r"Factura\_%") NO funciona en los filtros
+# de frappe.get_all, devuelve cero filas en silencio.
+FISCAL_PDF_LIKE_PATTERN = f"{FISCAL_PDF_PREFIX}%.pdf"
+
 
 @frappe.whitelist()
 def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") -> dict:
@@ -430,13 +441,15 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
 
     import base64
 
-    # 1. Buscar si ya existe el PDF adjunto al documento en el Doctype File
+    # 1. Buscar si ya existe el PDF fiscal adjunto al documento en el Doctype File.
+    # Se filtra por el prefijo que usa este mismo código al guardarlo: cualquier otro PDF
+    # adjunto (comprobantes de retención de IVA/ISLR, soportes de pago) no es la factura.
     attached_files = frappe.get_all(
         "File",
         filters={
             "attached_to_doctype": doctype,
             "attached_to_name": invoice_name,
-            "file_name": ["like", "%.pdf"]
+            "file_name": ["like", FISCAL_PDF_LIKE_PATTERN],
         },
         fields=["name", "file_name"],
         # El PDF de la última emisión es el vigente: al reemitir (p. ej. tras un
@@ -486,7 +499,7 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     try:
         from frappe.utils.file_manager import save_file
         pdf_bytes = base64.b64decode(archivo_base64)
-        filename = f"Factura_{invoice_name}_{numero_documento}.pdf"
+        filename = f"{FISCAL_PDF_PREFIX}{invoice_name}_{numero_documento}.pdf"
         
         save_file(
             fname=filename,
