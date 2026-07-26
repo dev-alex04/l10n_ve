@@ -382,6 +382,23 @@ erpnext.TransactionController.prototype.change_grid_labels = async function (
       company_currency,
       "taxes"
     );
+
+    // Igual que los grids de arriba (operations / scrap_items) y el de ítems: las
+    // columnas en moneda de la compañía solo tienen sentido si el documento está en
+    // otra moneda. ERPNext rotula estas columnas pero nunca las alterna —solo alterna
+    // las del grid de ítems—, así que el impuesto en Bs quedaba escondido dentro de la
+    // fila. Los campos se declaran como columna (in_list_view) vía Property Setter.
+    var taxes_grid = this.frm.fields_dict["taxes"].grid;
+    $.each(
+      ["base_tax_amount", "base_total", "base_tax_amount_after_discount"],
+      function (i, fname) {
+        if (frappe.meta.get_docfield(taxes_grid.doctype, fname))
+          taxes_grid.set_column_disp(
+            fname,
+            me.frm.doc.currency != company_currency
+          );
+      }
+    );
   }
 
   if (this.frm.doc.advances && this.frm.doc.advances.length > 0) {

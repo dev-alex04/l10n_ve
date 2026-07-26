@@ -116,6 +116,8 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
         elif self.is_return:
             self.validate_credit_note_number()
 
+        self._set_base_total_with_vat()
+
     def validate_supplier_invoice(self) -> None:
 
         if self.bill_date and getdate(self.bill_date) > getdate(self.posting_date):
