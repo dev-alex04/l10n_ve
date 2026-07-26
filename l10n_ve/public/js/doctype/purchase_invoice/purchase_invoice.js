@@ -22,7 +22,6 @@ frappe.ui.form.on("Purchase Invoice", {
     setup_credit_note_button(frm);
     setup_debit_note_button(frm);
     setup_withholding_voucher_buttons(frm);
-    reorganize_withholding_fields(frm);
   },
 
   is_debit_note: function (frm) {
@@ -41,34 +40,6 @@ frappe.ui.form.on("Purchase Invoice", {
     toggle_purchase_type_fields(frm);
   },
 });
-
-/**
- * Deja "Base Imponible Retención Neta Total" justo debajo de "Total Retenido".
- *
- * Los dos campos son las dos caras de la retención —la base sobre la que se calcula y
- * el monto retenido— pero nacen separados: `total_withholding` es un custom field de
- * l10n_ve (va tras `incoterm`, en la sección de impuestos) y
- * `base_tax_withholding_net_total` es estándar de ERPNext (queda arriba, pegado a los
- * totales de los ítems). Reordenarlos por metadatos no alcanza: Frappe ordena primero
- * los campos estándar y recién después inserta los custom por su `insert_after`, así
- * que un estándar no se puede anclar detrás de uno custom. Se mueve el nodo, que es el
- * mismo patrón que ya usan customer.js y address.js de esta app.
- *
- * `base_tax_withholding_net_total` viene oculto de fábrica: ERPNext solo lo muestra
- * cuando la factura está en otra moneda (transaction.js -> toggle_display). Moverlo no
- * lo hace visible; cuando aparezca, lo hará en su nueva posición.
- *
- * @param {object} frm - La instancia del formulario
- * @returns {void} -
- */
-function reorganize_withholding_fields(frm) {
-  const base_net = frm.get_field("base_tax_withholding_net_total");
-  const total_withholding = frm.get_field("total_withholding");
-
-  if (!base_net || !total_withholding) return;
-
-  base_net.$wrapper.insertAfter(total_withholding.$wrapper);
-}
 
 /**
  * Alterna la visibilidad y obligatoriedad de los campos de la factura de compra
