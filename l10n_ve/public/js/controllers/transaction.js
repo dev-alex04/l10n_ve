@@ -273,11 +273,17 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
       "base_rounding_adjustment",
       "base_total_taxes_and_charges",
       "base_taxes_and_charges_added",
-      "base_tax_withholding_net_total",
       "base_taxes_and_charges_deducted",
     ],
     this.frm.doc.currency != company_currency
   );
+
+  // `base_tax_withholding_net_total` sale de la lista de arriba a propósito. Es la base
+  // sobre la que ERPNext calcula la retención (la suma de las líneas con apply_tds), que
+  // en la práctica coincide con la base imponible salvo que se excluya alguna línea:
+  // mostrarlo solo sumaba un monto repetido, con un rótulo traducido confuso ("Base
+  // Imponible Retención Neta Total"), junto a campos que ya dicen lo mismo. Al no
+  // togglearlo conserva el hidden=1 que trae de fábrica y no se muestra nunca.
 
   this.frm.toggle_display(
     ["plc_conversion_rate", "price_list_currency"],
@@ -381,6 +387,23 @@ erpnext.TransactionController.prototype.change_grid_labels = async function (
       ["base_tax_amount", "base_total", "base_tax_amount_after_discount"],
       company_currency,
       "taxes"
+    );
+
+    // Igual que los grids de arriba (operations / scrap_items) y el de ítems: las
+    // columnas en moneda de la compañía solo tienen sentido si el documento está en
+    // otra moneda. ERPNext rotula estas columnas pero nunca las alterna —solo alterna
+    // las del grid de ítems—, así que el impuesto en Bs quedaba escondido dentro de la
+    // fila. Los campos se declaran como columna (in_list_view) vía Property Setter.
+    var taxes_grid = this.frm.fields_dict["taxes"].grid;
+    $.each(
+      ["base_tax_amount", "base_total", "base_tax_amount_after_discount"],
+      function (i, fname) {
+        if (frappe.meta.get_docfield(taxes_grid.doctype, fname))
+          taxes_grid.set_column_disp(
+            fname,
+            me.frm.doc.currency != company_currency
+          );
+      }
     );
   }
 

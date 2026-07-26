@@ -89,10 +89,38 @@ frappe.ui.form.on("Payment Entry", {
   refresh: function (frm) {
     set_payment_entry_buttons(frm);
     frm.events.set_reference_no_required(frm);
+    frm.events.set_branch_description(frm);
   },
 
   mode_of_payment: function (frm) {
     frm.events.set_reference_no_required(frm);
+  },
+
+  payment_type: function (frm) {
+    frm.events.set_branch_description(frm);
+  },
+
+  /**
+   * Aclara qué significa la sucursal del cobro/pago según el tipo de movimiento.
+   *
+   * A diferencia de las facturas —donde el verbo es fijo (vende / compra)—, aquí
+   * depende de payment_type: en un cobro (Receive) la sucursal COBRA y en un pago
+   * (Pay) PAGA. El texto del custom field dice "cobra o paga" y cubre el caso sin
+   * tipo definido todavía (y las vistas que no ejecutan este JS).
+   */
+  set_branch_description: function (frm) {
+    if (!frm.get_field("branch")) return;
+
+    const descripciones = {
+      Receive: "Sucursal que cobra",
+      Pay: "Sucursal que paga",
+    };
+
+    frm.set_df_property(
+      "branch",
+      "description",
+      descripciones[frm.doc.payment_type] || "Sucursal que cobra o paga",
+    );
   },
 
   set_reference_no_required: function (frm) {
