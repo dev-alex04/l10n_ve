@@ -49,6 +49,18 @@
                     options: "VE Branch",
                 });
             }
+
+            const has_bill_filter = report.filters.some(f => f.fieldname === "only_invoices_with_bill_no_control");
+            if (!has_bill_filter) {
+                const company_idx = report.filters.findIndex(f => f.fieldname === "company");
+                const insert_idx = company_idx !== -1 ? company_idx + 1 : report.filters.length;
+                report.filters.splice(insert_idx, 0, {
+                    fieldname: "only_invoices_with_bill_no_control",
+                    label: __("Solo facturas con N° de control y factura"),
+                    fieldtype: "Check",
+                    default: 0,
+                });
+            }
         }
     };
 
