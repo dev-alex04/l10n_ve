@@ -26,12 +26,6 @@ function populate_from_sales_invoice(frm) {
       _set_taxes(frm, si);
       _set_totals(frm, si);
 
-      // La tasa NO se copia de la SI: se deriva de la fecha PROPIA de la
-      // nota. El handler de posting_date (apply_ve_exchange_rate_nc/_nd)
-      // exige customer, que recién quedó seteado por _set_header_fields,
-      // así que se dispara aquí explícitamente.
-      frm.trigger("posting_date");
-
       recalculate_ve_document(frm);
 
       frappe.show_alert({
@@ -45,12 +39,10 @@ function populate_from_sales_invoice(frm) {
 /**
  * Copia los campos del encabezado desde la SI al formulario.
  *
- * OJO: posting_date/due_date y conversion_rate/plc_conversion_rate NO se
- * copian. Decisión 16-jul-2026 (hilo "TASA- FACTURA FISCAL CARACAS"): la
- * nota fiscal tiene su propia fecha de expedición y usa la tasa BCV de esa
- * fecha (Ley IVA Art. 25), no la de la factura afectada. La tasa la deriva
- * el handler de posting_date (get_ve_exchange_rate_for_customer) y el
- * servidor la re-deriva en _inherit_branch_from_si.
+ * La tasa se copia para ambas notas: en la NC es invariante (el servidor la
+ * re-aplica en cada validate y el campo va read_only) y en la ND es solo el
+ * valor por defecto, que el usuario puede reexpresar cambiando posting_date.
+ * El read_only lo fija el refresh de cada doctype, no este controlador.
  */
 function _set_header_fields(frm, si) {
   if (si.customer && !frm.doc.customer) {
@@ -77,6 +69,13 @@ function _set_header_fields(frm, si) {
   }
   if (si.price_list_currency) {
     frm.set_value("price_list_currency", si.price_list_currency);
+  }
+
+  if (si.conversion_rate) {
+    frm.set_value("conversion_rate", si.conversion_rate);
+  }
+  if (si.plc_conversion_rate) {
+    frm.set_value("plc_conversion_rate", si.plc_conversion_rate);
   }
 }
 

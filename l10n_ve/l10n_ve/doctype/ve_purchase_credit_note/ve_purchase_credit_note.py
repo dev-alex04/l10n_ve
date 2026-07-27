@@ -183,13 +183,16 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
             self.credit_to = pi_values["credit_to"]
 
         # ── Tasa de cambio ───────────────────────────────────────────────────
-        if self.is_new():
-            pi_rate: float = flt(pi_values.get("conversion_rate"))
-            if pi_rate and pi_rate != flt(self.conversion_rate):
-                self.conversion_rate = pi_rate
-            pi_plc_rate: float = flt(pi_values.get("plc_conversion_rate"))
-            if pi_plc_rate and pi_plc_rate != flt(self.plc_conversion_rate):
-                self.plc_conversion_rate = pi_plc_rate
+        # Invariante, no valor por defecto: el campo va read_only en la UI
+        # (que no cubre API/imports) y la NC descarga el CxP contra la PI
+        # afectada, así que cualquier otra tasa dejaría diferencial en Bs.
+        # Se re-aplica en cada validate mientras siga en borrador.
+        pi_rate: float = flt(pi_values.get("conversion_rate"))
+        if pi_rate:
+            self.conversion_rate = pi_rate
+            self.plc_conversion_rate = (
+                flt(pi_values.get("plc_conversion_rate")) or pi_rate
+            )
 
         # ── Fechas: heredar de la PI ─────────────────────────────────────────
         if self.is_new() and pi_values.get("posting_date"):
