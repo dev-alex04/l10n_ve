@@ -174,6 +174,57 @@ class TestExecute(unittest.TestCase):
         self.assertEqual(filas[0][[c["fieldname"] for c in columns].index("branch")], "A")
 
 
+class TestColumnDescriptions(unittest.TestCase):
+    """El tooltip de cada encabezado."""
+
+    def test_describe_columns_cuelga_el_texto(self) -> None:
+        columnas = [{"fieldname": "branch"}, {"fieldname": "grand_total"}]
+        hq._describe_columns(columnas)
+
+        self.assertTrue(all(c["description"] for c in columnas))
+
+    def test_no_inventa_descripcion_para_columnas_desconocidas(self) -> None:
+        columnas = [{"fieldname": "columna_que_no_existe"}]
+        hq._describe_columns(columnas)
+
+        self.assertNotIn("description", columnas[0])
+
+    def test_las_doce_de_alicuota_se_generan(self) -> None:
+        """Son la misma frase con dos variables; se generan para que no se
+        desincronicen entre sí al retocar la redacción."""
+        descripciones = hq._column_descriptions()
+
+        for tasa in ("general", "reduced", "additional"):
+            for grupo in ("taxpayer", "non_taxpayer"):
+                self.assertIn(f"base_{tasa}_{grupo}", descripciones)
+                self.assertIn(f"iva_{tasa}_{grupo}", descripciones)
+
+        # El criterio del libro es la primera letra del RIF: debe decirlo.
+        self.assertIn("V", descripciones["base_general_non_taxpayer"])
+        self.assertIn("J", descripciones["base_general_taxpayer"])
+
+    def test_ninguna_descripcion_huerfana(self) -> None:
+        """Blindaje contra el typo: una clave que no corresponde a ninguna
+        columna no falla en ningún lado, simplemente el tooltip nunca aparece."""
+        columnas_reales = {
+            "branch", "main_branch", "municipality", "posting_date",
+            "customer_tax_id", "customer_name", "customer_type", "fiscal_series",
+            "fiscal_document_no", "bill_no", "bill_control", "credit_note_no",
+            "debit_note_no", "affected_invoice_number", "transaction_type",
+            "grand_total", "ve_fob", "total_exempt", "iva_retained",
+            "vat_withholding_voucher_number", "withholding_date",
+            "vat_withholding_rate", "base_amount_igtf", "igtf_rate", "total_igtf",
+        } | {
+            f"{p}_{tasa}_{grupo}"
+            for p in ("base", "iva")
+            for tasa in ("general", "reduced", "additional")
+            for grupo in ("taxpayer", "non_taxpayer")
+        }
+        huerfanas = set(hq._column_descriptions()) - columnas_reales
+
+        self.assertEqual(huerfanas, set(), f"fieldname inexistente: {huerfanas}")
+
+
 class TestDropEmptyNumericColumns(unittest.TestCase):
     """Solo se ocultan columnas numéricas y solo si el período las trae vacías."""
 

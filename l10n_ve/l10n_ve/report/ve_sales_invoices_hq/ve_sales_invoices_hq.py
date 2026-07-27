@@ -96,6 +96,7 @@ def get_hq_data(filters=None) -> dict:
         adjustment_data = [r for r in adjustment_data if r.get("branch") in allowed]
 
     _add_hq_columns(columns, main_data + adjustment_data)
+    _describe_columns(columns)
 
     # Totales con las MISMAS funciones del libro y sobre las filas ya recortadas.
     # Igual que el libro, se calculan solo con main_data (excluye los ajustes de
@@ -113,6 +114,101 @@ def get_hq_data(filters=None) -> dict:
         "main_branch": main_branch_filter,
         "subtree": subtree,
     }
+
+
+# Cómo separa el Libro de Ventas a los clientes en sus columnas. El criterio NO
+# es interpretación: sale del propio SQL (sales_book._get_*), que clasifica por
+# la primera letra del RIF sin guiones.
+_TAXPAYER_GROUPS: dict = {
+    "non_taxpayer": "clientes no contribuyentes (RIF que empieza en V o E, o sin RIF)",
+    "taxpayer": "clientes contribuyentes (RIF que no empieza en V ni E: J, G, P…)",
+}
+_VAT_RATES: dict = {
+    "general": "alícuota general",
+    "reduced": "alícuota reducida",
+    "additional": "alícuota adicional",
+}
+
+
+def _column_descriptions() -> dict:
+    """Qué es cada columna, para el tooltip del encabezado.
+
+    Las etiquetas del libro vienen abreviadas ("Base Imponible No C. R") y fuera
+    de contabilidad no hay manera de adivinar que eso es "no contribuyente,
+    alícuota reducida". El texto se arma en cada llamada y no en una constante
+    de módulo para que ``_()`` traduzca con el idioma de quien pide el reporte,
+    no con el que hubiera al importar.
+    """
+    # Las doce columnas de alícuota son la misma frase con dos variables; se
+    # generan para que no se desincronicen entre sí al retocar la redacción.
+    descriptions: dict = {}
+    for rate, rate_label in _VAT_RATES.items():
+        for group, group_label in _TAXPAYER_GROUPS.items():
+            descriptions[f"base_{rate}_{group}"] = _(
+                "Base imponible facturada a la {0} a {1}."
+            ).format(rate_label, group_label)
+            descriptions[f"iva_{rate}_{group}"] = _(
+                "IVA cobrado a la {0} a {1}."
+            ).format(rate_label, group_label)
+
+    descriptions.update({
+        "branch": _("Sucursal que emitió el documento."),
+        "main_branch": _(
+            "Sucursal de primer nivel de la que depende la emisora y bajo la "
+            "que consolida. Por ejemplo, ARMANDO consolida en MIR-01."
+        ),
+        "municipality": _(
+            "Municipio de la sucursal. Hoy solo está cargado en algunas, así "
+            "que la columna sale vacía en la mayoría de las filas."
+        ),
+        "posting_date": _("Fecha de emisión del documento."),
+        "customer_tax_id": _("RIF del cliente."),
+        "customer_name": _("Razón social o nombre del cliente."),
+        "customer_type": _(
+            "PJD: persona jurídica domiciliada · PJND: jurídica no domiciliada · "
+            "PND: persona natural domiciliada · PNND: natural no domiciliada."
+        ),
+        "fiscal_series": _("Serie de la imprenta digital asignada a la sucursal."),
+        "fiscal_document_no": _(
+            "Serie y número juntos, tal como se pegan en la declaración "
+            "(MIR-01-4779). Antes había que armarlo a mano."
+        ),
+        "bill_no": _("Número de la factura."),
+        "bill_control": _("Número de control que asigna la imprenta digital."),
+        "credit_note_no": _("Número de la nota de crédito, si el documento lo es."),
+        "debit_note_no": _("Número de la nota de débito, si el documento lo es."),
+        "affected_invoice_number": _("Factura que modifica la nota de crédito o débito."),
+        "transaction_type": _("Tipo de operación registrada."),
+        "grand_total": _("Total del documento, con IVA incluido."),
+        "ve_fob": _("Ventas de exportación, a valor FOB."),
+        "total_exempt": _("Ventas internas exentas o no sujetas a IVA."),
+        "iva_retained": _(
+            "IVA que retuvo el cliente. Solo cuenta si hay comprobante emitido "
+            "y la retención cae dentro del período consultado."
+        ),
+        "vat_withholding_voucher_number": _(
+            "Número del comprobante de retención de IVA que emitió el cliente."
+        ),
+        "withholding_date": _("Fecha del comprobante de retención."),
+        "vat_withholding_rate": _("Porcentaje de IVA que retuvo el cliente."),
+        "base_amount_igtf": _("Monto sobre el que se calcula el IGTF."),
+        "igtf_rate": _("Porcentaje de IGTF aplicado."),
+        "total_igtf": _("Impuesto a las Grandes Transacciones Financieras cobrado."),
+    })
+    return descriptions
+
+
+def _describe_columns(columns: list[dict]) -> None:
+    """Cuelga en cada columna el texto de su tooltip, in place.
+
+    Viaja una sola vez por corrida (no por fila), así que no pesa: son unos
+    pocos kilobytes contra los megabytes de datos.
+    """
+    descriptions: dict = _column_descriptions()
+    for column in columns:
+        description: str = descriptions.get(column.get("fieldname"), "")
+        if description:
+            column["description"] = description
 
 
 # Tipos cuyas columnas se pueden ocultar cuando el período las trae en cero.
