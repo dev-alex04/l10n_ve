@@ -177,11 +177,21 @@ class TestExecute(unittest.TestCase):
     def test_runs_each_source_and_sums(self):
         with patch(f"{_PATH}.frappe") as mock_frappe, \
              patch(f"{_PATH}._backfill_voucher_type") as mock_bf:
-            mock_bf.side_effect = [5, 7]
+            mock_bf.side_effect = [5, 7, 0, 0, 0, 0]
             bf.execute()
         self.assertEqual(mock_bf.call_count, len(bf.VOUCHER_SOURCES))
         called_types = [c.args[0]["voucher_type"] for c in mock_bf.call_args_list]
-        self.assertEqual(called_types, ["Sales Invoice", "Purchase Invoice"])
+        self.assertEqual(
+            called_types,
+            [
+                "Sales Invoice",
+                "Purchase Invoice",
+                "VE Sales Credit Note",
+                "VE Sales Debit Note",
+                "VE Purchase Credit Note",
+                "VE Purchase Debit Note",
+            ],
+        )
         # el log final reporta el total acumulado (5 + 7 = 12)
         logged = " ".join(str(c.args[0]) for c in mock_frappe.log.call_args_list)
         self.assertIn("12", logged)
