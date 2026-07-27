@@ -10,10 +10,7 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
-from l10n_ve.utils.utils import (
-    get_ve_exchange_rate_for_customer,
-    validate_return_in_same_month,
-)
+from l10n_ve.utils.utils import validate_return_in_same_month
 
 
 class VESalesCreditNote(TaxesMixin, SalesInvoice):
@@ -55,9 +52,6 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self._inherit_branch_from_si()
         self._enforce_positive_amounts()
         self._validate_unique_note_per_invoice()
-        # Intra-mes obligatorio: además de la regla fiscal, la tasa propia
-        # de la nota (naturales = 1° del mes) solo coincide con la de la
-        # factura afectada dentro del mismo mes.
         validate_return_in_same_month(self)
         # Impide que SalesInvoice.validate() resetee posting_date a la
         # fecha actual del servidor cuando set_posting_time es falsy.
@@ -76,20 +70,8 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self.update_outstanding_for_self = 0
         self._init_si_defaults()
         super().on_submit()
-        self._post_fx_truing_entry()
         self._update_parent_invoice_status()
         self._set_pending_hka_status()
-
-    def _post_fx_truing_entry(self) -> None:
-        """
-        Cierra el diferencial en Bs contra la factura afectada cuando la
-        tasa de la NC (fecha de emisión propia) difiere de la de la
-        factura; sin este asiento quedaría saldo fantasma en el Auxiliar
-        de CxC. Ver true_up_credit_note_fx.
-        """
-        from l10n_ve.digital_invoice.emission_rerate import true_up_credit_note_fx
-
-        true_up_credit_note_fx(self)
 
     def _set_pending_hka_status(self) -> None:
         """Marca la NC como Pendiente de emisión HKA si su sucursal tiene serie digital activa."""
@@ -111,7 +93,12 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         super().before_cancel()
 
     def _cancel_fx_truing_entries(self) -> None:
-        """Anula los JEs de ajuste cambiario de esta NC (cancelación pre-HKA)."""
+        """
+        Anula los JEs de ajuste cambiario que dejó esta NC si se emitió bajo
+        la regla de tasa propia (16-jul-2026 → 24-jul-2026). Las NC nuevas
+        heredan la tasa de la factura y ya no generan ese asiento, pero los
+        históricos deben anularse con su nota (cancelación pre-HKA).
+        """
         from l10n_ve.digital_invoice.emission_rerate import cancel_credit_note_fx_truing
 
         cancel_credit_note_fx_truing(self)
@@ -209,8 +196,10 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
 
         - branch: si la SI lo tiene, se copia y queda read_only en UI (vía JS).
         - debit_to: cuenta AR de la SI original.
-        - conversion_rate / plc_conversion_rate: Las NC toman siempre la tasa
-          de la factura original.
+        - conversion_rate / plc_conversion_rate: la NC porta SIEMPRE la tasa
+          de la factura afectada (24-jul-2026). Su ledger acredita el CxC
+          contra la factura, así que cualquier otra tasa dejaría un
+          diferencial en Bs (saldo fantasma) en el Auxiliar de CxC.
         - posting_date / due_date: la nota tiene su propia fecha de expedición (SENIAT).
         """
         if not self.get("return_against"):
@@ -232,15 +221,16 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
             self.debit_to = si_values["debit_to"]
 
         # ── Tasa de la factura original ─────────────────────────────────────
-        if self.is_new():
-            si_rate: float = flt(si_values.get("conversion_rate"))
-            if si_rate:
-                self.conversion_rate = si_rate
-            si_plc_rate: float = flt(si_values.get("plc_conversion_rate"))
-            if si_plc_rate:
-                self.plc_conversion_rate = si_plc_rate
-            elif si_rate:
-                self.plc_conversion_rate = si_rate
+        # Sin guard de is_new: es un invariante, no un valor por defecto. El
+        # campo va read_only en la UI, pero eso no cubre API/imports ni
+        # actualizaciones programáticas, así que el servidor lo re-aplica en
+        # cada validate mientras el documento siga en borrador.
+        si_rate: float = flt(si_values.get("conversion_rate"))
+        if si_rate:
+            self.conversion_rate = si_rate
+            self.plc_conversion_rate = (
+                flt(si_values.get("plc_conversion_rate")) or si_rate
+            )
 
         # ── Fecha de vencimiento coherente con la fecha propia ──────────────
         if self.is_new() and self.get("posting_date") and not self.get("due_date"):

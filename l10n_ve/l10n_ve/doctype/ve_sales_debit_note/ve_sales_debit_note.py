@@ -319,8 +319,11 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         """
         Hereda branch, debit_to y la tasa de cambio por defecto de la Factura Original (return_against).
 
-        Para la ND, el valor por defecto de la tasa es la tasa de la factura original,
-        pero la tasa puede ser editable o actualizada desde la fecha de emisión (posting_date).
+        A diferencia de la NC, en la ND la tasa de la factura afectada es un
+        valor por defecto y no un invariante: el campo queda editable y el JS
+        la re-deriva si el usuario cambia posting_date. La ND puede hacerlo
+        sin dejar diferencial porque su ledger se referencia a sí misma
+        (against_voucher = self.name), no a la factura afectada.
         """
         if not self.get("return_against"):
             return
@@ -338,17 +341,16 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         if si_values.get("debit_to") and not self.get("debit_to"):
             self.debit_to = si_values["debit_to"]
 
-        # Tasa por defecto: tomar la de la factura original en la creación del borrador
+        # Tasa por defecto: la de la factura afectada, solo al crear el borrador.
         if self.is_new():
             si_rate: float = flt(si_values.get("conversion_rate"))
             if si_rate:
                 self.conversion_rate = si_rate
-            si_plc_rate: float = flt(si_values.get("plc_conversion_rate"))
-            if si_plc_rate:
-                self.plc_conversion_rate = si_plc_rate
-            elif si_rate:
-                self.plc_conversion_rate = si_rate
+                self.plc_conversion_rate = (
+                    flt(si_values.get("plc_conversion_rate")) or si_rate
+                )
             elif self.get("posting_date"):
+                # Factura sin tasa utilizable: cae a la tasa de la fecha propia.
                 own_rate: float = flt(get_ve_exchange_rate_for_customer(
                     self.customer, str(self.posting_date)
                 ))

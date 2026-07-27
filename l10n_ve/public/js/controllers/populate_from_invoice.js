@@ -26,17 +26,6 @@ function populate_from_sales_invoice(frm) {
       _set_taxes(frm, si);
       _set_totals(frm, si);
 
-      const is_nc = frm.doc.doctype === "VE Sales Credit Note" || frm.doc.is_return;
-      if (is_nc) {
-        // En NC la tasa es fija a la factura original y no editable
-        frm.set_df_property("conversion_rate", "read_only", 1);
-        frm.set_df_property("plc_conversion_rate", "read_only", 1);
-      } else {
-        // En ND se asigna por defecto la tasa original pero se permite editar
-        frm.set_df_property("conversion_rate", "read_only", 0);
-        frm.set_df_property("plc_conversion_rate", "read_only", 0);
-      }
-
       recalculate_ve_document(frm);
 
       frappe.show_alert({
@@ -50,9 +39,10 @@ function populate_from_sales_invoice(frm) {
 /**
  * Copia los campos del encabezado desde la SI al formulario.
  *
- * Las NC toman siempre la tasa de la factura original (conversion_rate y plc_conversion_rate)
- * y no es editable. Las ND toman por defecto la tasa de la factura original pero
- * puede ser editable o actualizada desde la fecha de emisión.
+ * La tasa se copia para ambas notas: en la NC es invariante (el servidor la
+ * re-aplica en cada validate y el campo va read_only) y en la ND es solo el
+ * valor por defecto, que el usuario puede reexpresar cambiando posting_date.
+ * El read_only lo fija el refresh de cada doctype, no este controlador.
  */
 function _set_header_fields(frm, si) {
   if (si.customer && !frm.doc.customer) {

@@ -6,10 +6,6 @@ frappe.ui.form.on("VE Sales Debit Note", {
     // ND nunca requiere fecha de vencimiento
     frm.toggle_reqd("due_date", false);
 
-    // En ND la tasa se hereda por defecto de la SI original pero es editable
-    frm.set_df_property("conversion_rate", "read_only", 0);
-    frm.set_df_property("plc_conversion_rate", "read_only", 0);
-
     // Solo SI aprobadas, sin NC/ND previa, de la misma empresa y cliente
     frm.set_query("return_against", function () {
       return {
@@ -36,8 +32,6 @@ frappe.ui.form.on("VE Sales Debit Note", {
 
   refresh: function (frm) {
     frm.toggle_reqd("due_date", false);
-    frm.set_df_property("conversion_rate", "read_only", 0);
-    frm.set_df_property("plc_conversion_rate", "read_only", 0);
     calculate_base_total_with_vat(frm);
 
     // Indicador fiscal VE (centralizado en sales_billing_indicators.js)
@@ -266,8 +260,9 @@ frappe.ui.form.on("VE Sales Debit Note", {
     }
   },
 
-  // Al seleccionar la factura original: auto-carga cliente, branch e ítems.
-  // La tasa NO se copia: se deriva de la fecha propia de la nota (posting_date).
+  // Al seleccionar la factura original: auto-carga cliente, branch, tasa e
+  // ítems. En la ND la tasa de la factura es solo el valor por defecto: el
+  // handler de posting_date la re-deriva si el usuario cambia la fecha.
   return_against: function (frm) {
     populate_from_sales_invoice(frm);
   },
