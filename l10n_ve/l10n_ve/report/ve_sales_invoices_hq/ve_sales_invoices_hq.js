@@ -37,5 +37,16 @@ frappe.query_reports["VE Sales Invoices HQ"] = {
         filters: { company: frappe.query_report.get_filter_value("company") },
       }),
     },
+    {
+      // Solo las sucursales de consolidación (las que cuelgan de la raíz).
+      fieldname: "main_branch",
+      label: __("Sucursal Principal"),
+      fieldtype: "Link",
+      options: "VE Branch",
+      get_query: () => ({
+        query:
+          "l10n_ve.l10n_ve.report.ve_sales_invoices_hq.ve_sales_invoices_hq.get_main_branches",
+      }),
+    },
   ],
 };
