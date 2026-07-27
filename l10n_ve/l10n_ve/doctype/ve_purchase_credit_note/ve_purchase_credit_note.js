@@ -37,6 +37,10 @@ frappe.ui.form.on("VE Purchase Credit Note", {
     });
   },
   refresh: function (frm) {
+    // La NC de compra hereda la tasa de la PI afectada: se muestra pero no
+    // se edita (_inherit_data_from_pi la fija al crear el borrador).
+    frm.set_df_property("conversion_rate", "read_only", 1);
+    frm.set_df_property("plc_conversion_rate", "read_only", 1);
     calculate_base_total_with_vat(frm);
     set_islr_buttons(frm);
 

@@ -32,6 +32,10 @@ frappe.ui.form.on("VE Sales Credit Note", {
 
   refresh: function (frm) {
     frm.toggle_reqd("due_date", false);
+    // La NC porta siempre la tasa de la factura afectada: se muestra pero no
+    // se edita (el servidor la re-aplica en cada validate del borrador).
+    frm.set_df_property("conversion_rate", "read_only", 1);
+    frm.set_df_property("plc_conversion_rate", "read_only", 1);
     calculate_base_total_with_vat(frm);
 
     // Indicador fiscal VE (centralizado en sales_billing_indicators.js)
@@ -250,17 +254,11 @@ frappe.ui.form.on("VE Sales Credit Note", {
     }
   },
 
-  // Al seleccionar la factura original:
-  //   1. Auto-carga cliente, branch e ítems en positivo. La tasa NO se
-  //      copia: se deriva de la fecha propia de la nota (posting_date).
+  // Al seleccionar la factura original: auto-carga cliente, branch, tasa e
+  // ítems en positivo. No hay handler de posting_date: la tasa de la NC es
+  // la de la factura afectada y no se re-deriva por fecha.
   return_against: function (frm) {
     populate_from_sales_invoice(frm);
-  },
-
-  // Al cambiar la fecha de la NC, actualiza la tasa de cambio según
-  // la misma regla fiscal que la SI: Jurídico → fecha exacta, Natural → 1ro del mes.
-  posting_date: function (frm) {
-    apply_ve_exchange_rate_nc(frm);
   },
 });
 
@@ -288,44 +286,6 @@ frappe.ui.form.on("VE Sales Credit Note Item", {
     recalculate_ve_document(frm);
   },
 });
-
-/**
- * Obtiene y aplica la tasa de cambio venezolana correcta para la NC.
- *
- * Regla fiscal (igual que en VE Sales Invoice):
- *   Jurídico → fecha exacta del posting_date.
- *   Natural  → primer día del mes del posting_date.
- *
- * Solo actúa si tfhka_enabled está activo, el doc está en borrador
- * y tiene cliente + fecha + moneda extranjera.
- *
- * @param {object} frm - Instancia del formulario Frappe.
- */
-function apply_ve_exchange_rate_nc(frm) {
-  if (!frappe.boot.tfhka_enabled) return;
-  if (frm.doc.docstatus !== 0) return;
-  if (!frm.doc.customer || !frm.doc.posting_date) return;
-
-  const company_currency = erpnext.get_currency(frm.doc.company);
-  if (!frm.doc.currency || frm.doc.currency === company_currency) return;
-
-  frappe.call({
-    method: "l10n_ve.utils.utils.get_ve_exchange_rate_for_customer",
-    args: {
-      customer: frm.doc.customer,
-      date: frm.doc.posting_date,
-      from_currency: frm.doc.currency,
-    },
-    callback: function (r) {
-      if (!r.message) return;
-      const rate = flt(r.message);
-      if (rate <= 0) return;
-
-      frm.set_value("conversion_rate", rate);
-      frm.set_value("plc_conversion_rate", rate);
-    },
-  });
-}
 
 /**
  * Agrega un botón para consultar el documento en el portal de HKA.
