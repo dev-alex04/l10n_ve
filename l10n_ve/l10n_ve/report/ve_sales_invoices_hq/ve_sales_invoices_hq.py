@@ -54,7 +54,8 @@ def execute(filters=None):
     # Rollup: si la sucursal elegida tiene descendientes, el libro no puede
     # filtrarlas (solo acepta un valor), así que se quita el filtro y se recorta
     # después por el subárbol.
-    subtree: set | None = _get_branch_subtree(filters.get("branch"))
+    branch_filter: str = filters.get("branch") or ""
+    subtree: set | None = _get_branch_subtree(branch_filter)
     if subtree:
         filters.pop("branch", None)
 
@@ -78,7 +79,60 @@ def execute(filters=None):
         _sales_book_total_row(main_data)
     )
 
-    return columns, data, None, None, report_summary
+    # 3er valor = 'message': Frappe lo pinta entre los filtros y las tarjetas de
+    # totales (query_report.js -> show_status / $status).
+    message: str = _build_report_message(branch_filter, subtree)
+
+    return columns, data, message, None, report_summary
+
+
+def _build_report_message(branch: str, subtree: set | None) -> str:
+    """Descripción que se muestra sobre el reporte (bajo los filtros).
+
+    Explica de dónde salen los números y hace visible el rollup: sin esto, al
+    filtrar por una sucursal con dependencias el usuario ve más filas de las que
+    espera y no sabe por qué.
+    """
+    lineas: list[str] = [
+        "<b>{0}</b> {1}".format(
+            _("Facturas de Venta HQ:"),
+            _(
+                "consolidado para casa matriz. Reusa el cálculo del Libro de "
+                "Ventas, así que los totales cuadran con lo declarado."
+            ),
+        ),
+        "• <b>{0}</b> {1} <code>MIR-01-4779</code>.".format(
+            _("Documento Fiscal:"), _("serie y número juntos, por ejemplo")
+        ),
+        "• <b>{0}</b> {1}".format(
+            _("Sucursal:"),
+            _(
+                "al elegir una sucursal con dependencias se incluyen "
+                "automáticamente las sucursales hijas."
+            ),
+        ),
+        "• {0}".format(
+            _(
+                "Solo incluye documentos ya certificados por la imprenta "
+                "digital, igual que el Libro de Ventas."
+            )
+        ),
+    ]
+
+    if subtree:
+        dependientes: list[str] = sorted(n for n in subtree if n != branch)
+        lineas.append(
+            "<b>{0}</b> {1} <b>{2}</b> {3} {4} ({5}).".format(
+                "→",
+                _("Mostrando"),
+                branch,
+                _("y sus"),
+                _("{0} sucursales dependientes").format(len(dependientes)),
+                ", ".join(dependientes),
+            )
+        )
+
+    return "<br>".join(lineas)
 
 
 def _validate_filters(filters: dict) -> None:
