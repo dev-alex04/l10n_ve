@@ -94,12 +94,18 @@ frappe.query_reports["VE Sales Invoices HQ"] = {
       }),
     );
 
-    // El resumen ejecutivo en PDF existe y funciona
-    // (pdf_export.download_hq_pdf), pero NO se expone como botón: el motor de
-    // PDF de Frappe es wkhtmltopdf, con un WebKit viejo que no ejecuta
-    // JavaScript ni admite flex/grid, y el resultado no llega al acabado que
-    // exige un documento que sale hacia afuera. Para reactivarlo basta con
-    // volver a agregar el add_inner_button; no hace falta tocar el servidor.
+    // Resumen ejecutivo de una página: indicadores contra el período anterior,
+    // concentración por sucursal, evolución diaria y observaciones derivadas de
+    // los datos. NO es la tabla impresa —eso es el Excel—; se midió y sacar las
+    // 10.712 filas línea por línea daba ~85s, 6 MB y 37 columnas ilegibles.
+    report.page.add_inner_button(__("Exportar PDF"), () =>
+      _hq_export(report, {
+        method:
+          "l10n_ve.l10n_ve.report.ve_sales_invoices_hq.pdf_export.download_hq_pdf",
+        loading: __("Generando el PDF..."),
+        mime: "application/pdf",
+      }),
+    );
   },
 };
 

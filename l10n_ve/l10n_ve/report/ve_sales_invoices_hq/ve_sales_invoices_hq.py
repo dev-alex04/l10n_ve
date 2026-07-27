@@ -96,7 +96,7 @@ def get_hq_data(filters=None) -> dict:
         adjustment_data = [r for r in adjustment_data if r.get("branch") in allowed]
 
     _add_hq_columns(columns, main_data + adjustment_data)
-    _describe_columns(columns)
+    _humanize_columns(columns)
 
     # Totales con las MISMAS funciones del libro y sobre las filas ya recortadas.
     # Igual que el libro, se calculan solo con main_data (excluye los ajustes de
@@ -120,38 +120,50 @@ def get_hq_data(filters=None) -> dict:
 # es interpretación: sale del propio SQL (sales_book._get_*), que clasifica por
 # la primera letra del RIF sin guiones.
 _TAXPAYER_GROUPS: dict = {
-    "non_taxpayer": "clientes no contribuyentes (RIF que empieza en V o E, o sin RIF)",
-    "taxpayer": "clientes contribuyentes (RIF que no empieza en V ni E: J, G, P…)",
+    "non_taxpayer": ("No Contribuyente",
+                     "clientes no contribuyentes (RIF que empieza en V o E, o sin RIF)"),
+    "taxpayer": ("Contribuyente",
+                 "clientes contribuyentes (RIF que no empieza en V ni E: J, G, P…)"),
 }
 _VAT_RATES: dict = {
-    "general": "alícuota general",
-    "reduced": "alícuota reducida",
-    "additional": "alícuota adicional",
+    "general": ("General", "alícuota general"),
+    "reduced": ("Reducida", "alícuota reducida"),
+    "additional": ("Adicional", "alícuota adicional"),
 }
 
 
-def _column_descriptions() -> dict:
-    """Qué es cada columna, para el tooltip del encabezado.
+def _column_texts() -> dict:
+    """``{fieldname: (etiqueta, descripción)}`` para el encabezado.
 
-    Las etiquetas del libro vienen abreviadas ("Base Imponible No C. R") y fuera
-    de contabilidad no hay manera de adivinar que eso es "no contribuyente,
-    alícuota reducida". El texto se arma en cada llamada y no en una constante
-    de módulo para que ``_()`` traduzca con el idioma de quien pide el reporte,
-    no con el que hubiera al importar.
+    La etiqueta puede ser ``None``: significa dejar la que trae el libro.
+
+    Las que sí se reescriben son las doce de alícuota. El libro las abrevia
+    ("Base Imponible No C. G", donde "C." es contribuyente y la última letra la
+    alícuota) y fuera de contabilidad nadie las descifra. Se reescriben SOLO
+    acá: ``sales_book`` es el reporte fiscal y su formato se contrasta contra lo
+    declarado, así que no se toca.
+
+    El texto se arma en cada llamada y no en una constante de módulo para que
+    ``_()`` traduzca con el idioma de quien pide el reporte, no con el que
+    hubiera al importar.
     """
-    # Las doce columnas de alícuota son la misma frase con dos variables; se
-    # generan para que no se desincronicen entre sí al retocar la redacción.
-    descriptions: dict = {}
-    for rate, rate_label in _VAT_RATES.items():
-        for group, group_label in _TAXPAYER_GROUPS.items():
-            descriptions[f"base_{rate}_{group}"] = _(
-                "Base imponible facturada a la {0} a {1}."
-            ).format(rate_label, group_label)
-            descriptions[f"iva_{rate}_{group}"] = _(
-                "IVA cobrado a la {0} a {1}."
-            ).format(rate_label, group_label)
+    # Las doce son la misma frase con dos variables; se generan para que no se
+    # desincronicen entre sí al retocar la redacción.
+    texts: dict = {}
+    for rate, (rate_label, rate_name) in _VAT_RATES.items():
+        for group, (group_label, group_criteria) in _TAXPAYER_GROUPS.items():
+            texts[f"base_{rate}_{group}"] = (
+                _("Base Imponible {0} {1}").format(group_label, rate_label),
+                _("Base imponible facturada a la {0} a {1}.").format(
+                    rate_name, group_criteria),
+            )
+            texts[f"iva_{rate}_{group}"] = (
+                _("IVA {0} {1}").format(group_label, rate_label),
+                _("IVA cobrado a la {0} a {1}.").format(rate_name, group_criteria),
+            )
 
-    descriptions.update({
+    # El resto conserva la etiqueta del libro y solo suma el tooltip.
+    descriptions: dict = {
         "branch": _("Sucursal que emitió el documento."),
         "main_branch": _(
             "Sucursal de primer nivel de la que depende la emisora y bajo la "
@@ -194,19 +206,22 @@ def _column_descriptions() -> dict:
         "base_amount_igtf": _("Monto sobre el que se calcula el IGTF."),
         "igtf_rate": _("Porcentaje de IGTF aplicado."),
         "total_igtf": _("Impuesto a las Grandes Transacciones Financieras cobrado."),
-    })
-    return descriptions
+    }
+    texts.update({f: (None, d) for f, d in descriptions.items()})
+    return texts
 
 
-def _describe_columns(columns: list[dict]) -> None:
-    """Cuelga en cada columna el texto de su tooltip, in place.
+def _humanize_columns(columns: list[dict]) -> None:
+    """Reescribe las etiquetas abreviadas y cuelga el tooltip, in place.
 
-    Viaja una sola vez por corrida (no por fila), así que no pesa: son unos
-    pocos kilobytes contra los megabytes de datos.
+    Todo esto viaja una sola vez por corrida (no por fila), así que no pesa:
+    son unos pocos kilobytes contra los megabytes de datos.
     """
-    descriptions: dict = _column_descriptions()
+    texts: dict = _column_texts()
     for column in columns:
-        description: str = descriptions.get(column.get("fieldname"), "")
+        label, description = texts.get(column.get("fieldname"), (None, ""))
+        if label:
+            column["label"] = label
         if description:
             column["description"] = description
 
@@ -215,7 +230,7 @@ def _describe_columns(columns: list[dict]) -> None:
 _NUMERIC_FIELDTYPES: set = {"Currency", "Float", "Percent", "Int"}
 
 
-def _drop_empty_numeric_columns(columns: list[dict], rows: list[dict]) -> tuple:
+def _drop_empty_numeric_columns(columns: list[dict], rows: list[dict]) -> list[dict]:
     """Quita de la PANTALLA las columnas numéricas sin un solo valor.
 
     Galanet no usa las alícuotas reducida y adicional ni las de no
@@ -233,7 +248,7 @@ def _drop_empty_numeric_columns(columns: list[dict], rows: list[dict]) -> tuple:
     # Sin filas, "todo vacío" es cierto para cualquier columna y se llevaría
     # por delante hasta la última: no hay nada que ocultar.
     if not rows:
-        return columns, []
+        return columns
 
     vacias: set = {
         column["fieldname"]
@@ -242,20 +257,14 @@ def _drop_empty_numeric_columns(columns: list[dict], rows: list[dict]) -> tuple:
         and column.get("fieldtype") in _NUMERIC_FIELDTYPES
         and not any(row.get(column["fieldname"]) for row in rows)
     }
-    if not vacias:
-        return columns, []
-
-    return (
-        [c for c in columns if c.get("fieldname") not in vacias],
-        [c.get("label") or c["fieldname"] for c in columns if c.get("fieldname") in vacias],
-    )
+    return [c for c in columns if c.get("fieldname") not in vacias]
 
 
 def execute(filters=None):
     hq = get_hq_data(filters)
     rows: list[dict] = hq["main_data"] + hq["adjustment_data"]
 
-    columns, ocultas = _drop_empty_numeric_columns(hq["columns"], rows)
+    columns: list[dict] = _drop_empty_numeric_columns(hq["columns"], rows)
 
     # Las filas viajan como LISTA, no como diccionario: Frappe rearma el objeto
     # en el navegador mapeando por posición (query_report.js -> prepare_data).
@@ -269,18 +278,13 @@ def execute(filters=None):
     # 3er valor = 'message': Frappe lo pinta entre los filtros y las tarjetas de
     # totales (query_report.js -> show_status / $status).
     message: str = _build_report_message(
-        hq["branch"], hq["subtree"], hq["main_branch"], ocultas
+        hq["branch"], hq["subtree"], hq["main_branch"]
     )
 
     return columns, data, message, None, hq["report_summary"]
 
 
-def _build_report_message(
-    branch: str,
-    subtree: set | None,
-    main_branch: str = "",
-    hidden_columns: list | None = None,
-) -> str:
+def _build_report_message(branch: str, subtree: set | None, main_branch: str = "") -> str:
     """Descripción que se muestra sobre el reporte (bajo los filtros).
 
     Explica de dónde salen los números y hace visible el rollup: sin esto, al
@@ -330,18 +334,6 @@ def _build_report_message(
         lineas.append(
             "<b>→</b> {0} <b>{1}</b>.".format(
                 _("Consolidando por sucursal principal"), main_branch
-            )
-        )
-
-    # Se dice cuáles se ocultaron y por qué: una columna que desaparece sin
-    # aviso se lee como un dato que falta, no como un dato que no existe.
-    if hidden_columns:
-        lineas.append(
-            "<b>→</b> {0} {1}: {2}. {3}".format(
-                _("Se ocultaron"),
-                _("{0} columnas sin datos en este período").format(len(hidden_columns)),
-                ", ".join(hidden_columns),
-                _("El Excel las trae todas."),
             )
         )
 

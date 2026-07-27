@@ -174,34 +174,72 @@ class TestExecute(unittest.TestCase):
         self.assertEqual(filas[0][[c["fieldname"] for c in columns].index("branch")], "A")
 
 
-class TestColumnDescriptions(unittest.TestCase):
-    """El tooltip de cada encabezado."""
+class TestColumnTexts(unittest.TestCase):
+    """Etiqueta legible y tooltip de cada encabezado."""
 
-    def test_describe_columns_cuelga_el_texto(self) -> None:
+    def test_cuelga_el_tooltip(self) -> None:
         columnas = [{"fieldname": "branch"}, {"fieldname": "grand_total"}]
-        hq._describe_columns(columnas)
+        hq._humanize_columns(columnas)
 
         self.assertTrue(all(c["description"] for c in columnas))
 
-    def test_no_inventa_descripcion_para_columnas_desconocidas(self) -> None:
+    def test_no_pisa_la_etiqueta_del_libro_sin_motivo(self) -> None:
+        """Solo las doce de alícuota se reescriben; el resto queda como viene."""
+        columnas = [{"fieldname": "branch", "label": "Sucursal"}]
+        hq._humanize_columns(columnas)
+
+        self.assertEqual(columnas[0]["label"], "Sucursal")
+
+    def test_no_inventa_nada_para_columnas_desconocidas(self) -> None:
         columnas = [{"fieldname": "columna_que_no_existe"}]
-        hq._describe_columns(columnas)
+        hq._humanize_columns(columnas)
 
         self.assertNotIn("description", columnas[0])
+        self.assertNotIn("label", columnas[0])
 
     def test_las_doce_de_alicuota_se_generan(self) -> None:
         """Son la misma frase con dos variables; se generan para que no se
         desincronicen entre sí al retocar la redacción."""
-        descripciones = hq._column_descriptions()
+        textos = hq._column_texts()
 
         for tasa in ("general", "reduced", "additional"):
             for grupo in ("taxpayer", "non_taxpayer"):
-                self.assertIn(f"base_{tasa}_{grupo}", descripciones)
-                self.assertIn(f"iva_{tasa}_{grupo}", descripciones)
+                self.assertIn(f"base_{tasa}_{grupo}", textos)
+                self.assertIn(f"iva_{tasa}_{grupo}", textos)
 
         # El criterio del libro es la primera letra del RIF: debe decirlo.
-        self.assertIn("V", descripciones["base_general_non_taxpayer"])
-        self.assertIn("J", descripciones["base_general_taxpayer"])
+        self.assertIn("V", textos["base_general_non_taxpayer"][1])
+        self.assertIn("J", textos["base_general_taxpayer"][1])
+
+    def test_las_etiquetas_no_llevan_abreviaturas(self) -> None:
+        """El motivo del cambio: "C. G" no lo descifra nadie fuera de
+        contabilidad. Ninguna etiqueta reescrita puede volver a abreviar."""
+        columnas = [
+            {"fieldname": f"{p}_{tasa}_{grupo}", "label": "vieja"}
+            for p in ("base", "iva")
+            for tasa in ("general", "reduced", "additional")
+            for grupo in ("taxpayer", "non_taxpayer")
+        ]
+        hq._humanize_columns(columnas)
+
+        for columna in columnas:
+            self.assertNotIn("C.", columna["label"])
+            self.assertTrue(
+                columna["label"].endswith(("General", "Reducida", "Adicional")),
+                f"la alícuota debe ir escrita: {columna['label']}",
+            )
+            self.assertIn("Contribuyente", columna["label"])
+
+    def test_etiquetas_de_los_dos_grupos_se_distinguen(self) -> None:
+        """'No Contribuyente' contiene 'Contribuyente': no pueden colisionar."""
+        textos = hq._column_texts()
+
+        self.assertEqual(
+            textos["base_general_non_taxpayer"][0], "Base Imponible No Contribuyente General"
+        )
+        self.assertEqual(
+            textos["base_general_taxpayer"][0], "Base Imponible Contribuyente General"
+        )
 
     def test_ninguna_descripcion_huerfana(self) -> None:
         """Blindaje contra el typo: una clave que no corresponde a ninguna
@@ -220,7 +258,7 @@ class TestColumnDescriptions(unittest.TestCase):
             for tasa in ("general", "reduced", "additional")
             for grupo in ("taxpayer", "non_taxpayer")
         }
-        huerfanas = set(hq._column_descriptions()) - columnas_reales
+        huerfanas = set(hq._column_texts()) - columnas_reales
 
         self.assertEqual(huerfanas, set(), f"fieldname inexistente: {huerfanas}")
 
@@ -241,9 +279,8 @@ class TestDropEmptyNumericColumns(unittest.TestCase):
             {"branch": "A", "municipality": "Plaza", "con_datos": 10.0, "en_cero": 0.0},
             {"branch": "B", "municipality": "Plaza", "con_datos": 5.0, "en_cero": 0},
         ]
-        columns, ocultas = hq._drop_empty_numeric_columns(self.COLUMNAS, filas)
+        columns = hq._drop_empty_numeric_columns(self.COLUMNAS, filas)
 
-        self.assertEqual(ocultas, ["En cero", "Sin valor"])
         self.assertEqual(
             [c["fieldname"] for c in columns], ["branch", "municipality", "con_datos"]
         )
@@ -251,31 +288,29 @@ class TestDropEmptyNumericColumns(unittest.TestCase):
     def test_nunca_oculta_columnas_de_identidad(self) -> None:
         """Municipio está vacío en 26 de 28 sucursales: aun así debe quedarse."""
         filas = [{"branch": "A", "municipality": "", "con_datos": 1.0}]
-        columns, ocultas = hq._drop_empty_numeric_columns(self.COLUMNAS, filas)
+        columns = hq._drop_empty_numeric_columns(self.COLUMNAS, filas)
 
         self.assertIn("municipality", [c["fieldname"] for c in columns])
-        self.assertNotIn("Municipio", ocultas)
 
     def test_sin_filas_no_oculta_nada(self) -> None:
         """Con cero filas 'todo vacío' es cierto y se llevaría todas por delante."""
-        columns, ocultas = hq._drop_empty_numeric_columns(self.COLUMNAS, [])
+        columns = hq._drop_empty_numeric_columns(self.COLUMNAS, [])
 
         self.assertEqual(columns, self.COLUMNAS)
-        self.assertEqual(ocultas, [])
 
     def test_no_toca_las_columnas_si_todas_tienen_datos(self) -> None:
         filas = [{"branch": "A", "con_datos": 1.0, "en_cero": 2.0, "sin_valor": 3.0}]
-        columns, ocultas = hq._drop_empty_numeric_columns(self.COLUMNAS, filas)
+        columns = hq._drop_empty_numeric_columns(self.COLUMNAS, filas)
 
         self.assertEqual(columns, self.COLUMNAS)
-        self.assertEqual(ocultas, [])
 
-    def test_el_mensaje_avisa_de_las_ocultas(self) -> None:
-        mensaje = hq._build_report_message("", None, "", ["En cero", "Sin valor"])
+    def test_el_mensaje_no_menciona_las_ocultas(self) -> None:
+        """Se sacó el aviso a pedido: la descripción quedó demasiado larga y la
+        lista de columnas en cero no le dice nada a quien lee el reporte."""
+        mensaje = hq._build_report_message("", None, "")
 
-        self.assertIn("2 columnas sin datos", mensaje)
-        self.assertIn("En cero, Sin valor", mensaje)
-        self.assertIn("Excel", mensaje)  # dice dónde sí están
+        self.assertNotIn("ocultaron", mensaje)
+        self.assertNotIn("sin datos en este período", mensaje)
 
 
 ARBOL: list = [
