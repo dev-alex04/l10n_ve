@@ -3,7 +3,8 @@
 
 // Filtros del Reporte HQ de facturas de venta. Mismos filtros que el Libro de
 // Ventas (Company / Fechas / Sucursal) para que sea intercambiable; la
-// diferencia está en la ENTREGA (Prepared Report) y el ACCESO (rol dedicado).
+// diferencia está en el ACCESO (rol dedicado VE Sales Book HQ) y en que aquí
+// irán las columnas HQ (serie-número, municipio/sucursal) sin tocar el libro.
 
 frappe.query_reports["VE Sales Invoices HQ"] = {
   filters: [
