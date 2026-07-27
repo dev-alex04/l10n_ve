@@ -50,7 +50,19 @@ BRANCH_DOCTYPE: str = "VE Branch"
 MUNICIPALITY_DOCTYPE: str = "VE Municipality"
 
 
-def execute(filters=None):
+def get_hq_data(filters=None) -> dict:
+    """Núcleo del reporte: resuelve los filtros HQ y devuelve datos y totales.
+
+    Es el ÚNICO lugar donde se aplica el filtrado propio del HQ (rollup de
+    sucursal y sucursal principal). Lo consumen ``execute`` (pantalla) y las
+    exportaciones a Excel y PDF: si cada una lo replicara, tarde o temprano una
+    quedaría desfasada y entregaría un total distinto al de la pantalla.
+
+    Devuelve ``main_data`` y ``adjustment_data`` POR SEPARADO a propósito: los
+    totales del libro se calculan solo con las del período, así que quien
+    necesite porcentajes (el PDF) debe usar ``main_data`` como denominador o no
+    cuadrarían con los indicadores.
+    """
     filters = dict(filters or {})
     _validate_filters(filters)
 
@@ -83,11 +95,7 @@ def execute(filters=None):
         main_data = [r for r in main_data if r.get("branch") in allowed]
         adjustment_data = [r for r in adjustment_data if r.get("branch") in allowed]
 
-    data: list[dict] = main_data + adjustment_data
-    for i, row in enumerate(data):
-        row["sequence_number"] = i + 1
-
-    _add_hq_columns(columns, data)
+    _add_hq_columns(columns, main_data + adjustment_data)
 
     # Totales con las MISMAS funciones del libro y sobre las filas ya recortadas.
     # Igual que el libro, se calculan solo con main_data (excluye los ajustes de
@@ -96,11 +104,31 @@ def execute(filters=None):
         _sales_book_total_row(main_data)
     )
 
+    return {
+        "columns": columns,
+        "main_data": main_data,
+        "adjustment_data": adjustment_data,
+        "report_summary": report_summary,
+        "branch": branch_filter,
+        "main_branch": main_branch_filter,
+        "subtree": subtree,
+    }
+
+
+def execute(filters=None):
+    hq = get_hq_data(filters)
+
+    data: list[dict] = hq["main_data"] + hq["adjustment_data"]
+    for i, row in enumerate(data):
+        row["sequence_number"] = i + 1
+
     # 3er valor = 'message': Frappe lo pinta entre los filtros y las tarjetas de
     # totales (query_report.js -> show_status / $status).
-    message: str = _build_report_message(branch_filter, subtree, main_branch_filter)
+    message: str = _build_report_message(
+        hq["branch"], hq["subtree"], hq["main_branch"]
+    )
 
-    return columns, data, message, None, report_summary
+    return hq["columns"], data, message, None, hq["report_summary"]
 
 
 def _build_report_message(branch: str, subtree: set | None, main_branch: str = "") -> str:
