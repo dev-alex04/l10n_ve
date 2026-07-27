@@ -125,6 +125,7 @@ class VEBranch(NestedSet):
             self.append("mode_of_payments", {
                 "mode_of_payment": payment_row.mode_of_payment,
                 "is_default": payment_row.is_default,
+                "send_in_email": getattr(payment_row, "send_in_email", 0),
                 "account": payment_row.account,
                 "payment_information": payment_row.payment_information
             })
