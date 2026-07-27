@@ -6,38 +6,16 @@
 // diferencia está en el ACCESO (rol dedicado VE Sales Book HQ) y en que aquí
 // irán las columnas HQ (serie-número, municipio/sucursal) sin tocar el libro.
 
-// Indicador de progreso de la exportación. Generar el Excel del período
-// completo toma ~15s (y ~45s proyectado a 30.000 facturas): sin una señal
-// visible el usuario cree que no pasó nada y vuelve a pulsar el botón.
-const HQ_EXPORT_SPINNER = `
-  <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
-    <style>
-      .hq-spinner-svg { width: 56px; height: 56px; }
-      .hq-part { animation: hq-lift 2s ease-in-out infinite; }
-      /* Un color por cuadrante, tomados del logo de marca
-         (apps/resources/DominaLogo.png). El rombo de domina_isp es monocromo
-         azul; este usa la paleta completa. */
-      .hq-p1 { fill: #E91A4B; --tx: -6px; --ty: -6px; animation-delay: 0.0s; } /* arriba-izquierda */
-      .hq-p2 { fill: #FF5100; --tx:  6px; --ty: -6px; animation-delay: 0.5s; } /* arriba-derecha   */
-      .hq-p3 { fill: #00B5E5; --tx:  6px; --ty:  6px; animation-delay: 1.0s; } /* abajo-derecha    */
-      .hq-p4 { fill: #009B52; --tx: -6px; --ty:  6px; animation-delay: 1.5s; } /* abajo-izquierda  */
-      @keyframes hq-lift {
-        0%, 40%, 100% { transform: translate(0, 0); opacity: .85; }
-        20% { transform: translate(var(--tx), var(--ty)); opacity: 1; }
-      }
-    </style>
-    <svg viewBox="0 0 100 100" class="hq-spinner-svg">
-      <g transform="translate(50,50)">
-        <path class="hq-part hq-p1" d="M -44,-1 L -1,-44 L -1,-26 L -26,-1 Z" />
-        <path class="hq-part hq-p2" d="M 1,-44 L 44,-1 L 26,-1 L 1,-26 Z" />
-        <path class="hq-part hq-p3" d="M 44,1 L 1,44 L 1,26 L 26,1 Z" />
-        <path class="hq-part hq-p4" d="M -1,44 L -44,1 L -26,1 L -1,26 Z" />
-      </g>
-    </svg>
-    <div>${__("Generando el Excel...")}</div>
-    <div class="text-muted small">${__("Puede tardar según el rango de fechas")}</div>
-  </div>
-`;
+// El indicador usa el logo de marca compartido (l10n_ve.brand), no una copia
+// local del SVG. Generar el Excel del período completo toma ~15s (y ~45s
+// proyectado a 30.000 facturas): sin una señal visible el usuario cree que no
+// pasó nada y vuelve a pulsar el botón.
+function _hq_export_spinner() {
+  return l10n_ve.brand.loading(
+    __("Generando el Excel..."),
+    __("Puede tardar según el rango de fechas"),
+  );
+}
 
 frappe.query_reports["VE Sales Invoices HQ"] = {
   filters: [
@@ -100,7 +78,7 @@ function _hq_export_excel(report) {
     return;
   }
 
-  frappe.dom.freeze(HQ_EXPORT_SPINNER);
+  frappe.dom.freeze(_hq_export_spinner());
 
   frappe.call({
     method:
