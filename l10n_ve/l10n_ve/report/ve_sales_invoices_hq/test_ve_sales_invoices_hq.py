@@ -14,6 +14,12 @@ from unittest.mock import patch
 
 import frappe
 
+import base64
+from io import BytesIO
+
+from openpyxl import load_workbook
+
+from l10n_ve.l10n_ve.report.ve_sales_invoices_hq import excel_export as xls
 from l10n_ve.l10n_ve.report.ve_sales_invoices_hq import ve_sales_invoices_hq as hq
 
 FILTROS: dict = {
@@ -253,6 +259,59 @@ class TestReportMessage(unittest.TestCase):
         self.assertIn("2", msg)                 # cuenta solo las dependientes
         # la propia sucursal no se lista como dependiente de sí misma
         self.assertNotIn("PADRE,", msg)
+
+
+class TestExcelExport(unittest.TestCase):
+    """Exportación a Excel: en memoria, sin tocar disco."""
+
+    def test_nombre_de_archivo_con_el_rango(self) -> None:
+        nombre = xls._build_filename({"from_date": "2026-02-01", "to_date": "2026-07-31"})
+        self.assertEqual(nombre, "Facturas_Venta_HQ_20260201_20260731.xlsx")
+
+    def test_nombre_sin_fechas_no_revienta(self) -> None:
+        self.assertTrue(xls._build_filename({}).endswith(".xlsx"))
+
+    def test_ancho_auto_no_rompe(self) -> None:
+        """Las columnas del libro traen width='auto' (string), no un número."""
+        self.assertEqual(xls._as_number("auto"), 0.0)
+        self.assertEqual(xls._as_number(None), 0.0)
+        self.assertEqual(xls._as_number(120), 120.0)
+
+    def test_exige_el_rol_del_reporte(self) -> None:
+        """El endpoint es invocable por si solo: sin el chequeo, cualquiera
+        podria bajarse la facturacion completa saltandose el rol."""
+        with patch("frappe.only_for", side_effect=frappe.PermissionError) as guard:
+            with self.assertRaises(frappe.PermissionError):
+                xls.download_hq_excel({})
+        guard.assert_called_once()
+
+    def test_genera_en_memoria_y_no_escribe_en_disco(self) -> None:
+        columnas = [{"fieldname": "branch", "label": "Sucursal", "fieldtype": "Data", "width": "auto"}]
+        filas = [{"branch": "MIR-01"}, {"branch": "DC-02"}]
+        with patch("frappe.only_for"), patch.object(
+            xls, "execute", return_value=(columnas, filas, None, None, [{"label": "Total", "value": 1}])
+        ):
+            res = xls.download_hq_excel({"from_date": "2026-07-01", "to_date": "2026-07-31"})
+
+        self.assertEqual(res["type"], "download")
+        # base64 valido y con firma de xlsx (PK: es un zip)
+        crudo = base64.b64decode(res["filecontent"])
+        self.assertTrue(crudo.startswith(b"PK"))
+
+        libro = load_workbook(BytesIO(crudo))
+        self.assertEqual(libro.sheetnames, [xls.SHEET_DATA, xls.SHEET_SUMMARY])
+        hoja = libro[xls.SHEET_DATA]
+        self.assertEqual(hoja["A1"].value, "Sucursal")
+        self.assertEqual([c[0].value for c in hoja.iter_rows(min_row=2)], ["MIR-01", "DC-02"])
+        self.assertEqual(hoja.freeze_panes, "A2")   # encabezado fijo al hacer scroll
+
+    def test_sin_resumen_no_agrega_la_hoja(self) -> None:
+        with patch("frappe.only_for"), patch.object(
+            xls, "execute", return_value=([{"fieldname": "branch", "label": "S"}], [], None, None, [])
+        ):
+            res = xls.download_hq_excel({})
+        libro = load_workbook(BytesIO(base64.b64decode(res["filecontent"])))
+        self.assertEqual(libro.sheetnames, [xls.SHEET_DATA])
 
 
 if __name__ == "__main__":
