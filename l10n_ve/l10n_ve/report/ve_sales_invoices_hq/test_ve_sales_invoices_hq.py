@@ -29,6 +29,19 @@ FILTROS: dict = {
 }
 
 
+def como_dicts(columns: list, data: list) -> list:
+    """Rearma las filas igual que Frappe en el navegador.
+
+    ``execute`` devuelve las filas como lista para no repetir el nombre de cada
+    campo en cada una (ver el comentario allí). Este helper hace el mismo mapeo
+    posicional que ``prepare_data`` de query_report.js, así que además de
+    permitir aserciones legibles verifica que el orden columna↔valor coincida:
+    si se descolocara, los tests fallarían.
+    """
+    fieldnames = [c["fieldname"] for c in columns]
+    return [dict(zip(fieldnames, row)) for row in data]
+
+
 class TestFormatFiscalDocumentNo(unittest.TestCase):
     """Serie + número concatenados (lo que contabilidad pegaba a mano)."""
 
@@ -97,7 +110,9 @@ class TestExecute(unittest.TestCase):
         main = [{"branch": "A"}, {"branch": "B"}]
         parches = self._parchear(main, [{"branch": "C"}], None)
         with parches[0], parches[1], parches[2] as total_row, parches[3], parches[4], parches[5], parches[6]:
-            _, data, _, _, _ = hq.execute(dict(FILTROS))
+            columns, filas, _, _, _ = hq.execute(dict(FILTROS))
+
+        data = como_dicts(columns, filas)
 
         self.assertEqual(len(data), 3)                      # nada se recorta
         total_row.assert_called_once_with(main)             # totales sobre las del período
@@ -108,7 +123,9 @@ class TestExecute(unittest.TestCase):
         adjustment = [{"branch": "A"}, {"branch": "FUERA"}]
         parches = self._parchear(main, adjustment, {"A", "B"})
         with parches[0], parches[1], parches[2] as total_row, parches[3], parches[4], parches[5], parches[6]:
-            _, data, _, _, _ = hq.execute({**FILTROS, "branch": "PADRE"})
+            columns, filas, _, _, _ = hq.execute({**FILTROS, "branch": "PADRE"})
+
+        data = como_dicts(columns, filas)
 
         self.assertTrue(all(r["branch"] in {"A", "B"} for r in data))
         self.assertEqual(len(data), 3)                      # 2 del período + 1 de ajuste
@@ -120,7 +137,9 @@ class TestExecute(unittest.TestCase):
     def test_agrega_las_columnas_hq(self) -> None:
         parches = self._parchear([{"branch": "A", "fiscal_series": "MIR-01", "bill_no": "9"}], [], None)
         with parches[0], parches[1], parches[2], parches[3], parches[4], parches[5], parches[6]:
-            columns, data, _, _, _ = hq.execute(dict(FILTROS))
+            columns, filas, _, _, _ = hq.execute(dict(FILTROS))
+
+        data = como_dicts(columns, filas)
 
         self.assertEqual(data[0]["fiscal_document_no"], "MIR-01-9")
         self.assertEqual(data[0]["municipality"], "Plaza")
@@ -142,6 +161,70 @@ class TestExecute(unittest.TestCase):
     def test_rechaza_rango_invertido(self) -> None:
         with self.assertRaises(frappe.exceptions.ValidationError):
             hq.execute({**FILTROS, "from_date": "2026-07-31", "to_date": "2026-07-01"})
+
+    def test_filas_como_lista_en_orden_de_columnas(self) -> None:
+        """El contrato con el navegador: listas mapeadas por posición."""
+        parches = self._parchear([{"branch": "A", "fiscal_series": "S", "bill_no": "1"}], [], None)
+        with parches[0], parches[1], parches[2], parches[3], parches[4], parches[5], parches[6]:
+            columns, filas, _, _, _ = hq.execute(dict(FILTROS))
+
+        self.assertIsInstance(filas[0], list)
+        self.assertEqual(len(filas[0]), len(columns))
+        # El valor de cada posición corresponde a SU columna, no a otra.
+        self.assertEqual(filas[0][[c["fieldname"] for c in columns].index("branch")], "A")
+
+
+class TestDropEmptyNumericColumns(unittest.TestCase):
+    """Solo se ocultan columnas numéricas y solo si el período las trae vacías."""
+
+    COLUMNAS: list = [
+        {"fieldname": "branch", "label": "Sucursal", "fieldtype": "Data"},
+        {"fieldname": "municipality", "label": "Municipio", "fieldtype": "Data"},
+        {"fieldname": "con_datos", "label": "Con datos", "fieldtype": "Currency"},
+        {"fieldname": "en_cero", "label": "En cero", "fieldtype": "Currency"},
+        {"fieldname": "sin_valor", "label": "Sin valor", "fieldtype": "Percent"},
+    ]
+
+    def test_oculta_las_numericas_vacias(self) -> None:
+        filas = [
+            {"branch": "A", "municipality": "Plaza", "con_datos": 10.0, "en_cero": 0.0},
+            {"branch": "B", "municipality": "Plaza", "con_datos": 5.0, "en_cero": 0},
+        ]
+        columns, ocultas = hq._drop_empty_numeric_columns(self.COLUMNAS, filas)
+
+        self.assertEqual(ocultas, ["En cero", "Sin valor"])
+        self.assertEqual(
+            [c["fieldname"] for c in columns], ["branch", "municipality", "con_datos"]
+        )
+
+    def test_nunca_oculta_columnas_de_identidad(self) -> None:
+        """Municipio está vacío en 26 de 28 sucursales: aun así debe quedarse."""
+        filas = [{"branch": "A", "municipality": "", "con_datos": 1.0}]
+        columns, ocultas = hq._drop_empty_numeric_columns(self.COLUMNAS, filas)
+
+        self.assertIn("municipality", [c["fieldname"] for c in columns])
+        self.assertNotIn("Municipio", ocultas)
+
+    def test_sin_filas_no_oculta_nada(self) -> None:
+        """Con cero filas 'todo vacío' es cierto y se llevaría todas por delante."""
+        columns, ocultas = hq._drop_empty_numeric_columns(self.COLUMNAS, [])
+
+        self.assertEqual(columns, self.COLUMNAS)
+        self.assertEqual(ocultas, [])
+
+    def test_no_toca_las_columnas_si_todas_tienen_datos(self) -> None:
+        filas = [{"branch": "A", "con_datos": 1.0, "en_cero": 2.0, "sin_valor": 3.0}]
+        columns, ocultas = hq._drop_empty_numeric_columns(self.COLUMNAS, filas)
+
+        self.assertEqual(columns, self.COLUMNAS)
+        self.assertEqual(ocultas, [])
+
+    def test_el_mensaje_avisa_de_las_ocultas(self) -> None:
+        mensaje = hq._build_report_message("", None, "", ["En cero", "Sin valor"])
+
+        self.assertIn("2 columnas sin datos", mensaje)
+        self.assertIn("En cero, Sin valor", mensaje)
+        self.assertIn("Excel", mensaje)  # dice dónde sí están
 
 
 ARBOL: list = [
@@ -200,7 +283,9 @@ class TestMainBranchFilter(unittest.TestCase):
         # sin filtro de sucursal -> None; para la principal -> su subárbol
         pa = self._parchear(main, [None, {"MIR-01", "HIJA", "NIETA"}])
         with pa[0], pa[1], pa[2] as total_row, pa[3], pa[4], pa[5], pa[6]:
-            _, data, _, _, _ = hq.execute({**FILTROS, "main_branch": "MIR-01"})
+            columns, filas, _, _, _ = hq.execute({**FILTROS, "main_branch": "MIR-01"})
+
+        data = como_dicts(columns, filas)
 
         self.assertEqual([r["branch"] for r in data], ["HIJA", "NIETA"])
         # y los totales solo con lo que quedó
@@ -212,7 +297,9 @@ class TestMainBranchFilter(unittest.TestCase):
         # subárbol de la sucursal pedida, y luego el de la principal
         pa = self._parchear(main, [{"AJENA", "OTRA"}, {"MIR-01", "HIJA"}])
         with pa[0], pa[1], pa[2], pa[3], pa[4], pa[5], pa[6]:
-            _, data, _, _, _ = hq.execute({**FILTROS, "branch": "DC-02", "main_branch": "MIR-01"})
+            columns, filas, _, _, _ = hq.execute({**FILTROS, "branch": "DC-02", "main_branch": "MIR-01"})
+
+        data = como_dicts(columns, filas)
 
         self.assertEqual(data, [])
 
@@ -221,7 +308,9 @@ class TestMainBranchFilter(unittest.TestCase):
         main = [{"branch": "ARA-02"}, {"branch": "OTRA"}]
         pa = self._parchear(main, [None, None])
         with pa[0], pa[1], pa[2], pa[3], pa[4], pa[5], pa[6]:
-            _, data, _, _, _ = hq.execute({**FILTROS, "main_branch": "ARA-02"})
+            columns, filas, _, _, _ = hq.execute({**FILTROS, "main_branch": "ARA-02"})
+
+        data = como_dicts(columns, filas)
 
         self.assertEqual([r["branch"] for r in data], ["ARA-02"])
 
@@ -288,8 +377,12 @@ class TestExcelExport(unittest.TestCase):
     def test_genera_en_memoria_y_no_escribe_en_disco(self) -> None:
         columnas = [{"fieldname": "branch", "label": "Sucursal", "fieldtype": "Data", "width": "auto"}]
         filas = [{"branch": "MIR-01"}, {"branch": "DC-02"}]
+        # Se parchea get_hq_data y no execute: el Excel sale del núcleo a
+        # propósito, para llevar SIEMPRE las columnas completas del libro.
         with patch("frappe.only_for"), patch.object(
-            xls, "execute", return_value=(columnas, filas, None, None, [{"label": "Total", "value": 1}])
+            xls, "get_hq_data",
+            return_value={"columns": columnas, "main_data": filas, "adjustment_data": [],
+                          "report_summary": [{"label": "Total", "value": 1}]},
         ):
             res = xls.download_hq_excel({"from_date": "2026-07-01", "to_date": "2026-07-31"})
 
@@ -307,7 +400,9 @@ class TestExcelExport(unittest.TestCase):
 
     def test_sin_resumen_no_agrega_la_hoja(self) -> None:
         with patch("frappe.only_for"), patch.object(
-            xls, "execute", return_value=([{"fieldname": "branch", "label": "S"}], [], None, None, [])
+            xls, "get_hq_data",
+            return_value={"columns": [{"fieldname": "branch", "label": "S"}], "main_data": [],
+                          "adjustment_data": [], "report_summary": []},
         ):
             res = xls.download_hq_excel({})
         libro = load_workbook(BytesIO(base64.b64decode(res["filecontent"])))

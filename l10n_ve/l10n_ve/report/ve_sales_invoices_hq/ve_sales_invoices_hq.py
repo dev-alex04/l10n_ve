@@ -115,23 +115,76 @@ def get_hq_data(filters=None) -> dict:
     }
 
 
+# Tipos cuyas columnas se pueden ocultar cuando el período las trae en cero.
+_NUMERIC_FIELDTYPES: set = {"Currency", "Float", "Percent", "Int"}
+
+
+def _drop_empty_numeric_columns(columns: list[dict], rows: list[dict]) -> tuple:
+    """Quita de la PANTALLA las columnas numéricas sin un solo valor.
+
+    Galanet no usa las alícuotas reducida y adicional ni las de no
+    contribuyente, así que diez de las treinta y siete columnas salen en cero
+    en todas las filas: son celdas que igual hay que formatear y dibujar.
+
+    Se limita a las numéricas a propósito. Si desapareciera una de identidad
+    (sucursal, municipio, cliente) porque el período no la trae, el reporte
+    parecería incompleto en vez de vacío.
+
+    Nada de esto toca ``get_hq_data``: el Excel debe seguir llevando las
+    columnas completas del libro, tenga datos o no, porque es el artefacto que
+    se contrasta contra lo declarado.
+    """
+    # Sin filas, "todo vacío" es cierto para cualquier columna y se llevaría
+    # por delante hasta la última: no hay nada que ocultar.
+    if not rows:
+        return columns, []
+
+    vacias: set = {
+        column["fieldname"]
+        for column in columns
+        if column.get("fieldname")
+        and column.get("fieldtype") in _NUMERIC_FIELDTYPES
+        and not any(row.get(column["fieldname"]) for row in rows)
+    }
+    if not vacias:
+        return columns, []
+
+    return (
+        [c for c in columns if c.get("fieldname") not in vacias],
+        [c.get("label") or c["fieldname"] for c in columns if c.get("fieldname") in vacias],
+    )
+
+
 def execute(filters=None):
     hq = get_hq_data(filters)
+    rows: list[dict] = hq["main_data"] + hq["adjustment_data"]
 
-    data: list[dict] = hq["main_data"] + hq["adjustment_data"]
-    for i, row in enumerate(data):
-        row["sequence_number"] = i + 1
+    columns, ocultas = _drop_empty_numeric_columns(hq["columns"], rows)
+
+    # Las filas viajan como LISTA, no como diccionario: Frappe rearma el objeto
+    # en el navegador mapeando por posición (query_report.js -> prepare_data).
+    # Con 10.712 facturas eso baja el payload de 12,2 MB a 3,1 MB por sí solo, y
+    # a 2,6 MB con las columnas vacías ya fuera. Lo que pesaba no eran los datos
+    # (~1,3 MB) sino el nombre de cada campo repetido en cada una de las filas;
+    # esa memoria de más era la que trababa el scroll de la tabla.
+    fieldnames: list = [c.get("fieldname") for c in columns]
+    data: list[list] = [[row.get(f) for f in fieldnames] for row in rows]
 
     # 3er valor = 'message': Frappe lo pinta entre los filtros y las tarjetas de
     # totales (query_report.js -> show_status / $status).
     message: str = _build_report_message(
-        hq["branch"], hq["subtree"], hq["main_branch"]
+        hq["branch"], hq["subtree"], hq["main_branch"], ocultas
     )
 
-    return hq["columns"], data, message, None, hq["report_summary"]
+    return columns, data, message, None, hq["report_summary"]
 
 
-def _build_report_message(branch: str, subtree: set | None, main_branch: str = "") -> str:
+def _build_report_message(
+    branch: str,
+    subtree: set | None,
+    main_branch: str = "",
+    hidden_columns: list | None = None,
+) -> str:
     """Descripción que se muestra sobre el reporte (bajo los filtros).
 
     Explica de dónde salen los números y hace visible el rollup: sin esto, al
@@ -181,6 +234,18 @@ def _build_report_message(branch: str, subtree: set | None, main_branch: str = "
         lineas.append(
             "<b>→</b> {0} <b>{1}</b>.".format(
                 _("Consolidando por sucursal principal"), main_branch
+            )
+        )
+
+    # Se dice cuáles se ocultaron y por qué: una columna que desaparece sin
+    # aviso se lee como un dato que falta, no como un dato que no existe.
+    if hidden_columns:
+        lineas.append(
+            "<b>→</b> {0} {1}: {2}. {3}".format(
+                _("Se ocultaron"),
+                _("{0} columnas sin datos en este período").format(len(hidden_columns)),
+                ", ".join(hidden_columns),
+                _("El Excel las trae todas."),
             )
         )
 
