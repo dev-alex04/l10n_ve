@@ -11,6 +11,17 @@ from erpnext.accounts.report.utils import convert_to_presentation_currency, get_
 
 original_execute = general_ledger_report.execute
 
+# Comprobantes que el filtro opt-in "Solo facturas con N° de control y factura"
+# evalúa. El resto (Payment Entry, Journal Entry…) nunca se toca.
+INVOICE_VOUCHER_TYPES = frozenset({
+    "Sales Invoice",
+    "Purchase Invoice",
+    "VE Sales Credit Note",
+    "VE Sales Debit Note",
+    "VE Purchase Credit Note",
+    "VE Purchase Debit Note",
+})
+
 def custom_execute(filters=None) -> tuple:
 
     if not filters:
@@ -231,15 +242,6 @@ def custom_get_gl_entries(filters, accounting_dimensions):
         gl_entries = filtered_entries
 
     if filters.get("only_invoices_with_bill_no_control"):
-        INVOICE_VOUCHER_TYPES = {
-            "Sales Invoice",
-            "Purchase Invoice",
-            "VE Sales Credit Note",
-            "VE Sales Debit Note",
-            "VE Purchase Credit Note",
-            "VE Purchase Debit Note",
-        }
-
         cstr = frappe.utils.cstr
 
         # 1. Identificar comprobantes que requieren búsqueda en el documento cabecera
