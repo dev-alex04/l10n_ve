@@ -11,6 +11,17 @@ from erpnext.accounts.report.utils import convert_to_presentation_currency, get_
 
 original_execute = general_ledger_report.execute
 
+# Comprobantes que el filtro opt-in "Solo facturas con N° de control y factura"
+# evalúa. El resto (Payment Entry, Journal Entry…) nunca se toca.
+INVOICE_VOUCHER_TYPES = frozenset({
+    "Sales Invoice",
+    "Purchase Invoice",
+    "VE Sales Credit Note",
+    "VE Sales Debit Note",
+    "VE Purchase Credit Note",
+    "VE Purchase Debit Note",
+})
+
 def custom_execute(filters=None) -> tuple:
 
     if not filters:
@@ -228,6 +239,85 @@ def custom_get_gl_entries(filters, accounting_dimensions):
             vn = row.get("voucher_no")
             if branch_map.get((vt, vn)) == selected_branch:
                 filtered_entries.append(row)
+        gl_entries = filtered_entries
+
+    if filters.get("only_invoices_with_bill_no_control"):
+        cstr = frappe.utils.cstr
+
+        # 1. Identificar comprobantes que requieren búsqueda en el documento cabecera
+        missing_by_type = {}
+        for entry in gl_entries:
+            vt = entry.get("voucher_type")
+            vn = entry.get("voucher_no")
+            if vt in INVOICE_VOUCHER_TYPES and vn:
+                bno = str(entry.get("bill_no") or "").strip()
+                bctrl = str(entry.get("bill_control") or "").strip()
+                if not bno or not bctrl:
+                    missing_by_type.setdefault(vt, set()).add(vn)
+
+        doc_map = {}
+        unresolved_types = set()
+        for vt, names in missing_by_type.items():
+            try:
+                meta = frappe.get_meta(vt)
+                fields = ["name"]
+                if meta.has_field("bill_no"):
+                    fields.append("bill_no")
+                if meta.has_field("bill_control"):
+                    fields.append("bill_control")
+
+                names_list = list(names)
+                for chunk_start in range(0, len(names_list), 500):
+                    chunk = names_list[chunk_start:chunk_start + 500]
+                    docs = frappe.get_all(vt, filters={"name": ("in", chunk)}, fields=fields)
+                    for d in docs:
+                        doc_map[(vt, d.name)] = (d.get("bill_no") or "", d.get("bill_control") or "")
+            except Exception as e:
+                # Falla abierto: no se ocultan registros si ocurre una excepción de BD/Metadata
+                frappe.log_error(f"general_ledger: no se pudo resolver bill_no/bill_control de {vt}: {e}")
+                unresolved_types.add(vt)
+
+        # 2. Rellenar campos bill_no y bill_control en las entradas que los tenían vacíos
+        for entry in gl_entries:
+            vt = entry.get("voucher_type")
+            vn = entry.get("voucher_no")
+            if vt in INVOICE_VOUCHER_TYPES and (vt, vn) in doc_map:
+                doc_bno, doc_bctrl = doc_map[(vt, vn)]
+                if not entry.get("bill_no") and doc_bno:
+                    entry["bill_no"] = doc_bno
+                if not entry.get("bill_control") and doc_bctrl:
+                    entry["bill_control"] = doc_bctrl
+
+        # 3. Evaluar comprobantes COMPLETOS a excluir.
+        # NUNCA excluir entradas de apertura (is_opening=='Yes') ni anteriores a from_date (preserva Apertura y Partida Doble)
+        from_date = frappe.utils.getdate(filters.get("from_date")) if filters.get("from_date") else None
+
+        incomplete_vouchers = set()
+        for entry in gl_entries:
+            vt = entry.get("voucher_type")
+            vn = entry.get("voucher_no")
+            is_opening = cstr(entry.get("is_opening")) == "Yes"
+            posting_date = frappe.utils.getdate(entry.get("posting_date")) if entry.get("posting_date") else None
+
+            # Entradas de Apertura o anteriores a from_date NUNCA se marcan para descarte
+            if is_opening or (from_date and posting_date and posting_date < from_date):
+                continue
+
+            if vt in INVOICE_VOUCHER_TYPES and vt not in unresolved_types:
+                bno = str(entry.get("bill_no") or "").strip()
+                bctrl = str(entry.get("bill_control") or "").strip()
+                if not bno or not bctrl:
+                    incomplete_vouchers.add((vt, vn))
+
+        # 4. Filtrar por COMPROBANTE COMPLETO (Todas las líneas del comprobante o ninguna)
+        filtered_entries = []
+        for entry in gl_entries:
+            vt = entry.get("voucher_type")
+            vn = entry.get("voucher_no")
+            if (vt, vn) in incomplete_vouchers:
+                continue
+            filtered_entries.append(entry)
+
         gl_entries = filtered_entries
 
     if filters.get("presentation_currency"):

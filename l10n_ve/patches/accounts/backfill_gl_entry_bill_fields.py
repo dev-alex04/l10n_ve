@@ -1,7 +1,12 @@
 """
 Parche de migración: Propagar bill_no y bill_control hacia tabGL Entry.
-Sincroniza los números de factura y control desde las facturas de venta (Sales Invoice)
-y compra (Purchase Invoice) a los asientos contables existentes que aún no los posean.
+Sincroniza los números de factura y control desde las facturas de venta (Sales Invoice),
+de compra (Purchase Invoice) y las notas VE a los asientos contables que aún no los posean.
+
+Idempotente: el UPDATE solo toca filas con bill_no/bill_control vacíos, así que
+re-ejecutarlo es seguro. Al agregar tipos nuevos a VOUCHER_SOURCES hay que registrar una
+entrada extra en patches.txt con sufijo (`... #YYYY-MM-DD-motivo`): Frappe guarda la línea
+completa en `tabPatch Log` y nunca vuelve a correr una que ya esté registrada.
 """
 
 from __future__ import annotations
@@ -21,6 +26,30 @@ VOUCHER_SOURCES: list[dict] = [
     {
         "voucher_type": "Purchase Invoice",
         "table": "tabPurchase Invoice",
+        "bill_no_field": "bill_no",
+        "bill_control_field": "bill_control",
+    },
+    {
+        "voucher_type": "VE Sales Credit Note",
+        "table": "tabVE Sales Credit Note",
+        "bill_no_field": "bill_no",
+        "bill_control_field": "bill_control",
+    },
+    {
+        "voucher_type": "VE Sales Debit Note",
+        "table": "tabVE Sales Debit Note",
+        "bill_no_field": "bill_no",
+        "bill_control_field": "bill_control",
+    },
+    {
+        "voucher_type": "VE Purchase Credit Note",
+        "table": "tabVE Purchase Credit Note",
+        "bill_no_field": "bill_no",
+        "bill_control_field": "bill_control",
+    },
+    {
+        "voucher_type": "VE Purchase Debit Note",
+        "table": "tabVE Purchase Debit Note",
         "bill_no_field": "bill_no",
         "bill_control_field": "bill_control",
     },
