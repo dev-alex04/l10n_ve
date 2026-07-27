@@ -91,17 +91,9 @@ class TFHKAISLRPayloadBuilder(BaseRetentionPayloadBuilder):
 
         tipo_documento: str = self._DOC_TYPE_MAP.get(item.doc_type or "", "01")
 
-        doc_no = (item.doc_no or "").strip()
-        serie_doc = None
-        num_doc = doc_no
-        import re
-        match = re.match(r"^([A-Za-z0-9\-]+)-([0-9]+)$", doc_no)
-        if match:
-            prefix = match.group(1)
-            num = match.group(2)
-            if len(prefix) <= 10:
-                serie_doc = prefix
-                num_doc = num
+        doc_no: str = (item.doc_no or "").strip()
+        serie_doc, num_doc = self._extract_series_and_number(doc_no)
+
 
         return {
             "NumeroLinea": str(line_number),

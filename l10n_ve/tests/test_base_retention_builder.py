@@ -148,6 +148,49 @@ class TestCleanVoucherNumber(FrappeTestCase):
         self.assertEqual(builder._clean_voucher_number(), "")
 
 
+class TestExtractSeriesAndNumber(FrappeTestCase):
+    """Tests para _extract_series_and_number(): extracción de serie y número numérico."""
+
+    def test_standard_hyphen(self) -> None:
+        """F01-0001234 → serie='F01', num='0001234'."""
+        serie, num = BaseRetentionPayloadBuilder._extract_series_and_number("F01-0001234")
+        self.assertEqual(serie, "F01")
+        self.assertEqual(num, "0001234")
+
+    def test_letters_after_hyphen(self) -> None:
+        """F01-1234ABC → serie='F01', num='1234'."""
+        serie, num = BaseRetentionPayloadBuilder._extract_series_and_number("F01-1234ABC")
+        self.assertEqual(serie, "F01")
+        self.assertEqual(num, "1234")
+
+    def test_letters_before_digits_after_hyphen(self) -> None:
+        """F01-ABC1234 → serie='F01', num='1234'."""
+        serie, num = BaseRetentionPayloadBuilder._extract_series_and_number("F01-ABC1234")
+        self.assertEqual(serie, "F01")
+        self.assertEqual(num, "1234")
+
+    def test_no_hyphen_with_letters(self) -> None:
+        """0001234ABC → serie=None, num='0001234'."""
+        serie, num = BaseRetentionPayloadBuilder._extract_series_and_number("0001234ABC")
+        self.assertIsNone(serie)
+        self.assertEqual(num, "0001234")
+
+    def test_multi_hyphen_series(self) -> None:
+        """mv1-01-910201 → serie='mv1-01', num='910201'."""
+        serie, num = BaseRetentionPayloadBuilder._extract_series_and_number("mv1-01-910201")
+        self.assertEqual(serie, "mv1-01")
+        self.assertEqual(num, "910201")
+
+    def test_slashes_in_invoice_number(self) -> None:
+        """FDV/2026/00854 → serie=None, num='202600854'."""
+        serie, num = BaseRetentionPayloadBuilder._extract_series_and_number("FDV/2026/00854")
+        self.assertIsNone(serie)
+        self.assertEqual(num, "202600854")
+
+
+
+
+
 class TestDocumentTypeCode(FrappeTestCase):
     """Tests para _get_document_type_code_base(): clasificación de documentos."""
 
