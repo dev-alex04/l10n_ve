@@ -1635,11 +1635,50 @@ def set_profiles() -> None:
         frappe.log_error(title=f"Error en set_profiles "
                                f"para '{profile_name}'", message=frappe.get_traceback())
 
+# Roles propios de l10n_ve. No viajan en fixtures, así que un site nuevo o un
+# refresh de la BD se quedaría sin ellos y los reportes que los restringen
+# quedarían sin acceso posible (el Report sí sobrevive porque es un archivo).
+CUSTOM_ROLES: list[str] = [
+    # Reporte "VE Sales Invoices HQ" (facturas de venta consolidadas, casa matriz)
+    "VE Sales Book HQ",
+]
+
+
+def create_custom_roles() -> None:
+    """
+    Crea los roles propios de l10n_ve si no existen (idempotente).
+
+    Registrada en after_migrate como self-heal: garantiza que existan en cada
+    site tras cada migrate, sin depender de fixtures.
+    """
+    print("Verificando roles propios de l10n_ve...")
+    try:
+        for role_name in CUSTOM_ROLES:
+            if frappe.db.exists("Role", role_name):
+                print(f"  -- Omitiendo (ya existe): Rol '{role_name}'.")
+                continue
+
+            role = frappe.new_doc("Role")
+            role.role_name = role_name
+            role.desk_access = 1
+            role.insert(ignore_permissions=True)
+            print(f"  -> Rol creado: {role_name}")
+
+        frappe.db.commit()
+
+    except Exception as e:
+        print(f"Failure: Ocurrió un error creando los roles propios: {e}")
+        frappe.log_error(title="Error en create_custom_roles", message=frappe.get_traceback())
+
+
 def set_roles() -> None:
     """
     Crea dos perfiles de roles: Gerente Administrativo y Analista.
     """
     print("Iniciando la creación de perfiles de roles...")
+
+    # Los perfiles agrupan roles ya existentes: primero garantizar los propios.
+    create_custom_roles()
 
     def _create_profile(profile_name, roles_to_add):
 

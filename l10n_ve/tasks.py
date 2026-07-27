@@ -34,6 +34,144 @@ def create_currency_exchange() -> None:
 
     _process_rates(rates_data)
 
+    # Recién publicada la tasa, alinear los borradores que la esperaban. Va aquí (y no
+    # como cron aparte) para garantizar el orden: primero existe la fila, después se
+    # re-aplica. Nunca debe tumbar la carga de tasas.
+    try:
+        reconcile_draft_invoice_exchange_rates()
+    except Exception:
+        frappe.log_error(
+            "BCV: fallo al alinear tasas de borradores",
+            frappe.get_traceback(),
+        )
+
+
+# Tope por corrida: el caso normal son pocas facturas (solo las generadas con mucha
+# anticipación). Un número alto solo puede venir de un backfill/anomalía: se procesa
+# por tandas horarias y queda registro, en vez de barrer miles en un solo job.
+DRAFT_RATE_SYNC_LIMIT: int = 500
+
+
+def reconcile_draft_invoice_exchange_rates(limit: int = DRAFT_RATE_SYNC_LIMIT) -> dict:
+    """Re-aplica la tasa BCV correcta a las facturas en BORRADOR que la esperaban.
+
+    PROBLEMA QUE PREVIENE: una factura generada con anticipación toma la tasa vigente
+    al crearse, porque la tasa del 1° de SU mes todavía no existe (el BCV la publica
+    la noche anterior). Cuando después aparece, el documento queda con una tasa que no
+    coincide con la de su ``tasa_fecha`` y ``_validate_tasa_coherencia`` BLOQUEA la
+    certificación ante HKA (fail-closed), dejando la factura trabada indefinidamente.
+
+    Corregir aquí es inocuo y llega a tiempo: la factura sigue en BORRADOR (no toca el
+    mayor) y el ajuste ocurre ANTES de que el cliente pague, así que paga el monto en
+    Bs correcto.
+
+    Alcance deliberadamente estrecho (todo lo demás se omite):
+      - Solo ``docstatus=0``. Una factura emitida cambia montos en Bs y asiento
+        contable: eso es decisión de contabilidad, no de un cron.
+      - Solo clientes NATURALES: su ``tasa_fecha`` es el 1° del mes por regla fiscal.
+        El jurídico deriva su ``tasa_fecha`` de su propia tasa (auto-consistente) y se
+        sincroniza al primer pago, así que tocarlo rompería ese flujo.
+      - Solo si existe fila ``Currency Exchange`` con la fecha EXACTA del 1° del mes.
+        Sin fila, el lookup cae a la tasa más reciente y estaríamos fijando un valor
+        móvil que volvería a quedar desfasado.
+      - NUNCA si la factura ya tiene pagos registrados en su ISP Payment Entry: el
+        cliente pagó en Bs con la tasa vieja y subirla le crearía un faltante.
+
+    Idempotente: si la tasa ya coincide, no se toca el documento.
+    """
+    from l10n_ve.utils.utils import is_juridical_customer
+
+    company_currency: str = (
+        frappe.db.get_single_value("Global Defaults", "default_currency") or "VEF"
+    )
+    cutoff: str = frappe.db.get_single_value("TFHKA Settings", "cutoff_date")
+    if not cutoff:
+        return {"checked": 0, "updated": 0, "skipped_paid": 0, "skipped_no_rate": 0}
+
+    drafts: list[dict] = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "docstatus": 0,
+            "posting_date": [">=", cutoff],
+            "currency": ["!=", company_currency],
+        },
+        fields=["name", "customer", "posting_date", "conversion_rate", "currency"],
+        order_by="posting_date asc",
+        limit_page_length=0,
+    )
+
+    has_isp_pe: bool = bool(frappe.db.exists("DocType", "ISP Payment Entry"))
+    rate_cache: dict = {}
+    updated: list[str] = []
+    skipped_paid = skipped_no_rate = 0
+
+    for inv in drafts:
+        if len(updated) >= limit:
+            break
+        try:
+            if is_juridical_customer(inv.customer):
+                continue
+
+            rate_date = getdate(inv.posting_date).replace(day=1)
+            key = (str(rate_date), inv.currency)
+            if key not in rate_cache:
+                rate_cache[key] = frappe.db.get_value(
+                    "Currency Exchange",
+                    {
+                        "date": str(rate_date),
+                        "from_currency": inv.currency,
+                        "to_currency": company_currency,
+                    },
+                    "exchange_rate",
+                    order_by="modified desc",
+                )
+            official = flt(rate_cache[key])
+
+            if official <= 0:
+                skipped_no_rate += 1
+                continue
+            if abs(official - flt(inv.conversion_rate)) <= 0.0001:
+                continue
+
+            # Ya pagada (aunque siga en borrador): no se le mueve la tasa.
+            if has_isp_pe:
+                isp_pe = frappe.db.get_value(
+                    "ISP Payment Entry", {"sales_invoice": inv.name}, "name"
+                )
+                if isp_pe and frappe.db.count(
+                    "ISP Payment Entry Lines", {"parent": isp_pe}
+                ):
+                    skipped_paid += 1
+                    continue
+
+            doc = frappe.get_doc("Sales Invoice", inv.name)
+            if doc.docstatus != 0:  # cambió entre la consulta y ahora
+                continue
+            doc.conversion_rate = official
+            doc.plc_conversion_rate = official
+            doc.save(ignore_permissions=True)
+            updated.append(inv.name)
+        except Exception:
+            frappe.log_error(
+                f"BCV: no se pudo alinear la tasa de {inv.name}",
+                frappe.get_traceback(),
+            )
+
+    if updated:
+        frappe.db.commit()
+        frappe.log_error(
+            "BCV: tasas de borradores alineadas",
+            f"Se alineó la tasa BCV de {len(updated)} factura(s) en borrador "
+            f"(omitidas por pago previo: {skipped_paid}).\n" + "\n".join(updated[:100]),
+        )
+
+    return {
+        "checked": len(drafts),
+        "updated": len(updated),
+        "skipped_paid": skipped_paid,
+        "skipped_no_rate": skipped_no_rate,
+    }
+
 
 CURRENCY_SWIFT_CODES = ("USD", "EUR")
 
@@ -210,7 +348,11 @@ def _extract_date_from_html(soup: BeautifulSoup) -> str | None:
 def _process_rates(rates_data: dict) -> None:
     """
     Crea/actualiza documentos de Currency Exchange.
-    Incluye protección contra fechas futuras (fines de semana/feriados).
+
+    Cuando el BCV publica una tasa con FECHA VALOR FUTURA (el próximo día
+    hábil), se registra con esa fecha real además de cubrir hoy. Así la tasa
+    del día siguiente ya existe antes de que ese día empiece y los procesos
+    que corren a medianoche (facturación) no se quedan sin tasa.
     """
     doctype = "Currency Exchange"
     to_currency = "VEF"
@@ -223,37 +365,16 @@ def _process_rates(rates_data: dict) -> None:
         if not exchange_rate:
             continue
 
-        resolved = _resolve_future_date(
+        targets = _resolve_rate_targets(
             api_date, today_date, from_currency,
             to_currency, exchange_rate, doctype
         )
 
-        if resolved is None:
-            continue
-
-        target_date, target_rate = resolved
-
-        exchange_name = (
-            f"{formatdate(get_datetime_str(target_date), 'yyyy-MM-dd')}"
-            f"-{from_currency}-{to_currency}-{purpose}"
-        )
-
-        if frappe.db.exists(doctype, exchange_name):
-            frappe.db.set_value(
-                doctype, exchange_name,
-                "exchange_rate", target_rate
+        for target_date, target_rate in targets:
+            _upsert_exchange_rate(
+                doctype, purpose, from_currency,
+                to_currency, target_date, target_rate
             )
-        else:
-            doc = frappe.new_doc(doctype)
-            doc.update({
-                "for_buying": True,
-                "for_selling": True,
-                "date": target_date,
-                "to_currency": to_currency,
-                "from_currency": from_currency,
-                "exchange_rate": target_rate,
-            })
-            doc.insert(ignore_permissions=True)
 
     # frappe.db.set_value no dispara doc_events, así que invalidamos el caché
     # de tasas explícitamente tras la sincronización BCV.
@@ -261,21 +382,61 @@ def _process_rates(rates_data: dict) -> None:
     clear_exchange_rate_cache()
 
 
-def _resolve_future_date(
+def _upsert_exchange_rate(
+    doctype: str,
+    purpose: str,
+    from_currency: str,
+    to_currency: str,
+    target_date,
+    target_rate,
+) -> None:
+    """Crea o actualiza la fila de Currency Exchange para una fecha dada."""
+    exchange_name = (
+        f"{formatdate(get_datetime_str(target_date), 'yyyy-MM-dd')}"
+        f"-{from_currency}-{to_currency}-{purpose}"
+    )
+
+    if frappe.db.exists(doctype, exchange_name):
+        frappe.db.set_value(doctype, exchange_name, "exchange_rate", target_rate)
+        return
+
+    doc = frappe.new_doc(doctype)
+    doc.update({
+        "for_buying": True,
+        "for_selling": True,
+        "date": target_date,
+        "to_currency": to_currency,
+        "from_currency": from_currency,
+        "exchange_rate": target_rate,
+    })
+    doc.insert(ignore_permissions=True)
+
+
+def _resolve_rate_targets(
     api_date,
     today_date,
     from_currency: str,
     to_currency: str,
     exchange_rate,
     doctype: str,
-) -> tuple | None:
-    """
-    Si la fecha del BCV es futura y hoy ya tiene tasa, retorna None (no hacer nada).
-    Si la fecha es futura y hoy NO tiene tasa, usa la última tasa conocida.
-    Si la fecha es de hoy o pasada, retorna la tasa tal cual.
+) -> list[tuple]:
+    """Decide qué pares (fecha, tasa) hay que registrar.
+
+    - Fecha del BCV de hoy o pasada: se registra tal cual.
+    - Fecha del BCV FUTURA (fecha valor del próximo día hábil): se **precarga**
+      con su fecha real —de modo que la tasa de ese día exista antes de que el
+      día empiece— y, además, si hoy todavía no tiene tasa, se cubre hoy con la
+      última conocida (protección original para fines de semana/feriados).
+
+    La precarga es la que elimina la carrera de medianoche: sin ella, la tasa
+    del día 1 no existía hasta que el cron corría ya entrado el día, y la
+    facturación de las 00:00 emitía con la tasa del mes anterior.
     """
     if api_date <= today_date:
-        return api_date, exchange_rate
+        return [(api_date, exchange_rate)]
+
+    # Precarga de la fecha valor real (lo que antes se descartaba).
+    targets: list[tuple] = [(api_date, exchange_rate)]
 
     today_already_has_rate = frappe.db.exists(doctype, {
         "from_currency": from_currency,
@@ -284,7 +445,7 @@ def _resolve_future_date(
     })
 
     if today_already_has_rate:
-        return None
+        return targets
 
     last_rate = frappe.db.get_value(
         doctype,
@@ -299,14 +460,15 @@ def _resolve_future_date(
     )
 
     if not last_rate:
-        return api_date, exchange_rate
+        return targets
 
     frappe.log_error(
         "BCV Protection",
-        f"Fecha futura detectada ({api_date}). "
-        f"Usando tasa previa ({last_rate}) para hoy ({today_date})."
+        f"Fecha futura detectada ({api_date}): se precarga con su fecha valor. "
+        f"Hoy ({today_date}) se cubre con la tasa previa ({last_rate})."
     )
-    return today_date, last_rate
+    targets.append((today_date, last_rate))
+    return targets
 
 
 def reset_all_prepared_reports() -> None:
