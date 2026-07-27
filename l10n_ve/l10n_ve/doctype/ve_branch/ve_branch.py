@@ -15,6 +15,7 @@ class VEBranch(NestedSet):
         self.inherit_from_parent_if_applicable()
 
     def validate(self) -> None:
+        self.validate_system_users()
         self.validate_unique_users()
         self.validate_payment_modes()
 
@@ -167,6 +168,42 @@ class VEBranch(NestedSet):
                 _("Solo puede haber un modo de pago predeterminado.")
             )
 
+
+    def validate_system_users(self) -> None:
+        """Solo usuarios del sistema pueden asignarse a una sucursal.
+
+        Los usuarios de portal (clientes) no deben aparecer acá: `sync_user_permissions`
+        les crearía un User Permission sobre VE Branch y `propagate_users_to_children`
+        los arrastraría a las sucursales hijas. El selector del formulario ya los filtra;
+        este guard cubre las altas por API/importación.
+
+        Solo se validan los usuarios AGREGADOS en este guardado: lo ya asignado se respeta
+        tal cual. Así el guard no vuelve inguardable una sucursal que arrastra asignaciones
+        previas (o cuyo usuario pasó a ser de portal después de asignarse).
+        """
+        users: list[str] = [row.user for row in self.get("users", []) if row.user]
+        if not users:
+            return
+
+        previous: set[str] = set()
+        before = self.get_doc_before_save() if hasattr(self, "get_doc_before_save") else None
+        if before:
+            previous = {row.user for row in before.get("users", []) if row.user}
+
+        added: list[str] = [user for user in users if user not in previous]
+        if not added:
+            return
+
+        non_system: list[str] = frappe.get_all(
+            "User",
+            filters={"name": ["in", added], "user_type": ["!=", "System User"]},
+            pluck="name",
+        )
+        if non_system:
+            frappe.throw(
+                _("Solo se pueden asignar usuarios del sistema a una sucursal. "
+                  "Estos no lo son: {0}").format(frappe.bold(", ".join(sorted(non_system))))
+            )
 
     def validate_unique_users(self) -> None:
         """Valida que un usuario no esté duplicado dentro de la misma sucursal."""
