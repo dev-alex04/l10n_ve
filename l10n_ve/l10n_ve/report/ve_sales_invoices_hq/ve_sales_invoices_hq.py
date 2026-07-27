@@ -9,12 +9,15 @@ contabilidad necesita para conciliar, sin tocar el libro que usa para declarar:
 
   1. **Documento fiscal**: serie y número concatenados (``MIR-01-4779``), que
      hoy se pegan a mano porque el libro los trae en columnas separadas.
-  2. **Municipio**: derivado de la sucursal (``VE Branch.municipality``).
-  3. **Rollup padre-hijo**: al filtrar por una sucursal GRUPO se incluyen sus
+  2. **Sucursal Principal**: el ancestro de la sucursal que cuelga directo de la
+     raíz del árbol (``ARMANDO`` -> ``GUARENAS`` -> **``MIR-01``**). Es el nivel
+     al que consolida casa matriz, sin perder la sucursal operativa.
+  3. **Municipio**: derivado de la sucursal (``VE Branch.municipality``).
+  4. **Rollup padre-hijo**: al filtrar por una sucursal GRUPO se incluyen sus
      descendientes. El libro filtra por un único valor (``AND siv.branch = %s``),
      así que aquí se pide sin ese filtro y se recorta por el subárbol del nested
      set (``lft``/``rgt``).
-  4. **Acceso restringido** por el rol ``VE Sales Book HQ``.
+  5. **Acceso restringido** por el rol ``VE Sales Book HQ``.
 
 REGLA DE ORO: la única fuente de verdad fiscal es ``sales_book``. Aquí NO se
 reimplementa ningún cálculo — se reusan sus funciones tal cual
@@ -47,7 +50,19 @@ BRANCH_DOCTYPE: str = "VE Branch"
 MUNICIPALITY_DOCTYPE: str = "VE Municipality"
 
 
-def execute(filters=None):
+def get_hq_data(filters=None) -> dict:
+    """Núcleo del reporte: resuelve los filtros HQ y devuelve datos y totales.
+
+    Es el ÚNICO lugar donde se aplica el filtrado propio del HQ (rollup de
+    sucursal y sucursal principal). Lo consumen ``execute`` (pantalla) y las
+    exportaciones a Excel y PDF: si cada una lo replicara, tarde o temprano una
+    quedaría desfasada y entregaría un total distinto al de la pantalla.
+
+    Devuelve ``main_data`` y ``adjustment_data`` POR SEPARADO a propósito: los
+    totales del libro se calculan solo con las del período, así que quien
+    necesite porcentajes (el PDF) debe usar ``main_data`` como denominador o no
+    cuadrarían con los indicadores.
+    """
     filters = dict(filters or {})
     _validate_filters(filters)
 
@@ -55,22 +70,32 @@ def execute(filters=None):
     # filtrarlas (solo acepta un valor), así que se quita el filtro y se recorta
     # después por el subárbol.
     branch_filter: str = filters.get("branch") or ""
+    main_branch_filter: str = filters.get("main_branch") or ""
+    # El libro no conoce este filtro: se resuelve aquí.
+    filters.pop("main_branch", None)
+
     subtree: set | None = _get_branch_subtree(branch_filter)
     if subtree:
         filters.pop("branch", None)
 
+    # Sucursales admitidas. Filtrar por sucursal principal X equivale a su
+    # subárbol, porque X cuelga de la raíz: todo lo que consolida en X está
+    # debajo de X. Si además hay filtro de sucursal, se intersectan.
+    allowed: set | None = subtree
+    if main_branch_filter:
+        main_allowed: set = (
+            _get_branch_subtree(main_branch_filter) or {main_branch_filter}
+        )
+        allowed = main_allowed if allowed is None else (allowed & main_allowed)
+
     columns: list[dict] = _sales_book_columns()
     main_data, adjustment_data = _sales_book_data(filters)
 
-    if subtree:
-        main_data = [r for r in main_data if r.get("branch") in subtree]
-        adjustment_data = [r for r in adjustment_data if r.get("branch") in subtree]
+    if allowed is not None:
+        main_data = [r for r in main_data if r.get("branch") in allowed]
+        adjustment_data = [r for r in adjustment_data if r.get("branch") in allowed]
 
-    data: list[dict] = main_data + adjustment_data
-    for i, row in enumerate(data):
-        row["sequence_number"] = i + 1
-
-    _add_hq_columns(columns, data)
+    _add_hq_columns(columns, main_data + adjustment_data)
 
     # Totales con las MISMAS funciones del libro y sobre las filas ya recortadas.
     # Igual que el libro, se calculan solo con main_data (excluye los ajustes de
@@ -79,14 +104,34 @@ def execute(filters=None):
         _sales_book_total_row(main_data)
     )
 
+    return {
+        "columns": columns,
+        "main_data": main_data,
+        "adjustment_data": adjustment_data,
+        "report_summary": report_summary,
+        "branch": branch_filter,
+        "main_branch": main_branch_filter,
+        "subtree": subtree,
+    }
+
+
+def execute(filters=None):
+    hq = get_hq_data(filters)
+
+    data: list[dict] = hq["main_data"] + hq["adjustment_data"]
+    for i, row in enumerate(data):
+        row["sequence_number"] = i + 1
+
     # 3er valor = 'message': Frappe lo pinta entre los filtros y las tarjetas de
     # totales (query_report.js -> show_status / $status).
-    message: str = _build_report_message(branch_filter, subtree)
+    message: str = _build_report_message(
+        hq["branch"], hq["subtree"], hq["main_branch"]
+    )
 
-    return columns, data, message, None, report_summary
+    return hq["columns"], data, message, None, hq["report_summary"]
 
 
-def _build_report_message(branch: str, subtree: set | None) -> str:
+def _build_report_message(branch: str, subtree: set | None, main_branch: str = "") -> str:
     """Descripción que se muestra sobre el reporte (bajo los filtros).
 
     Explica de dónde salen los números y hace visible el rollup: sin esto, al
@@ -129,6 +174,13 @@ def _build_report_message(branch: str, subtree: set | None) -> str:
                 _("y sus"),
                 _("{0} sucursales dependientes").format(len(dependientes)),
                 ", ".join(dependientes),
+            )
+        )
+
+    if main_branch:
+        lineas.append(
+            "<b>→</b> {0} <b>{1}</b>.".format(
+                _("Consolidando por sucursal principal"), main_branch
             )
         )
 
@@ -175,10 +227,13 @@ def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
         {r.get("branch") for r in data if r.get("branch")}
     )
 
+    main_branch_by_branch: dict = _get_main_branch_map()
+
     for row in data:
         row["fiscal_document_no"] = _format_fiscal_document_no(
             row.get("fiscal_series"), row.get("bill_no")
         )
+        row["main_branch"] = main_branch_by_branch.get(row.get("branch"), "")
         row["municipality"] = municipality_by_branch.get(row.get("branch"), "")
 
     _insert_column_after(
@@ -191,9 +246,20 @@ def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
             "width": 140,
         },
     )
+    # Orden: Sucursal (operativa) -> Sucursal Principal (consolidación) -> Municipio
     _insert_column_after(
         columns,
         "branch",
+        {
+            "label": _("Sucursal Principal"),
+            "fieldname": "main_branch",
+            "fieldtype": "Data",
+            "width": 150,
+        },
+    )
+    _insert_column_after(
+        columns,
+        "main_branch",
         {
             "label": _("Municipio"),
             "fieldname": "municipality",
@@ -214,6 +280,40 @@ def _format_fiscal_document_no(series, number) -> str:
     if series and number:
         return f"{series}-{number}"
     return series or number
+
+
+def _get_main_branch_map() -> dict:
+    """Mapa ``{sucursal: sucursal principal}``.
+
+    La *sucursal principal* es el ancestro que cuelga **directo de la raíz** del
+    árbol, que es el nivel al que consolida casa matriz. Ejemplo real:
+    ``ARMANDO`` -> ``GUARENAS`` -> ``MIR-01`` -> ``GALANET HQ`` (raíz), luego la
+    principal de ``ARMANDO`` es ``MIR-01``.
+
+    Las sucursales que ya cuelgan de la raíz (``ARA-02``, ``DC-01``...) y la raíz
+    misma se apuntan a sí mismas, así la columna nunca queda vacía.
+
+    Se resuelve subiendo por ``parent_ve_branch`` con el árbol completo en
+    memoria (son decenas de nodos): una sola consulta para todas las filas.
+    """
+    rows: list[dict] = frappe.get_all(
+        BRANCH_DOCTYPE, fields=["name", "parent_ve_branch"]
+    )
+    parent: dict = {r.name: r.parent_ve_branch for r in rows}
+    roots: set = {name for name, p in parent.items() if not p}
+
+    def _main_branch(branch: str) -> str:
+        current, seen = branch, set()
+        while True:
+            p = parent.get(current)
+            if not p or p in roots:
+                return current
+            if current in seen:  # árbol inconsistente: no colgarse
+                return branch
+            seen.add(current)
+            current = p
+
+    return {name: _main_branch(name) for name in parent}
 
 
 def _get_municipality_by_branch(branches: set) -> dict:
@@ -255,3 +355,22 @@ def _insert_column_after(columns: list[dict], fieldname: str, column: dict) -> N
             columns.insert(i + 1, column)
             return
     columns.append(column)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def get_main_branches(doctype, txt, searchfield, start, page_len, filters):
+    """Link query del filtro 'Sucursal Principal': solo las de consolidación.
+
+    Son las que cuelgan directo de la raíz del árbol. Ofrecer las sucursales
+    completas obligaría al usuario a saber de memoria cuáles consolidan.
+    """
+    return frappe.db.sql("""
+        SELECT b.name
+        FROM `tabVE Branch` b
+        INNER JOIN `tabVE Branch` raiz ON raiz.name = b.parent_ve_branch
+        WHERE IFNULL(raiz.parent_ve_branch, '') = ''
+          AND b.name LIKE %(txt)s
+        ORDER BY b.name
+        LIMIT %(start)s, %(page_len)s
+    """, {"txt": "%" + txt + "%", "start": start, "page_len": page_len})

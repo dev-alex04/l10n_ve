@@ -38,6 +38,18 @@ frappe.ui.form.on("VE Branch", {
       };
     });
 
+    // Solo usuarios del sistema: los del portal (clientes) no deben tomar permisos
+    // de sucursal. `enabled` se filtra solo en el selector; el guard del servidor no
+    // lo exige, para no bloquear el guardado si un usuario ya asignado se deshabilita.
+    frm.set_query("user", "users", function () {
+      return {
+        filters: {
+          user_type: "System User",
+          enabled: 1,
+        },
+      };
+    });
+
     frm.set_query("cost_center", function () {
       return {
         filters: {

@@ -269,9 +269,48 @@ class BaseRetentionPayloadBuilder:
         return tipo, numero or "000000000"
 
     def _clean_voucher_number(self) -> str:
-        """Retorna el número de comprobante sin sufijo de enmienda."""
+        """Retorna el número de comprobante sin sufijo de enmienda y solo con dígitos."""
         raw: str = self.doc.voucher_number or ""
-        return re.sub(r"-\d+$", "", raw)
+        without_amendment: str = re.sub(r"-\d+$", "", raw)
+        digits: str = re.sub(r"\D", "", without_amendment)
+        return digits if digits else without_amendment
+
+    @staticmethod
+    def _extract_series_and_number(raw_doc_no: str) -> tuple[Optional[str], str]:
+        """Extrae la serie y el número de documento fiscal para HKA.
+
+        Reglas:
+        1. Únicamente el guion '-' separa una Serie (ej: 'F01-0001234', 'mv1-01-910201').
+           La parte anterior al último guion es la Serie (máx. 10 caracteres),
+           y de la parte posterior se extraen únicamente los dígitos numéricos.
+        2. Si no contiene guion '-' (ej: 'FDV/2026/00854' o '0001234ABC'), Serie es None
+           y se extraen únicamente TODOS los dígitos numéricos del texto completo.
+        """
+        doc_str: str = (raw_doc_no or "").strip()
+        if not doc_str:
+            return None, ""
+
+        serie_doc: Optional[str] = None
+        num_doc: str = doc_str
+
+        if "-" in doc_str:
+            parts: list[str] = doc_str.rsplit("-", 1)
+            prefix: str = parts[0].strip()
+            num_part: str = parts[1].strip()
+
+            if len(prefix) <= 10:
+                serie_doc = prefix
+
+            digits: str = re.sub(r"\D", "", num_part)
+            num_doc = digits if digits else num_part
+        else:
+            digits: str = re.sub(r"\D", "", doc_str)
+            num_doc = digits if digits else doc_str
+
+        return serie_doc, num_doc
+
+
+
 
     @staticmethod
     def _sanitize_legal_name(name: str) -> str:
