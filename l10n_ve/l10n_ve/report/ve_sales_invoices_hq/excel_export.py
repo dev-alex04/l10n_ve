@@ -35,7 +35,7 @@ from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from l10n_ve.l10n_ve.report.ve_sales_invoices_hq.ve_sales_invoices_hq import execute
+from l10n_ve.l10n_ve.report.ve_sales_invoices_hq.ve_sales_invoices_hq import get_hq_data
 
 SHEET_DATA: str = "Facturas"
 SHEET_SUMMARY: str = "Resumen"
@@ -68,7 +68,15 @@ def download_hq_excel(filters: str | dict | None = None) -> dict:
 
     filters = frappe.parse_json(filters) if isinstance(filters, str) else (filters or {})
 
-    columns, data, _message, _chart, report_summary = execute(filters)
+    # A propósito NO se usa execute(): esa es la función de PANTALLA, donde las
+    # filas viajan como lista y se ocultan las columnas numéricas que el período
+    # trae vacías. El Excel es el artefacto que contabilidad contrasta contra lo
+    # declarado, así que sale del núcleo y lleva SIEMPRE las columnas completas
+    # del libro, tengan datos o no.
+    hq: dict = get_hq_data(filters)
+    columns: list[dict] = hq["columns"]
+    data: list[dict] = hq["main_data"] + hq["adjustment_data"]
+    report_summary: list[dict] = hq["report_summary"]
 
     output: BytesIO = BytesIO()
     try:

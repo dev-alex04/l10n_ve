@@ -96,6 +96,7 @@ def get_hq_data(filters=None) -> dict:
         adjustment_data = [r for r in adjustment_data if r.get("branch") in allowed]
 
     _add_hq_columns(columns, main_data + adjustment_data)
+    _humanize_columns(columns)
 
     # Totales con las MISMAS funciones del libro y sobre las filas ya recortadas.
     # Igual que el libro, se calculan solo con main_data (excluye los ajustes de
@@ -115,12 +116,164 @@ def get_hq_data(filters=None) -> dict:
     }
 
 
+# Cómo separa el Libro de Ventas a los clientes en sus columnas. El criterio NO
+# es interpretación: sale del propio SQL (sales_book._get_*), que clasifica por
+# la primera letra del RIF sin guiones.
+_TAXPAYER_GROUPS: dict = {
+    "non_taxpayer": ("No Contribuyente",
+                     "clientes no contribuyentes (RIF que empieza en V o E, o sin RIF)"),
+    "taxpayer": ("Contribuyente",
+                 "clientes contribuyentes (RIF que no empieza en V ni E: J, G, P…)"),
+}
+_VAT_RATES: dict = {
+    "general": ("General", "alícuota general"),
+    "reduced": ("Reducida", "alícuota reducida"),
+    "additional": ("Adicional", "alícuota adicional"),
+}
+
+
+def _column_texts() -> dict:
+    """``{fieldname: (etiqueta, descripción)}`` para el encabezado.
+
+    La etiqueta puede ser ``None``: significa dejar la que trae el libro.
+
+    Las que sí se reescriben son las doce de alícuota. El libro las abrevia
+    ("Base Imponible No C. G", donde "C." es contribuyente y la última letra la
+    alícuota) y fuera de contabilidad nadie las descifra. Se reescriben SOLO
+    acá: ``sales_book`` es el reporte fiscal y su formato se contrasta contra lo
+    declarado, así que no se toca.
+
+    El texto se arma en cada llamada y no en una constante de módulo para que
+    ``_()`` traduzca con el idioma de quien pide el reporte, no con el que
+    hubiera al importar.
+    """
+    # Las doce son la misma frase con dos variables; se generan para que no se
+    # desincronicen entre sí al retocar la redacción.
+    texts: dict = {}
+    for rate, (rate_label, rate_name) in _VAT_RATES.items():
+        for group, (group_label, group_criteria) in _TAXPAYER_GROUPS.items():
+            texts[f"base_{rate}_{group}"] = (
+                _("Base Imponible {0} {1}").format(group_label, rate_label),
+                _("Base imponible facturada a la {0} a {1}.").format(
+                    rate_name, group_criteria),
+            )
+            texts[f"iva_{rate}_{group}"] = (
+                _("IVA {0} {1}").format(group_label, rate_label),
+                _("IVA cobrado a la {0} a {1}.").format(rate_name, group_criteria),
+            )
+
+    # El resto conserva la etiqueta del libro y solo suma el tooltip.
+    descriptions: dict = {
+        "branch": _("Sucursal que emitió el documento."),
+        "main_branch": _(
+            "Sucursal de primer nivel de la que depende la emisora y bajo la "
+            "que consolida. Por ejemplo, ARMANDO consolida en MIR-01."
+        ),
+        "municipality": _(
+            "Municipio de la sucursal. Hoy solo está cargado en algunas, así "
+            "que la columna sale vacía en la mayoría de las filas."
+        ),
+        "posting_date": _("Fecha de emisión del documento."),
+        "customer_tax_id": _("RIF del cliente."),
+        "customer_name": _("Razón social o nombre del cliente."),
+        "customer_type": _(
+            "PJD: persona jurídica domiciliada · PJND: jurídica no domiciliada · "
+            "PND: persona natural domiciliada · PNND: natural no domiciliada."
+        ),
+        "fiscal_series": _("Serie de la imprenta digital asignada a la sucursal."),
+        "fiscal_document_no": _(
+            "Serie y número juntos, tal como se pegan en la declaración "
+            "(MIR-01-4779). Antes había que armarlo a mano."
+        ),
+        "bill_no": _("Número de la factura."),
+        "bill_control": _("Número de control que asigna la imprenta digital."),
+        "credit_note_no": _("Número de la nota de crédito, si el documento lo es."),
+        "debit_note_no": _("Número de la nota de débito, si el documento lo es."),
+        "affected_invoice_number": _("Factura que modifica la nota de crédito o débito."),
+        "transaction_type": _("Tipo de operación registrada."),
+        "grand_total": _("Total del documento, con IVA incluido."),
+        "ve_fob": _("Ventas de exportación, a valor FOB."),
+        "total_exempt": _("Ventas internas exentas o no sujetas a IVA."),
+        "iva_retained": _(
+            "IVA que retuvo el cliente. Solo cuenta si hay comprobante emitido "
+            "y la retención cae dentro del período consultado."
+        ),
+        "vat_withholding_voucher_number": _(
+            "Número del comprobante de retención de IVA que emitió el cliente."
+        ),
+        "withholding_date": _("Fecha del comprobante de retención."),
+        "vat_withholding_rate": _("Porcentaje de IVA que retuvo el cliente."),
+        "base_amount_igtf": _("Monto sobre el que se calcula el IGTF."),
+        "igtf_rate": _("Porcentaje de IGTF aplicado."),
+        "total_igtf": _("Impuesto a las Grandes Transacciones Financieras cobrado."),
+    }
+    texts.update({f: (None, d) for f, d in descriptions.items()})
+    return texts
+
+
+def _humanize_columns(columns: list[dict]) -> None:
+    """Reescribe las etiquetas abreviadas y cuelga el tooltip, in place.
+
+    Todo esto viaja una sola vez por corrida (no por fila), así que no pesa:
+    son unos pocos kilobytes contra los megabytes de datos.
+    """
+    texts: dict = _column_texts()
+    for column in columns:
+        label, description = texts.get(column.get("fieldname"), (None, ""))
+        if label:
+            column["label"] = label
+        if description:
+            column["description"] = description
+
+
+# Tipos cuyas columnas se pueden ocultar cuando el período las trae en cero.
+_NUMERIC_FIELDTYPES: set = {"Currency", "Float", "Percent", "Int"}
+
+
+def _drop_empty_numeric_columns(columns: list[dict], rows: list[dict]) -> list[dict]:
+    """Quita de la PANTALLA las columnas numéricas sin un solo valor.
+
+    Galanet no usa las alícuotas reducida y adicional ni las de no
+    contribuyente, así que diez de las treinta y siete columnas salen en cero
+    en todas las filas: son celdas que igual hay que formatear y dibujar.
+
+    Se limita a las numéricas a propósito. Si desapareciera una de identidad
+    (sucursal, municipio, cliente) porque el período no la trae, el reporte
+    parecería incompleto en vez de vacío.
+
+    Nada de esto toca ``get_hq_data``: el Excel debe seguir llevando las
+    columnas completas del libro, tenga datos o no, porque es el artefacto que
+    se contrasta contra lo declarado.
+    """
+    # Sin filas, "todo vacío" es cierto para cualquier columna y se llevaría
+    # por delante hasta la última: no hay nada que ocultar.
+    if not rows:
+        return columns
+
+    vacias: set = {
+        column["fieldname"]
+        for column in columns
+        if column.get("fieldname")
+        and column.get("fieldtype") in _NUMERIC_FIELDTYPES
+        and not any(row.get(column["fieldname"]) for row in rows)
+    }
+    return [c for c in columns if c.get("fieldname") not in vacias]
+
+
 def execute(filters=None):
     hq = get_hq_data(filters)
+    rows: list[dict] = hq["main_data"] + hq["adjustment_data"]
 
-    data: list[dict] = hq["main_data"] + hq["adjustment_data"]
-    for i, row in enumerate(data):
-        row["sequence_number"] = i + 1
+    columns: list[dict] = _drop_empty_numeric_columns(hq["columns"], rows)
+
+    # Las filas viajan como LISTA, no como diccionario: Frappe rearma el objeto
+    # en el navegador mapeando por posición (query_report.js -> prepare_data).
+    # Con 10.712 facturas eso baja el payload de 12,2 MB a 3,1 MB por sí solo, y
+    # a 2,6 MB con las columnas vacías ya fuera. Lo que pesaba no eran los datos
+    # (~1,3 MB) sino el nombre de cada campo repetido en cada una de las filas;
+    # esa memoria de más era la que trababa el scroll de la tabla.
+    fieldnames: list = [c.get("fieldname") for c in columns]
+    data: list[list] = [[row.get(f) for f in fieldnames] for row in rows]
 
     # 3er valor = 'message': Frappe lo pinta entre los filtros y las tarjetas de
     # totales (query_report.js -> show_status / $status).
@@ -128,7 +281,7 @@ def execute(filters=None):
         hq["branch"], hq["subtree"], hq["main_branch"]
     )
 
-    return hq["columns"], data, message, None, hq["report_summary"]
+    return columns, data, message, None, hq["report_summary"]
 
 
 def _build_report_message(branch: str, subtree: set | None, main_branch: str = "") -> str:

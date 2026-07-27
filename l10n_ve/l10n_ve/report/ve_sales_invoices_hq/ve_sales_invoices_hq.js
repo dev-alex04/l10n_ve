@@ -83,6 +83,7 @@ frappe.query_reports["VE Sales Invoices HQ"] = {
 
   onload: function (report) {
     _hq_setup_manual_run(report);
+    _hq_column_tooltips(report);
 
     report.page.add_inner_button(__("Exportar Excel"), () =>
       _hq_export(report, {
@@ -93,12 +94,18 @@ frappe.query_reports["VE Sales Invoices HQ"] = {
       }),
     );
 
-    // El resumen ejecutivo en PDF existe y funciona
-    // (pdf_export.download_hq_pdf), pero NO se expone como botón: el motor de
-    // PDF de Frappe es wkhtmltopdf, con un WebKit viejo que no ejecuta
-    // JavaScript ni admite flex/grid, y el resultado no llega al acabado que
-    // exige un documento que sale hacia afuera. Para reactivarlo basta con
-    // volver a agregar el add_inner_button; no hace falta tocar el servidor.
+    // Resumen ejecutivo de una página: indicadores contra el período anterior,
+    // concentración por sucursal, evolución diaria y observaciones derivadas de
+    // los datos. NO es la tabla impresa —eso es el Excel—; se midió y sacar las
+    // 10.712 filas línea por línea daba ~85s, 6 MB y 37 columnas ilegibles.
+    report.page.add_inner_button(__("Exportar PDF"), () =>
+      _hq_export(report, {
+        method:
+          "l10n_ve.l10n_ve.report.ve_sales_invoices_hq.pdf_export.download_hq_pdf",
+        loading: __("Generando el PDF..."),
+        mime: "application/pdf",
+      }),
+    );
   },
 };
 
@@ -170,6 +177,43 @@ function _hq_setup_manual_run(report) {
   // Se usa la referencia que guarda Frappe (query_report.js:94) y no un
   // selector por tooltip: ese texto pasa por __() y en español no matchearía.
   report.refresh_button && report.refresh_button.hide();
+}
+
+// ── Tooltip por columna ─────────────────────────────────────────────────────
+//
+// Las etiquetas del libro vienen abreviadas ("Base Imponible No C. R") y fuera
+// de contabilidad no hay cómo adivinar qué son. El texto lo manda el servidor
+// en `description` de cada columna; frappe-datatable conserva las claves
+// propias de la columna (datamanager.js -> prepareHeader hace Object.assign),
+// así que llega intacto hasta acá.
+//
+// Se engancha por DELEGACIÓN y no fijando el atributo al renderizar: el
+// datatable rehace el encabezado cada vez que se ordena, se quita o se mueve
+// una columna (columnmanager.js -> refreshHeader), y cualquier title puesto de
+// antemano se perdería al primer clic. El navegador lee el title recién cuando
+// va a mostrar el globo, así que ponerlo en el mouseenter llega a tiempo.
+//
+// El datatable ya pone un title en cada celda, pero con su propio texto: en el
+// encabezado eso solo repite la etiqueta. Acá se sobrescribe.
+function _hq_column_tooltips(report) {
+  // onload corre en cada entrada al reporte; el namespace evita apilar copias
+  // del mismo handler sobre un wrapper que sobrevive entre visitas.
+  report.page.wrapper
+    .off("mouseenter.hqtip")
+    .on("mouseenter.hqtip", ".dt-cell--header .dt-cell__content", function () {
+      const celda = this.closest(".dt-cell--header");
+      if (!celda) return;
+
+      // Se pregunta por el índice al propio datatable: con más de 1.000 filas
+      // agrega una columna de número de fila al principio y las posiciones ya
+      // no coinciden con las del arreglo que mandó el servidor.
+      const columna = report.datatable?.datamanager?.getColumn(
+        Number(celda.dataset.colIndex),
+      );
+      if (columna?.description) {
+        this.setAttribute("title", columna.description);
+      }
+    });
 }
 
 // Ambas exportaciones se arman en memoria en el servidor y viajan en base64:
