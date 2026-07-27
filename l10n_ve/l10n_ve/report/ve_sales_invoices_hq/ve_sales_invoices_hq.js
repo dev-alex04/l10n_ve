@@ -13,11 +13,14 @@ const HQ_EXPORT_SPINNER = `
   <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
     <style>
       .hq-spinner-svg { width: 56px; height: 56px; }
-      .hq-part { fill: #1AAEE7; animation: hq-lift 2s ease-in-out infinite; }
-      .hq-p1 { --tx: -6px; --ty: -6px; animation-delay: 0.0s; }
-      .hq-p2 { --tx:  6px; --ty: -6px; animation-delay: 0.5s; }
-      .hq-p3 { --tx:  6px; --ty:  6px; animation-delay: 1.0s; }
-      .hq-p4 { --tx: -6px; --ty:  6px; animation-delay: 1.5s; }
+      .hq-part { animation: hq-lift 2s ease-in-out infinite; }
+      /* Un color por cuadrante, tomados del logo de marca
+         (apps/resources/DominaLogo.png). El rombo de domina_isp es monocromo
+         azul; este usa la paleta completa. */
+      .hq-p1 { fill: #E91A4B; --tx: -6px; --ty: -6px; animation-delay: 0.0s; } /* arriba-izquierda */
+      .hq-p2 { fill: #FF5100; --tx:  6px; --ty: -6px; animation-delay: 0.5s; } /* arriba-derecha   */
+      .hq-p3 { fill: #00B5E5; --tx:  6px; --ty:  6px; animation-delay: 1.0s; } /* abajo-derecha    */
+      .hq-p4 { fill: #009B52; --tx: -6px; --ty:  6px; animation-delay: 1.5s; } /* abajo-izquierda  */
       @keyframes hq-lift {
         0%, 40%, 100% { transform: translate(0, 0); opacity: .85; }
         20% { transform: translate(var(--tx), var(--ty)); opacity: 1; }
