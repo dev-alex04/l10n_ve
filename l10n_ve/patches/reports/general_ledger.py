@@ -230,6 +230,71 @@ def custom_get_gl_entries(filters, accounting_dimensions):
                 filtered_entries.append(row)
         gl_entries = filtered_entries
 
+    INVOICE_VOUCHER_TYPES = {
+        "Sales Invoice",
+        "Purchase Invoice",
+        "VE Sales Credit Note",
+        "VE Sales Debit Note",
+        "VE Purchase Credit Note",
+        "VE Purchase Debit Note",
+    }
+
+    # Intentar completar bill_no y bill_control desde los documentos de origen si están vacíos en GL Entry
+    missing_by_type = {}
+    for entry in gl_entries:
+        vt = entry.get("voucher_type")
+        vn = entry.get("voucher_no")
+        if vt in INVOICE_VOUCHER_TYPES and vn:
+            bno = str(entry.get("bill_no") or "").strip()
+            bctrl = str(entry.get("bill_control") or "").strip()
+            if not bno or not bctrl:
+                missing_by_type.setdefault(vt, set()).add(vn)
+
+    doc_map = {}
+    for vt, names in missing_by_type.items():
+        try:
+            meta = frappe.get_meta(vt)
+            fields = ["name"]
+            if meta.has_field("bill_no"):
+                fields.append("bill_no")
+            if meta.has_field("bill_control"):
+                fields.append("bill_control")
+
+            names_list = list(names)
+            for chunk_start in range(0, len(names_list), 500):
+                chunk = names_list[chunk_start:chunk_start + 500]
+                docs = frappe.get_all(vt, filters={"name": ("in", chunk)}, fields=fields)
+                for d in docs:
+                    doc_map[(vt, d.name)] = (d.get("bill_no") or "", d.get("bill_control") or "")
+        except Exception:
+            pass
+
+    # Filtrar facturas que no tengan número de control o número de factura
+    filtered_invoice_entries = []
+    for entry in gl_entries:
+        vt = entry.get("voucher_type")
+        vn = entry.get("voucher_no")
+        if vt in INVOICE_VOUCHER_TYPES:
+            bno = str(entry.get("bill_no") or "").strip()
+            bctrl = str(entry.get("bill_control") or "").strip()
+
+            if (not bno or not bctrl) and (vt, vn) in doc_map:
+                doc_bno, doc_bctrl = doc_map[(vt, vn)]
+                if not bno and doc_bno:
+                    entry["bill_no"] = doc_bno
+                    bno = str(doc_bno).strip()
+                if not bctrl and doc_bctrl:
+                    entry["bill_control"] = doc_bctrl
+                    bctrl = str(doc_bctrl).strip()
+
+            # Si la factura no posee número de control y número de factura, se quita del reporte
+            if not bno or not bctrl:
+                continue
+
+        filtered_invoice_entries.append(entry)
+
+    gl_entries = filtered_invoice_entries
+
     if filters.get("presentation_currency"):
         return convert_to_presentation_currency(gl_entries, currency_map)
     else:
