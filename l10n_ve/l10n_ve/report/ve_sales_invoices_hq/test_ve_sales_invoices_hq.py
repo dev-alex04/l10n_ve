@@ -84,12 +84,13 @@ class TestExecute(unittest.TestCase):
             patch.object(hq, "_sales_book_report_summary", return_value=[{"label": "Total"}]),
             patch.object(hq, "_get_branch_subtree", return_value=subtree),
             patch.object(hq, "_get_municipality_by_branch", return_value={"A": "Plaza"}),
+            patch.object(hq, "_get_main_branch_map", return_value={"A": "MIR-01"}),
         )
 
     def test_sin_rollup_no_recorta_filas(self) -> None:
         main = [{"branch": "A"}, {"branch": "B"}]
         parches = self._parchear(main, [{"branch": "C"}], None)
-        with parches[0], parches[1], parches[2] as total_row, parches[3], parches[4], parches[5]:
+        with parches[0], parches[1], parches[2] as total_row, parches[3], parches[4], parches[5], parches[6]:
             _, data, _, _, _ = hq.execute(dict(FILTROS))
 
         self.assertEqual(len(data), 3)                      # nada se recorta
@@ -100,7 +101,7 @@ class TestExecute(unittest.TestCase):
         main = [{"branch": "A"}, {"branch": "B"}, {"branch": "FUERA"}]
         adjustment = [{"branch": "A"}, {"branch": "FUERA"}]
         parches = self._parchear(main, adjustment, {"A", "B"})
-        with parches[0], parches[1], parches[2] as total_row, parches[3], parches[4], parches[5]:
+        with parches[0], parches[1], parches[2] as total_row, parches[3], parches[4], parches[5], parches[6]:
             _, data, _, _, _ = hq.execute({**FILTROS, "branch": "PADRE"})
 
         self.assertTrue(all(r["branch"] in {"A", "B"} for r in data))
@@ -112,13 +113,18 @@ class TestExecute(unittest.TestCase):
 
     def test_agrega_las_columnas_hq(self) -> None:
         parches = self._parchear([{"branch": "A", "fiscal_series": "MIR-01", "bill_no": "9"}], [], None)
-        with parches[0], parches[1], parches[2], parches[3], parches[4], parches[5]:
+        with parches[0], parches[1], parches[2], parches[3], parches[4], parches[5], parches[6]:
             columns, data, _, _, _ = hq.execute(dict(FILTROS))
 
         self.assertEqual(data[0]["fiscal_document_no"], "MIR-01-9")
         self.assertEqual(data[0]["municipality"], "Plaza")
+        self.assertEqual(data[0]["main_branch"], "MIR-01")
         self.assertIn("municipality", [c.get("fieldname") for c in columns])
         self.assertIn("fiscal_document_no", [c.get("fieldname") for c in columns])
+        campos = [c.get("fieldname") for c in columns]
+        # orden: Sucursal -> Sucursal Principal -> Municipio
+        self.assertLess(campos.index("branch"), campos.index("main_branch"))
+        self.assertLess(campos.index("main_branch"), campos.index("municipality"))
 
     def test_valida_filtros_obligatorios(self) -> None:
         for faltante in ("company", "from_date", "to_date"):
@@ -130,6 +136,43 @@ class TestExecute(unittest.TestCase):
     def test_rechaza_rango_invertido(self) -> None:
         with self.assertRaises(frappe.exceptions.ValidationError):
             hq.execute({**FILTROS, "from_date": "2026-07-31", "to_date": "2026-07-01"})
+
+
+ARBOL: list = [
+    frappe._dict(name="RAIZ", parent_ve_branch=None),
+    frappe._dict(name="MIR-01", parent_ve_branch="RAIZ"),
+    frappe._dict(name="GUARENAS", parent_ve_branch="MIR-01"),
+    frappe._dict(name="ARMANDO", parent_ve_branch="GUARENAS"),
+    frappe._dict(name="ARA-02", parent_ve_branch="RAIZ"),
+]
+
+
+class TestMainBranchMap(unittest.TestCase):
+    """Sucursal Principal = el ancestro que cuelga directo de la raíz."""
+
+    @patch("frappe.get_all", return_value=ARBOL)
+    def test_nieta_sube_hasta_el_nivel_1(self, _a) -> None:
+        # ARMANDO -> GUARENAS -> MIR-01 -> RAIZ  =>  MIR-01
+        self.assertEqual(hq._get_main_branch_map()["ARMANDO"], "MIR-01")
+
+    @patch("frappe.get_all", return_value=ARBOL)
+    def test_hija_directa_se_apunta_a_si_misma(self, _a) -> None:
+        m = hq._get_main_branch_map()
+        self.assertEqual(m["ARA-02"], "ARA-02")
+        self.assertEqual(m["MIR-01"], "MIR-01")
+
+    @patch("frappe.get_all", return_value=ARBOL)
+    def test_la_raiz_se_apunta_a_si_misma(self, _a) -> None:
+        # así la columna nunca queda vacía
+        self.assertEqual(hq._get_main_branch_map()["RAIZ"], "RAIZ")
+
+    @patch("frappe.get_all", return_value=[
+        frappe._dict(name="A", parent_ve_branch="B"),
+        frappe._dict(name="B", parent_ve_branch="A"),
+    ])
+    def test_arbol_con_ciclo_no_cuelga(self, _a) -> None:
+        # defensivo: un árbol corrupto no debe colgar el reporte
+        self.assertEqual(hq._get_main_branch_map()["A"], "A")
 
 
 class TestReportMessage(unittest.TestCase):

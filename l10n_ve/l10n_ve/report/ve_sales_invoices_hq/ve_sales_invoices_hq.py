@@ -9,12 +9,15 @@ contabilidad necesita para conciliar, sin tocar el libro que usa para declarar:
 
   1. **Documento fiscal**: serie y número concatenados (``MIR-01-4779``), que
      hoy se pegan a mano porque el libro los trae en columnas separadas.
-  2. **Municipio**: derivado de la sucursal (``VE Branch.municipality``).
-  3. **Rollup padre-hijo**: al filtrar por una sucursal GRUPO se incluyen sus
+  2. **Sucursal Principal**: el ancestro de la sucursal que cuelga directo de la
+     raíz del árbol (``ARMANDO`` -> ``GUARENAS`` -> **``MIR-01``**). Es el nivel
+     al que consolida casa matriz, sin perder la sucursal operativa.
+  3. **Municipio**: derivado de la sucursal (``VE Branch.municipality``).
+  4. **Rollup padre-hijo**: al filtrar por una sucursal GRUPO se incluyen sus
      descendientes. El libro filtra por un único valor (``AND siv.branch = %s``),
      así que aquí se pide sin ese filtro y se recorta por el subárbol del nested
      set (``lft``/``rgt``).
-  4. **Acceso restringido** por el rol ``VE Sales Book HQ``.
+  5. **Acceso restringido** por el rol ``VE Sales Book HQ``.
 
 REGLA DE ORO: la única fuente de verdad fiscal es ``sales_book``. Aquí NO se
 reimplementa ningún cálculo — se reusan sus funciones tal cual
@@ -175,10 +178,13 @@ def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
         {r.get("branch") for r in data if r.get("branch")}
     )
 
+    main_branch_by_branch: dict = _get_main_branch_map()
+
     for row in data:
         row["fiscal_document_no"] = _format_fiscal_document_no(
             row.get("fiscal_series"), row.get("bill_no")
         )
+        row["main_branch"] = main_branch_by_branch.get(row.get("branch"), "")
         row["municipality"] = municipality_by_branch.get(row.get("branch"), "")
 
     _insert_column_after(
@@ -191,9 +197,20 @@ def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
             "width": 140,
         },
     )
+    # Orden: Sucursal (operativa) -> Sucursal Principal (consolidación) -> Municipio
     _insert_column_after(
         columns,
         "branch",
+        {
+            "label": _("Sucursal Principal"),
+            "fieldname": "main_branch",
+            "fieldtype": "Data",
+            "width": 150,
+        },
+    )
+    _insert_column_after(
+        columns,
+        "main_branch",
         {
             "label": _("Municipio"),
             "fieldname": "municipality",
@@ -214,6 +231,40 @@ def _format_fiscal_document_no(series, number) -> str:
     if series and number:
         return f"{series}-{number}"
     return series or number
+
+
+def _get_main_branch_map() -> dict:
+    """Mapa ``{sucursal: sucursal principal}``.
+
+    La *sucursal principal* es el ancestro que cuelga **directo de la raíz** del
+    árbol, que es el nivel al que consolida casa matriz. Ejemplo real:
+    ``ARMANDO`` -> ``GUARENAS`` -> ``MIR-01`` -> ``GALANET HQ`` (raíz), luego la
+    principal de ``ARMANDO`` es ``MIR-01``.
+
+    Las sucursales que ya cuelgan de la raíz (``ARA-02``, ``DC-01``...) y la raíz
+    misma se apuntan a sí mismas, así la columna nunca queda vacía.
+
+    Se resuelve subiendo por ``parent_ve_branch`` con el árbol completo en
+    memoria (son decenas de nodos): una sola consulta para todas las filas.
+    """
+    rows: list[dict] = frappe.get_all(
+        BRANCH_DOCTYPE, fields=["name", "parent_ve_branch"]
+    )
+    parent: dict = {r.name: r.parent_ve_branch for r in rows}
+    roots: set = {name for name, p in parent.items() if not p}
+
+    def _main_branch(branch: str) -> str:
+        current, seen = branch, set()
+        while True:
+            p = parent.get(current)
+            if not p or p in roots:
+                return current
+            if current in seen:  # árbol inconsistente: no colgarse
+                return branch
+            seen.add(current)
+            current = p
+
+    return {name: _main_branch(name) for name in parent}
 
 
 def _get_municipality_by_branch(branches: set) -> dict:
