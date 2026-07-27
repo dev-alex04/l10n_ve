@@ -58,16 +58,30 @@ def execute(filters=None):
     # filtrarlas (solo acepta un valor), así que se quita el filtro y se recorta
     # después por el subárbol.
     branch_filter: str = filters.get("branch") or ""
+    main_branch_filter: str = filters.get("main_branch") or ""
+    # El libro no conoce este filtro: se resuelve aquí.
+    filters.pop("main_branch", None)
+
     subtree: set | None = _get_branch_subtree(branch_filter)
     if subtree:
         filters.pop("branch", None)
 
+    # Sucursales admitidas. Filtrar por sucursal principal X equivale a su
+    # subárbol, porque X cuelga de la raíz: todo lo que consolida en X está
+    # debajo de X. Si además hay filtro de sucursal, se intersectan.
+    allowed: set | None = subtree
+    if main_branch_filter:
+        main_allowed: set = (
+            _get_branch_subtree(main_branch_filter) or {main_branch_filter}
+        )
+        allowed = main_allowed if allowed is None else (allowed & main_allowed)
+
     columns: list[dict] = _sales_book_columns()
     main_data, adjustment_data = _sales_book_data(filters)
 
-    if subtree:
-        main_data = [r for r in main_data if r.get("branch") in subtree]
-        adjustment_data = [r for r in adjustment_data if r.get("branch") in subtree]
+    if allowed is not None:
+        main_data = [r for r in main_data if r.get("branch") in allowed]
+        adjustment_data = [r for r in adjustment_data if r.get("branch") in allowed]
 
     data: list[dict] = main_data + adjustment_data
     for i, row in enumerate(data):
@@ -84,12 +98,12 @@ def execute(filters=None):
 
     # 3er valor = 'message': Frappe lo pinta entre los filtros y las tarjetas de
     # totales (query_report.js -> show_status / $status).
-    message: str = _build_report_message(branch_filter, subtree)
+    message: str = _build_report_message(branch_filter, subtree, main_branch_filter)
 
     return columns, data, message, None, report_summary
 
 
-def _build_report_message(branch: str, subtree: set | None) -> str:
+def _build_report_message(branch: str, subtree: set | None, main_branch: str = "") -> str:
     """Descripción que se muestra sobre el reporte (bajo los filtros).
 
     Explica de dónde salen los números y hace visible el rollup: sin esto, al
@@ -132,6 +146,13 @@ def _build_report_message(branch: str, subtree: set | None) -> str:
                 _("y sus"),
                 _("{0} sucursales dependientes").format(len(dependientes)),
                 ", ".join(dependientes),
+            )
+        )
+
+    if main_branch:
+        lineas.append(
+            "<b>→</b> {0} <b>{1}</b>.".format(
+                _("Consolidando por sucursal principal"), main_branch
             )
         )
 
@@ -306,3 +327,22 @@ def _insert_column_after(columns: list[dict], fieldname: str, column: dict) -> N
             columns.insert(i + 1, column)
             return
     columns.append(column)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def get_main_branches(doctype, txt, searchfield, start, page_len, filters):
+    """Link query del filtro 'Sucursal Principal': solo las de consolidación.
+
+    Son las que cuelgan directo de la raíz del árbol. Ofrecer las sucursales
+    completas obligaría al usuario a saber de memoria cuáles consolidan.
+    """
+    return frappe.db.sql("""
+        SELECT b.name
+        FROM `tabVE Branch` b
+        INNER JOIN `tabVE Branch` raiz ON raiz.name = b.parent_ve_branch
+        WHERE IFNULL(raiz.parent_ve_branch, '') = ''
+          AND b.name LIKE %(txt)s
+        ORDER BY b.name
+        LIMIT %(start)s, %(page_len)s
+    """, {"txt": "%" + txt + "%", "start": start, "page_len": page_len})

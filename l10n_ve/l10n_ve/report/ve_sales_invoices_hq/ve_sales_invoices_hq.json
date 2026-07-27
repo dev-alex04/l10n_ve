@@ -24,6 +24,14 @@
    "wildcard_filter": 0
   },
   {
+   "fieldname": "main_branch",
+   "fieldtype": "Link",
+   "label": "Sucursal Principal",
+   "mandatory": 0,
+   "options": "VE Branch",
+   "wildcard_filter": 0
+  },
+  {
    "fieldname": "from_date",
    "fieldtype": "Date",
    "label": "From Date",
