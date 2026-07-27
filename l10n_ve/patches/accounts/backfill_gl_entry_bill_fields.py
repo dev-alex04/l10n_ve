@@ -24,6 +24,30 @@ VOUCHER_SOURCES: list[dict] = [
         "bill_no_field": "bill_no",
         "bill_control_field": "bill_control",
     },
+    {
+        "voucher_type": "VE Sales Credit Note",
+        "table": "tabVE Sales Credit Note",
+        "bill_no_field": "bill_no",
+        "bill_control_field": "bill_control",
+    },
+    {
+        "voucher_type": "VE Sales Debit Note",
+        "table": "tabVE Sales Debit Note",
+        "bill_no_field": "bill_no",
+        "bill_control_field": "bill_control",
+    },
+    {
+        "voucher_type": "VE Purchase Credit Note",
+        "table": "tabVE Purchase Credit Note",
+        "bill_no_field": "bill_no",
+        "bill_control_field": "bill_control",
+    },
+    {
+        "voucher_type": "VE Purchase Debit Note",
+        "table": "tabVE Purchase Debit Note",
+        "bill_no_field": "bill_no",
+        "bill_control_field": "bill_control",
+    },
 ]
 
 
