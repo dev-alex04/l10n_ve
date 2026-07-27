@@ -132,5 +132,27 @@ class TestExecute(unittest.TestCase):
             hq.execute({**FILTROS, "from_date": "2026-07-31", "to_date": "2026-07-01"})
 
 
+class TestReportMessage(unittest.TestCase):
+    """La descripción que se pinta sobre el reporte (bajo los filtros)."""
+
+    def test_describe_el_reporte(self) -> None:
+        msg = hq._build_report_message("", None)
+        self.assertIn("Libro de Ventas", msg)
+        self.assertIn("MIR-01-4779", msg)       # ejemplo del formato SERIE-NUMERO
+
+    def test_sin_rollup_no_lista_sucursales(self) -> None:
+        self.assertNotIn("Mostrando", hq._build_report_message("HOJA", None))
+
+    def test_con_rollup_hace_visible_el_subarbol(self) -> None:
+        """Sin esto el usuario ve más filas de las que espera y no sabe por qué."""
+        msg = hq._build_report_message("PADRE", {"PADRE", "HIJA_A", "HIJA_B"})
+        self.assertIn("PADRE", msg)
+        self.assertIn("HIJA_A", msg)
+        self.assertIn("HIJA_B", msg)
+        self.assertIn("2", msg)                 # cuenta solo las dependientes
+        # la propia sucursal no se lista como dependiente de sí misma
+        self.assertNotIn("PADRE,", msg)
+
+
 if __name__ == "__main__":
     unittest.main()
