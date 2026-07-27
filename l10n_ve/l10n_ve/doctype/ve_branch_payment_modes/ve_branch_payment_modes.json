@@ -11,6 +11,7 @@
   "account",
   "column_break_dfjb",
   "is_default",
+  "send_in_email",
   "payment_information"
  ],
  "fields": [
@@ -43,6 +44,13 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Predeterminado"
+  },
+  {
+   "default": "0",
+   "fieldname": "send_in_email",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enviar por Correo"
   },
   {
    "fieldname": "payment_information",
