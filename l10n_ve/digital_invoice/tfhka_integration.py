@@ -1081,12 +1081,11 @@ def _hka_log(description: str, status: str = "Info") -> None:
 
 
 def send_pending_documents_to_hka() -> None:
-    """Cron unificado: facturas de venta + retenciones IVA + retenciones ISLR + NC/ND.
+    """Cron unificado: envía facturas de venta + retenciones IVA + retenciones ISLR.
 
     Paso 1: Facturas de venta pendientes (lógica existente).
     Paso 2: Comprobantes de retención IVA pendientes.
     Paso 3: Comprobantes de retención ISLR pendientes.
-    Paso 4: Notas de crédito y débito de venta pendientes.
 
     Respeta el flag 'enabled', 'enable_auto_send' y 'cutoff_date' de TFHKA Settings.
     """
@@ -1107,9 +1106,6 @@ def send_pending_documents_to_hka() -> None:
     # Paso 3: Retenciones de ISLR
     from l10n_ve.digital_invoice.islr_withholding_integration import send_pending_islr_vouchers
     send_pending_islr_vouchers(tfhka_settings)
-
-    # Paso 4: Notas de credito y debito de venta
-    _send_pending_notes(tfhka_settings)
 
 
 # Alias de compatibilidad para evitar romper referencias externas
@@ -1169,7 +1165,6 @@ def _send_pending_invoices(tfhka_settings: dict) -> None:
 def _process_series_invoices(
     series: dict,
     pending: list[str],
-    doctype: str = "Sales Invoice",
 ) -> tuple[int, int, list[str], list[str]]:
     """Procesa las facturas pendientes de una serie específica.
 
@@ -1188,7 +1183,7 @@ def _process_series_invoices(
 
     for invoice_name in pending:
         try:
-            result: bool = process_invoice(invoice_name, doctype=doctype)
+            result: bool = process_invoice(invoice_name)
 
             if result:
                 success_count += 1
@@ -1444,95 +1439,6 @@ def _get_pending_hka_invoices(
     """, params, as_list=True)
 
     return [r[0] for r in results]
-
-
-def _get_pending_hka_notes(
-    doctype: str,
-    branches: list[str],
-    cutoff_date: str = "2026-04-01",
-) -> list[str]:
-    """Notas de credito/debito aprobadas y aun no emitidas ante HKA.
-
-    A diferencia de las facturas NO se exige `status = 'Paid'`: una nota no se cobra,
-    basta con que este aprobada (docstatus = 1).
-
-    Se exige que la FACTURA AFECTADA ya tenga numero fiscal (`bill_no`): el payload de
-    la nota lleva `NumeroFacturaAfectada`, y sin el, `_get_datos_factura_afectada`
-    lanza error. Filtrarlas aca evita que el cron reintente cada 5 minutos y llene el
-    log; entran solas en cuanto la factura original se emita.
-    """
-    if not branches:
-        return []
-
-    placeholders: str = ", ".join(["%s"] * len(branches))
-    params: list = [doctype] + branches + [cutoff_date, _TFHKA_BATCH_SIZE]
-
-    results = frappe.db.sql(f"""
-        SELECT nota.name
-        FROM `tab{doctype}` nota
-        INNER JOIN `tabSales Invoice` si
-            ON si.name = nota.return_against
-            AND IFNULL(si.bill_no, '') != ''
-        LEFT JOIN `tabVE Digital Invoice Log` log
-            ON log.sales_invoice = nota.name
-            AND log.status = 'Success'
-            AND log.document_type = %s
-        WHERE nota.branch IN ({placeholders})
-          AND nota.posting_date >= %s
-          AND nota.docstatus = 1
-          AND (nota.bill_control IS NULL OR nota.bill_control = '')
-          AND log.name IS NULL
-        ORDER BY nota.posting_date, nota.name
-        LIMIT %s
-    """, params, as_list=True)
-
-    return [r[0] for r in results]
-
-
-def _send_pending_notes(tfhka_settings: dict) -> None:
-    """Envia notas de credito y debito de venta pendientes a HKA.
-
-    Misma mecanica que las facturas (serie -> sucursales -> lote), reutilizando
-    `_process_series_invoices` con el doctype correspondiente.
-    """
-    cutoff_date: str = tfhka_settings["cutoff_date"]
-    active_series: list[dict] = _get_active_billing_series()
-    if not active_series:
-        return
-
-    for doctype in ("VE Sales Credit Note", "VE Sales Debit Note"):
-        total_success: int = 0
-        total_errors: int = 0
-        success_docs: list[str] = []
-        error_docs: list[str] = []
-
-        for series in active_series:
-            branches: list[str] = series["branches"]
-            if not branches:
-                continue
-
-            pending: list[str] = _get_pending_hka_notes(
-                doctype=doctype,
-                branches=branches,
-                cutoff_date=cutoff_date,
-            )
-            if not pending:
-                continue
-
-            _hka_log(
-                f"Serie {series['name']} ({series['operation_mode']}): "
-                f"{len(pending)} {doctype} pendientes en {len(branches)} sucursal(es).",
-                "Success",
-            )
-
-            s, e, ok_list, err_list = _process_series_invoices(series, pending, doctype=doctype)
-            total_success += s
-            total_errors += e
-            success_docs.extend(ok_list)
-            error_docs.extend(err_list)
-
-        if total_success or total_errors:
-            _log_batch_summary(total_success, total_errors, success_docs, error_docs)
 
 
 @frappe.whitelist()
