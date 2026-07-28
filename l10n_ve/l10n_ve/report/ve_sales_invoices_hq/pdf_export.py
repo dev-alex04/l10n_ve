@@ -11,11 +11,12 @@ fila por fila vive en la exportación a Excel.
 Como el Excel, se genera **en memoria** y viaja en base64: no queda ningún
 archivo en el disco del servidor.
 
-OJO: hoy NO hay botón que llame a esto desde la pantalla del reporte. El
-motor de PDF de Frappe es wkhtmltopdf, cuyo WebKit no ejecuta JavaScript ni
-admite flex/grid, y el acabado no da la talla para un documento que sale
-hacia afuera. El código queda porque funciona y está probado; para
-reactivarlo basta agregar el ``add_inner_button`` en el .js del reporte.
+OJO al motor: Frappe usa wkhtmltopdf, con un WebKit viejo que NO ejecuta
+JavaScript y NO admite flex/grid. De ahí dos cosas que parecen rarezas y no lo
+son: la retícula se arma con ``<table>`` y ``border-spacing``, y los gráficos
+son SVG generado acá (no hay Chart.js ni canvas que valgan). Probado contra ese
+motor: ``box-shadow``, ``border-radius`` y los SVG sí pintan; ``linear-gradient``
+NO, por eso no se usa en ninguna parte.
 
 Los números salen de ``get_hq_data`` —el mismo núcleo que alimenta la
 pantalla—, y los porcentajes se calculan contra ``main_data`` (las filas del
