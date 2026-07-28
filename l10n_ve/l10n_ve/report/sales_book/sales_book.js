@@ -67,7 +67,16 @@ frappe.query_reports["Sales book"] = {
 };
 
 function _export_excel(report, method) {
-  frappe.dom.freeze();
+  // Mismo indicador de marca que usa el reporte HQ. Si por lo que sea el bundle de
+  // brand_logo.js no esta cargado, cae al freeze pelado en vez de romper el export.
+  const loader =
+    window.l10n_ve && l10n_ve.brand && l10n_ve.brand.loading
+      ? l10n_ve.brand.loading(
+          __("Generando el Excel..."),
+          __("Puede tardar según el rango de fechas"),
+        )
+      : undefined;
+  frappe.dom.freeze(loader);
 
   const filters = report.get_filter_values();
   if (!filters.company) {

@@ -242,6 +242,43 @@ def logo_svg(size: int = 30) -> str:
             f'<g transform="translate(50,50)">{paths}</g></svg>')
 
 
+def company_logo_html(company: str, height: int = 34) -> str:
+    """Logo de la empresa embebido en base64; si no hay, cae al isotipo de marca.
+
+    Va en base64 y NO por URL porque el logo suele vivir en /private/files, que exige
+    sesion: wkhtmltopdf no la tiene y la imagen saldria rota. Solo se fija la altura
+    (atributo HTML) para que el ancho lo resuelva el motor y no se deforme el logo,
+    que rara vez es cuadrado.
+    """
+    url = frappe.db.get_value("Company", company, "company_logo") if company else None
+    if not url or ".." in url:
+        return logo_svg(height)
+
+    if url.startswith("/private/files/"):
+        path = frappe.get_site_path("private", "files", url[len("/private/files/"):])
+    elif url.startswith("/files/"):
+        path = frappe.get_site_path("public", "files", url[len("/files/"):])
+    else:
+        return logo_svg(height)
+
+    mime = {
+        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+        "gif": "image/gif", "svg": "image/svg+xml",
+    }.get(path.rsplit(".", 1)[-1].lower())
+    if not mime:
+        return logo_svg(height)
+
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    except OSError:
+        return logo_svg(height)
+
+    b64 = base64.b64encode(raw).decode("ascii")
+    return (f'<img src="data:{mime};base64,{b64}" height="{height}" '
+            f'style="display:block;" alt="" />')
+
+
 def _slices(pairs: list) -> list:
     """Las sucursales de cola se agrupan en «Otras»: más de cinco porciones la
     dona deja de leerse y las etiquetas se pisan."""
@@ -461,7 +498,10 @@ def build_html(filters: dict, company_name: str) -> str:
     date_from = getdate(filters["from_date"]).strftime("%d/%m/%Y")
     date_to = getdate(filters["to_date"]).strftime("%d/%m/%Y")
     scope = filters.get("main_branch") or filters.get("branch") or _("Consolidado")
-    company_name = frappe.utils.escape_html(company_name or "")
+    # El nombre crudo se preserva para buscar el logo en la BD; company_name queda
+    # escapado solo para pintarlo.
+    company_raw = company_name or ""
+    company_name = frappe.utils.escape_html(company_raw)
 
     # La retícula se arma con <table> y border-spacing, no con flex ni grid: el
     # WebKit de wkhtmltopdf es viejo y los reparte mal. El separado entre
@@ -481,7 +521,7 @@ table {{ width: 100%; border-collapse: collapse; }}
 </style></head><body>
 
 <table style="margin-bottom:9px;"><tr>
-  <td style="width:40px;vertical-align:middle;">{logo_svg(34)}</td>
+  <td style="vertical-align:middle;padding-right:10px;">{company_logo_html(company_raw, 34)}</td>
   <td style="vertical-align:middle;">
     <div style="font-size:14pt;font-weight:bold;color:{INK};letter-spacing:-0.3px;">
       {_("Facturas de venta: resumen ejecutivo")}</div>

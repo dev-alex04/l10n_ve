@@ -204,7 +204,7 @@ def get_data(filters):
 				FROM `tabVE Digital Invoice Log`
 				WHERE document_type = 'Sales Invoice'
 			) log ON log.sales_invoice = doc.name AND log.rn = 1
-			WHERE doc.docstatus IN (1, 2) AND doc.status != 'Draft' AND {cond_str}
+			WHERE (doc.docstatus = 1 OR doc.is_void = 1) AND doc.status != 'Draft' AND {cond_str}
 		""")
 
 	# 2. VE Sales Credit Note
@@ -242,7 +242,7 @@ def get_data(filters):
 				FROM `tabVE Digital Invoice Log`
 				WHERE document_type = 'VE Sales Credit Note'
 			) log ON log.sales_invoice = doc.name AND log.rn = 1
-			WHERE doc.docstatus IN (1, 2) AND doc.status != 'Draft' AND {cond_str}
+			WHERE (doc.docstatus = 1 OR doc.is_void = 1) AND doc.status != 'Draft' AND {cond_str}
 		""")
 
 	# 3. VE Sales Debit Note
@@ -280,7 +280,7 @@ def get_data(filters):
 				FROM `tabVE Digital Invoice Log`
 				WHERE document_type = 'VE Sales Debit Note'
 			) log ON log.sales_invoice = doc.name AND log.rn = 1
-			WHERE doc.docstatus IN (1, 2) AND doc.status != 'Draft' AND {cond_str}
+			WHERE (doc.docstatus = 1 OR doc.is_void = 1) AND doc.status != 'Draft' AND {cond_str}
 		""")
 
 	full_query = " UNION ALL ".join(query_parts) + " ORDER BY posting_date DESC, name DESC"
