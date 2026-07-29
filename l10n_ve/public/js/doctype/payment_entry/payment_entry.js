@@ -12,6 +12,16 @@ frappe.ui.form.on("Payment Entry", {
       };
     });
 
+    frm.set_query("paid_to", function () {
+      frm.events.validate_company(frm);
+      return {
+        filters: {
+          is_group: 0,
+          company: frm.doc.company,
+        },
+      };
+    });
+
     frm.set_query("mode_of_payment", function () {
       if (frm.doc.branch) {
         return {
@@ -67,6 +77,14 @@ frappe.ui.form.on("Payment Entry", {
     frm.events.set_reference_no_required(frm);
   },
   onload: function (frm) {
+    const original_set_current_exchange_rate = frm.events.set_current_exchange_rate;
+    frm.events.set_current_exchange_rate = function (frm, exchange_rate_field, from_currency, to_currency) {
+      if (!from_currency || !to_currency) return;
+      if (original_set_current_exchange_rate) {
+        return original_set_current_exchange_rate(frm, exchange_rate_field, from_currency, to_currency);
+      }
+    };
+
     reorganize_payment_entry_fields(frm);
 
     realtime_numeric_validation(frm, "reference_no");
