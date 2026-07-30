@@ -203,6 +203,8 @@ def _column_texts() -> dict:
         ),
         "withholding_date": _("Fecha del comprobante de retención."),
         "vat_withholding_rate": _("Porcentaje de IVA que retuvo el cliente."),
+        "taxable_amount": _("Base imponible total del documento (suma de todas las alícuotas)."),
+        "total_vat": _("Monto total de IVA del documento (suma de todas las alícuotas)."),
         "base_amount_igtf": _("Monto sobre el que se calcula el IGTF."),
         "igtf_rate": _("Porcentaje de IGTF aplicado."),
         "total_igtf": _("Impuesto a las Grandes Transacciones Financieras cobrado."),
@@ -375,7 +377,7 @@ def _get_branch_subtree(branch: str | None) -> set | None:
 
 
 def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
-    """Agrega las columnas 'Documento Fiscal' y 'Municipio' (in place)."""
+    """Agrega las columnas 'Documento Fiscal', 'Municipio', 'Base Imponible Total' y 'Monto IVA Total' (in place)."""
     municipality_by_branch: dict = _get_municipality_by_branch(
         {r.get("branch") for r in data if r.get("branch")}
     )
@@ -388,6 +390,18 @@ def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
         )
         row["main_branch"] = main_branch_by_branch.get(row.get("branch"), "")
         row["municipality"] = municipality_by_branch.get(row.get("branch"), "")
+
+        # Suma consolidada de bases imponibles e IVA para facilitar la lectura HQ
+        row["taxable_amount"] = (
+            (row.get("base_general_non_taxpayer") or 0) + (row.get("base_general_taxpayer") or 0) +
+            (row.get("base_reduced_non_taxpayer") or 0) + (row.get("base_reduced_taxpayer") or 0) +
+            (row.get("base_additional_non_taxpayer") or 0) + (row.get("base_additional_taxpayer") or 0)
+        )
+        row["total_vat"] = (
+            (row.get("iva_general_non_taxpayer") or 0) + (row.get("iva_general_taxpayer") or 0) +
+            (row.get("iva_reduced_non_taxpayer") or 0) + (row.get("iva_reduced_taxpayer") or 0) +
+            (row.get("iva_additional_non_taxpayer") or 0) + (row.get("iva_additional_taxpayer") or 0)
+        )
 
     _insert_column_after(
         columns,
@@ -418,6 +432,26 @@ def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
             "fieldname": "municipality",
             "fieldtype": "Data",
             "width": 130,
+        },
+    )
+    _insert_column_after(
+        columns,
+        "total_exempt",
+        {
+            "label": _("Base Imponible Total"),
+            "fieldname": "taxable_amount",
+            "fieldtype": "Currency",
+            "width": 140,
+        },
+    )
+    _insert_column_after(
+        columns,
+        "taxable_amount",
+        {
+            "label": _("Monto IVA Total"),
+            "fieldname": "total_vat",
+            "fieldtype": "Currency",
+            "width": 140,
         },
     )
 

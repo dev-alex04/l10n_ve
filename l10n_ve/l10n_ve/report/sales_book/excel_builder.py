@@ -30,7 +30,7 @@ class ExcelBuilder:
 
         self.workbook = Workbook()
         self.sheet = self.workbook.active
-        self.sheet.title = "Libro de Ventas"
+        self.sheet.title = str(self.title)[:31] if self.title else "Libro de Ventas"
 
         self.default_font = Font(name='Calibri', size=8)
         self.header_font = Font(name='Calibri', size=8, bold=True)
@@ -82,7 +82,7 @@ class ExcelBuilder:
         ws = self.sheet
 
         ws.row_dimensions[2].height = 30
-        title_cell = ws.cell(row=2, column=2, value=_("LIBRO DE VENTAS FISCAL"))
+        title_cell = ws.cell(row=2, column=2, value=self.title or _("LIBRO DE VENTAS FISCAL"))
         title_font = Font(name="Calibri", size=16, bold=True, color="1E293B")
         title_cell.font = title_font
         title_cell.alignment = Alignment(vertical="center")
