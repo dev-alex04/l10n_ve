@@ -6,6 +6,8 @@ import frappe
 from frappe.utils import flt, getdate, cint, today
 
 from l10n_ve.digital_invoice.emission_rerate import (
+    _blocking_condition,
+    _get_target_rate,
     rerate_to_emission_rate,
     validate_note_rate,
 )
@@ -1024,8 +1026,27 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     customer_address: str = _clean_address(doc.address_display) if doc.address_display else ""
 
     tc: float = flt(doc.conversion_rate) if doc.conversion_rate else 1.0
+    rerate_aviso: str = ""
+
+    # La emision retasa al juridico a la tasa BCV del dia ANTES de calcular la fecha
+    # (process_invoice -> rerate_to_emission_rate). La previa debe mostrar ESA tasa:
+    # leer la almacenada dejaba en pantalla la tasa vieja —la que quedo al aplicar el
+    # pago— y el usuario veia una fecha que nunca se iba a emitir.
+    # Se reusa la decision real (mismo gate y mismos bloqueos). Ambas funciones son de
+    # solo lectura, asi que la previa sigue sin tocar la base de datos.
     if is_juridical_customer(doc.customer):
-        # Fecha real de la tasa del documento (misma regla que _compute_tasa_fecha).
+        target_rate = _get_target_rate(doc)
+        if target_rate is not None:
+            motivo = _blocking_condition(doc)
+            if motivo:
+                rerate_aviso = (
+                    f"No se retasara a la tasa de hoy porque la factura {motivo}. "
+                    f"Se emitira con la tasa que porta el documento."
+                )
+            else:
+                tc = flt(target_rate)
+
+        # Fecha real de la tasa que se va a emitir (misma regla que _compute_tasa_fecha).
         fecha_bcv = getdate(resolve_exchange_rate_date(tc, doc.currency) or doc.posting_date)
     else:
         fecha_bcv = getdate(doc.posting_date).replace(day=1)
@@ -1126,6 +1147,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "nota": nota,
         "tasa_bcv": "{:.4f}".format(tc),
         "tasa_fecha": fecha_bcv.strftime("%d/%m/%Y"),
+        "rerate_aviso": rerate_aviso,
         "items": items_data,
         "subtotal_usd": fmt(subtotal_usd),
         "iva_usd": fmt(iva_usd),

@@ -922,6 +922,7 @@ function show_hka_preview_dialog(frm, d) {
             <p class="hka-preview__bcv-note">
               Cálculos según Art. 25 Ley IVA. Sujeto a IGTF (+3%) si paga en divisas.
             </p>
+            ${d.rerate_aviso ? `<p class="hka-preview__bcv-note" style="color:#B45309;">⚠️ ${frappe.utils.escape_html(d.rerate_aviso)}</p>` : ""}
           </div>
         </div>
 
