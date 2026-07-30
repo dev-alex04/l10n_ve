@@ -61,16 +61,14 @@ function handle_supplier_field_change(frm, fieldname) {
   // Lógica específica para Supplier
   const doc_type = frm.doc.type_of_document;
 
-  if (doc_type === "RIF") {
-    // Para RIF, mostrar el campo y hacerlo requerido
-    frm.toggle_display("tax_withholding_category", true);
-    frm.set_df_property("tax_withholding_category", "reqd", 1);
-  } else {
-    // Para Cédula, Pasaporte u otro, ocultar el campo y no hacerlo requerido
-    frm.toggle_display('tax_withholding_category', false);
-    frm.set_value('tax_withholding_category', '');
-    frm.set_df_property("tax_withholding_category", "reqd", 0);
-  }
+  // La categoria de retencion queda SIEMPRE visible y editable: un proveedor no
+  // juridico igual puede ser contribuyente ordinario del IVA (factura con IVA) y
+  // corresponderle retencion. Antes se ocultaba Y se vaciaba para todo lo que no
+  // fuera RIF, asi que no habia forma de asignarsela: set_tax_withholding_ve lee la
+  // categoria DEL PROVEEDOR, y sin ella nunca se calculaba la retencion.
+  // Solo cambia la obligatoriedad: requerida para RIF, opcional para el resto.
+  frm.toggle_display("tax_withholding_category", true);
+  frm.set_df_property("tax_withholding_category", "reqd", doc_type === "RIF" ? 1 : 0);
 }
 
 function reorganize_supplier_fields(frm) {
