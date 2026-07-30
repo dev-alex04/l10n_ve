@@ -3,6 +3,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 def execute(filters=None):
     if not filters:
@@ -50,25 +51,35 @@ def execute(filters=None):
         for a in accounts_raw
     }
 
-    include_cancelled = filters.get("include_cancelled")
-    docstatus_cond = " AND docstatus IN (1, 2)" if include_cancelled else " AND docstatus = 1"
+    # Un asiento anulado conserva docstatus = 1: GL Entry se emite al crearse y la
+    # cancelación solo pone is_cancelled = 1 (erpnext/accounts/general_ledger.py,
+    # `UPDATE tabGL Entry SET is_cancelled = 1 ... where voucher_type=%s and voucher_no=%s`).
+    # No existen borradores ni docstatus = 2, así que el docstatus va fijo y la casilla
+    # controla únicamente is_cancelled.
+    include_cancelled = cint(filters.get("include_cancelled"))
     cancelled_cond = "" if include_cancelled else " AND IFNULL(is_cancelled, 0) = 0"
 
     # 1. Fetch beginning balances (before from_date)
+    # El saldo inicial NUNCA incluye anulados, ni con la casilla activa: es un
+    # SUM(debit - credit) y los anulados no netean a cero por cuenta (en producción dejan
+    # ~2,8 MM de residuo en Cuentas por Cobrar), así que incluirlos descuadraría el saldo
+    # de arranque contra el de cierre. La casilla sirve para AUDITAR los movimientos
+    # anulados del período, no para reescribir el saldo previo.
     init_query = f"""
         SELECT account, SUM(debit - credit) as balance
         FROM `tabGL Entry`
-        WHERE company = %s {docstatus_cond} {cancelled_cond} AND posting_date < %s {cc_cond} {acc_cond}
+        WHERE company = %s AND docstatus = 1 AND IFNULL(is_cancelled, 0) = 0
+              AND posting_date < %s {cc_cond} {acc_cond}
         GROUP BY account
     """
     init_balances_raw = frappe.db.sql(init_query, tuple([company, from_date] + cc_args + acc_args), as_dict=True)
     init_balances = {b.account: float(b.balance) for b in init_balances_raw}
-    
+
     # 2. Fetch all GL entries in date range
     entries_query = f"""
-        SELECT name as gle_id, posting_date, voucher_no, account, remarks, debit, credit, party, party_type, docstatus, is_cancelled
+        SELECT name as gle_id, posting_date, voucher_no, account, remarks, debit, credit, party, party_type, is_cancelled
         FROM `tabGL Entry`
-        WHERE company = %s {docstatus_cond} {cancelled_cond} AND posting_date >= %s AND posting_date <= %s {cc_cond} {acc_cond}
+        WHERE company = %s AND docstatus = 1 {cancelled_cond} AND posting_date >= %s AND posting_date <= %s {cc_cond} {acc_cond}
         ORDER BY account, posting_date, creation
     """
     entries = frappe.db.sql(entries_query, tuple([company, from_date, to_date] + cc_args + acc_args), as_dict=True)
@@ -157,10 +168,26 @@ def execute(filters=None):
         for entry in acc_entries:
             deb = float(entry.debit)
             cred = float(entry.credit)
-            running_balance += (deb - cred)
-            total_debit += deb
-            total_credit += cred
-            
+            entry_cancelled = cint(entry.get("is_cancelled"))
+
+            # Un asiento anulado se lista para auditoría pero NO mueve el saldo ni los
+            # totales de la cuenta: contablemente no existe. Si acumulara, el "Saldo" y el
+            # "Total Cuenta" se irían del saldo real por el monto de lo anulado, y la
+            # casilla dejaría de ser una vista de auditoría para volverse un reporte mal
+            # cuadrado.
+            if not entry_cancelled:
+                running_balance += (deb - cred)
+                total_debit += deb
+                total_credit += cred
+
+            # La marca va en el propio voucher_no porque el print format
+            # (ve_analytical_ledger.html) imprime ese campo tal cual y arma los <td> a mano:
+            # así el anulado se distingue igual en pantalla y en el PDF, sin tener que
+            # mantener una columna extra en dos lugares.
+            voucher_label = entry.voucher_no
+            if entry_cancelled:
+                voucher_label = _("CANCELADO · {0}").format(entry.voucher_no or "")
+
             # Formatear Ref. (quitar prefijo GLE-)
             ref_val = entry.gle_id.replace("GLE-", "") if entry.gle_id else ""
             
@@ -173,7 +200,7 @@ def execute(filters=None):
             
             data.append({
                 "posting_date": entry.posting_date,
-                "voucher_no": entry.voucher_no,
+                "voucher_no": voucher_label,
                 "party": entry.party or "",
                 "party_name": p_name,
                 "ref_code": ref_val,
@@ -184,7 +211,8 @@ def execute(filters=None):
                 "posting_date_ref": entry.posting_date,
                 "account_number": acc_number,
                 "account_name": acc_name,
-                "company_rif": company_rif
+                "company_rif": company_rif,
+                "is_cancelled": entry_cancelled
             })
             
         # Total row for the account
