@@ -803,3 +803,89 @@ def get_purchase_invoice_dashboard_data(data: dict) -> dict:
 
     return data
 
+
+@frappe.whitelist()
+def create_purchase_exchange_difference_entry(docname: str, account: str = None) -> dict:
+    """
+    Crea un Journal Entry para liquidar el residual cambiario de una factura
+    de compra parcialmente pagada.
+
+    Caso de uso: la factura quedó con un saldo positivo mínimo (ej. 0,20 Bs)
+    después de uno o más pagos. Ese residual se registra como Ganancia para
+    la empresa (dejó de pagar ese monto).
+
+    Asiento generado:
+        Débito  → credit_to del proveedor  (reduce la deuda pendiente)
+        Crédito → cuenta de ganancia cambiaria
+    """
+    purchase_invoice = frappe.get_doc("Purchase Invoice", docname)
+
+    if purchase_invoice.docstatus != 1:
+        frappe.throw(_("La factura debe estar enviada para registrar diferencial cambiario"))
+
+    outstanding = flt(purchase_invoice.outstanding_amount, 2)
+
+    if outstanding <= 0:
+        frappe.throw(_("La factura no tiene saldo residual positivo pendiente"))
+
+    exchange_gain_account = account
+
+    if not exchange_gain_account:
+        accounts = frappe.get_cached_value(
+            "Company",
+            purchase_invoice.company,
+            [
+                "unrealized_exchange_gain_loss_account",
+                "exchange_gain_loss_account",
+            ],
+            as_dict=True,
+        )
+        exchange_gain_account = (
+            accounts.unrealized_exchange_gain_loss_account
+            or accounts.exchange_gain_loss_account
+        )
+
+    if not exchange_gain_account:
+        frappe.throw(
+            _(
+                "Configure la cuenta de Ganancia por Diferencial Cambiario "
+                "en la Compañía {0}"
+            ).format(purchase_invoice.company)
+        )
+
+    journal_entry = frappe.new_doc("Journal Entry")
+    journal_entry.voucher_type = "Exchange Gain Or Loss"
+    journal_entry.posting_date = purchase_invoice.posting_date
+    journal_entry.company = purchase_invoice.company
+
+    # Crédito en cuenta de ganancia cambiaria
+    journal_entry.append("accounts", {
+        "account": exchange_gain_account,
+        "credit_in_account_currency": outstanding,
+        "debit_in_account_currency": 0,
+        "cost_center": purchase_invoice.cost_center,
+    })
+
+    # Débito en cuenta del proveedor (credit_to) — reduce la deuda pendiente
+    journal_entry.append("accounts", {
+        "account": purchase_invoice.credit_to,
+        "party_type": "Supplier",
+        "party": purchase_invoice.supplier,
+        "debit_in_account_currency": outstanding,
+        "credit_in_account_currency": 0,
+        "reference_type": "Purchase Invoice",
+        "reference_name": purchase_invoice.name,
+        "cost_center": purchase_invoice.cost_center,
+    })
+
+    journal_entry.remark = (
+        f"Diferencial cambiario por factura de compra {purchase_invoice.name}"
+    )
+    journal_entry.insert(ignore_permissions=True)
+    journal_entry.submit()
+
+    return {
+        "status": "success",
+        "journal_entry": journal_entry.name,
+        "amount": outstanding,
+    }

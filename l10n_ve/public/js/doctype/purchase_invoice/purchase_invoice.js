@@ -22,6 +22,7 @@ frappe.ui.form.on("Purchase Invoice", {
     setup_credit_note_button(frm);
     setup_debit_note_button(frm);
     setup_withholding_voucher_buttons(frm);
+    setup_purchase_exchange_difference_button(frm);
   },
 
   is_debit_note: function (frm) {
@@ -597,6 +598,56 @@ function setup_withholding_voucher_buttons(frm) {
         );
       },
       __("Create"),
+    );
+  }
+}
+
+/**
+ * Botón para registrar el residual cambiario de una factura de compra
+ * parcialmente pagada. Solo aplica cuando queda un saldo positivo pendiente,
+ * lo cual representa una Ganancia para la empresa (deja de pagar ese residual).
+ * Aplica para cualquier moneda, incluidas facturas en VES.
+ *
+ * @param {object} frm
+ */
+function setup_purchase_exchange_difference_button(frm) {
+  if (
+    frm.doc.docstatus === 1 &&
+    flt(frm.doc.outstanding_amount) > 0
+  ) {
+    frm.add_custom_button(
+      __("Generar Diferencial Cambiario"),
+      function () {
+        const outstanding = flt(frm.doc.outstanding_amount);
+
+        frappe.confirm(
+          `¿Desea registrar el residual cambiario (<b>Ganancia</b>) por <b>${frappe.format(
+            outstanding,
+            { fieldtype: "Currency", currency: frm.doc.party_account_currency },
+          )}</b>?<br><br>Se creará y enviará un Asiento Contable automáticamente.`,
+          () => {
+            frappe.call({
+              method:
+                "l10n_ve.overrides.purchase_invoice.create_purchase_exchange_difference_entry",
+              args: { docname: frm.doc.name },
+              freeze: true,
+              freeze_message: __("Registrando diferencial cambiario..."),
+              callback: function (r) {
+                if (r.message && r.message.status === "success") {
+                  frappe.show_alert({
+                    message: __(
+                      `Diferencial cambiario registrado: ${r.message.journal_entry}`,
+                    ),
+                    indicator: "green",
+                  });
+                  frm.reload_doc();
+                }
+              },
+            });
+          },
+        );
+      },
+      __("Acciones"),
     );
   }
 }
