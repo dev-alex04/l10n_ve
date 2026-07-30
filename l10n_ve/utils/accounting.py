@@ -52,7 +52,7 @@ def get_hierarchical_balances(company, to_date, from_date=None, cost_center=None
         LEFT JOIN 
             `tabAccount` child ON child.lft >= parent.lft AND child.rgt <= parent.rgt AND child.company = parent.company
         LEFT JOIN 
-            `tabGL Entry` gl ON gl.account = child.name AND gl.docstatus = 1 AND gl.company = parent.company {gl_cond}
+            `tabGL Entry` gl ON gl.account = child.name AND gl.docstatus = 1 AND IFNULL(gl.is_cancelled, 0) = 0 AND gl.company = parent.company {gl_cond}
         WHERE 
             parent.company = %s {root_type_cond}
         GROUP BY 

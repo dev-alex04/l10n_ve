@@ -45,6 +45,12 @@ frappe.query_reports["ve_analytical_ledger"] = {
 					}
 				};
 			}
+		},
+		{
+			"fieldname": "include_cancelled",
+			"label": __("Mostrar cancelados"),
+			"fieldtype": "Check",
+			"default": 0
 		}
 	],
 	"onload": function (report) {

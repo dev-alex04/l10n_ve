@@ -50,11 +50,15 @@ def execute(filters=None):
         for a in accounts_raw
     }
 
+    include_cancelled = filters.get("include_cancelled")
+    docstatus_cond = " AND docstatus IN (1, 2)" if include_cancelled else " AND docstatus = 1"
+    cancelled_cond = "" if include_cancelled else " AND IFNULL(is_cancelled, 0) = 0"
+
     # 1. Fetch beginning balances (before from_date)
     init_query = f"""
         SELECT account, SUM(debit - credit) as balance
         FROM `tabGL Entry`
-        WHERE company = %s AND docstatus = 1 AND posting_date < %s {cc_cond} {acc_cond}
+        WHERE company = %s {docstatus_cond} {cancelled_cond} AND posting_date < %s {cc_cond} {acc_cond}
         GROUP BY account
     """
     init_balances_raw = frappe.db.sql(init_query, tuple([company, from_date] + cc_args + acc_args), as_dict=True)
@@ -62,9 +66,9 @@ def execute(filters=None):
     
     # 2. Fetch all GL entries in date range
     entries_query = f"""
-        SELECT name as gle_id, posting_date, voucher_no, account, remarks, debit, credit, party, party_type
+        SELECT name as gle_id, posting_date, voucher_no, account, remarks, debit, credit, party, party_type, docstatus, is_cancelled
         FROM `tabGL Entry`
-        WHERE company = %s AND docstatus = 1 AND posting_date >= %s AND posting_date <= %s {cc_cond} {acc_cond}
+        WHERE company = %s {docstatus_cond} {cancelled_cond} AND posting_date >= %s AND posting_date <= %s {cc_cond} {acc_cond}
         ORDER BY account, posting_date, creation
     """
     entries = frappe.db.sql(entries_query, tuple([company, from_date, to_date] + cc_args + acc_args), as_dict=True)
