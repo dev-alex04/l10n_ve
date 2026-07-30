@@ -1,3 +1,15 @@
 state,rate,threshold,threshold_unit
+Anzoátegui,0.1,0,Sin umbral
+Aragua,0.1,0,Sin umbral
+Barinas,0.1,0,Sin umbral
+Carabobo,0.1,0,Sin umbral
 Distrito Capital,0.1,0,Sin umbral
+Falcón,0.1,0,Sin umbral
+Lara,0.1,0,Sin umbral
+Monagas,0.1,0,Sin umbral
+Nueva Esparta,0.1,0,Sin umbral
+Portuguesa,0.1,0,Sin umbral
+Sucre,0.1,0,Sin umbral
+Táchira,0.1,0,Sin umbral
+Zulia,0.1,0,Sin umbral
 Miranda,0.2,25,U.T.
