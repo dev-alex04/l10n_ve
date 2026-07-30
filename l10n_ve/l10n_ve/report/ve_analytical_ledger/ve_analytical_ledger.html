@@ -180,7 +180,21 @@
     var company_name = (filters && filters.company) || "";
     var company_rif = "";
     var comp_doc = (company_name && typeof frappe !== "undefined" && frappe.model && frappe.model.get_doc) ? frappe.model.get_doc("Company", company_name) : null;
-    var company_logo = (comp_doc && comp_doc.company_logo) || "/files/galanet_logo.jpg";
+    /* Logo del encabezado. El fallback era "/files/galanet_logo.jpg": un archivo de un
+       site puntual hardcodeado en una app genérica, así que en cualquier otro site la
+       imagen salía rota. Ahora cae al rombo de marca, el mismo logo_svg() que usa el PDF
+       del Reporte HQ (l10n_ve/public/js/utils/brand_logo.js, cargado por app_include_js).
+       Sin animar: en un PDF la animación no aporta y congela en un cuadro cualquiera.
+       Un logo en /private/files tampoco sirve acá, porque el generador de PDF no tiene
+       sesión para bajarlo (es el motivo por el que el HQ lo embute en base64); ese caso
+       también cae al rombo en vez de dejar el hueco. */
+    var brand_logo_svg = (typeof l10n_ve !== "undefined" && l10n_ve.brand)
+        ? l10n_ve.brand.logo_svg({size: 38, animated: false})
+        : "";
+    var company_logo = (comp_doc && comp_doc.company_logo) || "";
+    var logo_html = (company_logo && company_logo.indexOf("/private/") !== 0)
+        ? '<img src="' + company_logo + '" style="max-height: 38px; display: block;" alt="Logo">'
+        : brand_logo_svg;
     if (data && data.length > 0) {
         for (var idx = 0; idx < data.length; idx++) {
             var row = data[idx];
@@ -269,7 +283,7 @@
                 '<table class="report-header">' +
                     '<tr>' +
                         '<td style="width: 45%; vertical-align: middle; border: none; padding: 0;">' +
-                            '<img src="' + company_logo + '" style="max-height: 38px; display: block;" alt="Logo">' +
+                            logo_html +
                         '</td>' +
                         '<td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif; color: #334155; line-height: 1.35;">' +
                             '<div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">' + company_name + '</div>' +
