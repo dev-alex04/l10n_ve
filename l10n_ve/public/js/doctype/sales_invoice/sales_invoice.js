@@ -16,6 +16,7 @@ frappe.ui.form.on("Sales Invoice", {
 
     frm.set_df_property("vat_withholding_voucher_number", "read_only", true);
     frm.set_df_property("withholding_date", "read_only", true);
+    frm.set_df_property("withholding_date", "description", __("Esta fecha determina el período fiscal en el que la retención viajará al Libro de Ventas."));
     frm.set_df_property("voucher_image", "read_only", true);
     frm.set_df_property("islr_receipt_number", "read_only", true);
     frm.set_df_property("islr_date", "read_only", true);
@@ -109,8 +110,9 @@ frappe.ui.form.on("Sales Invoice", {
                 },
                 {
                   label: __("Fecha de registro"),
-                  fieldname: "withholding_date",
+                                    fieldname: "withholding_date",
                   fieldtype: "Date",
+                  description: __("Esta fecha determina el período fiscal en el que la retención viajará al Libro de Ventas."),
                   default: frappe.datetime.get_today(),
                   reqd: 1,
                 },
@@ -1410,8 +1412,9 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
     },
     {
       label: __("Fecha de Registro"),
-      fieldname: "withholding_date",
+            fieldname: "withholding_date",
       fieldtype: "Date",
+      description: __("Esta fecha determina el período fiscal en el que la retención viajará al Libro de Ventas."),
       default: frappe.datetime.get_today(),
       reqd: is_required,
     },

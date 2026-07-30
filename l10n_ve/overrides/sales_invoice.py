@@ -1,3 +1,21 @@
+ACCOUNTING_ROLES = {
+    "Accounts Manager",
+    "Accounts User",
+    "Administrador Contable",
+    "Auxiliar Contable",
+    "ISP Finance",
+    "ISP Finance Pro",
+    "VE Sales Book HQ",
+    "System Manager",
+    "Administrator",
+}
+
+def has_accounting_permission() -> bool:
+    if frappe.session.user == "Administrator":
+        return True
+    user_roles = set(frappe.get_roles())
+    return bool(user_roles.intersection(ACCOUNTING_ROLES))
+
 from typing import TYPE_CHECKING
 
 import frappe
@@ -155,6 +173,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         super().validate()
 
         self.validate_withholding_voucher_number()
+        self.validate_withholding_date_period()
         self.set_affected_invoice_number()
         self.validate_return_in_same_month()
 
@@ -623,6 +642,11 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
         return True
 
+    def validate_withholding_date_period(self) -> None:
+        if self.withholding_date and not is_period_open(self.withholding_date, "IVA"):
+            if not has_accounting_permission():
+                frappe.throw(_("La fecha del comprobante ({0}) pertenece a una quincena o período anterior. Para ingresar comprobantes de quincenas pasadas, debe comunicarse con el personal de Contabilidad.").format(self.withholding_date))
+
     def validate_withholding_voucher_number(self) -> None:
         if self.vat_withholding_voucher_number:
 
@@ -946,9 +970,9 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
 
         user_roles = frappe.get_roles()
 
-        if frappe.session.user != "Administrator" and "ISP Finance" not in user_roles:
+        if not has_accounting_permission():
             if not is_period_open(withholding_date, "IVA"):
-                frappe.throw(_("La fecha del comprobante cae en un período de declaración cerrado."))
+                frappe.throw(_("La fecha del comprobante pertenece a una quincena o período anterior. Para ingresar comprobantes de quincenas pasadas, debe comunicarse con el personal de Contabilidad."))
 
             current_date = invoice_doc.get("withholding_date")
             if current_date and not is_period_open(current_date, "IVA"):
@@ -1002,9 +1026,9 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
         invoice_doc = frappe.get_doc("Sales Invoice", docname)
 
         user_roles = frappe.get_roles()
-        if frappe.session.user != "Administrator" and "ISP Finance" not in user_roles:
+        if not has_accounting_permission():
             if not is_period_open(islr_date, "ISLR"):
-                frappe.throw(_("La fecha del comprobante cae en un período de declaración cerrado."))
+                frappe.throw(_("La fecha del comprobante pertenece a una quincena o período anterior. Para ingresar comprobantes de quincenas pasadas, debe comunicarse con el personal de Contabilidad."))
 
             current_date = invoice_doc.get("islr_date")
             if current_date and not is_period_open(current_date, "ISLR"):

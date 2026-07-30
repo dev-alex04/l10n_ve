@@ -5,8 +5,8 @@ from erpnext.accounts.report.accounts_receivable.accounts_receivable import Rece
 
 
 erpnext_get_columns = ReceivablePayableReport.get_columns
-erpnext_prepare_ple_query = ReceivablePayableReport.prepare_ple_query
-erpnext_get_return_entries = ReceivablePayableReport.get_return_entries
+erpnext_prepare_ple_query = getattr(ReceivablePayableReport, "prepare_ple_query", None)
+erpnext_get_return_entries = getattr(ReceivablePayableReport, "get_return_entries", None)
 
 
 def _resolve_date_range(self):
@@ -274,6 +274,6 @@ def custom_is_invoice(self, ple):
 ReceivablePayableReport.build_data = build_data
 ReceivablePayableReport.get_columns = get_columns
 ReceivablePayableReport.get_invoice_details = get_invoice_details
-ReceivablePayableReport.prepare_ple_query = prepare_ple_query
-ReceivablePayableReport.get_return_entries = get_return_entries
+if hasattr(ReceivablePayableReport, "prepare_ple_query"): ReceivablePayableReport.prepare_ple_query = prepare_ple_query
+if hasattr(ReceivablePayableReport, "get_return_entries"): ReceivablePayableReport.get_return_entries = get_return_entries
 ReceivablePayableReport.is_invoice = custom_is_invoice
