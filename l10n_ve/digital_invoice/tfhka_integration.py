@@ -640,6 +640,16 @@ def _handle_hka_response(
             serie=getattr(series_doc, "serie", "") or "",
         )
         _log_request("Emision", doc.name, payload, response, "Success", doctype=doc.doctype)
+
+        # Trigger retention reminder once invoice has been successfully emitted by HKA
+        try:
+            from l10n_ve.tasks import trigger_retention_reminder_on_invoice_emission
+            trigger_retention_reminder_on_invoice_emission(doc)
+        except Exception as e:
+            frappe.logger("l10n_ve").error(
+                f"Error al intentar enviar aviso de retención inmediato tras emisión HKA para {doc.name}: {str(e)}"
+            )
+
         return True
 
     # Respuesta nula (timeout, error de red, etc.): response.get() fallaría con AttributeError
