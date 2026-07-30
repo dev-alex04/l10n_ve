@@ -569,3 +569,145 @@ def _log_skip(doc: object, reason: str) -> None:
             "Evaluar ajuste manual por nota de débito/crédito si aplica."
         ),
     )
+
+
+def branch_has_active_digital_series(company: str, branch: str) -> bool:
+    """¿La sucursal de la factura emite ante HKA? (serie de facturación digital activa).
+
+    No se reutiliza `get_active_billing_series` de l10n_ve porque esa LANZA excepción
+    cuando la sucursal no está en ninguna serie: acá sólo se necesita un booleano y una
+    factura sin serie debe seguir su curso normal, no abortar el cobro.
+    """
+    if not company or not branch or branch.upper() == "N/A":
+        return False
+
+    return bool(frappe.db.sql("""
+        SELECT 1
+        FROM `tabVE Digital Billing Series Branch` child
+        INNER JOIN `tabVE Digital Billing Series` serie ON serie.name = child.parent
+        WHERE child.branch = %s AND serie.company = %s AND serie.status = 'Active'
+        LIMIT 1
+    """, (branch, company)))
+
+
+def rerate_juridical_before_submit(sales_invoice: object) -> bool:
+    """Lleva la factura a la tasa BCV de HOY antes de aprobarla. True si la retasó.
+
+    Por qué acá y no al enviar a HKA
+    ---------------------------------
+    La factura de un cliente jurídico debe emitirse con la tasa del día de emisión
+    (Ley IVA Art. 25 / Providencia SNAT/2011/0071). Hoy eso lo resuelve
+    `rerate_to_emission_rate` (l10n_ve) DESPUÉS del submit, lo que obliga a borrar y
+    regenerar el mayor del documento y trae condiciones de bloqueo que dejan facturas
+    emitidas con tasa vieja.
+
+    Retasando en BORRADOR alcanza con asignar la tasa: el `save()` que ya hace el
+    llamador recalcula base_*, impuestos y retenciones de forma nativa. Sin repost, sin
+    asientos correctivos y sin bloqueos.
+
+    NO se guarda ni se emite acá: sólo se ajusta el documento en memoria. Persistir es
+    responsabilidad del flujo que llama (que ya hace save + submit), para no romper la
+    atomicidad del cobro.
+
+    No aplica a naturales: conservan la tasa congelada del 1° del mes.
+    """
+    if cint(sales_invoice.docstatus) != 0:
+        # Ya emitida: retasarla exige recontabilizar, y de eso se encarga l10n_ve.
+        return False
+
+    company_currency: str = frappe.get_cached_value(
+        "Company", sales_invoice.company, "default_currency"
+    )
+    if (sales_invoice.currency or company_currency) == company_currency:
+        # Factura en moneda de curso legal: no hay carril en divisa que retasar.
+        return False
+
+    if not is_juridical_customer(sales_invoice.customer):
+        return False
+
+    if not branch_has_active_digital_series(
+        sales_invoice.company, sales_invoice.get("branch")
+    ):
+        # Sin serie digital activa no se emite ante HKA: no hay fecha de emisión fiscal
+        # que respetar y retasar sólo movería importes sin motivo.
+        return False
+
+    new_rate: float = flt(get_exchange_rate(today(), sales_invoice.currency))
+    if not new_rate:
+        # Sin tasa publicada para hoy se emite con la que porta el documento; bloquear
+        # el cobro por esto sería peor que emitir con la tasa anterior.
+        return False
+
+    if abs(new_rate - flt(sales_invoice.conversion_rate)) < 0.0001:
+        return False
+
+    old_rate: float = flt(sales_invoice.conversion_rate)
+    sales_invoice.conversion_rate = new_rate
+
+    # Recalcular EN MEMORIA: asignar la tasa no toca los base_*, y el capeo de anticipos
+    # que corre a continuacion se guia por base_grand_total. Sin esto capearia contra el
+    # total viejo (menor) y dejaria anticipos sin aplicar. El save() posterior vuelve a
+    # calcular, pero para entonces el capeo ya estaria hecho con el numero equivocado.
+    sales_invoice.calculate_taxes_and_totals()
+
+    frappe.logger("l10n_ve").info(
+        f"{RERATE_TAG} pre-submit {sales_invoice.name}: {old_rate} -> {new_rate}"
+    )
+    sales_invoice.add_comment(
+        "Comment",
+        f"Retasada a tasa de emisión antes de aprobar: {old_rate} → {new_rate} "
+        f"(Bs por 1 {sales_invoice.currency}).",
+    )
+    return True
+
+
+#: Endpoints por los que la interfaz aprueba documentos. El candado fiscal apunta a
+#: estos y no a un flag en cada camino programatico: hay 6 lugares que emiten facturas
+#: (regeneracion desde Customer x2, suscripcion, cobro, emision masiva y la migracion de
+#: Odoo) y sembrar llaves en todos era fragil. Aca la regla queda en un solo lugar y
+#: expresa literalmente lo que se quiere: no aprobar A MANO una factura que debe salir
+#: por el boton de emision.
+_UI_SUBMIT_ENDPOINTS: frozenset = frozenset({
+    "frappe.desk.form.save.savedocs",
+    "frappe.client.submit",
+    "frappe.desk.doctype.bulk_update.bulk_update.submit_cancel_or_update_docs",
+})
+
+
+def _is_ui_submit() -> bool:
+    """¿La aprobacion viene de la interfaz (no de un flujo programatico)?"""
+    try:
+        return (frappe.local.form_dict or {}).get("cmd") in _UI_SUBMIT_ENDPOINTS
+    except Exception:
+        # Sin request (cron, consola, jobs): no es la interfaz.
+        return False
+
+
+def block_manual_submit_of_fiscal_invoice(doc) -> None:
+    """Impide aprobar A MANO una factura que debe emitirse ante HKA.
+
+    Si la sucursal tiene serie de facturacion digital activa, la factura no debe
+    aprobarse desde el formulario: el camino correcto es el boton de emision (o el
+    cobro), que primero la retasa a la tasa del dia --obligatorio para clientes
+    juridicos, Ley IVA Art. 25-- y recien despues la aprueba y la manda a HKA.
+
+    Aprobarla a mano la deja emitida con la tasa vieja, y corregir eso despues obliga a
+    recontabilizar el documento.
+
+    Solo bloquea la INTERFAZ. Los flujos programaticos (cobro, suscripcion, emision
+    masiva, regeneracion, migracion) siguen funcionando: son ellos los que hacen el
+    retasado o los que ya emiten en el momento correcto.
+    """
+    if not _is_ui_submit():
+        return
+
+    if not branch_has_active_digital_series(doc.company, doc.get("branch")):
+        return
+
+    frappe.throw(
+        f"Esta factura pertenece a la sucursal <b>{doc.get('branch')}</b>, que emite "
+        "facturas fiscales ante HKA. No debe aprobarse manualmente: use el botón "
+        "<b>Factura Digital</b>, que la retasa a la tasa del día, la aprueba y la envía. "
+        "Aprobarla a mano la dejaría emitida con una tasa que no corresponde.",
+        title="Aprobación manual no permitida",
+    )

@@ -7,6 +7,7 @@ from frappe.utils import flt, getdate, cint, today
 
 from l10n_ve.digital_invoice.emission_rerate import (
     _blocking_condition,
+    rerate_juridical_before_submit,
     _get_target_rate,
     rerate_to_emission_rate,
     validate_note_rate,
@@ -965,6 +966,32 @@ def _create_log_entry(log_data: dict) -> None:
     log.insert(ignore_permissions=True)
 
 
+
+def _approve_before_manual_send(invoice_name: str, force: bool = False) -> None:
+    """Aprueba la factura si esta en borrador, antes del envio manual a HKA.
+
+    El boton es una de las DOS unicas vias de envio (la otra es el cron), y ambas
+    esperan la factura ya aprobada. Como la aprobacion manual desde el formulario esta
+    bloqueada para sucursales con serie digital activa, sin este paso una factura fiscal
+    en borrador que nadie cobre quedaria sin forma de emitirse.
+
+    Juridico: se retasa a la tasa del dia y se aprueba (Ley IVA Art. 25).
+    Natural:  se aprueba tal cual, conserva la tasa congelada del 1 del mes.
+
+    En modo forzado no se retasa: `force` existe para reenviar respetando la tasa que
+    porta el documento.
+    """
+    doc = frappe.get_doc("Sales Invoice", invoice_name)
+    if cint(doc.docstatus) != 0:
+        return
+
+    if not force:
+        rerate_juridical_before_submit(doc)
+
+    doc.flags.ignore_permissions = True
+    doc.save()
+    doc.submit()
+
 @frappe.whitelist()
 def send_invoice_manually(invoice_name: str, force: bool = False) -> str:
     """Método invocado mediante botón JS para reenvío manual de Sales Invoice."""
@@ -977,6 +1004,8 @@ def send_invoice_manually(invoice_name: str, force: bool = False) -> str:
         )
 
     frappe.has_permission("Sales Invoice", "submit", doc=invoice_name, throw=True)
+    _approve_before_manual_send(invoice_name, force=force)
+
     success = process_invoice(
         invoice_name, doctype="Sales Invoice", raise_on_error=True, force=force
     )
