@@ -89,8 +89,11 @@ frappe.query_reports["VE Sales Invoices HQ"] = {
       _hq_export(report, {
         method:
           "l10n_ve.l10n_ve.report.ve_sales_invoices_hq.excel_export.download_hq_excel",
-        loading: __("Generando el Excel..."),
+        loading: __("Encolando el Excel..."),
         mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        // El Excel se arma en un worker de fondo y llega por este evento (ver la nota
+        // de memoria en excel_export.py). El PDF sigue siendo síncrono.
+        event: "hq-excel-ready",
       }),
     );
 
@@ -242,6 +245,11 @@ function _hq_export(report, options) {
     callback: function (r) {
       frappe.dom.unfreeze();
 
+      if (r.message && r.message.type === "queued") {
+        _hq_await_queued_file(options);
+        return;
+      }
+
       if (!r.message || r.message.type !== "download") {
         frappe.msgprint({
           title: __("Error"),
@@ -264,6 +272,41 @@ function _hq_export(report, options) {
         indicator: "red",
       });
     },
+  });
+}
+
+// Espera el aviso del job de fondo. Se desuscribe antes y después de enganchar para
+// que dos clics seguidos no dejen listeners acumulados disparando descargas repetidas.
+function _hq_await_queued_file(options) {
+  frappe.show_alert({
+    message: __("Generando el archivo en segundo plano; te avisamos al terminar."),
+    indicator: "blue",
+  });
+
+  frappe.realtime.off(options.event);
+  frappe.realtime.on(options.event, function (data) {
+    frappe.realtime.off(options.event);
+
+    if (!data || data.error) {
+      frappe.msgprint({
+        title: __("Error"),
+        message: (data && data.error) || __("No se pudo generar el archivo."),
+        indicator: "red",
+      });
+      return;
+    }
+
+    // El File es privado y ya viene con su URL firmada por Frappe: se baja por enlace
+    // en vez de reconstruir un blob, así el archivo nunca pasa por la memoria de la
+    // pestaña (que era el otro lado del problema con 10.000+ filas).
+    const link = document.createElement("a");
+    link.href = data.file_url;
+    link.download = data.filename || "";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    frappe.show_alert({ message: __("Archivo listo."), indicator: "green" });
   });
 }
 
