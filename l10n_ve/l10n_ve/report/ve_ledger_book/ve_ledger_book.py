@@ -242,7 +242,7 @@ def execute(filters=None):
         init_query = f"""
             SELECT account, SUM(debit - credit) as balance
             FROM `tabGL Entry`
-            WHERE company = %s AND docstatus = 1 AND posting_date < %s {cc_cond}
+            WHERE company = %s AND docstatus = 1 AND IFNULL(is_cancelled, 0) = 0 AND posting_date < %s {cc_cond}
             GROUP BY account
         """
         init_balances_raw = frappe.db.sql(init_query, tuple([company, from_date] + cc_args), as_dict=True)
@@ -285,7 +285,7 @@ def execute(filters=None):
             LEFT JOIN `tabVE Sales Credit Note` vscn ON gle.voucher_no = vscn.name AND gle.voucher_type = 'VE Sales Credit Note'
             LEFT JOIN `tabVE Purchase Debit Note` vpdn ON gle.voucher_no = vpdn.name AND gle.voucher_type = 'VE Purchase Debit Note'
             LEFT JOIN `tabVE Purchase Credit Note` vpcn ON gle.voucher_no = vpcn.name AND gle.voucher_type = 'VE Purchase Credit Note'
-            WHERE gle.company = %s AND gle.docstatus = 1 AND gle.posting_date >= %s AND gle.posting_date <= %s {cc_cond.replace('cost_center', 'gle.cost_center')}
+            WHERE gle.company = %s AND gle.docstatus = 1 AND IFNULL(gle.is_cancelled, 0) = 0 AND gle.posting_date >= %s AND gle.posting_date <= %s {cc_cond.replace('cost_center', 'gle.cost_center')}
             ORDER BY gle.account, gle.posting_date, gle.creation
         """
         entries = frappe.db.sql(entries_query, tuple([company, from_date, to_date] + cc_args), as_dict=True)

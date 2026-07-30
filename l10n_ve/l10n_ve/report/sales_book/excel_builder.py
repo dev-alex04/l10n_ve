@@ -11,6 +11,18 @@ from l10n_ve.l10n_ve.report.sales_book.sales_book import (
 )
 
 
+#: Caracteres que Excel no acepta en el nombre de una hoja.
+_FORBIDDEN_SHEET_CHARS: str = r":\/?*[]"
+
+
+def _sanitize_sheet_title(title) -> str:
+    """Nombre de hoja válido: sin caracteres prohibidos y de 31 caracteres como máximo."""
+    if not title:
+        return ""
+    clean = "".join(" " if char in _FORBIDDEN_SHEET_CHARS else char for char in str(title))
+    return clean.strip()[:31]
+
+
 class ExcelBuilder:
     """
     Clase para construir el archivo de Excel en memoria con formato profesional,
@@ -30,7 +42,8 @@ class ExcelBuilder:
 
         self.workbook = Workbook()
         self.sheet = self.workbook.active
-        self.sheet.title = "Libro de Ventas"
+        # Excel corta los nombres de hoja en 31 caracteres y rechaza : \ / ? * [ ]
+        self.sheet.title = _sanitize_sheet_title(self.title) or "Libro de Ventas"
 
         self.default_font = Font(name='Calibri', size=8)
         self.header_font = Font(name='Calibri', size=8, bold=True)
@@ -82,7 +95,7 @@ class ExcelBuilder:
         ws = self.sheet
 
         ws.row_dimensions[2].height = 30
-        title_cell = ws.cell(row=2, column=2, value=_("LIBRO DE VENTAS FISCAL"))
+        title_cell = ws.cell(row=2, column=2, value=self.title or _("LIBRO DE VENTAS FISCAL"))
         title_font = Font(name="Calibri", size=16, bold=True, color="1E293B")
         title_cell.font = title_font
         title_cell.alignment = Alignment(vertical="center")
@@ -253,7 +266,12 @@ class ExcelBuilder:
 
     def _write_totals_row(self, start_row: int) -> int:
         ws = self.sheet
-        totals = get_total_row(self.data)
+        # summary_data ya ES get_total_row(main_data) en los dos llamadores, así que
+        # recalcularlo era una segunda pasada sobre 10.000+ filas para el mismo dict. Y
+        # usarlo permite que un reporte agregue totales de columnas propias: el HQ suma
+        # ahí taxable_amount y total_vat, que get_total_row() no conoce porque es del
+        # Libro de Ventas y saldrían vacíos justo en la fila de Totales.
+        totals = self.summary_data or get_total_row(self.data)
         total_row_index = start_row + 1
 
         for col_index in range(1, len(self.columns) + 1):
@@ -286,6 +304,17 @@ class ExcelBuilder:
         headers_last_row = self._build_multi_level_headers(start_row)
         data_last_row = self._write_data_rows(headers_last_row)
         totals_last_row = self._write_totals_row(data_last_row)
+
+        # Con 10.000+ filas, revisar la tabla sin encabezado fijo ni autofiltro es
+        # impracticable: al hacer scroll se pierde qué columna es cuál. El autofiltro se
+        # ancla en la fila de encabezados reales (la última del bloque multinivel) y NO
+        # abarca la fila de Totales, para que filtrar no la esconda ni la ordene.
+        self.sheet.freeze_panes = f"A{headers_last_row + 1}"
+        if self.columns and data_last_row > headers_last_row:
+            self.sheet.auto_filter.ref = "A{0}:{1}{2}".format(
+                headers_last_row, get_column_letter(len(self.columns)), data_last_row - 1
+            )
+
         return totals_last_row
 
     def _build_adjustments_table(self, start_row: int) -> int:

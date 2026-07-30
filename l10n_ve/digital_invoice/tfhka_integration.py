@@ -6,6 +6,8 @@ import frappe
 from frappe.utils import flt, getdate, cint, today
 
 from l10n_ve.digital_invoice.emission_rerate import (
+    _blocking_condition,
+    _get_target_rate,
     rerate_to_emission_rate,
     validate_note_rate,
 )
@@ -672,6 +674,51 @@ def _handle_hka_response(
     return False
 
 
+# --- Mutex de envío a HKA -------------------------------------------------------
+# La exclusión mutua entre el cron y el botón manual salía del lock de fila
+# (SELECT ... FOR UPDATE de rerate_to_emission_rate), que quedaba tomado durante TODO
+# el viaje de red a HKA. Eso bloqueaba a cualquiera que tocara esa factura —o la serie,
+# por el correlativo de _ensure_bill_no— y a los ~50 s le devolvía "servidor demasiado
+# ocupado" (lock wait timeout 1205). Se separan las dos responsabilidades: la exclusión
+# mutua pasa a este mutex en Redis (no bloquea a nadie) y los locks de fila se sueltan
+# con un commit ANTES del I/O.
+#
+# El mutex es MÁS estricto que el lock de fila anterior: el segundo actor NO espera y
+# reintenta, se salta el documento. Es lo correcto acá porque _ensure_bill_no NO es
+# idempotente (consume un correlativo fiscal nuevo en cada intento), así que reintentar
+# en paralelo arriesga doble emisión en HKA.
+_HKA_SEND_LOCK_TTL: int = 300  # s. El envío real dura segundos; esto es solo un techo
+                               # para que un worker muerto no deje el documento trabado.
+
+
+def _acquire_hka_send_lock(doctype: str, doc_name: str) -> bool:
+    """Toma el mutex de envío del documento. True si lo obtuvo.
+
+    Fail-open: si Redis no responde se procede igual (el mutex nunca debe impedir
+    una emisión; el peor caso es volver al comportamiento previo).
+    """
+    try:
+        cache = frappe.cache()
+        return bool(
+            cache.set(
+                cache.make_key(f"hka_send:{doctype}:{doc_name}"),
+                "1",
+                nx=True,
+                ex=_HKA_SEND_LOCK_TTL,
+            )
+        )
+    except Exception:
+        return True
+
+
+def _release_hka_send_lock(doctype: str, doc_name: str) -> None:
+    """Libera el mutex de envío. Fail-open."""
+    try:
+        frappe.cache().delete_value(f"hka_send:{doctype}:{doc_name}")
+    except Exception:
+        pass
+
+
 @frappe.whitelist()
 def process_invoice(
     doc_name: str,
@@ -698,6 +745,16 @@ def process_invoice(
     is_nc: bool = doctype == "VE Sales Credit Note"
     is_nd: bool = doctype == "VE Sales Debit Note"
     skip_si_validations: bool = is_nc or is_nd
+
+    # Exclusión mutua cron vs botón manual (ver _acquire_hka_send_lock). Si otro actor
+    # ya está enviando este documento se omite: reintentarlo en paralelo consumiría otro
+    # correlativo fiscal y podría emitirlo dos veces en HKA.
+    if not _acquire_hka_send_lock(doctype, doc_name):
+        _hka_log(
+            f"Envío omitido: {doctype} {doc_name} ya está siendo enviado por otro proceso.",
+            "Warning",
+        )
+        return False
 
     try:
         doc = frappe.get_doc(doctype, doc_name)
@@ -790,6 +847,19 @@ def process_invoice(
                 return False
 
         client = TFHKAClient()
+
+        # commit-antes-del-IO: soltar los locks de fila ANTES del viaje de red a HKA.
+        # Hasta acá la transacción retiene el lock de la FACTURA (SELECT ... FOR UPDATE
+        # de rerate_to_emission_rate) y el de la SERIE (correlativo de _ensure_bill_no).
+        # Mantenerlos durante la llamada a HKA (timeouts de 15-60 s) bloquea a todo el
+        # que toque esa factura o esa serie, que recibe "servidor demasiado ocupado"
+        # (lock wait timeout 1205) — visto en producción el 2026-07-29 con un envío que
+        # tardó 51 s. La exclusión mutua la sostiene ahora el mutex de Redis, no el lock
+        # de fila. La durabilidad ante un fallo no cambia: los caminos de error de abajo
+        # ya commitean igual. En tests no se commitea (rompería el rollback del caso).
+        if not frappe.flags.in_test:
+            frappe.db.commit()
+
         response = client.emitir_documento(payload)
         return _handle_hka_response(
             doc, doc_name, payload, response, series_doc
@@ -828,6 +898,11 @@ def process_invoice(
         )
         frappe.db.commit()
         return False
+
+    finally:
+        # Se libera SIEMPRE (éxito, error o excepción propagada). Si el proceso muere
+        # antes de llegar acá, el TTL del mutex lo destraba solo.
+        _release_hka_send_lock(doctype, doc_name)
 
 
 def _log_request(
@@ -951,8 +1026,27 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     customer_address: str = _clean_address(doc.address_display) if doc.address_display else ""
 
     tc: float = flt(doc.conversion_rate) if doc.conversion_rate else 1.0
+    rerate_aviso: str = ""
+
+    # La emision retasa al juridico a la tasa BCV del dia ANTES de calcular la fecha
+    # (process_invoice -> rerate_to_emission_rate). La previa debe mostrar ESA tasa:
+    # leer la almacenada dejaba en pantalla la tasa vieja —la que quedo al aplicar el
+    # pago— y el usuario veia una fecha que nunca se iba a emitir.
+    # Se reusa la decision real (mismo gate y mismos bloqueos). Ambas funciones son de
+    # solo lectura, asi que la previa sigue sin tocar la base de datos.
     if is_juridical_customer(doc.customer):
-        # Fecha real de la tasa del documento (misma regla que _compute_tasa_fecha).
+        target_rate = _get_target_rate(doc)
+        if target_rate is not None:
+            motivo = _blocking_condition(doc)
+            if motivo:
+                rerate_aviso = (
+                    f"No se retasara a la tasa de hoy porque la factura {motivo}. "
+                    f"Se emitira con la tasa que porta el documento."
+                )
+            else:
+                tc = flt(target_rate)
+
+        # Fecha real de la tasa que se va a emitir (misma regla que _compute_tasa_fecha).
         fecha_bcv = getdate(resolve_exchange_rate_date(tc, doc.currency) or doc.posting_date)
     else:
         fecha_bcv = getdate(doc.posting_date).replace(day=1)
@@ -1053,6 +1147,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "nota": nota,
         "tasa_bcv": "{:.4f}".format(tc),
         "tasa_fecha": fecha_bcv.strftime("%d/%m/%Y"),
+        "rerate_aviso": rerate_aviso,
         "items": items_data,
         "subtotal_usd": fmt(subtotal_usd),
         "iva_usd": fmt(iva_usd),

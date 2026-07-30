@@ -37,7 +37,7 @@ sería inerte. Medido: ~2s para 10.712 filas en modo interactivo.
 
 import frappe
 from frappe import _
-from frappe.utils import getdate
+from frappe.utils import flt, getdate
 
 from l10n_ve.l10n_ve.report.sales_book.sales_book import (
     get_columns as _sales_book_columns,
@@ -203,6 +203,8 @@ def _column_texts() -> dict:
         ),
         "withholding_date": _("Fecha del comprobante de retención."),
         "vat_withholding_rate": _("Porcentaje de IVA que retuvo el cliente."),
+        "taxable_amount": _("Base imponible total del documento (suma de todas las alícuotas)."),
+        "total_vat": _("Monto total de IVA del documento (suma de todas las alícuotas)."),
         "base_amount_igtf": _("Monto sobre el que se calcula el IGTF."),
         "igtf_rate": _("Porcentaje de IGTF aplicado."),
         "total_igtf": _("Impuesto a las Grandes Transacciones Financieras cobrado."),
@@ -374,8 +376,29 @@ def _get_branch_subtree(branch: str | None) -> set | None:
     return set(names) if len(names) > 1 else None
 
 
+# Campos que componen las dos columnas consolidadas del HQ. Van como constantes porque
+# la fila de Totales del Excel tiene que sumar EXACTAMENTE los mismos: get_total_row()
+# es del Libro de Ventas y no conoce taxable_amount ni total_vat, así que el total se
+# deriva de estos por alícuota y cuadra con la tabla por construcción.
+TAXABLE_BASE_FIELDS: tuple = (
+    "base_general_non_taxpayer", "base_general_taxpayer",
+    "base_reduced_non_taxpayer", "base_reduced_taxpayer",
+    "base_additional_non_taxpayer", "base_additional_taxpayer",
+)
+VAT_AMOUNT_FIELDS: tuple = (
+    "iva_general_non_taxpayer", "iva_general_taxpayer",
+    "iva_reduced_non_taxpayer", "iva_reduced_taxpayer",
+    "iva_additional_non_taxpayer", "iva_additional_taxpayer",
+)
+
+
+def sum_consolidated(row: dict, fieldnames: tuple) -> float:
+    """Suma los campos indicados de la fila, tratando None y "" como cero."""
+    return sum(flt(row.get(fieldname)) for fieldname in fieldnames)
+
+
 def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
-    """Agrega las columnas 'Documento Fiscal' y 'Municipio' (in place)."""
+    """Agrega las columnas 'Documento Fiscal', 'Municipio', 'Base Imponible Total' y 'Monto IVA Total' (in place)."""
     municipality_by_branch: dict = _get_municipality_by_branch(
         {r.get("branch") for r in data if r.get("branch")}
     )
@@ -388,6 +411,10 @@ def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
         )
         row["main_branch"] = main_branch_by_branch.get(row.get("branch"), "")
         row["municipality"] = municipality_by_branch.get(row.get("branch"), "")
+
+        # Suma consolidada de bases imponibles e IVA para facilitar la lectura HQ
+        row["taxable_amount"] = sum_consolidated(row, TAXABLE_BASE_FIELDS)
+        row["total_vat"] = sum_consolidated(row, VAT_AMOUNT_FIELDS)
 
     _insert_column_after(
         columns,
@@ -418,6 +445,26 @@ def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
             "fieldname": "municipality",
             "fieldtype": "Data",
             "width": 130,
+        },
+    )
+    _insert_column_after(
+        columns,
+        "total_exempt",
+        {
+            "label": _("Base Imponible Total"),
+            "fieldname": "taxable_amount",
+            "fieldtype": "Currency",
+            "width": 140,
+        },
+    )
+    _insert_column_after(
+        columns,
+        "taxable_amount",
+        {
+            "label": _("Monto IVA Total"),
+            "fieldname": "total_vat",
+            "fieldtype": "Currency",
+            "width": 140,
         },
     )
 

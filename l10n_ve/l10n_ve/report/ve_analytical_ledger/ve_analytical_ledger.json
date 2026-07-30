@@ -37,6 +37,12 @@
    "fieldtype": "Link",
    "label": "Cuenta Contable",
    "options": "Account"
+  },
+  {
+   "default": "0",
+   "fieldname": "include_cancelled",
+   "fieldtype": "Check",
+   "label": "Mostrar cancelados"
   }
  ],
  "idx": 0,
