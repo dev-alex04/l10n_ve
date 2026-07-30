@@ -37,7 +37,7 @@ sería inerte. Medido: ~2s para 10.712 filas en modo interactivo.
 
 import frappe
 from frappe import _
-from frappe.utils import getdate
+from frappe.utils import flt, getdate
 
 from l10n_ve.l10n_ve.report.sales_book.sales_book import (
     get_columns as _sales_book_columns,
@@ -376,6 +376,27 @@ def _get_branch_subtree(branch: str | None) -> set | None:
     return set(names) if len(names) > 1 else None
 
 
+# Campos que componen las dos columnas consolidadas del HQ. Van como constantes porque
+# la fila de Totales del Excel tiene que sumar EXACTAMENTE los mismos: get_total_row()
+# es del Libro de Ventas y no conoce taxable_amount ni total_vat, así que el total se
+# deriva de estos por alícuota y cuadra con la tabla por construcción.
+TAXABLE_BASE_FIELDS: tuple = (
+    "base_general_non_taxpayer", "base_general_taxpayer",
+    "base_reduced_non_taxpayer", "base_reduced_taxpayer",
+    "base_additional_non_taxpayer", "base_additional_taxpayer",
+)
+VAT_AMOUNT_FIELDS: tuple = (
+    "iva_general_non_taxpayer", "iva_general_taxpayer",
+    "iva_reduced_non_taxpayer", "iva_reduced_taxpayer",
+    "iva_additional_non_taxpayer", "iva_additional_taxpayer",
+)
+
+
+def sum_consolidated(row: dict, fieldnames: tuple) -> float:
+    """Suma los campos indicados de la fila, tratando None y "" como cero."""
+    return sum(flt(row.get(fieldname)) for fieldname in fieldnames)
+
+
 def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
     """Agrega las columnas 'Documento Fiscal', 'Municipio', 'Base Imponible Total' y 'Monto IVA Total' (in place)."""
     municipality_by_branch: dict = _get_municipality_by_branch(
@@ -392,16 +413,8 @@ def _add_hq_columns(columns: list[dict], data: list[dict]) -> None:
         row["municipality"] = municipality_by_branch.get(row.get("branch"), "")
 
         # Suma consolidada de bases imponibles e IVA para facilitar la lectura HQ
-        row["taxable_amount"] = (
-            (row.get("base_general_non_taxpayer") or 0) + (row.get("base_general_taxpayer") or 0) +
-            (row.get("base_reduced_non_taxpayer") or 0) + (row.get("base_reduced_taxpayer") or 0) +
-            (row.get("base_additional_non_taxpayer") or 0) + (row.get("base_additional_taxpayer") or 0)
-        )
-        row["total_vat"] = (
-            (row.get("iva_general_non_taxpayer") or 0) + (row.get("iva_general_taxpayer") or 0) +
-            (row.get("iva_reduced_non_taxpayer") or 0) + (row.get("iva_reduced_taxpayer") or 0) +
-            (row.get("iva_additional_non_taxpayer") or 0) + (row.get("iva_additional_taxpayer") or 0)
-        )
+        row["taxable_amount"] = sum_consolidated(row, TAXABLE_BASE_FIELDS)
+        row["total_vat"] = sum_consolidated(row, VAT_AMOUNT_FIELDS)
 
     _insert_column_after(
         columns,
