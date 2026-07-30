@@ -705,8 +705,11 @@ def get_l10n_ve_settings() -> dict | None:
     return site_config.get("l10n_ve_settings") or site_config.get("ve_settings")
 
 
-def send_missing_retentions_reminders() -> None:
-    """Busca facturas de venta con retenciones pendientes y envía un correo consolidado a los clientes."""
+def send_missing_retentions_reminders(sales_invoice: str | None = None, days_old: int | None = None) -> None:
+    """Busca facturas de venta con retenciones pendientes y envía un correo consolidado a los clientes.
+    
+    Permite filtrar por una factura específica (sales_invoice) o por antigüedad en días (days_old).
+    """
     from l10n_ve.overrides.customer import get_customer_emails
     from frappe.utils import formatdate, fmt_money
 
@@ -725,9 +728,22 @@ def send_missing_retentions_reminders() -> None:
         print("[Recordatorio Retenciones] Omitido: Modo Sandbox activo (is_production_mode=0) pero falta 'test_email' en l10n_ve_settings.")
         return
 
+    extra_filters = ""
+    filter_params = {}
+
+    if sales_invoice:
+        extra_filters += " AND si.name = %(sales_invoice)s"
+        filter_params["sales_invoice"] = sales_invoice
+
+    if days_old is not None:
+        from frappe.utils import add_days, today
+        target_date = add_days(today(), -days_old)
+        extra_filters += " AND si.posting_date = %(target_date)s"
+        filter_params["target_date"] = target_date
+
     # Buscar facturas de venta sometidas (docstatus=1) de clientes que tengan el check de Contribuyente Especial (is_special_taxpayer=1)
     # o tengan configurado el Concepto de ISLR (tabulator_islr), con bill_no y bill_control, y comprobantes pendientes.
-    invoices = frappe.db.sql("""
+    query = f"""
         SELECT 
             si.name, si.customer, si.customer_name, si.branch, si.company,
             si.posting_date, si.outstanding_amount, si.grand_total, si.currency,
@@ -749,9 +765,11 @@ def send_missing_retentions_reminders() -> None:
               OR 
               (stc.charge_type = 'ISLR' AND (si.islr_receipt_number IS NULL OR si.islr_receipt_number = '' OR si.islr_receipt_number = 'None'))
           )
+          {extra_filters}
         GROUP BY si.name
         ORDER BY si.customer, si.posting_date DESC
-    """, as_dict=True)
+    """
+    invoices = frappe.db.sql(query, filter_params, as_dict=True)
 
     print(f"[Recordatorio Retenciones] Facturas pendientes encontradas en base de datos: {len(invoices)}")
 
@@ -865,4 +883,42 @@ def send_missing_retentions_reminders() -> None:
                 message=f"No se pudo enviar el correo al cliente {customer}. Error: {str(e)}"
             )
             print(f"[Recordatorio Retenciones] ✗ Error al enviar correo al cliente '{customer}': {str(e)}")
+
+
+def send_3_days_retention_reminders() -> None:
+    """Envía recordatorios para facturas con exactamente 3 días de antigüedad."""
+    send_missing_retentions_reminders(days_old=3)
+
+
+def send_monthly_25_retention_reminders() -> None:
+    """Envía recordatorios para todas las facturas pendientes el 25 de cada mes."""
+    send_missing_retentions_reminders()
+
+
+def trigger_retention_reminder_on_invoice_emission(doc: object) -> None:
+    """
+    Determina si una factura emitida requiere envío inmediato de recordatorio de retención.
+    Si aplica, lo encola para ejecución en segundo plano.
+    """
+    if getattr(doc, "doctype", None) != "Sales Invoice":
+        return
+
+    # Obtener bill_no y bill_control directamente de la BD para evitar datos en memoria obsoletos
+    bill_no, bill_control = frappe.db.get_value("Sales Invoice", doc.name, ["bill_no", "bill_control"])
+    if not bill_no or not bill_control:
+        return
+
+    # Encolar recordatorio
+    frappe.enqueue(
+        "l10n_ve.tasks.send_missing_retentions_reminders",
+        sales_invoice=doc.name,
+        queue="short",
+        now=frappe.flags.in_test
+    )
+
+
+def on_sales_invoice_submit(doc: object, method: str | None = None) -> None:
+    """Hook que se ejecuta al someter una factura de venta (Sales Invoice)."""
+    trigger_retention_reminder_on_invoice_emission(doc)
+
 
