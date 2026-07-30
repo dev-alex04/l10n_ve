@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import frappe
 
-from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt, add_years
+from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt, add_years, add_days
 
 
 BCV_URL = "https://www.bcv.org.ve/"
@@ -705,48 +705,106 @@ def get_l10n_ve_settings() -> dict | None:
     return site_config.get("l10n_ve_settings") or site_config.get("ve_settings")
 
 
-def _fetch_customer_emails_bulk(customer_ids: list[str]) -> dict[str, list[str]]:
+# --- Avisos de retenciones pendientes ----------------------------------------
+# Requerimiento de Galanet (Aurelys Torres, correo "Requerimiento- avisos
+# Retenciones Caracas" del 29-07-2026; tarea P101 del control de peticiones):
+# el aviso sale en 3 momentos — el mismo día en que se emite la factura fiscal,
+# al tercer día de emitida, y en una fecha tope única que es el 22 de cada mes.
+
+RETENTION_REMINDER_DAYS_OLD = 3
+RETENTION_REMINDER_DEADLINE_DAY = 22
+RETENTION_REMINDER_TEMPLATE = "Recordatorio de Retenciones Pendientes"
+
+
+def _log_reminder(message: str) -> None:
+    """Traza del proceso de avisos de retención.
+
+    Va al logger de la app y no a stdout: estas funciones corren dentro de
+    workers de RQ, donde los print() terminan en worker.error.log mezclados con
+    el ruido de la cola.
     """
-    Obtiene todos los correos de una lista de clientes en una sola query.
+    frappe.logger("l10n_ve").info(f"[Recordatorio Retenciones] {message}")
+
+
+def _fetch_customer_emails_bulk(customer_ids: list[str]) -> dict[str, list[str]]:
+    """Obtiene los correos de varios clientes en una sola query (evita el N+1).
+
+    Conserva la semántica de VECustomer.get_email_list, que era la fuente antes
+    de este prefetch: el origen es el campo `email_id` del Cliente, que admite
+    varias direcciones separadas por coma. Separarlas acá es obligatorio —
+    Frappe solo parte por coma cuando `recipients` es un string suelto, no
+    cuando la coma viene dentro de un elemento de la lista (QueueBuilder.
+    _get_emails_list), así que una dirección compuesta llega entera al RCPT TO
+    y rebota sin avisar.
+
     Retorna un dict {customer_id: [email1, email2, ...]}.
     """
     if not customer_ids:
         return {}
 
-    # Correo principal del cliente
-    main_emails = frappe.db.sql("""
+    rows = frappe.db.sql(
+        """
         SELECT name, email_id
         FROM `tabCustomer`
         WHERE name IN %(ids)s
           AND email_id IS NOT NULL AND email_id != ''
-    """, {"ids": customer_ids}, as_dict=True)
+        """,
+        {"ids": customer_ids},
+        as_dict=True,
+    )
 
-    # Correos de la tabla hija Contact Email
-    contact_emails = frappe.db.sql("""
-        SELECT dl.link_name AS customer, ce.email_id
-        FROM `tabContact Email` ce
-        JOIN `tabContact` c ON c.name = ce.parent
-        JOIN `tabDynamic Link` dl
-            ON dl.parent = c.name
-            AND dl.parenttype = 'Contact'
-            AND dl.link_doctype = 'Customer'
-            AND dl.link_name IN %(ids)s
-        WHERE ce.email_id IS NOT NULL AND ce.email_id != ''
-    """, {"ids": customer_ids}, as_dict=True)
-
-    result: dict[str, list[str]] = {cid: [] for cid in customer_ids}
-
-    for row in main_emails:
-        result.setdefault(row.name, [])
-        if row.email_id not in result[row.name]:
-            result[row.name].append(row.email_id)
-
-    for row in contact_emails:
-        result.setdefault(row.customer, [])
-        if row.email_id not in result[row.customer]:
-            result[row.customer].append(row.email_id)
+    result: dict[str, list[str]] = {}
+    for row in rows:
+        emails: list[str] = []
+        seen: set[str] = set()
+        for email in (row.email_id or "").split(","):
+            email = email.strip()
+            if not email or email.lower() in seen:
+                continue
+            seen.add(email.lower())
+            emails.append(email)
+        if emails:
+            result[row.name] = emails
 
     return result
+
+
+def _customer_needs_retention_vouchers(customer: str | None) -> bool:
+    """Indica si al cliente le aplican comprobantes de retención.
+
+    Mismo criterio que la consulta del barrido: contribuyente especial (retiene
+    IVA) o con Concepto de ISLR asignado.
+    """
+    if not customer:
+        return False
+
+    row = frappe.db.get_value(
+        "Customer", customer, ["is_special_taxpayer", "tabulator_islr"], as_dict=True
+    ) or {}
+
+    if row.get("is_special_taxpayer"):
+        return True
+
+    tabulator = (row.get("tabulator_islr") or "").strip()
+    return bool(tabulator) and tabulator != "None"
+
+
+def _invoice_has_retention_lines(sales_invoice: str) -> bool:
+    """Indica si la factura trae líneas de retención de IVA o ISLR con monto."""
+    return bool(
+        frappe.db.sql(
+            """
+            SELECT 1
+            FROM `tabSales Taxes and Charges`
+            WHERE parent = %(invoice)s
+              AND parenttype = 'Sales Invoice'
+              AND charge_type IN ('VAT Withholding', 'ISLR')
+              AND tax_amount != 0
+            LIMIT 1
+            """,
+            {"invoice": sales_invoice},
+        )
+    )
 
 
 def _send_retention_reminder_to_customer(
@@ -760,9 +818,8 @@ def _send_retention_reminder_to_customer(
 ) -> None:
     """
     Renderiza y encola el correo de aviso de retención para un cliente específico.
-    Esta función es reutilizable tanto en el loop directo como al ser encolada en background.
     """
-    from frappe.utils import formatdate, fmt_money
+    from frappe.utils import fmt_money
 
     if not is_production:
         recipients = [test_email]
@@ -828,13 +885,13 @@ def _send_retention_reminder_to_customer(
             subject=subject,
             message=email_body
         )
-        print(f"[Recordatorio Retenciones] ✓ Correo encolado para '{customer}' → {recipients}")
+        _log_reminder(f"Correo encolado para '{customer}' → {recipients}")
     except Exception as e:
         frappe.log_error(
             title="Error al enviar recordatorio de retención",
             message=f"No se pudo enviar el correo al cliente {customer}. Error: {str(e)}"
         )
-        print(f"[Recordatorio Retenciones] ✗ Error al enviar correo al cliente '{customer}': {str(e)}")
+        _log_reminder(f"Error al enviar correo al cliente '{customer}': {str(e)}")
 
 
 def send_missing_retentions_reminders(sales_invoice: str | None = None, days_old: int | None = None) -> None:
@@ -847,21 +904,23 @@ def send_missing_retentions_reminders(sales_invoice: str | None = None, days_old
     - Prefetch de nombres de empresa en una sola query.
     - La plantilla de correo se carga una sola vez fuera del loop.
     """
-    print("[Recordatorio Retenciones] Iniciando búsqueda de facturas...")
+    _log_reminder("Iniciando búsqueda de facturas...")
 
     # 0. Requisito obligatorio: La configuración l10n_ve_settings debe existir en site_config.json
     ve_settings = get_l10n_ve_settings()
     if not ve_settings:
-        print("[Recordatorio Retenciones] Omitido: No se encontró 'l10n_ve_settings' en site_config.json.")
+        _log_reminder("Omitido: No se encontró 'l10n_ve_settings' en site_config.json.")
         return
 
     is_production = bool(ve_settings.get("is_production_mode"))
     test_email = ve_settings.get("test_email")
 
     if not is_production and not test_email:
-        print("[Recordatorio Retenciones] Omitido: Modo Sandbox activo (is_production_mode=0) pero falta 'test_email' en l10n_ve_settings.")
+        _log_reminder("Omitido: Modo Sandbox activo (is_production_mode=0) pero falta 'test_email' en l10n_ve_settings.")
         return
 
+    # Fragmentos de SQL fijos definidos acá mismo; los valores siempre van
+    # bindeados en filter_params. No agregar fragmentos que vengan del caller.
     extra_filters = ""
     filter_params: dict = {}
 
@@ -870,8 +929,7 @@ def send_missing_retentions_reminders(sales_invoice: str | None = None, days_old
         filter_params["sales_invoice"] = sales_invoice
 
     if days_old is not None:
-        from frappe.utils import add_days, today
-        target_date = add_days(today(), -days_old)
+        target_date = add_days(nowdate(), -days_old)
         extra_filters += " AND si.posting_date = %(target_date)s"
         filter_params["target_date"] = target_date
 
@@ -905,10 +963,10 @@ def send_missing_retentions_reminders(sales_invoice: str | None = None, days_old
     """
     invoices = frappe.db.sql(query, filter_params, as_dict=True)
 
-    print(f"[Recordatorio Retenciones] Facturas pendientes encontradas: {len(invoices)}")
+    _log_reminder(f"Facturas pendientes encontradas: {len(invoices)}")
 
     if not invoices:
-        print("[Recordatorio Retenciones] No hay facturas que requieran recordatorio. Proceso finalizado.")
+        _log_reminder("No hay facturas que requieran recordatorio. Proceso finalizado.")
         return
 
     # Agrupar facturas por cliente
@@ -933,13 +991,12 @@ def send_missing_retentions_reminders(sales_invoice: str | None = None, days_old
         company_map = {r.name: r.company_name for r in rows}
 
     # --- Cargar la plantilla de correo una sola vez fuera del loop ---
-    email_template = None
     try:
-        email_template = frappe.get_cached_doc("Email Template", "Recordatorio de Retenciones Pendientes")
+        email_template = frappe.get_cached_doc("Email Template", RETENTION_REMINDER_TEMPLATE)
     except Exception:
         frappe.log_error(
             title="Error al enviar recordatorio de retención",
-            message="La plantilla 'Recordatorio de Retenciones Pendientes' no se encuentra en la base de datos."
+            message=f"La plantilla '{RETENTION_REMINDER_TEMPLATE}' no se encuentra en la base de datos."
         )
         return
 
@@ -956,42 +1013,85 @@ def send_missing_retentions_reminders(sales_invoice: str | None = None, days_old
         )
 
 
-
-
 def send_3_days_retention_reminders() -> None:
-    """Envía recordatorios para facturas con exactamente 3 días de antigüedad."""
-    send_missing_retentions_reminders(days_old=3)
+    """Segundo aviso: facturas a los 3 días de su posting_date.
+
+    Solo entran las que para entonces ya tienen bill_no y bill_control (la
+    consulta lo exige): si al tercer día la factura todavía no se emitió
+    fiscalmente, no aplica el aviso.
+
+    El día tope se omite: ese día sale el consolidado y no tiene sentido
+    mandarle los dos correos al mismo cliente.
+    """
+    if getdate(nowdate()).day == RETENTION_REMINDER_DEADLINE_DAY:
+        _log_reminder(
+            f"Omitido: hoy es el día tope ({RETENTION_REMINDER_DEADLINE_DAY}), sale el aviso consolidado."
+        )
+        return
+
+    send_missing_retentions_reminders(days_old=RETENTION_REMINDER_DAYS_OLD)
 
 
-def send_monthly_25_retention_reminders() -> None:
-    """Envía recordatorios para todas las facturas pendientes el 25 de cada mes."""
-    send_missing_retentions_reminders()
+def send_monthly_deadline_retention_reminders() -> None:
+    """Tercer aviso: barrido consolidado de la fecha tope (22 de cada mes).
+
+    Se reencola en la cola `long` con timeout explícito en lugar de correr en
+    línea: los cron del scheduler van a la cola `default` (timeout 300 s) y este
+    barrido recorre todas las facturas pendientes encolando un correo por
+    cliente, así que RQ lo mataría a mitad del loop dejando media cartera sin
+    avisar y sin reintento hasta el mes siguiente.
+    """
+    frappe.enqueue(
+        "l10n_ve.tasks.send_missing_retentions_reminders",
+        queue="long",
+        timeout=3600,
+        now=bool(frappe.flags.in_test),
+    )
 
 
 def trigger_retention_reminder_on_invoice_emission(doc: object) -> None:
-    """
-    Determina si una factura emitida requiere envío inmediato de recordatorio de retención.
-    Si aplica, lo encola para ejecución en segundo plano.
+    """Primer aviso: encola el correo si la factura recién emitida lo amerita.
+
+    Los filtros baratos van ANTES del enqueue a propósito. El hook corre en cada
+    Sales Invoice sometida y la facturación masiva somete miles por corrida; sin
+    ellos se encolaría un job por factura solo para que el worker corriera el
+    join de 3 tablas y descubriera que no aplicaba.
     """
     if getattr(doc, "doctype", None) != "Sales Invoice":
         return
 
-    # Obtener bill_no y bill_control directamente de la BD para evitar datos en memoria obsoletos
-    bill_no, bill_control = frappe.db.get_value("Sales Invoice", doc.name, ["bill_no", "bill_control"])
-    if not bill_no or not bill_control:
+    if not get_l10n_ve_settings():
         return
 
-    # Encolar recordatorio
+    # Leer de la BD y no del doc en memoria: la emisión fiscal escribe bill_no y
+    # bill_control con db.set_value, sin refrescar el documento.
+    fiscal = frappe.db.get_value(
+        "Sales Invoice", doc.name, ["bill_no", "bill_control", "customer"], as_dict=True
+    ) or {}
+
+    if not fiscal.get("bill_no") or not fiscal.get("bill_control"):
+        return
+
+    if not _customer_needs_retention_vouchers(fiscal.get("customer")):
+        return
+
+    if not _invoice_has_retention_lines(doc.name):
+        return
+
+    # enqueue_after_commit: sin esto el job sale a Redis de una y un worker
+    # ocioso puede arrancarlo antes de que commitee la transacción que lo
+    # originó. El barrido filtra por docstatus=1 + bill_no + bill_control, nada
+    # de lo cual está visible todavía, así que no encontraría la factura y el
+    # aviso se perdería en silencio.
     frappe.enqueue(
         "l10n_ve.tasks.send_missing_retentions_reminders",
         sales_invoice=doc.name,
         queue="short",
-        now=frappe.flags.in_test
+        enqueue_after_commit=True,
+        now=bool(frappe.flags.in_test),
     )
 
 
 def on_sales_invoice_submit(doc: object, method: str | None = None) -> None:
     """Hook que se ejecuta al someter una factura de venta (Sales Invoice)."""
     trigger_retention_reminder_on_invoice_emission(doc)
-
-
