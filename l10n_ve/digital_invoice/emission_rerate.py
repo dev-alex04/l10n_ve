@@ -168,10 +168,19 @@ def _blocking_condition(doc: object) -> str | None:
         # toca el GL y sí procede. Descubierto en smoke (17-jul-2026).
         return "el cliente está deshabilitado (no se puede regenerar su GL)"
 
-    if doc.get("advances"):
-        # make_gl_entries() dispararía make_exchange_gain_loss_journal
-        # contra los PEs de anticipo, duplicando asientos en reintentos.
-        return "tiene anticipos aplicados (advances)"
+    # Los anticipos aplicados YA NO bloquean (30-jul-2026). El motivo original era que
+    # make_gl_entries() dispararia make_exchange_gain_loss_journal contra los PEs de
+    # anticipo, duplicando asientos en reintentos. Medido sobre datos de produccion
+    # (retasado real de 5 facturas con anticipos, dentro de una transaccion con
+    # rollback): crea CERO asientos nuevos, el diferencial queda posteado UNA sola vez
+    # --el de _post_fx_difference, exacto contra el delta-- y el mayor de la factura
+    # cuadra. El flag through_repost_accounting_ledger que activa
+    # _regenerate_voucher_ledger ya neutraliza el asiento de ERPNext.
+    #
+    # Quitarlo lleva de 29 a 72 las facturas juridicas represadas que se emiten con la
+    # tasa correcta (Ley IVA Art. 25). Las 36 restantes que traian anticipos siguen
+    # bloqueadas, pero por _find_unsupported_credit: esta condicion iba antes y tapaba
+    # a la otra.
 
     if any(cint(item.get("enable_deferred_revenue")) for item in doc.get("items") or []):
         return "tiene ítems con ingreso diferido (enable_deferred_revenue)"
