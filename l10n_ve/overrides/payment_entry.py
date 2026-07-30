@@ -929,8 +929,14 @@ class CustomPaymentEntry(PaymentEntry):
             dr_or_cr \
                 = "credit" if self.payment_type == "Receive" else "debit"
 
+            # La cuenta de anticipo se decide por TIPO DE ENTIDAD, no por direccion del
+            # pago. Elegirla por payment_type coincide en los casos normales (Recibo de
+            # cliente / Pago a proveedor) pero manda el REEMBOLSO a un cliente
+            # (payment_type="Pay", party_type="Customer") a la cuenta de anticipo de
+            # PROVEEDORES: el anticipo del cliente nunca baja y queda un activo espurio
+            # a su nombre. Mismo criterio que ERPNext en accounts/party.py.
             accountfield: str = \
-                "default_advance_received_account" if self.payment_type == "Receive" \
+                "default_advance_received_account" if self.party_type == "Customer" \
                     else "default_advance_paid_account"
 
             account: str = frappe.db.get_value(
