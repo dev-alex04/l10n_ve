@@ -633,12 +633,16 @@ function setup_exchange_difference_button(frm) {
       function () {
         const outstanding = flt(frm.doc.outstanding_amount);
         const tipo = outstanding > 0 ? "Pérdida" : "Ganancia";
+        // format_currency y no frappe.format: el formatter de Currency pasa por
+        // _right(), que envuelve el monto en un <div align=right> y parte la
+        // frase del modal en tres líneas.
+        const monto = format_currency(
+          Math.abs(outstanding),
+          frm.doc.party_account_currency,
+        );
 
         frappe.confirm(
-          `¿Desea registrar un diferencial cambiario (${tipo}) por <b>${frappe.format(
-            Math.abs(outstanding),
-            { fieldtype: "Currency", currency: frm.doc.party_account_currency },
-          )}</b>?<br><br>Se creará y enviará un Asiento Contable automáticamente.`,
+          `¿Desea registrar un diferencial cambiario (${tipo}) por <b>${monto}</b>?<br><br>Se creará y enviará un Asiento Contable automáticamente.`,
           () => {
             frappe.call({
               method:
