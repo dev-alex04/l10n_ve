@@ -599,7 +599,98 @@ def branch_has_active_digital_series(company: str, branch: str) -> bool:
     """, (branch, company)))
 
 
-def rerate_juridical_before_submit(sales_invoice: object) -> bool:
+def rerate_juridical_on_submit(doc: object, method: str | None = None) -> None:
+    """Hook `before_validate` de Sales Invoice: retasa al aprobar, venga de donde venga.
+
+    Este es el punto de estrangulamiento real. Enganchar el retasado en cada flujo de
+    cobro NO alcanza: hay caminos que llaman `submit()` directamente sin pasar por
+    `_submit_invoice_with_advances` --`reconcile_dashboard_payments`, la suscripción con
+    `submit_invoice`, la regeneración desde Customer-- y esas facturas quedaban aprobadas
+    con la tasa vieja. Caso real: ACC-SINV-2026-13907, cobrada el 30-jul y emitida a la
+    tasa del 23-jul.
+
+    Por qué `before_validate` y no `before_submit`
+    ---------------------------------------------
+    Medido sobre datos de producción, retasando en `before_submit` el padre se recalcula
+    pero las filas hijas quedan viejas: `payment_schedule.base_payment_amount` conservaba
+    el total anterior (66.980,38 contra 67.107,34). El payload fiscal se arma de esas
+    filas. En `before_validate` el `validate()` nativo que corre a continuación recalcula
+    todo, y el resultado es IDENTICO --campo por campo, incluido el GL-- al de retasar en
+    borrador y guardar.
+
+    Es idempotente: si el flujo de cobro ya retasó, la tasa coincide y no hace nada.
+    """
+    if getattr(doc, "_action", None) != "submit":
+        # Guardados de borrador, update-after-submit y cancelaciones no retasan.
+        return
+
+    if doc.flags.get("skip_emission_rerate"):
+        # Envío forzado por el Administrador: emitir con la tasa que porta el documento.
+        # Sin esta salida el hook retasaba igual y el botón "Forzar Envío HKA" no servía
+        # para nada, que es justo lo contrario de lo que existe para hacer.
+        return
+
+    rerate_juridical_before_submit(doc, during_submit=True)
+
+
+def target_rate_before_submit(
+    sales_invoice: object, *, during_submit: bool = False
+) -> float | None:
+    """Tasa con la que se emitiría la factura si se aprobara ahora, o None si no se retasa.
+
+    Es SOLO LECTURA: no toca el documento ni la base. Existe para que la vista previa de
+    HKA muestre exactamente la tasa que va a salir, sin duplicar la regla. Preguntar dos
+    veces lo mismo por caminos distintos ya produjo divergencias en este módulo.
+
+    A diferencia del retasado post-submit (`_get_target_rate`), acá NO hay condiciones de
+    bloqueo: el documento todavía no tiene mayor que reparar.
+    """
+    if not during_submit and cint(sales_invoice.docstatus) != 0:
+        # Ya emitida: retasarla exige recontabilizar, y de eso se encarga
+        # rerate_to_emission_rate.
+        return None
+
+    if cint(sales_invoice.get("is_return")) or cint(sales_invoice.get("is_debit_note")):
+        # Una nota debe expresarse en la MISMA tasa que el documento que corrige, o los
+        # Bs dejan de corresponderse. Hoy Galanet usa doctypes propios (VE Sales Credit
+        # Note / Debit Note, que pasan por validate_note_rate) y no hay ninguna nota
+        # nativa de ERPNext en el sistema, pero el hook corre sobre toda Sales Invoice:
+        # sin esta guarda, la primera que alguien cree saldría retasada a la tasa de hoy.
+        return None
+
+    company_currency: str = frappe.get_cached_value(
+        "Company", sales_invoice.company, "default_currency"
+    )
+    if (sales_invoice.currency or company_currency) == company_currency:
+        # Factura en moneda de curso legal: no hay carril en divisa que retasar.
+        return None
+
+    if not is_juridical_customer(sales_invoice.customer):
+        # El natural conserva la tasa congelada del 1° del mes.
+        return None
+
+    if not branch_has_active_digital_series(
+        sales_invoice.company, sales_invoice.get("branch")
+    ):
+        # Sin serie digital activa no se emite ante HKA: no hay fecha de emisión fiscal
+        # que respetar y retasar sólo movería importes sin motivo.
+        return None
+
+    new_rate: float = flt(get_exchange_rate(today(), sales_invoice.currency))
+    if not new_rate:
+        # Sin tasa publicada para hoy se emite con la que porta el documento; bloquear
+        # el cobro por esto sería peor que emitir con la tasa anterior.
+        return None
+
+    if abs(new_rate - flt(sales_invoice.conversion_rate)) < 0.0001:
+        return None
+
+    return new_rate
+
+
+def rerate_juridical_before_submit(
+    sales_invoice: object, *, during_submit: bool = False
+) -> bool:
     """Lleva la factura a la tasa BCV de HOY antes de aprobarla. True si la retasó.
 
     Por qué acá y no al enviar a HKA
@@ -610,54 +701,44 @@ def rerate_juridical_before_submit(sales_invoice: object) -> bool:
     regenerar el mayor del documento y trae condiciones de bloqueo que dejan facturas
     emitidas con tasa vieja.
 
-    Retasando en BORRADOR alcanza con asignar la tasa: el `save()` que ya hace el
-    llamador recalcula base_*, impuestos y retenciones de forma nativa. Sin repost, sin
-    asientos correctivos y sin bloqueos.
+    Retasando ANTES de que el documento quede emitido alcanza con asignar la tasa: el
+    recálculo nativo deriva base_*, impuestos y retenciones. Sin repost, sin asientos
+    correctivos y sin bloqueos.
 
     NO se guarda ni se emite acá: sólo se ajusta el documento en memoria. Persistir es
     responsabilidad del flujo que llama (que ya hace save + submit), para no romper la
     atomicidad del cobro.
 
+    Dos formas de entrar:
+
+    - `during_submit=False` (por defecto) — desde la cadena de cobro, con la factura en
+      BORRADOR. Recalcula en memoria porque el capeo de anticipos que corre a
+      continuación se guía por `base_grand_total`.
+    - `during_submit=True` — desde el hook `before_validate` mientras se aprueba. El
+      docstatus ya es 1 pero el documento todavía no se persistió, y el `validate()`
+      nativo que sigue hace el recálculo.
+
     No aplica a naturales: conservan la tasa congelada del 1° del mes.
     """
-    if cint(sales_invoice.docstatus) != 0:
-        # Ya emitida: retasarla exige recontabilizar, y de eso se encarga l10n_ve.
-        return False
-
-    company_currency: str = frappe.get_cached_value(
-        "Company", sales_invoice.company, "default_currency"
+    new_rate: float | None = target_rate_before_submit(
+        sales_invoice, during_submit=during_submit
     )
-    if (sales_invoice.currency or company_currency) == company_currency:
-        # Factura en moneda de curso legal: no hay carril en divisa que retasar.
-        return False
-
-    if not is_juridical_customer(sales_invoice.customer):
-        return False
-
-    if not branch_has_active_digital_series(
-        sales_invoice.company, sales_invoice.get("branch")
-    ):
-        # Sin serie digital activa no se emite ante HKA: no hay fecha de emisión fiscal
-        # que respetar y retasar sólo movería importes sin motivo.
-        return False
-
-    new_rate: float = flt(get_exchange_rate(today(), sales_invoice.currency))
-    if not new_rate:
-        # Sin tasa publicada para hoy se emite con la que porta el documento; bloquear
-        # el cobro por esto sería peor que emitir con la tasa anterior.
-        return False
-
-    if abs(new_rate - flt(sales_invoice.conversion_rate)) < 0.0001:
+    if new_rate is None:
         return False
 
     old_rate: float = flt(sales_invoice.conversion_rate)
     sales_invoice.conversion_rate = new_rate
 
-    # Recalcular EN MEMORIA: asignar la tasa no toca los base_*, y el capeo de anticipos
-    # que corre a continuacion se guia por base_grand_total. Sin esto capearia contra el
-    # total viejo (menor) y dejaria anticipos sin aplicar. El save() posterior vuelve a
-    # calcular, pero para entonces el capeo ya estaria hecho con el numero equivocado.
-    sales_invoice.calculate_taxes_and_totals()
+    if not during_submit:
+        # Recalcular EN MEMORIA: asignar la tasa no toca los base_*, y el capeo de
+        # anticipos que corre a continuacion se guia por base_grand_total. Sin esto
+        # capearia contra el total viejo (menor) y dejaria anticipos sin aplicar. El
+        # save() posterior vuelve a calcular, pero para entonces el capeo ya estaria
+        # hecho con el numero equivocado.
+        #
+        # En el camino del hook no se llama: validate() corre inmediatamente despues y
+        # recalcula todo, incluidas las filas hijas.
+        sales_invoice.calculate_taxes_and_totals()
 
     frappe.logger("l10n_ve").info(
         f"{RERATE_TAG} pre-submit {sales_invoice.name}: {old_rate} -> {new_rate}"
