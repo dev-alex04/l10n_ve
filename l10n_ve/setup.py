@@ -493,7 +493,11 @@ def create_government_withholding_custom_fields() -> None:
                 "fieldname": "government_withholding_section",
                 "label": "Retenciones Gubernamentales",
                 "fieldtype": "Section Break",
-                "insert_after": "nature_of_the_taxpayer",
+                # Va en la pestaña "Impuestos y Contabilidad" (accounting_tab), justo debajo de
+                # "Información Fiscal": vat_account_column es el último campo de ese bloque que
+                # viaja en los fixtures. Antes colgaba de nature_of_the_taxpayer, que vive en la
+                # pestaña Detalles y mezclaba la tabla con los datos de identificación.
+                "insert_after": "vat_account_column",
                 "depends_on": "eval:doc.nature_of_the_taxpayer=='Government'",
                 "collapsible": 1,
             },
