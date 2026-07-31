@@ -668,20 +668,32 @@ function setup_exchange_difference_button(frm) {
 
 /**
  * Botón para enviar manualmente la factura a Facturación Digital (TFHKA).
- * Solo visible si la factura está enviada y el status NO es "Sent".
+ *
+ * Visible en BORRADOR y en APROBADA, mientras no tenga número de control.
+ *
+ * En borrador el backend la aprueba antes de enviar (`_approve_before_manual_send`),
+ * retasándola a la tasa del día si el cliente es jurídico. Sin eso el botón quedaba
+ * inalcanzable justo cuando hace falta: el candado fiscal impide aprobar a mano una
+ * factura de sucursal con serie digital activa, y el botón exigía estar aprobada — no
+ * había forma de emitirla desde la interfaz.
+ *
  * Muestra un modal de vista previa con todos los datos antes de enviar.
  * @param {object} frm
  */
 function setup_digital_invoice_button(frm) {
   if (
-    frm.doc.docstatus !== 1 ||
+    (frm.doc.docstatus !== 0 && frm.doc.docstatus !== 1) ||
     (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
   ) {
     return;
   }
 
+  const es_borrador = frm.doc.docstatus === 0;
+
   frm.add_custom_button(
-    __("Enviar Facturación Digital"),
+    es_borrador
+      ? __("Aprobar y Enviar a HKA")
+      : __("Enviar Facturación Digital"),
     function () {
       frappe.call({
         method:
@@ -701,14 +713,17 @@ function setup_digital_invoice_button(frm) {
 
 /**
  * Botón para forzar el envío a HKA saltando la validación de tasa BCV.
- * Solo visible para Administrator en facturas aprobadas que no hayan sido
- * enviadas exitosamente a HKA.
+ * Solo visible para Administrator en facturas sin número de control.
+ *
+ * Acepta borradores por la misma razón que el botón normal: el candado fiscal impide
+ * aprobarlas a mano. En modo forzado el backend aprueba SIN retasar, que es justamente
+ * el punto de esta salida de emergencia: emitir con la tasa que porta el documento.
  * @param {object} frm
  */
 function setup_force_send_hka_button(frm) {
   if (
     frappe.session.user !== "Administrator" ||
-    frm.doc.docstatus !== 1 ||
+    (frm.doc.docstatus !== 0 && frm.doc.docstatus !== 1) ||
     (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
   ) {
     return;
@@ -905,11 +920,13 @@ function show_hka_preview_dialog(frm, d) {
                 <p class="hka-preview__totals-col-title usd">USD</p>
                 <div class="hka-preview__total-row"><span>Subtotal:</span><span>$ ${frappe.utils.escape_html(d.subtotal_usd)}</span></div>
                 <div class="hka-preview__total-row bold"><span>IVA:</span><span>$ ${frappe.utils.escape_html(d.iva_usd)}</span></div>
+                <div class="hka-preview__total-row grand"><span>Total:</span><span>$ ${frappe.utils.escape_html(d.total_usd)}</span></div>
               </div>
               <div>
                 <p class="hka-preview__totals-col-title bs">Bs.</p>
                 <div class="hka-preview__total-row"><span>Subtotal:</span><span>${frappe.utils.escape_html(d.subtotal_bs)}</span></div>
                 <div class="hka-preview__total-row bold"><span>IVA:</span><span>${frappe.utils.escape_html(d.iva_bs)}</span></div>
+                <div class="hka-preview__total-row grand"><span>Total:</span><span>${frappe.utils.escape_html(d.total_bs)}</span></div>
               </div>
             </div>
           </div>
@@ -942,7 +959,10 @@ function show_hka_preview_dialog(frm, d) {
     fields: [
       { fieldtype: "HTML", fieldname: "preview_html", options: preview_html },
     ],
-    primary_action_label: __("Confirmar Emisión"),
+    primary_action_label:
+      frm.doc.docstatus === 0
+        ? __("Aprobar y Emitir")
+        : __("Confirmar Emisión"),
     primary_action: function () {
       dialog.hide();
       frappe.call({

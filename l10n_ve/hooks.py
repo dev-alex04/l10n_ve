@@ -363,6 +363,10 @@ doc_events = {
         "after_insert": "l10n_ve.overrides.task.auto_share_on_assignment",
     },
     "Sales Invoice": {
+        # Retasado a tasa de emision para juridicos. Va en before_validate y no en
+        # before_submit para que el validate() nativo recalcule tambien las filas hijas
+        # (en before_submit, payment_schedule quedaba con el total viejo).
+        "before_validate": "l10n_ve.digital_invoice.emission_rerate.rerate_juridical_on_submit",
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
         "on_submit": "l10n_ve.tasks.on_sales_invoice_submit",
     },

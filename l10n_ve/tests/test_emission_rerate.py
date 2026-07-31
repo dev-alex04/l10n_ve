@@ -170,10 +170,19 @@ class TestBlockingCondition(unittest.TestCase):
         reason = _blocking_condition(FakeDoc())
         self.assertIn("deshabilitado", reason)
 
-    def test_blocks_advances(self):
-        """Anticipos aplicados: make_gl_entries duplicaría JEs de gain/loss."""
-        reason = _blocking_condition(FakeDoc(advances=[SimpleNamespace()]))
-        self.assertIn("anticipos", reason)
+    @patch("frappe.get_all", return_value=[])
+    def test_advances_do_not_block(self, _mock_get_all):
+        """Anticipos aplicados: YA NO bloquean.
+
+        El bloqueo original temía que make_gl_entries duplicara los JEs de
+        gain/loss contra los PEs de anticipo. Medido sobre datos de producción
+        (retasado real con rollback, 5 facturas con anticipos): crea CERO
+        asientos extra y el diferencial queda posteado una sola vez, el de
+        _post_fx_difference. through_repost_accounting_ledger ya neutraliza el
+        asiento de ERPNext. Quitarlo lleva de 29 a 72 las facturas jurídicas
+        represadas que se emiten con la tasa correcta.
+        """
+        self.assertIsNone(_blocking_condition(FakeDoc(advances=[SimpleNamespace()])))
 
     def test_blocks_deferred_revenue(self):
         doc = FakeDoc(items=[FakeChildRow(enable_deferred_revenue=1)])

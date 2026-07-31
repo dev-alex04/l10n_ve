@@ -315,6 +315,16 @@
     padding-top: 4px;
 }
 
+/* Total a pagar: cierra la columna, por eso pesa mas que el IVA. */
+.hka-preview__total-row.grand {
+    font-weight: 800;
+    font-size: 12px;
+    color: #0f172a;
+    border-top: 2px solid #cbd5e1;
+    margin-top: 5px;
+    padding-top: 5px;
+}
+
 /* ---- BCV Box ---- */
 .hka-preview__bcv {
     background: rgba(118, 215, 1, 0.08);
