@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.34.0] - 2026-07-31
+
+### ✨ Funcionalidades (Features)
+- **Retasado a tasa de emisión antes de aprobar la factura.** Para el cliente jurídico, la factura se lleva a la tasa BCV del día antes de quedar emitida. Antes se corregía después de aprobar, lo que obligaba a regenerar el mayor del documento: medido sobre producción, el 78% de las facturas caía en las condiciones que saltaban esa corrección y se emitía con una tasa que no correspondía. [4014b53] [f61e3a4]
+- El botón de Factura Digital acepta borradores: los aprueba y los envía en un paso, y la vista previa muestra la tasa con la que realmente se va a emitir el documento. [9554ef5]
+- Botón de diferencial cambiario en las facturas de compra, para liquidar el residuo de una factura parcialmente pagada. [007ccc0]
+- Tarifas de timbre fiscal de 13 estados, verificadas contra gaceta. [db5764b]
+- Los avisos de retención se envían también de inmediato al facturar, además del cron. [62589de]
+
+### 🐛 Correcciones (Fixes)
+- Los anticipos aplicados dejan de bloquear el retasado. Medido sobre facturas reales: no se duplica ningún asiento y el diferencial queda registrado una sola vez. [ae75c5b]
+- Los avisos de retención corrigen la fecha tope (día 22), los destinatarios y una carrera al encolar. [857cab9]
+- El diferencial cambiario en compras exige permisos y que la factura esté parcialmente pagada. [5f11e74]
+
+### ⚡ Rendimiento (Performance)
+- Los recordatorios de retención usan precarga por lotes y plantilla única. [b08501e]
+
+---
+
 ## [v2.33.0] - 2026-07-30
 
 ### 🐛 Correcciones (Fixes)
