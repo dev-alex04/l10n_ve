@@ -363,7 +363,12 @@ doc_events = {
         "after_insert": "l10n_ve.overrides.task.auto_share_on_assignment",
     },
     "Sales Invoice": {
+        # Retasado a tasa de emision para juridicos. Va en before_validate y no en
+        # before_submit para que el validate() nativo recalcule tambien las filas hijas
+        # (en before_submit, payment_schedule quedaba con el total viejo).
+        "before_validate": "l10n_ve.digital_invoice.emission_rerate.rerate_juridical_on_submit",
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+        "on_submit": "l10n_ve.tasks.on_sales_invoice_submit",
     },
     "Expense": {
         "before_insert": "l10n_ve.helpers.helpers.set_ve_branch",
@@ -428,7 +433,8 @@ doc_events = {
 
 scheduler_events = {
        "cron": {
-        "0 8 10,20 * *": ["l10n_ve.tasks.send_missing_retentions_reminders"],
+        "0 8 * * *": ["l10n_ve.tasks.send_3_days_retention_reminders"],
+        "0 8 22 * *": ["l10n_ve.tasks.send_monthly_deadline_retention_reminders"],
         "0 * * * *": [
             "l10n_ve.tasks.create_currency_exchange",
             "l10n_ve.tasks.cleanup_resolved_digital_invoice_error_logs",

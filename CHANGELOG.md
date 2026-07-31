@@ -5,6 +5,195 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.33.0] - 2026-07-30
+
+### 🐛 Correcciones (Fixes)
+- La categoría de retención del proveedor ahora es visible y opcional cuando no es contribuyente con RIF jurídico, en vez de ocultarse. [b675b43]
+
+---
+
+## [v2.32.0] - 2026-07-30
+
+### ✨ Funcionalidades (Features)
+- La vista previa de facturación digital muestra la tasa con la que realmente se va a emitir el documento, no la que porta la factura. [64d6476]
+- El reporte HQ suma columnas consolidadas de Base e IVA, y el Excel incluye resumen fiscal con formato. [38f0983]
+- El Mayor Analítico permite filtrar sólo movimientos aprobados, con opción de incluir cancelados. [0ce0040]
+
+### 🐛 Correcciones (Fixes)
+- Los bloqueos de fila se liberan antes del viaje de red a HKA, eliminando los errores de espera de bloqueo (1205) durante la emisión. [291af66]
+- La cuenta de anticipo se elige por tipo de entidad y no por dirección del pago: los reembolsos a clientes ya no caían en la cuenta de proveedores. [8012a2e]
+- La casilla de cancelados ya no altera el saldo del Mayor Analítico; los documentos anulados quedan marcados. [a87015f]
+- El Excel del reporte HQ se genera en segundo plano, con totales consolidados y encabezado fijo. [0e09ab3]
+- El PDF del Mayor Analítico recupera el rombo de marca. [704980f]
+
+---
+
+## [v2.31.0] - 2026-07-28
+
+### ✨ Funcionalidades (Features)
+- El reporte HQ incorpora el logo de la empresa en el PDF, filtros rápidos, indicador de carga, etiquetas legibles y descripción por columna. [1cc0e96] [5868cfd] [99193a4]
+- El Estado pasa a ser filtro rápido en la lista de Recibos de Pago. [416327b]
+- Los resúmenes de mayor de Cliente y Proveedor se renombran a Saldo a Favor. [d25e4b4]
+
+### ⚡ Rendimiento (Performance)
+- El reporte HQ pasa de 12,2 MB a 2,6 MB por corrida. [181bd1a]
+
+---
+
+## [v2.30.0] - 2026-07-27
+
+### ✨ Funcionalidades (Features)
+- El reporte HQ suma ejecución manual, exportación a Excel en memoria, filtro y columna de Sucursal Principal, y los colores de marca en su indicador. [566dedb] [332d555] [8369e60] [eaaf9e9]
+- Los accesos de sucursal quedan restringidos a usuarios del sistema, evitando agregar usuarios externos. [cd8a62f3]
+- El historial del sistema muestra fecha y hora exactas. [67dbc18]
+- Los modos de pago incorporan el campo Enviar por Correo. [d1b75ab]
+
+### 🐛 Correcciones (Fixes)
+- Branch se traduce como «Sucursal» y no como «Rama». [915313a]
+- El filtro de facturas sin número de control pasa a ser opcional y preserva la partida doble y los asientos de apertura. [03a96f2] [41e630c]
+- El número de factura se formatea correctamente en los comprobantes de retención de HKA. [fe39f85]
+
+---
+
+## [v2.29.0] - 2026-07-27
+
+### ✨ Funcionalidades (Features)
+- El reporte HQ suma documento fiscal, municipio y consolidación padre-hijo, con su descripción sobre la tabla. [88bd14e] [73f9571]
+
+### 🐛 Correcciones (Fixes)
+- Las notas de crédito y débito heredan la tasa de cambio de la factura original, y el asiento de ajuste queda alineado con esa herencia. [d8f8b44] [f60000b]
+
+---
+
+## [v2.28.0] - 2026-07-26
+
+### ✨ Funcionalidades (Features)
+- La Factura de Compra muestra Total Base + IVA, agrupa la base imponible bajo Total Retenido y suma columnas en bolívares en el grid de impuestos. [5fd874d] [7e527c2]
+- Se crea el rol VE Sales Book HQ desde la instalación, con su traducción y enlace en el espacio de trabajo de Administración. [b6d091d] [adba862] [6b1d2bc]
+
+### 🐛 Correcciones (Fixes)
+- La tasa BCV se precarga con su fecha valor futura, eliminando la carrera de medianoche. [6028a5c]
+- Las facturas en borrador alinean su tasa cuando el BCV publica la del día. [73e44ab]
+- La vista previa fiscal servía el comprobante de retención en lugar de la factura. [966c573]
+- El reporte de estado HKA corrige etiquetas, traducción, estado de factura y excluye borradores. [41c9ffa]
+
+---
+
+## [v2.27.0] - 2026-07-24
+
+### ✨ Funcionalidades (Features)
+- Retenciones de entes gubernamentales al cobrar: timbre fiscal, ISAE y Responsabilidad Social, con su cuenta contable y auto-configuración de tasa en la instalación. [9501dc3] [561967d] [ca074cb] [8424f8e]
+- Primera fase del reporte HQ de facturas de venta. [f5c02ab]
+- Balance de la selección en tiempo real en la Conciliación de Pagos. [b303440]
+- Las descripciones del Mayor se expresan en lenguaje local. [c745bcf]
+
+### 🐛 Correcciones (Fixes)
+- El número de factura admite caracteres libres sin espacios, y los correos de proveedores se separan correctamente en los comprobantes. [4a67595]
+- El override de Cuentas por Cobrar se adapta a ERPNext 15.106. [c317a11]
+- Las direcciones independientes ya no se enlazan automáticamente a proveedores antiguos. [f6d1379]
+
+---
+
+## [v2.26.0] - 2026-07-22
+
+### ✨ Funcionalidades (Features)
+- Envío masivo automatizado de recordatorios de retención pendientes a contribuyentes especiales. [06d46f1]
+- El reporte de Cuentas por Cobrar suma filtros Desde y Hasta. [e69127b]
+- Aplicación de retenciones sobre facturas ya aprobadas y enviadas a HKA que salieron sin ellas. [7220896]
+- Actualización del espacio de trabajo de conciliaciones bancarias. [7c6fa68]
+
+### 🐛 Correcciones (Fixes)
+- Se restauran los property setters de l10n_ve que se perdieron al renombrar el módulo. [de6537c]
+- El Libro de Ventas atribuye correctamente las retenciones sin fecha y excluye las posteriores al período consultado. [1061738] [09aa019]
+- Los reportes muestran la razón social del cliente o proveedor en vez de su identificador interno. [229a729]
+
+---
+
+## [v2.25.0] - 2026-07-18
+
+### ✨ Funcionalidades (Features)
+- Retasado a la tasa de emisión para clientes jurídicos al enviar a HKA. [e9136db]
+- Las notas de crédito y débito fiscales usan la tasa BCV de su propia fecha de emisión. [64acc3f]
+- Reporte de antigüedad de saldos multimoneda con filtros de sucursal y rango. [5b9865b]
+- La ficha del cliente muestra saldo a favor / en contra y sus conexiones con notas de crédito y débito. [f78e12c] [3e44b4f]
+- Botones de creación de retenciones de IVA e ISLR desde la Nota de Débito de Compra. [ac5ba0e]
+
+### 🐛 Correcciones (Fixes)
+- El IGTF Percibido cuadra con el Libro de Ventas. [406c809]
+- Se omite el retasado cuando el cliente está deshabilitado. [6c05ab5]
+- Se corrige el parseo de fechas de comprobante en los Libros de Ventas y Compras. [79cfced]
+- Las series alfanuméricas con guiones funcionan en los comprobantes de retención. [11f88b1]
+
+---
+
+## [v2.24.3] - 2026-07-16
+
+### 🐛 Correcciones (Fixes)
+- El identificador de transacción de HKA pasa a ser único, evitando el rechazo por documento duplicado. [332fb1a]
+- La vista previa sirve el PDF de la última emisión. [d274e93]
+- El correo del proveedor se resuelve en cascada en el comprobante de retención. [a5ed344]
+- El botón de Comprobante de Retención ISLR se oculta cuando el monto es cero. [ef2e459]
+- Se corrigen los totales en bolívares de las devoluciones y el mapeo de sucursal en facturas de reemplazo. [5a50e21]
+- Se desactiva el asiento de pérdida de precisión en las notas de crédito de retorno. [7f46b08]
+- Se evita la duplicación y el cruce de direcciones principales en proveedores. [6fcb143]
+- La clasificación de RIF cubre los casos sin guion. [0c4208b]
+
+---
+
+## [v2.24.2] - 2026-07-14
+
+### 🐛 Correcciones (Fixes)
+- El cron de envío a HKA deja de tener ventana horaria y corre las 24 horas. [efda055]
+
+---
+
+## [v2.24.1] - 2026-07-13
+
+### ✨ Funcionalidades (Features)
+- Identidad de marca Domina de fábrica: logo del Escritorio y del inicio de sesión, splash, favicon y kit oficial. [75e2d3c] [7d1c029]
+- El endpoint del BCV queda configurado de fábrica, con auto-reparación en cada migración. [97a2f2c]
+
+### 🐛 Correcciones (Fixes)
+- Se corrige un error que rompía la vista previa de toda factura. [d6fc2f6]
+
+---
+
+## [v2.23.0] - 2026-07-13
+
+### ✨ Funcionalidades (Features)
+- La lógica de facturación digital se desacopla del dominio ISP. [4332cf4]
+
+### 🐛 Correcciones (Fixes)
+- El número de factura admite letras. [7005dd2]
+- Se corrige el cálculo del monto del documento en los comprobantes de retención de ISLR. [ca5ab4d]
+- La descarga masiva ya no queda en estado fallido por el tamaño del archivo comprimido. [a4ebc90]
+- Se puede cancelar un recibo cuando la factura aún está por emitir. [5cd6e77]
+
+---
+
+## [v2.22.0] - 2026-07-10
+
+### ✨ Funcionalidades (Features)
+- Método de cálculo del IVA configurable: base imponible o total de la factura, con ayuda dinámica y validación obligatoria. [a7fa577] [282342a]
+- Reporte detallado de ventas de CONATEL con cálculo bimonetario unificado. [e55c6e7]
+- Rediseño del Libro de Compras y adición del Sustraendo al reporte de ISLR, excluyendo documentos anulados. [d51f1e6]
+- La sucursal suma el campo de nombre comercial. [15148ce]
+
+### 🐛 Correcciones (Fixes)
+- Se endurece el comportamiento a prueba de fallos de la serie digital. [f0d4c47]
+- El registro de HKA ya no puede crearse manualmente, garantizando la integridad de los registros automáticos. [9c7dc39]
+- Se omite el asiento de ajuste de precisión bajo el método de cálculo desde el total de la factura. [ed84830]
+
+---
+
+## [v2.21.0] - 2026-07-10
+
+### ✨ Funcionalidades (Features)
+- Generación del comprobante de retención de IVA e ISLR directamente desde la Factura de Compra. [8706348]
+- Emisión a HKA en un clic desde la factura, con protección contra duplicados. [9e97574]
+
+---
+
 ## [v2.20.1] - 2026-07-09
 
 ### 🐛 Correcciones (Fixes)
