@@ -22,6 +22,7 @@ frappe.ui.form.on("Purchase Invoice", {
     setup_credit_note_button(frm);
     setup_debit_note_button(frm);
     setup_withholding_voucher_buttons(frm);
+    setup_purchase_exchange_difference_button(frm);
   },
 
   is_debit_note: function (frm) {
@@ -597,6 +598,82 @@ function setup_withholding_voucher_buttons(frm) {
         );
       },
       __("Create"),
+    );
+  }
+}
+
+/**
+ * Total del documento en la moneda de la cuenta del proveedor, para poder
+ * compararlo contra outstanding_amount (que va en party_account_currency).
+ * Réplica de get_total_in_party_account_currency de ERPNext.
+ *
+ * @param {object} frm
+ * @returns {number}
+ */
+function get_purchase_total_in_party_currency(frm) {
+  let fieldname = frm.doc.disable_rounded_total ? "grand_total" : "rounded_total";
+
+  if (frm.doc.party_account_currency !== frm.doc.currency) {
+    fieldname = "base_" + fieldname;
+  }
+
+  return flt(frm.doc[fieldname]);
+}
+
+/**
+ * Botón para registrar el residual cambiario de una factura de compra
+ * parcialmente pagada. Solo aplica cuando queda un saldo positivo pendiente,
+ * lo cual representa una Ganancia para la empresa (deja de pagar ese residual).
+ * Aplica para cualquier moneda, incluidas facturas en VES.
+ *
+ * Se exige que la factura tenga pagos aplicados (outstanding < total): sobre una
+ * factura sin abonar el botón mandaría el 100% del documento al diferencial.
+ *
+ * @param {object} frm
+ */
+function setup_purchase_exchange_difference_button(frm) {
+  const outstanding_amount = flt(frm.doc.outstanding_amount);
+
+  if (
+    frm.doc.docstatus === 1 &&
+    outstanding_amount > 0 &&
+    outstanding_amount < get_purchase_total_in_party_currency(frm)
+  ) {
+    frm.add_custom_button(
+      __("Generar Diferencial Cambiario"),
+      function () {
+        const outstanding = flt(frm.doc.outstanding_amount);
+
+        // format_currency y no frappe.format: el formatter de Currency pasa por
+        // _right(), que envuelve el monto en un <div align=right> y parte la
+        // frase del modal en tres líneas.
+        const monto = format_currency(outstanding, frm.doc.party_account_currency);
+
+        frappe.confirm(
+          `¿Desea registrar el residual cambiario (<b>Ganancia</b>) por <b>${monto}</b>?<br><br>Se creará y enviará un Asiento Contable automáticamente.`,
+          () => {
+            frappe.call({
+              method:
+                "l10n_ve.overrides.purchase_invoice.create_purchase_exchange_difference_entry",
+              args: { docname: frm.doc.name },
+              freeze: true,
+              freeze_message: __("Registrando diferencial cambiario..."),
+              callback: function (r) {
+                if (r.message && r.message.status === "success") {
+                  frappe.show_alert({
+                    message: __(
+                      `Diferencial cambiario registrado: ${r.message.journal_entry}`,
+                    ),
+                    indicator: "green",
+                  });
+                  frm.reload_doc();
+                }
+              },
+            });
+          },
+        );
+      },
+      __("Acciones"),
     );
   }
 }

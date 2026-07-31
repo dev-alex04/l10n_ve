@@ -2,7 +2,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, get_link_to_form, getdate
+from frappe.utils import cint, flt, fmt_money, get_link_to_form, getdate
 
 import erpnext
 from erpnext.stock import get_warehouse_account_map
@@ -10,6 +10,9 @@ from erpnext.accounts.utils import get_account_currency
 from erpnext.assets.doctype.asset.asset import is_cwip_accounting_enabled
 from erpnext.assets.doctype.asset_category.asset_category import get_asset_category_account
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import PurchaseInvoice
+from erpnext.accounts.doctype.sales_invoice.sales_invoice import (
+    get_total_in_party_account_currency,
+)
 
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
 from l10n_ve.utils.utils import validate_return_in_same_month
@@ -803,3 +806,151 @@ def get_purchase_invoice_dashboard_data(data: dict) -> dict:
 
     return data
 
+
+def _resolve_exchange_gain_account(purchase_invoice: object, account: str | None) -> str:
+    """
+    Devuelve la cuenta de ganancia cambiaria a usar en el asiento.
+
+    Si el llamador pasó una cuenta, se valida contra la compañía de la factura:
+    el parámetro llega por un endpoint whitelisted, así que sin validar permitiría
+    postear el diferencial contra cualquier cuenta del plan (patrimonio, banco…).
+    Solo se aceptan cuentas de resultado, no de grupo, de la misma compañía.
+    """
+    if account:
+        account_data = frappe.db.get_value(
+            "Account",
+            account,
+            ["company", "is_group", "root_type"],
+            as_dict=True,
+        )
+
+        if not account_data:
+            frappe.throw(_("La cuenta {0} no existe").format(account))
+
+        if account_data.company != purchase_invoice.company:
+            frappe.throw(
+                _("La cuenta {0} no pertenece a la compañía {1}").format(
+                    account, purchase_invoice.company
+                )
+            )
+
+        if account_data.is_group:
+            frappe.throw(_("La cuenta {0} es de grupo y no admite movimientos").format(account))
+
+        if account_data.root_type not in ("Income", "Expense"):
+            frappe.throw(
+                _(
+                    "La cuenta {0} no es de resultado. El diferencial cambiario "
+                    "solo puede registrarse contra una cuenta de ingreso o gasto."
+                ).format(account)
+            )
+
+        return account
+
+    accounts = frappe.get_cached_value(
+        "Company",
+        purchase_invoice.company,
+        [
+            "unrealized_exchange_gain_loss_account",
+            "exchange_gain_loss_account",
+        ],
+        as_dict=True,
+    )
+    resolved = (
+        accounts.unrealized_exchange_gain_loss_account
+        or accounts.exchange_gain_loss_account
+    )
+
+    if not resolved:
+        frappe.throw(
+            _(
+                "Configure la cuenta de Ganancia por Diferencial Cambiario "
+                "en la Compañía {0}"
+            ).format(purchase_invoice.company)
+        )
+
+    return resolved
+
+
+@frappe.whitelist()
+def create_purchase_exchange_difference_entry(docname: str, account: str = None) -> dict:
+    """
+    Crea un Journal Entry para liquidar el residual cambiario de una factura
+    de compra parcialmente pagada.
+
+    Caso de uso: la factura quedó con un saldo positivo mínimo (ej. 0,20 Bs)
+    después de uno o más pagos. Ese residual se registra como Ganancia para
+    la empresa (dejó de pagar ese monto).
+
+    Asiento generado:
+        Débito  → credit_to del proveedor  (reduce la deuda pendiente)
+        Crédito → cuenta de ganancia cambiaria
+    """
+    purchase_invoice = frappe.get_doc("Purchase Invoice", docname)
+
+    frappe.has_permission(
+        "Purchase Invoice", ptype="write", doc=purchase_invoice, throw=True
+    )
+    frappe.has_permission("Journal Entry", ptype="submit", throw=True)
+
+    if purchase_invoice.docstatus != 1:
+        frappe.throw(_("La factura debe estar enviada para registrar diferencial cambiario"))
+
+    outstanding = flt(purchase_invoice.outstanding_amount, 2)
+
+    if outstanding <= 0:
+        frappe.throw(_("La factura no tiene saldo residual positivo pendiente"))
+
+    # El diferencial solo aplica al residual de una factura que YA recibió pagos.
+    # Sobre una factura sin abonar, el botón mandaría el 100% del documento a la
+    # cuenta de diferencial (Fase 1 acordada: "cualquier factura de compra
+    # PARCIALMENTE pagada"). El umbral por monto es una fase posterior.
+    total = get_total_in_party_account_currency(purchase_invoice)
+
+    if outstanding >= total:
+        frappe.throw(
+            _(
+                "La factura {0} no tiene pagos aplicados: su saldo pendiente ({1}) "
+                "es el total del documento. El diferencial cambiario solo aplica "
+                "al residual de una factura parcialmente pagada."
+            ).format(purchase_invoice.name, fmt_money(outstanding, currency=purchase_invoice.party_account_currency))
+        )
+
+    exchange_gain_account = _resolve_exchange_gain_account(purchase_invoice, account)
+
+    journal_entry = frappe.new_doc("Journal Entry")
+    journal_entry.voucher_type = "Exchange Gain Or Loss"
+    journal_entry.posting_date = purchase_invoice.posting_date
+    journal_entry.company = purchase_invoice.company
+
+    # Crédito en cuenta de ganancia cambiaria
+    journal_entry.append("accounts", {
+        "account": exchange_gain_account,
+        "credit_in_account_currency": outstanding,
+        "debit_in_account_currency": 0,
+        "cost_center": purchase_invoice.cost_center,
+    })
+
+    # Débito en cuenta del proveedor (credit_to) — reduce la deuda pendiente
+    journal_entry.append("accounts", {
+        "account": purchase_invoice.credit_to,
+        "party_type": "Supplier",
+        "party": purchase_invoice.supplier,
+        "debit_in_account_currency": outstanding,
+        "credit_in_account_currency": 0,
+        "reference_type": "Purchase Invoice",
+        "reference_name": purchase_invoice.name,
+        "cost_center": purchase_invoice.cost_center,
+    })
+
+    journal_entry.remark = (
+        f"Diferencial cambiario por factura de compra {purchase_invoice.name}"
+    )
+    journal_entry.insert(ignore_permissions=True)
+    journal_entry.submit()
+
+    return {
+        "status": "success",
+        "journal_entry": journal_entry.name,
+        "amount": outstanding,
+    }
