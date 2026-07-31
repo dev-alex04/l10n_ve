@@ -10,10 +10,11 @@ ACCOUNTING_ROLES = {
     "Administrator",
 }
 
-def has_accounting_permission() -> bool:
-    if frappe.session.user == "Administrator":
+def has_accounting_permission(user: str = None) -> bool:
+    user = user or getattr(frappe.session, "user", None) or "Guest"
+    if user == "Administrator":
         return True
-    user_roles = set(frappe.get_roles())
+    user_roles = set(frappe.get_roles(user))
     return bool(user_roles.intersection(ACCOUNTING_ROLES))
 
 from typing import TYPE_CHECKING
