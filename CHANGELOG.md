@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.35.0] - 2026-08-01
+
+### ✨ Funcionalidades (Features)
+- El Tabulador ISLR se puede filtrar por código, sin recorrer el catálogo entero. [cc986ec]
+
+### 🐛 Correcciones (Fixes)
+- El modal del diferencial cambiario ya no parte la frase en tres líneas: el formateador de moneda envolvía el monto en un elemento de bloque que rompía el párrafo. [e1376d1]
+
+---
+
 ## [v2.34.0] - 2026-07-31
 
 ### ✨ Funcionalidades (Features)
