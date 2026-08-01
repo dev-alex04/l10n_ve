@@ -99,10 +99,21 @@ def get_columns():
 			"fieldtype": "Data",
 			"width": 200
 		},
+		# "options" apunta al campo `currency` de cada fila: sin eso la columna asume la
+		# moneda de la empresa y rotula "Bs." sobre cifras que están en la moneda del
+		# documento. El total salía como "Bs. 90,00" cuando eran 90 USD.
 		{
 			"fieldname": "grand_total",
 			"label": _("Total Facturado"),
 			"fieldtype": "Currency",
+			"options": "currency",
+			"width": 130
+		},
+		{
+			"fieldname": "outstanding_amount",
+			"label": _("Monto Pendiente"),
+			"fieldtype": "Currency",
+			"options": "currency",
 			"width": 130
 		},
 		{
@@ -122,12 +133,6 @@ def get_columns():
 			"label": _("Estado HKA"),
 			"fieldtype": "Data",
 			"width": 120
-		},
-		{
-			"fieldname": "docstatus_label",
-			"label": _("Estado Factura"),
-			"fieldtype": "Data",
-			"width": 140
 		},
 		{
 			"fieldname": "log_creation",
@@ -180,7 +185,14 @@ def get_data(filters):
 				doc.customer,
 				doc.customer_name,
 				tc.tax_id AS customer_tax_id,
+				doc.currency,
 				doc.grand_total,
+				CASE
+					WHEN doc.party_account_currency = doc.currency
+						OR IFNULL(doc.conversion_rate, 0) = 0
+					THEN doc.outstanding_amount
+					ELSE doc.outstanding_amount / doc.conversion_rate
+				END AS outstanding_amount,
 				doc.bill_no,
 				doc.bill_control,
 				doc.docstatus,
@@ -218,7 +230,14 @@ def get_data(filters):
 				doc.customer,
 				doc.customer_name,
 				tc.tax_id AS customer_tax_id,
+				doc.currency,
 				doc.grand_total,
+				CASE
+					WHEN doc.party_account_currency = doc.currency
+						OR IFNULL(doc.conversion_rate, 0) = 0
+					THEN doc.outstanding_amount
+					ELSE doc.outstanding_amount / doc.conversion_rate
+				END AS outstanding_amount,
 				doc.bill_no,
 				doc.bill_control,
 				doc.docstatus,
@@ -256,7 +275,14 @@ def get_data(filters):
 				doc.customer,
 				doc.customer_name,
 				tc.tax_id AS customer_tax_id,
+				doc.currency,
 				doc.grand_total,
+				CASE
+					WHEN doc.party_account_currency = doc.currency
+						OR IFNULL(doc.conversion_rate, 0) = 0
+					THEN doc.outstanding_amount
+					ELSE doc.outstanding_amount / doc.conversion_rate
+				END AS outstanding_amount,
 				doc.bill_no,
 				doc.bill_control,
 				doc.docstatus,
@@ -298,18 +324,6 @@ def get_data(filters):
 		"VE Sales Debit Note": _("Nota de Débito"),
 	}
 
-	invoice_status_map = {
-		"Draft": _("Borrador"),
-		"Submitted": _("Validada"),
-		"Unpaid": _("Por Cobrar"),
-		"Paid": _("Pagada"),
-		"Partially Paid": _("Parcialmente Pagada"),
-		"Overdue": _("Vencida"),
-		"Cancelled": _("Anulada"),
-		"Credit Note Issued": _("Nota de Crédito Emitida"),
-		"Return": _("Devolución"),
-	}
-
 	processed_data = []
 	for row in raw_data:
 		# Excluir documentos en Borrador
@@ -332,17 +346,6 @@ def get_data(filters):
 		if filters.get("status") and filters.get("status") not in ("All", "Todos"):
 			if row["status"] != filters.get("status"):
 				continue
-
-		# Etiqueta de docstatus / Estado Factura
-		raw_status = row.get("raw_doc_status")
-		if raw_status in invoice_status_map:
-			row["docstatus_label"] = invoice_status_map[raw_status]
-		elif row.get("docstatus") == 1:
-			row["docstatus_label"] = _("Validada")
-		elif row.get("docstatus") == 2:
-			row["docstatus_label"] = _("Anulada")
-		else:
-			row["docstatus_label"] = _("Borrador")
 
 		processed_data.append(row)
 

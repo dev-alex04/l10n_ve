@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.36.1] - 2026-08-01
+
+### 🐛 Correcciones (Fixes)
+- Se actualizó el reporte HKA: se eliminó la columna de **Estado Factura** y se incorporó el **monto pendiente** para mejorar la precisión de la información financiera. [abfdf3a]
+
+---
+
+## [v2.36.0] - 2026-08-01
+
+### ✨ Funcionalidades (Features)
+- **UI:** Se implementó la agrupación de información fiscal del cliente y la funcionalidad para filtrar extractos bancarios. [a12989c]
+
+---
+
 ## [v2.35.0] - 2026-08-01
 
 ### ✨ Funcionalidades (Features)
