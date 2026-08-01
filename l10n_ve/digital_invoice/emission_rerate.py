@@ -801,3 +801,63 @@ def block_manual_submit_of_fiscal_invoice(doc) -> None:
         "Aprobarla a mano la dejaría emitida con una tasa que no corresponde.",
         title="Aprobación manual no permitida",
     )
+
+
+def stale_rate_reason(sales_invoice: object) -> str | None:
+    """Motivo por el cual la tasa del documento NO corresponde a su fecha de emisión
+    fiscal, o None si corresponde.
+
+    Es SOLO LECTURA. Existe para frenar la certificación ante HKA de una factura cuya
+    tasa quedó desincronizada de su `posting_date`: una vez emitida, el error no se
+    deshace --hay que anularla con nota de crédito y reemitirla--.
+
+    Caso que lo motivó: `ACC-SINV-2026-13754` (01-ago-2026). Creada el 2 de julio para
+    el período 01-07 al 31-07, su `posting_date` terminó en 2026-08-01 mientras la tasa
+    se quedó en 633,3644 --la del 1° de julio--. Salió ante el SENIAT con base imponible
+    Bs 109.200,76 cuando a la tasa de su fecha de emisión eran Bs 128.726,43: unos
+    Bs 19.526 de base y Bs 3.124 de IVA por debajo.
+
+    Nadie movió esa fecha por el ciclo normal del documento --las cinco versiones del
+    historial no la tocan--, así que la causa sigue sin identificarse. Este guard no la
+    busca: impide que el resultado salga a la imprenta digital.
+
+    La comparación es POR FECHA y no por valor: en Currency Exchange conviven tasas del
+    mismo día que difieren ~1e-4, y compararlas por valor daría falsos positivos. Es la
+    misma vara de `_get_target_rate`.
+    """
+    if cint(sales_invoice.get("is_return")) or cint(sales_invoice.get("is_debit_note")):
+        # Una nota se expresa en la tasa del documento que corrige, no en la suya.
+        return None
+
+    company_currency: str = frappe.get_cached_value(
+        "Company", sales_invoice.company, "default_currency"
+    )
+    if (sales_invoice.currency or company_currency) == company_currency:
+        return None
+
+    actual: float = flt(sales_invoice.conversion_rate)
+    if not actual:
+        return None
+
+    posting_date = sales_invoice.get("posting_date")
+    esperada: float = flt(get_exchange_rate(posting_date, sales_invoice.currency))
+    if not esperada:
+        # Sin tasa publicada para esa fecha no hay contra qué comparar. Bloquear la
+        # emisión por no poder verificar sería peor que dejarla pasar.
+        return None
+
+    fecha_actual = resolve_exchange_rate_date(actual, sales_invoice.currency)
+    fecha_esperada = resolve_exchange_rate_date(esperada, sales_invoice.currency)
+    if fecha_actual and fecha_esperada and str(fecha_actual) == str(fecha_esperada):
+        return None
+
+    if abs(esperada - actual) < _RATE_TOLERANCE:
+        return None
+
+    return (
+        f"La tasa del documento ({actual:,.4f}"
+        + (f", del {fecha_actual}" if fecha_actual else "")
+        + f") no corresponde a su fecha de emisión {posting_date} "
+        f"(tasa {esperada:,.4f}). Emitirla así declararía una base imponible "
+        f"distinta a la que corresponde. Corregir la tasa o la fecha antes de enviar."
+    )
