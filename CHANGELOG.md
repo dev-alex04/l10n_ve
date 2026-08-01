@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.36.2] - 2026-08-01
+
+### ✨ Funcionalidades (Features)
+- **Centralización de impuestos:** Se definieron las reglas de HKA y se centralizó la lógica del cálculo de impuestos dentro del módulo de agentes para mejorar la consistencia del sistema. [6182541]
+
+---
+
+## [v2.36.2] - 2026-08-01
+
+### 🐛 Correcciones (Fixes)
+- Se implementó una validación crítica en el módulo de HKA para evitar la certificación de facturas cuya tasa de cambio no coincida con su fecha de emisión original. 4b4b900
+
+---
+
 ## [v2.36.1] - 2026-08-01
 
 ### 🐛 Correcciones (Fixes)

@@ -1294,6 +1294,7 @@ def _send_pending_invoices(tfhka_settings: dict) -> None:
             branches=branches,
             cutoff_date=cutoff_date,
         )
+        pending = _drop_invoices_with_stale_rate(pending)
         if not pending:
             continue
 
@@ -1557,6 +1558,54 @@ def _get_active_billing_series() -> list[dict]:
         })
 
     return result
+
+
+def _drop_invoices_with_stale_rate(pending: list[str]) -> list[str]:
+    """Saca de la tanda las facturas cuya tasa no corresponde a su fecha de emision.
+
+    Una factura mal emitida NO se deshace: hay que anularla con nota de credito y
+    reemitirla ante el SENIAT. Por eso el chequeo es fail-closed --si la tasa no cuadra
+    con la posting_date, no sale-- y vive antes del envio, no despues.
+
+    Se excluyen de la tanda en vez de fallarlas dentro del bucle a proposito: en las
+    series `Internal` el `stop_on_error` frena la serie completa, y una sola factura con
+    la tasa desincronizada dejaria sin certificar a todas las demas.
+
+    El motivo se registra en VE Digital Invoice Log, no solo en el log del cron, para que
+    salga en el reporte "Estado de Facturas VE HKA": la factura aparece como Error con la
+    explicacion en la columna Detalles, en vez de quedar en Pendiente sin decir por que.
+
+    Se registra UNA vez por factura: el cron corre cada 5 minutos y volveria a anotarla
+    en cada pasada.
+    """
+    from l10n_ve.digital_invoice.emission_rerate import stale_rate_reason
+
+    sanas: list[str] = []
+    for invoice_name in pending:
+        doc = frappe.get_doc("Sales Invoice", invoice_name)
+        motivo: str | None = stale_rate_reason(doc)
+        if not motivo:
+            sanas.append(invoice_name)
+            continue
+
+        ya_anotada: bool = bool(frappe.db.exists("VE Digital Invoice Log", {
+            "sales_invoice": invoice_name,
+            "document_type": "Sales Invoice",
+            "status": "Error",
+            "notes": ("like", "%no corresponde a su fecha de emisi%"),
+        }))
+        if not ya_anotada:
+            _log_request(
+                "HKA Cron",
+                invoice_name,
+                {},
+                {"error": True, "message": motivo},
+                "Error",
+                notes=motivo,
+            )
+            frappe.db.commit()
+
+    return sanas
 
 
 def _get_pending_hka_invoices(
