@@ -250,7 +250,12 @@ after_install = [
 
 after_migrate = [
     "l10n_ve.patches.monkey_patches.apply_post_db_patches",
-    "l10n_ve.setup.create_currency_exchange",
+    # `create_currency_exchange` NO va aca. Ya corre cada hora en scheduler_events, asi que
+    # el llamado en cada migracion era redundante -- y ademas: (1) hace llamadas de red
+    # (BCV/SENIAT, con fallback a una API externa y a scraping), asi que un `bench migrate`
+    # quedaba a merced de un servicio ajeno; y (2) termina en
+    # `reconcile_draft_invoice_exchange_rates()`, que RE-TASA facturas en borrador. Una
+    # migracion de esquema no debe mover el precio de nada.
     "l10n_ve.setup.setup_workspaces",
     # self-heal: los defaults de site_config (bcv_endpoint) se garantizan en cada migrate
     "l10n_ve.setup.set_default_site_config",

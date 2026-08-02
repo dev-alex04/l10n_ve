@@ -472,7 +472,6 @@ def create_government_withholding_custom_fields() -> None:
     """
     from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
-    print("Creando custom fields de retenciones gubernamentales...")
 
     custom_fields = {
         "Company": [
@@ -528,7 +527,8 @@ def create_government_withholding_custom_fields() -> None:
 
     create_custom_fields(custom_fields, ignore_validate=True)
     frappe.db.commit()
-    print("Success: Custom fields de retenciones gubernamentales creados.")
+    # Silencio si no hubo nada que crear: `after_migrate` solo debe hablar cuando cambio
+    # algo o cuando fallo.
 
 
 def link_government_withholding_account(company_name: str = None) -> None:
@@ -537,7 +537,6 @@ def link_government_withholding_account(company_name: str = None) -> None:
     6.2.01.14 (plantilla genérica/Galanet), 6203009 (Galanet/Black renumerado) o cualquier número.
     Solo setea si el campo está vacío (respeta la cuenta que ya haya elegido contabilidad). Idempotente.
     """
-    print("Enlazando cuenta de Retenciones Gubernamentales por nombre...")
     try:
         filters = {"name": company_name} if company_name else {}
         for company in frappe.get_all("Company", filters=filters, pluck="name"):
@@ -565,7 +564,6 @@ def create_stamp_tax_rates() -> None:
     child stamp_tax_rates del Single. Idempotente: no duplica un estado ya cargado (respeta ediciones
     posteriores de contabilidad). Valores con base legal verificada 21-jul (ver plan).
     """
-    print("Sembrando tarifas de timbre fiscal por estado...")
 
     try:
         csv_file_path = frappe.get_app_path('l10n_ve', 'resources', 've_stamp_tax_rates.csv')
@@ -608,7 +606,7 @@ def create_stamp_tax_rates() -> None:
         if added or dirty:
             settings.save(ignore_permissions=True)
             frappe.db.commit()
-        print(f"Success: {added} tarifa(s) de timbre sembrada(s); Resp. Social {settings.responsibility_social_rate}%.")
+            print(f"Success: {added} tarifa(s) de timbre sembrada(s); Resp. Social {settings.responsibility_social_rate}%.")
 
     except Exception as e:
         print(f"  !! ERROR sembrando tarifas de timbre: {e}")
@@ -1847,7 +1845,6 @@ def add_reports_to_accounts_workspace() -> None:
                 "label": card_break_label
             })
             modified = True
-            print(f"  -> Agregado salto de tarjeta: {card_break_label}")
 
         for report in reports_to_add:
             if not frappe.db.exists("Report", report["link_to"]):
@@ -1862,7 +1859,6 @@ def add_reports_to_accounts_workspace() -> None:
                     "is_query_report": 1
                 })
                 modified = True
-                print(f"  -> Agregado a tabla links: {report['label']}")
 
         content = json.loads(workspace.content) if workspace.content else []
         if workspace.content:
@@ -1894,7 +1890,6 @@ def add_reports_to_accounts_workspace() -> None:
                 workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
-            print(f"Success: Workspace '{workspace_name}' actualizado con nuevos reportes.")
     except Exception as e:
         print(f"Failure: Error actualizando Workspace Accounts: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_reports_to_accounts_workspace')
@@ -1953,7 +1948,6 @@ def add_doctypes_to_accounting_workspace() -> None:
                 "label": card_break_label
             })
             modified = True
-            print(f"  -> Agregado salto de tarjeta: {card_break_label}")
 
         for link in links_to_add:
             if _norm(link["link_to"]) not in current_links:
@@ -1964,7 +1958,6 @@ def add_doctypes_to_accounting_workspace() -> None:
                     "link_to": link["link_to"],
                 })
                 modified = True
-                print(f"  -> Agregado a tabla links: {link['label']}")
 
         content = json.loads(workspace.content) if workspace.content else []
         custom_card_name = "Configuración Venezuela"
@@ -1994,7 +1987,6 @@ def add_doctypes_to_accounting_workspace() -> None:
             workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
-            print(f"Success: Workspace '{workspace_name}' actualizado con DocTypes de l10n_ve.")
     except Exception as e:
         print(f"Failure: Error actualizando Workspace de Contabilidad: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_doctypes_to_accounting_workspace')
@@ -2111,7 +2103,6 @@ def remove_number_cards_from_accounting_workspace() -> None:
             workspace.content = json.dumps(new_content)
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
-            print(f"Success: Workspace '{workspace_name}' restaurado (tarjeta BCV removida).")
 
         # 3. Eliminar el documento de Number Card 'Tasa BCV del Día' de la base de datos si existe
         if frappe.db.exists("Number Card", card_name):
@@ -2190,7 +2181,6 @@ def add_shortcuts_to_selling_workspace() -> None:
                     "color": shortcut.get("color", "Grey"),
                 })
                 modified = True
-                print(f"  -> Shortcut (tabla) agregado: {shortcut['label']}")
         # 2. Actualizar campo JSON content
         # En content, los shortcuts son bloques {"type": "shortcut", "data": {"shortcut_name": label, "col": 3}}
         # y deben estar DESPUÉS del bloque type=header de Quick Access
@@ -2225,7 +2215,6 @@ def add_shortcuts_to_selling_workspace() -> None:
                         "col": 3,
                     }
                 })
-                print(f"  -> Shortcut (content) agregado: {shortcut['label']}")
                 modified = True
         if shortcuts_added_to_content:
             insert_at = last_shortcut_idx + 1 if last_shortcut_idx >= 0 else len(content)
@@ -2315,14 +2304,12 @@ def add_links_to_selling_workspace() -> None:
                 insert_offset += 1
 
             modified = True
-            print(f"  -> Link agregado: {link_config['label']}")
 
         if modified:
             for i, link in enumerate(workspace.links, start=1):
                 link.idx = i
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
-            print(f"Success: Links NC/ND agregados al Workspace '{workspace_name}'.")
     except Exception as e:
         print(f"Failure: Error agregando links NC/ND al Workspace: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_links_to_selling_workspace')
@@ -2389,7 +2376,6 @@ def add_vouchers_to_accounts_workspace() -> None:
                 "label": card_break_label
             })
             modified = True
-            print(f"  -> Agregado salto de tarjeta: {card_break_label}")
 
         for link in links_to_add:
             if _norm(link["link_to"]) not in current_links:
@@ -2400,7 +2386,6 @@ def add_vouchers_to_accounts_workspace() -> None:
                     "link_to": link["link_to"],
                 })
                 modified = True
-                print(f"  -> Agregado a tabla links: {link['label']}")
 
         content = json.loads(workspace.content) if workspace.content else []
         custom_card_name = "Tributos"
@@ -2432,7 +2417,6 @@ def add_vouchers_to_accounts_workspace() -> None:
             workspace.content = json.dumps(content)
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
-            print(f"Success: Workspace '{workspace_name}' actualizado con sección '{custom_card_name}'.")
     except Exception as e:
         print(f"Failure: Error actualizando Comprobantes en Workspace: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_vouchers_to_accounts_workspace')
@@ -2504,14 +2488,12 @@ def add_links_to_buying_workspace() -> None:
                 insert_offset += 1
 
             modified = True
-            print(f"  -> Link agregado: {link_config['label']}")
 
         if modified:
             for i, link in enumerate(workspace.links, start=1):
                 link.idx = i
             workspace.save(ignore_permissions=True)
             frappe.db.commit()
-            print(f"Success: Links NC/ND agregados al Workspace '{workspace_name}'.")
     except Exception as e:
         print(f"Failure: Error agregando links NC al Workspace de Compras: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en add_links_to_buying_workspace')
