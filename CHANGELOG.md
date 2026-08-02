@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.37.0] - 2026-08-02
+
+### ✨ Funcionalidades (Features)
+- Implementación de la lógica para el guardado del ecosistema y saneo fiscal de una copia dentro del entorno sandbox. [2fac5f3]
+
+---
+
 ## [v2.36.2] - 2026-08-01
 
 ### ✨ Funcionalidades (Features)
