@@ -256,7 +256,15 @@ after_migrate = [
     # quedaba a merced de un servicio ajeno; y (2) termina en
     # `reconcile_draft_invoice_exchange_rates()`, que RE-TASA facturas en borrador. Una
     # migracion de esquema no debe mover el precio de nada.
-    "l10n_ve.setup.setup_workspaces",
+
+    # Inyeccion declarativa de links/accesos directos de l10n_ve en los workspaces de
+    # ERPNext. Los manifiestos estan en `l10n_ve/workspace_injection/*.json`; el
+    # reconciliador solo borra lo que declara y no guarda si nada cambio (idempotente y
+    # silencioso). `sync_all()` corre ANTES que los hooks `after_migrate`, asi que cuando
+    # ERPNext trae un JSON nuevo primero se pierde lo inyectado y aca se repone.
+    "l10n_ve.workspace_injection.apply_all",
+    # Esto NO lo cubre el reconciliador: toca Users/Build/ERPNext Settings, otros workspaces.
+    "l10n_ve.setup.restrict_admin_workspaces",
     # self-heal: los defaults de site_config (bcv_endpoint) se garantizan en cada migrate
     "l10n_ve.setup.set_default_site_config",
     # self-heal: logo del login/Desk solo-si-vacío (get_app_logo ignora el hook con >2 apps)
