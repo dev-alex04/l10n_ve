@@ -20,6 +20,8 @@ frappe.listview_settings["Sales Invoice"] = {
     "total_withholding",
     "vat_withholding_voucher_number",
     "islr_receipt_number",
+    // Lo calcula el servidor mirando la tabla de impuestos, que acá no está.
+    "missing_withholding_voucher",
   ],
 
   get_indicator: function (doc) {

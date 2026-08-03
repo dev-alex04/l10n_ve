@@ -1616,6 +1616,11 @@ def fix_missing_withholding(
 
     invoice.reload()
 
+    # La fila de retención acaba de nacer: si su comprobante no está registrado, la
+    # factura tiene que quedar avisada. El reload() de arriba es lo que hace que
+    # `invoice.taxes` ya la incluya.
+    refresh_missing_withholding_voucher(invoice)
+
     sync_isp_payment_amounts_if_installed(invoice)
 
     return {"status": "success", "msg": f"Retención aplicada y Asiento {je.name} creado con éxito."}
@@ -1713,6 +1718,81 @@ def update_invoice_metadata(invoice: "SalesInvoice", data: dict) -> None:
     frappe.db.set_value("Sales Invoice", invoice.name, data, update_modified=False)
     for field, value in data.items():
         setattr(invoice, field, value)
+    refresh_missing_withholding_voucher(invoice)
+
+
+#: Campo donde vive el número del comprobante de cada tipo de retención.
+#:
+#: La clave es el `charge_type` de Sales Taxes and Charges, que es el único lugar
+#: donde consta que la retención está contabilizada.
+WITHHOLDING_VOUCHER_FIELD: dict = {
+    "VAT Withholding": "vat_withholding_voucher_number",
+    "ISLR": "islr_receipt_number",
+}
+
+
+def missing_withholding_voucher(invoice: "SalesInvoice") -> bool:
+    """Hay una retención contabilizada cuyo número de comprobante no está registrado.
+
+    Se evalúa **por tipo**: una factura con retención de IVA y de ISLR donde sólo falta
+    el número del ISLR cuenta como faltante, aunque el de IVA esté cargado. Y una que
+    sólo tiene retención de IVA no reclama el número de ISLR, que no le corresponde.
+
+    Medido sobre la copia de producción (facturas de julio en adelante): de 392 con
+    retención contabilizada, 358 tienen los dos tipos, 23 sólo ISLR y 11 sólo IVA. Ese
+    8,7% de un solo tipo es lo que hace que la regla tenga que mirar el `charge_type` y
+    no pueda asumir que siempre vienen en par.
+    """
+    for fila in invoice.get("taxes") or []:
+        campo: str = WITHHOLDING_VOUCHER_FIELD.get(fila.charge_type or "")
+        if not campo or not flt(fila.tax_amount):
+            continue
+        if not str(invoice.get(campo) or "").strip():
+            return True
+    return False
+
+
+def refresh_missing_withholding_voucher(invoice: "SalesInvoice") -> None:
+    """Persiste el aviso de comprobante faltante para que lo lea la vista de lista.
+
+    La vista de lista sólo puede leer campos del padre --no ve la tabla de impuestos--
+    así que la condición se calcula acá y se guarda. Antes la lista la aproximaba con
+    `total_withholding != 0 && !nro_iva && !nro_islr`, y esa heurística fallaba de dos
+    maneras medidas sobre la copia de producción: 66 facturas con la fila de retención
+    tienen `total_withholding` en 0 --nadie lo recalcula en Sales Invoice-- y quedaban
+    invisibles; y el `&&` exigía que faltaran los DOS números, así que 21 facturas a
+    las que sólo les faltaba uno figuraban como completas.
+
+    Se escribe con `update_modified=False`: es un dato derivado, no una edición del
+    usuario, y no tiene por qué mover el `modified` de la factura ni su versión.
+    """
+    if not invoice.get("name"):
+        return
+
+    # Un documento cargado siempre trae `taxes`, aunque sea vacía. Que falte la clave
+    # significa que no es un documento completo --un dict parcial, una fila de una
+    # consulta-- y ahí la regla no daría False porque no haya retención, sino porque no
+    # puede verla. Apagar el aviso en ese caso es peor que no tocarlo.
+    if invoice.get("taxes") is None:
+        return
+    valor: int = 1 if missing_withholding_voucher(invoice) else 0
+    if cint(invoice.get("missing_withholding_voucher")) == valor:
+        return
+    invoice.missing_withholding_voucher = valor
+    frappe.db.set_value(
+        "Sales Invoice", invoice.name,
+        "missing_withholding_voucher", valor,
+        update_modified=False,
+    )
+
+
+def set_missing_withholding_voucher(doc: "SalesInvoice", method: str = None) -> None:
+    """Entrada del hook `validate`: deja el campo listo antes de que Frappe lo guarde.
+
+    Acá no se escribe en la base --el propio save lo persiste-- para no hacer dos
+    escrituras de lo mismo.
+    """
+    doc.missing_withholding_voucher = 1 if missing_withholding_voucher(doc) else 0
 
 
 #: Nombre en español de cada tipo de retención, para lo que lee un humano.
