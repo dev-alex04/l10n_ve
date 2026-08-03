@@ -380,6 +380,9 @@ doc_events = {
         # before_submit para que el validate() nativo recalcule tambien las filas hijas
         # (en before_submit, payment_schedule quedaba con el total viejo).
         "before_validate": "l10n_ve.digital_invoice.emission_rerate.rerate_juridical_on_submit",
+        # La vista de lista no ve la tabla de impuestos, asi que el aviso de
+        # "retencion contabilizada sin su comprobante" se calcula aca y se guarda.
+        "validate": "l10n_ve.overrides.sales_invoice.set_missing_withholding_voucher",
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
         "on_submit": "l10n_ve.tasks.on_sales_invoice_submit",
     },
