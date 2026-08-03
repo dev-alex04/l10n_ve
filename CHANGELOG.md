@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.38.0] - 2026-08-03
+
+### ✨ Funcionalidades (Features)
+- **Retenciones:** Se agregó la validación de quincena en la fecha del comprobante, con un tooltip que indica el período vigente. Impide fechar un comprobante dentro de una quincena ya cerrada. (#511) [c2071d6] [3f768a2] [596e529]
+
+### 🐛 Correcciones (Fixes)
+- **Workspaces:** La inyección de los accesos de l10n_ve en los workspaces de ERPNext pasó a ser declarativa: un manifiesto por workspace destino en `l10n_ve/workspace_injection/`, en lugar de ~700 líneas de código imperativo. Corrige cuatro defectos: se eliminaba un enlace propio de ERPNext (`Accounting Dimension`), se duplicaban las Notas de Crédito y Débito en Ventas en cada migración, las tarjetas se agrupaban de forma no determinista por colisiones de orden, y la tarjeta *Reportes Venezuela* no llegaba a mostrarse (sus reportes aparecían bajo una tarjeta ajena). (#524) [05d2ce7] [977afd9] [d6861aa]
+- **Migración:** La tasa de cambio dejó de recalcularse en cada `bench migrate`. Ya se actualiza cada hora por agenda; el llamado en la migración hacía peticiones de red que ataban el proceso a un servicio externo y volvía a tasar facturas en borrador. (#524) [16c897e]
+- **Retenciones:** Los documentos ahora dicen "Retención de IVA" y no "de VAT". El identificador interno se mostraba tal cual en la descripción de la factura y en el asiento contable, contradiciendo al comprobante del cliente, al Libro de Ventas y a la declaración. (#526) [c668974]
+- **Traducciones:** Se eliminó la entrada duplicada de *Branch* en `es.csv`. (#522) [404b028]
+
+---
+
 ## [v2.37.0] - 2026-08-02
 
 ### ✨ Funcionalidades (Features)
