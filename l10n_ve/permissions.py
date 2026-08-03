@@ -10,6 +10,34 @@ def is_admin_user(user: str) -> bool:
         return True
     return "System Manager" in frappe.get_roles(user)
 
+
+#: Roles autorizados a registrar comprobantes de retención en un período fiscal
+#: ya cerrado.
+#:
+#: Es la excepción al candado de quincenas: una vez declarado el período, la fecha
+#: del comprobante no debería moverse porque arrastra la retención a otro Libro de
+#: Ventas. Contabilidad sí necesita poder corregir a mano, así que estos roles
+#: saltan la validación.
+ACCOUNTING_ROLES = frozenset({
+    "Accounts Manager",
+    "Accounts User",
+    "Administrador Contable",
+    "Auxiliar Contable",
+    "ISP Finance",
+    "ISP Finance Pro",
+    "VE Sales Book HQ",
+    "System Manager",
+})
+
+
+def has_accounting_permission(user: str = None) -> bool:
+    """Retorna True si el usuario puede operar sobre períodos fiscales cerrados."""
+    user = user or frappe.session.user
+    if user == "Administrator":
+        return True
+    return bool(ACCOUNTING_ROLES.intersection(frappe.get_roles(user)))
+
+
 def get_allowed_branches(user: str = None, include_ancestors: bool = False) -> List[str]:
     """Retorna la lista de sucursales permitidas para el usuario.
 
