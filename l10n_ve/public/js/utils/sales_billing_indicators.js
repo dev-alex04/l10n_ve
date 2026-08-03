@@ -78,25 +78,24 @@ function _sales_invoice_indicator(doc) {
     color = "orange";
   }
 
-  // Detectar comprobantes de retención faltantes
-  let withholding_warning = false;
-
-  if (doc.taxes && doc.taxes.length) {
-    // Form view: revisar charge_type directamente en la tabla de impuestos
-    const has_vat = doc.taxes.some(
-      (t) => t.charge_type === "VAT Withholding" && flt(t.tax_amount) !== 0
-    );
-    const has_islr = doc.taxes.some(
-      (t) => t.charge_type === "ISLR" && flt(t.tax_amount) !== 0
-    );
-    withholding_warning =
-      (has_vat && !doc.vat_withholding_voucher_number) ||
-      (has_islr && !doc.islr_receipt_number);
-  } else if (flt(doc.total_withholding) !== 0) {
-    // List view: sin acceso a taxes, usar heurística con campos del padre
-    withholding_warning =
-      !doc.vat_withholding_voucher_number && !doc.islr_receipt_number;
-  }
+  // Aviso de retención contabilizada sin su comprobante.
+  //
+  // La regla vive en el servidor (`missing_withholding_voucher` en
+  // overrides/sales_invoice.py) y acá sólo se lee el resultado. Tiene que ser así
+  // porque la condición depende del `charge_type` de la tabla de impuestos, y la vista
+  // de lista --el único consumidor de este indicador-- no la trae.
+  //
+  // Antes se aproximaba con `total_withholding != 0 && !nro_iva && !nro_islr`, y esa
+  // heurística fallaba de dos maneras medidas sobre la copia de producción: 66
+  // facturas con la fila de retención tienen `total_withholding` en 0 --nadie lo
+  // recalcula en Sales Invoice-- y quedaban invisibles; y el `&&` exigía que faltaran
+  // los DOS números, así que 21 facturas a las que sólo les faltaba uno figuraban como
+  // completas.
+  //
+  // Tampoco alcanzaba con cambiar el `&&` por un `||`: 34 de esas 392 facturas tienen
+  // un solo tipo de retención, y reclamarles el número del otro sería un aviso falso.
+  // Por eso la regla mira el tipo, y por eso necesita el dato del servidor.
+  const withholding_warning = Boolean(cint(doc.missing_withholding_voucher));
 
   return {
     label: `${fiscal} - ${payment}`,
