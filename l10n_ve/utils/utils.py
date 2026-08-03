@@ -416,7 +416,8 @@ def create_independent_address(address_values: str) -> str:
     address_doc.flags.skip_link_address = True
 
     if not address_doc.address_title:
-        address_doc.address_title = address_doc.address_line1 or _("Nueva Dirección")
+        raw_title = address_doc.address_line1 or _("Nueva Dirección")
+        address_doc.address_title = raw_title[:110].strip()
 
     try:
         address_doc.insert(ignore_permissions=True)
