@@ -1117,21 +1117,15 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     fecha_contab = getdate(doc.posting_date)
     notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
 
-    # Espeja el payload real (dict_pdf en payload_builder): la nota del usuario
-    # solo reemplaza "Nota"; "Periodo" conserva el rango de la suscripción.
+    # Espeja el payload real (dict_pdf en payload_builder):
     periodo_default: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
     nota: str = notes or periodo_default
-    periodo: str = periodo_default
-    subscription_name: str = doc.get("subscription") or ""
-    if subscription_name:
-        try:
-            sub = frappe.get_cached_doc("Subscription", subscription_name)
-            if sub.current_invoice_start and sub.current_invoice_end:
-                inicio = getdate(sub.current_invoice_start).strftime("%d/%m/%Y")
-                fin = getdate(sub.current_invoice_end).strftime("%d/%m/%Y")
-                periodo = f"Desde {inicio} hasta {fin}"
-        except Exception:
-            pass
+
+    from calendar import monthrange as _monthrange
+    _ult_dia = _monthrange(fecha_contab.year, fecha_contab.month)[1]
+    _inicio_str = fecha_contab.replace(day=1).strftime("%d/%m/%Y")
+    _fin_str = fecha_contab.replace(day=_ult_dia).strftime("%d/%m/%Y")
+    periodo: str = f"Desde {_inicio_str} hasta {_fin_str}"
 
     iva_rate: float = 16.0
     has_iva: bool = flt(doc.base_total_taxes_and_charges) > 0

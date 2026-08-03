@@ -907,16 +907,11 @@ class TFHKAPayloadBuilder:
         periodo_default = f"{meses[fecha_contab.month]} {fecha_contab.year}"
         nota_periodo = notes or periodo_default
 
-        periodo: str = ""
-        if subscription_name:
-            try:
-                sub = frappe.get_cached_doc("Subscription", subscription_name)
-                if sub.current_invoice_start and sub.current_invoice_end:
-                    inicio = getdate(sub.current_invoice_start).strftime("%d/%m/%Y")
-                    fin = getdate(sub.current_invoice_end).strftime("%d/%m/%Y")
-                    periodo = f"Desde el {inicio} hasta el {fin}"
-            except Exception:
-                pass
+        from calendar import monthrange
+        ultimo_dia = monthrange(fecha_contab.year, fecha_contab.month)[1]
+        inicio_mes = fecha_contab.replace(day=1).strftime("%d/%m/%Y")
+        fin_mes = fecha_contab.replace(day=ultimo_dia).strftime("%d/%m/%Y")
+        periodo: str = f"Desde el {inicio_mes} hasta el {fin_mes}"
 
         coletilla_a: str = (
             "En los casos en que la base imponible de la venta o prestacion de servicio "
