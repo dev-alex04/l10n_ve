@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.38.2] - 2026-08-03
+
+### 🐛 Correcciones (Fixes)
+- Optimización del proceso de exportación HQ: se implementó el encolamiento para la generación de archivos Excel en lugar de procesarlos en memoria, mejorando el rendimiento y la escalabilidad del sistema. [f9edeb1]
+
+---
+
 ## [v2.38.1] - 2026-08-03
 
 ### 🐛 Correcciones (Fixes)
