@@ -900,18 +900,18 @@ class TFHKAPayloadBuilder:
             )
 
         # Generar periodo en "Nota" basado en posting_date
-        meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
-        fecha_contab = getdate(doc.posting_date)
+        months = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
+        posting_date = getdate(doc.posting_date)
 
         notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
-        periodo_default = f"{meses[fecha_contab.month]} {fecha_contab.year}"
-        nota_periodo = notes or periodo_default
+        period_default = f"{months[posting_date.month]} {posting_date.year}"
+        nota_periodo = notes or period_default
 
         from calendar import monthrange
-        ultimo_dia = monthrange(fecha_contab.year, fecha_contab.month)[1]
-        inicio_mes = fecha_contab.replace(day=1).strftime("%d/%m/%Y")
-        fin_mes = fecha_contab.replace(day=ultimo_dia).strftime("%d/%m/%Y")
-        periodo: str = f"Desde el {inicio_mes} hasta el {fin_mes}"
+        last_day = monthrange(posting_date.year, posting_date.month)[1]
+        month_start = posting_date.replace(day=1).strftime("%d/%m/%Y")
+        month_end = posting_date.replace(day=last_day).strftime("%d/%m/%Y")
+        periodo: str = f"Desde el {month_start} hasta el {month_end}"
 
         coletilla_a: str = (
             "En los casos en que la base imponible de la venta o prestacion de servicio "
@@ -949,7 +949,7 @@ class TFHKAPayloadBuilder:
         dict_pdf = {"DireccionServicio": direccion_servicio}
         dict_pdf["Serie"] = serie
         dict_pdf["TasaCambio"] = tasa_bcv
-        dict_pdf["Periodo"] = periodo if periodo else f"Desde {periodo_default}"
+        dict_pdf["Periodo"] = periodo if periodo else f"Desde {period_default}"
 
         bill_no_original: str = getattr(self, "_bill_no_original", "")
         if bill_no_original:

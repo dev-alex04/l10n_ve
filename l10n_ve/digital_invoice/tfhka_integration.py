@@ -1112,20 +1112,20 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     ) or ""
     nodo: str = ""
 
-    meses = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
-             "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
-    fecha_contab = getdate(doc.posting_date)
+    months = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
+              "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
+    posting_date = getdate(doc.posting_date)
     notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
 
     # Espeja el payload real (dict_pdf en payload_builder):
-    periodo_default: str = f"{meses[fecha_contab.month]} {fecha_contab.year}"
-    nota: str = notes or periodo_default
+    period_default: str = f"{months[posting_date.month]} {posting_date.year}"
+    note: str = notes or period_default
 
-    from calendar import monthrange as _monthrange
-    _ult_dia = _monthrange(fecha_contab.year, fecha_contab.month)[1]
-    _inicio_str = fecha_contab.replace(day=1).strftime("%d/%m/%Y")
-    _fin_str = fecha_contab.replace(day=_ult_dia).strftime("%d/%m/%Y")
-    periodo: str = f"Desde {_inicio_str} hasta {_fin_str}"
+    from calendar import monthrange
+    last_day = monthrange(posting_date.year, posting_date.month)[1]
+    start_date_str = posting_date.replace(day=1).strftime("%d/%m/%Y")
+    end_date_str = posting_date.replace(day=last_day).strftime("%d/%m/%Y")
+    period: str = f"Desde {start_date_str} hasta {end_date_str}"
 
     iva_rate: float = 16.0
     has_iva: bool = flt(doc.base_total_taxes_and_charges) > 0
@@ -1193,8 +1193,8 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "id_servicio": customer.tax_id or "",
         "zona": zona,
         "nodo": nodo,
-        "periodo": periodo,
-        "nota": nota,
+        "periodo": period,
+        "nota": note,
         "tasa_bcv": "{:.4f}".format(tc),
         "tasa_fecha": fecha_bcv.strftime("%d/%m/%Y"),
         "rerate_aviso": rerate_aviso,
