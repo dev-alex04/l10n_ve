@@ -854,6 +854,35 @@ def stale_rate_reason(sales_invoice: object) -> str | None:
     if abs(esperada - actual) < _RATE_TOLERANCE:
         return None
 
+    # Jurídico con la tasa POR DELANTE de su posting_date: es el estado normal en
+    # tránsito, no un documento desincronizado.
+    #
+    # El ciclo del jurídico tiene tres pasos y la coherencia recién existe al final:
+    #
+    #   1. Se genera la factura con la tasa del mes.
+    #   2. Paga -> `_sync_invoice_with_rate` (domina_isp) le pone la tasa del día del
+    #      pago, que es la que el cliente vio en el portal y la que efectivamente pagó.
+    #   3. HKA la certifica -> `_apply_hka_fields` mueve el `posting_date` a la fecha de
+    #      certificación, y ahí tasa y fecha quedan alineadas.
+    #
+    # Entre el 2 y el 3 la tasa es más nueva que la fecha. Comparar contra el
+    # `posting_date` en ese punto exige una coherencia que produce el paso 3, o sea el
+    # paso que este guard está bloqueando: la factura no se certifica nunca y el cron la
+    # descarta cada cinco minutos.
+    #
+    # Caso real: ACC-SINV-2026-13707 (PINK LOVERS C.A), del 01-07, cobrada el 02-08 por
+    # Bs 44.797,78 --el total a la tasa del 02-08-- y frenada desde entonces.
+    #
+    # El sentido inverso SÍ se sigue frenando, que es para lo que se escribió este
+    # guard: una tasa más VIEJA que el `posting_date` significa que la fecha se movió y
+    # la tasa se quedó, y eso declara una base imponible por debajo de la que
+    # corresponde. Los tres casos conocidos --ACC-SINV-2026-13754, ACC-SINV-2026-10195 y
+    # ACC-SINV-2026-07706-- son de ese tipo, y los tres son de clientes NATURALES, cuya
+    # tasa está congelada en el 1° del mes y no se retasa nunca.
+    if fecha_actual and str(fecha_actual) > str(posting_date) \
+            and is_juridical_customer(sales_invoice.customer):
+        return None
+
     return (
         f"La tasa del documento ({actual:,.4f}"
         + (f", del {fecha_actual}" if fecha_actual else "")
