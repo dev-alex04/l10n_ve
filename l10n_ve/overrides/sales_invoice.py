@@ -1,22 +1,3 @@
-ACCOUNTING_ROLES = {
-    "Accounts Manager",
-    "Accounts User",
-    "Administrador Contable",
-    "Auxiliar Contable",
-    "ISP Finance",
-    "ISP Finance Pro",
-    "VE Sales Book HQ",
-    "System Manager",
-    "Administrator",
-}
-
-def has_accounting_permission(user: str = None) -> bool:
-    user = user or getattr(frappe.session, "user", None) or "Guest"
-    if user == "Administrator":
-        return True
-    user_roles = set(frappe.get_roles(user))
-    return bool(user_roles.intersection(ACCOUNTING_ROLES))
-
 from typing import TYPE_CHECKING
 
 import frappe
@@ -35,7 +16,22 @@ if TYPE_CHECKING:
 from l10n_ve.overrides.company import CustomCompany
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
+from l10n_ve.permissions import has_accounting_permission
 from l10n_ve.utils.utils import validate_return_in_same_month, get_link_to_form, validate_portal_upload, delete_old_attachment, is_period_open
+
+
+def closed_period_msg() -> str:
+    """Mensaje único del candado de quincenas.
+
+    Lo comparten la validación del documento y los dos endpoints del portal (IVA e
+    ISLR). Es función y no constante de módulo a propósito: `_()` resuelve contra el
+    idioma de la sesión, que a nivel de módulo todavía no existe.
+    """
+    return _(
+        "La fecha del comprobante pertenece a una quincena o período anterior. "
+        "Para ingresar comprobantes de quincenas pasadas, debe comunicarse con el "
+        "personal de Contabilidad."
+    )
 
 
 class VESalesInvoice(TaxesMixin, SalesInvoice):
@@ -644,9 +640,24 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         return True
 
     def validate_withholding_date_period(self) -> None:
-        if self.withholding_date and not is_period_open(self.withholding_date, "IVA"):
-            if not has_accounting_permission():
-                frappe.throw(_("La fecha del comprobante ({0}) pertenece a una quincena o período anterior. Para ingresar comprobantes de quincenas pasadas, debe comunicarse con el personal de Contabilidad.").format(self.withholding_date))
+        """Impide fijar la fecha del comprobante de IVA en una quincena ya declarada.
+
+        Solo valida cuando la fecha *cambia*. `is_period_open` compara contra hoy, no
+        contra el documento, así que toda quincena termina cerrándose: sin este filtro
+        una factura registrada de forma legítima quedaba imposible de guardar semanas
+        después, y por cualquier edición ajena a la retención.
+        """
+        if not self.withholding_date:
+            return
+
+        if not self.is_new() and not self.has_value_changed("withholding_date"):
+            return
+
+        if is_period_open(self.withholding_date, "IVA"):
+            return
+
+        if not has_accounting_permission():
+            frappe.throw(closed_period_msg())
 
     def validate_withholding_voucher_number(self) -> None:
         if self.vat_withholding_voucher_number:
@@ -969,11 +980,9 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
 
         invoice_doc = frappe.get_doc("Sales Invoice", docname)
 
-        user_roles = frappe.get_roles()
-
         if not has_accounting_permission():
             if not is_period_open(withholding_date, "IVA"):
-                frappe.throw(_("La fecha del comprobante pertenece a una quincena o período anterior. Para ingresar comprobantes de quincenas pasadas, debe comunicarse con el personal de Contabilidad."))
+                frappe.throw(closed_period_msg())
 
             current_date = invoice_doc.get("withholding_date")
             if current_date and not is_period_open(current_date, "IVA"):
@@ -1026,10 +1035,9 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
 
         invoice_doc = frappe.get_doc("Sales Invoice", docname)
 
-        user_roles = frappe.get_roles()
         if not has_accounting_permission():
             if not is_period_open(islr_date, "ISLR"):
-                frappe.throw(_("La fecha del comprobante pertenece a una quincena o período anterior. Para ingresar comprobantes de quincenas pasadas, debe comunicarse con el personal de Contabilidad."))
+                frappe.throw(closed_period_msg())
 
             current_date = invoice_doc.get("islr_date")
             if current_date and not is_period_open(current_date, "ISLR"):
