@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils import flt, getdate
 
 import base64
+import re
 
 from xml.dom import minidom
 from xml.etree.ElementTree import Element, SubElement, tostring
@@ -436,6 +437,81 @@ def _get_date_range_from_filters(filters: dict) -> tuple[str, str]:
     return from_date, to_date
 
 
+def _clean_xml_factura_num(val: str | None) -> str:
+    """Sanea el número de factura para la declaración XML de ISLR del SENIAT.
+
+    - Toma la porción a la derecha del último guion.
+    - Elimina letras, guiones y caracteres no numéricos.
+    - Preserva intactos todos los ceros a la izquierda si el número no excede 10 dígitos.
+    - Si excede 10 dígitos, remueve ceros a la izquierda sobrantes para cumplir con el máximo de 10 dígitos del SENIAT.
+    """
+    if not val:
+        return "0"
+    val_str: str = str(val).strip()
+    if "-" in val_str:
+        num_part: str = val_str.rsplit("-", 1)[-1].strip()
+        digits: str = re.sub(r"\D", "", num_part)
+        if not digits:
+            digits = re.sub(r"\D", "", val_str)
+    else:
+        digits: str = re.sub(r"\D", "", val_str)
+
+    if not digits:
+        return "0"
+
+    if len(digits) > 10:
+        cleaned: str = digits.lstrip("0")
+        if len(cleaned) <= 10:
+            digits = cleaned if cleaned else "0"
+        else:
+            digits = digits[-10:]
+
+    return digits or "0"
+
+
+def _clean_xml_control_num(val: str | None) -> str:
+    """Sanea el número de control para la declaración XML de ISLR del SENIAT.
+
+    - Toma la porción a la derecha del último guion.
+    - Elimina letras, guiones y caracteres no numéricos.
+    - Preserva intactos todos los ceros a la izquierda si no excede 8 dígitos.
+    - Si excede 8 dígitos (ej: '00003367734'), remueve ceros excedentes para cumplir con el máximo de 8 dígitos del SENIAT ('3367734').
+    """
+    if not val:
+        return "0"
+    val_str: str = str(val).strip()
+    if "-" in val_str:
+        num_part: str = val_str.rsplit("-", 1)[-1].strip()
+        digits: str = re.sub(r"\D", "", num_part)
+        if not digits:
+            digits = re.sub(r"\D", "", val_str)
+    else:
+        digits: str = re.sub(r"\D", "", val_str)
+
+    if not digits:
+        return "0"
+
+    if len(digits) > 8:
+        cleaned: str = digits.lstrip("0")
+        if len(cleaned) <= 8:
+            digits = cleaned if cleaned else "0"
+        else:
+            digits = digits[-8:]
+
+    return digits or "0"
+
+
+def _clean_xml_rif(val: str | None) -> str:
+    """Sanea el RIF para el XML de ISLR del SENIAT.
+
+    Elimina guiones, espacios y caracteres especiales, dejando solo la letra y los dígitos en mayúsculas (ej: J309097865).
+    """
+    if not val:
+        return "0"
+    cleaned: str = re.sub(r"[^A-Za-z0-9]", "", str(val)).strip().upper()
+    return cleaned or "0"
+
+
 @frappe.whitelist()
 def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
     """
@@ -504,9 +580,9 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
                 continue
 
             detalle = SubElement(root, "DetalleRetencion")
-            SubElement(detalle, "RifRetenido").text = ret.supplier_rif or "N/A"
-            SubElement(detalle, "NumeroFactura").text = ret.bill_no or "N/A"
-            SubElement(detalle, "NumeroControl").text = str(ret.bill_control) if ret.bill_control else "N/A"
+            SubElement(detalle, "RifRetenido").text = _clean_xml_rif(ret.supplier_rif)
+            SubElement(detalle, "NumeroFactura").text = _clean_xml_factura_num(ret.bill_no)
+            SubElement(detalle, "NumeroControl").text = _clean_xml_control_num(ret.bill_control)
             SubElement(detalle, "FechaOperacion").text = getdate(ret.fecha_operacion).strftime("%d/%m/%Y")
             SubElement(detalle, "CodigoConcepto").text = ret.codigo_concepto
             SubElement(detalle, "MontoOperacion").text = f"{flt(ret.monto_operacion):.2f}"

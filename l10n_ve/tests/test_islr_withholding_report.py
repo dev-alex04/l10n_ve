@@ -163,3 +163,29 @@ class TestISLRWithholdingReport(FrappeTestCase):
         
         # Verify that 150.00 is rendered in the HTML totals row
         self.assertTrue("150.00" in html or "150,00" in html, "The total subtracting amount 150.00 should be formatted and rendered in the report HTML")
+
+    def test_xml_field_sanitization(self) -> None:
+        """Verify _clean_xml_factura_num, _clean_xml_control_num, and _clean_xml_rif for SENIAT rules."""
+        from l10n_ve.l10n_ve.report.purchase_book.purchase_book import (
+            _clean_xml_control_num,
+            _clean_xml_factura_num,
+            _clean_xml_rif,
+        )
+
+        # NumeroFactura: strictly numeric, max 10 digits
+        self.assertEqual(_clean_xml_factura_num("B-9523"), "9523")
+        self.assertEqual(_clean_xml_factura_num("MSO-01-0000028078"), "0000028078")
+        self.assertEqual(_clean_xml_factura_num("MSO-01-0000028079"), "0000028079")
+        self.assertEqual(_clean_xml_factura_num("F01-0001234"), "0001234")
+        self.assertEqual(_clean_xml_factura_num("22225011624"), "2225011624")
+        self.assertEqual(_clean_xml_factura_num(None), "0")
+
+        # NumeroControl: strictly numeric, max 8 digits
+        self.assertEqual(_clean_xml_control_num("00003367734"), "3367734")
+        self.assertEqual(_clean_xml_control_num("00-03367729"), "03367729")
+        self.assertEqual(_clean_xml_control_num(None), "0")
+
+        # RIF: uppercase, letters and digits only
+        self.assertEqual(_clean_xml_rif("J-30909786-5"), "J309097865")
+        self.assertEqual(_clean_xml_rif(None), "0")
+
