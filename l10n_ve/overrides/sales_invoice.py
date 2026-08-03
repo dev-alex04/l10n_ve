@@ -16,7 +16,22 @@ if TYPE_CHECKING:
 from l10n_ve.overrides.company import CustomCompany
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
 from l10n_ve.controllers.taxes_and_totals import TaxesAndTotals
+from l10n_ve.permissions import has_accounting_permission
 from l10n_ve.utils.utils import validate_return_in_same_month, get_link_to_form, validate_portal_upload, delete_old_attachment, is_period_open
+
+
+def closed_period_msg() -> str:
+    """Mensaje único del candado de quincenas.
+
+    Lo comparten la validación del documento y los dos endpoints del portal (IVA e
+    ISLR). Es función y no constante de módulo a propósito: `_()` resuelve contra el
+    idioma de la sesión, que a nivel de módulo todavía no existe.
+    """
+    return _(
+        "La fecha del comprobante pertenece a una quincena o período anterior. "
+        "Para ingresar comprobantes de quincenas pasadas, debe comunicarse con el "
+        "personal de Contabilidad."
+    )
 
 
 class VESalesInvoice(TaxesMixin, SalesInvoice):
@@ -155,6 +170,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         super().validate()
 
         self.validate_withholding_voucher_number()
+        self.validate_withholding_date_period()
         self.set_affected_invoice_number()
         self.validate_return_in_same_month()
 
@@ -623,6 +639,26 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
         return True
 
+    def validate_withholding_date_period(self) -> None:
+        """Impide fijar la fecha del comprobante de IVA en una quincena ya declarada.
+
+        Solo valida cuando la fecha *cambia*. `is_period_open` compara contra hoy, no
+        contra el documento, así que toda quincena termina cerrándose: sin este filtro
+        una factura registrada de forma legítima quedaba imposible de guardar semanas
+        después, y por cualquier edición ajena a la retención.
+        """
+        if not self.withholding_date:
+            return
+
+        if not self.is_new() and not self.has_value_changed("withholding_date"):
+            return
+
+        if is_period_open(self.withholding_date, "IVA"):
+            return
+
+        if not has_accounting_permission():
+            frappe.throw(closed_period_msg())
+
     def validate_withholding_voucher_number(self) -> None:
         if self.vat_withholding_voucher_number:
 
@@ -944,11 +980,9 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
 
         invoice_doc = frappe.get_doc("Sales Invoice", docname)
 
-        user_roles = frappe.get_roles()
-
-        if frappe.session.user != "Administrator" and "ISP Finance" not in user_roles:
+        if not has_accounting_permission():
             if not is_period_open(withholding_date, "IVA"):
-                frappe.throw(_("La fecha del comprobante cae en un período de declaración cerrado."))
+                frappe.throw(closed_period_msg())
 
             current_date = invoice_doc.get("withholding_date")
             if current_date and not is_period_open(current_date, "IVA"):
@@ -1001,10 +1035,9 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
 
         invoice_doc = frappe.get_doc("Sales Invoice", docname)
 
-        user_roles = frappe.get_roles()
-        if frappe.session.user != "Administrator" and "ISP Finance" not in user_roles:
+        if not has_accounting_permission():
             if not is_period_open(islr_date, "ISLR"):
-                frappe.throw(_("La fecha del comprobante cae en un período de declaración cerrado."))
+                frappe.throw(closed_period_msg())
 
             current_date = invoice_doc.get("islr_date")
             if current_date and not is_period_open(current_date, "ISLR"):
@@ -1578,7 +1611,7 @@ def fix_missing_withholding(
         "Sales Taxes and Charges",
         tax_row.name,
         "description",
-        f"Retención de {withholding_type} (Ajuste) - Asiento: {je.name}"
+        f"Retención de {withholding_label(withholding_type)} (Ajuste) - Asiento: {je.name}"
     )
 
     invoice.reload()
@@ -1682,6 +1715,21 @@ def update_invoice_metadata(invoice: "SalesInvoice", data: dict) -> None:
         setattr(invoice, field, value)
 
 
+#: Nombre en español de cada tipo de retención, para lo que lee un humano.
+#:
+#: El tipo interno es el `charge_type` de Sales Taxes and Charges ("VAT"/"ISLR"), y en
+#: la factura y en el asiento se venía escribiendo tal cual: "Retención de VAT". En
+#: Venezuela ese impuesto se llama IVA en todos lados --el comprobante del cliente, el
+#: Libro de Ventas, la declaración-- así que el documento contradecía a su propio
+#: respaldo. ISLR ya coincide y queda igual.
+WITHHOLDING_LABEL: dict = {"VAT": "IVA", "ISLR": "ISLR"}
+
+
+def withholding_label(withholding_type: str) -> str:
+    """Nombre en español del tipo de retención; devuelve el tipo si no lo conoce."""
+    return WITHHOLDING_LABEL.get(withholding_type, withholding_type)
+
+
 def create_sales_taxes_row(
     invoice: "SalesInvoice",
     charge_type: str,
@@ -1702,7 +1750,7 @@ def create_sales_taxes_row(
     tax_row.add_deduct_tax = "Deduct"
     tax_row.category = "Total"
     tax_row.account_head = tax_account
-    tax_row.description = f"Retención de {withholding_type} (Ajuste)"
+    tax_row.description = f"Retención de {withholding_label(withholding_type)} (Ajuste)"
     tax_row.rate = flt(rate)
     tax_row.tax_amount = amount
     tax_row.base_tax_amount = base_amount
@@ -1741,7 +1789,10 @@ def create_withholding_journal_entry(
     je = frappe.new_doc("Journal Entry")
     je.company = invoice.company
     je.posting_date = posting_date
-    je.user_remark = f"Retención de {withholding_type} registrada para la factura {invoice.name}."
+    je.user_remark = (
+        f"Retención de {withholding_label(withholding_type)} registrada "
+        f"para la factura {invoice.name}."
+    )
     
     je.multi_currency = 1 if (
         invoice_currency != company_currency or 

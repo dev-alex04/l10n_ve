@@ -1,0 +1,21 @@
+{
+	"targets": ["Financial Reports", "Accounting", "Accounts"],
+	"cards": [
+		{
+			"label": "Reportes Venezuela",
+			"owned": true,
+			"col": 4,
+			"place": { "after_card": "Other Reports" },
+			"links": [
+				{ "label": "Retención de Cliente IVA/ISLR", "link_to": "Customer Retention", "link_type": "Report", "is_query_report": 1 },
+				{ "label": "Reporte de IVA", "link_to": "VAT report", "link_type": "Report", "is_query_report": 1 },
+				{ "label": "IGTF Recibido", "link_to": "IGTF received", "link_type": "Report", "is_query_report": 1 },
+				{ "label": "Libro de Ventas", "link_to": "Sales book", "link_type": "Report", "is_query_report": 1 },
+				{ "label": "Libro de Compras", "link_to": "purchase_book", "link_type": "Report", "is_query_report": 1 },
+				{ "label": "Retención de ISLR", "link_to": "ISLR Withholding", "link_type": "Report", "is_query_report": 1 },
+				{ "label": "Retención de IVA", "link_to": "VAT Withholding", "link_type": "Report", "is_query_report": 1 }
+			]
+		}
+	],
+	"shortcuts": []
+}
