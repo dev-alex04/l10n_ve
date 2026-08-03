@@ -1,0 +1,40 @@
+{
+	"targets": ["Accounting", "Accounts"],
+	"cards": [
+		{
+			"label": "Configuración Venezuela",
+			"owned": true,
+			"col": 4,
+			"place": { "after_card": "Payments" },
+			"links": [
+				{ "label": "Unidad Tributaria", "link_to": "Tax Unit", "link_type": "DocType" },
+				{ "label": "Tabulador de ISLR", "link_to": "Tabulator ISLR", "link_type": "DocType" },
+				{ "label": "Actividades Económicas", "link_to": "VE Economic Activity", "link_type": "DocType" },
+				{ "label": "Municipios", "link_to": "VE Municipality", "link_type": "DocType" },
+				{ "label": "Impuestos Municipales", "link_to": "VE Municipality Taxes", "link_type": "DocType" },
+				{ "label": "Impuestos CONATEL", "link_to": "VE Conatel Tax Type", "link_type": "DocType" },
+				{ "label": "Sucursales", "link_to": "VE Branch", "link_type": "DocType" },
+				{ "label": "Configuración", "link_to": "Venezuela Account Settings", "link_type": "DocType" }
+			]
+		},
+		{
+			"label": "Tributos",
+			"aliases": ["Comprobantes"],
+			"owned": true,
+			"col": 4,
+			"place": { "after_card": "Configuración Venezuela" },
+			"links": [
+				{ "label": "Comprobantes de Retención de IVA", "link_to": "VAT Withholding Voucher", "link_type": "DocType" },
+				{ "label": "Comprobantes de Retención de ISLR", "link_to": "ISLR Withholding Voucher", "link_type": "DocType" },
+				{ "label": "Declaración de Impuestos Municipales", "link_to": "VE Municipality Tax Declaration", "link_type": "DocType" },
+				{ "label": "Declaración de CONATEL", "link_to": "VE Conatel Tax Declaration", "link_type": "DocType" }
+			]
+		}
+	],
+	"shortcuts": [
+		{ "label": "Sucursales", "link_to": "VE Branch", "type": "DocType", "col": 3 },
+		{ "label": "Libro de Pago", "link_to": "Payment Ledger", "type": "Report", "col": 3 },
+		{ "label": "Importación de Extractos", "link_to": "Bank Statement Import", "type": "DocType", "col": 3, "aliases": ["Importacion de Extractos"] },
+		{ "label": "Tasa de Cambio", "link_to": "Currency Exchange", "type": "DocType", "col": 3 }
+	]
+}
