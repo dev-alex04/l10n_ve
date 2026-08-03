@@ -1578,7 +1578,7 @@ def fix_missing_withholding(
         "Sales Taxes and Charges",
         tax_row.name,
         "description",
-        f"Retención de {withholding_type} (Ajuste) - Asiento: {je.name}"
+        f"Retención de {withholding_label(withholding_type)} (Ajuste) - Asiento: {je.name}"
     )
 
     invoice.reload()
@@ -1682,6 +1682,21 @@ def update_invoice_metadata(invoice: "SalesInvoice", data: dict) -> None:
         setattr(invoice, field, value)
 
 
+#: Nombre en español de cada tipo de retención, para lo que lee un humano.
+#:
+#: El tipo interno es el `charge_type` de Sales Taxes and Charges ("VAT"/"ISLR"), y en
+#: la factura y en el asiento se venía escribiendo tal cual: "Retención de VAT". En
+#: Venezuela ese impuesto se llama IVA en todos lados --el comprobante del cliente, el
+#: Libro de Ventas, la declaración-- así que el documento contradecía a su propio
+#: respaldo. ISLR ya coincide y queda igual.
+WITHHOLDING_LABEL: dict = {"VAT": "IVA", "ISLR": "ISLR"}
+
+
+def withholding_label(withholding_type: str) -> str:
+    """Nombre en español del tipo de retención; devuelve el tipo si no lo conoce."""
+    return WITHHOLDING_LABEL.get(withholding_type, withholding_type)
+
+
 def create_sales_taxes_row(
     invoice: "SalesInvoice",
     charge_type: str,
@@ -1702,7 +1717,7 @@ def create_sales_taxes_row(
     tax_row.add_deduct_tax = "Deduct"
     tax_row.category = "Total"
     tax_row.account_head = tax_account
-    tax_row.description = f"Retención de {withholding_type} (Ajuste)"
+    tax_row.description = f"Retención de {withholding_label(withholding_type)} (Ajuste)"
     tax_row.rate = flt(rate)
     tax_row.tax_amount = amount
     tax_row.base_tax_amount = base_amount
@@ -1741,7 +1756,10 @@ def create_withholding_journal_entry(
     je = frappe.new_doc("Journal Entry")
     je.company = invoice.company
     je.posting_date = posting_date
-    je.user_remark = f"Retención de {withholding_type} registrada para la factura {invoice.name}."
+    je.user_remark = (
+        f"Retención de {withholding_label(withholding_type)} registrada "
+        f"para la factura {invoice.name}."
+    )
     
     je.multi_currency = 1 if (
         invoice_currency != company_currency or 
