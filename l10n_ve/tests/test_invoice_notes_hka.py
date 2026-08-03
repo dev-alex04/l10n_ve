@@ -92,20 +92,20 @@ class TestInvoiceNotesPayload(FrappeTestCase):
         self.assertEqual(pdf["Periodo"], "Desde el 01/07/2026 hasta el 31/07/2026")
 
     def test_nota_fallback_without_notes(self) -> None:
-        """Sin nota ni suscripción: Nota = mes/año, Periodo = Desde mes/año."""
+        """Sin nota ni suscripción: Nota = mes/año, Periodo = rango del mes de posting_date."""
         doc = _make_invoice()
         pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
 
         self.assertEqual(pdf["Nota"], "JULIO 2026")
-        self.assertEqual(pdf["Periodo"], "Desde JULIO 2026")
+        self.assertEqual(pdf["Periodo"], "Desde el 01/07/2026 hasta el 31/07/2026")
 
     def test_notes_without_subscription_keep_default_period(self) -> None:
-        """Con nota y sin suscripción: la nota NO se fuga a Periodo."""
+        """Con nota y sin suscripción: Periodo = rango del mes de posting_date."""
         doc = _make_invoice(notes="Corresponde a instalacion del servicio")
         pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
 
         self.assertEqual(pdf["Nota"], "Corresponde a instalacion del servicio")
-        self.assertEqual(pdf["Periodo"], "Desde JULIO 2026")
+        self.assertEqual(pdf["Periodo"], "Desde el 01/07/2026 hasta el 31/07/2026")
 
     def test_notes_sanitization_in_payload(self) -> None:
         """Comillas dobles fuera; saltos de línea y espacios colapsados."""
@@ -223,18 +223,18 @@ class TestInvoiceNotesPreview(FrappeTestCase):
         self.assertEqual(data["periodo"], "Desde 01/07/2026 hasta 31/07/2026")
 
     def test_preview_nota_fallback_without_notes(self) -> None:
-        """Sin nota: nota = mes/año (igual que dict_pdf['Nota'])."""
+        """Sin nota: nota = mes/año, periodo = rango del mes de posting_date."""
         data = _run_preview(_make_preview_invoice())
 
         self.assertEqual(data["nota"], "JULIO 2026")
-        self.assertEqual(data["periodo"], "JULIO 2026")
+        self.assertEqual(data["periodo"], "Desde 01/07/2026 hasta 31/07/2026")
 
     def test_preview_notes_do_not_leak_into_period(self) -> None:
-        """Con nota y sin suscripción: periodo conserva el mes/año."""
+        """Con nota y sin suscripción: periodo = rango del mes de posting_date."""
         data = _run_preview(_make_preview_invoice(notes="Nota del operador"))
 
         self.assertEqual(data["nota"], "Nota del operador")
-        self.assertEqual(data["periodo"], "JULIO 2026")
+        self.assertEqual(data["periodo"], "Desde 01/07/2026 hasta 31/07/2026")
 
     def test_preview_sanitization_mirrors_payload(self) -> None:
         """La normalización de la preview es idéntica a la del payload."""
