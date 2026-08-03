@@ -639,27 +639,45 @@ def get_ve_exchange_rate_for_customer(
 ) -> float:
     """Retorna la tasa de cambio correcta según el tipo de cliente venezolano.
 
-    Regla fiscal venezolana:
+    Regla fiscal, anclada SIEMPRE en hoy:
+
     - Jurídico (Juridical / Government / Communal / Educational):
-      tasa del día exacto indicado.
+      tasa del día de hoy.
     - Natural (Venezuelan / Extranjero / Passport):
-      tasa del primer día del mes.
+      tasa del primer día del mes en curso.
+
+    Por qué la referencia es hoy y no la fecha del documento
+    --------------------------------------------------------
+    Lo que se declara ante el SENIAT es la tasa del día en que el documento se EMITE,
+    no la del período que factura. Una factura de julio cobrada en agosto se emite en
+    agosto y debe salir a la tasa de agosto: si el cliente paga hoy un servicio de
+    marzo, la factura sale a la tasa de hoy.
+
+    Anclarla a la fecha recibida era la causa del incidente del 2026-08-03
+    (ACC-SINV-2026-13754, cliente natural): se le pasaba el `posting_date` de la
+    factura, que era de julio, y salió ante el SENIAT con la tasa del 1° de julio
+    teniendo fecha de emisión 1° de agosto. Base imponible Bs 109.200,76 cuando
+    correspondían Bs 128.726,43: Bs 19.526 de base y Bs 3.124 de IVA por debajo.
+
+    El parámetro `date` se conserva por compatibilidad --la función está whitelisted y
+    la llaman dos formularios-- pero NO participa de la regla. Se ignora a propósito:
+    era justamente el camino por el que entraba la fecha equivocada.
 
     Args:
         customer:      ID del Customer en Frappe.
-        date:          Fecha de referencia (posting_date, etc.) en formato 'YYYY-MM-DD'.
+        date:          Ignorado. Se mantiene por compatibilidad de firma.
         from_currency: Moneda de origen. Por defecto 'USD'.
 
     Returns:
         Tasa de cambio como float. 0.0 si no se encuentra ninguna.
-        Si customer está vacío o no existe, se asume Natural (primer día del mes).
+        Si customer está vacío o no existe, se asume Natural (1° del mes en curso).
     """
-    if not customer:
-        rate_date = get_first_day(getdate(date))
-    elif is_juridical_customer(customer):
-        rate_date = getdate(date)
+    hoy = getdate(nowdate())
+
+    if customer and is_juridical_customer(customer):
+        rate_date = hoy
     else:
-        rate_date = get_first_day(getdate(date))
+        rate_date = get_first_day(hoy)
 
     return get_exchange_rate(str(rate_date), from_currency) or 0.0
 

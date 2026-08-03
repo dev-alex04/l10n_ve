@@ -100,14 +100,14 @@ class TestStaleRateGuard(unittest.TestCase):
         self.assertIsNone(_motivo(_factura("2026-08-01", 0)))
 
     # ------------------------------------------------------------------ #
-    # El jurídico con la tasa por delante de su fecha
+    # La tasa por delante de la fecha: el estado normal en tránsito
     # ------------------------------------------------------------------ #
 
     def test_a_juridical_invoice_with_a_newer_rate_passes(self):
         """Es el estado normal en tránsito, no un documento desincronizado.
 
-        El ciclo del jurídico tiene tres pasos: se genera con la tasa del mes, al pagar
-        se retasa al día del pago, y al certificar HKA le mueve el `posting_date` a la
+        El ciclo tiene tres pasos: se genera con la tasa que le toca, al aprobarla se
+        retasa a la tasa de emisión, y al certificar se le mueve el `posting_date` a la
         fecha de certificación. Entre el segundo y el tercero la tasa es más nueva que
         la fecha, y comparar contra el `posting_date` ahí exige una coherencia que
         produce el paso que este guard está bloqueando.
@@ -119,13 +119,16 @@ class TestStaleRateGuard(unittest.TestCase):
             _motivo(_factura("2026-07-01", 746.6297), juridico=True)
         )
 
-    def test_a_natural_invoice_with_a_newer_rate_is_still_blocked(self):
-        """El natural no se retasa nunca: su tasa está congelada en el 1° del mes.
+    def test_a_natural_invoice_with_a_newer_rate_also_passes(self):
+        """El natural también se retasa: a la tasa del 1° del mes EN CURSO.
 
-        Si la trae más nueva, algo se la movió, y eso sí hay que mirarlo.
+        Una factura de julio emitida en agosto porta la tasa del 1° de agosto y su
+        `posting_date` todavía dice julio hasta que la certificación lo mueve. Es el
+        mismo tránsito que el del jurídico.
         """
-        motivo = _motivo(_factura("2026-07-01", 746.6297), juridico=False)
-        self.assertIsNotNone(motivo)
+        self.assertIsNone(
+            _motivo(_factura("2026-07-01", 746.6297), juridico=False)
+        )
 
     def test_a_juridical_invoice_with_an_older_rate_is_still_blocked(self):
         """La dirección importa: más vieja significa que la fecha se movió y la tasa no.
