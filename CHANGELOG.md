@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.39.3] - 2026-08-04
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la lógica de obtención de la fecha de la tasa en el módulo HKA, asegurando que la información se extraiga correctamente desde la regla y no desde el monto. [f73bdb8]
+
+---
+
 ## [v2.39.2] - 2026-08-04
 
 ### 🐛 Correcciones (Fixes)

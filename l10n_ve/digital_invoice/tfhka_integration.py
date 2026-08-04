@@ -3,7 +3,7 @@ import re
 import time
 
 import frappe
-from frappe.utils import flt, getdate, cint, today
+from frappe.utils import flt, getdate, cint, today, nowdate, get_first_day
 
 from l10n_ve.digital_invoice.emission_rerate import (
     _blocking_condition,
@@ -180,13 +180,71 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     )
 
 
+def _fecha_de_la_regla(doc: object) -> str | None:
+    """Fecha de la tasa segun la regla, si el documento porta exactamente esa tasa.
+
+    `resolve_exchange_rate_date` hace ingenieria inversa sobre `conversion_rate` y
+    se queda con la fecha MAS RECIENTE que publique ese valor (`ORDER BY date DESC`).
+    Eso es ambiguo por construccion: cuando el BCV repite la tasa varios dias --o
+    cuando se igualan a mano-- imprime el ultimo de la racha en vez del que la regla
+    uso.
+
+    **Caso (2026-08-04):** `ACC-SINV-2026-15614`, cliente natural. Portaba 748,7864,
+    que es la tasa del 1° de agosto y la correcta para un natural, pero el 01, el 02 y
+    el 03 tenian todos ese mismo valor, asi que la nota impresa decia "de fecha valor
+    03/08/2026". El monto declarado era cierto; la fecha atribuida, no.
+
+    Se exige **fila exacta** para la fecha de la regla y que su tasa coincida con la
+    del documento. Sin esa condicion se estaria imprimiendo una fecha para la que
+    Currency Exchange no publica nada --o publica otra cosa-- y
+    `_validate_tasa_coherencia`, que valida contra la fila de la fecha EXACTA,
+    bloquearia la emision. Es la asimetria que ya trabo facturas antes: quien escribe
+    la tasa usa un lookup permisivo y quien la valida exige la fila del dia.
+
+    Devuelve None cuando el documento porta otra tasa (retasado pendiente, documento
+    viejo): ahi el lookup inverso sigue siendo lo correcto.
+    """
+    if not flt(doc.conversion_rate):
+        return None
+
+    company_currency: str = frappe.get_cached_value(
+        "Company", doc.company, "default_currency"
+    ) or "VEF"
+    if doc.currency == company_currency:
+        return None
+
+    hoy = getdate(nowdate())
+    fecha = hoy if is_juridical_customer(doc.customer) else get_first_day(hoy)
+
+    publicada = frappe.db.get_value(
+        "Currency Exchange",
+        {
+            "date": str(fecha),
+            "from_currency": doc.currency,
+            "to_currency": company_currency,
+        },
+        "exchange_rate",
+        order_by="modified desc",
+    )
+    # Tolerancia en vez de igualdad tras redondear, por dos razones: es la misma
+    # vara (+-0.0001) que usa resolve_exchange_rate_date para el lookup inverso, y
+    # `flt(x, 4)` depende de System Settings --sin site devuelve 0.0 y haria comparar
+    # dos ceros como si coincidieran--.
+    if publicada and abs(flt(publicada) - flt(doc.conversion_rate)) <= 0.0001:
+        return str(fecha)
+    return None
+
+
 def _compute_tasa_fecha(doc: object) -> str:
     """
     Calcula la fecha de la tasa BCV que debe mostrar el documento impreso.
 
-    Para los dos tipos se usa la fecha REAL de la tasa que porta el documento
-    (lookup inverso en Currency Exchange sobre conversion_rate). No puede
-    inferirse del posting_date: la tasa se actualiza al aprobar la factura
+    Se resuelve en dos pasos, y el orden importa. **Primero se le pregunta a la
+    regla**: si el documento porta exactamente la tasa publicada para la fecha que
+    la regla manda (hoy para el juridico, 1o del mes en curso para el natural), esa
+    es la fecha. Si porta otra --documento viejo, retasado pendiente-- se cae al
+    **lookup inverso**: la fecha REAL de la tasa que porta (busqueda en Currency
+    Exchange sobre conversion_rate). No puede inferirse del posting_date: la tasa se actualiza al aprobar la factura
     (rerate_juridical_before_submit), que puede ocurrir en un mes posterior al
     de generada.
 
@@ -203,6 +261,14 @@ def _compute_tasa_fecha(doc: object) -> str:
     certificación HKA.
     """
     fecha_base = getdate(doc.posting_date)
+
+    # Primero se le pregunta a la REGLA, no se adivina desde el monto: si el
+    # documento porta exactamente la tasa publicada para la fecha que la regla
+    # manda, esa es la fecha, sin ambiguedad posible. Ver _fecha_de_la_regla.
+    fecha_regla = _fecha_de_la_regla(doc)
+    if fecha_regla:
+        return fecha_regla
+
     rate_date = resolve_exchange_rate_date(flt(doc.conversion_rate), doc.currency)
     if rate_date:
         return rate_date
