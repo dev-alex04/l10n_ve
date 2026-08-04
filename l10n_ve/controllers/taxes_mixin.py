@@ -524,6 +524,16 @@ class TaxesMixin:
         )
 
         if not aliquot_info:
+            # Fallback local: si el tabulador no tiene alícuota del tipo de persona, tomar la primera válida
+            aliquot_info = next(
+                (
+                    aq for aq in tabulator.aliquot
+                    if flt(aq.aliquot) > 0
+                ),
+                None
+            )
+
+        if not aliquot_info:
             disponibles: str = ", ".join(sorted({
                 str(aq.types_of_person) for aq in tabulator.aliquot if flt(aq.aliquot) > 0
             })) or _("ninguno")
