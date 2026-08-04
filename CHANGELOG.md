@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.39.4] - 2026-08-04
+
+### ✨ Funcionalidades (Features)
+- Se desactivó la validación obligatoria del campo de Retención de Impuestos en el módulo de proveedores. (5b8af92)
+
+---
+
 ## [v2.39.3] - 2026-08-04
 
 ### 🐛 Correcciones (Fixes)
