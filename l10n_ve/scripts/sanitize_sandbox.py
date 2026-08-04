@@ -3,7 +3,8 @@ Saneo de la parte fiscal de una copia de producción (l10n_ve).
 
 Lo que apaga acá es la capacidad de consumir correlativos reales: una emisión desde
 la copia usaría la serie de la sucursal de verdad y le quemaría números a la
-imprenta digital.
+imprenta digital. Y baja TFHKA a ``Demo``, que es la segunda barrera contra emitir
+de verdad.
 
 No se ejecuta solo: lo descubre y lo dispara el orquestador de ``domina_core`` vía
 el hook ``sandbox_sanitizers``. Igual expone ``dry_run``/``execute`` por si hace
@@ -19,6 +20,19 @@ from l10n_ve.scripts.sandbox import assert_sandbox, sandbox_status
 #: Serie de pruebas a la que se llevan todas las series fiscales de la copia.
 SANDBOX_HKA_SERIES: str = "MAR-05"
 
+#: Entorno al que se lleva TFHKA en la copia.
+#:
+#: Es una SEGUNDA barrera, no la principal. La resolución de la URL en ``tfhka_client``
+#: elige la clave del site_config según este campo, así que con ``Demo`` la copia apunta
+#: a ``demo_url`` aunque alguien haya dejado una ``production_url`` real.
+#:
+#: La barrera principal sigue siendo el site_config, porque es lo único que sobrevive a
+#: un ``bench restore``. Pero es una sola línea: medido el 2026-08-02, tras restaurar
+#: producción en una copia TFHKA quedó en ``Production`` y el cron de envío sin detener;
+#: lo que salvó al sitio fue que el site_config seguía apuntando al host de demo. Si
+#: alguien copia además el site_config, esa línea desaparece y la copia emite de verdad.
+SANDBOX_HKA_ENVIRONMENT: str = "Demo"
+
 
 def run(dry: bool) -> list:
     """Contrato del hook ``sandbox_sanitizers``: devuelve ``[(título, detalle), ...]``.
@@ -28,7 +42,7 @@ def run(dry: bool) -> list:
     chequeado es un saneo sin guarda.
     """
     assert_sandbox()
-    return [_set_hka_series(dry)]
+    return [_set_hka_series(dry), _set_hka_environment(dry)]
 
 
 def _set_hka_series(dry: bool) -> tuple:
@@ -52,6 +66,26 @@ def _set_hka_series(dry: bool) -> tuple:
         )
     return ("Series fiscales HKA",
             f"{len(pendientes)} serie(s) -> {SANDBOX_HKA_SERIES} (de {len(filas)})")
+
+
+def _set_hka_environment(dry: bool) -> tuple:
+    """Baja TFHKA a Demo. No toca ``enabled``: la copia tiene que poder probar
+    emisión contra el ambiente de pruebas, que es para lo que existe."""
+    if not frappe.db.exists("DocType", "TFHKA Settings"):
+        return ("Entorno TFHKA", "TFHKA no está instalado")
+
+    actual: str = frappe.db.get_single_value("TFHKA Settings", "environment") or "(vacío)"
+
+    if dry:
+        if actual == SANDBOX_HKA_ENVIRONMENT:
+            return ("Entorno TFHKA", f"ya está en {SANDBOX_HKA_ENVIRONMENT!r}")
+        return ("Entorno TFHKA", f"{actual!r}, por cambiar a {SANDBOX_HKA_ENVIRONMENT!r}")
+
+    if actual == SANDBOX_HKA_ENVIRONMENT:
+        return ("Entorno TFHKA", f"sin cambios, ya estaba en {SANDBOX_HKA_ENVIRONMENT!r}")
+
+    frappe.db.set_single_value("TFHKA Settings", "environment", SANDBOX_HKA_ENVIRONMENT)
+    return ("Entorno TFHKA", f"{actual!r} -> {SANDBOX_HKA_ENVIRONMENT!r}")
 
 
 def dry_run() -> None:
