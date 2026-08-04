@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils import flt, getdate
 
 import base64
+import re
 
 from xml.dom import minidom
 from xml.etree.ElementTree import Element, SubElement, tostring
@@ -436,6 +437,63 @@ def _get_date_range_from_filters(filters: dict) -> tuple[str, str]:
     return from_date, to_date
 
 
+#: Largo máximo que acepta el portal del SENIAT en cada campo de la declaración
+#: de ISLR. Excederlo es lo que devuelve el error de validación 454.
+_XML_MAX_FACTURA_DIGITS = 10
+_XML_MAX_CONTROL_DIGITS = 8
+
+
+def _clean_xml_doc_number(val: str | None, max_digits: int) -> str | None:
+    """Dígitos del número de un documento para la declaración XML de ISLR del SENIAT.
+
+    El SENIAT solo acepta dígitos y tope de largo por campo. Los números llegan
+    con serie (``MSO-01-0000028078``, ``B-9523``) o con relleno a la izquierda
+    (``00-03367729``), así que se toma la porción a la derecha del último guion
+    y se descartan los caracteres no numéricos.
+
+    Devuelve ``None`` cuando el número **no se puede declarar tal como es**: o no
+    tiene dígitos, o sigue excediendo ``max_digits`` después de quitarle el
+    relleno. Recortarlo ahí dejaría un número que no es el del documento
+    —``0158353167`` se volvería ``58353167``, perdiendo un dígito significativo—
+    y el SENIAT cruza la declaración del comprador contra la del vendedor: un
+    número inventado no cuadra con nada y el error vuelve meses después sin
+    rastro de su origen. El llamador reporta esas filas en vez de declararlas mal.
+    """
+    if not val:
+        return None
+
+    val_str: str = str(val).strip()
+    num_part: str = val_str.rsplit("-", 1)[-1] if "-" in val_str else val_str
+    digits: str = re.sub(r"\D", "", num_part)
+    if not digits:
+        # La porción tras el guion no traía dígitos (p. ej. "0001234-A"):
+        # se reintenta sobre el valor completo.
+        digits = re.sub(r"\D", "", val_str)
+    if not digits:
+        return None
+
+    if len(digits) > max_digits:
+        # Quitar el relleno de la izquierda no cambia el número; recortar sí.
+        digits = digits.lstrip("0")
+        if not digits or len(digits) > max_digits:
+            return None
+
+    return digits
+
+
+def _clean_xml_rif(val: str | None) -> str | None:
+    """RIF para el XML de ISLR: letra y dígitos en mayúsculas, sin separadores.
+
+    ``J-30909786-5`` queda como ``J309097865``. Devuelve ``None`` si no queda
+    nada declarable, para que el llamador reporte la fila en lugar de mandar un
+    RIF de relleno que el portal aceptaría como válido.
+    """
+    if not val:
+        return None
+    cleaned: str = re.sub(r"[^A-Za-z0-9]", "", str(val)).upper()
+    return cleaned or None
+
+
 @frappe.whitelist()
 def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
     """
@@ -476,7 +534,8 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
                 item.code AS codigo_concepto,
                 item.rate AS porcentaje_retencion,
                 item.islr_base_amount AS monto_operacion,
-                supp.type_of_person
+                supp.type_of_person,
+                voucher.name AS voucher_name
             FROM `tabISLR Withholding Voucher Item` AS item
             INNER JOIN `tabISLR Withholding Voucher` AS voucher
                 ON item.parent = voucher.name AND voucher.docstatus = 1
@@ -503,10 +562,36 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
                     processing_errors.append(error_msg)
                 continue
 
+            rif_retenido: str | None = _clean_xml_rif(ret.supplier_rif)
+            numero_factura: str | None = _clean_xml_doc_number(ret.bill_no, _XML_MAX_FACTURA_DIGITS)
+            numero_control: str | None = _clean_xml_doc_number(ret.bill_control, _XML_MAX_CONTROL_DIGITS)
+
+            invalid_fields: list[str] = [
+                _("{0} '{1}' (máximo {2} dígitos)").format(label, raw or "", max_digits)
+                for label, raw, value, max_digits in (
+                    (_("RIF"), ret.supplier_rif, rif_retenido, _XML_MAX_FACTURA_DIGITS),
+                    (_("Nro. de Factura"), ret.bill_no, numero_factura, _XML_MAX_FACTURA_DIGITS),
+                    (_("Nro. de Control"), ret.bill_control, numero_control, _XML_MAX_CONTROL_DIGITS),
+                )
+                if value is None
+            ]
+            if invalid_fields:
+                # Se omite la fila en vez de recortar el número. Declarar un número que
+                # no es el del documento rompe el cruce del SENIAT contra la declaración
+                # del proveedor, y el error vuelve meses después sin rastro de su origen.
+                # Corregir el dato en el documento de origen y volver a generar.
+                error_msg = _("Retención '{0}' omitida: {1}. Corrija el documento y"
+                    " vuelva a generar el archivo.").format(
+                        ret.voucher_name or ret.bill_no or 'N/A', "; ".join(invalid_fields))
+
+                if error_msg not in processing_errors:
+                    processing_errors.append(error_msg)
+                continue
+
             detalle = SubElement(root, "DetalleRetencion")
-            SubElement(detalle, "RifRetenido").text = ret.supplier_rif or "N/A"
-            SubElement(detalle, "NumeroFactura").text = ret.bill_no or "N/A"
-            SubElement(detalle, "NumeroControl").text = str(ret.bill_control) if ret.bill_control else "N/A"
+            SubElement(detalle, "RifRetenido").text = rif_retenido
+            SubElement(detalle, "NumeroFactura").text = numero_factura
+            SubElement(detalle, "NumeroControl").text = numero_control
             SubElement(detalle, "FechaOperacion").text = getdate(ret.fecha_operacion).strftime("%d/%m/%Y")
             SubElement(detalle, "CodigoConcepto").text = ret.codigo_concepto
             SubElement(detalle, "MontoOperacion").text = f"{flt(ret.monto_operacion):.2f}"
