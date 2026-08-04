@@ -9,6 +9,56 @@ Convenciones del repo: identificadores en inglés; texto de UI en español y sin
 
 ---
 
+## En lo fiscal se falla; no se elige un valor por defecto
+
+Cuando falta el dato que decide un número que va a un documento fiscal —alícuota, tasa,
+serie, sustraendo, base— **se corta**. No se toma el primero disponible, no se rellena con
+un neutro, no se sigue de largo.
+
+**Por qué es una regla y no una preferencia.** Un `throw` en pantalla lo resuelve alguien en
+minutos. Un valor asumido en silencio se declara ante el SENIAT y aparece en una
+fiscalización, cuando ya no se puede deshacer. Los dos errores no cuestan lo mismo, así que
+no se eligen por igual.
+
+Y el error silencioso es además **invisible para las pruebas**: nada falla, ningún log se
+enciende, el documento se emite. La única señal llega meses después y desde afuera.
+
+Ya tomó tres formas distintas, las tres en 2026. Sirven como catálogo de qué buscar:
+
+**Devolver el mismo valor para dos causas distintas.** `has_active_digital_series` retorna
+`False` tanto si la factura no tiene sucursal —caso legítimo, no aplica emitir— como si la
+tiene pero no resuelve ninguna serie activa —mala configuración—. El bypass de
+`retention_integration.py` no los distingue: marca la retención `Not Applicable` y **retorna
+`True`**, es decir, éxito. La retención no se emite nunca y el estado miente; antes quedaba
+en `Error`, visible y reintentable. Entró con el PR #415 el 2026-07-14. Medido contra
+producción el 2026-08-03: **cero comprobantes afectados**, el agujero está pero no se activó.
+Los 6 tests de `test_retention_series_fail_closed` que lo señalan **deben seguir en rojo**
+hasta que se decida el arreglo — taparlos borra la única alarma que queda.
+
+**Tomar "el primero disponible" cuando no hay coincidencia.** Se propuso que, si el tabulador
+de ISLR no tiene alícuota para el tipo de persona del proveedor, se usara la primera con
+`aliquot > 0`. Eso no es un respaldo: es aplicar la alícuota de **otro tipo de persona**. En
+el site hay **65 de 66 tabuladores con un solo tipo**, así que esa "primera" es casi siempre
+la del tipo equivocado; el único con dos, el `077`, va de **1%** (natural domiciliado) a
+**5%** (jurídico domiciliado). Revertido en el PR #546.
+
+Corolario, porque es lo que hace segura la búsqueda amplia: **filtrar en el buscador no es
+validar**. Si se relaja el filtro de la UI para que muestre más opciones, la validación al
+aplicar pasa a ser la única defensa y hay que reforzarla, no quitarla.
+
+**Rellenar con un neutro que no es neutro.** `flt(self.doc.conversion_rate) or 1.0` parece
+inofensivo, pero el sustraendo del tabulador está en bolívares —su campo hermano se llama
+`payments_greater_than_bs`— y con tasa `1` se resta como si fueran dólares: hasta **1.218 de
+más** en la base declarada. Un `or 1` sobre una tasa de cambio nunca es un default: es
+afirmar que dos monedas valen igual. Corregido en el PR #546.
+
+**Dónde no aplica.** Esto es para el número que se declara, no para todo. Un default
+razonable en un buscador, en un valor de presentación o en un reintento de red está bien.
+La pregunta que separa los casos: *si esto se equivoca, ¿el error sale impreso en un
+documento fiscal?* Si la respuesta es sí, se falla.
+
+---
+
 ## Cálculo de impuestos: un solo lugar
 
 **Todo cálculo de impuestos vive en [`l10n_ve/controllers/taxes_and_totals.py`](l10n_ve/controllers/taxes_and_totals.py).**
