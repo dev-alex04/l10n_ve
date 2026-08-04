@@ -50,13 +50,15 @@ def _factura(posting_date, tasa, **extra):
     return doc
 
 
-def _motivo(doc, company_currency="VEF"):
+def _motivo(doc, company_currency="VEF", juridico=False):
     from l10n_ve.digital_invoice.emission_rerate import stale_rate_reason
 
     with patch(f"{MOD}.frappe.get_cached_value", return_value=company_currency), patch(
         f"{MOD}.get_exchange_rate", side_effect=lambda d, _c: TASAS.get(str(d), 0)
     ), patch(
         f"{MOD}.resolve_exchange_rate_date", side_effect=lambda r, _c: POR_VALOR.get(r)
+    ), patch(
+        f"{MOD}.is_juridical_customer", return_value=juridico
     ):
         return stale_rate_reason(doc)
 
@@ -96,6 +98,47 @@ class TestStaleRateGuard(unittest.TestCase):
 
     def test_a_document_without_rate_is_not_checked(self):
         self.assertIsNone(_motivo(_factura("2026-08-01", 0)))
+
+    # ------------------------------------------------------------------ #
+    # La tasa por delante de la fecha: el estado normal en tránsito
+    # ------------------------------------------------------------------ #
+
+    def test_a_juridical_invoice_with_a_newer_rate_passes(self):
+        """Es el estado normal en tránsito, no un documento desincronizado.
+
+        El ciclo tiene tres pasos: se genera con la tasa que le toca, al aprobarla se
+        retasa a la tasa de emisión, y al certificar se le mueve el `posting_date` a la
+        fecha de certificación. Entre el segundo y el tercero la tasa es más nueva que
+        la fecha, y comparar contra el `posting_date` ahí exige una coherencia que
+        produce el paso que este guard está bloqueando.
+
+        Caso real: ACC-SINV-2026-13707 (PINK LOVERS C.A), del 01-07, cobrada el 02-08
+        por Bs 44.797,78 --el total a la tasa del 02-08-- y frenada desde entonces.
+        """
+        self.assertIsNone(
+            _motivo(_factura("2026-07-01", 746.6297), juridico=True)
+        )
+
+    def test_a_natural_invoice_with_a_newer_rate_also_passes(self):
+        """El natural también se retasa: a la tasa del 1° del mes EN CURSO.
+
+        Una factura de julio emitida en agosto porta la tasa del 1° de agosto y su
+        `posting_date` todavía dice julio hasta que la certificación lo mueve. Es el
+        mismo tránsito que el del jurídico.
+        """
+        self.assertIsNone(
+            _motivo(_factura("2026-07-01", 746.6297), juridico=False)
+        )
+
+    def test_a_juridical_invoice_with_an_older_rate_is_still_blocked(self):
+        """La dirección importa: más vieja significa que la fecha se movió y la tasa no.
+
+        Eso declara una base imponible por debajo de la que corresponde, que es
+        exactamente para lo que se escribió este guard. No se relaja para nadie.
+        """
+        motivo = _motivo(_factura("2026-08-01", 633.3644), juridico=True)
+        self.assertIsNotNone(motivo)
+        self.assertIn("633.3644", motivo)
 
     def test_rates_of_the_same_day_do_not_trigger_it(self):
         """En Currency Exchange conviven tasas del mismo día que difieren ~1e-4.

@@ -184,23 +184,32 @@ def _compute_tasa_fecha(doc: object) -> str:
     """
     Calcula la fecha de la tasa BCV que debe mostrar el documento impreso.
 
-    - Jurídico: fecha REAL de la tasa que porta el documento (lookup inverso
-      en Currency Exchange sobre conversion_rate). No puede inferirse del
-      posting_date: la tasa del jurídico se actualiza al primer pago
-      (_sync_invoice_with_rate en domina_isp), que puede ocurrir días después
-      de generada la factura. Fallback: posting_date si ninguna fila coincide.
-    - Natural: primer día del mes del posting_date (tasa congelada del 1°;
-      _validate_tasa_coherencia garantiza que coincida con la del documento).
+    Para los dos tipos se usa la fecha REAL de la tasa que porta el documento
+    (lookup inverso en Currency Exchange sobre conversion_rate). No puede
+    inferirse del posting_date: la tasa se actualiza al aprobar la factura
+    (rerate_juridical_before_submit), que puede ocurrir en un mes posterior al
+    de generada.
+
+    El natural usaba el primer día del mes del posting_date, y eso se rompió
+    cuando la tasa pasó a anclarse en el mes EN CURSO y no en el de la factura:
+    una de julio emitida en agosto porta la tasa del 1° de agosto, y el
+    posting_date todavía dice julio hasta que la certificación lo mueve. Imprimir
+    "de fecha valor 01/07" sobre una tasa del 01/08 es justo la incoherencia que
+    _validate_tasa_coherencia existe para frenar.
+
+    Fallback: posting_date si ninguna fila coincide.
 
     Se calcula ANTES de que posting_date sea actualizado a la fecha de
     certificación HKA.
     """
     fecha_base = getdate(doc.posting_date)
+    rate_date = resolve_exchange_rate_date(flt(doc.conversion_rate), doc.currency)
+    if rate_date:
+        return rate_date
+
     if not is_juridical_customer(doc.customer):
         return str(fecha_base.replace(day=1))
-
-    rate_date = resolve_exchange_rate_date(flt(doc.conversion_rate), doc.currency)
-    return rate_date or str(fecha_base)
+    return str(fecha_base)
 
 
 def _validate_tasa_coherencia(doc: object, tasa_fecha: str) -> None:

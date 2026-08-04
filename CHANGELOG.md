@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.39.2] - 2026-08-04
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la generación del XML de ISLR para evitar el truncado de los números de documento y se optimizó el reporte incluyendo la fila procesada. 03c8a24
+- Implementación de saneamiento de datos en los campos NumeroFactura, NumeroControl y RifRetenido dentro del XML de ISLR para garantizar el cumplimiento de los esquemas técnicos del SENIAT. 4dd86ac
+
+---
+
+## [v2.39.1] - 2026-08-04
+
+### ✨ Funcionalidades (Features)
+- Se actualizó la lógica del módulo HKA para que el campo de fecha deje de ser obligatorio, documentando formalmente esta regla de negocio en AGENTS.md.
+
+### 🐛 Correcciones (Fixes)
+- Se ajustó el sistema para que la tasa se ancle a la fecha actual y se corrigió el comportamiento del retraso en personas naturales.
+- Se solucionó un error de procesamiento en registros jurídicos que causaba fallos cuando la tasa era posterior a la fecha de referencia.
+
+---
+
+## [v2.39.0] - 2026-08-04
+
+### ✨ Funcionalidades (Features)
+- **Sandbox:** Ahora se realiza la degradación automática de TFHKA a modo Demo durante el proceso de saneamiento de copias, garantizando que los entornos de prueba no afecten servicios productivos. [9e03ae8]
+
+---
+
+## [v2.38.2] - 2026-08-03
+
+### 🐛 Correcciones (Fixes)
+- Optimización del proceso de exportación HQ: se implementó el encolamiento para la generación de archivos Excel en lugar de procesarlos en memoria, mejorando el rendimiento y la escalabilidad del sistema. [f9edeb1]
+
+---
+
 ## [v2.38.1] - 2026-08-03
 
 ### 🐛 Correcciones (Fixes)

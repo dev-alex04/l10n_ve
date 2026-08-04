@@ -14,11 +14,6 @@ from unittest.mock import patch
 
 import frappe
 
-import base64
-from io import BytesIO
-
-from openpyxl import load_workbook
-
 from l10n_ve.l10n_ve.report.ve_sales_invoices_hq import excel_export as xls
 from l10n_ve.l10n_ve.report.ve_sales_invoices_hq import ve_sales_invoices_hq as hq
 
@@ -244,13 +239,16 @@ class TestColumnTexts(unittest.TestCase):
     def test_ninguna_descripcion_huerfana(self) -> None:
         """Blindaje contra el typo: una clave que no corresponde a ninguna
         columna no falla en ningún lado, simplemente el tooltip nunca aparece."""
+        # Mantener en sincronía con los `fieldname` que inserta `_add_hq_columns`
+        # en ve_sales_invoices_hq.py. Si agregás una columna allá y su tooltip en
+        # `_column_texts`, sumala acá o este test la reporta como huérfana.
         columnas_reales = {
             "branch", "main_branch", "municipality", "posting_date",
             "customer_tax_id", "customer_name", "customer_type", "fiscal_series",
             "fiscal_document_no", "bill_no", "bill_control", "credit_note_no",
             "debit_note_no", "affected_invoice_number", "transaction_type",
-            "grand_total", "ve_fob", "total_exempt", "iva_retained",
-            "vat_withholding_voucher_number", "withholding_date",
+            "grand_total", "ve_fob", "total_exempt", "taxable_amount", "total_vat",
+            "iva_retained", "vat_withholding_voucher_number", "withholding_date",
             "vat_withholding_rate", "base_amount_igtf", "igtf_rate", "total_igtf",
         } | {
             f"{p}_{tasa}_{grupo}"
@@ -437,7 +435,8 @@ class TestReportMessage(unittest.TestCase):
 
 
 class TestExcelExport(unittest.TestCase):
-    """Exportación a Excel: en memoria, sin tocar disco."""
+    """Exportación a Excel: el endpoint encola; el libro lo arma ExcelBuilder
+    (cubierto en l10n_ve/tests/test_hq_excel_export.py)."""
 
     def test_nombre_de_archivo_con_el_rango(self) -> None:
         nombre = xls._build_filename({"from_date": "2026-02-01", "to_date": "2026-07-31"})
@@ -445,12 +444,6 @@ class TestExcelExport(unittest.TestCase):
 
     def test_nombre_sin_fechas_no_revienta(self) -> None:
         self.assertTrue(xls._build_filename({}).endswith(".xlsx"))
-
-    def test_ancho_auto_no_rompe(self) -> None:
-        """Las columnas del libro traen width='auto' (string), no un número."""
-        self.assertEqual(xls._as_number("auto"), 0.0)
-        self.assertEqual(xls._as_number(None), 0.0)
-        self.assertEqual(xls._as_number(120), 120.0)
 
     def test_exige_el_rol_del_reporte(self) -> None:
         """El endpoint es invocable por si solo: sin el chequeo, cualquiera
@@ -460,39 +453,29 @@ class TestExcelExport(unittest.TestCase):
                 xls.download_hq_excel({})
         guard.assert_called_once()
 
-    def test_genera_en_memoria_y_no_escribe_en_disco(self) -> None:
-        columnas = [{"fieldname": "branch", "label": "Sucursal", "fieldtype": "Data", "width": "auto"}]
-        filas = [{"branch": "MIR-01"}, {"branch": "DC-02"}]
-        # Se parchea get_hq_data y no execute: el Excel sale del núcleo a
-        # propósito, para llevar SIEMPRE las columnas completas del libro.
-        with patch("frappe.only_for"), patch.object(
-            xls, "get_hq_data",
-            return_value={"columns": columnas, "main_data": filas, "adjustment_data": [],
-                          "report_summary": [{"label": "Total", "value": 1}]},
-        ):
-            res = xls.download_hq_excel({"from_date": "2026-07-01", "to_date": "2026-07-31"})
+    def test_sin_company_no_encola(self) -> None:
+        """El JS lo valida, pero el endpoint acepta filtros arbitrarios: sin company
+        seria un get_doc("Company", None) con traceback en vez de mensaje."""
+        with patch("frappe.only_for"), patch("frappe.enqueue") as cola:
+            with self.assertRaises(frappe.ValidationError):
+                xls.download_hq_excel({"from_date": "2026-07-01"})
+        cola.assert_not_called()
 
-        self.assertEqual(res["type"], "download")
-        # base64 valido y con firma de xlsx (PK: es un zip)
-        crudo = base64.b64decode(res["filecontent"])
-        self.assertTrue(crudo.startswith(b"PK"))
+    def test_encola_el_job_con_timeout_explicito(self) -> None:
+        """El Excel se genera en background. El timeout va explicito a proposito:
+        sin el, RQ mata el job con el default de la cola, y el caso real proyectado
+        a 30.000 filas ronda los 45s de pura generacion."""
+        with patch("frappe.only_for"), patch("frappe.enqueue") as cola:
+            res = xls.download_hq_excel({"company": "ACME", "from_date": "2026-07-01",
+                                         "to_date": "2026-07-31"})
 
-        libro = load_workbook(BytesIO(crudo))
-        self.assertEqual(libro.sheetnames, [xls.SHEET_DATA, xls.SHEET_SUMMARY])
-        hoja = libro[xls.SHEET_DATA]
-        self.assertEqual(hoja["A1"].value, "Sucursal")
-        self.assertEqual([c[0].value for c in hoja.iter_rows(min_row=2)], ["MIR-01", "DC-02"])
-        self.assertEqual(hoja.freeze_panes, "A2")   # encabezado fijo al hacer scroll
-
-    def test_sin_resumen_no_agrega_la_hoja(self) -> None:
-        with patch("frappe.only_for"), patch.object(
-            xls, "get_hq_data",
-            return_value={"columns": [{"fieldname": "branch", "label": "S"}], "main_data": [],
-                          "adjustment_data": [], "report_summary": []},
-        ):
-            res = xls.download_hq_excel({})
-        libro = load_workbook(BytesIO(base64.b64decode(res["filecontent"])))
-        self.assertEqual(libro.sheetnames, [xls.SHEET_DATA])
+        self.assertEqual(res["type"], "queued")
+        self.assertEqual(res["filename"], "Facturas_Venta_HQ_20260701_20260731.xlsx")
+        cola.assert_called_once()
+        kwargs = cola.call_args.kwargs
+        self.assertEqual(kwargs["queue"], "long")
+        self.assertEqual(kwargs["timeout"], 1800)
+        self.assertEqual(kwargs["filters"]["company"], "ACME")
 
 
 if __name__ == "__main__":

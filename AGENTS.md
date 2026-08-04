@@ -115,12 +115,45 @@ nota de débito. Con `build_transaction_id` ya no debería reproducirse, pero:
 Además de reiniciar el correlativo (arriba), deja la serie desalineada respecto de lo que HKA ya
 registró. Si hay que deshacer algo, se anula; no se borra.
 
+### Siempre se busca la tasa usando el MES EN CURSO
+
+Nunca la fecha del documento, ni el mes del período que factura. Lo que se declara ante el SENIAT
+es la tasa del día en que el documento se **emite**.
+
+La regla vive en **un solo lugar**, `get_ve_exchange_rate_for_customer`, y todo el ecosistema le
+pregunta a ella: el motor de facturación, el retasado al aprobar, y las cuatro vistas del portal
+de cliente en `domina_isp/www/`. Si aparece un `nowdate()` con un `get_first_day` al lado
+resolviendo una tasa, es una copia de esta regla y hay que reemplazarla por la llamada.
+
+| Cliente | Tasa |
+|---|---|
+| Jurídico | la de **hoy** |
+| Natural | la del **1° del mes en curso** |
+
+El parámetro `date` de esa función se conserva por compatibilidad de firma pero **no participa de
+la regla**: pasarle el `posting_date` era justamente el camino por el que entraba la fecha
+equivocada. Si necesitás la tasa de un documento, preguntale a esa función; no la derives.
+
+**Caso que lo fijó (2026-08-03):** `ACC-SINV-2026-13754`, cliente natural. La factura era de julio
+y se emitió el 1° de agosto con la tasa del 1° de julio, porque la regla del natural era «el 1° del
+mes **de la factura**» y nada la retasaba al aprobarla. Salió con base imponible Bs 109.200,76
+cuando correspondían Bs 128.726,43: **Bs 19.526 de base y Bs 3.124 de IVA por debajo**.
+
+El retasado al aprobar (`rerate_juridical_before_submit`, enganchado en `before_validate`) aplica a
+los **dos** tipos de cliente. Excluía al natural, y esa exclusión era el bug.
+
 ### El guard de tasa compara contra `tasa_fecha`, no contra `posting_date`
 
-`_validate_tasa_coherencia` valida contra `tasa_fecha = _compute_tasa_fecha(doc)`: para clientes
-**naturales** es el 1° del mes; para **jurídicos** se resuelve por lookup inverso desde la tasa.
+`_validate_tasa_coherencia` valida contra `tasa_fecha = _compute_tasa_fecha(doc)`, que para los dos
+tipos de cliente resuelve la fecha REAL de la tasa que porta el documento (lookup inverso).
 Comparar `conversion_rate` contra la tasa BCV del `posting_date` da **miles de falsos positivos**
 (una consulta ingenua devolvió 9.193, casi todas certificadas correctamente).
+
+`stale_rate_reason` sí mira el `posting_date`, pero **sólo en una dirección**: frena cuando la tasa
+es más VIEJA que la fecha (la fecha se movió y la tasa se quedó → base por debajo). Una tasa más
+NUEVA es el estado normal en tránsito entre la aprobación y la certificación, que es la que mueve
+el `posting_date` a la fecha de emisión. Bloquear eso deja la factura trabada para siempre: le
+falta exactamente lo que la certificación le daría (`ACC-SINV-2026-13707`).
 
 Cuidado con la asimetría que ya causó facturas trabadas: quien **escribe** la tasa usa un lookup
 permisivo (con fallback a la fila más cercana) y quien la **valida** exige la fila de la fecha
