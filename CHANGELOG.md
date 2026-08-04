@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.39.1] - 2026-08-04
+
+### ✨ Funcionalidades (Features)
+- Se actualizó la lógica del módulo HKA para que el campo de fecha deje de ser obligatorio, documentando formalmente esta regla de negocio en AGENTS.md.
+
+### 🐛 Correcciones (Fixes)
+- Se ajustó el sistema para que la tasa se ancle a la fecha actual y se corrigió el comportamiento del retraso en personas naturales.
+- Se solucionó un error de procesamiento en registros jurídicos que causaba fallos cuando la tasa era posterior a la fecha de referencia.
+
+---
+
 ## [v2.39.0] - 2026-08-04
 
 ### ✨ Funcionalidades (Features)
