@@ -530,7 +530,7 @@ def generate_xml_islr_file(filters: dict | str | None = None) -> dict | None:
                 REPLACE(supp.tax_id, '-', '') AS supplier_rif,
                 item.doc_no AS bill_no,
                 item.bill_control,
-                item.posting_date AS fecha_operacion,
+                voucher.posting_date AS fecha_operacion,
                 item.code AS codigo_concepto,
                 item.rate AS porcentaje_retencion,
                 item.islr_base_amount AS monto_operacion,
