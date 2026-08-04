@@ -733,11 +733,15 @@ def get_tabulators_by_person_type(
             existing_codes = [existing_codes] if existing_codes else []
 
     params: dict = {
-        "type_of_person": type_of_person,
         "txt": f"%{txt}%",
         "start": start,
         "page_len": page_len,
     }
+
+    person_clause: str = ""
+    if type_of_person:
+        person_clause = "AND a.types_of_person = %(type_of_person)s"
+        params["type_of_person"] = type_of_person
 
     exclusion_clause: str = ""
     if existing_codes:
@@ -753,8 +757,8 @@ def get_tabulators_by_person_type(
         SELECT DISTINCT t.name, t.codigo, t.descripcion
         FROM `tabTabulator ISLR` t
         INNER JOIN `tabTabulator ISLR Aliquots` a ON a.parent = t.name
-        WHERE a.types_of_person = %(type_of_person)s
-            AND a.aliquot > 0
+        WHERE a.aliquot > 0
+            {person_clause}
             AND (t.name LIKE %(txt)s OR t.codigo LIKE %(txt)s OR t.descripcion LIKE %(txt)s)
             {exclusion_clause}
         ORDER BY t.codigo

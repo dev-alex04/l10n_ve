@@ -313,22 +313,8 @@ function show_islr_dialog(frm) {
   frappe.db
     .get_value("Supplier", frm.doc.supplier, "type_of_person")
     .then((r) => {
-      const type_of_person = r.message.type_of_person;
-
-      if (!type_of_person) {
-        frappe.msgprint({
-          title: __("Configuración faltante"),
-          message: __(
-            "El proveedor <b>{0}</b> no tiene configurado el Tipo de Persona. " +
-              "Configúrelo antes de asignar retención de ISLR.",
-            [frm.doc.supplier_name],
-          ),
-          indicator: "red",
-        });
-        return;
-      }
-
-      const type_of_person_label = __(type_of_person);
+      const type_of_person = r.message.type_of_person || "";
+      const type_of_person_label = type_of_person ? __(type_of_person) : __("No configurado");
 
       const existing_codes = (frm.doc.taxes || [])
         .filter((tax) => tax.charge_type === "ISLR" && tax.code)
@@ -369,7 +355,6 @@ function show_islr_dialog(frm) {
                 query:
                   "l10n_ve.overrides.purchase_invoice.get_tabulators_by_person_type",
                 filters: {
-                  type_of_person: type_of_person,
                   existing_codes: existing_codes,
                 },
               };
@@ -448,9 +433,18 @@ function update_islr_preview(dialog, frm, type_of_person) {
       if (!r.message) return;
 
       const tabulator = r.message;
-      const aliquot_info = (tabulator.aliquot || []).find(
-        (aq) => aq.types_of_person === type_of_person && flt(aq.aliquot) > 0,
-      );
+      let aliquot_info = null;
+      if (type_of_person) {
+        aliquot_info = (tabulator.aliquot || []).find(
+          (aq) => aq.types_of_person === type_of_person && flt(aq.aliquot) > 0,
+        );
+      }
+
+      if (!aliquot_info) {
+        aliquot_info = (tabulator.aliquot || []).find(
+          (aq) => flt(aq.aliquot) > 0,
+        );
+      }
 
       if (!aliquot_info) {
         preview_field.$wrapper.html(`
@@ -459,8 +453,7 @@ function update_islr_preview(dialog, frm, type_of_person) {
                       border-radius: var(--border-radius);
                       background: var(--bg-color);
                       color: var(--orange-500);">
-            No se encontró alícuota para el tipo de persona
-            <b>${__(type_of_person)}</b> en este tabulador.
+            No se encontró alícuota válida (> 0) en este tabulador.
           </div>
         `);
         return;

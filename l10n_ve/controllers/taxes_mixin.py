@@ -470,12 +470,6 @@ class TaxesMixin:
         type_of_person: str = frappe.db.get_value(
             "Supplier", self.supplier, "type_of_person"
         ) or ""
-        if not type_of_person:
-            frappe.throw(
-                _("El proveedor {0} no tiene configurado el Tipo de Persona.").format(
-                    self.supplier
-                )
-            )
 
         islr_account: str = frappe.get_cached_value(
             "Company", self.company, "purchase_islr_account"
@@ -504,17 +498,31 @@ class TaxesMixin:
                 )
             )
 
-        aliquot_info = next(
-            (
-                aq for aq in tabulator.aliquot
-                if aq.types_of_person == type_of_person and flt(aq.aliquot) > 0
-            ),
-            None
-        )
+        aliquot_info = None
+        if type_of_person:
+            aliquot_info = next(
+                (
+                    aq for aq in tabulator.aliquot
+                    if aq.types_of_person == type_of_person and flt(aq.aliquot) > 0
+                ),
+                None
+            )
+
+        # Fallback: si no se encontró alícuota para su tipo de persona, o no tiene configurado tipo de persona,
+        # tomar la primera alícuota válida con aliquot > 0
+        if not aliquot_info:
+            aliquot_info = next(
+                (
+                    aq for aq in tabulator.aliquot
+                    if flt(aq.aliquot) > 0
+                ),
+                None
+            )
+
         if not aliquot_info:
             frappe.throw(
-                _("No se encontró alícuota para el tipo de persona '{0}' "
-                  "en el tabulador '{1}'.").format(type_of_person, tabulator_name)
+                _("No se encontró ninguna alícuota válida (> 0) "
+                  "en el tabulador '{0}'.").format(tabulator_name)
             )
 
         return tabulator, aliquot_info

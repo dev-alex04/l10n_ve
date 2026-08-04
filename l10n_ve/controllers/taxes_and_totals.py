@@ -315,7 +315,9 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
             if item.idx == 1:
                 tax_base = (self.doc.total * flt(tax.percentage_base)) / 100
-                tax_amount = ((tax_base * tax.rate) / 100) - flt(tax.subtracting)
+                conversion_rate = flt(self.doc.conversion_rate) or 1.0
+                subtracting_ref = flt(tax.subtracting) / conversion_rate if conversion_rate > 0 else 0.0
+                tax_amount = ((tax_base * tax.rate) / 100) - subtracting_ref
             else:
                 tax_amount = 0
 
