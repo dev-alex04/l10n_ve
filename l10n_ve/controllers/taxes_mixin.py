@@ -470,6 +470,13 @@ class TaxesMixin:
         type_of_person: str = frappe.db.get_value(
             "Supplier", self.supplier, "type_of_person"
         ) or ""
+        if not type_of_person:
+            frappe.throw(
+                _("El proveedor {0} no tiene configurado el Tipo de Persona, "
+                  "que es lo que determina la alícuota de ISLR a aplicar.").format(
+                    self.supplier
+                )
+            )
 
         islr_account: str = frappe.get_cached_value(
             "Company", self.company, "purchase_islr_account"
@@ -498,31 +505,33 @@ class TaxesMixin:
                 )
             )
 
-        aliquot_info = None
-        if type_of_person:
-            aliquot_info = next(
-                (
-                    aq for aq in tabulator.aliquot
-                    if aq.types_of_person == type_of_person and flt(aq.aliquot) > 0
-                ),
-                None
-            )
-
-        # Fallback: si no se encontró alícuota para su tipo de persona, o no tiene configurado tipo de persona,
-        # tomar la primera alícuota válida con aliquot > 0
-        if not aliquot_info:
-            aliquot_info = next(
-                (
-                    aq for aq in tabulator.aliquot
-                    if flt(aq.aliquot) > 0
-                ),
-                None
-            )
+        # La alícuota se busca SIEMPRE por el tipo de persona del proveedor, y si no
+        # hay, se falla. No se toma "la primera disponible": 65 de los 66 tabuladores
+        # del site tienen UN SOLO tipo de persona, así que esa primera sería la de OTRO
+        # tipo. El tabulador 077 va de 1% (natural) a 5% (jurídico) —cinco veces— y el
+        # resultado termina en un comprobante ante el SENIAT. Un error visible acá es
+        # barato; una alícuota equivocada declarada en silencio, no.
+        #
+        # Esto es lo que hace segura la búsqueda libre de tabuladores: el buscador
+        # muestra todos, y la validación al aplicar es la que impide elegir uno que no
+        # corresponde.
+        aliquot_info = next(
+            (
+                aq for aq in tabulator.aliquot
+                if aq.types_of_person == type_of_person and flt(aq.aliquot) > 0
+            ),
+            None
+        )
 
         if not aliquot_info:
+            disponibles: str = ", ".join(sorted({
+                str(aq.types_of_person) for aq in tabulator.aliquot if flt(aq.aliquot) > 0
+            })) or _("ninguno")
             frappe.throw(
-                _("No se encontró ninguna alícuota válida (> 0) "
-                  "en el tabulador '{0}'.").format(tabulator_name)
+                _("El tabulador '{0}' no tiene alícuota para el tipo de persona '{1}' "
+                  "del proveedor. Tipos disponibles en este tabulador: {2}.").format(
+                    tabulator_name, type_of_person, disponibles
+                )
             )
 
         return tabulator, aliquot_info

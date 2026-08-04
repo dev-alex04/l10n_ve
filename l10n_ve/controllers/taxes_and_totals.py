@@ -315,8 +315,29 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
             if item.idx == 1:
                 tax_base = (self.doc.total * flt(tax.percentage_base)) / 100
-                conversion_rate = flt(self.doc.conversion_rate) or 1.0
-                subtracting_ref = flt(tax.subtracting) / conversion_rate if conversion_rate > 0 else 0.0
+
+                # El sustraendo del tabulador está en Bs —su campo hermano se llama
+                # `payments_greater_than_bs`—, pero `tax_base` sale de `doc.total`, que
+                # está en la moneda del documento. Restarlo crudo mezclaba monedas: en
+                # una factura en USD se descontaban ~1.218 dólares donde correspondían
+                # ~1.218 bolívares.
+                #
+                # Sin tasa no se adivina. Un `or 1.0` dejaría el sustraendo en Bs
+                # restándose como si fueran dólares, que es un error grande y callado
+                # justo en el documento que se declara.
+                conversion_rate: float = flt(self.doc.conversion_rate)
+                if conversion_rate <= 0:
+                    from frappe import _  # noqa: PLC0415 - convención del módulo
+
+                    frappe.throw(
+                        _("La factura no tiene tasa de cambio y la retención de ISLR "
+                          "lleva un sustraendo de {0}, que está expresado en bolívares. "
+                          "Sin la tasa no se puede convertir a {1}.").format(
+                            flt(tax.subtracting), self.doc.currency
+                        )
+                    )
+
+                subtracting_ref: float = flt(tax.subtracting) / conversion_rate
                 tax_amount = ((tax_base * tax.rate) / 100) - subtracting_ref
             else:
                 tax_amount = 0
