@@ -164,28 +164,51 @@ class TestISLRWithholdingReport(FrappeTestCase):
         # Verify that 150.00 is rendered in the HTML totals row
         self.assertTrue("150.00" in html or "150,00" in html, "The total subtracting amount 150.00 should be formatted and rendered in the report HTML")
 
-    def test_xml_field_sanitization(self) -> None:
-        """Verify _clean_xml_factura_num, _clean_xml_control_num, and _clean_xml_rif for SENIAT rules."""
+    def test_xml_doc_number_sanitization(self) -> None:
+        """_clean_xml_doc_number: dígitos declarables, o None si habría que inventar el número."""
         from l10n_ve.l10n_ve.report.purchase_book.purchase_book import (
-            _clean_xml_control_num,
-            _clean_xml_factura_num,
-            _clean_xml_rif,
+            _XML_MAX_CONTROL_DIGITS,
+            _XML_MAX_FACTURA_DIGITS,
+            _clean_xml_doc_number,
         )
 
-        # NumeroFactura: strictly numeric, max 10 digits
-        self.assertEqual(_clean_xml_factura_num("B-9523"), "9523")
-        self.assertEqual(_clean_xml_factura_num("MSO-01-0000028078"), "0000028078")
-        self.assertEqual(_clean_xml_factura_num("MSO-01-0000028079"), "0000028079")
-        self.assertEqual(_clean_xml_factura_num("F01-0001234"), "0001234")
-        self.assertEqual(_clean_xml_factura_num("22225011624"), "2225011624")
-        self.assertEqual(_clean_xml_factura_num(None), "0")
+        def factura(val: str | None) -> str | None:
+            return _clean_xml_doc_number(val, _XML_MAX_FACTURA_DIGITS)
 
-        # NumeroControl: strictly numeric, max 8 digits
-        self.assertEqual(_clean_xml_control_num("00003367734"), "3367734")
-        self.assertEqual(_clean_xml_control_num("00-03367729"), "03367729")
-        self.assertEqual(_clean_xml_control_num(None), "0")
+        def control(val: str | None) -> str | None:
+            return _clean_xml_doc_number(val, _XML_MAX_CONTROL_DIGITS)
 
-        # RIF: uppercase, letters and digits only
+        # Serie-número: se declara la parte numérica, con su relleno original intacto.
+        self.assertEqual(factura("B-9523"), "9523")
+        self.assertEqual(factura("MSO-01-0000028078"), "0000028078")
+        self.assertEqual(factura("MSO-01-0000028079"), "0000028079")
+        self.assertEqual(factura("F01-0001234"), "0001234")
+        self.assertEqual(control("00-03367729"), "03367729")
+
+        # Excede el tope solo por el relleno: quitarlo no cambia el número.
+        self.assertEqual(control("00003367734"), "3367734")
+
+        # Sin dígitos tras el guion: se reintenta sobre el valor completo.
+        self.assertEqual(factura("0001234-A"), "0001234")
+
+        # Excede el tope AUN sin relleno -> no se declara. Recortarlo daría un número
+        # que no es el del documento y rompería el cruce del SENIAT.
+        self.assertIsNone(factura("22225011624"), "11 dígitos significativos: no se recorta")
+        self.assertIsNone(control("0158353167"), "9 significativos tras el cero: no se recorta")
+        self.assertIsNone(control("123456789"))
+
+        # Sin nada declarable.
+        for empty in (None, "", "   ", "N/A", "SIN NUMERO"):
+            self.assertIsNone(factura(empty), f"{empty!r} no aporta dígitos")
+
+    def test_xml_rif_sanitization(self) -> None:
+        """_clean_xml_rif: letra y dígitos en mayúsculas, sin separadores."""
+        from l10n_ve.l10n_ve.report.purchase_book.purchase_book import _clean_xml_rif
+
         self.assertEqual(_clean_xml_rif("J-30909786-5"), "J309097865")
-        self.assertEqual(_clean_xml_rif(None), "0")
+        self.assertEqual(_clean_xml_rif(" j-30909786-5 "), "J309097865")
+        self.assertEqual(_clean_xml_rif("V12345678"), "V12345678")
+
+        for empty in (None, "", "  ", "---"):
+            self.assertIsNone(_clean_xml_rif(empty), f"{empty!r} no deja RIF declarable")
 
