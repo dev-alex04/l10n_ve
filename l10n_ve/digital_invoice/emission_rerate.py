@@ -21,6 +21,7 @@ from frappe.utils import cint, flt, today
 
 from l10n_ve.utils.utils import (
     get_exchange_rate,
+    get_ve_exchange_rate_for_customer,
     is_juridical_customer,
     resolve_exchange_rate_date,
 )
@@ -136,10 +137,11 @@ def _get_target_rate(doc: object) -> float | None:
     if (doc.currency or company_currency) == company_currency:
         return None
 
-    if not is_juridical_customer(doc.customer):
-        return None
-
-    new_rate = flt(get_exchange_rate(today(), doc.currency))
+    # La tasa objetivo la decide `get_ve_exchange_rate_for_customer`, que es donde vive
+    # la regla fiscal: jurídico a la tasa de hoy, natural a la del 1° del mes en curso.
+    # Antes acá se pedía `get_exchange_rate(today())` --la regla del jurídico-- y se
+    # salteaba al natural por completo, que es por lo que el natural nunca se retasaba.
+    new_rate = flt(get_ve_exchange_rate_for_customer(doc.customer, today(), doc.currency))
     if not new_rate:
         return None
 
@@ -665,10 +667,6 @@ def target_rate_before_submit(
         # Factura en moneda de curso legal: no hay carril en divisa que retasar.
         return None
 
-    if not is_juridical_customer(sales_invoice.customer):
-        # El natural conserva la tasa congelada del 1° del mes.
-        return None
-
     if not branch_has_active_digital_series(
         sales_invoice.company, sales_invoice.get("branch")
     ):
@@ -676,7 +674,16 @@ def target_rate_before_submit(
         # que respetar y retasar sólo movería importes sin motivo.
         return None
 
-    new_rate: float = flt(get_exchange_rate(today(), sales_invoice.currency))
+    # La regla por tipo de cliente vive en `get_ve_exchange_rate_for_customer`: jurídico
+    # a la tasa de hoy, natural a la del 1° del mes en curso. Acá antes se salteaba al
+    # natural --"conserva la tasa congelada del 1° del mes"-- pero congelada del mes de
+    # la FACTURA, no del mes en curso: por eso una de julio cobrada en agosto salía a la
+    # tasa de julio.
+    new_rate: float = flt(
+        get_ve_exchange_rate_for_customer(
+            sales_invoice.customer, today(), sales_invoice.currency
+        )
+    )
     if not new_rate:
         # Sin tasa publicada para hoy se emite con la que porta el documento; bloquear
         # el cobro por esto sería peor que emitir con la tasa anterior.
@@ -852,6 +859,36 @@ def stale_rate_reason(sales_invoice: object) -> str | None:
         return None
 
     if abs(esperada - actual) < _RATE_TOLERANCE:
+        return None
+
+    # Tasa POR DELANTE del posting_date: es el estado normal en tránsito, no un
+    # documento desincronizado.
+    #
+    # El ciclo tiene tres pasos y la coherencia recién existe al final:
+    #
+    #   1. Se genera la factura con la tasa que le toca por tipo de cliente.
+    #   2. Se aprueba al cobrar -> `rerate_juridical_before_submit` la lleva a la tasa
+    #      de emisión: hoy para el jurídico, 1° del mes en curso para el natural.
+    #   3. HKA la certifica -> se mueve el `posting_date` a la fecha de certificación,
+    #      y ahí tasa y fecha quedan alineadas.
+    #
+    # Entre el 2 y el 3 la tasa es más nueva que la fecha. Comparar contra el
+    # `posting_date` en ese punto exige una coherencia que produce el paso 3, o sea el
+    # paso que este guard está bloqueando: la factura no se certifica nunca y el cron la
+    # descarta cada cinco minutos.
+    #
+    # Caso real: ACC-SINV-2026-13707 (PINK LOVERS C.A), del 01-07, cobrada el 02-08 por
+    # Bs 44.797,78 --el total a la tasa del 02-08-- y frenada desde entonces.
+    #
+    # Vale para los dos tipos de cliente. Se limitaba al jurídico porque era el único
+    # que retasaba; desde que el natural también lo hace, también puede estar
+    # legítimamente por delante.
+    #
+    # El sentido inverso SÍ se sigue frenando, que es para lo que se escribió este
+    # guard: una tasa más VIEJA que el `posting_date` significa que la fecha se movió y
+    # la tasa se quedó, y eso declara una base imponible por debajo de la que
+    # corresponde. Es el caso de ACC-SINV-2026-13754.
+    if fecha_actual and str(fecha_actual) > str(posting_date):
         return None
 
     return (
