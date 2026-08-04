@@ -115,10 +115,15 @@ nota de débito. Con `build_transaction_id` ya no debería reproducirse, pero:
 Además de reiniciar el correlativo (arriba), deja la serie desalineada respecto de lo que HKA ya
 registró. Si hay que deshacer algo, se anula; no se borra.
 
-### La tasa se ancla en HOY, nunca en la fecha del documento
+### Siempre se busca la tasa usando el MES EN CURSO
 
-Lo que se declara ante el SENIAT es la tasa del día en que el documento se **emite**, no la del
-período que factura. La regla vive en **un solo lugar**, `get_ve_exchange_rate_for_customer`:
+Nunca la fecha del documento, ni el mes del período que factura. Lo que se declara ante el SENIAT
+es la tasa del día en que el documento se **emite**.
+
+La regla vive en **un solo lugar**, `get_ve_exchange_rate_for_customer`, y todo el ecosistema le
+pregunta a ella: el motor de facturación, el retasado al aprobar, y las cuatro vistas del portal
+de cliente en `domina_isp/www/`. Si aparece un `nowdate()` con un `get_first_day` al lado
+resolviendo una tasa, es una copia de esta regla y hay que reemplazarla por la llamada.
 
 | Cliente | Tasa |
 |---|---|

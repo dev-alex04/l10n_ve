@@ -84,6 +84,21 @@ class TestVeExchangeRateForCustomer(unittest.TestCase):
         self.assertEqual(_tasa("ANTONIO MARTINEZ", "2026-03-01", False), 746.6297)
         self.assertEqual(_tasa("PINK LOVERS C.A", "2026-03-01", True), 751.2088)
 
+    def test_it_can_be_called_without_a_date(self):
+        """Los llamadores nuevos no pasan fecha: la regla no la necesita."""
+        from l10n_ve.utils.utils import get_ve_exchange_rate_for_customer
+
+        with patch("frappe.local", _SIN_CONTEXTO), patch(
+            f"{MOD}.nowdate", return_value=HOY
+        ), patch(
+            f"{MOD}.is_juridical_customer", return_value=False
+        ), patch(
+            f"{MOD}.get_exchange_rate", side_effect=lambda d, _c: TASAS.get(str(d), 0.0)
+        ):
+            self.assertEqual(
+                get_ve_exchange_rate_for_customer("ANTONIO MARTINEZ"), 746.6297
+            )
+
     def test_without_a_customer_it_falls_back_to_natural(self):
         """Sin cliente no se puede saber el tipo; el 1° del mes es el lado conservador."""
         self.assertEqual(_tasa("", HOY, False), 746.6297)

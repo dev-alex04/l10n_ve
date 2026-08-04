@@ -634,7 +634,7 @@ def clear_exchange_rate_cache(doc=None, method=None) -> None:
 @frappe.whitelist()
 def get_ve_exchange_rate_for_customer(
     customer: str,
-    date: str,
+    date: str = None,
     from_currency: str = "USD",
 ) -> float:
     """Retorna la tasa de cambio correcta según el tipo de cliente venezolano.
@@ -661,7 +661,8 @@ def get_ve_exchange_rate_for_customer(
 
     El parámetro `date` se conserva por compatibilidad --la función está whitelisted y
     la llaman dos formularios-- pero NO participa de la regla. Se ignora a propósito:
-    era justamente el camino por el que entraba la fecha equivocada.
+    era justamente el camino por el que entraba la fecha equivocada. Los llamadores
+    nuevos no lo pasan.
 
     Args:
         customer:      ID del Customer en Frappe.
