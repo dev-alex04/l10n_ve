@@ -68,7 +68,7 @@ function handle_supplier_field_change(frm, fieldname) {
   // categoria DEL PROVEEDOR, y sin ella nunca se calculaba la retencion.
   // Solo cambia la obligatoriedad: requerida para RIF, opcional para el resto.
   frm.toggle_display("tax_withholding_category", true);
-  frm.set_df_property("tax_withholding_category", "reqd", doc_type === "RIF" ? 1 : 0);
+  // frm.set_df_property("tax_withholding_category", "reqd", doc_type === "RIF" ? 0 : 0);
 }
 
 function reorganize_supplier_fields(frm) {
