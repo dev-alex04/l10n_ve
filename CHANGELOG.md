@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.0] - 2026-08-05
+
+### ✨ Funcionalidades (Features)
+- Se implementó la capacidad de diagnóstico de HKA para el agente inteligente. [9a900c7]
+- Se integró conocimiento especializado sobre las reglas de HKA para mejorar la comprensión y el contexto del asistente. [8b9090e]
+
+---
+
 ## [v2.40.1] - 2026-08-04
 
 ### 🐛 Correcciones (Fixes)
