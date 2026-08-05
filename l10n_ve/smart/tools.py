@@ -85,15 +85,31 @@ def _motivo(si: frappe._dict, cubiertas: set[str], cutoff: str) -> str:
 	return "En cola: sin bloqueo, el cron todavía no la alcanzó"
 
 
+def _moneda_compania(company: str | None) -> str:
+	"""En qué moneda están los campos ``base_*`` y ``outstanding_amount``."""
+	if not company:
+		return "?"
+	return frappe.get_cached_value("Company", company, "default_currency") or "?"
+
+
 def _por_moneda(filas: list) -> dict:
 	"""Suma el pendiente agrupando por moneda, nunca en un solo número.
 
 	Este sistema opera en USD y bolívares a la vez. Un total que los mezcla se
 	lee como una cifra válida y no lo es.
+
+	**`outstanding_amount` NO está en `si.currency`.** Está en la moneda de la
+	compañía, igual que los `base_*`: una factura con ``currency='USD'`` y
+	``grand_total=12.000`` trae ``outstanding_amount=9.025.131,60``, que son
+	bolívares. Emparejarlo con `currency` reportaba la cartera certificada en
+	«38.556.639,24 USD» — 750 veces el número real, con formato de cifra válida.
+
+	`grand_total` sí va con `currency`; ese emparejamiento está bien y se usa tal
+	cual más arriba.
 	"""
 	out: dict[str, float] = {}
 	for r in filas:
-		moneda = r.currency or "?"
+		moneda = _moneda_compania(getattr(r, "company", None))
 		out[moneda] = round(out.get(moneda, 0.0) + flt(r.outstanding_amount), 2)
 	return out
 
@@ -151,7 +167,8 @@ def check_hka(branch: str | None = None, limit: int = 10) -> dict:
 	# --- certificadas y sin cobrar ---
 	sin_cobrar = frappe.db.sql(f"""
 		SELECT si.name, si.branch, si.customer_name, si.posting_date, si.status,
-		       si.grand_total, si.outstanding_amount, si.currency, si.bill_control
+		       si.grand_total, si.outstanding_amount, si.currency, si.bill_control,
+		       si.company
 		FROM `tabSales Invoice` si
 		WHERE si.docstatus = 1 AND si.status != 'Paid'
 		  AND si.is_return = 0 AND si.is_debit_note = 0
@@ -176,6 +193,10 @@ def check_hka(branch: str | None = None, limit: int = 10) -> dict:
 		"certificadas_sin_cobrar": {
 			"total": len(sin_cobrar),
 			"pendiente_por_moneda": _por_moneda(sin_cobrar),
+			"aviso_moneda": (
+				"El pendiente está en moneda de la COMPAÑÍA (bolívares); el total de cada "
+				"factura está en la suya. No los sumes ni los presentes con la misma etiqueta."
+			),
 			"significa": (
 				"El documento fiscal ya está ante el SENIAT y el dinero no entró. Una "
 				"factura mal emitida NO se deshace: se anula con nota de crédito y se "
@@ -185,7 +206,9 @@ def check_hka(branch: str | None = None, limit: int = 10) -> dict:
 				{
 					"invoice": r.name, "cliente": r.customer_name, "sucursal": r.branch,
 					"fecha": str(r.posting_date), "estado": r.status,
-					"pendiente": flt(r.outstanding_amount), "moneda": r.currency,
+					"total": flt(r.grand_total), "moneda_total": r.currency,
+					"pendiente": flt(r.outstanding_amount),
+					"moneda_pendiente": _moneda_compania(r.company),
 					"control_fiscal": r.bill_control,
 				}
 				for r in sin_cobrar[:limit]
