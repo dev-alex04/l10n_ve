@@ -1,0 +1,240 @@
+"""Herramientas del agente para la localización fiscal de Venezuela.
+
+domina_smart las descubre por convención al buscar ``<app>/smart/tools.py`` en
+cada app instalada. No hace falta declarar nada en el hooks.py de esta app, y
+domina_smart no importa l10n_ve: si no está instalada, estas herramientas
+simplemente no existen.
+
+**La trampa que hace falta esta herramienta.** ``AGENTS.md`` de esta app lo dice
+con el número medido: ``hka_status`` NO es evidencia de certificación —está vacío
+en miles de facturas sí certificadas—, y una métrica escrita como
+``hka_status != 'Emitida'`` reportó **8.001 pendientes cuando el pendiente real
+eran 2**.
+
+Un agente que arme su propia query cae en eso sin excepción: el campo se llama
+como la pregunta. Por eso acá no se escribe ninguna condición propia: se reusa
+``_get_pending_hka_invoices``, que es la definición que usa el cron de verdad.
+"""
+
+import frappe
+from frappe.utils import cint, flt
+
+MAX_ROWS = 25
+
+#: Certificada = tiene número de control fiscal, o un log de envío exitoso. Es la
+#: definición de AGENTS.md, y la misma que aplica el cron.
+_CERTIFICADA = """(
+	(si.bill_control IS NOT NULL AND si.bill_control != '')
+	OR EXISTS (
+		SELECT 1 FROM `tabVE Digital Invoice Log` l
+		WHERE l.sales_invoice = si.name AND l.status = 'Success'
+		  AND l.document_type = 'Sales Invoice'
+	)
+)"""
+
+
+def _settings() -> dict:
+	from l10n_ve.digital_invoice.tfhka_integration import _get_tfhka_settings
+
+	return _get_tfhka_settings() or {}
+
+
+def _series_activas() -> tuple[list[dict], set[str]]:
+	"""Series activas y el conjunto de sucursales que cubren."""
+	from l10n_ve.digital_invoice.tfhka_integration import _get_active_billing_series
+
+	series = _get_active_billing_series()
+	cubiertas = {b for s in series for b in (s.get("branches") or [])}
+	return series, cubiertas
+
+
+def _motivo(si: frappe._dict, cubiertas: set[str], cutoff: str) -> str:
+	"""Por qué esta factura pagada todavía no llegó al SENIAT.
+
+	El orden importa: es el mismo en que el cron descarta. Una factura con la
+	sucursal fuera de serie nunca llega a evaluarse la tasa, así que reportar la
+	tasa sería mandar a arreglar lo que no bloquea.
+	"""
+	if not si.branch or si.branch not in cubiertas:
+		return "Sucursal fuera de toda serie activa"
+
+	if cutoff and str(si.posting_date) < str(cutoff):
+		return f"Anterior a la fecha de corte ({cutoff})"
+
+	ultimo = frappe.db.get_value(
+		"VE Digital Invoice Log",
+		{"sales_invoice": si.name, "document_type": "Sales Invoice"},
+		["status", "notes"],
+		order_by="creation desc",
+		as_dict=True,
+	)
+	if ultimo and ultimo.status == "Error":
+		return f"Rechazada en el último intento: {(ultimo.notes or '').strip()[:160]}"
+
+	# La tasa se evalúa de último porque es lo que el cron evalúa de último, y es
+	# lo único que exige abrir el documento entero.
+	try:
+		from l10n_ve.digital_invoice.emission_rerate import stale_rate_reason
+
+		razon = stale_rate_reason(frappe.get_doc("Sales Invoice", si.name))
+		if razon:
+			return f"Tasa desincronizada: {razon[:160]}"
+	except Exception:
+		pass
+
+	return "En cola: sin bloqueo, el cron todavía no la alcanzó"
+
+
+def _por_moneda(filas: list) -> dict:
+	"""Suma el pendiente agrupando por moneda, nunca en un solo número.
+
+	Este sistema opera en USD y bolívares a la vez. Un total que los mezcla se
+	lee como una cifra válida y no lo es.
+	"""
+	out: dict[str, float] = {}
+	for r in filas:
+		moneda = r.currency or "?"
+		out[moneda] = round(out.get(moneda, 0.0) + flt(r.outstanding_amount), 2)
+	return out
+
+
+def check_hka(branch: str | None = None, limit: int = 10) -> dict:
+	"""Diagnóstico de facturación digital: qué no llegó al SENIAT, y por qué.
+
+	Dos cohortes, y las dos son anomalías de signo opuesto:
+
+    * **Cobradas sin certificar** — el cliente pagó y el documento fiscal no
+      existe. Cada una viene con su motivo.
+    * **Certificadas sin cobrar** — el documento ya está ante el SENIAT y el
+      dinero no entró. Es la más delicada: una factura mal emitida no se
+      deshace, se anula con nota de crédito y se reemite.
+	"""
+	limit = max(1, min(cint(limit) or 10, MAX_ROWS))
+	cfg = _settings()
+	if not cfg:
+		return {"error": "La integración con HKA está deshabilitada en TFHKA Settings."}
+
+	cutoff = cfg.get("cutoff_date")
+	series, cubiertas = _series_activas()
+
+	filtro_branch = "AND si.branch = %(branch)s" if branch else ""
+	params = {"branch": branch, "cutoff": cutoff}
+
+	# --- cobradas y sin certificar ---
+	pendientes = frappe.db.sql(f"""
+		SELECT si.name, si.branch, si.customer_name, si.posting_date,
+		       si.grand_total, si.currency, si.status
+		FROM `tabSales Invoice` si
+		WHERE si.docstatus = 1 AND si.status = 'Paid'
+		  AND si.is_return = 0 AND si.is_debit_note = 0
+		  AND NOT {_CERTIFICADA}
+		  {filtro_branch}
+		ORDER BY si.posting_date
+	""", params, as_dict=True)
+
+	por_motivo: dict[str, dict] = {}
+	for si in pendientes:
+		m = _motivo(si, cubiertas, cutoff)
+		# El monto va POR MONEDA. Un total que suma bolívares con dólares se ve
+		# perfectamente bien y no significa nada — es la regla del glosario.
+		b = por_motivo.setdefault(m, {"reason": m, "count": 0, "monto_por_moneda": {}, "muestra": []})
+		b["count"] += 1
+		moneda = si.currency or "?"
+		b["monto_por_moneda"][moneda] = round(b["monto_por_moneda"].get(moneda, 0.0) + flt(si.grand_total), 2)
+		if len(b["muestra"]) < limit:
+			b["muestra"].append({
+				"invoice": si.name, "cliente": si.customer_name,
+				"sucursal": si.branch, "fecha": str(si.posting_date),
+				"total": flt(si.grand_total), "moneda": si.currency,
+			})
+
+	# --- certificadas y sin cobrar ---
+	sin_cobrar = frappe.db.sql(f"""
+		SELECT si.name, si.branch, si.customer_name, si.posting_date, si.status,
+		       si.grand_total, si.outstanding_amount, si.currency, si.bill_control
+		FROM `tabSales Invoice` si
+		WHERE si.docstatus = 1 AND si.status != 'Paid'
+		  AND si.is_return = 0 AND si.is_debit_note = 0
+		  AND si.status NOT IN ('Credit Note Issued', 'Return')
+		  AND {_CERTIFICADA}
+		  {filtro_branch}
+		ORDER BY si.outstanding_amount DESC
+	""", params, as_dict=True)
+
+	return {
+		"configuracion": {
+			"fecha_de_corte": cutoff,
+			"envio_automatico": cfg.get("enable_auto_send"),
+			"series_activas": [s["name"] for s in series],
+			"sucursales_cubiertas": sorted(cubiertas),
+		},
+		"cobradas_sin_certificar": {
+			"total": len(pendientes),
+			"significa": "El cliente pagó y el documento fiscal todavía no existe ante el SENIAT",
+			"por_motivo": sorted(por_motivo.values(), key=lambda b: -b["count"]),
+		},
+		"certificadas_sin_cobrar": {
+			"total": len(sin_cobrar),
+			"pendiente_por_moneda": _por_moneda(sin_cobrar),
+			"significa": (
+				"El documento fiscal ya está ante el SENIAT y el dinero no entró. Una "
+				"factura mal emitida NO se deshace: se anula con nota de crédito y se "
+				"reemite. Antes de proponer nada, hay que entender por qué se emitió."
+			),
+			"muestra": [
+				{
+					"invoice": r.name, "cliente": r.customer_name, "sucursal": r.branch,
+					"fecha": str(r.posting_date), "estado": r.status,
+					"pendiente": flt(r.outstanding_amount), "moneda": r.currency,
+					"control_fiscal": r.bill_control,
+				}
+				for r in sin_cobrar[:limit]
+			],
+		},
+		"nota": (
+			"«Certificada» significa que tiene número de control fiscal o un log de envío "
+			"exitoso. NO se usa hka_status: está vacío en miles de facturas sí certificadas "
+			"y una métrica basada en ese campo reportó 8.001 pendientes cuando eran 2."
+		),
+	}
+
+
+TOOLS = [
+	{
+		"name": "check_hka",
+		"handler": check_hka,
+		"writes": False,
+		"description": (
+			"Diagnóstico de facturación digital ante el SENIAT (HKA / The Factory HKA).\n"
+			"Usala para «qué facturas no se enviaron a HKA», «por qué esta factura no se "
+			"certificó», «hay facturas cobradas sin documento fiscal», «cómo va la "
+			"facturación digital».\n"
+			"\n"
+			"Devuelve DOS cohortes opuestas:\n"
+			"  · cobradas_sin_certificar → el cliente pagó y el documento fiscal no existe.\n"
+			"    Viene desglosado POR MOTIVO: sucursal fuera de serie activa, anterior a la\n"
+			"    fecha de corte, rechazo del último intento, tasa desincronizada, o "
+			"simplemente en cola.\n"
+			"  · certificadas_sin_cobrar → el documento ya está ante el SENIAT y el dinero\n"
+			"    no entró.\n"
+			"\n"
+			"REPORTÁ EL MOTIVO, no solo el total. Cada motivo se arregla distinto y varios "
+			"no son un error: «anterior a la fecha de corte» es el comportamiento esperado.\n"
+			"\n"
+			"Los montos vienen agrupados POR MONEDA. Este sistema opera en USD y bolívares "
+			"a la vez: decí siempre cuál, y nunca los sumes.\n"
+			"\n"
+			"NO propongas anular ni reemitir una factura ya certificada. Ante el SENIAT eso "
+			"exige nota de crédito y reemisión, es irreversible, y no es una decisión que "
+			"se tome desde un chat: describí el caso y quién debe revisarlo."
+		),
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"branch": {"type": "string", "description": "Acotar a una sucursal (VE Branch)."},
+				"limit": {"type": "integer", "description": "Filas de muestra por motivo (por defecto 10, techo 25)."},
+			},
+			"required": [],
+		},
+	},
+]
