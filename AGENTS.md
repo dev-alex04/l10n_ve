@@ -3,7 +3,9 @@
 Localización fiscal de Venezuela. Acá van las reglas que **no se deducen leyendo el código**:
 invariantes que ya se rompieron en producción al menos una vez, con la evidencia de qué pasó.
 
-Convenciones del repo: identificadores en inglés; texto de UI en español y sin `_()`;
+Convenciones del repo: **código y comentarios en inglés** —identificadores, nombres de
+archivo/carpeta y también comentarios y docstrings—; en español sólo lo que lee el
+usuario final, y sin `_()`;
 `ignore_permissions=True` en save/insert/delete; los backfills se exponen como `dry_run()` /
 `execute()` manuales y **no** van en `patches.txt`; rama feature + PR a `development`.
 
