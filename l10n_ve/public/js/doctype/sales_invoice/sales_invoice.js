@@ -625,8 +625,7 @@ function setup_exchange_difference_button(frm) {
   if (
     frm.doc.docstatus === 1 &&
     frm.doc.outstanding_amount &&
-    flt(frm.doc.outstanding_amount) !== 0 &&
-    (frm.doc.currency !== frm.doc.party_account_currency || frm.doc.currency !== frappe.defaults.get_default("currency"))
+    flt(frm.doc.outstanding_amount) !== 0
   ) {
     frm.add_custom_button(
       __("Generar Diferencial Cambiario"),
