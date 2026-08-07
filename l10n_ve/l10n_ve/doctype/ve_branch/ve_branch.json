@@ -10,6 +10,7 @@
  "field_order": [
   "gesti\u00f3n_tab",
   "is_group",
+  "is_expenses_branch",
   "lft",
   "rgt",
   "old_parent",
@@ -232,13 +233,20 @@
   {
    "fieldname": "column_break_jafg",
    "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Utilizar \u00e9sta sucursal para generar las facturas de compras desde el gasto.",
+   "fieldname": "is_expenses_branch",
+   "fieldtype": "Check",
+   "label": "Utilizar para gastos"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-08-06 08:24:49.624461",
+ "modified": "2026-08-07 13:41:46.575452",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",
@@ -296,6 +304,7 @@
   }
  ],
  "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
  "search_fields": "branch_name,company",
  "show_preview_popup": 1,
  "show_title_field_in_link": 1,

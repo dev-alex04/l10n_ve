@@ -18,6 +18,7 @@ class VEBranch(NestedSet):
         self.validate_system_users()
         self.validate_unique_users()
         self.validate_payment_modes()
+        self.validate_unique_expense_branch()
 
     def on_update(self) -> None:
         super().on_update()
@@ -247,6 +248,22 @@ class VEBranch(NestedSet):
                 queue='long',
                 timeout=600,
                 municipality_doc_name=self.municipality
+            )
+
+    def validate_unique_expense_branch(self):
+        """Garantiza que solo exista un registro con 'is_expenses_branch' activo."""
+        if not self.get("is_expenses_branch"):
+            return
+
+        existing = frappe.db.exists(
+            self.doctype,
+            {"is_expenses_branch": 1, "name": ["!=", self.name]}
+        )
+
+        if existing:
+            frappe.throw(
+                _("Ya existe la sucursal <b>{0}</b> marcada para gastos. Desmárcala antes de activar esta.").format(existing),
+                title=_("Sucursal Única de Gastos")
             )
 
 
