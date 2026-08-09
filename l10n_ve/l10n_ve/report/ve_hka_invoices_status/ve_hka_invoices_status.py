@@ -314,7 +314,7 @@ def get_data(filters):
 
 	# Semántica estricta compartida con el backfill (una sola fuente de verdad):
 	# el estado solo afirma lo que HKA registró; sin evidencia -> "No aplica".
-	from l10n_ve.digital_invoice.hka_status import derive_hka_status, get_hka_cutoff
+	from l10n_ve.digital_invoice.hka_status import get_hka_cutoff, resolve_display_status
 
 	cutoff = get_hka_cutoff()
 
@@ -333,14 +333,13 @@ def get_data(filters):
 		raw_dt = row.get("doctype") or row.get("document_type")
 		row["document_type"] = doc_type_map.get(raw_dt, raw_dt)
 
-		# Preferir el campo persistido (lo mantiene el flujo en vivo);
-		# derivar como fallback (sites donde el backfill aún no corrió).
+		# Estado a mostrar: el campo persistido salvo que la evidencia lo contradiga.
+		# La regla vive en hka_status.py, junto al resto de la semántica, para que el
+		# reporte y el aviso diario no puedan divergir.
 		success_log = {"exists": 1} if row.get("log_status") == "Success" else None
-		row["status"] = (
-			row.get("hka_status")
-			or derive_hka_status(row, row.get("log_status"), success_log, cutoff)
-			or "No aplica"
-		)
+		row["status"] = resolve_display_status(
+			row, row.get("log_status"), success_log, cutoff
+		) or "No aplica"
 
 		# Aplicar filtro de estado si está presente
 		if filters.get("status") and filters.get("status") not in ("All", "Todos"):
