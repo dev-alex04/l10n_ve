@@ -520,13 +520,13 @@ function toggle_islr_withholding_fields(frm) {
 function apply_custom_totals_labels(frm) {
   if (!frm || !frm.fields_dict || !frm.wrapper) return;
 
-  // 1. Ocultar los campos innecesarios
+  // 1. Ocultar los campos innecesarios (incluyendo en palabras USD)
   const hide_fields = [
     "totals",
     "base_total",
     "total",
     "base_total_with_vat",
-    "base_in_words",
+    "in_words",
     "base_rounding_adjustment",
     "base_rounded_total",
     "rounding_adjustment",
@@ -551,10 +551,10 @@ function apply_custom_totals_labels(frm) {
     "base_net_total": "Base Imponible",
     "base_total_taxes_and_charges": "IVA",
     "base_grand_total": "Base Imponible + IVA",
+    "base_in_words": "En palabras",
     "net_total": "Base Imponible",
     "total_taxes_and_charges": "IVA",
     "grand_total": "Base Imponible + IVA",
-    "in_words": "En palabras"
   };
 
   for (const [fieldname, label_text] of Object.entries(labels_map)) {
@@ -567,10 +567,10 @@ function apply_custom_totals_labels(frm) {
     "base_net_total",
     "base_total_taxes_and_charges",
     "base_grand_total",
+    "base_in_words",
     "net_total",
     "total_taxes_and_charges",
     "grand_total",
-    "in_words",
   ]) {
     frm.set_df_property(f, "hidden", false);
     let field_obj = frm.get_field(f);
@@ -579,7 +579,25 @@ function apply_custom_totals_labels(frm) {
     }
   }
 
-  // 4. Actualizar importes de IVA
+  // 4. Hacer los campos del lado de Bolívares (VEF) un poco más grandes
+  const vef_fields = ["base_net_total", "base_total_taxes_and_charges", "base_grand_total"];
+  for (const fn of vef_fields) {
+    let f = frm.get_field(fn);
+    if (f && f.$wrapper) {
+      f.$wrapper.find("input, .control-value").css({
+        "font-size": "16px",
+        "font-weight": "700",
+        "height": "42px",
+        "line-height": "42px"
+      });
+      f.$wrapper.find("label.control-label").css({
+        "font-size": "13px",
+        "font-weight": "600"
+      });
+    }
+  }
+
+  // 5. Actualizar importes de IVA
   update_ve_vat_fields(frm);
 }
 
