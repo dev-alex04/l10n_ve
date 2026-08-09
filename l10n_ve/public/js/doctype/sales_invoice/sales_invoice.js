@@ -579,7 +579,15 @@ function apply_custom_totals_labels(frm) {
     }
   }
 
-  // 4. Hacer los campos del lado de Bolívares (VEF) un poco más grandes
+  // 4. Garantizar que base_in_words tenga el valor formateado de 'En palabras' en Bolívares
+  if (!frm.doc.base_in_words && frm.doc.in_words) {
+    frm.doc.base_in_words = frm.doc.in_words;
+    if (frm.fields_dict.base_in_words) {
+      frm.refresh_field("base_in_words");
+    }
+  }
+
+  // 5. Hacer los campos del lado de Bolívares (VEF) un poco más grandes
   const vef_fields = ["base_net_total", "base_total_taxes_and_charges", "base_grand_total"];
   for (const fn of vef_fields) {
     let f = frm.get_field(fn);
@@ -597,7 +605,7 @@ function apply_custom_totals_labels(frm) {
     }
   }
 
-  // 5. Actualizar importes de IVA
+  // 6. Actualizar importes de IVA
   update_ve_vat_fields(frm);
 }
 
