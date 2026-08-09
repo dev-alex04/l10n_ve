@@ -10,7 +10,9 @@
   "column_break_1",
   "environment",
   "section_break_billing",
-  "cutoff_date"
+  "cutoff_date",
+  "section_break_notifications",
+  "notification_recipients"
  ],
  "fields": [
   {
@@ -51,6 +53,18 @@
    "fieldtype": "Date",
    "label": "Fecha de corte",
    "reqd": 1
+  },
+  {
+   "fieldname": "section_break_notifications",
+   "fieldtype": "Section Break",
+   "label": "Notificaciones"
+  },
+  {
+   "description": "Direcciones que reciben el aviso diario de documentos no enviados a HKA. Una dirección por fila. Sin destinatarios no se envía nada.",
+   "fieldname": "notification_recipients",
+   "fieldtype": "Table",
+   "label": "Destinatarios del aviso diario",
+   "options": "TFHKA Notification Recipient"
   }
  ],
  "grid_page_length": 50,
