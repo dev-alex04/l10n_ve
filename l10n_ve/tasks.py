@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import frappe
 
-from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt, add_years, add_days
+from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt, fmt_money, add_years, add_days
 
 
 BCV_URL = "https://www.bcv.org.ve/"
@@ -1095,3 +1095,130 @@ def trigger_retention_reminder_on_invoice_emission(doc: object) -> None:
 def on_sales_invoice_submit(doc: object, method: str | None = None) -> None:
     """Hook que se ejecuta al someter una factura de venta (Sales Invoice)."""
     trigger_retention_reminder_on_invoice_emission(doc)
+
+
+# --- Daily notice: documents that should have reached HKA and did not ------------
+
+#: Wording that reaches accounting. Kept here, next to the template, so the whole
+#: user-facing copy of the notice can be read in one place.
+_UNSENT_NOTICE_SUBJECT = "Documentos sin enviar a la imprenta digital (HKA)"
+_UNSENT_NOTICE_AUTOSEND_OFF = (
+    "El envío automático a HKA está <b>desactivado</b> en TFHKA Settings. "
+    "Mientras siga así, ningún documento se emite solo."
+)
+
+
+def build_unsent_hka_documents_email(reference_datetime=None) -> tuple[str, str] | None:
+    """Build the daily notice. Returns ``(subject, html)``, or ``None`` if nothing to report.
+
+    Split from the sending task so the message can be inspected without a mail
+    server — the local site has no outgoing account, so this is the only way to
+    review the copy before it goes anywhere::
+
+        bench --site <site> execute l10n_ve.tasks.build_unsent_hka_documents_email
+    """
+    from frappe.utils import now_datetime
+
+    from l10n_ve.digital_invoice.unsent_documents import get_unsent_documents
+
+    result: dict = get_unsent_documents(reference_datetime or now_datetime())
+    rows: list[dict] = result["rows"]
+    if not rows:
+        return None
+
+    period: dict = result["period"]
+    subject: str = f"{_UNSENT_NOTICE_SUBJECT} — {len(rows)} documento(s)"
+
+    parts: list[str] = [
+        f"<p>Documentos con fecha entre <b>{formatdate(period['from'], 'dd-MM-yyyy')}</b> y "
+        f"<b>{formatdate(period['to'], 'dd-MM-yyyy')}</b> que debieron enviarse a HKA y no salieron, "
+        f"al corte de las {period['as_of'].strftime('%H:%M')}.</p>"
+    ]
+
+    if not result["auto_send_enabled"]:
+        parts.append(
+            f'<p style="padding:8px;border-left:3px solid #b00">{_UNSENT_NOTICE_AUTOSEND_OFF}</p>'
+        )
+
+    # Grouped by reason: the action is per reason, so repeating it per row is noise.
+    by_reason: dict[str, list[dict]] = {}
+    for row in rows:
+        by_reason.setdefault(row["reason_code"], []).append(row)
+
+    for code, group in by_reason.items():
+        parts.append(
+            f"<h3 style=\"margin-bottom:2px\">{frappe.utils.escape_html(group[0]['reason'])}"
+            f" — {len(group)}</h3>"
+        )
+        parts.append(
+            f"<p style=\"margin-top:0;color:#555\">{frappe.utils.escape_html(group[0]['action'])}</p>"
+        )
+        parts.append(_unsent_rows_table(group))
+
+    parts.append(
+        '<p style="color:#777;font-size:11px">Aviso automático de l10n_ve. '
+        "El detalle completo está en el reporte <i>Estado de Facturas VE HKA</i>.</p>"
+    )
+    return subject, "\n".join(parts)
+
+
+def _unsent_rows_table(rows: list[dict]) -> str:
+    """Render one group of rows as an HTML table."""
+    head: str = (
+        '<tr style="text-align:left;background:#f4f4f4">'
+        "<th>Documento</th><th>Fecha</th><th>Cliente / Proveedor</th>"
+        "<th>Monto</th><th>Sucursal</th><th>Detalle</th></tr>"
+    )
+
+    body: list[str] = []
+    for row in rows:
+        amount: str = (
+            fmt_money(row["amount"], currency=row["currency"]) if row.get("amount") else ""
+        )
+        body.append(
+            "<tr>"
+            f"<td>{frappe.utils.escape_html(row['name'])}</td>"
+            f"<td>{formatdate(row['date'], 'dd-MM-yyyy')}</td>"
+            f"<td>{frappe.utils.escape_html(row['party'])}</td>"
+            f"<td align=\"right\">{frappe.utils.escape_html(amount)}</td>"
+            f"<td>{frappe.utils.escape_html(row['branch'])}</td>"
+            f"<td>{frappe.utils.escape_html(row['detail'])}</td>"
+            "</tr>"
+        )
+
+    return (
+        '<table border="1" cellpadding="4" cellspacing="0" '
+        'style="border-collapse:collapse;font-size:12px;width:100%">'
+        f"{head}{''.join(body)}</table>"
+    )
+
+
+def send_unsent_hka_documents_notice() -> None:
+    """Daily notice of documents that should have reached HKA and did not.
+
+    Sends nothing when there is nothing to report, and nothing when no recipients
+    are configured — both are normal states, not errors.
+
+    Runs inline rather than re-enqueued: it is one query plus one email, unlike the
+    retention sweep that loops the whole customer base and needs the ``long`` queue.
+    """
+    settings = frappe.get_doc("TFHKA Settings")
+    recipients: list[str] = settings.get_notification_recipients()
+    if not recipients:
+        return
+
+    built = build_unsent_hka_documents_email()
+    if not built:
+        return
+
+    subject, message = built
+
+    try:
+        frappe.sendmail(recipients=recipients, subject=subject, message=message)
+    except Exception as e:
+        # An alert that cannot be delivered must not die silently: the Error Log is
+        # the only channel left, and it is part of the team's review routine.
+        frappe.log_error(
+            title="Error al enviar el aviso de documentos sin enviar a HKA",
+            message=f"Destinatarios: {recipients}. Error: {e}",
+        )
