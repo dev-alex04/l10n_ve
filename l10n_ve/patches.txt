@@ -21,4 +21,4 @@ l10n_ve.patches.setup.backfill_bank_logos
 l10n_ve.patches.model.backfill_voucher_supplier_name
 l10n_ve.patches.setup.create_retention_reminder_email_template
 l10n_ve.patches.model.set_sales_invoice_totales_layout #2026-08-09-reordenar-totales
-
+l10n_ve.patches.model.backfill_sales_invoice_in_words_es
