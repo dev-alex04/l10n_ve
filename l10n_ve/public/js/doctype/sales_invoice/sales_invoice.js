@@ -624,22 +624,6 @@ function set_sales_invoice_fields(frm) {
     };
   }
 
-  // Activar MutationObserver para vigilar cualquier cambio o re-renderizado del DOM por parte de Frappe
-  if (!frm._ve_totals_observer && frm.wrapper && frm.wrapper[0]) {
-    let isUpdating = false;
-    const observer = new MutationObserver(() => {
-      if (isUpdating) return;
-      isUpdating = true;
-      apply_custom_totals_labels(frm);
-      setTimeout(() => {
-        isUpdating = false;
-      }, 50);
-    });
-
-    observer.observe(frm.wrapper[0], { childList: true, subtree: true });
-    frm._ve_totals_observer = observer;
-  }
-
   apply_custom_totals_labels(frm);
 }
 
