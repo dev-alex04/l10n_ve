@@ -258,14 +258,11 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
   const is_sales_invoice = this.frm.doc.doctype === "Sales Invoice";
   const multi_currency = this.frm.doc.currency != company_currency;
 
-  // Para Sales Invoice, base_net_total y base_total_taxes_and_charges siempre visibles
-  // (son "Base Imponible" e "IVA" en VEF). Para otros doctypes, comportamiento normal.
+  // Para Sales Invoice, la sección Totales y sus campos VEF/REF siempre deben estar visibles
   const base_toggle_fields = [
     "base_total",
-    "base_in_words",
     "base_total_cost",
     "conversion_rate",
-    "base_grand_total",
     "base_paid_amount",
     "base_rounded_total",
     "base_operating_cost",
@@ -278,17 +275,25 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
     "base_taxes_and_charges_deducted",
   ];
 
-  // Estos dos siempre visibles en Sales Invoice
   if (!is_sales_invoice) {
     base_toggle_fields.push("base_net_total");
     base_toggle_fields.push("base_total_taxes_and_charges");
+    base_toggle_fields.push("base_grand_total");
+    base_toggle_fields.push("base_in_words");
   }
 
   this.frm.toggle_display(base_toggle_fields, multi_currency);
 
   if (is_sales_invoice) {
+    this.frm.toggle_display("section_break_43", true);
     this.frm.toggle_display("base_net_total", true);
     this.frm.toggle_display("base_total_taxes_and_charges", true);
+    this.frm.toggle_display("base_grand_total", true);
+    this.frm.toggle_display("base_in_words", true);
+    this.frm.toggle_display("net_total", true);
+    this.frm.toggle_display("total_taxes_and_charges", true);
+    this.frm.toggle_display("grand_total", true);
+    this.frm.toggle_display("in_words", false);
   }
 
   // `base_tax_withholding_net_total` sale de la lista de arriba a propósito. Es la base
