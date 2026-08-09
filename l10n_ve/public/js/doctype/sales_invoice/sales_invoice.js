@@ -579,7 +579,15 @@ function apply_custom_totals_labels(frm) {
     }
   }
 
-  // 4. Hacer los campos del lado de Bolívares (VEF) un poco más grandes
+  // 4. Garantizar que base_in_words tenga el valor formateado de 'En palabras' en Bolívares
+  if (!frm.doc.base_in_words && frm.doc.in_words) {
+    frm.doc.base_in_words = frm.doc.in_words;
+    if (frm.fields_dict.base_in_words) {
+      frm.refresh_field("base_in_words");
+    }
+  }
+
+  // 5. Hacer los campos del lado de Bolívares (VEF) un poco más grandes
   const vef_fields = ["base_net_total", "base_total_taxes_and_charges", "base_grand_total"];
   for (const fn of vef_fields) {
     let f = frm.get_field(fn);
@@ -597,7 +605,7 @@ function apply_custom_totals_labels(frm) {
     }
   }
 
-  // 5. Actualizar importes de IVA
+  // 6. Actualizar importes de IVA
   update_ve_vat_fields(frm);
 }
 
@@ -614,22 +622,6 @@ function set_sales_invoice_fields(frm) {
       }
       apply_custom_totals_labels(frm);
     };
-  }
-
-  // Activar MutationObserver para vigilar cualquier cambio o re-renderizado del DOM por parte de Frappe
-  if (!frm._ve_totals_observer && frm.wrapper && frm.wrapper[0]) {
-    let isUpdating = false;
-    const observer = new MutationObserver(() => {
-      if (isUpdating) return;
-      isUpdating = true;
-      apply_custom_totals_labels(frm);
-      setTimeout(() => {
-        isUpdating = false;
-      }, 50);
-    });
-
-    observer.observe(frm.wrapper[0], { childList: true, subtree: true });
-    frm._ve_totals_observer = observer;
   }
 
   apply_custom_totals_labels(frm);
