@@ -273,6 +273,9 @@ after_migrate = [
     "l10n_ve.setup.create_government_withholding_custom_fields",
     "l10n_ve.setup.link_government_withholding_account",
     "l10n_ve.setup.create_stamp_tax_rates",
+    # self-heal: plantilla del aviso diario de HKA. Solo la crea si falta, para no pisar
+    # el texto que contabilidad edite desde la UI.
+    "l10n_ve.setup.create_hka_unsent_notice_email_template",
     # self-heal: roles propios de l10n_ve (no viajan en fixtures) — idempotente
     "l10n_ve.setup.create_custom_roles",
 ]

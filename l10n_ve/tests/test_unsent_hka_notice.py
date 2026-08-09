@@ -66,7 +66,9 @@ class TestBuildNotice(unittest.TestCase):
         rows = [_row(), _row(name="B"), _row(name="C")]
         _, html = self._build(_result(rows))
         self.assertEqual(html.count("Corrija la tasa del documento."), 1)
-        self.assertIn("Tasa incoherente — 3", html)
+        self.assertEqual(html.count("Tasa incoherente"), 1)
+        for name in ("ACC-SINV-2026-15344", "B", "C"):
+            self.assertIn(name, html)
 
     def test_two_reasons_produce_two_groups(self):
         rows = [
@@ -74,8 +76,9 @@ class TestBuildNotice(unittest.TestCase):
             _row(name="NC-1", reason_code="manual_pending", reason="Sin emitir", action="A mano."),
         ]
         _, html = self._build(_result(rows))
-        self.assertIn("Tasa incoherente — 1", html)
-        self.assertIn("Sin emitir — 1", html)
+        self.assertIn("Tasa incoherente", html)
+        self.assertIn("Sin emitir", html)
+        self.assertIn("A mano.", html)
 
     def test_autosend_off_shows_banner(self):
         _, html = self._build(_result([_row()], auto_send=False))
@@ -99,6 +102,49 @@ class TestBuildNotice(unittest.TestCase):
         """Los comprobantes de retención no traen monto."""
         _, html = self._build(_result([_row(amount=None, currency="")]))
         self.assertIn("ACC-SINV-2026-15344", html)
+
+
+class TestTemplateAndFallback(unittest.TestCase):
+    """La plantilla manda; el respaldo existe para que la alerta no se pierda."""
+
+    def _build(self):
+        with patch(
+            "l10n_ve.digital_invoice.unsent_documents.get_unsent_documents",
+            return_value=_result([_row()]),
+        ):
+            return build_unsent_hka_documents_email(NOW)
+
+    def test_uses_the_seeded_template(self):
+        """El texto sale de la plantilla que siembra el setup, no del código."""
+        from l10n_ve.setup import HKA_UNSENT_NOTICE_TEMPLATE
+
+        self.assertTrue(frappe.db.exists("Email Template", HKA_UNSENT_NOTICE_TEMPLATE))
+        _, html = self._build()
+        self.assertIn("background-color: #1e3a8a", html)  # cabecera de la plantilla
+
+    def test_missing_template_falls_back_and_logs(self):
+        """Sin plantilla igual se envía: perder el aviso es peor que perder el formato."""
+        with patch("frappe.get_cached_doc", side_effect=frappe.DoesNotExistError), patch(
+            "frappe.log_error"
+        ) as log_error:
+            subject, html = self._build()
+
+        log_error.assert_called_once()
+        self.assertIn("1 documento(s)", subject)
+        self.assertIn("ACC-SINV-2026-15344", html)
+        self.assertIn("Tasa incoherente", html)
+
+    def test_fallback_still_escapes(self):
+        """El escapado se hace al armar el contexto, así que cubre los dos caminos."""
+        with patch("frappe.get_cached_doc", side_effect=frappe.DoesNotExistError), patch(
+            "frappe.log_error"
+        ), patch(
+            "l10n_ve.digital_invoice.unsent_documents.get_unsent_documents",
+            return_value=_result([_row(party="ACME <script>x</script>")]),
+        ):
+            _, html = build_unsent_hka_documents_email(NOW)
+
+        self.assertNotIn("<script>", html)
 
 
 class TestSendNotice(unittest.TestCase):
