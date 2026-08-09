@@ -236,7 +236,8 @@
   },
   {
    "default": "0",
-   "description": "Utilizar \u00e9sta sucursal para generar las facturas de compras desde el gasto.",
+   "depends_on": "eval:!doc.is_group",
+   "description": "Utilizar \u00e9sta sucursal para generar las facturas de compras desde el gasto. Solo una por compa\u00f1\u00eda.",
    "fieldname": "is_expenses_branch",
    "fieldtype": "Check",
    "label": "Utilizar para gastos"
