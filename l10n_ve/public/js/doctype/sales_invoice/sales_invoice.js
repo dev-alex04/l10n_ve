@@ -105,7 +105,7 @@ frappe.ui.form.on("Sales Invoice", {
     setup_credit_note_button(frm);
     setup_debit_note_button(frm);
 
-    if (frappe.boot.tfhka_enabled) {
+    if (frappe.boot.tfhka_enabled !== false) {
       setup_digital_invoice_button(frm);
       setup_force_send_hka_button(frm);
     }
@@ -327,8 +327,10 @@ function apply_custom_totals_labels(frm) {
     }
   }
 
-  // 6. Actualizar importes de IVA
-  update_ve_vat_fields(frm);
+  // 6. Actualizar importes de IVA (si existe)
+  if (typeof update_ve_vat_fields === "function") {
+    update_ve_vat_fields(frm);
+  }
 }
 
 function set_sales_invoice_fields(frm) {
