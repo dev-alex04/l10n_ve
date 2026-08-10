@@ -18,6 +18,7 @@ class VEBranch(NestedSet):
         self.validate_system_users()
         self.validate_unique_users()
         self.validate_payment_modes()
+        self.validate_unique_expense_branch()
 
     def on_update(self) -> None:
         super().on_update()
@@ -248,6 +249,59 @@ class VEBranch(NestedSet):
                 timeout=600,
                 municipality_doc_name=self.municipality
             )
+
+    def validate_unique_expense_branch(self) -> None:
+        """Garantiza una sola sucursal de gastos por compañía, y que sea operativa."""
+        if not self.get("is_expenses_branch"):
+            return
+
+        # La sucursal de gastos termina emitiendo la factura de compra y sus
+        # comprobantes de retención, y la serie de facturación digital se resuelve
+        # POR SUCURSAL (ver _validate_digital_series). Un nodo de agrupación no
+        # tiene serie propia, así que marcarlo dejaría la emisión rota.
+        if self.get("is_group"):
+            frappe.throw(
+                _("La sucursal <b>{0}</b> es de agrupación y no puede usarse para gastos: "
+                  "la factura de compra y sus comprobantes de retención se emiten contra "
+                  "una sucursal operativa con serie de facturación propia.").format(self.name),
+                title=_("Sucursal de Agrupación")
+            )
+
+        # El alcance es POR COMPAÑÍA: cada compañía factura sus gastos desde su propia
+        # sucursal, así que un filtro global impediría configurar la segunda compañía.
+        # Sin compañía no hay forma de acotar, y se cae al chequeo global.
+        filters: dict = {"is_expenses_branch": 1, "name": ["!=", self.name]}
+        if self.get("company"):
+            filters["company"] = self.company
+
+        existing = frappe.db.exists(self.doctype, filters)
+
+        if existing:
+            frappe.throw(
+                _("Ya existe la sucursal <b>{0}</b> marcada para gastos. Desmárcala antes de activar esta.").format(existing),
+                title=_("Sucursal Única de Gastos")
+            )
+
+
+@frappe.whitelist()
+def get_expenses_branch(company: str | None = None) -> str | None:
+    """Sucursal marcada con 'Utilizar para gastos' (`is_expenses_branch`).
+
+    Accesor público para las apps que generan facturas de compra desde otro
+    documento (p. ej. domina_expense): evita que cada consumidor replique el
+    filtro o caiga en un nombre de sucursal hardcodeado, y deja el alcance por
+    compañía definido en un solo lugar.
+
+    Devuelve None si no hay ninguna configurada; el llamador decide si eso es un
+    error de configuración para su flujo.
+    """
+    frappe.has_permission("VE Branch", "read", throw=True)
+
+    filters: dict = {"is_expenses_branch": 1}
+    if company:
+        filters["company"] = company
+
+    return frappe.db.get_value("VE Branch", filters, "name")
 
 
 @frappe.whitelist()
