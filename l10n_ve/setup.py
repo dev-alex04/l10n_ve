@@ -81,6 +81,7 @@ def set_data() -> None:
         set_roles()
         setup_workspaces()
         create_retention_reminder_email_template()
+        create_hka_unsent_notice_email_template()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -1946,4 +1947,77 @@ def create_retention_reminder_email_template() -> None:
     except Exception as e:
         print(f"Failure: Error en create_retention_reminder_email_template: {e}")
         frappe.log_error(frappe.get_traceback(), 'Error en create_retention_reminder_email_template')
+
+
+#: Template used by the daily notice of documents that never reached HKA.
+#: The task looks it up by this exact name.
+HKA_UNSENT_NOTICE_TEMPLATE = "Documentos sin enviar a HKA"
+
+
+def create_hka_unsent_notice_email_template() -> None:
+    """Seed the template for the daily HKA notice. Created only if missing.
+
+    Runs on every migrate as self-heal so the notice always has wording to render,
+    but it never overwrites an existing record: the whole point of keeping the copy
+    in a template is that accounting can edit it from the UI, and a setup step that
+    reverts those edits on the next migrate would make the template pointless.
+
+    Values reach the template already escaped (``frappe.render_template`` does NOT
+    autoescape), so no ``| e`` filter is needed here.
+    """
+    if frappe.db.exists("Email Template", HKA_UNSENT_NOTICE_TEMPLATE):
+        return
+
+    html_content = """<div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 820px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+    <div style="background-color: #1e3a8a; padding: 20px 24px; color: #ffffff;">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 600;">Documentos sin enviar a la imprenta digital (HKA)</h2>
+    </div>
+    <div style="padding: 20px 24px; color: #2d3748; line-height: 1.6;">
+        <p style="margin-top: 0; font-size: 14px;">
+            Documentos con fecha entre <b>{{ period_from }}</b> y <b>{{ period_to }}</b>
+            que debieron enviarse a HKA y no salieron, al corte de las <b>{{ as_of }}</b>.
+        </p>
+
+        {% if not auto_send_enabled %}
+        <p style="padding: 10px 12px; border-left: 4px solid #b00020; background-color: #fff5f5; font-size: 13px;">
+            El env&iacute;o autom&aacute;tico a HKA est&aacute; <b>desactivado</b> en TFHKA Settings.
+            Mientras siga as&iacute;, ning&uacute;n documento se emite solo.
+        </p>
+        {% endif %}
+
+        {% for group in groups %}
+        <h3 style="margin: 24px 0 2px; font-size: 15px; color: #1e3a8a;">{{ group.reason }} &mdash; {{ group.count }}</h3>
+        <p style="margin: 0 0 8px; font-size: 13px; color: #555;">{{ group.action }}</p>
+        <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; font-size: 12px; width: 100%; border-color: #e2e8f0;">
+            <tr style="text-align: left; background-color: #f7fafc;">
+                <th>Documento</th><th>Fecha</th><th>Cliente / Proveedor</th>
+                <th>Monto</th><th>Sucursal</th><th>Detalle</th>
+            </tr>
+            {% for row in group.rows %}
+            <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.date }}</td>
+                <td>{{ row.party }}</td>
+                <td align="right">{{ row.amount }}</td>
+                <td>{{ row.branch }}</td>
+                <td>{{ row.detail }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endfor %}
+
+        <p style="margin-top: 24px; font-size: 11px; color: #999;">
+            Aviso autom&aacute;tico de l10n_ve. El detalle completo est&aacute; en el reporte
+            <i>Estado de Facturas VE HKA</i>.
+        </p>
+    </div>
+</div>"""
+
+    doc = frappe.new_doc("Email Template")
+    doc.name = HKA_UNSENT_NOTICE_TEMPLATE
+    doc.subject = "Documentos sin enviar a la imprenta digital (HKA) - {{ total }} documento(s)"
+    doc.use_html = 1
+    doc.response_html = html_content
+    doc.insert(ignore_permissions=True)
+    print(f"Success: Plantilla '{HKA_UNSENT_NOTICE_TEMPLATE}' creada.")
 

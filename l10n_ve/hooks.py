@@ -273,6 +273,9 @@ after_migrate = [
     "l10n_ve.setup.create_government_withholding_custom_fields",
     "l10n_ve.setup.link_government_withholding_account",
     "l10n_ve.setup.create_stamp_tax_rates",
+    # self-heal: plantilla del aviso diario de HKA. Solo la crea si falta, para no pisar
+    # el texto que contabilidad edite desde la UI.
+    "l10n_ve.setup.create_hka_unsent_notice_email_template",
     # self-heal: roles propios de l10n_ve (no viajan en fixtures) — idempotente
     "l10n_ve.setup.create_custom_roles",
 ]
@@ -449,6 +452,10 @@ doc_events = {
 
 scheduler_events = {
        "cron": {
+        # New key. Repeating an existing one would silently drop the earlier entry —
+        # this is a plain dict literal — and the job would never be scheduled, with no
+        # error anywhere. Check tabScheduled Job Type after migrate, not the diff.
+        "0 7 * * *": ["l10n_ve.tasks.send_unsent_hka_documents_notice"],
         "0 8 * * *": ["l10n_ve.tasks.send_3_days_retention_reminders"],
         "0 8 22 * *": ["l10n_ve.tasks.send_monthly_deadline_retention_reminders"],
         "0 * * * *": [
