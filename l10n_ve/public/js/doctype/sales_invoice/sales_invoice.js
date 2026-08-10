@@ -105,7 +105,7 @@ frappe.ui.form.on("Sales Invoice", {
     setup_credit_note_button(frm);
     setup_debit_note_button(frm);
 
-    if (frappe.boot.tfhka_enabled !== false) {
+    if (frappe.boot.tfhka_enabled) {
       setup_digital_invoice_button(frm);
       setup_force_send_hka_button(frm);
     }
