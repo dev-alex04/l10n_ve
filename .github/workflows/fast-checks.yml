@@ -1,0 +1,19 @@
+name: Chequeos rápidos
+
+# Corren en TODO PR, incluidos los que van a `development`.
+#
+# La suite pesada (ci.yml) se repliega a los PR hacia `main` y a una corrida
+# nocturna, porque a 2.394 corridas al mes entre los repos agotó el presupuesto
+# de Actions y dejó el CI muerto 22 días. Esto cubre el hueco en ~30 segundos.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  call-fast-checks:
+    uses: Grupo-Altia/shared-actions/.github/workflows/fast-checks-reusable.yml@main
