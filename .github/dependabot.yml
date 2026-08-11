@@ -1,0 +1,17 @@
+# Sólo actualiza las acciones de los workflows. Las dependencias de Python NO se
+# versionan acá a propósito: Frappe fija sus versiones y un bump automático
+# rompería el bench. Para las vulnerabilidades de Python está Dependabot
+# security updates, que va por configuración del repo y no por este archivo.
+#
+# El prefijo `chore(deps)` es deliberado: el workflow del changelog se salta los
+# chore, así que estos PR no generan entrada ni bump de versión.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
