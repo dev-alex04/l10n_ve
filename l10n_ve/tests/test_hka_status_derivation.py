@@ -23,6 +23,7 @@ from l10n_ve.digital_invoice.hka_status import (
     derive_hka_series,
     derive_hka_status,
     has_hka_evidence,
+    resolve_display_status,
 )
 
 CUTOFF = getdate("2026-04-01")
@@ -167,6 +168,53 @@ class TestDeriveHkaSeries(unittest.TestCase):
         log = {"response_received": "no-json", "payload_sent": "{tampoco"}
         serie, source = derive_hka_series(row, log)
         self.assertEqual((serie, source), ("", ""))
+
+
+class TestResolveDisplayStatus(unittest.TestCase):
+    """El campo persistido manda, salvo que la evidencia lo contradiga.
+
+    El caso que motivó la regla: el guard de tasa lanzaba ValidationError y se
+    re-lanzaba sin marcar hka_status, así que el documento quedaba en "Pendiente"
+    con un log de Error y el reporte lo daba por en cola. Medido el 2026-08-09 en
+    local.domina.galanet: 1 error de agosto reportado, 16 reales.
+    """
+
+    ACTIVE = {"docstatus": 1, "posting_date": "2026-08-01", "is_void": 0}
+
+    def test_failed_attempt_beats_pendiente(self):
+        row = {**self.ACTIVE, "hka_status": "Pendiente", "bill_control": ""}
+        self.assertEqual(resolve_display_status(row, "Error", None, CUTOFF), "Error")
+
+    def test_failed_attempt_beats_empty_field(self):
+        row = {**self.ACTIVE, "hka_status": "", "bill_control": ""}
+        self.assertEqual(resolve_display_status(row, "Error", None, CUTOFF), "Error")
+
+    def test_certified_by_control_is_not_error(self):
+        """Falló después de emitir: HKA ya lo registró, el control manda."""
+        row = {**self.ACTIVE, "hka_status": "Emitida", "bill_control": "00-00233094"}
+        self.assertEqual(resolve_display_status(row, "Error", None, CUTOFF), "Emitida")
+
+    def test_last_attempt_success_is_not_error(self):
+        """Falló y después salió: solo cuenta el ÚLTIMO intento."""
+        row = {**self.ACTIVE, "hka_status": "Emitida", "bill_control": ""}
+        self.assertEqual(
+            resolve_display_status(row, "Success", SUCCESS_LOG, CUTOFF), "Emitida"
+        )
+
+    def test_no_attempt_keeps_persisted_field(self):
+        row = {**self.ACTIVE, "hka_status": "Pendiente", "bill_control": ""}
+        self.assertEqual(resolve_display_status(row, None, None, CUTOFF), "Pendiente")
+
+    def test_no_field_and_no_attempt_derives(self):
+        """Sin campo ni intento cae en la derivación: activo, post-corte -> Pendiente."""
+        row = {**self.ACTIVE, "hka_status": "", "bill_control": ""}
+        self.assertEqual(resolve_display_status(row, None, None, CUTOFF), "Pendiente")
+
+    def test_void_is_not_overridden_by_failed_attempt(self):
+        """Un documento anulado ante HKA no vuelve a Error por un intento viejo."""
+        row = {"docstatus": 1, "is_void": 1, "hka_status": "Anulada",
+               "bill_control": "00-00233094", "posting_date": "2026-08-01"}
+        self.assertEqual(resolve_display_status(row, "Error", None, CUTOFF), "Anulada")
 
 
 if __name__ == "__main__":

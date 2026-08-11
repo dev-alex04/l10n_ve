@@ -44,7 +44,18 @@ def get_active_billing_series(
     El branch_code se obtiene directamente de la fila de la tabla hija.
     """
     if not branch or branch.upper() == "N/A":
-        return None, ""
+        # Fail-closed. Antes esto devolvía (None, "") y el llamador seguía: el
+        # documento se emitía con serie vacía, que HKA acepta y no se puede deshacer.
+        # Y antes de eso caía a "la primera serie activa de la empresa", que es peor:
+        # emitir bajo la serie de OTRA sucursal.
+        #
+        # Se corta acá, antes de tocar la BD. Un documento sin sucursal no tiene serie
+        # que le corresponda, y adivinarla es justo lo que no se hace en lo fiscal.
+        frappe.throw(
+            "El documento no tiene sucursal, así que no se puede determinar su serie "
+            "de facturación digital. Asigne la sucursal antes de emitirlo.",
+            title="Serie de Facturación No Encontrada",
+        )
 
     row = frappe.db.sql("""
         SELECT
@@ -953,6 +964,26 @@ def process_invoice(
         )
 
     except (frappe.ValidationError, HKAAmountMismatchError):
+        # Marcar el fallo también por esta vía. Los throw del bloque —el guard de tasa
+        # (_validate_tasa_coherencia), la resolución de serie, el armado del payload—
+        # llegaban acá y se re-lanzaban sin tocar hka_status, así que el documento se
+        # quedaba en "Pendiente" teniendo un log de error. Como el reporte prefiere el
+        # campo persistido sobre la evidencia, esos errores quedaban invisibles: medido
+        # el 2026-08-09 en local.domina.galanet, mostraba 1 error de agosto habiendo 16.
+        #
+        # El commit NO es opcional: el loop del cron hace rollback() antes de registrar
+        # el log (_send_pending_invoices), y en el camino manual el throw revierte la
+        # transacción del request. Sin commit la escritura se pierde en los dos casos.
+        # Mismo criterio que la rama de HKARangeExhausted, unas líneas más abajo.
+        try:
+            # No pisar una emisión ya confirmada: con bill_control, HKA la emitió y el
+            # fallo es posterior (mismo guard que el except genérico).
+            if not frappe.db.get_value(doctype, doc_name, "bill_control"):
+                _set_hka_status(doctype, doc_name, "Error")
+                frappe.db.commit()
+        except Exception:
+            # No enmascarar el error original: el log del llamador es el registro primario.
+            pass
         raise
     except HKARangeExhausted:
         # Persistir el hka_status=Error y el log escritos en

@@ -18,6 +18,14 @@ from frappe.tests.utils import FrappeTestCase
 from l10n_ve.digital_invoice.islr_payload_builder import TFHKAISLRPayloadBuilder
 
 
+_GET_SERIES = "l10n_ve.digital_invoice.tfhka_integration.get_active_billing_series"
+
+
+def _resolve_series(**_kwargs):
+    """Serie resuelta, tal como la devuelve get_active_billing_series."""
+    return frappe._dict({"serie": "GAL-01"}), "01"
+
+
 def _make_islr_doc(**overrides) -> frappe._dict:
     """Crea un mock de ISLR Withholding Voucher para el builder."""
     doc = frappe._dict({
@@ -28,6 +36,10 @@ def _make_islr_doc(**overrides) -> frappe._dict:
         "supplier": "DESIGNET SERVICES 1815 C.A",
         "supplier_address": "CALLE ROSCIO EDIF CENTRO EMPRESARIAL",
         "empresa": "Galanet Solution C.A.",
+        # Un comprobante sin sucursal no llega hasta acá: crearlo desde la factura
+        # ya está bloqueado (test_branchless_invoice_blocked_before_creating_voucher)
+        # y resolver la serie sin sucursal falla cerrado. El fixture lo refleja.
+        "branch": "GALANET HQ",
         "totals_grand_total": 177947.55,
         "totals_islr_base_amount": 194478.20,
         "totals_islr_amount": 9723.92,
@@ -61,6 +73,16 @@ def _mock_supplier(*_args, **_kwargs) -> frappe._dict:
 
 class TestISLRPayloadBuilder(FrappeTestCase):
     """Tests para TFHKAISLRPayloadBuilder: estructura, totales y detalles."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        # La serie se resuelve en el constructor del builder y hoy es obligatoria:
+        # sin ella build_payload corta. Se mockea acá, una vez, porque lo que estos
+        # tests miran es la forma del payload, no de dónde sale la serie --eso lo
+        # cubre test_retention_series_fail_closed.
+        patcher = patch(_GET_SERIES, side_effect=_resolve_series)
+        self.addCleanup(patcher.stop)
+        patcher.start()
 
     # ─────────────────────────────────────────────
     # Estructura general del payload
@@ -102,6 +124,19 @@ class TestISLRPayloadBuilder(FrappeTestCase):
         self.assertTrue(id_doc["transaccionId"].startswith("RISLR"))
         # creation "2026-04-30 09:15:00" → sufijo 260430091500 (evita choque HKA 201 si el name se recicla)
         self.assertEqual(id_doc["transaccionId"], "RISLR20260400000001260430091500")
+
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.db.get_value", return_value=None)
+    @patch("l10n_ve.digital_invoice.base_withholding_builder.frappe.get_cached_doc", side_effect=_mock_supplier)
+    def test_serie_and_branch_reach_the_payload(self, _mock_doc: MagicMock, _mock_db: MagicMock) -> None:
+        """La serie resuelta viaja al payload: es el dato que HKA imprime y no se
+        puede deshacer, así que se pinnea que llega y no queda en el camino."""
+        doc = _make_islr_doc()
+        builder = TFHKAISLRPayloadBuilder(doc)
+        payload: dict = builder.build_payload()
+
+        id_doc: dict = payload["documentoElectronico"]["encabezado"]["identificacionDocumento"]
+        self.assertEqual(id_doc["serie"], "GAL-01")
+        self.assertEqual(id_doc["sucursal"], "01")
 
     # ─────────────────────────────────────────────
     # totalesRetencion

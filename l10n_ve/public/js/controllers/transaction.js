@@ -255,28 +255,46 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
   }
 
   // toggle fields
-  this.frm.toggle_display(
-    [
-      "base_total",
-      "base_in_words",
-      "base_net_total",
-      "base_total_cost",
-      "conversion_rate",
-      "base_grand_total",
-      "base_paid_amount",
-      "base_rounded_total",
-      "base_operating_cost",
-      "base_discount_amount",
-      "base_write_off_amount",
-      "base_raw_material_cost",
-      "base_scrap_material_cost",
-      "base_rounding_adjustment",
-      "base_total_taxes_and_charges",
-      "base_taxes_and_charges_added",
-      "base_taxes_and_charges_deducted",
-    ],
-    this.frm.doc.currency != company_currency
-  );
+  const is_sales_invoice = this.frm.doc.doctype === "Sales Invoice";
+  const multi_currency = this.frm.doc.currency != company_currency;
+
+  // Para Sales Invoice, la sección Totales y sus campos VEF/REF siempre deben estar visibles
+  const base_toggle_fields = [
+    "base_total",
+    "base_total_cost",
+    "conversion_rate",
+    "base_paid_amount",
+    "base_rounded_total",
+    "base_operating_cost",
+    "base_discount_amount",
+    "base_write_off_amount",
+    "base_raw_material_cost",
+    "base_scrap_material_cost",
+    "base_rounding_adjustment",
+    "base_taxes_and_charges_added",
+    "base_taxes_and_charges_deducted",
+  ];
+
+  if (!is_sales_invoice) {
+    base_toggle_fields.push("base_net_total");
+    base_toggle_fields.push("base_total_taxes_and_charges");
+    base_toggle_fields.push("base_grand_total");
+    base_toggle_fields.push("base_in_words");
+  }
+
+  this.frm.toggle_display(base_toggle_fields, multi_currency);
+
+  if (is_sales_invoice) {
+    this.frm.toggle_display("section_break_43", true);
+    this.frm.toggle_display("base_net_total", true);
+    this.frm.toggle_display("base_total_taxes_and_charges", true);
+    this.frm.toggle_display("base_grand_total", true);
+    this.frm.toggle_display("base_in_words", true);
+    this.frm.toggle_display("net_total", true);
+    this.frm.toggle_display("total_taxes_and_charges", true);
+    this.frm.toggle_display("grand_total", true);
+    this.frm.toggle_display("in_words", false);
+  }
 
   // `base_tax_withholding_net_total` sale de la lista de arriba a propósito. Es la base
   // sobre la que ERPNext calcula la retención (la suma de las líneas con apply_tds), que
@@ -300,19 +318,32 @@ erpnext.TransactionController.prototype.change_form_labels = async function (
     this.frm.doc.doctype &&
     frappe.meta.get_docfield(this.frm.doc.doctype, "net_total")
   ) {
-    this.frm.toggle_display("net_total", show);
+    // En Sales Invoice siempre mostramos net_total como "Base Imponible"
+    if (is_sales_invoice) {
+      this.frm.toggle_display("net_total", true);
+    } else {
+      this.frm.toggle_display("net_total", show);
+    }
   }
 
   if (
     this.frm.doc.doctype &&
     frappe.meta.get_docfield(this.frm.doc.doctype, "base_net_total")
   ) {
-    this.frm.toggle_display(
-      "base_net_total",
-      show && me.frm.doc.currency != company_currency
-    );
+    // En Sales Invoice siempre mostramos base_net_total como "Base Imponible (VEF)"
+    if (is_sales_invoice) {
+      this.frm.toggle_display("base_net_total", true);
+    } else {
+      this.frm.toggle_display(
+        "base_net_total",
+        show && me.frm.doc.currency != company_currency
+      );
+    }
   }
 };
+
+
+
 
 erpnext.TransactionController.prototype.change_grid_labels = async function (
   company_currency

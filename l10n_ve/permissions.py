@@ -254,7 +254,14 @@ def has_ve_branch_permission(doc: Any, ptype: str = "read", user: str = None) ->
 
     # Permitir inicialización y creación general si el usuario tiene sucursales asignadas.
     # La validación estricta de la sucursal específica se ejecutará al guardar (save/write).
-    if ptype in ("create", "select"):
+    #
+    # Un documento aún NO guardado entra en el mismo caso que un `create`: todavía no
+    # tiene sucursal, así que compararlo contra `allowed` lo rechazaba siempre. Frappe
+    # evalúa el permiso sobre un documento en blanco cuando se adjunta un archivo antes
+    # del primer guardado (`frappe.handler.check_write_permission`), y eso dejaba a los
+    # usuarios con sucursal asignada sin poder adjuntar nada en documentos nuevos. El
+    # guardado sí valida la sucursal real, así que no se relaja ninguna restricción.
+    if ptype in ("create", "select") or doc.is_new():
         return len(allowed) > 0
         
     # Caso especial: El documento es VE Branch mismo

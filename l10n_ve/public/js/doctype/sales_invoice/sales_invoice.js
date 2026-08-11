@@ -1,13 +1,5 @@
 // Agregar funcion general para ejecutgar funciones de botones
 
-/**
- * Ayuda del campo `withholding_date`, compartida por el formulario y los dos
- * diálogos de carga de comprobante.
- *
- * Es función y no constante porque `__()` traduce contra el idioma de la sesión,
- * que al evaluar el módulo todavía no está resuelto.
- * @returns {string}
- */
 function withholding_date_description() {
   return __(
     "Esta fecha determina el período fiscal en el que la retención viajará al Libro de Ventas.",
@@ -85,7 +77,27 @@ frappe.ui.form.on("Sales Invoice", {
         .hide();
     }, 100);
 
+    // Mover esto a una funcion
+
+    let has_islr_withholding = true;
+
+    // Mover esto a una funcion
+    let has_vat_withholding = false;
+    if (frm.doc.taxes && frm.doc.taxes.length) {
+      has_vat_withholding = frm.doc.taxes.some(
+        (tax_row) =>
+          tax_row.charge_type &&
+          tax_row.charge_type.toLowerCase().includes("withholding"),
+      );
+    }
+
+    // TODO: Eliminar esto (Habilitado temporalmente para cargar comprobantes de retención a facturas generadas sin ellos.)
+    has_vat_withholding = true;
+    has_islr_withholding = true;
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     setup_voucher_buttons(frm);
+
 
     setup_exchange_difference_button(frm);
     setup_hka_consulta_button(frm);
@@ -227,30 +239,111 @@ function toggle_islr_withholding_fields(frm) {
   }
 }
 
-function set_sales_invoice_fields(frm) {
-  for (const field of [
-    "base_in_words",
-    "base_total_taxes_and_charges",
-    "section_break_43",
+function apply_custom_totals_labels(frm) {
+  if (!frm || !frm.fields_dict || !frm.wrapper) return;
+
+  // 1. Ocultar los campos innecesarios (incluyendo en palabras USD)
+  const hide_fields = [
+    "totals",
+    "base_total",
+    "total",
+    "base_total_with_vat",
+    "in_words",
     "base_rounding_adjustment",
-  ]) {
+    "base_rounded_total",
+    "rounding_adjustment",
+    "rounded_total",
+    "total_advance",
+    "outstanding_amount",
+  ];
+
+  for (const field of hide_fields) {
     frm.set_df_property(field, "hidden", true);
+    let f = frm.get_field(field);
+    if (f && f.$wrapper) {
+      f.$wrapper.hide();
+    }
   }
 
-  let base_total_taxes_and_charges = frm.get_field(
+  // 2. Renombrar las etiquetas fijas exactamente como las quiere el usuario
+  frm.set_df_property("section_break_43", "hidden", false);
+  frm.set_df_property("section_break_43", "label", __("Totales"));
+
+  const labels_map = {
+    "base_net_total": "Base Imponible",
+    "base_total_taxes_and_charges": "IVA",
+    "base_grand_total": "Base Imponible + IVA",
+    "base_in_words": "En palabras",
+    "net_total": "Base Imponible",
+    "total_taxes_and_charges": "IVA",
+    "grand_total": "Base Imponible + IVA",
+  };
+
+  for (const [fieldname, label_text] of Object.entries(labels_map)) {
+    frm.set_df_property(fieldname, "label", label_text);
+  }
+
+  // 3. Forzar visibilidad en docfield
+  for (const f of [
+    "section_break_43",
+    "base_net_total",
     "base_total_taxes_and_charges",
-  ).$wrapper;
+    "base_grand_total",
+    "base_in_words",
+    "net_total",
+    "total_taxes_and_charges",
+    "grand_total",
+  ]) {
+    frm.set_df_property(f, "hidden", false);
+    let field_obj = frm.get_field(f);
+    if (field_obj && field_obj.$wrapper) {
+      field_obj.$wrapper.show();
+    }
+  }
 
-  let base_rounding_adjustment = frm.get_field(
-    "base_rounding_adjustment",
-  ).$wrapper;
+  // 4. Garantizar que base_in_words tenga el valor formateado de 'En palabras' en Bolívares
+  if (!frm.doc.base_in_words && frm.doc.in_words) {
+    frm.doc.base_in_words = frm.doc.in_words;
+    if (frm.fields_dict.base_in_words) {
+      frm.refresh_field("base_in_words");
+    }
+  }
 
-  let base_rounded_total = frm.get_field("base_rounded_total").$wrapper;
-  let base_in_words = frm.get_field("base_in_words").$wrapper;
+  // 5. Hacer los campos del lado de Bolívares (VEF) un poco más grandes
+  const vef_fields = ["base_net_total", "base_total_taxes_and_charges", "base_grand_total"];
+  for (const fn of vef_fields) {
+    let f = frm.get_field(fn);
+    if (f && f.$wrapper) {
+      f.$wrapper.find("input, .control-value").css({
+        "font-size": "16px",
+        "font-weight": "700",
+        "height": "42px",
+        "line-height": "42px"
+      });
+      f.$wrapper.find("label.control-label").css({
+        "font-size": "13px",
+        "font-weight": "600"
+      });
+    }
+  }
+}
 
-  base_rounding_adjustment.insertBefore(base_total_taxes_and_charges);
-  base_rounded_total.insertBefore(base_total_taxes_and_charges);
-  base_in_words.insertBefore(base_total_taxes_and_charges);
+function set_sales_invoice_fields(frm) {
+  if (!frm || !frm.fields_dict) return;
+
+  // Interceptar set_currency_labels para que no revierta nuestras etiquetas
+  if (!frm._ve_currency_labels_patched) {
+    frm._ve_currency_labels_patched = true;
+    const _orig_set_currency_labels = frm.set_currency_labels;
+    frm.set_currency_labels = function (fields, currency) {
+      if (_orig_set_currency_labels) {
+        _orig_set_currency_labels.call(this, fields, currency);
+      }
+      apply_custom_totals_labels(frm);
+    };
+  }
+
+  apply_custom_totals_labels(frm);
 }
 
 function print_button_pdf(frm) {
@@ -335,24 +428,19 @@ function setup_exchange_difference_button(frm) {
   if (
     frm.doc.docstatus === 1 &&
     frm.doc.outstanding_amount &&
-    flt(frm.doc.outstanding_amount) !== 0 &&
-    (frm.doc.currency !== frm.doc.party_account_currency || frm.doc.currency !== frappe.defaults.get_default("currency"))
+    flt(frm.doc.outstanding_amount) !== 0
   ) {
     frm.add_custom_button(
       __("Generar Diferencial Cambiario"),
       function () {
         const outstanding = flt(frm.doc.outstanding_amount);
         const tipo = outstanding > 0 ? "Pérdida" : "Ganancia";
-        // format_currency y no frappe.format: el formatter de Currency pasa por
-        // _right(), que envuelve el monto en un <div align=right> y parte la
-        // frase del modal en tres líneas.
-        const monto = format_currency(
-          Math.abs(outstanding),
-          frm.doc.party_account_currency,
-        );
 
         frappe.confirm(
-          `¿Desea registrar un diferencial cambiario (${tipo}) por <b>${monto}</b>?<br><br>Se creará y enviará un Asiento Contable automáticamente.`,
+          `¿Desea registrar un diferencial cambiario (${tipo}) por <b>${frappe.format(
+            Math.abs(outstanding),
+            { fieldtype: "Currency", currency: frm.doc.party_account_currency },
+          )}</b>?<br><br>Se creará y enviará un Asiento Contable automáticamente.`,
           () => {
             frappe.call({
               method:
@@ -382,32 +470,20 @@ function setup_exchange_difference_button(frm) {
 
 /**
  * Botón para enviar manualmente la factura a Facturación Digital (TFHKA).
- *
- * Visible en BORRADOR y en APROBADA, mientras no tenga número de control.
- *
- * En borrador el backend la aprueba antes de enviar (`_approve_before_manual_send`),
- * retasándola a la tasa del día si el cliente es jurídico. Sin eso el botón quedaba
- * inalcanzable justo cuando hace falta: el candado fiscal impide aprobar a mano una
- * factura de sucursal con serie digital activa, y el botón exigía estar aprobada — no
- * había forma de emitirla desde la interfaz.
- *
+ * Solo visible si la factura está enviada y el status NO es "Sent".
  * Muestra un modal de vista previa con todos los datos antes de enviar.
  * @param {object} frm
  */
 function setup_digital_invoice_button(frm) {
   if (
-    (frm.doc.docstatus !== 0 && frm.doc.docstatus !== 1) ||
+    frm.doc.docstatus !== 1 ||
     (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
   ) {
     return;
   }
 
-  const es_borrador = frm.doc.docstatus === 0;
-
   frm.add_custom_button(
-    es_borrador
-      ? __("Aprobar y Enviar a HKA")
-      : __("Enviar Facturación Digital"),
+    __("Enviar Facturación Digital"),
     function () {
       frappe.call({
         method:
@@ -427,17 +503,14 @@ function setup_digital_invoice_button(frm) {
 
 /**
  * Botón para forzar el envío a HKA saltando la validación de tasa BCV.
- * Solo visible para Administrator en facturas sin número de control.
- *
- * Acepta borradores por la misma razón que el botón normal: el candado fiscal impide
- * aprobarlas a mano. En modo forzado el backend aprueba SIN retasar, que es justamente
- * el punto de esta salida de emergencia: emitir con la tasa que porta el documento.
+ * Solo visible para Administrator en facturas aprobadas que no hayan sido
+ * enviadas exitosamente a HKA.
  * @param {object} frm
  */
 function setup_force_send_hka_button(frm) {
   if (
     frappe.session.user !== "Administrator" ||
-    (frm.doc.docstatus !== 0 && frm.doc.docstatus !== 1) ||
+    frm.doc.docstatus !== 1 ||
     (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
   ) {
     return;
@@ -484,6 +557,9 @@ function setup_force_send_hka_button(frm) {
  * @param {object} d  Datos devueltos por get_invoice_preview_data
  */
 function show_hka_preview_dialog(frm, d) {
+  const has_item_discount = Boolean(d.has_item_discount);
+  const has_discount = Boolean(d.has_discount);
+
   const items_html = d.items
     .map(
       (item) => `
@@ -497,6 +573,7 @@ function show_hka_preview_dialog(frm, d) {
       </td>
       <td class="right">${frappe.utils.escape_html(item.qty)}</td>
       <td class="right">$ ${frappe.utils.escape_html(item.rate_usd)}</td>
+      ${has_item_discount ? `<td class="right" style="color:#e53e3e;">${item.has_discount ? '- $ ' + frappe.utils.escape_html(item.discount_usd) : '—'}</td>` : ''}
       <td class="right">$ ${frappe.utils.escape_html(item.valor_iva_usd)}</td>
       <td class="right"><strong>$ ${frappe.utils.escape_html(item.total_item_usd)}</strong></td>
     </tr>
@@ -617,6 +694,7 @@ function show_hka_preview_dialog(frm, d) {
                 <th>Descripción</th>
                 <th class="right">Cant.</th>
                 <th class="right">Precio Unit.</th>
+                ${has_item_discount ? '<th class="right">Desc.</th>' : ''}
                 <th class="right">IVA</th>
                 <th class="right">Total Item</th>
               </tr>
@@ -632,15 +710,17 @@ function show_hka_preview_dialog(frm, d) {
             <div class="hka-preview__totals">
               <div>
                 <p class="hka-preview__totals-col-title usd">USD</p>
-                <div class="hka-preview__total-row"><span>Subtotal:</span><span>$ ${frappe.utils.escape_html(d.subtotal_usd)}</span></div>
+                ${has_discount ? `<div class="hka-preview__total-row"><span>Subtotal Bruto:</span><span>$ ${frappe.utils.escape_html(d.subtotal_gross_usd)}</span></div>` : ''}
+                ${has_discount ? `<div class="hka-preview__total-row" style="color:#e53e3e;"><span>Descuento:</span><span>- $ ${frappe.utils.escape_html(d.discount_usd)}</span></div>` : ''}
+                <div class="hka-preview__total-row"><span>Subtotal${has_discount ? ' Neto' : ''}:</span><span>$ ${frappe.utils.escape_html(d.subtotal_usd)}</span></div>
                 <div class="hka-preview__total-row bold"><span>IVA:</span><span>$ ${frappe.utils.escape_html(d.iva_usd)}</span></div>
-                <div class="hka-preview__total-row grand"><span>Total:</span><span>$ ${frappe.utils.escape_html(d.total_usd)}</span></div>
               </div>
               <div>
                 <p class="hka-preview__totals-col-title bs">Bs.</p>
-                <div class="hka-preview__total-row"><span>Subtotal:</span><span>${frappe.utils.escape_html(d.subtotal_bs)}</span></div>
+                ${has_discount ? `<div class="hka-preview__total-row"><span>Subtotal Bruto:</span><span>${frappe.utils.escape_html(d.subtotal_gross_bs)}</span></div>` : ''}
+                ${has_discount ? `<div class="hka-preview__total-row" style="color:#e53e3e;"><span>Descuento:</span><span>- ${frappe.utils.escape_html(d.discount_bs)}</span></div>` : ''}
+                <div class="hka-preview__total-row"><span>Subtotal${has_discount ? ' Neto' : ''}:</span><span>${frappe.utils.escape_html(d.subtotal_bs)}</span></div>
                 <div class="hka-preview__total-row bold"><span>IVA:</span><span>${frappe.utils.escape_html(d.iva_bs)}</span></div>
-                <div class="hka-preview__total-row grand"><span>Total:</span><span>${frappe.utils.escape_html(d.total_bs)}</span></div>
               </div>
             </div>
           </div>
@@ -653,7 +733,6 @@ function show_hka_preview_dialog(frm, d) {
             <p class="hka-preview__bcv-note">
               Cálculos según Art. 25 Ley IVA. Sujeto a IGTF (+3%) si paga en divisas.
             </p>
-            ${d.rerate_aviso ? `<p class="hka-preview__bcv-note" style="color:#B45309;">⚠️ ${frappe.utils.escape_html(d.rerate_aviso)}</p>` : ""}
           </div>
         </div>
 
@@ -673,10 +752,7 @@ function show_hka_preview_dialog(frm, d) {
     fields: [
       { fieldtype: "HTML", fieldname: "preview_html", options: preview_html },
     ],
-    primary_action_label:
-      frm.doc.docstatus === 0
-        ? __("Aprobar y Emitir")
-        : __("Confirmar Emisión"),
+    primary_action_label: __("Confirmar Emisión"),
     primary_action: function () {
       dialog.hide();
       frappe.call({
@@ -1153,7 +1229,7 @@ function open_withholding_dialog(frm, invoice, customer, type, default_account, 
   }
 
   const dialog = new frappe.ui.Dialog({
-    title: type === "VAT" ? __("Retención de IVA") : __("Retención de ISLR"),
+    title: type === "VAT" ? __("Corregir Retención de IVA") : __("Corregir Retención de ISLR"),
     fields: fields,
     primary_action_label: __("Aplicar y Guardar"),
     primary_action(values) {
@@ -1320,20 +1396,42 @@ function setup_voucher_buttons(frm) {
     return;
   }
 
-  const has_vat_withholding = frm.doc.taxes ? frm.doc.taxes.some(t => t.charge_type === 'VAT Withholding') : false;
-  const has_islr_withholding = frm.doc.taxes ? frm.doc.taxes.some(t => t.charge_type === 'ISLR') : false;
+  const has_vat_withholding = frm.doc.taxes
+    ? frm.doc.taxes.some((t) => t.charge_type === "VAT Withholding")
+    : false;
+  const has_islr_withholding = frm.doc.taxes
+    ? frm.doc.taxes.some((t) => t.charge_type === "ISLR")
+    : false;
 
-  frappe.db.get_value('Customer', frm.doc.customer,
-    ['is_special_taxpayer', 'tax_withholding_category', 'tabulator_islr', 'type_of_person'],
+  frappe.db.get_value(
+    "Customer",
+    frm.doc.customer,
+    [
+      "is_special_taxpayer",
+      "tax_withholding_category",
+      "tabulator_islr",
+      "type_of_person",
+    ],
     (customer_data) => {
       if (!customer_data) return;
 
-      const show_vat = has_vat_withholding || (customer_data.is_special_taxpayer && customer_data.tax_withholding_category);
-      const show_islr = has_islr_withholding || (customer_data.is_special_taxpayer && customer_data.tabulator_islr);
+      const show_vat =
+        has_vat_withholding ||
+        (customer_data.is_special_taxpayer &&
+          customer_data.tax_withholding_category);
+      const show_islr =
+        has_islr_withholding ||
+        (customer_data.is_special_taxpayer && customer_data.tabulator_islr);
 
       // Limpiar para evitar duplicados al refrescar el formulario
-      frm.page.remove_inner_button(__("Retención de IVA"), __("Cargar Comprobante"));
-      frm.page.remove_inner_button(__("Retención de ISLR"), __("Cargar Comprobante"));
+      frm.page.remove_inner_button(
+        __("Retención de IVA"),
+        __("Cargar Comprobante"),
+      );
+      frm.page.remove_inner_button(
+        __("Retención de ISLR"),
+        __("Cargar Comprobante"),
+      );
 
       if (show_vat) {
         frm.add_custom_button(
@@ -1345,7 +1443,7 @@ function setup_voucher_buttons(frm) {
               apply_vat_withholding(frm, customer_data);
             }
           },
-          __("Cargar Comprobante")
+          __("Cargar Comprobante"),
         );
       }
 
@@ -1359,10 +1457,10 @@ function setup_voucher_buttons(frm) {
               apply_islr_withholding(frm, customer_data);
             }
           },
-          __("Cargar Comprobante")
+          __("Cargar Comprobante"),
         );
       }
-    }
+    },
   );
 }
 
@@ -1403,7 +1501,11 @@ function open_upload_vat_modal(frm) {
     primary_action_label: __("Subir y Guardar"),
     primary_action: (values) => {
       const voucher_number = values.vat_withholding_voucher_number;
-      if (!voucher_number || !values.withholding_date || !values.voucher_image) {
+      if (
+        !voucher_number ||
+        !values.withholding_date ||
+        !values.voucher_image
+      ) {
         frappe.msgprint({
           title: __("Error de Validación"),
           indicator: "red",
@@ -1424,20 +1526,29 @@ function open_upload_vat_modal(frm) {
         });
         return;
       }
-      if (!validate_voucher_file_frontend(values.voucher_image, ["pdf", "jpg", "jpeg", "png"])) {
+      if (
+        !validate_voucher_file_frontend(values.voucher_image, [
+          "pdf",
+          "jpg",
+          "jpeg",
+          "png",
+        ])
+      ) {
         return;
       }
 
       if (frm.doc.docstatus === 0) {
-        frm.set_value('vat_withholding_voucher_number', voucher_number);
-        frm.set_value('withholding_date', values.withholding_date);
-        frm.set_value('voucher_image', values.voucher_image);
-        frm.set_value('vat_registration_date', values.registration_date);
+        frm.set_value("vat_withholding_voucher_number", voucher_number);
+        frm.set_value("withholding_date", values.withholding_date);
+        frm.set_value("voucher_image", values.voucher_image);
+        frm.set_value("vat_registration_date", values.registration_date);
 
         frm.save().then(() => {
           frappe.show_alert({
-            message: __("Factura guardada con los datos del comprobante de IVA."),
-            indicator: "green"
+            message: __(
+              "Factura guardada con los datos del comprobante de IVA.",
+            ),
+            indicator: "green",
           });
           dialog.hide();
         });
@@ -1524,20 +1635,29 @@ function open_upload_islr_modal(frm) {
         });
         return;
       }
-      if (!validate_voucher_file_frontend(values.voucher_image_islr, ["pdf", "jpg", "jpeg", "png"])) {
+      if (
+        !validate_voucher_file_frontend(values.voucher_image_islr, [
+          "pdf",
+          "jpg",
+          "jpeg",
+          "png",
+        ])
+      ) {
         return;
       }
 
       if (frm.doc.docstatus === 0) {
-        frm.set_value('islr_receipt_number', values.islr_receipt_number);
-        frm.set_value('islr_date', values.islr_date);
-        frm.set_value('voucher_image_islr', values.voucher_image_islr);
-        frm.set_value('islr_registration_date', values.registration_date);
+        frm.set_value("islr_receipt_number", values.islr_receipt_number);
+        frm.set_value("islr_date", values.islr_date);
+        frm.set_value("voucher_image_islr", values.voucher_image_islr);
+        frm.set_value("islr_registration_date", values.registration_date);
 
         frm.save().then(() => {
           frappe.show_alert({
-            message: __("Factura guardada con los datos del comprobante de ISLR."),
-            indicator: "green"
+            message: __(
+              "Factura guardada con los datos del comprobante de ISLR.",
+            ),
+            indicator: "green",
           });
           dialog.hide();
         });
@@ -1576,94 +1696,159 @@ function apply_vat_withholding(frm, customer_data) {
   let invoice = frm.doc.bill_no ? frm.doc.bill_no : frm.doc.name;
   let company = frm.doc.company;
 
-  frappe.db.get_value("Company", frm.doc.company, "sales_vat_withholding_account", (co) => {
-    let vat_account = co ? co.sales_vat_withholding_account : null;
+  frappe.db.get_value(
+    "Company",
+    frm.doc.company,
+    "sales_vat_withholding_account",
+    (co) => {
+      let vat_account = co ? co.sales_vat_withholding_account : null;
 
-    const open_vat_modal = (account, rate) => {
-      let vat_amount = frm.doc.taxes
-        .filter(t => t.charge_type === 'VAT')
-        .reduce((sum, t) => sum + flt(t.base_tax_amount), 0);
+      const open_vat_modal = (account, rate) => {
+        let vat_amount = frm.doc.taxes
+          .filter((t) => t.charge_type === "VAT")
+          .reduce((sum, t) => sum + flt(t.base_tax_amount), 0);
 
-      let suggested_amount = flt(vat_amount * (rate / 100.0), 2);
-      open_withholding_dialog(frm, invoice, frm.doc.customer, "VAT", account, rate, suggested_amount, company);
-    };
+        let suggested_amount = flt(vat_amount * (rate / 100.0), 2);
+        open_withholding_dialog(
+          frm,
+          invoice,
+          frm.doc.customer,
+          "VAT",
+          account,
+          rate,
+          suggested_amount,
+          company,
+        );
+      };
 
-    if (vat_account) {
-      get_vat_category_rate(customer_data.tax_withholding_category, frm.doc.company, (rate) => {
-        open_vat_modal(vat_account, rate);
-      });
-    } else {
-      frappe.db.get_value("Tax Withholding Account",
-        { "parent": customer_data.tax_withholding_category, "company": frm.doc.company }, "account", (twa) => {
-          let fallback_account = twa ? twa.account : "";
-          get_vat_category_rate(customer_data.tax_withholding_category, frm.doc.company, (rate) => {
-            open_vat_modal(fallback_account, rate);
-          });
-        });
-    }
-  });
+      if (vat_account) {
+        get_vat_category_rate(
+          customer_data.tax_withholding_category,
+          frm.doc.company,
+          (rate) => {
+            open_vat_modal(vat_account, rate);
+          },
+        );
+      } else {
+        frappe.db.get_value(
+          "Tax Withholding Account",
+          {
+            parent: customer_data.tax_withholding_category,
+            company: frm.doc.company,
+          },
+          "account",
+          (twa) => {
+            let fallback_account = twa ? twa.account : "";
+            get_vat_category_rate(
+              customer_data.tax_withholding_category,
+              frm.doc.company,
+              (rate) => {
+                open_vat_modal(fallback_account, rate);
+              },
+            );
+          },
+        );
+      }
+    },
+  );
 }
 
 function apply_islr_withholding(frm, customer_data) {
   let invoice = frm.doc.bill_no ? frm.doc.bill_no : frm.doc.name;
   let company = frm.doc.company;
 
-  frappe.db.get_doc('Tabulator ISLR', customer_data.tabulator_islr).then(tab_doc => {
-    let islr_rate = 0;
-    let subtrahend = 0;
-    let percentage_base = 75;
+  frappe.db
+    .get_doc("Tabulator ISLR", customer_data.tabulator_islr)
+    .then((tab_doc) => {
+      let islr_rate = 0;
+      let subtrahend = 0;
+      let percentage_base = 75;
 
-    let target_row = null;
-    let client_person_type = customer_data.type_of_person;
+      let target_row = null;
+      let client_person_type = customer_data.type_of_person;
 
-    if (tab_doc.aliquot && tab_doc.aliquot.length > 0) {
-      if (client_person_type) {
-        target_row = tab_doc.aliquot.find(row => row.types_of_person === client_person_type);
-      }
-      if (!target_row) {
-        frappe.msgprint({
-          title: __('Configuración Incompleta'),
-          indicator: 'orange',
-          message: __('No se encontró un tramo en el Tabulador para "{0}". Se usará el primer tramo por defecto, verifique los montos sugeridos.', [client_person_type])
-        });
-        target_row = tab_doc.aliquot[0];
-      }
-    }
-
-    if (target_row) {
-      islr_rate = flt(target_row.aliquot);
-      subtrahend = flt(target_row.subtracting);
-      percentage_base = flt(target_row.percentage_base) || 100;
-    }
-
-    let base_net_total = flt(frm.doc.base_net_total);
-    let calculated_base = flt(base_net_total * (percentage_base / 100));
-
-    let suggested_islr_amount = flt((calculated_base * (islr_rate / 100)) - subtrahend, 2);
-    if (suggested_islr_amount < 0) suggested_islr_amount = 0;
-
-    const open_islr_modal = (final_account) => {
-      open_withholding_dialog(frm, invoice, frm.doc.customer, "ISLR", final_account, islr_rate, suggested_islr_amount, company);
-    };
-
-    frappe.db.get_value('Company', frm.doc.company, 'sales_islr_account', (co) => {
-      let company_account = co ? co.sales_islr_account : "";
-
-      if (company_account) {
-        open_islr_modal(company_account);
-      }
-      else if (customer_data.tax_withholding_category) {
-        frappe.db.get_value("Tax Withholding Account",
-          { "parent": customer_data.tax_withholding_category, "company": frm.doc.company }, "account", (twa) => {
-            let category_account = twa ? twa.account : "";
-            open_islr_modal(category_account);
+      if (tab_doc.aliquot && tab_doc.aliquot.length > 0) {
+        if (client_person_type) {
+          target_row = tab_doc.aliquot.find(
+            (row) => row.types_of_person === client_person_type,
+          );
+        }
+        if (!target_row) {
+          frappe.msgprint({
+            title: __("Configuración Incompleta"),
+            indicator: "orange",
+            message: __(
+              'No se encontró un tramo en el Tabulador para "{0}". Se usará el primer tramo por defecto, verifique los montos sugeridos.',
+              [client_person_type],
+            ),
           });
+          target_row = tab_doc.aliquot[0];
+        }
       }
-      else {
-        open_islr_modal("");
+
+      if (target_row) {
+        islr_rate = flt(target_row.aliquot);
+        subtrahend = flt(target_row.subtracting);
+        percentage_base = flt(target_row.percentage_base) || 100;
       }
+
+      let base_net_total = flt(frm.doc.base_net_total);
+      let calculated_base = flt(base_net_total * (percentage_base / 100));
+
+      let suggested_islr_amount = flt(
+        calculated_base * (islr_rate / 100) - subtrahend,
+        2,
+      );
+      if (suggested_islr_amount < 0) suggested_islr_amount = 0;
+
+      const open_islr_modal = (final_account) => {
+        open_withholding_dialog(
+          frm,
+          invoice,
+          frm.doc.customer,
+          "ISLR",
+          final_account,
+          islr_rate,
+          suggested_islr_amount,
+          company,
+        );
+      };
+
+      frappe.db.get_value(
+        "Company",
+        frm.doc.company,
+        "sales_islr_account",
+        (co) => {
+          let company_account = co ? co.sales_islr_account : "";
+
+          if (company_account) {
+            open_islr_modal(company_account);
+          } else if (customer_data.tax_withholding_category) {
+            frappe.db.get_value(
+              "Tax Withholding Account",
+              {
+                parent: customer_data.tax_withholding_category,
+                company: frm.doc.company,
+              },
+              "account",
+              (twa) => {
+                let category_account = twa ? twa.account : "";
+                open_islr_modal(category_account);
+              },
+            );
+          } else {
+            open_islr_modal("");
+          }
+        },
+      );
+    })
+    .catch((err) => {
+      frappe.msgprint(
+        __(
+          "Error leyendo el Tabulador de ISLR del cliente: {0}",
+          [err.message],
+        ),
+      );
     });
-  }).catch(err => {
-    frappe.msgprint(__('Error leyendo el Tabulador de ISLR del cliente: {0}', [err.message]));
-  });
 }
+

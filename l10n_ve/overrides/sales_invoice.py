@@ -36,6 +36,23 @@ def closed_period_msg() -> str:
 
 class VESalesInvoice(TaxesMixin, SalesInvoice):
 
+    def set_total_in_words(self) -> None:
+        """Fuerza la generación de 'in_words' y 'base_in_words' siempre en Español ('es').
+
+        Evita que se genere el texto en inglés ('Thirty Six Thousand... only') cuando
+        la sesión o configuración del sistema es en inglés.
+        """
+        original_lang = getattr(frappe.local, "lang", "es")
+        try:
+            frappe.local.lang = "es"
+            super().set_total_in_words()
+        finally:
+            frappe.local.lang = original_lang
+
+        if not self.base_in_words and self.in_words:
+            if self.currency == self.company_currency or "VEF" in self.in_words:
+                self.base_in_words = self.in_words
+
     def calculate_taxes_and_totals(self) -> None:
 
         taxes_and_totals_calculator = TaxesAndTotals(self)
