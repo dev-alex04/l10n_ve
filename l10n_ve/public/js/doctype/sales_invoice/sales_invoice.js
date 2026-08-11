@@ -326,9 +326,6 @@ function apply_custom_totals_labels(frm) {
       });
     }
   }
-
-  // 6. Actualizar importes de IVA
-  update_ve_vat_fields(frm);
 }
 
 function set_sales_invoice_fields(frm) {
