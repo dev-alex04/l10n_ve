@@ -17,3 +17,4 @@ concurrency:
 jobs:
   call-fast-checks:
     uses: Grupo-Altia/shared-actions/.github/workflows/fast-checks-reusable.yml@main
+    secrets: inherit
