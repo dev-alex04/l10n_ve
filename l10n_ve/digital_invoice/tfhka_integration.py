@@ -44,7 +44,18 @@ def get_active_billing_series(
     El branch_code se obtiene directamente de la fila de la tabla hija.
     """
     if not branch or branch.upper() == "N/A":
-        return None, ""
+        # Fail-closed. Antes esto devolvía (None, "") y el llamador seguía: el
+        # documento se emitía con serie vacía, que HKA acepta y no se puede deshacer.
+        # Y antes de eso caía a "la primera serie activa de la empresa", que es peor:
+        # emitir bajo la serie de OTRA sucursal.
+        #
+        # Se corta acá, antes de tocar la BD. Un documento sin sucursal no tiene serie
+        # que le corresponda, y adivinarla es justo lo que no se hace en lo fiscal.
+        frappe.throw(
+            "El documento no tiene sucursal, así que no se puede determinar su serie "
+            "de facturación digital. Asigne la sucursal antes de emitirlo.",
+            title="Serie de Facturación No Encontrada",
+        )
 
     row = frappe.db.sql("""
         SELECT
