@@ -15,7 +15,26 @@ falta correr sólo esta parte.
 
 import frappe
 
-from l10n_ve.scripts.sandbox import assert_sandbox, sandbox_status
+def _guard():
+    """Trae la guarda de saneo desde ``domina_core``, o corta.
+
+    El import es diferido y **falla cerrado** a propósito: la guarda vive en
+    ``domina_core`` --la app base-- pero hay sitios con ``l10n_ve`` y sin ella
+    (``galanet.black`` al 2026-08-11). Sin poder verificar que el sitio es una copia,
+    la única salida segura es no sanear: esos sitios son de producción.
+
+    Diferido y no en el nivel de módulo para que la ausencia de ``domina_core`` no
+    rompa la carga de la app entera, sólo el saneo.
+    """
+    try:
+        from domina_core.scripts.sandbox import assert_sandbox, sandbox_status
+    except ImportError:
+        frappe.throw(
+            "El saneo necesita la guarda de sandbox de 'domina_core', que no está "
+            "instalada en este sitio. Sin ella no hay forma de verificar que esto es "
+            "una copia de trabajo, así que el saneo no procede."
+        )
+    return assert_sandbox, sandbox_status
 
 #: Serie de pruebas a la que se llevan todas las series fiscales de la copia.
 SANDBOX_HKA_SERIES: str = "MAR-05"
@@ -41,6 +60,7 @@ def run(dry: bool) -> list:
     ejecutable por su cuenta, y un saneo que dependa de que alguien más haya
     chequeado es un saneo sin guarda.
     """
+    assert_sandbox, _ = _guard()
     assert_sandbox()
     return [_set_hka_series(dry), _set_hka_environment(dry)]
 
@@ -99,6 +119,7 @@ def execute() -> None:
 def _standalone(dry: bool) -> None:
     modo: str = "DRY-RUN" if dry else "EJECUCIÓN"
     print(f"=== Saneo fiscal de la copia (l10n_ve) — {modo} ===\n")
+    assert_sandbox, sandbox_status = _guard()
     assert_sandbox()
     print(f"  {sandbox_status()}\n")
     for titulo, detalle in run(dry):
