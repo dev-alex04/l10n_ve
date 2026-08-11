@@ -476,14 +476,19 @@ function setup_exchange_difference_button(frm) {
  */
 function setup_digital_invoice_button(frm) {
   if (
-    frm.doc.docstatus !== 1 ||
+    frm.is_new() ||
+    frm.doc.docstatus === 2 ||
     (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
   ) {
     return;
   }
 
+  const es_borrador = frm.doc.docstatus === 0;
+
   frm.add_custom_button(
-    __("Enviar Facturación Digital"),
+    es_borrador
+      ? __("Aprobar y Enviar a HKA")
+      : __("Enviar Facturación Digital"),
     function () {
       frappe.call({
         method:
@@ -510,7 +515,8 @@ function setup_digital_invoice_button(frm) {
 function setup_force_send_hka_button(frm) {
   if (
     frappe.session.user !== "Administrator" ||
-    frm.doc.docstatus !== 1 ||
+    frm.is_new() ||
+    frm.doc.docstatus === 2 ||
     (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
   ) {
     return;
@@ -752,7 +758,10 @@ function show_hka_preview_dialog(frm, d) {
     fields: [
       { fieldtype: "HTML", fieldname: "preview_html", options: preview_html },
     ],
-    primary_action_label: __("Confirmar Emisión"),
+    primary_action_label:
+      frm.doc.docstatus === 0
+        ? __("Aprobar y Emitir")
+        : __("Confirmar Emisión"),
     primary_action: function () {
       dialog.hide();
       frappe.call({
