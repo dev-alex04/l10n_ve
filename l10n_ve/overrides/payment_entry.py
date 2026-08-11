@@ -104,9 +104,15 @@ class CustomPaymentEntry(PaymentEntry):
     # Directiva contable 21-jul: TODAS se contabilizan como GASTO a la cuenta única
     # Company.government_withholding_account (no anticipo, no crédito). Se capturan al PAGO y
     # se reflejan como filas en Payment Entry.deductions (Debe gasto / Haber CxC del cliente).
-    # OJO: el ISAE está DESACTIVADO desde el 09-ago-2026 -> no se carga solo en el pago
-    # (ver _resolve_withholding_rate). Timbre y Responsabilidad Social siguen operativos.
     GOV_WITHHOLDING_MARKER = "Retención Gubernamental:"
+
+    # Interruptor de la automatización. DESACTIVADA el 09-ago-2026: NINGUNA retención
+    # gubernamental (timbre / ISAE / Responsabilidad Social) se calcula ni se carga sola en el
+    # pago. El motivo es el mismo para las tres: la tarifa no es parametrizable con los datos
+    # que hay — cada ente retiene su propio porcentaje— y un número sugerido de más se termina
+    # declarando. Quedan a la espera de la configuración simplificada (porcentaje abierto por
+    # cliente). Poner en True reactiva el cálculo por tipo, que sigue intacto más abajo.
+    GOV_WITHHOLDING_AUTO_CALCULATION_ENABLED = False
 
     def calculate_government_withholdings(self) -> None:
         """Pobla las retenciones gubernamentales del cobro.
@@ -184,6 +190,11 @@ class CustomPaymentEntry(PaymentEntry):
 
     def _resolve_withholding_rate(self, cfg: dict, base_amount: float):
         """(rate%, etiqueta_jurisdicción) para una fila de config; (None, _) si no aplica (skip)."""
+        # Automatización desactivada: sin tarifa no se crea fila de retención ni deducción, así
+        # que el pago no propone ningún número. Ver GOV_WITHHOLDING_AUTO_CALCULATION_ENABLED.
+        if not self.GOV_WITHHOLDING_AUTO_CALCULATION_ENABLED:
+            return None, ""
+
         wtype = cfg.get("withholding_type")
 
         if wtype == "Timbre Fiscal":
@@ -200,12 +211,10 @@ class CustomPaymentEntry(PaymentEntry):
             return flt(row.rate), state_label
 
         if wtype == "ISAE":
-            # DESACTIVADO (decisión 09-ago-2026): el ISAE ya no se calcula ni se carga solo en el
-            # pago. La alícuota no es parametrizable con los datos que hay: cada ente retiene su
-            # propio porcentaje, y `VE Municipality Taxes` trae 9 alícuotas por municipio
-            # (0,60%-3,00%) sin forma de saber la del rubro -> la sugerencia terminaba siempre en 0.
-            # Queda a la espera de la configuración simplificada (porcentaje abierto por cliente).
-            # Devolver None = no se crea fila de retención ni deducción: no se declara nada de más.
+            # El ISAE se queda manual incluso si se reactiva la automatización: derivarlo de
+            # `VE Municipality Taxes` no funciona —cada municipio trae 9 alícuotas (0,60%-3,00%),
+            # una por rubro, sin forma de saber cuál aplica—, así que la sugerencia caía siempre
+            # en 0. Necesita el porcentaje abierto por cliente de la configuración simplificada.
             return None, ""
 
         if wtype == "Responsabilidad Social":

@@ -6,8 +6,10 @@ Tests unitarios de las retenciones de entes gubernamentales (timbre / ISAE / Res
 en CustomPaymentEntry.
 
 Cubre la lógica de riesgo, aislada con mocks de frappe.db:
-- _resolve_withholding_rate: timbre por estado (+umbral), Responsabilidad Social flat, y que el
-  ISAE NO se calcule solo (desactivado el 09-ago-2026).
+- la automatización APAGADA (09-ago-2026): ningún tipo propone tarifa y el cobro no crea filas
+  ni deducciones, aunque el cliente las tenga habilitadas en su ficha.
+- _resolve_withholding_rate con la automatización reactivada: timbre por estado (+umbral),
+  Responsabilidad Social flat, y el ISAE que se queda manual igual.
 - _sync_withholdings_to_deductions: construye deductions desde las retenciones, prioriza el monto
   real sobre el sugerido, respeta otras deducciones, y es fail-closed (throw sin cuenta).
 - _government_withholding_base: prelación de bases.
@@ -53,6 +55,21 @@ def _new_pe(**kwargs) -> CustomPaymentEntry:
 
 
 class TestResolveWithholdingRate(FrappeTestCase):
+    """Cálculo por tipo, con la automatización reactivada a propósito.
+
+    En producción está APAGADA (ver TestGovernmentWithholdingAutoCalculationDisabled); estos
+    tests cubren la lógica que quedó preservada para cuando se reactive, sobre todo el
+    fail-closed del umbral en U.T. del timbre.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        patcher = patch.object(
+            CustomPaymentEntry, "GOV_WITHHOLDING_AUTO_CALCULATION_ENABLED", True
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_timbre_rate_from_state(self) -> None:
         pe = _new_pe()
         settings = MagicMock()
@@ -105,7 +122,7 @@ class TestResolveWithholdingRate(FrappeTestCase):
                 pe._resolve_withholding_rate({"withholding_type": "Timbre Fiscal", "state": "ST-MIR"}, 5000.0)
 
     def test_isae_is_never_calculated_automatically(self) -> None:
-        """ISAE DESACTIVADO (09-ago-2026): no se carga solo en el pago, con o sin alícuotas.
+        """El ISAE se queda manual INCLUSO con la automatización reactivada.
 
         Antes derivaba la tarifa de `VE Municipality Taxes`; como cada municipio trae 9 alícuotas
         (una por rubro) la sugerencia caía siempre en 0. Ahora ni siquiera se crea la fila de
@@ -270,6 +287,53 @@ class TestCalculateGovernmentWithholdings(FrappeTestCase):
         self.assertEqual(len(pe.government_withholdings), 0, "sin cliente Government no hay filas")
         self.assertEqual([d.description for d in pe.deductions], ["Comisión banco"],
                          "solo se retira la deducción gubernamental, se respeta la otra")
+
+
+class TestGovernmentWithholdingAutoCalculationDisabled(FrappeTestCase):
+    """Estado REAL del módulo: la automatización está apagada y el pago no propone nada."""
+
+    def test_switch_is_off(self) -> None:
+        self.assertFalse(CustomPaymentEntry.GOV_WITHHOLDING_AUTO_CALCULATION_ENABLED)
+
+    def test_no_type_resolves_a_rate(self) -> None:
+        pe = _new_pe()
+        for cfg in (
+            {"withholding_type": "Timbre Fiscal", "state": "ST-DC"},
+            {"withholding_type": "ISAE", "municipality": "M-CH"},
+            {"withholding_type": "Responsabilidad Social"},
+        ):
+            with self.subTest(tipo=cfg["withholding_type"]):
+                rate, _ = pe._resolve_withholding_rate(cfg, 10000.0)
+                self.assertIsNone(rate)
+
+    def test_configured_customer_gets_no_rows_nor_deductions(self) -> None:
+        """Con las tres retenciones habilitadas en la ficha, el cobro no crea fila ni deducción."""
+        pe = _new_pe()
+        pe.cost_center = "CC-Test"
+        pe.append("references", {"allocated_amount": 10000})
+        pe.source_exchange_rate = 1
+        real_gv = frappe.db.get_value
+
+        def gv(*a, **k):
+            if a and a[0] == "Company":
+                return "6.2.01.14 - Test Co"
+            return real_gv(*a, **k)
+
+        config = [
+            {"withholding_type": "Timbre Fiscal", "state": "ST", "municipality": None},
+            {"withholding_type": "ISAE", "state": None, "municipality": "M-CH"},
+            {"withholding_type": "Responsabilidad Social", "state": None, "municipality": None},
+        ]
+        with patch.object(CustomPaymentEntry, "_get_customer_withholding_config", return_value=config), \
+             patch(f"{_MOD}.db.get_value", side_effect=gv):
+            pe.calculate_government_withholdings()
+
+        self.assertEqual(len(pe.government_withholdings), 0)
+        gov_deductions = [
+            d for d in (pe.get("deductions") or [])
+            if (d.description or "").startswith(CustomPaymentEntry.GOV_WITHHOLDING_MARKER)
+        ]
+        self.assertEqual(gov_deductions, [])
 
 
 def flt_(v) -> float:
