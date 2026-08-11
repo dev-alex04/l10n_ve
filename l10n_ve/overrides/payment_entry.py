@@ -104,6 +104,8 @@ class CustomPaymentEntry(PaymentEntry):
     # Directiva contable 21-jul: TODAS se contabilizan como GASTO a la cuenta única
     # Company.government_withholding_account (no anticipo, no crédito). Se capturan al PAGO y
     # se reflejan como filas en Payment Entry.deductions (Debe gasto / Haber CxC del cliente).
+    # OJO: el ISAE está DESACTIVADO desde el 09-ago-2026 -> no se carga solo en el pago
+    # (ver _resolve_withholding_rate). Timbre y Responsabilidad Social siguen operativos.
     GOV_WITHHOLDING_MARKER = "Retención Gubernamental:"
 
     def calculate_government_withholdings(self) -> None:
@@ -198,20 +200,13 @@ class CustomPaymentEntry(PaymentEntry):
             return flt(row.rate), state_label
 
         if wtype == "ISAE":
-            municipality = cfg.get("municipality")
-            if not municipality:
-                return None, ""
-            muni_label = frappe.db.get_value("VE Municipality", municipality, "municipality") or municipality
-            # La alícuota ISAE varía por municipio Y por rubro. Solo sugerimos un número si el
-            # municipio tiene una única alícuota; si hay varias, dejamos 0 y el monto real del
-            # comprobante manda (no arriesgamos una sugerencia errada). Fuente: verificación 21-jul.
-            aliquots = [flt(a) for a in frappe.get_all(
-                "VE Municipality Taxes", filters={"municipality": municipality}, pluck="aliquot"
-            ) if flt(a)]
-            if not aliquots:
-                return None, muni_label
-            distinct = sorted(set(aliquots))
-            return (distinct[0] if len(distinct) == 1 else 0.0), muni_label
+            # DESACTIVADO (decisión 09-ago-2026): el ISAE ya no se calcula ni se carga solo en el
+            # pago. La alícuota no es parametrizable con los datos que hay: cada ente retiene su
+            # propio porcentaje, y `VE Municipality Taxes` trae 9 alícuotas por municipio
+            # (0,60%-3,00%) sin forma de saber la del rubro -> la sugerencia terminaba siempre en 0.
+            # Queda a la espera de la configuración simplificada (porcentaje abierto por cliente).
+            # Devolver None = no se crea fila de retención ni deducción: no se declara nada de más.
+            return None, ""
 
         if wtype == "Responsabilidad Social":
             rate = flt(frappe.db.get_single_value("Venezuela Account Settings", "responsibility_social_rate"))

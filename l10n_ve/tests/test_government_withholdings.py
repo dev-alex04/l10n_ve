@@ -6,8 +6,8 @@ Tests unitarios de las retenciones de entes gubernamentales (timbre / ISAE / Res
 en CustomPaymentEntry.
 
 Cubre la lógica de riesgo, aislada con mocks de frappe.db:
-- _resolve_withholding_rate: timbre por estado (+umbral), ISAE por municipio (única vs varias
-  alícuotas), Responsabilidad Social flat.
+- _resolve_withholding_rate: timbre por estado (+umbral), Responsabilidad Social flat, y que el
+  ISAE NO se calcule solo (desactivado el 09-ago-2026).
 - _sync_withholdings_to_deductions: construye deductions desde las retenciones, prioriza el monto
   real sobre el sugerido, respeta otras deducciones, y es fail-closed (throw sin cuenta).
 - _government_withholding_base: prelación de bases.
@@ -104,28 +104,23 @@ class TestResolveWithholdingRate(FrappeTestCase):
             with self.assertRaises(frappe.ValidationError):
                 pe._resolve_withholding_rate({"withholding_type": "Timbre Fiscal", "state": "ST-MIR"}, 5000.0)
 
-    def test_isae_single_aliquot(self) -> None:
-        pe = _new_pe()
-        with patch(f"{_MOD}.db.get_value", return_value="Chacao"), \
-             patch(f"{_MOD}.get_all", return_value=[1.0, 1.0]):
-            rate, label = pe._resolve_withholding_rate({"withholding_type": "ISAE", "municipality": "M-CH"}, 10000.0)
-        self.assertEqual(rate, 1.0)
-        self.assertEqual(label, "Chacao")
+    def test_isae_is_never_calculated_automatically(self) -> None:
+        """ISAE DESACTIVADO (09-ago-2026): no se carga solo en el pago, con o sin alícuotas.
 
-    def test_isae_multiple_aliquots_returns_zero(self) -> None:
-        """Varias alícuotas por rubro -> no sugerir (0); el comprobante manda."""
+        Antes derivaba la tarifa de `VE Municipality Taxes`; como cada municipio trae 9 alícuotas
+        (una por rubro) la sugerencia caía siempre en 0. Ahora ni siquiera se crea la fila de
+        retención, y la tabla de alícuotas municipales ya no se consulta desde el pago.
+        """
         pe = _new_pe()
-        with patch(f"{_MOD}.db.get_value", return_value="Chacao"), \
-             patch(f"{_MOD}.get_all", return_value=[1.0, 2.5, 0.6]):
-            rate, _ = pe._resolve_withholding_rate({"withholding_type": "ISAE", "municipality": "M-CH"}, 10000.0)
-        self.assertEqual(rate, 0.0)
-
-    def test_isae_no_rates_skips(self) -> None:
-        pe = _new_pe()
-        with patch(f"{_MOD}.db.get_value", return_value="X"), \
-             patch(f"{_MOD}.get_all", return_value=[]):
-            rate, _ = pe._resolve_withholding_rate({"withholding_type": "ISAE", "municipality": "M-X"}, 10000.0)
-        self.assertIsNone(rate)
+        for aliquots in ([1.0, 1.0], [1.0, 2.5, 0.6], []):
+            with self.subTest(aliquots=aliquots):
+                with patch(f"{_MOD}.db.get_value", return_value="Chacao"), \
+                     patch(f"{_MOD}.get_all", return_value=aliquots) as get_all:
+                    rate, _ = pe._resolve_withholding_rate(
+                        {"withholding_type": "ISAE", "municipality": "M-CH"}, 10000.0
+                    )
+                self.assertIsNone(rate)
+                get_all.assert_not_called()
 
     def test_responsibility_social_flat(self) -> None:
         pe = _new_pe()
@@ -178,7 +173,7 @@ class TestSyncWithholdingsToDeductions(FrappeTestCase):
             pe._sync_withholdings_to_deductions(None)
 
     def test_zero_amount_skipped(self) -> None:
-        """Sugerido 0 y sin monto real (ej. ISAE ambiguo) no genera deducción todavía."""
+        """Sugerido 0 y sin monto real (tarifa por confirmar) no genera deducción todavía."""
         pe = _new_pe()
         pe.set("government_withholdings", [
             {"withholding_type": "ISAE", "jurisdiction": "Chacao", "rate": 0.0,

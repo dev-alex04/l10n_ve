@@ -35,7 +35,7 @@
   {
    "columns": 3,
    "depends_on": "eval:doc.withholding_type=='ISAE'",
-   "description": "Municipio que fija la alícuota del ISAE (busca en VE Municipality Taxes por municipio + actividad).",
+   "description": "Solo informativo: el ISAE NO se calcula automáticamente en el pago (desactivado). La alícuota no es parametrizable — cada ente retiene su propio porcentaje —, así que la retención se registra a mano hasta definir la configuración simplificada.",
    "fieldname": "municipality",
    "fieldtype": "Link",
    "in_list_view": 1,
