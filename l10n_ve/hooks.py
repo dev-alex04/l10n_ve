@@ -654,7 +654,7 @@ _register_ve_branch_restrictions()
 
 
 # Saneo de copias de produccion. Lo descubre y lo dispara el orquestador de
-# domina_core via frappe.get_hooks("sandbox_sanitizers"), que agrega lo declarado por
+# domina_local via frappe.get_hooks("sandbox_sanitizers"), que agrega lo declarado por
 # todas las apps instaladas: si esta app se instala, su saneo entra solo.
 sandbox_sanitizers = ["l10n_ve.scripts.sanitize_sandbox.run"]
 
