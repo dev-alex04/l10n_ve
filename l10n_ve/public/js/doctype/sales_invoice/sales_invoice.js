@@ -98,8 +98,8 @@ frappe.ui.form.on("Sales Invoice", {
 
     setup_voucher_buttons(frm);
 
-
     setup_exchange_difference_button(frm);
+    setup_government_withholding_button(frm);
     setup_hka_consulta_button(frm);
     render_fiscal_invoice_preview(frm);
     setup_credit_note_button(frm);
@@ -254,7 +254,6 @@ function apply_custom_totals_labels(frm) {
     "rounding_adjustment",
     "rounded_total",
     "total_advance",
-    "outstanding_amount",
   ];
 
   for (const field of hide_fields) {
@@ -277,6 +276,7 @@ function apply_custom_totals_labels(frm) {
     "net_total": "Base Imponible",
     "total_taxes_and_charges": "IVA",
     "grand_total": "Base Imponible + IVA",
+    "outstanding_amount": "Monto Pendiente",
   };
 
   for (const [fieldname, label_text] of Object.entries(labels_map)) {
@@ -293,12 +293,22 @@ function apply_custom_totals_labels(frm) {
     "net_total",
     "total_taxes_and_charges",
     "grand_total",
+    "outstanding_amount",
   ]) {
     frm.set_df_property(f, "hidden", false);
     let field_obj = frm.get_field(f);
     if (field_obj && field_obj.$wrapper) {
       field_obj.$wrapper.show();
     }
+  }
+
+  // Relocar físicamente el contenedor de outstanding_amount dentro de section_break_43 (debajo de base_grand_total)
+  // ya que la sección genérica 'totals' de ERPNext está oculta para usar la vista de dos columnas.
+  const out_field = frm.get_field("outstanding_amount");
+  const target_field = frm.get_field("base_grand_total");
+  if (out_field && out_field.$wrapper && target_field && target_field.$wrapper) {
+    out_field.$wrapper.show();
+    out_field.$wrapper.insertAfter(target_field.$wrapper);
   }
 
   // 4. Garantizar que base_in_words tenga el valor formateado de 'En palabras' en Bolívares
@@ -310,7 +320,7 @@ function apply_custom_totals_labels(frm) {
   }
 
   // 5. Hacer los campos del lado de Bolívares (VEF) un poco más grandes
-  const vef_fields = ["base_net_total", "base_total_taxes_and_charges", "base_grand_total"];
+  const vef_fields = ["base_net_total", "base_total_taxes_and_charges", "base_grand_total", "outstanding_amount"];
   for (const fn of vef_fields) {
     let f = frm.get_field(fn);
     if (f && f.$wrapper) {
@@ -325,6 +335,11 @@ function apply_custom_totals_labels(frm) {
         "font-weight": "600"
       });
     }
+  }
+
+  // 6. Actualizar importes de IVA
+  if (typeof update_ve_vat_fields === "function") {
+    update_ve_vat_fields(frm);
   }
 }
 
@@ -476,19 +491,14 @@ function setup_exchange_difference_button(frm) {
  */
 function setup_digital_invoice_button(frm) {
   if (
-    frm.is_new() ||
     frm.doc.docstatus === 2 ||
     (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
   ) {
     return;
   }
 
-  const es_borrador = frm.doc.docstatus === 0;
-
   frm.add_custom_button(
-    es_borrador
-      ? __("Aprobar y Enviar a HKA")
-      : __("Enviar Facturación Digital"),
+    __("Enviar Facturación Digital"),
     function () {
       frappe.call({
         method:
@@ -504,6 +514,10 @@ function setup_digital_invoice_button(frm) {
     },
     __("Factura Digital"),
   );
+
+  if (frm.doc.docstatus === 0) {
+    frm.page.set_inner_btn_group_as_primary(__("Factura Digital"));
+  }
 }
 
 /**
@@ -513,10 +527,14 @@ function setup_digital_invoice_button(frm) {
  * @param {object} frm
  */
 function setup_force_send_hka_button(frm) {
+  const is_authorized_user =
+    frappe.session.user === "Administrator" ||
+    frappe.user.has_role("System Manager") ||
+    frappe.user.has_role("Accounts Manager");
+
   if (
-    frappe.session.user !== "Administrator" ||
-    frm.is_new() ||
-    frm.doc.docstatus === 2 ||
+    !is_authorized_user ||
+    frm.doc.docstatus !== 1 ||
     (frm.doc.remarks && frm.doc.remarks.includes('"numeroControl"'))
   ) {
     return;
@@ -758,10 +776,7 @@ function show_hka_preview_dialog(frm, d) {
     fields: [
       { fieldtype: "HTML", fieldname: "preview_html", options: preview_html },
     ],
-    primary_action_label:
-      frm.doc.docstatus === 0
-        ? __("Aprobar y Emitir")
-        : __("Confirmar Emisión"),
+    primary_action_label: __("Confirmar Emisión"),
     primary_action: function () {
       dialog.hide();
       frappe.call({
@@ -1861,3 +1876,148 @@ function apply_islr_withholding(frm, customer_data) {
     });
 }
 
+/**
+ * Botón "Retención Gubernamental" en Factura de Venta.
+ *
+ * Registra retenciones de entes gubernamentales (timbre fiscal, ISAE,
+ * responsabilidad social) creando un Asiento Contable de cruce que baja el saldo
+ * pendiente de la factura.
+ *
+ * El monto va SIEMPRE en la moneda de la empresa (Bs). El saldo pendiente se pide
+ * al servidor en vez de convertirlo acá: `outstanding_amount` está en la moneda de
+ * la cuenta por cobrar, y repetir esa conversión en el cliente es la forma de que
+ * el modal muestre un número y el asiento postee otro.
+ *
+ * Se admiten varias retenciones sobre la misma factura y el comprobante es
+ * opcional: cada asiento baja el pendiente, así que el tope del servidor acota la
+ * suma.
+ *
+ * @param {object} frm
+ */
+function setup_government_withholding_button(frm) {
+  frm.page.remove_inner_button(
+    __("Retención Gubernamental"),
+    __("Cargar Comprobante"),
+  );
+
+  if (frm.doc.docstatus !== 1 || flt(frm.doc.outstanding_amount) <= 0) return;
+
+  frm.add_custom_button(
+    __("Retención Gubernamental"),
+    function () {
+      frappe.call({
+        method:
+          "l10n_ve.overrides.sales_invoice.get_government_withholding_context",
+        args: { docname: frm.doc.name },
+        freeze: true,
+        freeze_message: __("Consultando saldo pendiente..."),
+        callback: function (r) {
+          if (r.exc || !r.message) return;
+          open_government_withholding_dialog(frm, r.message);
+        },
+      });
+    },
+    __("Cargar Comprobante"),
+  );
+}
+
+function open_government_withholding_dialog(frm, ctx) {
+  const outstanding = flt(ctx.outstanding);
+  const currency = ctx.currency;
+
+  const dialog = new frappe.ui.Dialog({
+    title: __("Registrar Retención Gubernamental"),
+    fields: [
+      {
+        label: __("Moneda"),
+        fieldname: "display_currency",
+        fieldtype: "Data",
+        hidden: 1,
+        default: currency,
+      },
+      {
+        label: __("Monto Pendiente"),
+        fieldname: "outstanding_display",
+        fieldtype: "Currency",
+        options: "display_currency",
+        default: outstanding,
+        read_only: 1,
+      },
+      {
+        label: __("Monto de Retención"),
+        fieldname: "amount",
+        fieldtype: "Currency",
+        options: "display_currency",
+        reqd: 1,
+        default: outstanding,
+        description: __("Ingrese el monto de la retención a descontar."),
+      },
+      {
+        label: __("Número de Comprobante"),
+        fieldname: "voucher_number",
+        fieldtype: "Data",
+        placeholder: __("Ej. 2026080001 (Opcional)"),
+      },
+      {
+        label: __("Descripción / Concepto"),
+        fieldname: "description",
+        fieldtype: "Small Text",
+        placeholder: __(
+          "Ej. Retención Timbre Fiscal / Impuesto Municipal de la factura",
+        ),
+      },
+    ],
+    primary_action_label: __("Confirmar y Contabilizar"),
+    primary_action: function (values) {
+      const amount = flt(values.amount);
+
+      if (amount <= 0) {
+        frappe.msgprint({
+          title: __("Monto Inválido"),
+          indicator: "red",
+          message: __("El monto de la retención debe ser mayor a cero."),
+        });
+        return;
+      }
+
+      // Espejo del tope del servidor, para ahorrar el viaje. La reja de verdad es
+      // la del backend, que revalida bajo bloqueo de la fila de la factura.
+      if (amount > outstanding + 0.001) {
+        frappe.msgprint({
+          title: __("Exceso de Monto"),
+          indicator: "red",
+          message: __(
+            "El monto de la retención no puede ser mayor que el saldo pendiente de la factura ({0}).",
+            [format_currency(outstanding, currency)],
+          ),
+        });
+        return;
+      }
+
+      dialog.hide();
+      frappe.call({
+        method:
+          "l10n_ve.overrides.sales_invoice.create_government_withholding_journal_entry",
+        args: {
+          docname: frm.doc.name,
+          amount: amount,
+          description: values.description,
+          voucher_number: values.voucher_number,
+        },
+        freeze: true,
+        freeze_message: __("Contabilizando la retención..."),
+        callback: function (r) {
+          if (r.exc || !r.message) return;
+          frappe.msgprint({
+            title: __("Retención Gubernamental registrada exitosamente."),
+            indicator: "green",
+            message: r.message.message,
+          });
+          frm.reload_doc();
+        },
+      });
+    },
+  });
+
+  dialog.show();
+}

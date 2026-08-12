@@ -496,6 +496,11 @@ def create_government_withholding_custom_fields() -> None:
                 "insert_after": "vat_account_column",
                 "depends_on": "eval:doc.nature_of_the_taxpayer=='Government'",
                 "collapsible": 1,
+                # Oculto desde el #593: el cálculo automático quedó apagado --cada ente
+                # retiene su propio porcentaje y el sugerido salía siempre en 0-- y la
+                # retención se registra ahora desde la factura. Configurar acá no produce
+                # nada, así que se oculta en vez de dejar una superficie que engaña.
+                "hidden": 1,
             },
             {
                 "fieldname": "government_withholdings",
@@ -504,6 +509,7 @@ def create_government_withholding_custom_fields() -> None:
                 "options": "VE Government Withholding",
                 "insert_after": "government_withholding_section",
                 "description": "Qué retenciones descuenta este ente al pagar (y de qué estado/municipio).",
+                "hidden": 1,  # ver la nota del section break de arriba
             },
         ],
         "Payment Entry": [
@@ -1949,13 +1955,13 @@ def create_retention_reminder_email_template() -> None:
         frappe.log_error(frappe.get_traceback(), 'Error en create_retention_reminder_email_template')
 
 
-#: Template used by the daily notice of documents that never reached HKA.
+#: Template used by the notice of documents that never reached HKA.
 #: The task looks it up by this exact name.
 HKA_UNSENT_NOTICE_TEMPLATE = "Documentos sin enviar a HKA"
 
 
 def create_hka_unsent_notice_email_template() -> None:
-    """Seed the template for the daily HKA notice. Created only if missing.
+    """Seed the template for the HKA unsent-documents notice. Created only if missing.
 
     Runs on every migrate as self-heal so the notice always has wording to render,
     but it never overwrites an existing record: the whole point of keeping the copy
