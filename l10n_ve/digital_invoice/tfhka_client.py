@@ -5,17 +5,21 @@ import frappe
 import requests
 from frappe import _
 
+from l10n_ve.digital_invoice.hka_environment import resolve_endpoint
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Estructura esperada en site_config.json:
 #
 #   "digital_billing_settings": {
 #       "is_production_mode": 0,
-#       "demo_url":           "https://demo.imprentadigital.com",
-#       "production_url":     "https://imprentadigital.com",
+#       "demo_url":           "https://demoemisionv2.thefactoryhka.com.ve",
+#       "production_url":     "https://emisionv2.thefactoryhka.com.ve",
 #       "username":           "usuario_api",
 #       "password":           "clave_api"
 #   }
+#
+# El entorno se resuelve en hka_environment; acá solo se consume.
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -44,17 +48,16 @@ class TFHKAClient:
         if not doctype_cfg.enabled:
             frappe.throw(_("La integración de Facturación Digital TFHKA está deshabilitada."))
 
-        is_production: bool = bool(site_cfg.get("is_production_mode", 0))
-        url_key = "production_url" if is_production else "demo_url"
-        self.base_url = (site_cfg.get(url_key) or "").rstrip("/")
+        # El entorno lo resuelve un solo lugar, que además valida que el modo y el host
+        # se correspondan. Acá se elegía la clave con un bool() sobre el flag y se usaba
+        # la URL tal cual viniera: en modo producción con una production_url de demo no
+        # se certificaba nada y el sistema no se enteraba.
+        _, self.base_url = resolve_endpoint()
 
         self.username = site_cfg.get("username") or ""
         self.password = site_cfg.get("password") or ""
 
-        missing = [
-            k for k in ("username", "password")
-            if not site_cfg.get(k)
-        ] + ([url_key] if not self.base_url else [])
+        missing = [k for k in ("username", "password") if not site_cfg.get(k)]
 
         if missing:
             frappe.throw(
@@ -66,8 +69,13 @@ class TFHKAClient:
     def authenticate(self, force: bool = False) -> str:
         """Obtiene el token JWT. LoginResponse.codigo es int (200 = éxito)."""
         self._load_settings()
+        # La clave del caché lleva la URL adentro: el token es de UN entorno y dura una
+        # hora. Con una clave fija, al cambiar de demo a producción se seguía mandando
+        # el token del entorno anterior a la URL nueva, y eso parece un problema de
+        # credenciales durante los 60 minutos que tarda en vencer.
+        cache_key: str = f"tfhka_jwt_token::{self.base_url}"
         if not force:
-            cached_token = frappe.cache().get_value("tfhka_jwt_token")
+            cached_token = frappe.cache().get_value(cache_key)
             if cached_token:
                 self.token = cached_token
                 return self.token
@@ -86,7 +94,7 @@ class TFHKAClient:
                 )
 
             self.token = data.get("token")
-            frappe.cache().set_value("tfhka_jwt_token", self.token, expires_in_sec=3600)
+            frappe.cache().set_value(cache_key, self.token, expires_in_sec=3600)
             return self.token
 
         except requests.exceptions.HTTPError as err:
@@ -319,7 +327,7 @@ class TFHKAClient:
 
             if response.status_code == 401:
                 # Token expirado/inválido. Limpiar caché, forzar re-autenticación y reintentar.
-                frappe.cache().delete_value("tfhka_jwt_token")
+                frappe.cache().delete_value(f"tfhka_jwt_token::{self.base_url}")
                 self.token = None
                 self.authenticate(force=True)
                 headers["Authorization"] = f"Bearer {self.token}"
