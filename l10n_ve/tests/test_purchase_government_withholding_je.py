@@ -26,20 +26,25 @@ class TestPurchaseGovernmentWithholdingJournalEntry(TestCase):
             frappe.local.flags = frappe._dict()
         frappe.local.flags.in_test = True
         frappe.local.message_log = []
-        frappe.local.conf = frappe._dict(host_name="http://localhost")
-        frappe.cache = MagicMock()
-        frappe.db = MagicMock()
+
+        # `frappe.db` y `frappe.cache` son globales del proceso: asignarlos a secas deja
+        # el doble puesto para todos los módulos que corren después (el runner comparte
+        # el intérprete), y ahí revientan el cargado de metadata y las traducciones.
+        # `patch` los repone al terminar; el `MagicMock()` explícito es obligatorio
+        # porque `frappe.db` es un `LocalProxy` que responde a `__await__` y, sin él,
+        # `patch` deduce un `AsyncMock` cuyas llamadas devuelven corrutinas.
+        for target in ("frappe.db", "frappe.cache"):
+            patcher = patch(target, MagicMock())
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
         self._patch_trans = patch(f"{_MOD}._", side_effect=lambda msg, *a, **kw: msg)
         self._patch_trans.start()
+        self.addCleanup(self._patch_trans.stop)
 
         self.company_name = "_Test Company"
         self.gov_account = "_Test Retenciones Gubernamentales - _TC"
         self.creditors_account = "Creditors - _TC"
-
-    def tearDown(self) -> None:
-        self._patch_trans.stop()
-        super().tearDown()
 
     @patch(f"{_MOD}._require_withholding_permissions")
     def test_create_purchase_government_withholding_je_draft_invoice_raises(self, mock_perm) -> None:

@@ -230,16 +230,19 @@ class TestGovernmentWithholdingJournalEntry(TestCase):
 
 
 class TestCompanyAccountLookup(TestCase):
+    """`patch` sin `new` mira el original para elegir la clase del doble, y `frappe.db`
+    es un `LocalProxy` que responde a `__await__`: sin el `MagicMock()` explícito sale
+    un `AsyncMock` y `get_value()` devuelve una corrutina en vez del valor."""
 
     def test_returns_configured_account(self) -> None:
-        with patch(f"{_MOD}.frappe.db") as db:
+        with patch(f"{_MOD}.frappe.db", MagicMock()) as db:
             db.get_value.return_value = "Retenciones - _TC"
             self.assertEqual(
                 get_company_government_withholding_account("_Test Company"), "Retenciones - _TC"
             )
 
     def test_missing_account_raises(self) -> None:
-        with patch(f"{_MOD}.frappe.db") as db:
+        with patch(f"{_MOD}.frappe.db", MagicMock()) as db:
             db.get_value.return_value = None
             with self.assertRaises(frappe.ValidationError):
                 get_company_government_withholding_account("_Test Company")
