@@ -39,17 +39,17 @@ def _guard():
 #: Serie de pruebas a la que se llevan todas las series fiscales de la copia.
 SANDBOX_HKA_SERIES: str = "MAR-05"
 
-#: Entorno al que se lleva TFHKA en la copia.
+#: Entorno al que se lleva el espejo de TFHKA en la copia.
 #:
-#: Es una SEGUNDA barrera, no la principal. La resolución de la URL en ``tfhka_client``
-#: elige la clave del site_config según este campo, así que con ``Demo`` la copia apunta
-#: a ``demo_url`` aunque alguien haya dejado una ``production_url`` real.
+#: OJO: este campo ya NO decide nada. El entorno lo resuelve ``hka_environment`` contra
+#: el site_config, que es lo único que no viaja en un ``bench restore``. Acá se pone en
+#: ``Demo`` para que el Desk no muestre ``Production`` en una copia, nada más.
 #:
-#: La barrera principal sigue siendo el site_config, porque es lo único que sobrevive a
-#: un ``bench restore``. Pero es una sola línea: medido el 2026-08-02, tras restaurar
-#: producción en una copia TFHKA quedó en ``Production`` y el cron de envío sin detener;
-#: lo que salvó al sitio fue que el site_config seguía apuntando al host de demo. Si
-#: alguien copia además el site_config, esa línea desaparece y la copia emite de verdad.
+#: La barrera de verdad la pone ``_set_hka_environment``: si el site_config de la copia
+#: apunta a PRODUCCIÓN, apaga TFHKA. Medido el 2026-08-02: tras restaurar producción en
+#: una copia, TFHKA quedó en ``Production`` con el cron de envío andando; lo que salvó
+#: al sitio fue que el site_config seguía apuntando al host de demo. Si alguien copia
+#: además el site_config, esa línea desaparece y la copia emite de verdad.
 SANDBOX_HKA_ENVIRONMENT: str = "Demo"
 
 
@@ -89,23 +89,50 @@ def _set_hka_series(dry: bool) -> tuple:
 
 
 def _set_hka_environment(dry: bool) -> tuple:
-    """Baja TFHKA a Demo. No toca ``enabled``: la copia tiene que poder probar
-    emisión contra el ambiente de pruebas, que es para lo que existe."""
+    """Alinea el espejo del Desk y, si el site_config apunta a PRODUCCIÓN, apaga TFHKA.
+
+    Normalmente no toca ``enabled``: la copia tiene que poder probar emisión contra el
+    ambiente de pruebas, que es para lo que existe. Pero si el site_config quedó
+    apuntando a la HKA real, la copia puede emitir documentos fiscales de verdad y eso
+    no se puede deshacer, así que ahí sí se apaga. Es lo único que se puede hacer desde
+    acá: el site_config es un archivo y el saneo no lo edita.
+    """
+    from l10n_ve.digital_invoice.hka_environment import inspect as inspect_hka
+
     if not frappe.db.exists("DocType", "TFHKA Settings"):
         return ("Entorno TFHKA", "TFHKA no está instalado")
 
+    estado: dict = inspect_hka()
     actual: str = frappe.db.get_single_value("TFHKA Settings", "environment") or "(vacío)"
+    habilitado: bool = bool(frappe.db.get_single_value("TFHKA Settings", "enabled"))
+    apunta_a_produccion: bool = estado["is_production"] is True
 
     if dry:
-        if actual == SANDBOX_HKA_ENVIRONMENT:
-            return ("Entorno TFHKA", f"ya está en {SANDBOX_HKA_ENVIRONMENT!r}")
-        return ("Entorno TFHKA", f"{actual!r}, por cambiar a {SANDBOX_HKA_ENVIRONMENT!r}")
+        detalle: str = f"site_config: {estado['url'] or 'sin URL'}"
+        if estado["problem"]:
+            detalle = f"site_config INCOHERENTE — {estado['problem']}"
+        elif apunta_a_produccion:
+            detalle = (
+                f"site_config apunta a PRODUCCIÓN ({estado['url']}): esta copia puede "
+                f"emitir de verdad. Se apagará TFHKA (enabled={int(habilitado)})"
+            )
+        espejo: str = (
+            "espejo ya en Demo" if actual == SANDBOX_HKA_ENVIRONMENT
+            else f"espejo {actual!r} -> {SANDBOX_HKA_ENVIRONMENT!r}"
+        )
+        return ("Entorno TFHKA", f"{detalle}; {espejo}")
 
-    if actual == SANDBOX_HKA_ENVIRONMENT:
-        return ("Entorno TFHKA", f"sin cambios, ya estaba en {SANDBOX_HKA_ENVIRONMENT!r}")
+    cambios: list = []
+    if apunta_a_produccion and habilitado:
+        frappe.db.set_single_value("TFHKA Settings", "enabled", 0)
+        cambios.append(
+            f"TFHKA APAGADO: el site_config apunta a producción ({estado['url']})"
+        )
+    if actual != SANDBOX_HKA_ENVIRONMENT:
+        frappe.db.set_single_value("TFHKA Settings", "environment", SANDBOX_HKA_ENVIRONMENT)
+        cambios.append(f"espejo {actual!r} -> {SANDBOX_HKA_ENVIRONMENT!r}")
 
-    frappe.db.set_single_value("TFHKA Settings", "environment", SANDBOX_HKA_ENVIRONMENT)
-    return ("Entorno TFHKA", f"{actual!r} -> {SANDBOX_HKA_ENVIRONMENT!r}")
+    return ("Entorno TFHKA", "; ".join(cambios) or "sin cambios")
 
 
 def dry_run() -> None:
