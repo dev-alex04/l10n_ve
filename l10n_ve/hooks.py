@@ -657,3 +657,8 @@ _register_ve_branch_restrictions()
 # domina_core via frappe.get_hooks("sandbox_sanitizers"), que agrega lo declarado por
 # todas las apps instaladas: si esta app se instala, su saneo entra solo.
 sandbox_sanitizers = ["l10n_ve.scripts.sanitize_sandbox.run"]
+
+# Guarda de sandbox: le dice al orquestador si este sitio puede certificar documentos
+# fiscales de verdad. La comprobacion vivia dentro de domina_core, con los hosts de
+# demo de HKA metidos en la app base; ahora la app base pregunta y esta responde.
+sandbox_guards = ["l10n_ve.scripts.sandbox_guard.check"]
