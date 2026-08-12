@@ -4,7 +4,7 @@
 """Clasificador de documentos que debieron enviarse a HKA y no salieron.
 
 Devuelve, para el mes en curso, una fila por documento con el motivo y qué hacer.
-Lo consume el aviso diario (``l10n_ve.tasks``) y sirve igual desde ``bench execute``
+Lo consume el aviso de las 7:00/12:00/16:00 (``l10n_ve.tasks``) y sirve igual desde ``bench execute``
 para diagnosticar sin mandar correo.
 
 Dos criterios distintos según la familia, porque **el umbral de tiempo solo tiene

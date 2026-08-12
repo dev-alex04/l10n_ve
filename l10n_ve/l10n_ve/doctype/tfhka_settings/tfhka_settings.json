@@ -39,7 +39,8 @@
    "fieldtype": "Select",
    "label": "Environment",
    "options": "Demo\nProduction",
-   "description": "Indicativo del ambiente activo. Las credenciales y URLs se configuran en site_config.json."
+   "description": "Solo informativo: NO decide nada. El entorno lo resuelve el site_config.json (digital_billing_settings.is_production_mode), que es lo unico que no viaja en un restore. Este campo es un espejo y puede quedar desalineado.",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_billing",

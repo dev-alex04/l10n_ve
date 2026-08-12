@@ -1949,13 +1949,13 @@ def create_retention_reminder_email_template() -> None:
         frappe.log_error(frappe.get_traceback(), 'Error en create_retention_reminder_email_template')
 
 
-#: Template used by the daily notice of documents that never reached HKA.
+#: Template used by the notice of documents that never reached HKA.
 #: The task looks it up by this exact name.
 HKA_UNSENT_NOTICE_TEMPLATE = "Documentos sin enviar a HKA"
 
 
 def create_hka_unsent_notice_email_template() -> None:
-    """Seed the template for the daily HKA notice. Created only if missing.
+    """Seed the template for the HKA unsent-documents notice. Created only if missing.
 
     Runs on every migrate as self-heal so the notice always has wording to render,
     but it never overwrites an existing record: the whole point of keeping the copy

@@ -455,7 +455,10 @@ scheduler_events = {
         # New key. Repeating an existing one would silently drop the earlier entry —
         # this is a plain dict literal — and the job would never be scheduled, with no
         # error anywhere. Check tabScheduled Job Type after migrate, not the diff.
-        "0 7 * * *": ["l10n_ve.tasks.send_unsent_hka_documents_notice"],
+        # Tres pasadas en el día hábil (7:00, 12:00 y 16:00): con una sola, lo que se
+        # traba a media mañana se ve al otro día. No se envía nada cuando no hay nada
+        # que reportar, así que las pasadas de más no cuestan correos de más.
+        "0 7,12,16 * * *": ["l10n_ve.tasks.send_unsent_hka_documents_notice"],
         "0 8 * * *": ["l10n_ve.tasks.send_3_days_retention_reminders"],
         "0 8 22 * *": ["l10n_ve.tasks.send_monthly_deadline_retention_reminders"],
         "0 * * * *": [
