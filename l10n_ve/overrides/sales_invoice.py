@@ -2220,14 +2220,14 @@ def create_government_withholding_journal_entry(
     else:
         base_outstanding = flt(invoice.outstanding_amount)
 
-    if amount > base_grand_total:
+    if round(flt(amount), 2) > round(flt(base_grand_total), 2) + 0.001:
         frappe.throw(
             _(
                 "El monto de la retención ({0}) no puede ser mayor que el monto total de la factura ({1})."
             ).format(f"{amount:,.2f} {company_currency}", f"{base_grand_total:,.2f} {company_currency}")
         )
 
-    if amount > base_outstanding:
+    if round(flt(amount), 2) > round(flt(base_outstanding), 2) + 0.001:
         frappe.throw(
             _(
                 "El monto de la retención ({0}) no puede ser mayor que el saldo pendiente de la factura ({1})."
@@ -2235,7 +2235,7 @@ def create_government_withholding_journal_entry(
         )
 
     # El monto ingresado por el usuario y el outstanding_amount están en moneda local (Bs)
-    base_amount = flt(amount)
+    base_amount = round(flt(amount), 2)
 
     je = frappe.new_doc("Journal Entry")
     je.company = invoice.company
