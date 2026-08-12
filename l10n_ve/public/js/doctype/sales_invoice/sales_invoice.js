@@ -1863,19 +1863,30 @@ function apply_islr_withholding(frm, customer_data) {
 }
 
 /**
- * Botón para registrar una Retención Gubernamental (timbre fiscal, ISAE,
- * responsabilidad social) sobre una factura ya aprobada.
+ * Botón "Retención Gubernamental" en Factura de Venta.
+ *
+ * Registra retenciones de entes gubernamentales (timbre fiscal, ISAE,
+ * responsabilidad social) creando un Asiento Contable de cruce que baja el saldo
+ * pendiente de la factura.
  *
  * El monto va SIEMPRE en la moneda de la empresa (Bs). El saldo pendiente se pide
  * al servidor en vez de convertirlo acá: `outstanding_amount` está en la moneda de
- * la cuenta por cobrar, y duplicar esa conversión en el cliente es justo la forma
- * de que modal y asiento terminen mostrando números distintos.
+ * la cuenta por cobrar, y repetir esa conversión en el cliente es la forma de que
+ * el modal muestre un número y el asiento postee otro.
  *
- * Se pueden registrar varias retenciones sobre la misma factura: cada asiento baja
- * el pendiente, así que el tope del servidor acota la suma.
+ * Se admiten varias retenciones sobre la misma factura y el comprobante es
+ * opcional: cada asiento baja el pendiente, así que el tope del servidor acota la
+ * suma.
+ *
+ * @param {object} frm
  */
 function setup_government_withholding_button(frm) {
-  if (frm.doc.docstatus !== 1 || !flt(frm.doc.outstanding_amount)) return;
+  frm.page.remove_inner_button(
+    __("Retención Gubernamental"),
+    __("Cargar Comprobante"),
+  );
+
+  if (frm.doc.docstatus !== 1 || flt(frm.doc.outstanding_amount) <= 0) return;
 
   frm.add_custom_button(
     __("Retención Gubernamental"),
@@ -1888,67 +1899,84 @@ function setup_government_withholding_button(frm) {
         freeze_message: __("Consultando saldo pendiente..."),
         callback: function (r) {
           if (r.exc || !r.message) return;
-          show_government_withholding_dialog(frm, r.message);
+          open_government_withholding_dialog(frm, r.message);
         },
       });
     },
-    __("Acciones"),
+    __("Cargar Comprobante"),
   );
 }
 
-function show_government_withholding_dialog(frm, ctx) {
+function open_government_withholding_dialog(frm, ctx) {
   const outstanding = flt(ctx.outstanding);
   const currency = ctx.currency;
 
   const dialog = new frappe.ui.Dialog({
-    title: __("Retención Gubernamental"),
+    title: __("Registrar Retención Gubernamental"),
     fields: [
       {
+        label: __("Moneda"),
+        fieldname: "display_currency",
+        fieldtype: "Data",
+        hidden: 1,
+        default: currency,
+      },
+      {
+        label: __("Monto Pendiente"),
         fieldname: "outstanding_display",
         fieldtype: "Currency",
-        label: __("Monto Pendiente"),
-        options: "currency_ro",
+        options: "display_currency",
         default: outstanding,
         read_only: 1,
       },
-      { fieldname: "currency_ro", fieldtype: "Data", hidden: 1, default: currency },
-      { fieldtype: "Column Break" },
       {
+        label: __("Monto de Retención"),
         fieldname: "amount",
         fieldtype: "Currency",
-        label: __("Monto de Retención"),
-        options: "currency_ro",
+        options: "display_currency",
         reqd: 1,
+        default: outstanding,
+        description: __("Ingrese el monto de la retención a descontar."),
       },
-      { fieldtype: "Section Break" },
       {
+        label: __("Número de Comprobante"),
         fieldname: "voucher_number",
         fieldtype: "Data",
-        label: __("Número de Comprobante"),
-        description: __("Opcional"),
+        placeholder: __("Ej. 2026080001 (Opcional)"),
       },
       {
+        label: __("Descripción / Concepto"),
         fieldname: "description",
         fieldtype: "Small Text",
-        label: __("Descripción / Concepto"),
+        placeholder: __(
+          "Ej. Retención Timbre Fiscal / Impuesto Municipal de la factura",
+        ),
       },
     ],
-    primary_action_label: __("Registrar Retención"),
-    primary_action(values) {
+    primary_action_label: __("Confirmar y Contabilizar"),
+    primary_action: function (values) {
       const amount = flt(values.amount);
 
       if (amount <= 0) {
-        frappe.msgprint(__("El monto de la retención debe ser mayor a cero."));
+        frappe.msgprint({
+          title: __("Monto Inválido"),
+          indicator: "red",
+          message: __("El monto de la retención debe ser mayor a cero."),
+        });
         return;
       }
-      // Espejo del tope del servidor, para no gastar un viaje. El servidor lo
-      // vuelve a validar bajo bloqueo: esta comprobación es comodidad, no la reja.
+
+      // Espejo del tope del servidor, para ahorrar el viaje. La reja de verdad es
+      // la del backend, que revalida bajo bloqueo de la fila de la factura.
       if (amount > outstanding + 0.001) {
-        frappe.msgprint(
-          __("El monto de la retención no puede ser mayor que el saldo pendiente ({0}).", [
-            format_currency(outstanding, currency),
-          ]),
-        );
+        frappe.msgprint({
+          title: __("Exceso de Monto"),
+          indicator: "red",
+          message: __(
+            "El monto de la retención no puede ser mayor que el saldo pendiente de la factura ({0}).",
+            [format_currency(outstanding, currency)],
+          ),
+        });
         return;
       }
 
@@ -1966,7 +1994,11 @@ function show_government_withholding_dialog(frm, ctx) {
         freeze_message: __("Contabilizando la retención..."),
         callback: function (r) {
           if (r.exc || !r.message) return;
-          frappe.show_alert({ message: r.message.message, indicator: "green" });
+          frappe.msgprint({
+            title: __("Retención Gubernamental registrada exitosamente."),
+            indicator: "green",
+            message: r.message.message,
+          });
           frm.reload_doc();
         },
       });
