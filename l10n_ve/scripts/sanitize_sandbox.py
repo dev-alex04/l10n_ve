@@ -6,7 +6,7 @@ la copia usaría la serie de la sucursal de verdad y le quemaría números a la
 imprenta digital. Y baja TFHKA a ``Demo``, que es la segunda barrera contra emitir
 de verdad.
 
-No se ejecuta solo: lo descubre y lo dispara el orquestador de ``domina_core`` vía
+No se ejecuta solo: lo descubre y lo dispara el orquestador de ``domina_local`` vía
 el hook ``sandbox_sanitizers``. Igual expone ``dry_run``/``execute`` por si hace
 falta correr sólo esta parte.
 
