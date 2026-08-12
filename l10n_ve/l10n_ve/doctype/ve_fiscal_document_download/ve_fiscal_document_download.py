@@ -10,6 +10,7 @@ import base64
 import os
 from frappe.model.document import Document
 from frappe.utils.file_manager import save_file
+from l10n_ve.digital_invoice import hka_environment
 from l10n_ve.digital_invoice.tfhka_client import FISCAL_PDF_LIKE_PATTERN
 
 class VEFiscalDocumentDownload(Document):
@@ -196,9 +197,11 @@ def process_download_job(docname: str, request_user: str):
 					# 3. Necesita descargar de la API
 					if skip_hka_api:
 						errors.append(f"{inv_name}: Descarga omitida debido a fallas en la API de HKA.")
+						# El entorno sale del site_config, no del DocType: ese campo es un
+						# espejo informativo y podia decir Production con el sitio en demo.
 						is_demo = False
 						try:
-							is_demo = (frappe.get_cached_doc("TFHKA Settings").environment == "Demo")
+							is_demo = hka_environment.is_demo()
 						except Exception:
 							pass
 						if not is_demo and frappe.flags.in_test:
@@ -378,10 +381,10 @@ def process_download_job(docname: str, request_user: str):
 					current_zip_count += 1
 					consecutive_hka_failures = 0
 				else:
-					# Check if TFHKA Settings environment is Demo
+					# El entorno sale del site_config (ver hka_environment), no del DocType.
 					is_demo = False
 					try:
-						is_demo = (frappe.get_cached_doc("TFHKA Settings").environment == "Demo")
+						is_demo = hka_environment.is_demo()
 					except Exception:
 						pass
 					if not is_demo and frappe.flags.in_test:

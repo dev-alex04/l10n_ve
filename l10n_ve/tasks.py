@@ -1097,7 +1097,7 @@ def on_sales_invoice_submit(doc: object, method: str | None = None) -> None:
     trigger_retention_reminder_on_invoice_emission(doc)
 
 
-# --- Daily notice: documents that should have reached HKA and did not ------------
+# --- Notice (7:00 / 12:00 / 16:00): documents that should have reached HKA -------
 
 
 def _escape(value) -> str:
@@ -1151,7 +1151,7 @@ def _build_unsent_context(result: dict) -> dict:
 
 
 def build_unsent_hka_documents_email(reference_datetime=None) -> tuple[str, str] | None:
-    """Build the daily notice. Returns ``(subject, html)``, or ``None`` if nothing to report.
+    """Build the notice. Returns ``(subject, html)``, or ``None`` if nothing to report.
 
     Split from the sending task so the message can be inspected without a mail server
     — the local site has no outgoing account, so this is the only way to review the
@@ -1259,7 +1259,11 @@ def _unsent_rows_table(rows: list[dict]) -> str:
 
 
 def send_unsent_hka_documents_notice() -> None:
-    """Daily notice of documents that should have reached HKA and did not.
+    """Notice of documents that should have reached HKA and did not.
+
+    Runs three times a day (7:00, 12:00 and 16:00): with a single morning pass, whatever
+    jams mid-morning only surfaces the next day. Each run reports the state at that
+    moment over the current month, so the later passes are not a resend of the first.
 
     Sends nothing when there is nothing to report, and nothing when no recipients are
     configured — both are normal states, not errors.
