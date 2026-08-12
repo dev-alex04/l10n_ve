@@ -24,12 +24,19 @@ from unittest.mock import patch
 
 from frappe import _dict
 
-from l10n_ve.digital_invoice.emission_rerate import STALE_RATE_GUARD_ENABLED
+from l10n_ve.digital_invoice.emission_rerate import (
+    STALE_RATE_GUARD_BYPASS_FROM,
+    STALE_RATE_GUARD_ENABLED,
+)
 
 MOD = "l10n_ve.digital_invoice.emission_rerate"
 
 # Tasas reales de producción, con la fecha a la que corresponde cada una.
 TASAS = {
+    # La de junio existe solo para armar un caso ANTERIOR al corte del apagado
+    # (STALE_RATE_GUARD_BYPASS_FROM): con las otras dos no se puede, porque un documento
+    # de julio con la tasa de agosto es el caso legítimo de tasa por delante.
+    "2026-06-01": 512.4501,
     "2026-07-01": 633.3644,
     "2026-08-01": 746.6297,
 }
@@ -175,6 +182,24 @@ class TestGuardIsDisabled(unittest.TestCase):
             self.assertIsNotNone(motivo, "el guard está prendido: vuelve a frenar")
         else:
             self.assertIsNone(motivo)
+
+    def test_older_than_the_cutoff_is_still_blocked(self):
+        """El apagado no es retroactivo: antes del corte el guard sigue frenando.
+
+        Sin esto se destrabarían tres facturas de abril, junio y julio que hoy
+        imprimirían una fecha de valor de meses atrás.
+        """
+        # Postea en julio con la tasa del 1° de junio: tasa más vieja que la fecha, que
+        # es justo lo que el guard frena. Y julio es anterior al corte.
+        vieja = _factura("2026-07-01", 512.4501)
+        motivo = _motivo(vieja)
+        self.assertIsNotNone(motivo)
+        self.assertIn("2026-07-01", motivo)
+
+    def test_the_cutoff_boundary_is_inclusive(self):
+        """El primer día del corte ya entra en el apagado."""
+        self.assertEqual(STALE_RATE_GUARD_BYPASS_FROM, "2026-08-01")
+        self.assertIsNone(_motivo(_factura(STALE_RATE_GUARD_BYPASS_FROM, 633.3644)))
 
     def test_the_switch_is_a_single_early_return(self):
         """El código del guard sigue entero: se apagó, no se borró."""

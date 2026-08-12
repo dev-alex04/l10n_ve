@@ -825,11 +825,29 @@ def block_manual_submit_of_fiscal_invoice(doc) -> None:
 #: No se borró nada: poner esto en ``True`` lo reactiva entero, con sus tests, que se
 #: saltean solos mientras esté apagado.
 #:
+#: El apagado NO es retroactivo: ver ``STALE_RATE_GUARD_BYPASS_FROM``.
+#:
 #: Sigue activo `_validate_tasa_coherencia`, que es otra cosa y conviene que quede: ese
 #: no compara contra la fecha de emisión sino que exige que el par tasa/fecha que se
 #: IMPRIME exista en Currency Exchange. Sin él, estas mismas facturas saldrían con una
 #: fecha de valor que no le corresponde a la tasa impresa.
 STALE_RATE_GUARD_ENABLED: bool = False
+
+#: Desde qué `posting_date` aplica el apagado de arriba. Antes de esta fecha el guard
+#: sigue frenando.
+#:
+#: La decisión fue "que salgan las de agosto", no "que salga todo lo que quedó trabado
+#: alguna vez". Sin este corte se destrabarían también tres facturas viejas
+#: --`ACC-SINV-2026-05246` (14-abr), `ACC-SINV-2026-07706` (01-jun) y
+#: `ACC-SINV-2026-10195` (01-jul)--, que se certificarían hoy imprimiendo fechas de
+#: valor de abril, mayo y junio. Eso es una brecha de meses, no la de un día que se
+#: decidió aceptar.
+#:
+#: Es deliberadamente un corte propio y no `TFHKA Settings.cutoff_date`: ese es la
+#: compuerta general del cron --qué documentos mira, hoy desde 2026-04-01-- y subirlo a
+#: agosto dejaría sin certificar para siempre a cualquier documento previo que esté
+#: pendiente por otro motivo, que no es lo que se pidió.
+STALE_RATE_GUARD_BYPASS_FROM: str = "2026-08-01"
 
 
 def stale_rate_reason(sales_invoice: object) -> str | None:
@@ -858,7 +876,10 @@ def stale_rate_reason(sales_invoice: object) -> str | None:
     misma vara de `_get_target_rate`.
     """
     if not STALE_RATE_GUARD_ENABLED:
-        return None
+        # El apagado corre desde el corte hacia adelante. Lo anterior sigue frenado: un
+        # documento de abril certificado hoy imprime una fecha de valor de abril.
+        if str(sales_invoice.get("posting_date") or "") >= STALE_RATE_GUARD_BYPASS_FROM:
+            return None
 
     if cint(sales_invoice.get("is_return")) or cint(sales_invoice.get("is_debit_note")):
         # Una nota se expresa en la tasa del documento que corrige, no en la suya.
