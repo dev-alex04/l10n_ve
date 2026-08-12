@@ -100,6 +100,7 @@ frappe.ui.form.on("Sales Invoice", {
 
 
     setup_exchange_difference_button(frm);
+    setup_government_withholding_button(frm);
     setup_hka_consulta_button(frm);
     render_fiscal_invoice_preview(frm);
     setup_credit_note_button(frm);
@@ -1861,3 +1862,116 @@ function apply_islr_withholding(frm, customer_data) {
     });
 }
 
+/**
+ * Botón para registrar una Retención Gubernamental (timbre fiscal, ISAE,
+ * responsabilidad social) sobre una factura ya aprobada.
+ *
+ * El monto va SIEMPRE en la moneda de la empresa (Bs). El saldo pendiente se pide
+ * al servidor en vez de convertirlo acá: `outstanding_amount` está en la moneda de
+ * la cuenta por cobrar, y duplicar esa conversión en el cliente es justo la forma
+ * de que modal y asiento terminen mostrando números distintos.
+ *
+ * Se pueden registrar varias retenciones sobre la misma factura: cada asiento baja
+ * el pendiente, así que el tope del servidor acota la suma.
+ */
+function setup_government_withholding_button(frm) {
+  if (frm.doc.docstatus !== 1 || !flt(frm.doc.outstanding_amount)) return;
+
+  frm.add_custom_button(
+    __("Retención Gubernamental"),
+    function () {
+      frappe.call({
+        method:
+          "l10n_ve.overrides.sales_invoice.get_government_withholding_context",
+        args: { docname: frm.doc.name },
+        freeze: true,
+        freeze_message: __("Consultando saldo pendiente..."),
+        callback: function (r) {
+          if (r.exc || !r.message) return;
+          show_government_withholding_dialog(frm, r.message);
+        },
+      });
+    },
+    __("Acciones"),
+  );
+}
+
+function show_government_withholding_dialog(frm, ctx) {
+  const outstanding = flt(ctx.outstanding);
+  const currency = ctx.currency;
+
+  const dialog = new frappe.ui.Dialog({
+    title: __("Retención Gubernamental"),
+    fields: [
+      {
+        fieldname: "outstanding_display",
+        fieldtype: "Currency",
+        label: __("Monto Pendiente"),
+        options: "currency_ro",
+        default: outstanding,
+        read_only: 1,
+      },
+      { fieldname: "currency_ro", fieldtype: "Data", hidden: 1, default: currency },
+      { fieldtype: "Column Break" },
+      {
+        fieldname: "amount",
+        fieldtype: "Currency",
+        label: __("Monto de Retención"),
+        options: "currency_ro",
+        reqd: 1,
+      },
+      { fieldtype: "Section Break" },
+      {
+        fieldname: "voucher_number",
+        fieldtype: "Data",
+        label: __("Número de Comprobante"),
+        description: __("Opcional"),
+      },
+      {
+        fieldname: "description",
+        fieldtype: "Small Text",
+        label: __("Descripción / Concepto"),
+      },
+    ],
+    primary_action_label: __("Registrar Retención"),
+    primary_action(values) {
+      const amount = flt(values.amount);
+
+      if (amount <= 0) {
+        frappe.msgprint(__("El monto de la retención debe ser mayor a cero."));
+        return;
+      }
+      // Espejo del tope del servidor, para no gastar un viaje. El servidor lo
+      // vuelve a validar bajo bloqueo: esta comprobación es comodidad, no la reja.
+      if (amount > outstanding + 0.001) {
+        frappe.msgprint(
+          __("El monto de la retención no puede ser mayor que el saldo pendiente ({0}).", [
+            format_currency(outstanding, currency),
+          ]),
+        );
+        return;
+      }
+
+      dialog.hide();
+      frappe.call({
+        method:
+          "l10n_ve.overrides.sales_invoice.create_government_withholding_journal_entry",
+        args: {
+          docname: frm.doc.name,
+          amount: amount,
+          description: values.description,
+          voucher_number: values.voucher_number,
+        },
+        freeze: true,
+        freeze_message: __("Contabilizando la retención..."),
+        callback: function (r) {
+          if (r.exc || !r.message) return;
+          frappe.show_alert({ message: r.message.message, indicator: "green" });
+          frm.reload_doc();
+        },
+      });
+    },
+  });
+
+  dialog.show();
+}
