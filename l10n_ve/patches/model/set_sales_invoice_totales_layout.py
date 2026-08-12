@@ -73,8 +73,13 @@ def execute():
         {"fieldname": "rounding_adjustment", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "rounded_total", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "total_advance", "property": "hidden", "value": "1", "property_type": "Check"},
-        {"fieldname": "outstanding_amount", "property": "hidden", "value": "1", "property_type": "Check"},
+        {"fieldname": "outstanding_amount", "property": "hidden", "value": "0", "property_type": "Check"},
+        {"fieldname": "outstanding_amount", "property": "label", "value": "Monto Pendiente", "property_type": "Data"},
     ]
+
+    # Eliminar Property Setter explícito de ocultación si existía previamente
+    if frappe.db.exists("Property Setter", "Sales Invoice-outstanding_amount-hidden"):
+        frappe.delete_doc("Property Setter", "Sales Invoice-outstanding_amount-hidden", force=True)
 
     for ps in property_setters:
         frappe.make_property_setter(
