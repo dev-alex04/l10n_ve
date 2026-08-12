@@ -810,9 +810,34 @@ def block_manual_submit_of_fiscal_invoice(doc) -> None:
     )
 
 
+#: ¿El guard de tasa desincronizada frena la certificación ante HKA?
+#:
+#: **DESACTIVADO el 2026-08-12 por decisión del negocio.** Estaba deteniendo 24 facturas
+#: de naturales del 01-08 que portan la tasa del 31-07 (746,6297) en vez de la del día
+#: de emisión (748,7864). La instrucción fue que salgan con la tasa que traen.
+#:
+#: Lo que se acepta al dejarlo apagado: esas facturas declaran una base imponible
+#: calculada a una tasa más vieja que su fecha de emisión, o sea por debajo de la que
+#: correspondería. En el caso que originó el guard --`ACC-SINV-2026-13754`-- eso fueron
+#: Bs 19.526 de base y Bs 3.124 de IVA de menos en UNA factura, y no se deshace: una vez
+#: certificada hay que anularla con nota de crédito y reemitirla.
+#:
+#: No se borró nada: poner esto en ``True`` lo reactiva entero, con sus tests, que se
+#: saltean solos mientras esté apagado.
+#:
+#: Sigue activo `_validate_tasa_coherencia`, que es otra cosa y conviene que quede: ese
+#: no compara contra la fecha de emisión sino que exige que el par tasa/fecha que se
+#: IMPRIME exista en Currency Exchange. Sin él, estas mismas facturas saldrían con una
+#: fecha de valor que no le corresponde a la tasa impresa.
+STALE_RATE_GUARD_ENABLED: bool = False
+
+
 def stale_rate_reason(sales_invoice: object) -> str | None:
     """Motivo por el cual la tasa del documento NO corresponde a su fecha de emisión
     fiscal, o None si corresponde.
+
+    ⚠️ Hoy devuelve siempre ``None``: ver ``STALE_RATE_GUARD_ENABLED`` arriba. El resto
+    de la función se deja tal cual para poder reactivarla con una sola línea.
 
     Es SOLO LECTURA. Existe para frenar la certificación ante HKA de una factura cuya
     tasa quedó desincronizada de su `posting_date`: una vez emitida, el error no se
@@ -832,6 +857,9 @@ def stale_rate_reason(sales_invoice: object) -> str | None:
     mismo día que difieren ~1e-4, y compararlas por valor daría falsos positivos. Es la
     misma vara de `_get_target_rate`.
     """
+    if not STALE_RATE_GUARD_ENABLED:
+        return None
+
     if cint(sales_invoice.get("is_return")) or cint(sales_invoice.get("is_debit_note")):
         # Una nota se expresa en la tasa del documento que corrige, no en la suya.
         return None

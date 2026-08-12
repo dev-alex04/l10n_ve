@@ -1663,6 +1663,11 @@ def _get_active_billing_series() -> list[dict]:
 def _drop_invoices_with_stale_rate(pending: list[str]) -> list[str]:
     """Saca de la tanda las facturas cuya tasa no corresponde a su fecha de emision.
 
+    ⚠️ HOY NO SACA NINGUNA: el guard esta apagado desde el 2026-08-12 por decision del
+    negocio (``emission_rerate.STALE_RATE_GUARD_ENABLED``), asi que ``stale_rate_reason``
+    devuelve siempre ``None`` y esto es un pasamanos. Se deja entero porque prender el
+    flag lo revive tal cual. Lo de abajo describe lo que hace CON el flag prendido.
+
     Una factura mal emitida NO se deshace: hay que anularla con nota de credito y
     reemitirla ante el SENIAT. Por eso el chequeo es fail-closed --si la tasa no cuadra
     con la posting_date, no sale-- y vive antes del envio, no despues.
