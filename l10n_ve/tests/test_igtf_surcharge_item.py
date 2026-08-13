@@ -62,7 +62,14 @@ class TestIGTFSurchargeItem(FrappeTestCase):
 
     def test_does_not_invent_a_template_when_there_is_none(self):
         """Sin plantilla exenta no se asocia ninguna, en vez de elegir una arbitraria."""
-        with patch.object(frappe, "get_all", return_value=[]):
+        real = frappe.get_all
+
+        def sin_plantillas(doctype, *a, **kw):
+            # Solo se intercepta la busqueda de plantillas: un mock global de get_all
+            # rompe el insert del Item, que lo usa por dentro.
+            return [] if doctype == "Item Tax Template" else real(doctype, *a, **kw)
+
+        with patch.object(frappe, "get_all", side_effect=sin_plantillas):
             create_igtf_surcharge_item()
 
         self.assertEqual(frappe.get_doc("Item", ITEM_CODE).taxes, [])
@@ -79,11 +86,14 @@ class TestIGTFSurchargeItem(FrappeTestCase):
 
     def test_it_fails_loudly_when_there_is_no_root_group(self):
         """Sin raiz del arbol se corta, en vez de colgarlo de una rama cualquiera."""
-        frappe.db.delete("Item Group", {"item_group_name": GROUP_NAME})
+        real = frappe.db.get_value
 
-        with patch.object(frappe.db, "get_value", return_value=None), patch(
-            "frappe.db.exists", return_value=False
-        ):
+        def sin_raiz(doctype, *a, **kw):
+            # Igual que arriba: se intercepta SOLO la busqueda del grupo raiz. Un mock
+            # global de get_value se lleva puesto hasta el log_error del except.
+            return None if doctype == "Item Group" else real(doctype, *a, **kw)
+
+        with patch.object(frappe.db, "get_value", side_effect=sin_raiz):
             with self.assertRaises(frappe.ValidationError) as ctx:
                 create_igtf_surcharge_item()
 
