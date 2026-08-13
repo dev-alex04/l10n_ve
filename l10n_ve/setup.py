@@ -82,6 +82,7 @@ def set_data() -> None:
         setup_workspaces()
         create_retention_reminder_email_template()
         create_hka_unsent_notice_email_template()
+        create_igtf_surcharge_item()
 
         print("Success: Configuración de datos para l10n_ve completada exitosamente.")
 
@@ -2027,3 +2028,148 @@ def create_hka_unsent_notice_email_template() -> None:
     doc.insert(ignore_permissions=True)
     print(f"Success: Plantilla '{HKA_UNSENT_NOTICE_TEMPLATE}' creada.")
 
+
+def create_igtf_surcharge_item() -> None:
+    """
+    Crea el producto de servicio 'Recargo por IGTF (3%)' para uso en Notas de Débito y Crédito.
+    - Nombre / Item Code: 'Recargo por Impuesto a las Grandes Transacciones Financieras (3%) aplicado a la factura afectada'
+    - Tipo: Servicio (is_stock_item = 0, goods_or_service = '2 - Servicio' si el campo está presente)
+    - Exento de IVA: vat_exempt = 1
+    - Item Group: 'Recargos Fiscales'
+    - Item Tax Template: Asocia la plantilla de alícuota Exenta ('Exento') si existe.
+    - Idempotente: Si el grupo o el ítem ya existen, no los duplica.
+    """
+    print("Iniciando la creación del Producto 'Recargo por IGTF'...")
+
+    try:
+        # La unidad de medida es obligatoria en Item y NO tiene default en el doctype:
+        # en un sitio real la pone Stock Settings. Si no esta, el sitio todavia no paso
+        # por el asistente y este producto no tiene donde existir --mismo criterio que
+        # el arbol de grupos de abajo: se omite, no se inventa un "Nos"/"Unidad" que
+        # depende del idioma del sitio--.
+        stock_uom = frappe.db.get_single_value("Stock Settings", "stock_uom")
+        if not stock_uom:
+            print(
+                "  -- Sin unidad de medida por defecto en Stock Settings: se omite el "
+                "producto de Recargo por IGTF. Se creara en el proximo migrate."
+            )
+            return
+
+        group_name = "Recargos Fiscales"
+        if not frappe.db.exists("Item Group", group_name):
+            # `["is", "not set"]` y no `["in", ["", None]]`: ese genera
+            # `IN ('', NULL)`, y en SQL NULL nunca matchea dentro de un IN. En este
+            # bench la raiz tiene el padre en cadena vacia y colaba; en un site recien
+            # creado lo tiene en NULL, no encontraba la raiz y cortaba. Este genera
+            # `IS NULL OR = ''`, que cubre los dos.
+            parent_group = frappe.db.get_value(
+                "Item Group", {"is_group": 1, "parent_item_group": ["is", "not set"]}, "name"
+            )
+            if not parent_group:
+                # Sin raiz no se adivina un padre: tomar "cualquier nodo con is_group"
+                # --sin order_by-- dejaba los recargos fiscales colgando de una rama
+                # arbitraria, y esto es un producto que va en documentos fiscales.
+                #
+                # Tampoco se corta: un sitio sin arbol de Item Group es un sitio al que
+                # todavia no le corrieron el asistente de configuracion, y ahi este
+                # producto no tiene sentido. Cortar romperia el `migrate` de una
+                # instalacion nueva --el CI es exactamente ese caso--. Se sale sin hacer
+                # nada y el proximo migrate, ya con el sitio configurado, lo crea.
+                print(
+                    f"  -- Sin arbol de Item Group todavia: se omite '{group_name}'. "
+                    "Se creara en el proximo migrate."
+                )
+                return
+
+            item_group_doc = frappe.new_doc("Item Group")
+            item_group_doc.item_group_name = group_name
+            item_group_doc.parent_item_group = parent_group
+            item_group_doc.is_group = 0
+            item_group_doc.insert(ignore_permissions=True)
+            print(f"  -> Creado Grupo de Artículos '{group_name}' bajo '{parent_group}'.")
+
+        item_code = "Recargo por Impuesto a las Grandes Transacciones Financieras (3%) aplicado a la factura afectada"
+
+        exempt_tax_template = None
+        tax_templates = frappe.get_all(
+            "Item Tax Template",
+            filters=[["name", "like", "%Exent%"]],
+            fields=["name"],
+            limit=1
+        )
+        if not tax_templates:
+            tax_templates = frappe.get_all(
+                "Item Tax Template",
+                filters=[["title", "like", "%Exent%"]],
+                fields=["name"],
+                limit=1
+            )
+        if tax_templates:
+            exempt_tax_template = tax_templates[0]["name"]
+
+        item = None
+        if not frappe.db.exists("Item", item_code):
+            item = frappe.new_doc("Item")
+            item.item_code = item_code
+            item.item_name = item_code
+            item.item_group = group_name
+            item.is_stock_item = 0
+            item.stock_uom = stock_uom
+            item.is_sales_item = 1
+            item.is_purchase_item = 1
+            item.vat_exempt = 1
+
+            if item.meta.has_field("goods_or_service"):
+                item.goods_or_service = "2 - Servicio"
+
+            if exempt_tax_template:
+                item.append("taxes", {
+                    "item_tax_template": exempt_tax_template,
+                    "tax_category": ""
+                })
+
+            item.insert(ignore_permissions=True)
+            print(f"Success: Producto '{item_code}' creado exitosamente.")
+        else:
+            item = frappe.get_doc("Item", item_code)
+            dirty = False
+            if item.vat_exempt != 1:
+                item.vat_exempt = 1
+                dirty = True
+            if item.is_stock_item != 0:
+                item.is_stock_item = 0
+                dirty = True
+            if item.item_group != group_name:
+                item.item_group = group_name
+                dirty = True
+
+            if item.meta.has_field("goods_or_service") and item.get("goods_or_service") != "2 - Servicio":
+                item.goods_or_service = "2 - Servicio"
+                dirty = True
+
+            if exempt_tax_template and not any(t.item_tax_template == exempt_tax_template for t in item.taxes):
+                item.append("taxes", {
+                    "item_tax_template": exempt_tax_template,
+                    "tax_category": ""
+                })
+                dirty = True
+
+            if dirty:
+                item.save(ignore_permissions=True)
+                print(f"Success: Producto '{item_code}' actualizado.")
+            else:
+                print(f"  -- El Producto '{item_code}' ya existe y está configurado correctamente.")
+
+        if item:
+            try:
+                from frappe.utils.global_search import update_global_search
+                update_global_search(item)
+            except Exception:
+                pass
+
+        frappe.db.commit()
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), 'Error en create_igtf_surcharge_item')
+        print(f"Failure: Ocurrió un error durante la creación del Producto 'Recargo por IGTF': {e}")
+        raise
