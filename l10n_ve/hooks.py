@@ -26,7 +26,6 @@ website_context = {
 
 extend_bootinfo = "l10n_ve.boot.get_boot_info"
 app_include_js = [
-    "/assets/l10n_ve/js/toolbar/toolbar.js",
     "/assets/l10n_ve/js/item_logic/item_logic.js",
     "/assets/l10n_ve/js/utils/report_view_patch.js",
     "/assets/l10n_ve/js/utils/sales_billing_indicators.js",
