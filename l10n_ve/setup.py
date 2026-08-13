@@ -2044,8 +2044,13 @@ def create_igtf_surcharge_item() -> None:
     try:
         group_name = "Recargos Fiscales"
         if not frappe.db.exists("Item Group", group_name):
+            # `["is", "not set"]` y no `["in", ["", None]]`: ese genera
+            # `IN ('', NULL)`, y en SQL NULL nunca matchea dentro de un IN. En este
+            # bench la raiz tiene el padre en cadena vacia y colaba; en un site recien
+            # creado lo tiene en NULL, no encontraba la raiz y cortaba. Este genera
+            # `IS NULL OR = ''`, que cubre los dos.
             parent_group = frappe.db.get_value(
-                "Item Group", {"is_group": 1, "parent_item_group": ["in", ["", None]]}, "name"
+                "Item Group", {"is_group": 1, "parent_item_group": ["is", "not set"]}, "name"
             )
             if not parent_group:
                 # Sin raiz no se adivina un padre. Tomar "cualquier nodo con is_group"
