@@ -16,6 +16,15 @@ def set_ve_branch(doc: "Document", method: str) -> None:
         if not frappe.get_meta(doc.doctype).get_field("branch"):
             return
 
+        # Si es un Payment Entry y no tiene branch explicito, heredar el branch de la factura vinculada
+        if not doc.branch and doc.doctype == "Payment Entry":
+            for ref in (doc.get("references") or []):
+                if ref.reference_doctype == "Sales Invoice" and ref.reference_name:
+                    si_branch = frappe.db.get_value("Sales Invoice", ref.reference_name, "branch")
+                    if si_branch:
+                        doc.branch = si_branch
+                        break
+
         if not doc.branch:
             branches = frappe.get_all("VE Branch Users", filters={
                 "user": frappe.session.user,
