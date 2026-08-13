@@ -46,6 +46,13 @@ frappe.ui.form.on("Customer", {
       render_balance_indicators(frm);
       render_custom_account_summary(frm);
     }
+
+    // Botón de impuesto municipal — solo para contribuyentes especiales ya guardados
+    if (!frm.is_new() && frm.doc.is_special_taxpayer) {
+      frm.add_custom_button(__("Configurar Impuesto Municipal"), function () {
+        open_municipal_tax_dialog(frm);
+      }, __("Impuestos"));
+    }
   },
 
   nature_of_the_taxpayer: function (frm) {
@@ -268,5 +275,168 @@ function render_custom_account_summary(frm) {
         }
       }
     }
+  });
+}
+
+/**
+ * Abre el diálogo para configurar el impuesto municipal (ISAE) del cliente.
+ *
+ * - Pre-carga los valores ya guardados en el cliente.
+ * - Busca la alícuota existente en VE Municipality Taxes para el par
+ *   (municipio, actividad económica) seleccionados.
+ * - Al confirmar: crea o actualiza el registro en VE Municipality Taxes y
+ *   enlaza los campos custom_* en el Customer sin requerir un save() del form.
+ */
+function open_municipal_tax_dialog(frm) {
+  // 1. Primero traemos la info actual del cliente
+  frappe.call({
+    method: "l10n_ve.overrides.customer.get_municipal_tax_info",
+    args: { customer: frm.doc.name },
+    callback: function (r) {
+      if (r.exc) return;
+
+      const info = r.message || {};
+
+      const dialog = new frappe.ui.Dialog({
+        title: __("Configurar Impuesto Municipal (ISAE)"),
+        fields: [
+          {
+            label: __("Municipio"),
+            fieldname: "municipality",
+            fieldtype: "Link",
+            options: "VE Municipality",
+            reqd: 1,
+            default: info.municipality || frm.doc.ve_municipality || "",
+            description: __("Municipio donde el cliente ejerce actividad y aplica el ISAE."),
+          },
+          {
+            label: __("Actividad Económica"),
+            fieldname: "economic_activity",
+            fieldtype: "Link",
+            options: "VE Economic Activity",
+            reqd: 1,
+            default: info.economic_activity || frm.doc.economic_activity || "",
+            description: __("Actividad económica registrada del cliente."),
+          },
+          {
+            label: __("Código de Actividad"),
+            fieldname: "activity_code",
+            fieldtype: "Data",
+            read_only: 1,
+            default: "",
+            description: __("Se obtiene automáticamente al seleccionar la Actividad Económica."),
+          },
+          {
+            label: __("Alícuota (%)"),
+            fieldname: "aliquot",
+            fieldtype: "Float",
+            precision: 2,
+            reqd: 1,
+            default: info.existing_aliquot || info.municipal_withholding_rate || 0,
+            description: __("Porcentaje de retención ISAE a aplicar. Se prellenará si ya existe el impuesto para este municipio + actividad."),
+          },
+        ],
+        primary_action_label: __("Guardar"),
+        primary_action: function (values) {
+          frappe.call({
+            method: "l10n_ve.overrides.customer.setup_or_update_municipal_tax",
+            args: {
+              customer: frm.doc.name,
+              municipality: values.municipality,
+              economic_activity: values.economic_activity,
+              aliquot: values.aliquot,
+            },
+            freeze: true,
+            freeze_message: __("Configurando impuesto municipal..."),
+            callback: function (res) {
+              if (res.exc) return;
+
+              // Actualizar el form en memoria sin requerir un save del usuario
+              frm.set_value("ve_municipality", values.municipality);
+              frm.set_value("economic_activity", values.economic_activity);
+              frm.set_value("municipality_tax", res.message.municipality_tax);
+              frm.set_value("municipal_withholding_rate", res.message.aliquot);
+
+              frappe.show_alert({
+                message: __("Impuesto municipal configurado: {0}% — {1}", [
+                  res.message.aliquot,
+                  res.message.municipality_tax,
+                ]),
+                indicator: "green",
+              });
+
+              dialog.hide();
+              frm.save();
+            },
+          });
+        },
+      });
+
+      // Cuando cambia la actividad económica: traer el código y buscar alícuota existente
+      dialog.fields_dict.economic_activity.df.onchange = function () {
+        const act = dialog.get_value("economic_activity");
+        const mun = dialog.get_value("municipality");
+
+        if (act) {
+          frappe.db.get_value("VE Economic Activity", act, "code", function (data) {
+            dialog.set_value("activity_code", data.code || "");
+          });
+        }
+
+        if (act && mun) {
+          frappe.db.get_value(
+            "VE Municipality Taxes",
+            { municipality: mun, economic_activity: act },
+            ["name", "aliquot"],
+            function (data) {
+              if (data && data.aliquot) {
+                dialog.set_value("aliquot", data.aliquot);
+                frappe.show_alert({
+                  message: __("Alícuota existente cargada: {0}%", [data.aliquot]),
+                  indicator: "blue",
+                });
+              }
+            }
+          );
+        }
+      };
+
+      // Al cambiar municipio: también buscar alícuota existente
+      dialog.fields_dict.municipality.df.onchange = function () {
+        const mun = dialog.get_value("municipality");
+        const act = dialog.get_value("economic_activity");
+
+        if (act && mun) {
+          frappe.db.get_value(
+            "VE Municipality Taxes",
+            { municipality: mun, economic_activity: act },
+            ["name", "aliquot"],
+            function (data) {
+              if (data && data.aliquot) {
+                dialog.set_value("aliquot", data.aliquot);
+                frappe.show_alert({
+                  message: __("Alícuota existente cargada: {0}%", [data.aliquot]),
+                  indicator: "blue",
+                });
+              }
+            }
+          );
+        }
+      };
+
+      // Pre-cargar código si ya hay actividad seleccionada
+      if (info.economic_activity) {
+        frappe.db.get_value(
+          "VE Economic Activity",
+          info.economic_activity,
+          "code",
+          function (data) {
+            dialog.set_value("activity_code", data.code || "");
+          }
+        );
+      }
+
+      dialog.show();
+    },
   });
 }

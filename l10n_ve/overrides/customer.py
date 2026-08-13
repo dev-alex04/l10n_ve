@@ -173,3 +173,112 @@ def get_balance_summary(customer: str) -> dict:
         "unapplied_credits": unapplied_credits,
         "open_invoices": formatted_invoices
     }
+
+
+@frappe.whitelist()
+def get_municipal_tax_info(customer: str) -> dict:
+    """Retorna la información actual de retención municipal de un cliente.
+
+    Usado por el diálogo de configuración en el formulario del Cliente para
+    prellenar los campos con los datos ya guardados.
+
+    Args:
+        customer: Nombre del Customer.
+
+    Returns:
+        Diccionario con municipality, economic_activity, municipality_tax,
+        municipal_withholding_rate y la alícuota del registro si existe.
+    """
+    doc = frappe.get_cached_doc("Customer", customer)
+
+    result: dict = {
+        "municipality": doc.get("ve_municipality") or "",
+        "economic_activity": doc.get("economic_activity") or "",
+        "municipality_tax": doc.get("municipality_tax") or "",
+        "municipal_withholding_rate": float(doc.get("municipal_withholding_rate") or 0),
+        "existing_aliquot": 0.0,
+    }
+
+    # Intentar traer la alícuota del registro existente en VE Municipality Taxes
+    municipality = result["municipality"]
+    economic_activity = result["economic_activity"]
+    if municipality and economic_activity:
+        existing = frappe.db.get_value(
+            "VE Municipality Taxes",
+            {"municipality": municipality, "economic_activity": economic_activity},
+            ["name", "aliquot"],
+            as_dict=True,
+        )
+        if existing:
+            result["municipality_tax"] = existing.name
+            result["existing_aliquot"] = float(existing.aliquot or 0)
+
+    return result
+
+
+@frappe.whitelist()
+def setup_or_update_municipal_tax(
+    customer: str,
+    municipality: str,
+    economic_activity: str,
+    aliquot: float,
+) -> dict:
+    """Crea o actualiza el registro en VE Municipality Taxes y enlaza al cliente.
+
+    Si no existe un registro para (municipality, economic_activity), lo crea.
+    Si ya existe, actualiza la alícuota si cambió.
+    Luego actualiza los campos custom_* en el Customer.
+
+    Args:
+        customer:          Nombre del Customer.
+        municipality:      Nombre del registro VE Municipality.
+        economic_activity: Nombre del registro VE Economic Activity.
+        aliquot:           Alícuota de retención en % (ej: 1.5).
+
+    Returns:
+        Diccionario con el nombre del registro VE Municipality Taxes y la alícuota.
+    """
+    frappe.has_permission("Customer", ptype="write", doc=customer, throw=True)
+    frappe.has_permission("VE Municipality Taxes", ptype="write", throw=True)
+
+    aliquot = float(aliquot or 0)
+
+    # Obtener state del municipio para el campo requerido en VE Municipality Taxes
+    state = frappe.get_cached_value("VE Municipality", municipality, "state") or ""
+
+    existing_name: str | None = frappe.db.get_value(
+        "VE Municipality Taxes",
+        {"municipality": municipality, "economic_activity": economic_activity},
+        "name",
+    )
+
+    if existing_name:
+        # Actualizar la alícuota si cambió
+        frappe.db.set_value(
+            "VE Municipality Taxes", existing_name, "aliquot", aliquot,
+            update_modified=True
+        )
+        tax_name: str = existing_name
+    else:
+        # Crear el registro de impuesto municipal
+        tax_doc = frappe.get_doc({
+            "doctype": "VE Municipality Taxes",
+            "state": state,
+            "municipality": municipality,
+            "economic_activity": economic_activity,
+            "aliquot": aliquot,
+        })
+        tax_doc.insert(ignore_permissions=True)
+        tax_name = tax_doc.name
+
+    # Actualizar el Customer
+    frappe.db.set_value("Customer", customer, {
+        "ve_municipality": municipality,
+        "economic_activity": economic_activity,
+        "municipality_tax": tax_name,
+        "municipal_withholding_rate": aliquot,
+    }, update_modified=True)
+
+    frappe.db.commit()
+
+    return {"municipality_tax": tax_name, "aliquot": aliquot}
