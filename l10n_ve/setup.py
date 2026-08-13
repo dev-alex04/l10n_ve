@@ -2053,14 +2053,20 @@ def create_igtf_surcharge_item() -> None:
                 "Item Group", {"is_group": 1, "parent_item_group": ["is", "not set"]}, "name"
             )
             if not parent_group:
-                # Sin raiz no se adivina un padre. Tomar "cualquier nodo con is_group"
+                # Sin raiz no se adivina un padre: tomar "cualquier nodo con is_group"
                 # --sin order_by-- dejaba los recargos fiscales colgando de una rama
                 # arbitraria, y esto es un producto que va en documentos fiscales.
-                frappe.throw(
-                    "No se encontro el grupo raiz del arbol de Item Group, asi que no "
-                    f"se puede crear '{group_name}'. Revise el arbol de grupos de "
-                    "articulos antes de reintentar."
+                #
+                # Tampoco se corta: un sitio sin arbol de Item Group es un sitio al que
+                # todavia no le corrieron el asistente de configuracion, y ahi este
+                # producto no tiene sentido. Cortar romperia el `migrate` de una
+                # instalacion nueva --el CI es exactamente ese caso--. Se sale sin hacer
+                # nada y el proximo migrate, ya con el sitio configurado, lo crea.
+                print(
+                    f"  -- Sin arbol de Item Group todavia: se omite '{group_name}'. "
+                    "Se creara en el proximo migrate."
                 )
+                return
 
             item_group_doc = frappe.new_doc("Item Group")
             item_group_doc.item_group_name = group_name

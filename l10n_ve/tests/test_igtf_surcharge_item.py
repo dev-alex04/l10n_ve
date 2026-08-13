@@ -17,6 +17,12 @@ ITEM_CODE = (
 )
 GROUP_NAME = "Recargos Fiscales"
 
+# Sin cobertura a proposito: el camino "sitio sin arbol de Item Group" --que la
+# funcion omite en vez de cortar-- no tiene test. Ejercitarlo pide interceptar
+# `frappe.db.get_value`, y `frappe.db` es un LocalProxy sobre el que el patch no
+# llega al `exists` que la funcion usa por dentro: el mock pasa de largo y el test
+# verifica lo contrario de lo que dice. Mejor sin test que con uno que miente.
+
 
 class TestIGTFSurchargeItem(FrappeTestCase):
     def setUp(self):
@@ -29,6 +35,20 @@ class TestIGTFSurchargeItem(FrappeTestCase):
         parche = patch.object(frappe.db, "commit")
         self.addCleanup(parche.stop)
         parche.start()
+
+        # El sitio del CI se crea con `bench new-site` + `install-app` y NUNCA corre el
+        # asistente, asi que no tiene arbol de Item Group y la funcion se omite sola.
+        # Se siembra la raiz para poder ejercitar la creacion en cualquier sitio; con el
+        # commit parcheado se deshace con el resto de la transaccion.
+        self.root_group = frappe.db.get_value(
+            "Item Group", {"is_group": 1, "parent_item_group": ["is", "not set"]}, "name"
+        )
+        if not self.root_group:
+            raiz = frappe.new_doc("Item Group")
+            raiz.item_group_name = "All Item Groups"
+            raiz.is_group = 1
+            raiz.insert(ignore_permissions=True)
+            self.root_group = raiz.name
 
     def test_creates_the_item_and_its_group(self):
         create_igtf_surcharge_item()
@@ -83,18 +103,3 @@ class TestIGTFSurchargeItem(FrappeTestCase):
             1,
             "una segunda corrida no debe duplicar el item",
         )
-
-    def test_it_fails_loudly_when_there_is_no_root_group(self):
-        """Sin raiz del arbol se corta, en vez de colgarlo de una rama cualquiera."""
-        real = frappe.db.get_value
-
-        def sin_raiz(doctype, *a, **kw):
-            # Igual que arriba: se intercepta SOLO la busqueda del grupo raiz. Un mock
-            # global de get_value se lleva puesto hasta el log_error del except.
-            return None if doctype == "Item Group" else real(doctype, *a, **kw)
-
-        with patch.object(frappe.db, "get_value", side_effect=sin_raiz):
-            with self.assertRaises(frappe.ValidationError) as ctx:
-                create_igtf_surcharge_item()
-
-        self.assertIn("grupo raiz", str(ctx.exception).lower())
