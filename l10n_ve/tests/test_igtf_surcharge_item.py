@@ -50,6 +50,15 @@ class TestIGTFSurchargeItem(FrappeTestCase):
             raiz.insert(ignore_permissions=True)
             self.root_group = raiz.name
 
+        # Idem con la unidad de medida por defecto, que el Item exige y en ese sitio
+        # tampoco existe.
+        if not frappe.db.get_single_value("Stock Settings", "stock_uom"):
+            if not frappe.db.exists("UOM", "Unit"):
+                frappe.get_doc({"doctype": "UOM", "uom_name": "Unit"}).insert(
+                    ignore_permissions=True
+                )
+            frappe.db.set_single_value("Stock Settings", "stock_uom", "Unit")
+
     def test_creates_the_item_and_its_group(self):
         create_igtf_surcharge_item()
 

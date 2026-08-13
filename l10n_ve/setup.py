@@ -2042,6 +2042,19 @@ def create_igtf_surcharge_item() -> None:
     print("Iniciando la creación del Producto 'Recargo por IGTF'...")
 
     try:
+        # La unidad de medida es obligatoria en Item y NO tiene default en el doctype:
+        # en un sitio real la pone Stock Settings. Si no esta, el sitio todavia no paso
+        # por el asistente y este producto no tiene donde existir --mismo criterio que
+        # el arbol de grupos de abajo: se omite, no se inventa un "Nos"/"Unidad" que
+        # depende del idioma del sitio--.
+        stock_uom = frappe.db.get_single_value("Stock Settings", "stock_uom")
+        if not stock_uom:
+            print(
+                "  -- Sin unidad de medida por defecto en Stock Settings: se omite el "
+                "producto de Recargo por IGTF. Se creara en el proximo migrate."
+            )
+            return
+
         group_name = "Recargos Fiscales"
         if not frappe.db.exists("Item Group", group_name):
             # `["is", "not set"]` y no `["in", ["", None]]`: ese genera
@@ -2101,6 +2114,7 @@ def create_igtf_surcharge_item() -> None:
             item.item_name = item_code
             item.item_group = group_name
             item.is_stock_item = 0
+            item.stock_uom = stock_uom
             item.is_sales_item = 1
             item.is_purchase_item = 1
             item.vat_exempt = 1
