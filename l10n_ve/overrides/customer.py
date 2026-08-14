@@ -266,14 +266,22 @@ def setup_or_update_municipal_tax(
     if activity_code and activity_code != economic_activity:
         if not frappe.db.exists("VE Economic Activity", activity_code):
             if economic_activity and frappe.db.exists("VE Economic Activity", economic_activity):
-                # Copiar y duplicar la actividad original con el nuevo código (hereda parent y toda la estructura)
+                # Crear nueva actividad económica usando como plantilla la anterior, pero sin copiar los índices de árbol lft/rgt
                 orig = frappe.get_doc("VE Economic Activity", economic_activity)
-                new_act = frappe.copy_doc(orig)
-                new_act.name = activity_code
-                new_act.code = activity_code
+                new_act = frappe.get_doc({
+                    "doctype": "VE Economic Activity",
+                    "code": activity_code,
+                    "sector": orig.sector,
+                    "group": orig.group,
+                    "branch": orig.branch,
+                    "description": orig.description,
+                    "is_group": 0,
+                    "parent_ve_economic_activity": orig.parent_ve_economic_activity,
+                })
                 new_act.insert(ignore_permissions=True)
+                frappe.db.commit()  # Asegurar que esté disponible inmediatamente en la BD
             else:
-                # Fallback por si acaso no existiera la plantilla original (no debería ocurrir)
+                # Fallback si no existiera la plantilla original
                 new_act = frappe.get_doc({
                     "doctype": "VE Economic Activity",
                     "code": activity_code,
@@ -284,6 +292,7 @@ def setup_or_update_municipal_tax(
                     "is_group": 0,
                 })
                 new_act.insert(ignore_permissions=True)
+                frappe.db.commit()
         economic_activity = activity_code
 
     # Obtener state del municipio para el campo requerido en VE Municipality Taxes
