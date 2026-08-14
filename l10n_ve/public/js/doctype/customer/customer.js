@@ -444,6 +444,8 @@ function open_municipal_tax_dialog(frm) {
             dialog.set_value("activity_code", data.code || "");
           }
         );
+      }
+
       // Filtro para no traer actividades de grupo en el diálogo
       dialog.fields_dict.economic_activity.get_query = function () {
         return {
