@@ -357,6 +357,12 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                     current_tax_amount = (vat * tax.rate) / 100
                     break
 
+        elif tax.charge_type == "Municipal Withholding":
+            if item.idx == 1:
+                current_tax_amount = (tax_rate / 100.0) * self.doc.net_total
+            else:
+                current_tax_amount = 0.0
+
         if not (self.doc.get("is_consolidated") or tax.get("dont_recompute_tax")):
             self.set_item_wise_tax(item, tax, tax_rate, current_tax_amount)
 
@@ -468,6 +474,12 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                     tax.precision("base_tax_amount")
                 )
 
+            elif tax.charge_type == "Municipal Withholding":
+                tax.base_tax_amount = flt(
+                    base_taxable_vef * flt(tax.rate) / 100,
+                    tax.precision("base_tax_amount")
+                )
+
             elif tax.charge_type == "On Previous Row Amount":
                 prev_idx: int = cint(tax.row_id) - 1
                 if 0 <= prev_idx < len(self.doc.get("taxes")):
@@ -510,7 +522,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
             )
 
             if tax.is_tax_withholding_account:
-                if tax.charge_type in ("VAT Withholding", "ISLR") \
+                if tax.charge_type in ("VAT Withholding", "ISLR", "Municipal Withholding") \
                         and self.doc.doctype in __VE_DOCTYPES__:
                     tax.base_total = flt(
                         base_tax_base + base_tax_for_total,
@@ -570,7 +582,7 @@ class TaxesAndTotals(calculate_taxes_and_totals):
                 base_amount: float = item_base_by_key.get(key, 0)
                 rate_info[1] = flt(base_amount * flt(rate_info[0]) / 100)
 
-        elif tax.charge_type == "On Net Total":
+        elif tax.charge_type in ("On Net Total", "Municipal Withholding"):
             assigned: bool = False
             for key, rate_info in tax.item_wise_tax_detail.items():
                 if not isinstance(rate_info, list) or len(rate_info) < 2:
@@ -645,8 +657,8 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
         if tax.is_tax_withholding_account:
 
-            # Se resta la retención de IVA e ISLR
-            if tax.charge_type in ("VAT Withholding", "ISLR") \
+            # Se resta la retención de IVA, ISLR e Impuesto Municipal
+            if tax.charge_type in ("VAT Withholding", "ISLR", "Municipal Withholding") \
                     and self.doc.doctype in __VE_DOCTYPES__:
 
                 # Se asegura que la retención siempre reste, independientemente de su signo original

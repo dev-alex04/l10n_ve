@@ -739,11 +739,11 @@ def is_period_open(voucher_date, period_type="IVA"):
         
         return today <= limit_date
 
-    elif period_type == "ISLR":
+    elif period_type in ("ISLR", "Municipal"):
         limit_date = get_last_day_of_month(v_date)
         return today <= limit_date
 
-    return False
+    return True
 
 
 def _get_cached_rate(date_str, cache):

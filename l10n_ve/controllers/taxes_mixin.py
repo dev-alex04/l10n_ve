@@ -59,6 +59,7 @@ class TaxesMixin:
         "Actual": 0,
         "VAT Withholding": 1,
         "ISLR": 2,
+        "Municipal Withholding": 3,
     }
 
     def _sort_and_reindex_taxes(self) -> None:
@@ -68,6 +69,7 @@ class TaxesMixin:
         1. Impuestos base (VAT, On Net Total, etc.)
         2. Retención de IVA (VAT Withholding)
         3. Retención de ISLR (ISLR)
+        4. Retención Municipal (Municipal Withholding)
         """
         if not self.taxes:
             return
@@ -106,6 +108,7 @@ class TaxesMixin:
 
         self.set_tax_withholding_ve()
         self.set_islr_withholding_ve()
+        self.set_municipal_withholding_ve()
         self._sort_and_reindex_taxes()
         self._ensure_tax_cost_centers()
 
@@ -125,7 +128,9 @@ class TaxesMixin:
     def set_tax_withholding_ve(self) -> None:
         self.taxes = [
             tax for tax in self.taxes or []
-            if not tax.get('is_tax_withholding_account') or tax.get('charge_type') == 'ISLR'
+            if not tax.get('is_tax_withholding_account')
+            or tax.get('charge_type') in ('ISLR', 'Municipal Withholding')
+            or 'Retención Municipal' in (tax.get('description') or '')
         ]
 
         if self.doctype in DocumentTransactionType.__PURCHASE_DOCTYPES__:
@@ -247,6 +252,104 @@ class TaxesMixin:
             "percentage_base": flt(aliquot_info.percentage_base),
             "subtracting": flt(aliquot_info.subtracting),
         })
+
+    def set_municipal_withholding_ve(self) -> None:
+        """Agrega retención municipal (ISAE) a la tabla de impuestos.
+
+        - Ventas: se asigna automáticamente si el Customer tiene alícuota/impuesto municipal.
+        """
+        if self.doctype in DocumentTransactionType.__PURCHASE_DOCTYPES__:
+            return
+
+        if self.doctype not in DocumentTransactionType.__SALES_DOCTYPES__:
+            return
+
+        self.taxes = [
+            tax for tax in self.taxes or []
+            if tax.get("charge_type") != "Municipal Withholding"
+            and not (tax.get("description") or "").startswith("Retención Municipal")
+        ]
+
+        municipal_row: _dict | None = self._build_municipal_tax_row()
+        if municipal_row:
+            self.append("taxes", municipal_row)
+
+    def _build_municipal_tax_row(self) -> _dict | None:
+        """Construye la fila de retención municipal (ISAE) o retorna None si no aplica."""
+        if not self.get("customer") or not self.get("company"):
+            return None
+
+        is_special = frappe.db.get_value("Customer", self.customer, "is_special_taxpayer")
+        rate = flt(frappe.db.get_value("Customer", self.customer, "municipal_withholding_rate") or 0)
+
+        if not is_special or rate <= 0:
+            return None
+
+        municipal_account: str = (
+            frappe.get_cached_value("Company", self.company, "government_withholding_account") or ""
+        )
+
+        if not municipal_account:
+            frappe.throw(
+                _(
+                    "La empresa {0} no tiene configurada la Cuenta de Retenciones Gubernamentales en su configuración."
+                ).format(self.company)
+            )
+
+        net_amount = flt(self.net_total)
+        tax_amount = flt(net_amount * (rate / 100.0), self.precision("tax_amount", "taxes") or 2)
+
+        if tax_amount <= 0:
+            return None
+
+        conversion_rate = flt(self.conversion_rate) or 1.0
+        base_tax_amount = flt(tax_amount * conversion_rate, self.precision("base_tax_amount", "taxes") or 2)
+
+        return _dict({
+            "charge_type": "Municipal Withholding",
+            "category": "Total",
+            "add_deduct_tax": "Deduct",
+            "description": f"Retención Municipal (ISAE) {rate:.2f}%",
+            "is_tax_withholding_account": True,
+            "account_head": municipal_account,
+            "tax_amount": tax_amount,
+            "base_tax_amount": base_tax_amount,
+            "rate": rate,
+        })
+
+    def _get_default_sales_municipal_account(self) -> str | None:
+        """Busca una cuenta por defecto para retención municipal en la compañía."""
+        account = frappe.db.get_value(
+            "Account",
+            {
+                "company": self.company,
+                "is_group": 0,
+                "account_name": ["like", "%PATENTE%"],
+            },
+            "name",
+        )
+        if not account:
+            account = frappe.db.get_value(
+                "Account",
+                {
+                    "company": self.company,
+                    "is_group": 0,
+                    "account_name": ["like", "%IMPUESTOS MUNICIPALES%"],
+                },
+                "name",
+            )
+        if not account:
+            account = frappe.db.get_value(
+                "Account",
+                {
+                    "company": self.company,
+                    "is_group": 0,
+                    "account_name": ["like", "%ISAE%"],
+                },
+                "name",
+            )
+        return account
+
 
     def _build_islr_description(self, tabulator, aliquot_info) -> str:
         """Genera la descripción del concepto ISLR incluyendo NC/ND si aplica."""

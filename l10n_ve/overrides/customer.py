@@ -244,13 +244,13 @@ def setup_or_update_municipal_tax(
 ) -> dict:
     """Crea o actualiza el registro en VE Municipality Taxes y enlaza al cliente.
 
-    Si se proporciona `activity_code` y no coincide con `economic_activity`,
-    intenta usar ese código o crea una nueva actividad económica si no existe.
+    Si se proporciona `activity_code`, busca el registro por su campo `code` o
+    `name`, o crea una nueva actividad económica si no existe.
 
     Args:
         customer:          Nombre del Customer.
         municipality:      Nombre del registro VE Municipality.
-        economic_activity: Nombre del registro VE Economic Activity original.
+        economic_activity: Nombre o código del registro VE Economic Activity.
         aliquot:           Alícuota de retención en % (ej: 1.5).
         activity_code:     Código de actividad editado por el usuario.
 
@@ -261,39 +261,57 @@ def setup_or_update_municipal_tax(
     frappe.has_permission("VE Municipality Taxes", ptype="write", throw=True)
 
     aliquot = float(aliquot or 0)
+    target_act_docname: str | None = None
 
-    # Si el código de actividad cambió
-    if activity_code and activity_code != economic_activity:
-        if not frappe.db.exists("VE Economic Activity", activity_code):
-            if economic_activity and frappe.db.exists("VE Economic Activity", economic_activity):
-                # Crear nueva actividad económica usando como plantilla la anterior, pero sin copiar los índices de árbol lft/rgt
-                orig = frappe.get_doc("VE Economic Activity", economic_activity)
-                new_act = frappe.get_doc({
-                    "doctype": "VE Economic Activity",
-                    "code": activity_code,
-                    "sector": orig.sector,
-                    "group": orig.group,
-                    "branch": orig.branch,
-                    "description": orig.description,
-                    "is_group": 0,
-                    "parent_ve_economic_activity": orig.parent_ve_economic_activity,
-                })
-                new_act.insert(ignore_permissions=True)
-                frappe.db.commit()  # Asegurar que esté disponible inmediatamente en la BD
-            else:
-                # Fallback si no existiera la plantilla original
-                new_act = frappe.get_doc({
-                    "doctype": "VE Economic Activity",
-                    "code": activity_code,
-                    "sector": "TERCIARIO",
-                    "group": "SERVICIOS",
-                    "branch": "TELECOMUNICACIONES",
-                    "description": f"Actividad económica {activity_code}",
-                    "is_group": 0,
-                })
-                new_act.insert(ignore_permissions=True)
-                frappe.db.commit()
-        economic_activity = activity_code
+    # 1. Intentar resolver la actividad económica por activity_code (por campo code o name)
+    if activity_code:
+        target_act_docname = frappe.db.get_value("VE Economic Activity", {"code": activity_code}, "name")
+        if not target_act_docname and frappe.db.exists("VE Economic Activity", activity_code):
+            target_act_docname = activity_code
+
+    # 2. Si no se encontró por activity_code, buscar por el economic_activity recibido
+    if not target_act_docname and economic_activity:
+        if frappe.db.exists("VE Economic Activity", economic_activity):
+            target_act_docname = economic_activity
+        else:
+            target_act_docname = frappe.db.get_value("VE Economic Activity", {"code": economic_activity}, "name")
+
+    # 3. Si aún no existe y se ingresó un activity_code nuevo, crear la actividad económica
+    if not target_act_docname and activity_code:
+        orig = None
+        if economic_activity and frappe.db.exists("VE Economic Activity", economic_activity):
+            orig = frappe.get_doc("VE Economic Activity", economic_activity)
+
+        if orig:
+            new_act = frappe.get_doc({
+                "doctype": "VE Economic Activity",
+                "code": activity_code,
+                "sector": orig.sector,
+                "group": orig.group,
+                "branch": orig.branch,
+                "description": orig.description,
+                "is_group": 0,
+                "parent_ve_economic_activity": orig.parent_ve_economic_activity,
+            })
+        else:
+            new_act = frappe.get_doc({
+                "doctype": "VE Economic Activity",
+                "code": activity_code,
+                "sector": "TERCIARIO",
+                "group": "SERVICIOS",
+                "branch": "TELECOMUNICACIONES",
+                "description": f"Actividad económica {activity_code}",
+                "is_group": 0,
+            })
+
+        new_act.insert(ignore_permissions=True)
+        frappe.db.commit()
+        target_act_docname = new_act.name
+
+    if not target_act_docname:
+        frappe.throw(_("No se pudo encontrar ni crear la Actividad Económica especificada."))
+
+    economic_activity = target_act_docname
 
     # Obtener state del municipio para el campo requerido en VE Municipality Taxes
     state = frappe.get_cached_value("VE Municipality", municipality, "state") or ""
@@ -320,8 +338,6 @@ def setup_or_update_municipal_tax(
             "economic_activity": economic_activity,
             "aliquot": aliquot,
         })
-        # Omitir validación de links: la actividad económica puede haber sido creada
-        # en este mismo request y _validate_links no la encuentra por cache/transacción
         tax_doc.flags.ignore_links = True
         tax_doc.insert(ignore_permissions=True)
         tax_name = tax_doc.name
@@ -341,4 +357,22 @@ def setup_or_update_municipal_tax(
         "aliquot": aliquot,
         "economic_activity": economic_activity,
     }
+
+
+@frappe.whitelist()
+def remove_municipal_tax(customer: str) -> dict:
+    """Elimina la configuración de impuesto municipal del cliente (resetea los campos a vacío)."""
+    frappe.has_permission("Customer", ptype="write", doc=customer, throw=True)
+
+    frappe.db.set_value("Customer", customer, {
+        "ve_municipality": "",
+        "economic_activity": "",
+        "municipality_tax": "",
+        "municipal_withholding_rate": 0.0,
+    }, update_modified=True)
+
+    frappe.db.commit()
+
+    return {"status": "success"}
+
 

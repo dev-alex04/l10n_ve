@@ -1100,6 +1100,66 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
         frappe.log_error(frappe.get_traceback(), "Error ISLR Portal")
         return {"status": "error", "msg": str(e)}
 
+
+@frappe.whitelist()
+def upload_municipal_voucher_data(docname, municipal_date, municipal_receipt_number=None, file_url=None, registration_date=None) -> dict:
+    try:
+        if not municipal_date or not file_url:
+            frappe.throw(_("La fecha y el archivo del comprobante Municipal son obligatorios."))
+
+        if file_url:
+            validate_portal_upload(file_url, 5)
+
+        invoice_doc = frappe.get_doc("Sales Invoice", docname)
+
+        if not has_accounting_permission():
+            if not is_period_open(municipal_date, "Municipal"):
+                frappe.throw(closed_period_msg())
+
+            current_date = invoice_doc.get("municipal_date")
+            if current_date and not is_period_open(current_date, "Municipal"):
+                frappe.throw(_("El periodo de declaración para esta retención municipal ha finalizado. Debe comunicarse con el departamento de soporte."))
+
+        delete_old_attachment(invoice_doc, "voucher_image_municipal", file_url)
+
+        file_doc_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+        if file_doc_name:
+            frappe.db.set_value("File", file_doc_name, {
+                "attached_to_doctype": "Sales Invoice",
+                "attached_to_name": docname
+            })
+
+        registration_date = registration_date if registration_date else nowdate()
+
+        frappe.db.set_value("Sales Invoice", docname, {
+            'municipal_receipt_number': municipal_receipt_number,
+            'municipal_date': municipal_date,
+            'voucher_image_municipal': file_url,
+            'municipal_registration_date': registration_date
+        }, update_modified=True)
+
+        comment_text = f"Comprobante de Retención Municipal actualizado. Número: {municipal_receipt_number or 'S/N'}. Fecha: {municipal_date}."
+        
+        comment = frappe.get_doc({
+            "doctype": "Comment",
+            "comment_type": "Comment",
+            "reference_doctype": "Sales Invoice",
+            "reference_name": docname,
+            "content": comment_text,
+            "comment_email": frappe.session.user
+        })
+        comment.flags.ignore_permissions = True
+        comment.insert(ignore_permissions=True)
+
+        return {
+            "status": "success",
+            "msg": "Factura de Venta actualizada con los datos del comprobante Municipal."
+        }
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error Municipal Portal")
+        return {"status": "error", "msg": str(e)}
+
 def _validate_void_authorization(doc) -> None:
     """Autorización para ANULAR (fiscalmente sensible), compartida por
     void_document y void_sales_invoice (HKA):
