@@ -16,7 +16,6 @@ def set_ve_branch(doc: "Document", method: str) -> None:
         if not frappe.get_meta(doc.doctype).get_field("branch"):
             return
 
-        # Si es un Payment Entry y no tiene branch explicito, heredar el branch de la factura vinculada
         if not doc.branch and doc.doctype == "Payment Entry":
             for ref in (doc.get("references") or []):
                 if ref.reference_doctype == "Sales Invoice" and ref.reference_name:
@@ -59,8 +58,8 @@ def set_ve_branch(doc: "Document", method: str) -> None:
 def _set_cost_center_from_branch(doc: "Document") -> None:
     """Establece el centro de costos del documento basado en la sucursal VE Branch asignada.
 
-    Aplica el cost_center a nivel de documento, a cada item de la tabla hija `items`
-    y a cada línea de la tabla `taxes`.
+    Aplica el cost_center a nivel de documento, a cada item de la tabla hija `items`,
+    `taxes`, `references` y `deductions`.
     """
     if not doc.branch:
         return
@@ -77,11 +76,15 @@ def _set_cost_center_from_branch(doc: "Document") -> None:
 
     doc.cost_center = branch_cost_center
 
-    for item in (doc.get("items") or []):
-        if hasattr(item, "cost_center"):
+    child_tables = [
+        "items",
+        "taxes",
+        "references",
+        "deductions"
+    ]
+
+    for table in child_tables:
+        for item in (doc.get(table) or []):
+            if not hasattr(item, "cost_center"):
+                continue
             item.cost_center = branch_cost_center
-
-    for tax in (doc.get("taxes") or []):
-        if hasattr(tax, "cost_center"):
-            tax.cost_center = branch_cost_center
-
