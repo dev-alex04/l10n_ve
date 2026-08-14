@@ -320,6 +320,9 @@ def setup_or_update_municipal_tax(
             "economic_activity": economic_activity,
             "aliquot": aliquot,
         })
+        # Omitir validación de links: la actividad económica puede haber sido creada
+        # en este mismo request y _validate_links no la encuentra por cache/transacción
+        tax_doc.flags.ignore_links = True
         tax_doc.insert(ignore_permissions=True)
         tax_name = tax_doc.name
 
