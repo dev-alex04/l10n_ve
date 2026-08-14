@@ -126,6 +126,7 @@ def _build_branch_tree(branch_map, all_ve_branches, allowed_set, selected_branch
 @frappe.whitelist()
 def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=None, customer=None):
     """Calculates all metrics and table rows for the Dashboard Gerencial."""
+    frappe.get_doc("Reporte Gerencial").check_permission("read")
     if not company or not from_date or not to_date:
         frappe.throw("Los campos Empresa, Fecha Inicio y Fecha Fin son obligatorios.")
 
@@ -706,16 +707,12 @@ def _draw_excel_card(ws, start_col, start_row, label, usd_val, vef_val, accent_c
 def _get_company_details(company_name):
     if not company_name:
         return {"name": "EMPRESA", "tax_id": "", "address": ""}
-    company_doc = frappe.get_cached_doc("Company", company_name)
-    company_doc.check_permission("read")
-    company_tax_id = company_doc.get("tax_id") or ""
+    c_info = frappe.db.get_value("Company", company_name, ["tax_id", "custom_company_primary_address"], as_dict=True) or {}
+    company_tax_id = c_info.get("tax_id") or ""
     company_address = ""
-    if company_doc.get("custom_company_primary_address"):
-        try:
-            address_doc = frappe.get_cached_doc("Address", company_doc.get("custom_company_primary_address"))
-            company_address = address_doc.address_line1
-        except Exception:
-            pass
+    addr_id = c_info.get("custom_company_primary_address")
+    if addr_id:
+        company_address = frappe.db.get_value("Address", addr_id, "address_line1") or ""
     return {"name": company_name, "tax_id": company_tax_id, "address": company_address}
 
 

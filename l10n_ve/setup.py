@@ -1641,6 +1641,8 @@ def set_profiles() -> None:
 CUSTOM_ROLES: list[str] = [
     # Reporte "VE Sales Invoices HQ" (facturas de venta consolidadas, casa matriz)
     "VE Sales Book HQ",
+    # Reporte Gerencial (acceso exclusivo a métricas y resumen financiero)
+    "Executive Reporting Manager",
 ]
 
 

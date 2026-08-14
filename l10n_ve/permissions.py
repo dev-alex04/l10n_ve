@@ -4,11 +4,12 @@ from typing import List, Dict, Union, Any
 
 def is_admin_user(user: str) -> bool:
     """
-    Retorna True si el usuario es Administrator o cuenta con el rol 'System Manager'.
+    Retorna True si el usuario es Administrator o cuenta con el rol 'System Manager' o 'Executive Reporting Manager'.
     """
     if user == "Administrator":
         return True
-    return "System Manager" in frappe.get_roles(user)
+    roles = frappe.get_roles(user)
+    return "System Manager" in roles or "Executive Reporting Manager" in roles
 
 
 #: Roles autorizados a registrar comprobantes de retención en un período fiscal
