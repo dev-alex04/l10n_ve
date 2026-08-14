@@ -104,6 +104,43 @@ def derive_hka_status(
     return ""
 
 
+def resolve_display_status(
+    row: dict,
+    last_log_status: str | None,
+    success_log: dict | None,
+    cutoff: "object",
+) -> str:
+    """Estado a mostrar: el campo persistido, salvo que la evidencia lo contradiga.
+
+    ``hka_status`` lo mantiene el flujo en vivo y es lo primero que se mira, pero **no
+    es evidencia**: está vacío en miles de documentos certificados y hay caminos de
+    fallo que no lo actualizan (el guard de tasa lanza ``ValidationError`` y hasta
+    2026-08 se re-lanzaba sin marcar nada). Confiar solo en el campo hace que el
+    reporte subcuente: el 2026-08-09 mostraba 1 error de agosto habiendo 16.
+
+    La regla: si el ÚLTIMO intento falló y el documento no está certificado, es
+    ``Error`` aunque el campo diga otra cosa. Certificado = tiene ``bill_control`` o
+    su último log es Success. Cuando no hay campo ni contradicción, se deriva.
+
+    Args:
+        row: dict con hka_status, bill_control, is_void, remarks, docstatus, posting_date.
+        last_log_status: status del último VE Digital Invoice Log ('Success' | 'Error' | '' | None).
+        success_log: último log Success del documento (o None).
+        cutoff: fecha de corte HKA (datetime.date).
+    """
+    last_attempt_failed: bool = bool(last_log_status) and last_log_status != "Success"
+    is_certified: bool = bool(row.get("bill_control")) or last_log_status == "Success"
+
+    if last_attempt_failed and not is_certified:
+        return "Error"
+
+    return (
+        row.get("hka_status")
+        or derive_hka_status(row, last_log_status, success_log, cutoff)
+        or ""
+    )
+
+
 def _serie_from_response(response_received: str | None) -> str:
     """Extrae resultado.serie del JSON de respuesta HKA. '' si no se puede."""
     if not response_received:

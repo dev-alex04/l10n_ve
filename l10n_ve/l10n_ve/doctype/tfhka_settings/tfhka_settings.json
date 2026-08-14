@@ -10,7 +10,9 @@
   "column_break_1",
   "environment",
   "section_break_billing",
-  "cutoff_date"
+  "cutoff_date",
+  "section_break_notifications",
+  "notification_recipients"
  ],
  "fields": [
   {
@@ -37,7 +39,8 @@
    "fieldtype": "Select",
    "label": "Environment",
    "options": "Demo\nProduction",
-   "description": "Indicativo del ambiente activo. Las credenciales y URLs se configuran en site_config.json."
+   "description": "Solo informativo: NO decide nada. El entorno lo resuelve el site_config.json (digital_billing_settings.is_production_mode), que es lo unico que no viaja en un restore. Este campo es un espejo y puede quedar desalineado.",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_billing",
@@ -51,6 +54,18 @@
    "fieldtype": "Date",
    "label": "Fecha de corte",
    "reqd": 1
+  },
+  {
+   "fieldname": "section_break_notifications",
+   "fieldtype": "Section Break",
+   "label": "Notificaciones"
+  },
+  {
+   "description": "Direcciones que reciben el aviso diario de documentos no enviados a HKA. Una dirección por fila. Sin destinatarios no se envía nada.",
+   "fieldname": "notification_recipients",
+   "fieldtype": "Table",
+   "label": "Destinatarios del aviso diario",
+   "options": "TFHKA Notification Recipient"
   }
  ],
  "grid_page_length": 50,

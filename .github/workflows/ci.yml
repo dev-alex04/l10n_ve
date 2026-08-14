@@ -2,13 +2,27 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - development
+  # La suite pesada levanta un bench entero con MariaDB, Redis y cinco apps.
+  # Ya no corre en cada push a development: eso, multiplicado por todos los
+  # repos, daba 2.394 corridas al mes y agotó el presupuesto de Actions.
+  #
+  # Ahora corre donde importa —el release— y una vez por noche sobre
+  # development, para que una regresión aparezca al día siguiente con los
+  # commits de esa jornada y no en el release con treinta.
+  #
+  # Los PR hacia development los cubre el workflow de chequeos rápidos.
   pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
 
 concurrency:
-  group: develop-l10n_ve-${{ github.event.number }}
+  # OJO: antes agrupaba por github.event.number, que en eventos que no son PR
+  # viene VACÍO — todas esas corridas caían en el mismo grupo y se cancelaban
+  # entre sí aunque fueran de cosas distintas.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -45,18 +59,18 @@ jobs:
           grep -rn "def test" > /dev/null
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           check-latest: true
 
       - name: Cache pip
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml', '**/setup.py', '**/setup.cfg') }}
@@ -68,7 +82,7 @@ jobs:
         id: yarn-cache-dir-path
         run: 'echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT'
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: yarn-cache
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}

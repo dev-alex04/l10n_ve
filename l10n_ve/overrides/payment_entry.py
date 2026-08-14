@@ -106,6 +106,14 @@ class CustomPaymentEntry(PaymentEntry):
     # se reflejan como filas en Payment Entry.deductions (Debe gasto / Haber CxC del cliente).
     GOV_WITHHOLDING_MARKER = "Retención Gubernamental:"
 
+    # Interruptor de la automatización. DESACTIVADA el 09-ago-2026: NINGUNA retención
+    # gubernamental (timbre / ISAE / Responsabilidad Social) se calcula ni se carga sola en el
+    # pago. El motivo es el mismo para las tres: la tarifa no es parametrizable con los datos
+    # que hay — cada ente retiene su propio porcentaje— y un número sugerido de más se termina
+    # declarando. Quedan a la espera de la configuración simplificada (porcentaje abierto por
+    # cliente). Poner en True reactiva el cálculo por tipo, que sigue intacto más abajo.
+    GOV_WITHHOLDING_AUTO_CALCULATION_ENABLED = False
+
     def calculate_government_withholdings(self) -> None:
         """Pobla las retenciones gubernamentales del cobro.
 
@@ -182,6 +190,11 @@ class CustomPaymentEntry(PaymentEntry):
 
     def _resolve_withholding_rate(self, cfg: dict, base_amount: float):
         """(rate%, etiqueta_jurisdicción) para una fila de config; (None, _) si no aplica (skip)."""
+        # Automatización desactivada: sin tarifa no se crea fila de retención ni deducción, así
+        # que el pago no propone ningún número. Ver GOV_WITHHOLDING_AUTO_CALCULATION_ENABLED.
+        if not self.GOV_WITHHOLDING_AUTO_CALCULATION_ENABLED:
+            return None, ""
+
         wtype = cfg.get("withholding_type")
 
         if wtype == "Timbre Fiscal":
@@ -198,20 +211,11 @@ class CustomPaymentEntry(PaymentEntry):
             return flt(row.rate), state_label
 
         if wtype == "ISAE":
-            municipality = cfg.get("municipality")
-            if not municipality:
-                return None, ""
-            muni_label = frappe.db.get_value("VE Municipality", municipality, "municipality") or municipality
-            # La alícuota ISAE varía por municipio Y por rubro. Solo sugerimos un número si el
-            # municipio tiene una única alícuota; si hay varias, dejamos 0 y el monto real del
-            # comprobante manda (no arriesgamos una sugerencia errada). Fuente: verificación 21-jul.
-            aliquots = [flt(a) for a in frappe.get_all(
-                "VE Municipality Taxes", filters={"municipality": municipality}, pluck="aliquot"
-            ) if flt(a)]
-            if not aliquots:
-                return None, muni_label
-            distinct = sorted(set(aliquots))
-            return (distinct[0] if len(distinct) == 1 else 0.0), muni_label
+            # El ISAE se queda manual incluso si se reactiva la automatización: derivarlo de
+            # `VE Municipality Taxes` no funciona —cada municipio trae 9 alícuotas (0,60%-3,00%),
+            # una por rubro, sin forma de saber cuál aplica—, así que la sugerencia caía siempre
+            # en 0. Necesita el porcentaje abierto por cliente de la configuración simplificada.
+            return None, ""
 
         if wtype == "Responsabilidad Social":
             rate = flt(frappe.db.get_single_value("Venezuela Account Settings", "responsibility_social_rate"))

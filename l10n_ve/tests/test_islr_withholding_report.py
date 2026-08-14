@@ -193,7 +193,9 @@ class TestISLRWithholdingReport(FrappeTestCase):
 
         # Excede el tope (11 dígitos para máximo 10) -> se recorta por la izquierda con was_truncated=True.
         self.assertEqual(factura("22225011624"), ("2225011624", True))
-        self.assertEqual(control("0158353167"), ("158353167", False))  # 10 dígitos (lstrip 0 da 9 dígitos <= 10)
+        # Exactamente 10 dígitos y el tope de control es 10: entra tal cual, sin
+        # quitarle el cero de relleno. Sólo se toca el número cuando NO entra.
+        self.assertEqual(control("0158353167"), ("0158353167", False))
 
         # Sin nada declarable.
         for empty in (None, "", "   ", "N/A", "SIN NUMERO"):

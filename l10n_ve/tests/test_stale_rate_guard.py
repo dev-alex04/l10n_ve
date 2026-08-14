@@ -24,10 +24,19 @@ from unittest.mock import patch
 
 from frappe import _dict
 
+from l10n_ve.digital_invoice.emission_rerate import (
+    STALE_RATE_GUARD_BYPASS_FROM,
+    STALE_RATE_GUARD_ENABLED,
+)
+
 MOD = "l10n_ve.digital_invoice.emission_rerate"
 
 # Tasas reales de producción, con la fecha a la que corresponde cada una.
 TASAS = {
+    # La de junio existe solo para armar un caso ANTERIOR al corte del apagado
+    # (STALE_RATE_GUARD_BYPASS_FROM): con las otras dos no se puede, porque un documento
+    # de julio con la tasa de agosto es el caso legítimo de tasa por delante.
+    "2026-06-01": 512.4501,
     "2026-07-01": 633.3644,
     "2026-08-01": 746.6297,
 }
@@ -63,6 +72,13 @@ def _motivo(doc, company_currency="VEF", juridico=False):
         return stale_rate_reason(doc)
 
 
+@unittest.skipUnless(
+    STALE_RATE_GUARD_ENABLED,
+    "El guard está apagado (STALE_RATE_GUARD_ENABLED=False, decisión del negocio del "
+    "2026-08-12). Estos tests describen lo que hacía y vuelven solos al reactivarlo; "
+    "borrarlos sería perder la especificación. Lo que hace HOY lo cubre "
+    "TestGuardIsDisabled, que sí corre siempre.",
+)
 class TestStaleRateGuard(unittest.TestCase):
     def test_the_real_case_is_blocked(self):
         """Postea en agosto con la tasa del 1° de julio."""
@@ -150,3 +166,47 @@ class TestStaleRateGuard(unittest.TestCase):
             f"{MOD}.get_exchange_rate", return_value=746.6297
         ), patch(f"{MOD}.resolve_exchange_rate_date", return_value="2026-08-01"):
             self.assertIsNone(stale_rate_reason(_factura("2026-08-01", casi)))
+
+
+class TestGuardIsDisabled(unittest.TestCase):
+    """Lo que el sistema hace hoy. Corre siempre, con el guard prendido o apagado."""
+
+    def test_nothing_is_blocked_while_the_flag_is_off(self):
+        """El caso real de ACC-SINV-2026-13754 pasa: agosto con la tasa del 1° de julio.
+
+        Es exactamente lo que se decidió aceptar. Si alguien reactiva el guard, este
+        test se lo dice en la cara en vez de dejarlo descubrirlo en producción.
+        """
+        motivo = _motivo(_factura("2026-08-01", 633.3644))
+        if STALE_RATE_GUARD_ENABLED:
+            self.assertIsNotNone(motivo, "el guard está prendido: vuelve a frenar")
+        else:
+            self.assertIsNone(motivo)
+
+    def test_older_than_the_cutoff_is_still_blocked(self):
+        """El apagado no es retroactivo: antes del corte el guard sigue frenando.
+
+        Sin esto se destrabarían tres facturas de abril, junio y julio que hoy
+        imprimirían una fecha de valor de meses atrás.
+        """
+        # Postea en julio con la tasa del 1° de junio: tasa más vieja que la fecha, que
+        # es justo lo que el guard frena. Y julio es anterior al corte.
+        vieja = _factura("2026-07-01", 512.4501)
+        motivo = _motivo(vieja)
+        self.assertIsNotNone(motivo)
+        self.assertIn("2026-07-01", motivo)
+
+    def test_the_cutoff_boundary_is_inclusive(self):
+        """El primer día del corte ya entra en el apagado."""
+        self.assertEqual(STALE_RATE_GUARD_BYPASS_FROM, "2026-08-01")
+        self.assertIsNone(_motivo(_factura(STALE_RATE_GUARD_BYPASS_FROM, 633.3644)))
+
+    def test_the_switch_is_a_single_early_return(self):
+        """El código del guard sigue entero: se apagó, no se borró."""
+        import inspect
+
+        from l10n_ve.digital_invoice import emission_rerate
+
+        src = inspect.getsource(emission_rerate.stale_rate_reason)
+        self.assertIn("STALE_RATE_GUARD_ENABLED", src)
+        self.assertIn("no corresponde a su fecha de emisión", src)

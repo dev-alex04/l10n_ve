@@ -139,7 +139,13 @@ class TestGetCurrentTaxAmountISLR(FrappeTestCase):
         self.assertAlmostEqual(result, 50.0, places=2)
 
     def test_islr_with_subtracting(self) -> None:
-        """total=1000, percentage_base=100, rate=34, sub=83.334 → 256.666."""
+        """total=1000, rate=34, sub=83.334 Bs a tasa 36,5 → 340 − 2,283 = 337,717.
+
+        El sustraendo del tabulador está expresado en BOLÍVARES —su campo hermano se
+        llama ``payments_greater_than_bs``—, así que se convierte a la moneda del
+        documento antes de restarlo. Restarlo crudo, como si fuera USD, inflaba la
+        retención: es el bug que corrigió f692fd2d.
+        """
         item = make_mock_item(net_amount=1000, idx=1)
         tax = make_mock_tax(
             charge_type="ISLR", rate=34,
@@ -149,7 +155,7 @@ class TestGetCurrentTaxAmountISLR(FrappeTestCase):
 
         result: float = self._calc(doc, item, tax)
 
-        self.assertAlmostEqual(result, 256.666, places=2)
+        self.assertAlmostEqual(result, 340 - (83.334 / 36.5), places=2)
 
     def test_islr_negative_becomes_zero(self) -> None:
         """Sustraendo > impuesto → resultado 0 (no negativo)."""

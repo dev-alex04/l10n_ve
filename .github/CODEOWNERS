@@ -1,0 +1,25 @@
+# Dueños de código de l10n_ve.
+#
+# No es burocracia: cada ruta de acá ya se rompió sin que nadie mirara. GitHub
+# pide revisión automáticamente a quien figure. Hoy sólo AVISA — para volverlo
+# obligatorio hay que activar "Require review from Code Owners" en el ruleset.
+
+# Certificación fiscal ante el SENIAT. Un error acá se emite y no se deshace:
+# hay que anular con nota de crédito y reemitir.
+/l10n_ve/digital_invoice/          @DDBCDVD
+
+# Los parches corren en producción una sola vez y sin vuelta atrás.
+/l10n_ve/patches/                  @DDBCDVD
+/l10n_ve/patches.txt               @DDBCDVD
+
+# Un "reordenamiento" de este archivo borró setup_voucher_buttons y
+# withholding_date_description sin que se notara (303c67f0, 422+/428-).
+/l10n_ve/public/js/doctype/sales_invoice/   @DDBCDVD
+
+# Los hooks deciden qué corre y cuándo.
+/l10n_ve/hooks.py                  @DDBCDVD
+
+# Saneo de copias de producción: si se queda corto, quedan vivas las cuentas SMTP.
+/l10n_ve/scripts/sanitize_sandbox.py   @DDBCDVD
+
+/.github/                          @DDBCDVD

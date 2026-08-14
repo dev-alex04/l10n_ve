@@ -26,7 +26,6 @@ website_context = {
 
 extend_bootinfo = "l10n_ve.boot.get_boot_info"
 app_include_js = [
-    "/assets/l10n_ve/js/toolbar/toolbar.js",
     "/assets/l10n_ve/js/item_logic/item_logic.js",
     "/assets/l10n_ve/js/utils/report_view_patch.js",
     "/assets/l10n_ve/js/utils/sales_billing_indicators.js",
@@ -273,6 +272,9 @@ after_migrate = [
     "l10n_ve.setup.create_government_withholding_custom_fields",
     "l10n_ve.setup.link_government_withholding_account",
     "l10n_ve.setup.create_stamp_tax_rates",
+    # self-heal: plantilla del aviso diario de HKA. Solo la crea si falta, para no pisar
+    # el texto que contabilidad edite desde la UI.
+    "l10n_ve.setup.create_hka_unsent_notice_email_template",
     # self-heal: roles propios de l10n_ve (no viajan en fixtures) — idempotente
     "l10n_ve.setup.create_custom_roles",
 ]
@@ -449,6 +451,13 @@ doc_events = {
 
 scheduler_events = {
        "cron": {
+        # New key. Repeating an existing one would silently drop the earlier entry —
+        # this is a plain dict literal — and the job would never be scheduled, with no
+        # error anywhere. Check tabScheduled Job Type after migrate, not the diff.
+        # Tres pasadas en el día hábil (7:00, 12:00 y 16:00): con una sola, lo que se
+        # traba a media mañana se ve al otro día. No se envía nada cuando no hay nada
+        # que reportar, así que las pasadas de más no cuestan correos de más.
+        "0 7,12,16 * * *": ["l10n_ve.tasks.send_unsent_hka_documents_notice"],
         "0 8 * * *": ["l10n_ve.tasks.send_3_days_retention_reminders"],
         "0 8 22 * *": ["l10n_ve.tasks.send_monthly_deadline_retention_reminders"],
         "0 * * * *": [
@@ -644,6 +653,11 @@ _register_ve_branch_restrictions()
 
 
 # Saneo de copias de produccion. Lo descubre y lo dispara el orquestador de
-# domina_core via frappe.get_hooks("sandbox_sanitizers"), que agrega lo declarado por
+# domina_local via frappe.get_hooks("sandbox_sanitizers"), que agrega lo declarado por
 # todas las apps instaladas: si esta app se instala, su saneo entra solo.
 sandbox_sanitizers = ["l10n_ve.scripts.sanitize_sandbox.run"]
+
+# Guarda de sandbox: le dice al orquestador si este sitio puede certificar documentos
+# fiscales de verdad. La comprobacion vivia dentro de domina_core, con los hosts de
+# demo de HKA metidos en la app base; ahora la app base pregunta y esta responde.
+sandbox_guards = ["l10n_ve.scripts.sandbox_guard.check"]

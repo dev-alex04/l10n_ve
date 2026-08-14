@@ -36,6 +36,23 @@ def closed_period_msg() -> str:
 
 class VESalesInvoice(TaxesMixin, SalesInvoice):
 
+    def set_total_in_words(self) -> None:
+        """Fuerza la generación de 'in_words' y 'base_in_words' siempre en Español ('es').
+
+        Evita que se genere el texto en inglés ('Thirty Six Thousand... only') cuando
+        la sesión o configuración del sistema es en inglés.
+        """
+        original_lang = getattr(frappe.local, "lang", "es")
+        try:
+            frappe.local.lang = "es"
+            super().set_total_in_words()
+        finally:
+            frappe.local.lang = original_lang
+
+        if not self.base_in_words and self.in_words:
+            if self.currency == self.company_currency or "VEF" in self.in_words:
+                self.base_in_words = self.in_words
+
     def calculate_taxes_and_totals(self) -> None:
 
         taxes_and_totals_calculator = TaxesAndTotals(self)
@@ -2129,3 +2146,206 @@ def get_vat_category_rate(category_name: str, company: str) -> float:
         frappe.throw(_("No se encontró ninguna tasa (Rate) válida o configurada para la categoría de retención {0}.").format(category_name))
 
     return rate
+
+
+@frappe.whitelist()
+def get_company_government_withholding_account(company: str) -> str:
+    """Cuenta contable de retenciones gubernamentales configurada en la empresa."""
+    if not company:
+        frappe.throw(_("Debe especificar una empresa."))
+
+    gov_account = frappe.db.get_value("Company", company, "government_withholding_account")
+    if not gov_account:
+        frappe.throw(
+            _(
+                "La empresa {0} no tiene configurada la Cuenta de Retenciones Gubernamentales en su configuración."
+            ).format(company)
+        )
+    return gov_account
+
+
+def _outstanding_in_company_currency(invoice) -> float:
+    """Saldo pendiente de la factura expresado en la moneda de la empresa (Bs).
+
+    `Sales Invoice.outstanding_amount` está en `party_account_currency`, que no
+    siempre es la de la empresa. Se convierte con la tasa de la propia factura
+    cuando la cuenta por cobrar va en la moneda de la factura.
+
+    NO se deduce la moneda comparando importes (`outstanding <= grand_total`):
+    esos dos campos pueden estar en monedas distintas, así que la comparación no
+    dice nada, y equivocarse hacia arriba deja pasar una retención por encima de
+    lo que la factura debe. Si la combinación no se puede resolver, se corta.
+    """
+    company_currency = frappe.get_cached_value("Company", invoice.company, "default_currency")
+    party_currency = invoice.get("party_account_currency") or company_currency
+    outstanding = flt(invoice.outstanding_amount)
+
+    if party_currency == company_currency:
+        return flt(outstanding, 2)
+
+    if party_currency == invoice.currency:
+        rate = flt(invoice.conversion_rate)
+        if rate <= 0:
+            frappe.throw(
+                _("La factura {0} no tiene una tasa de cambio válida para convertir el saldo pendiente.").format(invoice.name)
+            )
+        return flt(outstanding * rate, 2)
+
+    frappe.throw(
+        _(
+            "No se puede determinar el saldo pendiente en {0}: la cuenta por cobrar está en {1} "
+            "y la factura en {2}. Revise la configuración de la cuenta del cliente."
+        ).format(company_currency, party_currency, invoice.currency)
+    )
+
+
+@frappe.whitelist()
+def get_government_withholding_context(docname: str) -> dict:
+    """Datos que necesita el modal: saldo pendiente en la moneda de la empresa.
+
+    Vive en el servidor a propósito. `outstanding_amount` está en la moneda de la
+    cuenta por cobrar, y repetir esa conversión en el cliente es la forma segura
+    de que el modal muestre un número y el asiento postee otro.
+    """
+    _require_withholding_permissions()
+
+    invoice = frappe.get_doc("Sales Invoice", docname)
+    return {
+        "outstanding": _outstanding_in_company_currency(invoice),
+        "currency": frappe.get_cached_value("Company", invoice.company, "default_currency"),
+    }
+
+
+@frappe.whitelist()
+def create_government_withholding_journal_entry(
+    docname: str, amount: float, description: str = None, voucher_number: str = None
+) -> dict:
+    """Crea y somete un Asiento Contable de Retención Gubernamental para una Factura de Venta.
+
+    El monto se recibe SIEMPRE en la moneda de la empresa (Bs).
+
+    Asiento: Debe cuenta de Retenciones Gubernamentales / Haber Cuenta por Cobrar
+    del cliente, referenciada a la factura. Misma forma contable que la vía de
+    Payment Entry que reemplaza (gasto contra CxC), según la directiva del 21-jul.
+
+    Se admiten VARIAS retenciones sobre la misma factura y el comprobante es
+    opcional. Lo que impide pasarse es el tope contra el saldo pendiente: como
+    cada asiento referencia la factura, ERPNext baja su `outstanding_amount`, así
+    que la siguiente retención sólo puede tomar lo que quede. El `for_update`
+    serializa dos clics simultáneos, que si no leerían el mismo saldo.
+    """
+    _require_withholding_permissions()
+
+    if not docname:
+        frappe.throw(_("Debe especificar el número o ID de la Factura de Venta."))
+
+    amount = flt(amount, 2)
+    if amount <= 0:
+        frappe.throw(_("El monto de la retención debe ser mayor a cero."))
+
+    # Bloquea la fila de la factura hasta el fin de la transacción: sin esto, dos
+    # operadores simultáneos leen el mismo pendiente y ambos pasan el tope.
+    frappe.db.get_value("Sales Invoice", docname, "outstanding_amount", for_update=True)
+
+    invoice = frappe.get_doc("Sales Invoice", docname)
+
+    if invoice.docstatus != 1:
+        frappe.throw(
+            _(
+                "La Factura de Venta {0} debe estar en estado Sometida (Validada) para aplicar una Retención Gubernamental."
+            ).format(docname)
+        )
+
+    gov_account = get_company_government_withholding_account(invoice.company)
+
+    company_currency = frappe.get_cached_value("Company", invoice.company, "default_currency")
+
+    # El asiento se arma en la moneda de la empresa. Una cuenta de retenciones en
+    # otra moneda obligaría a una tasa que no tenemos por qué inventar acá.
+    gov_account_currency = get_account_currency(gov_account) or company_currency
+    if gov_account_currency != company_currency:
+        frappe.throw(
+            _(
+                "La Cuenta de Retenciones Gubernamentales ({0}) está en {1} y debe estar en la moneda de la empresa ({2})."
+            ).format(gov_account, gov_account_currency, company_currency)
+        )
+
+    base_outstanding = _outstanding_in_company_currency(invoice)
+
+    if amount > base_outstanding:
+        frappe.throw(
+            _(
+                "El monto de la retención ({0}) no puede ser mayor que el saldo pendiente de la factura ({1})."
+            ).format(
+                f"{amount:,.2f} {company_currency}",
+                f"{base_outstanding:,.2f} {company_currency}",
+            )
+        )
+
+    receivable_currency = get_account_currency(invoice.debit_to) or company_currency
+    cost_center = invoice.cost_center or frappe.get_cached_value("Company", invoice.company, "cost_center")
+
+    remark_parts = []
+    if voucher_number and str(voucher_number).strip():
+        remark_parts.append(f"Comprobante N°: {str(voucher_number).strip()}")
+    if description and description.strip():
+        remark_parts.append(description.strip())
+    else:
+        remark_parts.append(
+            _("Retención Gubernamental aplicada a la Factura de Venta {0}").format(invoice.name)
+        )
+
+    je = frappe.new_doc("Journal Entry")
+    je.company = invoice.company
+    je.voucher_type = "Journal Entry"
+    je.posting_date = nowdate()
+    je.user_remark = " - ".join(remark_parts)
+    je.multi_currency = 1 if receivable_currency != company_currency else 0
+
+    je.append("accounts", {
+        "account": gov_account,
+        "cost_center": cost_center,
+        "account_currency": company_currency,
+        "exchange_rate": 1.0,
+        "debit_in_account_currency": amount,
+        "debit": amount,
+    })
+
+    rec_row = {
+        "account": invoice.debit_to,
+        "party_type": "Customer",
+        "party": invoice.customer,
+        "reference_type": "Sales Invoice",
+        "reference_name": invoice.name,
+        "cost_center": cost_center,
+        "credit": amount,
+    }
+    if receivable_currency != company_currency:
+        rate = flt(invoice.conversion_rate)
+        if rate <= 0:
+            frappe.throw(
+                _("La factura {0} no tiene una tasa de cambio válida para armar el asiento.").format(invoice.name)
+            )
+        rec_row.update({
+            "account_currency": receivable_currency,
+            "exchange_rate": rate,
+            "credit_in_account_currency": flt(amount / rate, 2),
+        })
+    else:
+        rec_row.update({
+            "account_currency": company_currency,
+            "exchange_rate": 1.0,
+            "credit_in_account_currency": amount,
+        })
+    je.append("accounts", rec_row)
+
+    je.insert(ignore_permissions=True)
+    je.submit()
+
+    return {
+        "status": "success",
+        "journal_entry": je.name,
+        "message": _("Asiento Contable de Retención Gubernamental {0} creado y sometido exitosamente.").format(
+            get_link_to_form("Journal Entry", je.name)
+        ),
+    }

@@ -10,7 +10,7 @@ from datetime import datetime
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt
+from frappe.utils import flt, cint
 
 from l10n_ve.digital_invoice.vat_withholding_payload_builder import TFHKARetentionPayloadBuilder
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
@@ -209,8 +209,18 @@ def process_retention_voucher(
     """
     doc = frappe.get_doc("VAT Withholding Voucher", voucher_name)
 
-    from l10n_ve.digital_invoice.tfhka_integration import has_active_digital_series
-    if not has_active_digital_series(doc.get("empresa") or "", doc.get("branch") or ""):
+    # "No aplica" es UNA sola causa: la facturación digital está apagada en el sitio.
+    #
+    # Antes acá se preguntaba `has_active_digital_series`, que devuelve False por tres
+    # motivos distintos --TFHKA apagado, documento sin sucursal, y sucursal sin serie
+    # activa-- y los tres terminaban marcados "Not Applicable" con retorno True, o sea
+    # ÉXITO. Los dos últimos son configuración rota: la retención no se emitía nunca,
+    # el estado mentía y no quedaba nada que reintentar. Antes de ese cambio quedaban
+    # en Error, visibles.
+    #
+    # Ahora sólo se saltea el caso legítimo. Lo demás cae en la validación de
+    # integridad de abajo, que ya incluye el chequeo de serie y deja estado Error + log.
+    if not cint(frappe.db.get_single_value("TFHKA Settings", "enabled")):
         if doc.digital_invoice_status != "Not Applicable":
             doc.db_set("digital_invoice_status", "Not Applicable")
         return True

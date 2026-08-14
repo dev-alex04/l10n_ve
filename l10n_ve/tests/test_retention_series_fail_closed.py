@@ -249,7 +249,11 @@ class TestProcessRetentionVoucherGate(FrappeTestCase):
 
     def _run(self, raise_on_error: bool):
         fake_doc = MagicMock()
+        # TFHKA prendido, explícito: apagado hay un early-return legítimo que marca
+        # "Not Applicable" y ni llega a validar. Leerlo del sitio ata el test a la
+        # configuración --en un sitio nuevo viene en 0 y el gate no se ejercita.
         with patch("frappe.get_doc", return_value=fake_doc), \
+             patch.object(frappe.db, "get_single_value", return_value=1), \
              patch(f"{self._MOD}._validate_retention_integrity",
                    return_value=[_NO_SERIES_MSG]) as mock_validate, \
              patch(f"{self._MOD}._log_retention_request") as mock_log, \
@@ -289,6 +293,27 @@ class TestProcessRetentionVoucherGate(FrappeTestCase):
         self.assertIn("no está configurada en ninguna", str(ctx.exception))
         doc.db_set.assert_called_once_with("digital_invoice_status", "Error")
         mock_builder.assert_not_called()
+        mock_client.assert_not_called()
+
+    def test_tfhka_disabled_is_the_only_not_applicable(self) -> None:
+        """La única causa de "No aplica" es que la facturación digital esté
+        apagada en el sitio. Antes también entraban acá el documento sin sucursal
+        y la sucursal sin serie --configuración rota marcada como éxito."""
+        fake_doc = MagicMock()
+        with patch("frappe.get_doc", return_value=fake_doc), \
+             patch.object(frappe.db, "get_single_value", return_value=0), \
+             patch(f"{self._MOD}._validate_retention_integrity") as mock_validate, \
+             patch(f"{self._MOD}.TFHKAClient") as mock_client:
+            from l10n_ve.digital_invoice.retention_integration import (
+                process_retention_voucher,
+            )
+            result = process_retention_voucher("COMP-RET-IVA-TEST")
+
+        self.assertTrue(result)
+        fake_doc.db_set.assert_called_once_with(
+            "digital_invoice_status", "Not Applicable"
+        )
+        mock_validate.assert_not_called()
         mock_client.assert_not_called()
 
 

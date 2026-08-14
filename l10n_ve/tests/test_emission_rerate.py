@@ -100,7 +100,11 @@ def _patch_gate(juridical=True, today_rate=_NEW_RATE,
     return [
         patch.object(emission_rerate, "is_juridical_customer",
                      return_value=juridical),
-        patch.object(emission_rerate, "get_exchange_rate",
+        # El gate resuelve la tasa objetivo con get_ve_exchange_rate_for_customer,
+        # no con get_exchange_rate: la regla fiscal (jurídico a hoy, natural al 1° del
+        # mes en curso) se centralizó ahí. Parchear la función vieja dejaba correr la
+        # real, que sin datos devolvía 0 y hacía que el gate saliera por None.
+        patch.object(emission_rerate, "get_ve_exchange_rate_for_customer",
                      return_value=today_rate),
         patch.object(emission_rerate, "resolve_exchange_rate_date",
                      side_effect=lambda rate, currency: (
@@ -133,9 +137,15 @@ class TestGetTargetRate(unittest.TestCase):
         doc = FakeDoc(currency="VEF", conversion_rate=1.0)
         self.assertIsNone(self._run(doc))
 
-    def test_skips_natural_customer(self):
-        """Naturales conservan la tasa del 1° del mes: fuera de alcance."""
-        self.assertIsNone(self._run(FakeDoc(), juridical=False))
+    def test_rerates_natural_customer_too(self):
+        """El natural TAMBIÉN se retasa: excluirlo era el bug que arregló el PR #534.
+
+        Una factura de julio emitida el 1° de agosto salía con la tasa del 1° de
+        julio porque el gate saltaba a los naturales. La regla fiscal —a qué fecha
+        corresponde la tasa de cada tipo— vive en get_ve_exchange_rate_for_customer,
+        no acá: este gate sólo decide SI hay que retasar.
+        """
+        self.assertEqual(self._run(FakeDoc(), juridical=False), _NEW_RATE)
 
     def test_skips_when_no_rate_for_today(self):
         """Sin tasa BCV disponible hoy no se puede retasar (fail-safe)."""

@@ -14,7 +14,7 @@
  "fields": [
   {
    "columns": 3,
-   "description": "Tipo de retención que el ente practica al pagar. Todas se contabilizan como gasto.",
+   "description": "Tipo de retención que el ente practica al pagar. Todas se contabilizan como gasto. OJO: el cálculo automático está desactivado — ninguna de estas retenciones se carga sola en el cobro; esta ficha solo deja registrado qué retiene el ente.",
    "fieldname": "withholding_type",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -25,7 +25,7 @@
   {
    "columns": 3,
    "depends_on": "eval:doc.withholding_type=='Timbre Fiscal'",
-   "description": "Estado que fija la tarifa del timbre (busca en Venezuela Account Settings > Tarifas de Timbre).",
+   "description": "Solo informativo mientras el cálculo automático esté desactivado. La tarifa por estado sigue configurada en Venezuela Account Settings > Tarifas de Timbre, para cuando se reactive.",
    "fieldname": "state",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -35,7 +35,7 @@
   {
    "columns": 3,
    "depends_on": "eval:doc.withholding_type=='ISAE'",
-   "description": "Municipio que fija la alícuota del ISAE (busca en VE Municipality Taxes por municipio + actividad).",
+   "description": "Solo informativo. Además del interruptor general, el ISAE no es automatizable: cada municipio trae 9 alícuotas (una por rubro) y cada ente retiene su propio porcentaje, así que se registra a mano hasta definir la configuración simplificada.",
    "fieldname": "municipality",
    "fieldtype": "Link",
    "in_list_view": 1,

@@ -3,8 +3,8 @@
 Localización fiscal de Venezuela. Acá van las reglas que **no se deducen leyendo el código**:
 invariantes que ya se rompieron en producción al menos una vez, con la evidencia de qué pasó.
 
-Convenciones del repo: **código y comentarios en inglés** —identificadores, nombres de
-archivo/carpeta y también comentarios y docstrings—; en español sólo lo que lee el
+Convenciones del repo: **identificadores y nombres de archivo/carpeta en inglés**;
+comentarios y docstrings en español, igual que lo que lee el
 usuario final, y sin `_()`;
 `ignore_permissions=True` en save/insert/delete; los backfills se exponen como `dry_run()` /
 `execute()` manuales y **no** van en `patches.txt`; rama feature + PR a `development`.
@@ -30,12 +30,20 @@ Ya tomó tres formas distintas, las tres en 2026. Sirven como catálogo de qué 
 **Devolver el mismo valor para dos causas distintas.** `has_active_digital_series` retorna
 `False` tanto si la factura no tiene sucursal —caso legítimo, no aplica emitir— como si la
 tiene pero no resuelve ninguna serie activa —mala configuración—. El bypass de
-`retention_integration.py` no los distingue: marca la retención `Not Applicable` y **retorna
-`True`**, es decir, éxito. La retención no se emite nunca y el estado miente; antes quedaba
-en `Error`, visible y reintentable. Entró con el PR #415 el 2026-07-14. Medido contra
-producción el 2026-08-03: **cero comprobantes afectados**, el agujero está pero no se activó.
-Los 6 tests de `test_retention_series_fail_closed` que lo señalan **deben seguir en rojo**
-hasta que se decida el arreglo — taparlos borra la única alarma que queda.
+`retention_integration.py` no los distinguía: marcaba la retención `Not Applicable` y
+retornaba `True`, o sea **éxito**. La retención no se emitía nunca y el estado mentía; antes
+quedaba en `Error`, visible y reintentable. Entró con el PR #415 el 2026-07-14 y se midió
+contra producción el 2026-08-03: **cero comprobantes afectados**, el agujero estaba pero no
+se activó. **Cerrado en el PR #591**, en tres puntos:
+
+- `get_active_billing_series` con sucursal vacía **lanza** en vez de devolver `(None, "")`.
+- El bypass de `process_retention_voucher` pregunta sólo por `TFHKA Settings.enabled`. Esa
+  es la única causa de `Not Applicable`; lo demás cae en la validación de integridad, que
+  deja estado `Error` + log.
+- `build_payload` corta si la serie quedó vacía, por si un caller futuro se saltea lo anterior.
+
+`test_retention_series_fail_closed` pinnea los tres. Si alguno se pone en rojo, no se ajusta
+el test: se revisa qué lo puso en rojo.
 
 **Tomar "el primero disponible" cuando no hay coincidencia.** Se propuso que, si el tabulador
 de ISLR no tiene alícuota para el tipo de persona del proveedor, se usara la primera con
