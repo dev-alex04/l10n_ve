@@ -265,45 +265,25 @@ def setup_or_update_municipal_tax(
     # Si el código de actividad cambió
     if activity_code and activity_code != economic_activity:
         if not frappe.db.exists("VE Economic Activity", activity_code):
-            parent_ve_economic_activity = None
             if economic_activity and frappe.db.exists("VE Economic Activity", economic_activity):
-                orig = frappe.get_cached_doc("VE Economic Activity", economic_activity)
-                sector = orig.sector
-                group = orig.group
-                branch = orig.branch
-                description = orig.description
-                parent_ve_economic_activity = orig.parent_ve_economic_activity
-
-            # Si el código tiene un prefijo (ej: 3.3.31), intentar deducir su padre (ej: 3.3 o 3)
-            if activity_code and "." in activity_code:
-                parts = activity_code.split(".")
-                potential_parent = ".".join(parts[:-1])
-                if frappe.db.exists("VE Economic Activity", potential_parent):
-                    parent_ve_economic_activity = potential_parent
-                else:
-                    potential_parent = parts[0]
-                    if frappe.db.exists("VE Economic Activity", potential_parent):
-                        parent_ve_economic_activity = potential_parent
-
-            # Si sigue vacío, buscar la primera actividad de tipo grupo para el mismo sector
-            if not parent_ve_economic_activity:
-                parent_ve_economic_activity = frappe.db.get_value(
-                    "VE Economic Activity",
-                    {"sector": sector, "is_group": 1},
-                    "name"
-                )
-
-            new_act = frappe.get_doc({
-                "doctype": "VE Economic Activity",
-                "code": activity_code,
-                "sector": sector,
-                "group": group,
-                "branch": branch,
-                "description": description,
-                "is_group": 0,
-                "parent_ve_economic_activity": parent_ve_economic_activity,
-            })
-            new_act.insert(ignore_permissions=True)
+                # Copiar y duplicar la actividad original con el nuevo código (hereda parent y toda la estructura)
+                orig = frappe.get_doc("VE Economic Activity", economic_activity)
+                new_act = frappe.copy_doc(orig)
+                new_act.name = activity_code
+                new_act.code = activity_code
+                new_act.insert(ignore_permissions=True)
+            else:
+                # Fallback por si acaso no existiera la plantilla original (no debería ocurrir)
+                new_act = frappe.get_doc({
+                    "doctype": "VE Economic Activity",
+                    "code": activity_code,
+                    "sector": "TERCIARIO",
+                    "group": "SERVICIOS",
+                    "branch": "TELECOMUNICACIONES",
+                    "description": f"Actividad económica {activity_code}",
+                    "is_group": 0,
+                })
+                new_act.insert(ignore_permissions=True)
         economic_activity = activity_code
 
     # Obtener state del municipio para el campo requerido en VE Municipality Taxes
