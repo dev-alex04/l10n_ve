@@ -306,7 +306,7 @@ function open_municipal_tax_dialog(frm) {
             fieldtype: "Link",
             options: "VE Municipality",
             reqd: 1,
-            default: info.municipality || frm.doc.ve_municipality || "",
+            default: info.municipality || info.suggested_municipality || frm.doc.ve_municipality || "",
             description: __("Municipio donde el cliente ejerce actividad y aplica el ISAE."),
           },
           {
@@ -322,9 +322,9 @@ function open_municipal_tax_dialog(frm) {
             label: __("Código de Actividad"),
             fieldname: "activity_code",
             fieldtype: "Data",
-            read_only: 1,
+            read_only: 0,
             default: "",
-            description: __("Se obtiene automáticamente al seleccionar la Actividad Económica."),
+            description: __("Código de actividad. Se pre-rellena desde la Actividad Económica pero puede modificarse si difiere."),
           },
           {
             label: __("Alícuota (%)"),
@@ -345,6 +345,7 @@ function open_municipal_tax_dialog(frm) {
               municipality: values.municipality,
               economic_activity: values.economic_activity,
               aliquot: values.aliquot,
+              activity_code: values.activity_code,
             },
             freeze: true,
             freeze_message: __("Configurando impuesto municipal..."),
@@ -353,7 +354,7 @@ function open_municipal_tax_dialog(frm) {
 
               // Actualizar el form en memoria sin requerir un save del usuario
               frm.set_value("ve_municipality", values.municipality);
-              frm.set_value("economic_activity", values.economic_activity);
+              frm.set_value("economic_activity", res.message.economic_activity);
               frm.set_value("municipality_tax", res.message.municipality_tax);
               frm.set_value("municipal_withholding_rate", res.message.aliquot);
 
@@ -435,6 +436,7 @@ function open_municipal_tax_dialog(frm) {
           }
         );
       }
+
 
       dialog.show();
     },

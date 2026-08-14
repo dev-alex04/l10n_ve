@@ -179,24 +179,42 @@ def get_balance_summary(customer: str) -> dict:
 def get_municipal_tax_info(customer: str) -> dict:
     """Retorna la información actual de retención municipal de un cliente.
 
-    Usado por el diálogo de configuración en el formulario del Cliente para
-    prellenar los campos con los datos ya guardados.
+    Pre-carga los valores guardados o intenta resolver el municipio predeterminado
+    desde las direcciones del cliente.
 
     Args:
         customer: Nombre del Customer.
 
     Returns:
         Diccionario con municipality, economic_activity, municipality_tax,
-        municipal_withholding_rate y la alícuota del registro si existe.
+        municipal_withholding_rate, la alícuota existente y el municipio sugerido.
     """
     doc = frappe.get_cached_doc("Customer", customer)
 
+    suggested_municipality = ""
+    # Intentar resolver el municipio predeterminado desde la dirección
+    # Primero buscamos dirección predeterminada de facturación o envío
+    address_name = frappe.db.get_value(
+        "Dynamic Link",
+        {"link_doctype": "Customer", "link_name": customer, "parenttype": "Address"},
+        "parent"
+    )
+    if address_name:
+        addr = frappe.get_cached_doc("Address", address_name)
+        if addr.county and frappe.db.exists("VE Municipality", addr.county):
+            suggested_municipality = addr.county
+        elif addr.parish:
+            mun = frappe.db.get_value("VE Parish", addr.parish, "municipality")
+            if mun and frappe.db.exists("VE Municipality", mun):
+                suggested_municipality = mun
+
     result: dict = {
-        "municipality": doc.get("ve_municipality") or "",
+        "municipality": doc.get("ve_municipality") or suggested_municipality or "",
         "economic_activity": doc.get("economic_activity") or "",
         "municipality_tax": doc.get("municipality_tax") or "",
         "municipal_withholding_rate": float(doc.get("municipal_withholding_rate") or 0),
         "existing_aliquot": 0.0,
+        "suggested_municipality": suggested_municipality,
     }
 
     # Intentar traer la alícuota del registro existente en VE Municipality Taxes
@@ -222,26 +240,55 @@ def setup_or_update_municipal_tax(
     municipality: str,
     economic_activity: str,
     aliquot: float,
+    activity_code: str = None,
 ) -> dict:
     """Crea o actualiza el registro en VE Municipality Taxes y enlaza al cliente.
 
-    Si no existe un registro para (municipality, economic_activity), lo crea.
-    Si ya existe, actualiza la alícuota si cambió.
-    Luego actualiza los campos custom_* en el Customer.
+    Si se proporciona `activity_code` y no coincide con `economic_activity`,
+    intenta usar ese código o crea una nueva actividad económica si no existe.
 
     Args:
         customer:          Nombre del Customer.
         municipality:      Nombre del registro VE Municipality.
-        economic_activity: Nombre del registro VE Economic Activity.
+        economic_activity: Nombre del registro VE Economic Activity original.
         aliquot:           Alícuota de retención en % (ej: 1.5).
+        activity_code:     Código de actividad editado por el usuario.
 
     Returns:
-        Diccionario con el nombre del registro VE Municipality Taxes y la alícuota.
+        Diccionario con el nombre del registro VE Municipality Taxes, alícuota y actividad.
     """
     frappe.has_permission("Customer", ptype="write", doc=customer, throw=True)
     frappe.has_permission("VE Municipality Taxes", ptype="write", throw=True)
 
     aliquot = float(aliquot or 0)
+
+    # Si el código de actividad cambió
+    if activity_code and activity_code != economic_activity:
+        if not frappe.db.exists("VE Economic Activity", activity_code):
+            # Crear nueva actividad económica usando como plantilla la anterior si existe
+            sector = "TERCIARIO"
+            group = "SERVICIOS"
+            branch = "TELECOMUNICACIONES"
+            description = f"Actividad económica creada automáticamente para el código {activity_code}"
+
+            if economic_activity and frappe.db.exists("VE Economic Activity", economic_activity):
+                orig = frappe.get_cached_doc("VE Economic Activity", economic_activity)
+                sector = orig.sector
+                group = orig.group
+                branch = orig.branch
+                description = orig.description
+
+            new_act = frappe.get_doc({
+                "doctype": "VE Economic Activity",
+                "code": activity_code,
+                "sector": sector,
+                "group": group,
+                "branch": branch,
+                "description": description,
+                "is_group": 0,
+            })
+            new_act.insert(ignore_permissions=True)
+        economic_activity = activity_code
 
     # Obtener state del municipio para el campo requerido en VE Municipality Taxes
     state = frappe.get_cached_value("VE Municipality", municipality, "state") or ""
@@ -281,4 +328,9 @@ def setup_or_update_municipal_tax(
 
     frappe.db.commit()
 
-    return {"municipality_tax": tax_name, "aliquot": aliquot}
+    return {
+        "municipality_tax": tax_name,
+        "aliquot": aliquot,
+        "economic_activity": economic_activity,
+    }
+
