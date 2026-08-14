@@ -53,6 +53,15 @@ frappe.ui.form.on("Customer", {
         open_municipal_tax_dialog(frm);
       }, __("Impuestos"));
     }
+
+    // Filtro para no traer actividades de grupo en el formulario
+    frm.set_query("economic_activity", function () {
+      return {
+        filters: {
+          is_group: 0,
+        },
+      };
+    });
   },
 
   nature_of_the_taxpayer: function (frm) {
@@ -435,8 +444,14 @@ function open_municipal_tax_dialog(frm) {
             dialog.set_value("activity_code", data.code || "");
           }
         );
-      }
-
+      // Filtro para no traer actividades de grupo en el diálogo
+      dialog.fields_dict.economic_activity.get_query = function () {
+        return {
+          filters: {
+            is_group: 0,
+          },
+        };
+      };
 
       dialog.show();
     },
