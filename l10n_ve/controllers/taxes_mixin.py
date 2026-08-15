@@ -188,12 +188,6 @@ class TaxesMixin:
         self.append("taxes", withholding)
 
     def set_islr_withholding_ve(self) -> None:
-        """Agrega retención ISLR a la tabla de impuestos.
-
-        - Ventas: se asigna automáticamente desde Customer.tabulator_islr.
-        - Compras: se asigna manualmente vía diálogo en el formulario.
-          Aquí solo se preservan las filas ISLR existentes.
-        """
         if self.doctype in DocumentTransactionType.__PURCHASE_DOCTYPES__:
             # En compras el ISLR se agrega manualmente; no limpiar ni auto-asignar
             return
@@ -254,7 +248,7 @@ class TaxesMixin:
         })
 
     def set_municipal_withholding_ve(self) -> None:
-        """Agrega retención municipal (ISAE) a la tabla de impuestos.
+        """Agrega o actualiza retención municipal (ISAE) en la tabla de impuestos.
 
         - Ventas: se asigna automáticamente si el Customer tiene alícuota/impuesto municipal.
         """
@@ -276,13 +270,13 @@ class TaxesMixin:
 
     def _build_municipal_tax_row(self) -> _dict | None:
         """Construye la fila de retención municipal (ISAE) o retorna None si no aplica."""
+        from l10n_ve.utils.municipal import get_municipal_withholding_rate
+
         if not self.get("customer") or not self.get("company"):
             return None
 
-        is_special = frappe.db.get_value("Customer", self.customer, "is_special_taxpayer")
-        rate = flt(frappe.db.get_value("Customer", self.customer, "municipal_withholding_rate") or 0)
-
-        if not is_special or rate <= 0:
+        rate = get_municipal_withholding_rate(self.customer, self.company)
+        if rate <= 0:
             return None
 
         municipal_account: str = (
@@ -298,9 +292,6 @@ class TaxesMixin:
 
         net_amount = flt(self.net_total)
         tax_amount = flt(net_amount * (rate / 100.0), self.precision("tax_amount", "taxes") or 2)
-
-        if tax_amount <= 0:
-            return None
 
         conversion_rate = flt(self.conversion_rate) or 1.0
         base_tax_amount = flt(tax_amount * conversion_rate, self.precision("base_tax_amount", "taxes") or 2)

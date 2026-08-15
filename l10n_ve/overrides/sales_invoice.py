@@ -2278,7 +2278,12 @@ def get_government_withholding_context(docname: str) -> dict:
 
 @frappe.whitelist()
 def create_government_withholding_journal_entry(
-    docname: str, amount: float, description: str = None, voucher_number: str = None
+    docname: str,
+    amount: float,
+    description: str = None,
+    voucher_number: str = None,
+    voucher_date: str = None,
+    voucher_file: str = None,
 ) -> dict:
     """Crea y somete un Asiento Contable de Retención Gubernamental para una Factura de Venta.
 
@@ -2348,6 +2353,8 @@ def create_government_withholding_journal_entry(
     remark_parts = []
     if voucher_number and str(voucher_number).strip():
         remark_parts.append(f"Comprobante N°: {str(voucher_number).strip()}")
+    if voucher_date and str(voucher_date).strip():
+        remark_parts.append(f"Fecha: {str(voucher_date).strip()}")
     if description and description.strip():
         remark_parts.append(description.strip())
     else:
@@ -2401,6 +2408,35 @@ def create_government_withholding_journal_entry(
 
     je.insert(ignore_permissions=True)
     je.submit()
+
+    if voucher_number and str(voucher_number).strip() and invoice.meta.has_field("municipal_receipt_number"):
+        invoice.db_set("municipal_receipt_number", str(voucher_number).strip(), update_modified=False)
+
+    if voucher_date and str(voucher_date).strip() and invoice.meta.has_field("municipal_date"):
+        invoice.db_set("municipal_date", str(voucher_date).strip(), update_modified=False)
+
+    if voucher_file and str(voucher_file).strip():
+        file_url = str(voucher_file).strip()
+        if invoice.meta.has_field("voucher_image_municipal"):
+            invoice.db_set("voucher_image_municipal", file_url, update_modified=False)
+        try:
+            frappe.get_doc({
+                "doctype": "File",
+                "file_url": file_url,
+                "attached_to_doctype": "Journal Entry",
+                "attached_to_name": je.name,
+                "is_private": 0,
+            }).insert(ignore_permissions=True)
+
+            frappe.get_doc({
+                "doctype": "File",
+                "file_url": file_url,
+                "attached_to_doctype": "Sales Invoice",
+                "attached_to_name": invoice.name,
+                "is_private": 0,
+            }).insert(ignore_permissions=True)
+        except Exception as e:
+            frappe.log_error(f"Error adjuntando comprobante gubernamental: {e}")
 
     return {
         "status": "success",
