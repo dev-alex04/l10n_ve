@@ -145,39 +145,41 @@ function reorganize_customer_fields(frm) {
     if (tax_id_field_wrapper) tax_id_field_wrapper.insertAfter(type_of_person_field_wrapper || customer_name_field_wrapper);
   }
 
-  // Moviendo campos fiscales a la sección 'Información Fiscal'
+  // Moviendo campos fiscales a la sección 'Información Fiscal' dividiendo en 2 columnas (Izquierda SENIAT, Derecha ISAE)
   let is_special_taxpayer_field_wrapper = frm.get_field("is_special_taxpayer")?.$wrapper;
   let tax_withholding_category_field_wrapper = frm.get_field("tax_withholding_category")?.$wrapper;
   let tabulator_islr_field_wrapper = frm.get_field("tabulator_islr")?.$wrapper;
 
-  let column_break_wrapper = frm.get_field("fiscal_info_column_break")?.$wrapper;
   let ve_municipality_field_wrapper = frm.get_field("ve_municipality")?.$wrapper;
   let economic_activity_field_wrapper = frm.get_field("economic_activity")?.$wrapper;
   let municipal_withholding_rate_field_wrapper = frm.get_field("municipal_withholding_rate")?.$wrapper;
   let municipality_tax_field_wrapper = frm.get_field("municipality_tax")?.$wrapper;
 
-  if (tax_withholding_category_field_wrapper && is_special_taxpayer_field_wrapper) {
-    tax_withholding_category_field_wrapper.insertAfter(is_special_taxpayer_field_wrapper);
-  }
-  if (tabulator_islr_field_wrapper && tax_withholding_category_field_wrapper) {
-    tabulator_islr_field_wrapper.insertAfter(tax_withholding_category_field_wrapper);
-  }
+  if (is_special_taxpayer_field_wrapper) {
+    let $section = is_special_taxpayer_field_wrapper.closest(".form-section");
+    if ($section && $section.length) {
+      let $section_body = $section.find(".section-body");
+      let $cols = $section_body.children(".form-column");
 
-  let last_wrapper = column_break_wrapper || tabulator_islr_field_wrapper || tax_withholding_category_field_wrapper;
-  if (ve_municipality_field_wrapper && last_wrapper) {
-    ve_municipality_field_wrapper.insertAfter(last_wrapper);
-    last_wrapper = ve_municipality_field_wrapper;
-  }
-  if (economic_activity_field_wrapper && last_wrapper) {
-    economic_activity_field_wrapper.insertAfter(last_wrapper);
-    last_wrapper = economic_activity_field_wrapper;
-  }
-  if (municipal_withholding_rate_field_wrapper && last_wrapper) {
-    municipal_withholding_rate_field_wrapper.insertAfter(last_wrapper);
-    last_wrapper = municipal_withholding_rate_field_wrapper;
-  }
-  if (municipality_tax_field_wrapper && last_wrapper) {
-    municipality_tax_field_wrapper.insertAfter(last_wrapper);
+      let $col1 = $cols.eq(0);
+      let $col2 = $cols.eq(1);
+
+      if (!$col2 || !$col2.length) {
+        $col2 = $('<div class="form-column col-sm-6"></div>').appendTo($section_body);
+        $col1.removeClass("col-sm-12").addClass("col-sm-6");
+      }
+
+      // Columna 1 (Izquierda): Retenciones Nacionales (SENIAT / ISLR) + Alícuota Municipal
+      if (is_special_taxpayer_field_wrapper) $col1.append(is_special_taxpayer_field_wrapper);
+      if (tax_withholding_category_field_wrapper) $col1.append(tax_withholding_category_field_wrapper);
+      if (tabulator_islr_field_wrapper) $col1.append(tabulator_islr_field_wrapper);
+      if (municipal_withholding_rate_field_wrapper) $col1.append(municipal_withholding_rate_field_wrapper);
+
+      // Columna 2 (Derecha): Datos Municipales (ISAE)
+      if (ve_municipality_field_wrapper) $col2.append(ve_municipality_field_wrapper);
+      if (economic_activity_field_wrapper) $col2.append(economic_activity_field_wrapper);
+      if (municipality_tax_field_wrapper) $col2.append(municipality_tax_field_wrapper);
+    }
   }
 }
 
