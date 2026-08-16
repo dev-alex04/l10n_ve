@@ -13,6 +13,13 @@ class VECustomer(Customer):
         validate_unique_tax_id(self)
         validate_taxpayer_and_person_type_consistency(self)
 
+        if not self.is_special_taxpayer:
+            self.tax_withholding_category = None
+            self.ve_municipality = None
+            self.economic_activity = None
+            self.municipal_withholding_rate = 0.0
+            self.municipality_tax = None
+
     def on_update(self):
         super().on_update()
 
@@ -258,7 +265,6 @@ def setup_or_update_municipal_tax(
         Diccionario con el nombre del registro VE Municipality Taxes, alícuota y actividad.
     """
     frappe.has_permission("Customer", ptype="write", doc=customer, throw=True)
-    frappe.has_permission("VE Municipality Taxes", ptype="write", throw=True)
 
     aliquot = float(aliquot or 0)
     target_act_docname: str | None = None

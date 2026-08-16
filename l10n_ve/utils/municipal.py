@@ -26,12 +26,17 @@ def get_municipal_withholding_rate(
     Returns:
         Alícuota como float (ej: 1.5 para 1.5 %). 0.0 si no aplica.
     """
+    is_special: int | None
     cust_rate: float | None
-    cust_rate, municipality_tax = frappe.get_cached_value(
+    municipality_tax: str | None
+    is_special, cust_rate, municipality_tax = frappe.get_cached_value(
         "Customer",
         customer,
-        ["municipal_withholding_rate", "municipality_tax"],
-    ) or (None, None)
+        ["is_special_taxpayer", "municipal_withholding_rate", "municipality_tax"],
+    ) or (0, None, None)
+
+    if not is_special:
+        return 0.0
 
     rate = flt(cust_rate)
     if rate > 0:

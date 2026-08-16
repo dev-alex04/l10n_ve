@@ -117,6 +117,10 @@ function handle_customer_field_change(frm, fieldname) {
     frm.set_df_property("tax_withholding_category", "reqd", is_special ? 1 : 0);
     if (!is_special) {
       frm.set_value("tax_withholding_category", "");
+      frm.set_value("ve_municipality", "");
+      frm.set_value("economic_activity", "");
+      frm.set_value("municipal_withholding_rate", 0);
+      frm.set_value("municipality_tax", "");
     }
     frm.toggle_display("ve_municipality", is_special);
     frm.toggle_display("economic_activity", is_special);
