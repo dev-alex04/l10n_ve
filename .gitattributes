@@ -1,0 +1,10 @@
+# Los finales de linea los decide git, no el editor de cada quien.
+#
+# Sin esto el repo guarda literalmente los bytes que se commitean, y basta un editor
+# configurado en CRLF para que un archivo entre asi y se quede. El costo aparece al
+# revisar: cuando alguien con el editor en LF lo abre y guarda, el diff muestra el
+# archivo ENTERO reescrito y tapa el cambio real.
+#
+# `text=auto` deja que git detecte binarios y no los toque; `eol=lf` fija LF en el
+# repositorio y en el working tree.
+* text=auto eol=lf
