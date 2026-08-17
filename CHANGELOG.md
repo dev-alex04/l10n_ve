@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.44.0] - 2026-08-17
+
+### ✨ Funcionalidades (Features)
+- Implementación de restricción de acceso al **Reporte Gerencial**, limitando su uso exclusivo a usuarios con el rol **Executive Reporting Manager**. [ffcab25]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la lógica de permisos para acotar las excepciones de rol específicamente al módulo de reportes, evitando que afecten globalmente a otras secciones de la aplicación. [66ee6ce]
+
+---
+
 ## [v2.43.0] - 2026-08-17
 
 ### ✨ Funcionalidades (Features)
