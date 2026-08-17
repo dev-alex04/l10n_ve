@@ -264,9 +264,10 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
                 'bill_control': self.bill_control,
             }
 
-            if frappe.db.get_all("Purchase Invoice", filters=filters_bill_control):
-                message = "El número de control ya se encuentra asignado a otra factura del mismo proveedor."
-                frappe.throw(message)
+            if not self.is_fiscal_device:
+                if frappe.db.get_all("Purchase Invoice", filters=filters_bill_control):
+                    message = "El número de control ya se encuentra asignado a otra factura del mismo proveedor."
+                    frappe.throw(message)
 
     def set_affected_invoice_number(self) -> None:
         if self.is_return or self.is_debit_note :
