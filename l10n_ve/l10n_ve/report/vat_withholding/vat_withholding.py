@@ -20,6 +20,8 @@ def get_columns():
         {"fieldname": "issue_date", "label": _("Fecha Emisión"), "fieldtype": "Date", "width": "auto"},
         {"fieldname": "voucher_number", "label": _("Número de Comprobante"), "fieldtype": "Data", "width": "auto"},
         {"fieldname": "total", "label": _("Base Imponible Bs"), "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "rate", "label": _("Alícuota IVA (%)"), "fieldtype": "Percent", "width": "auto"},
+        {"fieldname": "withholding_rate", "label": _("% Retención IVA"), "fieldtype": "Percent", "width": "auto"},
         {"fieldname": "tax_amount_vat", "label": _("Monto Retención Bs"), "fieldtype": "Currency", "width": "auto"},
         {"fieldname": "parent", "label": _("Documento Retención"), "fieldtype": "Link", "options": "VAT Withholding Voucher", "width": "auto"},
 		{"fieldname": "declared_status", "label": _("Estado del Comprobante"), "fieldtype": "Data", "width": "auto"}
@@ -52,6 +54,8 @@ def get_data(filters):
             child.bill_control,
 			parent.issue_date,
             child.total,
+            child.rate,
+            child.withholding_rate,
             child.tax_amount_vat,
        		child.parent,
             parent.is_declared,
