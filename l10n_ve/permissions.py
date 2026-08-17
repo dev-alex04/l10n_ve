@@ -4,12 +4,18 @@ from typing import List, Dict, Union, Any
 
 def is_admin_user(user: str) -> bool:
     """
-    Retorna True si el usuario es Administrator o cuenta con el rol 'System Manager' o 'Executive Reporting Manager'.
+    Retorna True si el usuario es Administrator o cuenta con el rol 'System Manager'.
+
+    OJO: esta función gobierna el sistema de permisos por sucursal COMPLETO
+    --`get_allowed_branches`, `get_ve_branch_permission_query` y
+    `has_ve_branch_permission`--, no una pantalla en particular. Sumarle un rol acá le
+    da lectura cross-sucursal sobre todo lo restringido por VE Branch: facturas, pagos,
+    clientes. Si un reporte necesita ver todas las sucursales, la excepción va en ese
+    reporte, no acá.
     """
     if user == "Administrator":
         return True
-    roles = frappe.get_roles(user)
-    return "System Manager" in roles or "Executive Reporting Manager" in roles
+    return "System Manager" in frappe.get_roles(user)
 
 
 #: Roles autorizados a registrar comprobantes de retención en un período fiscal
