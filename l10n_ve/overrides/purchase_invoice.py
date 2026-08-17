@@ -1412,6 +1412,7 @@ def _create_purchase_withholding_journal_entry(
                     "exchange_rate": 1.0,
                 }
             )
+        pay_row_invoice.update(fiscal_metadata)
         je.append("accounts", pay_row_invoice)
 
     if debit_advance_bs > 0:
@@ -1471,6 +1472,22 @@ def _create_purchase_withholding_journal_entry(
     try:
         je.insert(ignore_permissions=True)
         je.submit()
+
+        for row in je.accounts:
+            bill_no = row.get("bill_no")
+            bill_control = row.get("bill_control")
+
+            if bill_no or bill_control:
+                frappe.db.sql("""
+                    UPDATE `tabGL Entry`
+                    SET bill_no = %s, bill_control = %s
+                    WHERE voucher_type = 'Journal Entry'
+                    AND voucher_no = %s
+                    AND account = %s
+                """, (bill_no, bill_control, je.name, row.account))
+
+                affected = frappe.db.sql("SELECT ROW_COUNT()")[0][0]
+                print(f"--> AFECTADAS EN GL ENTRY para la cuenta {row.account}: {affected} filas")
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error Contabilizando Retención en Compra")
         frappe.throw(_(
