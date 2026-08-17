@@ -4,7 +4,7 @@ import frappe
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
-from frappe.utils import fmt_money, formatdate, nowdate
+from frappe.utils import flt, fmt_money, formatdate, nowdate
 from l10n_ve.utils.pdf_utils import safe_get_pdf
 from l10n_ve.l10n_ve.report.vat_withholding.vat_withholding import get_data
 
@@ -77,36 +77,36 @@ def download_custom_excel(filters=None):
         ws.cell(row=row_num, column=2, value=d.supplier_name)
         ws.cell(row=row_num, column=3, value=d.bill_no)
         ws.cell(row=row_num, column=4, value=d.bill_control)
-        
+
         cell_date = ws.cell(row=row_num, column=5, value=d.posting_date)
         cell_date.number_format = 'DD-MM-YYYY'
         cell_date.alignment = Alignment(horizontal="center")
-        
+
         ws.cell(row=row_num, column=6, value=d.tax_withholding_category)
-        
+
         cell_issue = ws.cell(row=row_num, column=7, value=d.issue_date)
         cell_issue.number_format = 'DD-MM-YYYY'
         cell_issue.alignment = Alignment(horizontal="center")
-        
+
         ws.cell(row=row_num, column=8, value=d.voucher_number)
-        
+
         cell_base = ws.cell(row=row_num, column=9, value=d.total)
         cell_base.number_format = '#,##0.00'
-        
+
         cell_alicuota = ws.cell(row=row_num, column=10, value=(d.rate or 0) / 100.0)
         cell_alicuota.number_format = '0.00%'
         cell_alicuota.alignment = Alignment(horizontal="right")
-        
+
         cell_withholding_rate = ws.cell(row=row_num, column=11, value=(d.withholding_rate or 0) / 100.0)
         cell_withholding_rate.number_format = '0.00%'
         cell_withholding_rate.alignment = Alignment(horizontal="right")
-        
+
         cell_ret = ws.cell(row=row_num, column=12, value=d.tax_amount_vat)
         cell_ret.number_format = '#,##0.00'
-        
+
         ws.cell(row=row_num, column=13, value=d.get("status") or "")
-        ws.cell(row=row_num, column=14, value=d.declared_status)
-        
+        ws.cell(row=row_num, column=14, value=d.get("declared_status") or "")
+
         total_base += (d.total or 0)
         total_ret += (d.tax_amount_vat or 0)
         row_num += 1
@@ -114,7 +114,7 @@ def download_custom_excel(filters=None):
     row_num += 1
     ws.cell(row=row_num, column=8, value="TOTALES:").font = bold_font
     ws.cell(row=row_num, column=8).alignment = Alignment(horizontal="right")
-    
+
     cell_total_base = ws.cell(row=row_num, column=9, value=total_base)
     cell_total_base.number_format = '#,##0.00'
     cell_total_base.font = bold_font
@@ -152,8 +152,8 @@ def download_custom_pdf(filters=None):
     for d in data:
         d["total_f"] = fmt_money(d.total, currency=currency)
         d["ret_f"] = fmt_money(d.tax_amount_vat, currency=currency)
-        d["rate_f"] = f"{(d.rate or 0):.2f}%" if d.get("rate") is not None else "0.00%"
-        d["withholding_rate_f"] = f"{(d.withholding_rate or 0):.2f}%" if d.get("withholding_rate") is not None else "0.00%"
+        d["rate_f"] = f"{flt(d.rate):.2f}%"
+        d["withholding_rate_f"] = f"{flt(d.withholding_rate):.2f}%"
         d["p_date"] = formatdate(d.posting_date)
         d["i_date"] = formatdate(d.issue_date)
 
