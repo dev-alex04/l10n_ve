@@ -5,6 +5,13 @@ from typing import List, Dict, Union, Any
 def is_admin_user(user: str) -> bool:
     """
     Retorna True si el usuario es Administrator o cuenta con el rol 'System Manager'.
+
+    OJO: esta función gobierna el sistema de permisos por sucursal COMPLETO
+    --`get_allowed_branches`, `get_ve_branch_permission_query` y
+    `has_ve_branch_permission`--, no una pantalla en particular. Sumarle un rol acá le
+    da lectura cross-sucursal sobre todo lo restringido por VE Branch: facturas, pagos,
+    clientes. Si un reporte necesita ver todas las sucursales, la excepción va en ese
+    reporte, no acá.
     """
     if user == "Administrator":
         return True

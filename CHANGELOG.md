@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.45.0] - 2026-08-17
+
+### ✨ Funcionalidades (Features)
+- Implementación de nuevas columnas de porcentaje en los reportes de retenciones de ISLR e IVA, incluyendo soporte completo para exportaciones en formatos Excel y PDF [75f4923].
+- Optimización y simplificación de la lógica para el formateo de valores porcentuales en el módulo de reportes [d644627].
+
+---
+
+## [v2.44.0] - 2026-08-17
+
+### ✨ Funcionalidades (Features)
+- Implementación de restricción de acceso al **Reporte Gerencial**, limitando su uso exclusivo a usuarios con el rol **Executive Reporting Manager**. [ffcab25]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la lógica de permisos para acotar las excepciones de rol específicamente al módulo de reportes, evitando que afecten globalmente a otras secciones de la aplicación. [66ee6ce]
+
+---
+
+## [v2.43.0] - 2026-08-17
+
+### ✨ Funcionalidades (Features)
+- Se implementó el parámetro `is_fiscal_device` para permitir omitir la validación de duplicidad en el campo `bill_no` cuando se utiliza el mismo proveedor. [162de80]
+
+---
+
 ## [v2.41.1] - 2026-08-05
 
 ### 🐛 Correcciones (Fixes)

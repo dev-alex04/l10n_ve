@@ -32,11 +32,22 @@ def _ve_branch_children(branch_name):
     )
 
 
+#: Único rol con acceso al Reporte Gerencial (ver los permisos del DocType).
+EXECUTIVE_ROLE: str = "Executive Reporting Manager"
+
+
 def _get_allowed_branches(company=None):
     """Sucursales permitidas para el usuario: None=todas (Administrator), []=sin
     acceso, [list]=permitidas. Basado en User Permission allow='VE Branch' + hijos."""
     user = frappe.session.user
     if user == "Administrator":
+        return None
+
+    # El reporte es consolidado por diseño: quien lo tiene asignado ve todas las
+    # sucursales. La excepción vive acá y NO en `permissions.is_admin_user`, que
+    # gobierna el sistema de permisos por sucursal entero --sumarla allá le daría a
+    # este rol lectura cross-sucursal sobre facturas, pagos y clientes--.
+    if EXECUTIVE_ROLE in frappe.get_roles(user):
         return None
 
     # Si no hay sucursales registradas para la empresa (o en el sistema), permitir ver todo
@@ -126,6 +137,7 @@ def _build_branch_tree(branch_map, all_ve_branches, allowed_set, selected_branch
 @frappe.whitelist()
 def get_dashboard_data(company, from_date, to_date, branch=None, cost_center=None, customer=None):
     """Calculates all metrics and table rows for the Dashboard Gerencial."""
+    frappe.has_permission("Reporte Gerencial", "read", throw=True)
     if not company or not from_date or not to_date:
         frappe.throw("Los campos Empresa, Fecha Inicio y Fecha Fin son obligatorios.")
 
@@ -706,23 +718,23 @@ def _draw_excel_card(ws, start_col, start_row, label, usd_val, vef_val, accent_c
 def _get_company_details(company_name):
     if not company_name:
         return {"name": "EMPRESA", "tax_id": "", "address": ""}
-    company_doc = frappe.get_cached_doc("Company", company_name)
-    company_doc.check_permission("read")
-    company_tax_id = company_doc.get("tax_id") or ""
+    # `frappe.db.get_value` no valida permisos y `company_name` viene del filtro del
+    # reporte: sin esto, un usuario podría sacar el RIF y la dirección de una empresa
+    # que no le corresponde, impresos en el PDF y el Excel.
+    frappe.has_permission("Company", "read", company_name, throw=True)
+    c_info = frappe.db.get_value("Company", company_name, ["tax_id", "custom_company_primary_address"], as_dict=True) or {}
+    company_tax_id = c_info.get("tax_id") or ""
     company_address = ""
-    if company_doc.get("custom_company_primary_address"):
-        try:
-            address_doc = frappe.get_cached_doc("Address", company_doc.get("custom_company_primary_address"))
-            company_address = address_doc.address_line1
-        except Exception:
-            pass
+    addr_id = c_info.get("custom_company_primary_address")
+    if addr_id:
+        company_address = frappe.db.get_value("Address", addr_id, "address_line1") or ""
     return {"name": company_name, "tax_id": company_tax_id, "address": company_address}
 
 
 @frappe.whitelist()
 def download_pdf(company, from_date, to_date, branch=None, cost_center=None, customer=None):
     # Validar permiso de lectura sobre el reporte antes de exponer datos financieros
-    frappe.get_doc("Reporte Gerencial").check_permission("read")
+    frappe.has_permission("Reporte Gerencial", "read", throw=True)
     from l10n_ve.utils.pdf_utils import safe_get_pdf
     from frappe.utils import formatdate, nowdate
     
@@ -1123,7 +1135,7 @@ def download_pdf(company, from_date, to_date, branch=None, cost_center=None, cus
 @frappe.whitelist()
 def download_excel(company, from_date, to_date, branch=None, cost_center=None, customer=None):
     # Validar permiso de lectura sobre el reporte antes de exponer datos financieros
-    frappe.get_doc("Reporte Gerencial").check_permission("read")
+    frappe.has_permission("Reporte Gerencial", "read", throw=True)
     import io
     import openpyxl
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -1416,7 +1428,7 @@ def download_excel(company, from_date, to_date, branch=None, cost_center=None, c
 
 @frappe.whitelist()
 def get_customer_list(doctype=None, txt=None, searchfield=None, start=0, page_len=20, filters=None):
-    frappe.get_doc("Reporte Gerencial").check_permission("read")
+    frappe.has_permission("Reporte Gerencial", "read", throw=True)
     if isinstance(filters, str):
         import json
         try:
