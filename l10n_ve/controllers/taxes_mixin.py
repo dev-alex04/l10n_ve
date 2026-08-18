@@ -293,9 +293,6 @@ class TaxesMixin:
         net_amount = flt(self.net_total)
         tax_amount = flt(net_amount * (rate / 100.0), self.precision("tax_amount", "taxes") or 2)
 
-        conversion_rate = flt(self.conversion_rate) or 1.0
-        base_tax_amount = flt(tax_amount * conversion_rate, self.precision("base_tax_amount", "taxes") or 2)
-
         return _dict({
             "charge_type": "Municipal Withholding",
             "category": "Total",
@@ -304,7 +301,7 @@ class TaxesMixin:
             "is_tax_withholding_account": True,
             "account_head": municipal_account,
             "tax_amount": tax_amount,
-            "base_tax_amount": base_tax_amount,
+            "base_tax_amount": 0.0,
             "rate": rate,
         })
 

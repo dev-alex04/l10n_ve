@@ -19,6 +19,10 @@ class VECustomer(Customer):
             self.economic_activity = None
             self.municipal_withholding_rate = 0.0
             self.municipality_tax = None
+        elif self.municipal_withholding_rate is not None:
+            rate = flt(self.municipal_withholding_rate)
+            if rate < 0 or rate > 100:
+                frappe.throw(_("La alícuota municipal debe estar entre 0% y 100%."))
 
     def on_update(self):
         super().on_update()
@@ -267,6 +271,9 @@ def setup_or_update_municipal_tax(
     frappe.has_permission("Customer", ptype="write", doc=customer, throw=True)
 
     aliquot = float(aliquot or 0)
+    if aliquot < 0 or aliquot > 100:
+        frappe.throw(_("La alícuota municipal debe estar entre 0% y 100%."))
+
     target_act_docname: str | None = None
 
     # 1. Intentar resolver la actividad económica por activity_code (por campo code o name)

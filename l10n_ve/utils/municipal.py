@@ -1,8 +1,8 @@
 """Utilidades para el cálculo de retención municipal ISAE (Venezuela).
 
 Fuente única de verdad para resolver la alícuota desde VE Municipality Taxes
-y calcular el monto de retención. Consumido por:
-- domina_isp/.../isp_payment_entry.py  (cálculo en ISP Payment Entry)
+y calcular el monto de retención. Consumido por l10n_ve (taxes_mixin, taxes_and_totals)
+y aplicaciones del ecosistema como domina_isp (isp_payment_entry).
 """
 from __future__ import annotations
 
@@ -11,20 +11,20 @@ from frappe.utils import flt
 
 
 def get_municipal_withholding_rate(
-    customer: str, company: str  # noqa: ARG001
+    customer: str, company: str = None  # noqa: ARG001
 ) -> float:
     """Retorna el porcentaje de retención municipal del cliente (ISAE).
 
-    Lee directamente `custom_municipal_withholding_rate` del Customer.
-    Si el campo no está seteado, intenta resolver la alícuota desde
-    `custom_municipality_tax` → `VE Municipality Taxes.aliquot`.
+    Lee directamente `municipal_withholding_rate` del Customer si es contribuyente especial.
+    Si el campo no está seteado (> 0), intenta resolver la alícuota desde
+    `municipality_tax` → `VE Municipality Taxes.aliquot`.
 
     Args:
         customer: Nombre del Customer.
         company:  Nombre de la Company (reservado para compatibilidad futura).
 
     Returns:
-        Alícuota como float (ej: 1.5 para 1.5 %). 0.0 si no aplica.
+        Alícuota como float (ej: 1.5 para 1.5 %). 0.0 si no aplica o no es contribuyente especial.
     """
     is_special: int | None
     cust_rate: float | None

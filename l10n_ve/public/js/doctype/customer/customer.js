@@ -378,6 +378,16 @@ function open_municipal_tax_dialog(frm) {
         ],
         primary_action_label: __("Guardar"),
         primary_action: function (values) {
+          const rate = flt(values.aliquot);
+          if (rate < 0 || rate > 100) {
+            frappe.msgprint({
+              title: __("Alícuota Inválida"),
+              indicator: "red",
+              message: __("La alícuota municipal debe estar entre 0% y 100%."),
+            });
+            return;
+          }
+
           frappe.call({
             method: "l10n_ve.overrides.customer.setup_or_update_municipal_tax",
             args: {
