@@ -28,6 +28,30 @@ def get_cases(fx):
 	"""
 	return [
 		{
+			"id": "comprobantes-que-faltan",
+			"question": "¿qué comprobantes de retención me faltan?",
+			"expect": ["check_customer_retentions"],
+			"forbid": ["check_hka"],
+			"note": "Los que FALTAN son los que el cliente no entregó. check_hka mira otra "
+			"cosa: si la factura llegó al SENIAT.",
+		},
+		{
+			"id": "reporte-por-nombre-inventado",
+			"question": "corré el libro de compras del mes pasado",
+			"expect": ["list_fiscal_reports"],
+			"first": "list_fiscal_reports",
+			"note": "El nombre real es `purchase_book`, no «Purchase Book». Tiene que pedir "
+			"la lista antes de correr nada: inventar el nombre falla como si el dato no "
+			"existiera.",
+		},
+		{
+			"id": "cuanto-vendi",
+			"question": "¿cuánto vendimos el mes pasado según el libro de ventas?",
+			"expect": ["run_fiscal_report"],
+			"note": "Pregunta de total, no de tabla. La herramienta devuelve totales sobre "
+			"todas las filas más el link al reporte.",
+		},
+		{
 			"id": "hka-cobradas-sin-certificar",
 			"question": "que facturas cobradas no se enviaron a HKA y por que?",
 			"expect": ["check_hka"],

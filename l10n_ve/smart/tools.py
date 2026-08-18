@@ -17,7 +17,7 @@ como la pregunta. Por eso acá no se escribe ninguna condición propia: se reusa
 """
 
 import frappe
-from frappe.utils import cint, flt
+from frappe.utils import add_months, cint, flt, nowdate
 
 MAX_ROWS = 25
 
@@ -222,7 +222,138 @@ def check_hka(branch: str | None = None, limit: int = 10) -> dict:
 	}
 
 
+#: Una factura "tiene retención del cliente pendiente" con la MISMA definición que
+#: usa `tasks.send_missing_retentions_reminders`, el cron que persigue el
+#: comprobante. Se repite acá y no se importa porque allá vive embebida en el
+#: envío de correo; si esa definición cambia, esta tiene que cambiar con ella.
+#:
+#: Las cuatro condiciones importan: emitida, cliente que retiene, factura con
+#: número fiscal, y línea de retención con monto. Sin la tercera entran facturas
+#: que todavía no existen ante el SENIAT y nadie puede retener sobre ellas.
+_RETENIDA_POR_CLIENTE = """
+	si.docstatus = 1
+	AND (
+		c.is_special_taxpayer = 1
+		OR (c.tabulator_islr IS NOT NULL AND c.tabulator_islr != '' AND c.tabulator_islr != 'None')
+	)
+	AND si.bill_no IS NOT NULL AND si.bill_no != ''
+	AND si.bill_control IS NOT NULL AND si.bill_control != ''
+	AND stc.charge_type IN ('VAT Withholding', 'ISLR')
+	AND stc.tax_amount != 0
+"""
+
+#: Vacío = el cliente no nos entregó el comprobante. El campo depende del impuesto.
+_SIN_COMPROBANTE = """
+	(
+		(stc.charge_type = 'VAT Withholding' AND (si.vat_withholding_voucher_number IS NULL
+			OR si.vat_withholding_voucher_number = '' OR si.vat_withholding_voucher_number = 'None'))
+		OR
+		(stc.charge_type = 'ISLR' AND (si.islr_receipt_number IS NULL
+			OR si.islr_receipt_number = '' OR si.islr_receipt_number = 'None'))
+	)
+"""
+
+
+def check_customer_retentions(months: int = 3, branch: str | None = None, limit: int = 15) -> dict:
+	"""Retenciones que nos hicieron los clientes y cuyo comprobante NO llegó.
+
+	Es el reverso de ``check_retentions``: aquélla mira los comprobantes que
+	emitimos nosotros hacia el SENIAT; ésta, los que **nos deben entregar**.
+
+	Por qué importa y no es burocracia: cuando un contribuyente especial paga una
+	factura, retiene una parte del IVA o del ISLR y la entera él al SENIAT. Ese
+	dinero ya salió del cobro. **Sin el comprobante no se puede acreditar**, así
+	que figura como una factura cobrada de menos y el monto retenido queda en el
+	aire hasta que el cliente lo entregue.
+
+	El reporte «Customer Retention» muestra el número de comprobante, pero no deja
+	filtrar por los que faltan — y peor: cuando falta, la columna de monto retenido
+	se muestra en 0, así que la fila parece "sin retención" en vez de "pendiente".
+	Por eso acá se cuenta al revés: lo que falta primero.
+	"""
+	meses = max(1, min(cint(months) or 3, 24))
+	tope = max(1, min(cint(limit) or 15, MAX_ROWS))
+	desde = add_months(nowdate(), -meses)
+
+	condiciones = [_RETENIDA_POR_CLIENTE, "si.posting_date >= %(desde)s"]
+	params = {"desde": desde}
+	if branch:
+		condiciones.append("si.branch = %(branch)s")
+		params["branch"] = branch
+
+	base = " AND ".join(f"({c})" for c in condiciones)
+
+	filas = frappe.db.sql(
+		f"""
+		SELECT
+			si.customer, si.customer_name, si.name AS factura, si.bill_no,
+			si.posting_date, si.currency, stc.charge_type,
+			ABS(stc.base_tax_amount) AS monto,
+			CASE WHEN {_SIN_COMPROBANTE} THEN 0 ELSE 1 END AS tiene_comprobante
+		FROM `tabSales Invoice` si
+		JOIN `tabSales Taxes and Charges` stc ON stc.parent = si.name
+		JOIN `tabCustomer` c ON c.name = si.customer
+		WHERE {base}
+		ORDER BY si.posting_date
+		""",
+		params,
+		as_dict=True,
+	)
+
+	faltan = [f for f in filas if not f.tiene_comprobante]
+	llegaron = [f for f in filas if f.tiene_comprobante]
+
+	por_cliente: dict[str, dict] = {}
+	for f in faltan:
+		b = por_cliente.setdefault(
+			f.customer, {"cliente": f.customer_name or f.customer, "facturas": 0, "monto": 0.0}
+		)
+		b["facturas"] += 1
+		b["monto"] = round(b["monto"] + flt(f.monto), 2)
+
+	ranking = sorted(por_cliente.values(), key=lambda b: -b["monto"])[:tope]
+	total_pendiente = round(sum(flt(f.monto) for f in faltan), 2)
+
+	return {
+		"periodo": f"desde {desde}",
+		"significa": (
+			"El cliente retuvo IVA o ISLR al pagar y todavía no entregó el comprobante. "
+			"Sin ese papel el monto retenido NO se puede acreditar ante el SENIAT."
+		),
+		"sin_comprobante": len(faltan),
+		"con_comprobante": len(llegaron),
+		"monto_pendiente": total_pendiente,
+		"moneda": _moneda_compania(None),
+		"por_cliente": ranking,
+		"nota": (
+			"Los montos son de la moneda de la compañía. «sin_comprobante» cuenta LÍNEAS "
+			"de retención, no facturas: una factura puede tener IVA e ISLR y contar dos veces."
+		),
+	}
+
 TOOLS = [
+	{
+		"name": "check_customer_retentions",
+		"handler": check_customer_retentions,
+		"writes": False,
+		"description": (
+			"Retenciones que los CLIENTES nos hicieron y cuyo comprobante todavía no "
+			"entregaron.\n"
+			"Usala para «qué comprobantes de retención faltan», «quién no me mandó el "
+			"comprobante», «cuánto tengo retenido sin acreditar».\n"
+			"NO la confundas con check_retentions, que mira los comprobantes que emitimos "
+			"NOSOTROS. Ésta es el reverso: lo que nos deben entregar. Sin ese papel el monto "
+			"retenido no se puede acreditar ante el SENIAT."
+		),
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"months": {"type": "integer", "description": "Meses hacia atrás. Por defecto 3."},
+				"branch": {"type": "string", "description": "Sucursal (VE Branch), opcional."},
+				"limit": {"type": "integer", "description": "Cuántos clientes listar."},
+			},
+		},
+	},
 	{
 		"name": "check_hka",
 		"handler": check_hka,
