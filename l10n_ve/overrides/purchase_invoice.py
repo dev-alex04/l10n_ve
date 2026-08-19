@@ -1226,8 +1226,6 @@ def _calculate_purchase_withholding_base_amount(
                 (r for r in tab_doc.aliquot if r.types_of_person == type_of_person and flt(r.aliquot) > 0),
                 None,
             )
-        if not target_row:
-            target_row = next((r for r in tab_doc.aliquot if flt(r.aliquot) > 0), None)
 
         if not target_row:
             frappe.throw(
@@ -1238,7 +1236,14 @@ def _calculate_purchase_withholding_base_amount(
             )
 
         subtrahend = flt(target_row.subtracting)
-        percentage_base = flt(target_row.percentage_base) or 100.0
+        percentage_base = flt(target_row.percentage_base)
+        if percentage_base <= 0:
+            # Un 0 configurado pasaba a 100 %: 100x de diferencia en la base.
+            frappe.throw(
+                _("El tabulador '{0}' tiene el porcentaje de base en 0 para el tipo "
+                  "de persona '{1}'. Corrija el tabulador antes de retener.").format(
+                      tabulator_name, type_of_person or _("No configurado"))
+            )
         islr_rate = flt(target_row.aliquot)
         net_total_bs = flt(invoice.base_net_total)
         calculated_base_bs = flt(net_total_bs * (percentage_base / 100.0))
@@ -1486,8 +1491,6 @@ def _create_purchase_withholding_journal_entry(
                     AND account = %s
                 """, (bill_no, bill_control, je.name, row.account))
 
-                affected = frappe.db.sql("SELECT ROW_COUNT()")[0][0]
-                print(f"--> AFECTADAS EN GL ENTRY para la cuenta {row.account}: {affected} filas")
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error Contabilizando Retención en Compra")
         frappe.throw(_(
@@ -1607,13 +1610,16 @@ def apply_retroactive_purchase_withholding(
             ).format(invoice.name, charge_type, tax_account)
         )
 
-    company_currency = frappe.get_cached_value("Company", invoice.company, "default_currency") or "VEF"
-    invoice_currency = invoice.currency or "VEF"
+    company_currency = frappe.get_cached_value("Company", invoice.company, "default_currency")
+    invoice_currency = invoice.currency or company_currency
 
     base_amount = _calculate_purchase_withholding_base_amount(invoice, withholding_type, tabulator_name)
 
     if invoice_currency != company_currency:
-        conversion_rate = flt(invoice.conversion_rate) or 1.0
+        # Se valida ANTES de usar. Con `or 1.0` delante, el throw de abajo era
+        # inalcanzable y una tasa ausente se leia como "1", o sea afirmar que el dolar
+        # y el bolivar valen igual, sobre un monto que se declara.
+        conversion_rate = flt(invoice.conversion_rate)
         if not conversion_rate:
             frappe.throw(
                 _(
@@ -1642,8 +1648,6 @@ def apply_retroactive_purchase_withholding(
                 (r for r in tab_doc.aliquot if r.types_of_person == type_of_person and flt(r.aliquot) > 0),
                 None,
             )
-        if not target_row:
-            target_row = next((r for r in tab_doc.aliquot if flt(r.aliquot) > 0), None)
         if target_row:
             rate = flt(target_row.aliquot)
 
