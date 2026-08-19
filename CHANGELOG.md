@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.48.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+* Implementación de la función `check_opening_balances` dentro del módulo smart para la validación de saldos iniciales.
+
+### 🐛 Correcciones (Fixes)
+* Resolución de errores en dos casos específicos de ejecución de sentencias `eval` que se encontraban rotos.
+
+---
+
 ## [v2.47.0] - 2026-08-19
 
 ### ✨ Funcionalidades (Features)
