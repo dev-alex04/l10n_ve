@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.47.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+- **Localización Venezuela (l10n_ve):** Se han expuesto 22 reportes legales y fiscales dentro del módulo. Se integró una nueva funcionalidad de validación que notifica al usuario sobre los comprobantes de retención faltantes. [fa56b7e]
+
+---
+
+## [v2.46.0] - 2026-08-18
+
+### ✨ Funcionalidades (Features)
+- Se integró la nueva validación **check_retentions** dentro del módulo smart para monitorear y verificar la salud de los comprobantes de retención. [63f1e0e]
+
+---
+
 ## [v2.45.0] - 2026-08-17
 
 ### ✨ Funcionalidades (Features)
