@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils import flt, cint, getdate, nowdate
 
 from erpnext.accounts.utils import get_account_currency
+from erpnext.accounts.doctype.accounting_period.accounting_period import ClosedAccountingPeriod
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice, make_regional_gl_entries
 
 if TYPE_CHECKING:

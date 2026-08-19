@@ -51,6 +51,10 @@ def create_currency_exchange() -> None:
 # por tandas horarias y queda registro, en vez de barrer miles en un solo job.
 DRAFT_RATE_SYNC_LIMIT: int = 500
 
+# Tope de facturas detalladas en el Error Log agregado de fallos. El campo del Error Log
+# se trunca: listarlas todas pierde justo el traceback que va al final y explica la causa.
+_RATE_SYNC_FAILURES_IN_LOG: int = 100
+
 
 def reconcile_draft_invoice_exchange_rates(limit: int = DRAFT_RATE_SYNC_LIMIT) -> dict:
     """Re-aplica la tasa BCV correcta a las facturas en BORRADOR que la esperaban.
@@ -86,7 +90,8 @@ def reconcile_draft_invoice_exchange_rates(limit: int = DRAFT_RATE_SYNC_LIMIT) -
     )
     cutoff: str = frappe.db.get_single_value("TFHKA Settings", "cutoff_date")
     if not cutoff:
-        return {"checked": 0, "updated": 0, "skipped_paid": 0, "skipped_no_rate": 0}
+        return {"checked": 0, "updated": 0, "failed": 0, "skipped_paid": 0,
+                "skipped_no_rate": 0}
 
     drafts: list[dict] = frappe.get_all(
         "Sales Invoice",
@@ -103,6 +108,8 @@ def reconcile_draft_invoice_exchange_rates(limit: int = DRAFT_RATE_SYNC_LIMIT) -
     has_isp_pe: bool = bool(frappe.db.exists("DocType", "ISP Payment Entry"))
     rate_cache: dict = {}
     updated: list[str] = []
+    failed: list[str] = []
+    first_traceback: str = ""
     skipped_paid = skipped_no_rate = 0
 
     for inv in drafts:
@@ -151,11 +158,27 @@ def reconcile_draft_invoice_exchange_rates(limit: int = DRAFT_RATE_SYNC_LIMIT) -
             doc.plc_conversion_rate = official
             doc.save(ignore_permissions=True)
             updated.append(inv.name)
-        except Exception:
-            frappe.log_error(
-                f"BCV: no se pudo alinear la tasa de {inv.name}",
-                frappe.get_traceback(),
-            )
+        except Exception as e:
+            # Una entrada de Error Log por factura y por corrida convierte a una sola
+            # factura atascada en un flood: ACC-SINV-2026-21533 (con el vencimiento del
+            # cronograma de pago anterior a su fecha de emisión, así que ERPNext nunca
+            # la deja guardar) escribió 226 entradas entre el 4 y el 13 de agosto —el
+            # 100% de esta firma—. Se acumulan y se escribe UNA sola al final de la
+            # corrida, con el traceback del primer fallo.
+            if not first_traceback:
+                first_traceback = frappe.get_traceback()
+            failed.append(f"• {inv.name} ({inv.posting_date}): {e}")
+
+    if failed:
+        omitidas: int = max(0, len(failed) - _RATE_SYNC_FAILURES_IN_LOG)
+        frappe.log_error(
+            "BCV: facturas cuya tasa no se pudo alinear",
+            f"{len(failed)} de {len(drafts)} factura(s) en borrador no aceptaron la "
+            f"tasa oficial.\n\n"
+            + "\n".join(failed[:_RATE_SYNC_FAILURES_IN_LOG])
+            + (f"\n… y {omitidas} más." if omitidas else "")
+            + f"\n\nTraceback del primer fallo:\n{first_traceback}",
+        )
 
     if updated:
         frappe.db.commit()
@@ -168,6 +191,7 @@ def reconcile_draft_invoice_exchange_rates(limit: int = DRAFT_RATE_SYNC_LIMIT) -
     return {
         "checked": len(drafts),
         "updated": len(updated),
+        "failed": len(failed),
         "skipped_paid": skipped_paid,
         "skipped_no_rate": skipped_no_rate,
     }
