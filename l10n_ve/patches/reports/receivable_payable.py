@@ -1,33 +1,59 @@
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, escape_html
 from erpnext.accounts.report.accounts_receivable.accounts_receivable import ReceivablePayableReport
 
 original_run = ReceivablePayableReport.run
 
+#: Literales SIN traducir a proposito. `_()` se resuelve contra el idioma de
+#: `frappe.local`, y este diccionario se evalua UNA vez al importar el modulo: la
+#: traduccion quedaria congelada con el idioma que hubiera en ese momento y
+#: compartida por todos los usuarios que atienda ese worker. Se traduce en el
+#: punto de uso, con `_traducir_doctype`.
 DOC_TYPE_TRANSLATIONS = {
-    "Sales Invoice": _("Factura de Venta"),
-    "Journal Entry": _("Entrada de Diario"),
-    "Payment Entry": _("Entrada de Pago"),
-    "Purchase Invoice": _("Factura de Compra"),
-    "Sales Order": _("Orden de Venta"),
-    "Purchase Order": _("Orden de Compra"),
-    "Delivery Note": _("Nota de Entrega"),
-    "Purchase Receipt": _("Recibo de Compra"),
-    "VE Sales Credit Note": _("Nota de Crédito de Ventas"),
-    "VE Sales Debit Note": _("Nota de Débito de Ventas"),
-    "VE Purchase Credit Note": _("Nota de Crédito de Compras"),
-    "VE Purchase Debit Note": _("Nota de Débito de Compras"),
+    "Sales Invoice": "Factura de Venta",
+    "Journal Entry": "Entrada de Diario",
+    "Payment Entry": "Entrada de Pago",
+    "Purchase Invoice": "Factura de Compra",
+    "Sales Order": "Orden de Venta",
+    "Purchase Order": "Orden de Compra",
+    "Delivery Note": "Nota de Entrega",
+    "Purchase Receipt": "Recibo de Compra",
+    "VE Sales Credit Note": "Nota de Crédito de Ventas",
+    "VE Sales Debit Note": "Nota de Débito de Ventas",
+    "VE Purchase Credit Note": "Nota de Crédito de Compras",
+    "VE Purchase Debit Note": "Nota de Débito de Compras",
 }
+
+#: Estados del comprobante de retencion. Se guardan en la fila SIN traducir para
+#: que el filtro compare contra algo estable: si comparara contra el texto que se
+#: muestra, cambiar el idioma --o agregar estas entradas al catalogo-- haria que
+#: el filtro dejara de encontrar nada, en silencio.
+ESTADO_REGISTRADO = "registrado"
+ESTADO_PENDIENTE = "pendiente"
+ESTADO_NO_APLICA = "no_aplica"
+
+ETIQUETA_ESTADO = {
+    ESTADO_PENDIENTE: "Pendiente",
+    ESTADO_NO_APLICA: "No aplica",
+}
+
+
+def _traducir_doctype(nombre: str) -> str:
+    """Traduce en el momento de usarlo, no al importar el modulo."""
+    return _(DOC_TYPE_TRANSLATIONS.get(nombre, nombre))
 
 
 def custom_run(self, args):
     columns, data, message, chart, report_summary, skip_total_row = original_run(self, args)
     
+    # `run()` siempre deja `self.account_type` poblado desde los filtros
+    # (accounts_receivable.py:90) y el default del reporte es "Receivable", asi que
+    # alcanza con preguntar por "Payable". El fallback por `party_type` cubre el caso
+    # de que un llamador arme los filtros a mano y no setee el tipo de cuenta.
     is_receivable = (
-        getattr(self, "account_type", None) == "Receivable"
-        or (self.filters and self.filters.get("party_type") == "Customer")
-        or getattr(self, "account_type", None) != "Payable"
+        getattr(self, "account_type", None) != "Payable"
+        or (self.filters or {}).get("party_type") == "Customer"
     )
 
     has_bill_no = False
@@ -181,7 +207,13 @@ def custom_run(self, args):
                             "tabulator_islr": (c_tab or "").strip()
                         }
             except Exception:
-                pass
+                # Sin este mapa `is_special` da False para todos y cada fila dice
+                # "No aplica": una respuesta equivocada con cara de correcta. Que
+                # quede registrado en vez de desaparecer.
+                frappe.log_error(
+                    title="Cuentas por cobrar: fallo el fetch de Customer",
+                    message=frappe.get_traceback(),
+                )
 
     val_map = {}
     for vt, names in vouchers_by_type.items():
@@ -259,7 +291,10 @@ def custom_run(self, args):
                         if p and ct:
                             taxes_map.setdefault(p, set()).add(ct)
                 except Exception:
-                    pass
+                    frappe.log_error(
+                        title="Cuentas por cobrar: fallo el fetch de impuestos",
+                        message=frappe.get_traceback(),
+                    )
 
     for row in data:
         if isinstance(row, dict):
@@ -282,8 +317,16 @@ def custom_run(self, args):
                 if str(raw_bill_no).startswith("<a "):
                     row["bill_no"] = raw_bill_no
                 else:
+                    # `escape_html` en los dos: la columna es `HTML`, asi que el
+                    # navegador interpreta lo que salga de aca. `bill_no` es un
+                    # Custom Field `Data` sin `read_only`, o sea texto libre que
+                    # teclea cualquiera con permiso de escritura -- sin escapar,
+                    # es XSS almacenado que dispara quien abra el reporte.
                     doctype_slug = str(vt).lower().replace(" ", "-")
-                    row["bill_no"] = f'<a href="/app/{doctype_slug}/{vn}">{raw_bill_no}</a>'
+                    row["bill_no"] = (
+                        f'<a href="/app/{doctype_slug}/{escape_html(str(vn))}">'
+                        f'{escape_html(str(raw_bill_no))}</a>'
+                    )
             else:
                 row["bill_no"] = raw_bill_no or ""
 
@@ -310,41 +353,46 @@ def custom_run(self, args):
 
                     is_invoice_doc = vt in ("Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note")
 
-                    # Comprobante IVA
+                    # Comprobante IVA. El estado va aparte en `_vat_state`, sin
+                    # traducir: es contra eso que filtra el bloque de abajo.
                     vat_v = (doc_vals.get("vat_withholding_voucher_number") or row.get("vat_withholding_voucher_number") or "").strip()
                     if vat_v and vat_v.lower() != "none":
+                        row["_vat_state"] = ESTADO_REGISTRADO
                         row["vat_withholding_voucher_number"] = vat_v
                     elif is_invoice_doc and (is_special or (vn and "VAT Withholding" in taxes_map.get(vn, set()))):
-                        row["vat_withholding_voucher_number"] = _("Pendiente")
+                        row["_vat_state"] = ESTADO_PENDIENTE
+                        row["vat_withholding_voucher_number"] = _(ETIQUETA_ESTADO[ESTADO_PENDIENTE])
                     else:
-                        row["vat_withholding_voucher_number"] = _("No aplica")
+                        row["_vat_state"] = ESTADO_NO_APLICA
+                        row["vat_withholding_voucher_number"] = _(ETIQUETA_ESTADO[ESTADO_NO_APLICA])
 
                     # Comprobante ISLR
                     islr_v = (doc_vals.get("islr_receipt_number") or row.get("islr_receipt_number") or "").strip()
                     has_islr_tab = bool(cust_info.get("tabulator_islr") and cust_info.get("tabulator_islr") != "None")
                     if islr_v and islr_v.lower() != "none":
+                        row["_islr_state"] = ESTADO_REGISTRADO
                         row["islr_receipt_number"] = islr_v
                     elif is_invoice_doc and (is_special or has_islr_tab or (vn and "ISLR" in taxes_map.get(vn, set()))):
-                        row["islr_receipt_number"] = _("Pendiente")
+                        row["_islr_state"] = ESTADO_PENDIENTE
+                        row["islr_receipt_number"] = _(ETIQUETA_ESTADO[ESTADO_PENDIENTE])
                     else:
-                        row["islr_receipt_number"] = _("No aplica")
+                        row["_islr_state"] = ESTADO_NO_APLICA
+                        row["islr_receipt_number"] = _(ETIQUETA_ESTADO[ESTADO_NO_APLICA])
 
             if not is_subtotal_or_total:
                 if row.get("voucher_type"):
                     vt_raw = row["voucher_type"]
-                    translated_vt = DOC_TYPE_TRANSLATIONS.get(vt_raw, _(vt_raw))
+                    translated_vt = _traducir_doctype(vt_raw)
                     row["ve_voucher_type"] = translated_vt
                     row["voucher_type"] = translated_vt
 
                 if row.get("against_voucher_type"):
                     avt_raw = row["against_voucher_type"]
-                    row["against_voucher_type"] = DOC_TYPE_TRANSLATIONS.get(avt_raw, _(avt_raw))
+                    row["against_voucher_type"] = _traducir_doctype(avt_raw)
 
     if is_receivable and self.filters and self.filters.get("withholding_voucher_status"):
         w_filter = self.filters.get("withholding_voucher_status")
         filtered_data = []
-        pendiente_str = _("Pendiente")
-        no_aplica_str = _("No aplica")
 
         for row in data:
             if not isinstance(row, dict):
@@ -359,27 +407,30 @@ def custom_run(self, args):
             if is_subtotal_or_total:
                 continue
 
-            vat_val = row.get("vat_withholding_voucher_number")
-            islr_val = row.get("islr_receipt_number")
+            vat_state = row.get("_vat_state")
+            islr_state = row.get("_islr_state")
 
             match = False
             if w_filter == "Con Comprobantes Pendientes":
-                match = (vat_val == pendiente_str or islr_val == pendiente_str)
+                match = ESTADO_PENDIENTE in (vat_state, islr_state)
             elif w_filter == "Pendiente IVA":
-                match = (vat_val == pendiente_str)
+                match = vat_state == ESTADO_PENDIENTE
             elif w_filter == "Pendiente ISLR":
-                match = (islr_val == pendiente_str)
+                match = islr_state == ESTADO_PENDIENTE
             elif w_filter == "Con Comprobantes Registrados":
-                has_vat_reg = bool(vat_val and vat_val not in (pendiente_str, no_aplica_str))
-                has_islr_reg = bool(islr_val and islr_val not in (pendiente_str, no_aplica_str))
-                match = has_vat_reg or has_islr_reg
+                match = ESTADO_REGISTRADO in (vat_state, islr_state)
             elif w_filter == "No aplica":
-                match = (vat_val == no_aplica_str and islr_val == no_aplica_str)
+                match = vat_state == islr_state == ESTADO_NO_APLICA
 
             if match:
                 filtered_data.append(row)
 
         data = filtered_data
+        # El chart lo calculo `run()` sobre el conjunto COMPLETO y no se recalcula
+        # aca: dejarlo seria mostrar un grafico que no corresponde a las filas que
+        # se ven. La fila de totales no hace falta rehacerla --`skip_total_row` es
+        # 0, asi que el cliente la suma sobre lo visible--.
+        chart = None
     
     return columns, data, message, chart, report_summary, skip_total_row
 
