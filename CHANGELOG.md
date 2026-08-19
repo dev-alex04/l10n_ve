@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.46.0] - 2026-08-18
+
+### ✨ Funcionalidades (Features)
+- Se integró la nueva validación **check_retentions** dentro del módulo smart para monitorear y verificar la salud de los comprobantes de retención. [63f1e0e]
+
+---
+
 ## [v2.45.0] - 2026-08-17
 
 ### ✨ Funcionalidades (Features)

@@ -14,6 +14,7 @@ que `TOOLS` en `smart/tools.py`.
 ISP = ["find_customer", "get_account_status", "check_health", "list_services"]
 
 
+
 def get_cases(fx):
 	"""Los casos fiscales. No usan fixtures: preguntan por cohortes, no por un documento.
 
@@ -50,6 +51,33 @@ def get_cases(fx):
 			"expect": ["run_fiscal_report"],
 			"note": "Pregunta de total, no de tabla. La herramienta devuelve totales sobre "
 			"todas las filas más el link al reporte.",
+			"id": "retenciones-como-van",
+			"question": "como van las retenciones este mes?",
+			"expect": ["check_retentions"],
+			"first": "check_retentions",
+			"max_calls": 1,
+			"note": "La pregunta abierta del área de administración, sin nombrar ISLR ni IVA.",
+		},
+		{
+			"id": "retenciones-sin-control",
+			"question": "hay comprobantes de retencion que no hayan llegado al SENIAT?",
+			"expect": ["check_retentions"],
+			"forbid": ["check_hka"],
+			"first": "check_retentions",
+			"note": "TRAMPA DE VECINDAD, y es la que más importa de este par: check_hka y "
+			"check_retentions son las dos «diagnóstico ante el SENIAT». La palabra que "
+			"desempata es «retención» — check_hka mira facturas de VENTA y no ve un solo "
+			"comprobante de retención, así que contestar con ella daría un cero que parece "
+			"un dato.",
+		},
+		{
+			"id": "retenciones-no-confundir-con-facturas",
+			"question": "que facturas de venta no se certificaron ante el SENIAT?",
+			"expect": ["check_hka"],
+			"forbid": ["check_retentions"],
+			"first": "check_hka",
+			"note": "La trampa al revés. «SENIAT» ya no alcanza para elegir desde que hay dos "
+			"herramientas fiscales: acá lo que manda es «facturas de venta».",
 		},
 		{
 			"id": "hka-cobradas-sin-certificar",

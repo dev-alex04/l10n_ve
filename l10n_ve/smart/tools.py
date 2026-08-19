@@ -331,6 +331,189 @@ def check_customer_retentions(months: int = 3, branch: str | None = None, limit:
 		),
 	}
 
+
+# ---------------------------------------------------------------------------
+# Retenciones
+# ---------------------------------------------------------------------------
+#
+# Comprobantes que ESTA empresa le emite a sus proveedores, de ISLR y de IVA.
+# La otra cara —las retenciones que los entes de gobierno nos hacen a nosotros—
+# vive en `VE Payment Government Withholding` y NO se expone: en el site medido
+# tiene 0 filas y 0 configuración, así que una herramienta ahí devolvería un vacío
+# que se lee como «no hay retenciones» en vez de «esto no se usa».
+
+#: Los dos comprobantes, con lo que cambia entre uno y otro. Se declara la
+#: diferencia en un solo lugar para no escribir dos veces la misma consulta.
+_RETENCIONES = {
+	"ISLR": {
+		"doctype": "ISLR Withholding Voucher",
+		"fecha": "posting_date",
+		"retenido": "totals_islr_amount",
+		"base": "totals_islr_base_amount",
+	},
+	"IVA": {
+		"doctype": "VAT Withholding Voucher",
+		"fecha": "issue_date",
+		"retenido": "totals_tax_amount_vat",
+		"base": "totals_total",
+	},
+}
+
+
+#: Techo de filas por impuesto. Existe para que una ventana larga no traiga la
+#: tabla entera a memoria, y **se reporta si se alcanza**: un total calculado
+#: sobre una cohorte recortada es un número equivocado con cara de correcto, que
+#: es peor que no dar número.
+_TECHO_FILAS = 5000
+
+
+def _retenciones_de(
+	impuesto: str, desde: str, branch: str | None = None, supplier: str | None = None
+) -> tuple[list[frappe._dict], bool]:
+	"""Comprobantes EMITIDOS de un impuesto desde una fecha.
+
+	Devuelve ``(filas, truncado)``. El filtro por proveedor va en la CONSULTA y no
+	después en Python: traer cinco mil filas para quedarse con cuatro es pedirle a
+	MariaDB el trabajo que después se tira.
+
+	Se usa ``frappe.get_all`` y no SQL crudo a propósito: aplica los permisos del
+	usuario de la sesión, que es lo que domina_smart promete. ``check_hka``, más
+	arriba, usa ``frappe.db.sql`` y por lo tanto NO los aplica — es una diferencia
+	conocida, y esta es la que hay que imitar.
+	"""
+	cfg = _RETENCIONES[impuesto]
+	filtros = {"docstatus": 1, cfg["fecha"]: [">=", desde]}
+	if branch:
+		filtros["branch"] = branch
+	if supplier:
+		filtros["supplier"] = supplier
+
+	filas = frappe.get_all(
+		cfg["doctype"],
+		filters=filtros,
+		fields=[
+			"name", "supplier", "supplier_name", "branch", "voucher_number",
+			"bill_control", "digital_invoice_status",
+			f"{cfg['fecha']} as fecha",
+			f"{cfg['retenido']} as retenido",
+			f"{cfg['base']} as base",
+		],
+		order_by=f"{cfg['fecha']} desc",
+		limit=_TECHO_FILAS,
+	)
+	return filas, len(filas) >= _TECHO_FILAS
+
+
+def check_retentions(months: int = 3, branch: str | None = None, limit: int = 10) -> dict:
+	"""Salud de los comprobantes de retención: cuáles no llegaron al SENIAT.
+
+	**Certificado = tiene número de control**, igual que en `check_hka` y por la
+	misma razón que documenta el AGENTS.md de esta app: el campo de estado no es
+	evidencia. Acá se midió el caso exacto —dos comprobantes con
+	``digital_invoice_status = 'Error'`` cuyo ``hka_response`` traía serie, número
+	de documento y número de control asignados—. El estado decía que falló y el
+	documento estaba ante el SENIAT.
+
+	Por eso se reportan DOS cosas distintas:
+
+	* **sin_control** — el problema de verdad: emitido y sin número de control, o
+	  sea que legalmente no existe ante el SENIAT.
+	* **estado_inconsistente** — tiene control pero el estado dice Error. El
+	  documento está bien; lo que está mal es el campo. No se arregla reemitiendo.
+
+	NO se usa ``is_declared``: en las 454 filas del site medido vale 0 sin una sola
+	excepción. Un indicador que nunca cambia no informa; reportarlo diría «368 sin
+	declarar» todos los meses y nadie volvería a leerlo.
+	"""
+	meses = max(1, min(cint(months) or 3, 24))
+	limite = max(1, min(cint(limit) or 10, MAX_ROWS))
+	desde = frappe.utils.add_months(frappe.utils.nowdate(), -meses)
+
+	def _muestra(filas):
+		return [
+			{
+				"comprobante": r.name,
+				"proveedor": r.supplier_name or r.supplier,
+				"fecha": str(r.fecha) if r.fecha else None,
+				"retenido_bs": flt(r.retenido),
+				"numero_control": r.bill_control or None,
+				"estado": r.digital_invoice_status or None,
+			}
+			for r in filas[:limite]
+		]
+
+	por_impuesto = {}
+	for impuesto in _RETENCIONES:
+		filas, truncado = _retenciones_de(impuesto, desde, branch)
+		sin_control = [r for r in filas if not (r.bill_control or "").strip()]
+		inconsistentes = [
+			r for r in filas
+			if (r.bill_control or "").strip() and (r.digital_invoice_status or "") == "Error"
+		]
+
+		# Quién concentra la retención. Va en el payload y NO en la descripción:
+		# responde «¿a quién le retuvimos más?» sin sumarle un token al preámbulo,
+		# que viaja en CADA llamada al modelo aunque nadie pregunte eso.
+		#
+		# Es además lo más cerca que queda de la consulta por proveedor, mientras
+		# `get_supplier_retentions` siga afuera (ver la nota antes de TOOLS).
+		acumulado: dict[str, float] = {}
+		nombres: dict[str, str] = {}
+		for r in filas:
+			if not r.supplier:
+				continue
+			acumulado[r.supplier] = acumulado.get(r.supplier, 0.0) + flt(r.retenido)
+			nombres[r.supplier] = r.supplier_name or r.supplier
+
+		top = sorted(acumulado.items(), key=lambda kv: -kv[1])[:5]
+
+		por_impuesto[impuesto] = {
+			"emitidos": len(filas),
+			# Si se alcanzó el techo, el total está calculado sobre una cohorte
+			# recortada: se avisa en vez de dejarlo pasar como si fuera exacto.
+			"parcial": truncado,
+			"retenido_bs": round(sum(flt(r.retenido) for r in filas), 2),
+			"top_proveedores": [
+				{"supplier": s_id, "proveedor": nombres[s_id], "retenido_bs": round(monto, 2)}
+				for s_id, monto in top
+			],
+			"sin_control": {
+				"count": len(sin_control),
+				"significa": "Emitido y SIN número de control: ante el SENIAT no existe",
+				"muestra": _muestra(sin_control),
+			},
+			"estado_inconsistente": {
+				"count": len(inconsistentes),
+				"significa": (
+					"Tiene número de control pero el estado dice Error. El documento está "
+					"ante el SENIAT; lo que está mal es el campo. NO se reemite"
+				),
+				"muestra": _muestra(inconsistentes),
+			},
+		}
+
+	return {
+		"desde": desde,
+		"branch": branch,
+		"por_impuesto": por_impuesto,
+		"moneda": "Bs",
+		"nota": (
+			"Los montos están en BOLÍVARES. Estos comprobantes no tienen campo de moneda: "
+			"van en la moneda de la compañía, y la retención se declara en bolívares. NO los "
+			"reportes como USD ni los conviertas."
+		),
+	}
+
+# `get_supplier_retentions` —las retenciones de UN proveedor— se escribió, se probó
+# contra datos reales y NO se incluye. Medido: sola no molesta (5/5), pero JUNTO a
+# `check_retentions` tumba `natural-morosos-navegando` de domina_isp, un caso que no
+# tiene nada que ver con retenciones: de 5/5 a 0/3, y a 2/5 tras recortarle la
+# descripción. No es el tamaño del catálogo —una 18ª herramienta placebo no rompe
+# nada— sino que las dos se parecen demasiado entre sí.
+#
+# Se despacha una sola y la otra queda pendiente de una redacción que no compita.
+
+
 TOOLS = [
 	{
 		"name": "check_customer_retentions",
@@ -387,6 +570,39 @@ TOOLS = [
 			"properties": {
 				"branch": {"type": "string", "description": "Acotar a una sucursal (VE Branch)."},
 				"limit": {"type": "integer", "description": "Filas de muestra por motivo (por defecto 10, techo 25)."},
+			},
+			"required": [],
+		},
+	},
+	{
+		"name": "check_retentions",
+		"handler": check_retentions,
+		"writes": False,
+		"description": (
+			"Salud de los comprobantes de RETENCIÓN que esta empresa le emite a sus "
+			"proveedores, de ISLR y de IVA.\n"
+			"Usala para «cómo van las retenciones», «qué comprobantes no llegaron al "
+			"SENIAT», «cuánto retuvimos este mes», «hay retenciones con problemas».\n"
+			"NO es para facturas de venta — para eso está check_hka.\n"
+			"\n"
+			"Devuelve DOS cohortes que NO son lo mismo y se arreglan distinto:\n"
+			"  · sin_control → emitido y sin número de control: ante el SENIAT no existe.\n"
+			"    Es el problema de verdad.\n"
+			"  · estado_inconsistente → tiene número de control pero el campo de estado dice\n"
+			"    Error. El documento SÍ está ante el SENIAT; lo que está mal es el campo.\n"
+			"    NO propongas reemitirlo: se reemitiría algo que ya existe.\n"
+			"\n"
+			"MONTOS EN BOLÍVARES, siempre. Estos comprobantes no tienen campo de moneda y la "
+			"retención se declara en Bs. Nunca los reportes como USD ni los conviertas.\n"
+			"No propongas anular ni reemitir un comprobante certificado: ante el SENIAT eso "
+			"no es una corrección, es otro trámite. Describí el caso y quién debe verlo."
+		),
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"months": {"type": "integer", "description": "Meses hacia atrás (por defecto 3, techo 24)."},
+				"branch": {"type": "string", "description": "Acotar a una sucursal (VE Branch)."},
+				"limit": {"type": "integer", "description": "Filas de muestra por cohorte (por defecto 10, techo 25)."},
 			},
 			"required": [],
 		},
