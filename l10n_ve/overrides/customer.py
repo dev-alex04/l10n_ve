@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from frappe.utils import flt
 from erpnext.selling.doctype.customer.customer import Customer
 from l10n_ve.utils.utils import validate_tax_id_format, validate_unique_tax_id, validate_taxpayer_and_person_type_consistency
 from l10n_ve.utils.utils import link_address_to_party
