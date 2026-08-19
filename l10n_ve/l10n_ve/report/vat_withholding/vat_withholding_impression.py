@@ -4,7 +4,7 @@ import frappe
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
-from frappe.utils import fmt_money, formatdate, nowdate
+from frappe.utils import flt, fmt_money, formatdate, nowdate
 from l10n_ve.utils.pdf_utils import safe_get_pdf
 from l10n_ve.l10n_ve.report.vat_withholding.vat_withholding import get_data
 
@@ -50,7 +50,7 @@ def download_custom_excel(filters=None):
     ws["A3"] = f"Dirección: {company_details.get('address')}"
     ws["A4"] = f"Fecha de Emisión: {formatdate(nowdate())}"
 
-    ws.merge_cells('A5:L5')
+    ws.merge_cells('A5:N5')
     ws["A5"] = "REPORTE DETALLADO DE RETENCIONES IVA"
     ws["A5"].font = bold_font
     ws["A5"].alignment = center_align
@@ -59,7 +59,7 @@ def download_custom_excel(filters=None):
     headers = [
         "RIF Proveedor", "Nombre del Proveedor", "Número de Factura", "Número de Control", "Fecha Factura", 
         "Impuesto", "Fecha Emisión", "Documento Retención", 
-        "Base Imponible Bs", "Monto Retención Bs", "Estado del Documento", "Estado del Comprobante"
+        "Base Imponible Bs", "Alícuota IVA (%)", "% Retención IVA", "Monto Retención Bs", "Estado del Documento", "Estado del Comprobante"
     ]
 
     for col_num, header in enumerate(headers, 1):
@@ -77,21 +77,36 @@ def download_custom_excel(filters=None):
         ws.cell(row=row_num, column=2, value=d.supplier_name)
         ws.cell(row=row_num, column=3, value=d.bill_no)
         ws.cell(row=row_num, column=4, value=d.bill_control)
+
         cell_date = ws.cell(row=row_num, column=5, value=d.posting_date)
         cell_date.number_format = 'DD-MM-YYYY'
         cell_date.alignment = Alignment(horizontal="center")
+
         ws.cell(row=row_num, column=6, value=d.tax_withholding_category)
+
         cell_issue = ws.cell(row=row_num, column=7, value=d.issue_date)
         cell_issue.number_format = 'DD-MM-YYYY'
         cell_issue.alignment = Alignment(horizontal="center")
+
         ws.cell(row=row_num, column=8, value=d.voucher_number)
+
         cell_base = ws.cell(row=row_num, column=9, value=d.total)
         cell_base.number_format = '#,##0.00'
-        cell_ret = ws.cell(row=row_num, column=10, value=d.tax_amount_vat)
+
+        cell_alicuota = ws.cell(row=row_num, column=10, value=(d.rate or 0) / 100.0)
+        cell_alicuota.number_format = '0.00%'
+        cell_alicuota.alignment = Alignment(horizontal="right")
+
+        cell_withholding_rate = ws.cell(row=row_num, column=11, value=(d.withholding_rate or 0) / 100.0)
+        cell_withholding_rate.number_format = '0.00%'
+        cell_withholding_rate.alignment = Alignment(horizontal="right")
+
+        cell_ret = ws.cell(row=row_num, column=12, value=d.tax_amount_vat)
         cell_ret.number_format = '#,##0.00'
-        ws.cell(row=row_num, column=11, value=d.status)
-        ws.cell(row=row_num, column=12, value=d.declared_status)
-        
+
+        ws.cell(row=row_num, column=13, value=d.get("status") or "")
+        ws.cell(row=row_num, column=14, value=d.get("declared_status") or "")
+
         total_base += (d.total or 0)
         total_ret += (d.tax_amount_vat or 0)
         row_num += 1
@@ -99,16 +114,16 @@ def download_custom_excel(filters=None):
     row_num += 1
     ws.cell(row=row_num, column=8, value="TOTALES:").font = bold_font
     ws.cell(row=row_num, column=8).alignment = Alignment(horizontal="right")
-    
+
     cell_total_base = ws.cell(row=row_num, column=9, value=total_base)
     cell_total_base.number_format = '#,##0.00'
     cell_total_base.font = bold_font
 
-    cell_total_ret = ws.cell(row=row_num, column=10, value=total_ret)
+    cell_total_ret = ws.cell(row=row_num, column=12, value=total_ret)
     cell_total_ret.number_format = '#,##0.00'
     cell_total_ret.font = bold_font
 
-    for col_idx in range(1, 11):
+    for col_idx in range(1, len(headers) + 1):
         ws.column_dimensions[get_column_letter(col_idx)].width = 16
 
     output = io.BytesIO()
@@ -137,6 +152,8 @@ def download_custom_pdf(filters=None):
     for d in data:
         d["total_f"] = fmt_money(d.total, currency=currency)
         d["ret_f"] = fmt_money(d.tax_amount_vat, currency=currency)
+        d["rate_f"] = f"{flt(d.rate):.2f}%"
+        d["withholding_rate_f"] = f"{flt(d.withholding_rate):.2f}%"
         d["p_date"] = formatdate(d.posting_date)
         d["i_date"] = formatdate(d.issue_date)
 
@@ -170,16 +187,18 @@ def download_custom_pdf(filters=None):
         <table>
             <thead>
                 <tr>
-                    <th style="width: 8%;">RIF Proveedor</th>
-                    <th style="width: 15%;">Nombre del Proveedor</th>
-                    <th style="width: 8%;">Número de Factura</th>
-                    <th style="width: 9%;">Número de Control</th>
-                    <th style="width: 8%;">Fecha Factura</th>
-                    <th style="width: 10%;">Impuesto</th>
-                    <th style="width: 8%;">Fecha Emisión</th>
-                    <th style="width: 12%;">Documento Retención</th>
-                    <th style="width: 11%;">Base Imponible Bs</th>
-                    <th style="width: 11%;">Monto Retención Bs</th>
+                    <th style="width: 7%;">RIF Proveedor</th>
+                    <th style="width: 14%;">Nombre del Proveedor</th>
+                    <th style="width: 7%;">Número de Factura</th>
+                    <th style="width: 7%;">Número de Control</th>
+                    <th style="width: 7%;">Fecha Factura</th>
+                    <th style="width: 9%;">Impuesto</th>
+                    <th style="width: 7%;">Fecha Emisión</th>
+                    <th style="width: 10%;">Documento Retención</th>
+                    <th style="width: 9%;">Base Imponible Bs</th>
+                    <th style="width: 5%;">Alícuota IVA</th>
+                    <th style="width: 5%;">% Ret. IVA</th>
+                    <th style="width: 9%;">Monto Retención Bs</th>
                     <th style="width: 5%;">Estado del Documento</th>
                     <th style="width: 5%;">Estado del Comprobante</th>
                 </tr>
@@ -196,14 +215,17 @@ def download_custom_pdf(filters=None):
                     <td class="text-center">{{ row.i_date }}</td>
                     <td class="text-center">{{ row.voucher_number }}</td>
                     <td class="text-right">{{ row.total_f }}</td>
+                    <td class="text-right">{{ row.rate_f }}</td>
+                    <td class="text-right">{{ row.withholding_rate_f }}</td>
                     <td class="text-right">{{ row.ret_f }}</td>
-                    <td class="text-center">{{ row.status }}</td>
+                    <td class="text-center">{{ row.status or '' }}</td>
                     <td class="text-center">{{ row.declared_status }}</td>
                 </tr>
                 {% endfor %}
                 <tr style="font-weight: bold; background-color: #f2f2f2;">
                     <td colspan="8" class="text-right">TOTALES</td>
                     <td class="text-right">{{ total_base_f }}</td>
+                    <td colspan="2"></td>
                     <td class="text-right">{{ total_ret_f }}</td>
                     <td colspan="2"></td>
                 </tr>

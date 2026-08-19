@@ -5,6 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.49.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+- Implementación de la validación de impacto de periodo (`check_period_impact`) en el módulo smart.
+- Adición de los reportes de Registro de Ventas (Sales Register) y Libro Mayor (General Ledger) al catálogo del sistema. d59d042
+
+---
+
+## [v2.48.1] - 2026-08-19
+
+### 🐛 Correcciones (Fixes)
+- **Localización Venezuela (l10n_ve):** Se corrigió la lógica de importación de `ClosedAccountingPeriod` y se optimizó el sistema de registros para evitar la saturación de los logs con entradas redundantes de una misma factura. (e45ccd0)
+
+---
+
+## [v2.48.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+- Implementación de descubrimiento automático de suites de prueba basado en archivos, eliminando la necesidad de realizar registros manuales. [c23193f](https://github.com/repo/commit/c23193f)
+
+---
+
+## [v2.48.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+* Implementación de la función `check_opening_balances` dentro del módulo smart para la validación de saldos iniciales.
+
+### 🐛 Correcciones (Fixes)
+* Resolución de errores en dos casos específicos de ejecución de sentencias `eval` que se encontraban rotos.
+
+---
+
+## [v2.47.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+- **Localización Venezuela (l10n_ve):** Se han expuesto 22 reportes legales y fiscales dentro del módulo. Se integró una nueva funcionalidad de validación que notifica al usuario sobre los comprobantes de retención faltantes. [fa56b7e]
+
+---
+
+## [v2.46.0] - 2026-08-18
+
+### ✨ Funcionalidades (Features)
+- Se integró la nueva validación **check_retentions** dentro del módulo smart para monitorear y verificar la salud de los comprobantes de retención. [63f1e0e]
+
+---
+
+## [v2.45.0] - 2026-08-17
+
+### ✨ Funcionalidades (Features)
+- Implementación de nuevas columnas de porcentaje en los reportes de retenciones de ISLR e IVA, incluyendo soporte completo para exportaciones en formatos Excel y PDF [75f4923].
+- Optimización y simplificación de la lógica para el formateo de valores porcentuales en el módulo de reportes [d644627].
+
+---
+
+## [v2.44.0] - 2026-08-17
+
+### ✨ Funcionalidades (Features)
+- Implementación de restricción de acceso al **Reporte Gerencial**, limitando su uso exclusivo a usuarios con el rol **Executive Reporting Manager**. [ffcab25]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la lógica de permisos para acotar las excepciones de rol específicamente al módulo de reportes, evitando que afecten globalmente a otras secciones de la aplicación. [66ee6ce]
+
+---
+
+## [v2.43.0] - 2026-08-17
+
+### ✨ Funcionalidades (Features)
+- Se implementó el parámetro `is_fiscal_device` para permitir omitir la validación de duplicidad en el campo `bill_no` cuando se utiliza el mismo proveedor. [162de80]
+
+---
+
 ## [v2.41.1] - 2026-08-05
 
 ### 🐛 Correcciones (Fixes)
