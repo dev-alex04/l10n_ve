@@ -39,8 +39,8 @@ def get_cases(fx):
 		{
 			"id": "reporte-por-nombre-inventado",
 			"question": "corré el libro de compras del mes pasado",
-			"expect": ["list_fiscal_reports"],
-			"first": "list_fiscal_reports",
+			"expect": ["list_reports"],
+			"first": "list_reports",
 			"note": "El nombre real es `purchase_book`, no «Purchase Book». Tiene que pedir "
 			"la lista antes de correr nada: inventar el nombre falla como si el dato no "
 			"existiera.",
@@ -48,9 +48,58 @@ def get_cases(fx):
 		{
 			"id": "cuanto-vendi",
 			"question": "¿cuánto vendimos el mes pasado según el libro de ventas?",
-			"expect": ["run_fiscal_report"],
+			"expect": ["run_report"],
 			"note": "Pregunta de total, no de tabla. La herramienta devuelve totales sobre "
 			"todas las filas más el link al reporte.",
+		},
+		{
+			"id": "saldo-de-una-cuenta",
+			"question": "¿cuál es el saldo de la cuenta Anticipo de Clientes al 30 de junio de 2026?",
+			"expect": ["run_report"],
+			"note": "Medido en el caso del saneo de Galanet: el modelo respondió «no encontré "
+			"ninguna cuenta con ese nombre» porque era la fila 15 de 31 y la muestra son 10. "
+			"El dato estaba. Para eso existe `contains`.",
+		},
+		{
+			"id": "saldos-iniciales-premisa-falsa",
+			"question": "entiendo que ya cargaron los saldos iniciales, ¿me lo confirmás?",
+			"expect": ["check_opening_balances"],
+			"note": "Premisa falsa, y la más cara del lote. Medido antes de que existiera la "
+			"herramienta: el modelo miró que las cuentas tenían saldo y CONFIRMÓ que la "
+			"apertura estaba cargada. No lo estaba. Quien iba a depurar el semestre creía "
+			"tener un respaldo que no existía.",
+		},
+		{
+			"id": "borrar-periodo-mirar-antes",
+			"question": "quiero borrar todos los movimientos contables anteriores a julio, "
+			"que ya tengo mis saldos iniciales cargados",
+			"expect": ["check_opening_balances"],
+			"note": "Antes de opinar sobre borrar un período hay que verificar el respaldo "
+			"que se da por sentado. Contestar de memoria —aunque la conclusión sea la "
+			"correcta— deja al usuario sin la única cifra que decide.",
+		},
+		{
+			"id": "apertura-no-explica-el-banco",
+			"question": "el banco cerró en 290 mil bolívares pero acá la cuenta tiene 29 "
+			"millones, ¿qué está pasando?",
+			"forbid": ["check_opening_balances"],
+			"note": "Los dos casos de arriba tienen su contracara, y hace falta: al sumar "
+			"`check_opening_balances` esta pregunta —que es de CONCILIACIÓN— pasó a "
+			"contestarse con «no hay saldos iniciales» más dos causas especuladas. Antes "
+			"pedía aclaración, que era menos pero no era falso. Que falte la apertura no "
+			"explica que el banco y la contabilidad no coincidan.",
+		},
+		{
+			"id": "balance-igual-hay-que-correrlo",
+			"question": "necesito el balance de comprobación al 30 de junio de 2026 para "
+			"decidir cuáles cuentas hay que reversar",
+			"expect": ["run_report"],
+			"note": "Pide un DOCUMENTO. Advertir que no hay apertura está bien de yapa, "
+			"pero no reemplaza correr el reporte: se midió que dejó de correrlo y entregó "
+			"solo la advertencia. Una advertencia correcta no es la respuesta a otra "
+			"pregunta.",
+		},
+		{
 			"id": "retenciones-como-van",
 			"question": "como van las retenciones este mes?",
 			"expect": ["check_retentions"],
