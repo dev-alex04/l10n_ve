@@ -47,37 +47,43 @@
    "fieldtype": "Select",
    "label": "Tipo de Comprobante",
    "options": "Todos\nJournal Entry\nSales Invoice\nPurchase Invoice\nPayment Entry\nVE Sales Debit Note\nVE Sales Credit Note\nVE Purchase Debit Note\nVE Purchase Credit Note",
-   "default": "Todos"
+   "default": "Todos",
+   "ignore_permissions": 1
   },
   {
    "fieldname": "account",
    "fieldtype": "Link",
    "label": "Cuenta Contable",
-   "options": "Account"
+   "options": "Account",
+   "ignore_permissions": 1
   },
   {
    "fieldname": "party_type",
    "fieldtype": "Link",
    "label": "Tipo de Tercero",
-   "options": "DocType"
+   "options": "DocType",
+   "ignore_permissions": 1
   },
   {
    "fieldname": "party",
    "fieldtype": "Dynamic Link",
    "label": "Tercero",
-   "options": "party_type"
+   "options": "party_type",
+   "ignore_permissions": 1
   },
   {
    "fieldname": "cost_center",
    "fieldtype": "Link",
    "label": "Centro de Costo",
-   "options": "Cost Center"
+   "options": "Cost Center",
+   "ignore_permissions": 1
   },
   {
    "fieldname": "include_cancelled",
    "fieldtype": "Check",
    "label": "Incluir Anulados",
-   "default": 0
+   "default": 0,
+   "ignore_permissions": 1
   }
  ],
  "idx": 0,

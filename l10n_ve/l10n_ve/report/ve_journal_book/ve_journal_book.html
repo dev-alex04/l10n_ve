@@ -251,7 +251,7 @@
                     <img src="{{ data[0].company_logo }}" class="company-logo" alt="Logo">
                 {% endif %}
                 <div style="font-size: 7.5px; color: #94a3b8; margin-top: 4px;">
-                    Emitido: {{ frappe.utils.format_datetime(frappe.utils.now_datetime()) }}
+                    Emitido: {{ frappe.datetime.now_datetime() }}
                 </div>
             </td>
         </tr>
@@ -303,14 +303,16 @@
                         {% for col in columns %}
                             <td class="{% if col.fieldtype == 'Currency' or col.fieldtype == 'Float' %}text-right{% elif col.fieldtype == 'Date' %}text-center{% endif %}">
                                 {% set val = row[col.fieldname] %}
-                                {% if val is not none and val != "" %}
-                                    {% if col.fieldtype == "Currency" or col.fieldtype == "Float" %}
-                                        {{ frappe.format(val, col) }}
-                                    {% elif col.fieldtype == "Date" %}
-                                        {{ frappe.format_date(val) }}
-                                    {% else %}
-                                        {{ val }}
+                                {% if col.fieldtype == "Currency" %}
+                                    {% if val is not none and val != "" %}
+                                        {{ frappe.format_currency(val) }}
                                     {% endif %}
+                                {% elif col.fieldtype == "Date" %}
+                                    {% if val %}
+                                        {{ frappe.format_date(val) }}
+                                    {% endif %}
+                                {% else %}
+                                    {{ val or "" }}
                                 {% endif %}
                             </td>
                         {% endfor %}
