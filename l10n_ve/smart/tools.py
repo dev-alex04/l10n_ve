@@ -504,6 +504,153 @@ def check_retentions(months: int = 3, branch: str | None = None, limit: int = 10
 		),
 	}
 
+def check_opening_balances(company: str | None = None) -> dict:
+	"""¿Se cargaron los saldos iniciales, o solo se supone que sí?
+
+	Nace de un caso real. La contadora de un cliente pidió depurar el primer
+	semestre «considerando que ya fueron cargados en el sistema los saldos
+	iniciales». No lo estaban. Si se borraba el semestre creyendo que había
+	respaldo, no quedaba respaldo: quedaba un vacío.
+
+	Se le preguntó eso mismo al asistente antes de que esta herramienta existiera y
+	**confirmó la premisa falsa**: miró que las cuentas tenían saldo y lo dio por
+	bueno. Ese es justo el razonamiento que hay que impedir — que una cuenta tenga
+	movimiento no dice NADA sobre si hubo apertura; lo único que dice es que la
+	empresa operó.
+
+	Por eso se responde con cuatro vías independientes y su evidencia, y no con un
+	sí o un no. Ninguna basta sola: la bandera ``is_opening`` puede no marcarse, y
+	entonces un cero ahí no probaría nada. Pero una carga de saldos iniciales
+	**necesariamente** mueve patrimonio —ahí va el resultado acumulado del ejercicio
+	anterior— y **necesariamente** se contabiliza contra una cuenta transitoria de
+	apertura. Que esas dos estén vacías sí concluye.
+	"""
+	company = company or frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
+		"Global Defaults", "default_company"
+	)
+
+	# Una empresa que no existe haría que las cuatro vías den cero y esta herramienta
+	# respondería «no hay apertura» con toda seguridad. Es el peor lugar del sistema
+	# para un falso negativo silencioso: es justo la respuesta que autoriza a borrar.
+	if not company or not frappe.db.exists("Company", company):
+		existentes = ", ".join(frappe.get_all("Company", pluck="name")) or "ninguna"
+		frappe.throw(
+			f"No puedo comprobar la apertura de «{company or '(sin empresa)'}» porque esa "
+			f"empresa no existe. Preguntando por una empresa equivocada, las cuatro vías "
+			f"darían cero y parecería que no hay apertura. Empresas: {existentes}."
+		)
+
+	def contar(sql, **kw):
+		return int(frappe.db.sql(sql, {"company": company, **kw})[0][0] or 0)
+
+	asientos_marcados = contar(
+		"""SELECT COUNT(*) FROM `tabJournal Entry`
+		   WHERE docstatus=1 AND is_opening='Yes' AND company=%(company)s"""
+	)
+	lineas_marcadas = contar(
+		"""SELECT COUNT(*) FROM `tabGL Entry`
+		   WHERE IFNULL(is_cancelled,0)=0 AND is_opening='Yes' AND company=%(company)s"""
+	)
+	patrimonio = contar(
+		"""SELECT COUNT(*) FROM `tabGL Entry` gl JOIN `tabAccount` a ON a.name=gl.account
+		   WHERE IFNULL(gl.is_cancelled,0)=0 AND a.root_type='Equity'
+		     AND gl.company=%(company)s"""
+	)
+	transitorias = contar(
+		"""SELECT COUNT(*) FROM `tabAccount`
+		   WHERE company=%(company)s AND (account_type='Temporary'
+		     OR LOWER(account_name) LIKE '%%apertura%%'
+		     OR LOWER(account_name) LIKE '%%transitoria%%')"""
+	)
+
+	vias = [
+		{
+			"via": "Asientos marcados como apertura",
+			"encontrado": asientos_marcados + lineas_marcadas,
+			"significa": (
+				"Sola no concluye: una apertura puede cargarse sin marcar la casilla, "
+				"así que un cero acá no prueba nada por sí mismo."
+			),
+		},
+		{
+			"via": "Movimientos en cuentas de patrimonio",
+			"encontrado": patrimonio,
+			"significa": (
+				"Concluyente. Toda carga de saldos iniciales mueve patrimonio, porque ahí "
+				"se registra el resultado acumulado del ejercicio anterior."
+			),
+		},
+		{
+			"via": "Cuentas transitorias de apertura en el plan",
+			"encontrado": transitorias,
+			"significa": (
+				"Concluyente. La contrapartida de una apertura va contra una cuenta "
+				"transitoria; si no existe en el plan, no se cargó por esta vía."
+			),
+		},
+	]
+
+	# La firma de una apertura es tocar muchas cuentas de balance de una sola vez.
+	# Ningún asiento operativo se parece a eso.
+	amplio = frappe.db.sql(
+		"""SELECT gl.voucher_no, COUNT(DISTINCT gl.account) cuentas
+		   FROM `tabGL Entry` gl JOIN `tabAccount` a ON a.name=gl.account
+		   WHERE IFNULL(gl.is_cancelled,0)=0 AND gl.company=%(company)s
+		     AND a.root_type IN ('Asset','Liability','Equity')
+		   GROUP BY gl.voucher_no HAVING cuentas >= 6
+		   ORDER BY cuentas DESC LIMIT 5""",
+		{"company": company},
+		as_dict=True,
+	)
+	vias.append({
+		"via": "Asientos que tocan 6 o más cuentas de balance",
+		"encontrado": len(amplio),
+		"significa": "Es la firma de una apertura. Ningún asiento operativo la tiene.",
+		"ejemplos": [a.voucher_no for a in amplio],
+	})
+
+	primer = frappe.db.sql(
+		"""SELECT MIN(posting_date) FROM `tabGL Entry`
+		   WHERE IFNULL(is_cancelled,0)=0 AND company=%(company)s""",
+		{"company": company},
+	)[0][0]
+
+	# Que alguien haya ABIERTO la herramienta de importación no es que la haya
+	# ejecutado. Distinguirlo evita acusar a nadie de no haber hecho su trabajo.
+	intentos = frappe.get_all(
+		"Data Import",
+		filters={"reference_doctype": ["in", ["Journal Entry", "Account"]]},
+		fields=["name", "reference_doctype", "status", "creation"],
+		order_by="creation desc",
+		limit=5,
+		ignore_permissions=True,
+	)
+
+	concluyentes = patrimonio + transitorias + len(amplio) + asientos_marcados + lineas_marcadas
+	cargados = concluyentes > 0
+
+	return {
+		"company": company,
+		"cargados": cargados,
+		"veredicto": (
+			"Hay rastro de una carga de saldos iniciales; revisá la evidencia para ver por "
+			"qué vía." if cargados else
+			"NO hay rastro de una carga de saldos iniciales. Las cuatro vías dan cero."
+		),
+		"evidencia": vias,
+		"primer_movimiento": str(primer) if primer else None,
+		"intentos_de_importacion": intentos,
+		"nota": (
+			"NO uses «las cuentas tienen saldo» como prueba de que la apertura se cargó: "
+			"eso solo dice que la empresa operó. La apertura se prueba con las vías de "
+			"`evidencia`, no con el balance.\n"
+			"Si `cargados` es false y alguien planea depurar un período apoyándose en que "
+			"los saldos iniciales lo respaldan, decíselo: ese respaldo no existe, y "
+			"borrar primero dejaría un vacío en vez de una foto."
+		),
+	}
+
+
 # `get_supplier_retentions` —las retenciones de UN proveedor— se escribió, se probó
 # contra datos reales y NO se incluye. Medido: sola no molesta (5/5), pero JUNTO a
 # `check_retentions` tumba `natural-morosos-navegando` de domina_isp, un caso que no
@@ -515,6 +662,37 @@ def check_retentions(months: int = 3, branch: str | None = None, limit: int = 10
 
 
 TOOLS = [
+	{
+		"name": "check_opening_balances",
+		"handler": check_opening_balances,
+		"writes": False,
+		# El «ANTES de opinar sobre depurar, borrar o reversar» que decía la primera
+		# versión era demasiado ancho: la herramienta se disparó en 9 de 17 preguntas
+		# de una batería contable, incluidas las que no dependen de la apertura.
+		# Secuestró dos: una diferencia contra el banco pasó a contestarse con «no hay
+		# saldos iniciales» más dos causas inventadas, y un pedido de balance de
+		# comprobación se contestó con una advertencia y sin correr el reporte.
+		#
+		# Se corrige contrastando —diciendo para qué NO es—, que es lo medido que
+		# funciona en este catálogo; acortar la descripción, no.
+		"description": (
+			"¿Se cargaron los SALDOS INICIALES de apertura, o solo se supone que sí?\n"
+			"Usala SOLO cuando la respuesta dependa de que exista una apertura: alguien la "
+			"da por cargada, o quiere borrar o depurar un período apoyándose en ella.\n"
+			"NO la uses para dar un saldo, para explicar una diferencia contra el banco ni "
+			"para entregar un balance o un mayor: eso sale de los reportes. Que falte la "
+			"apertura NO explica que el banco y la contabilidad no coincidan — eso es "
+			"conciliación, y es otra cosa.\n"
+			"Que las cuentas tengan saldo NO prueba que haya apertura — eso solo prueba que "
+			"la empresa operó."
+		),
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"company": {"type": "string", "description": "Empresa. Por defecto, la del usuario."},
+			},
+		},
+	},
 	{
 		"name": "check_customer_retentions",
 		"handler": check_customer_retentions,
