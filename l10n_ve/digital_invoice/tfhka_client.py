@@ -52,7 +52,7 @@ class TFHKAClient:
         # se correspondan. Acá se elegía la clave con un bool() sobre el flag y se usaba
         # la URL tal cual viniera: en modo producción con una production_url de demo no
         # se certificaba nada y el sistema no se enteraba.
-        _, self.base_url = resolve_endpoint()
+        is_production, self.base_url = resolve_endpoint()
 
         self.username = site_cfg.get("username") or ""
         self.password = site_cfg.get("password") or ""
