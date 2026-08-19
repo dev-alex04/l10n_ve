@@ -1499,7 +1499,15 @@ function setup_voucher_buttons(frm) {
         );
       }
 
-
+      if (show_municipal) {
+        frm.add_custom_button(
+          __("Retención Municipal"),
+          () => {
+            open_upload_municipal_modal(frm);
+          },
+          __("Cargar Comprobante"),
+        );
+      }
     },
   );
 }

@@ -1806,6 +1806,7 @@ def update_invoice_metadata(invoice: "SalesInvoice", data: dict) -> None:
 WITHHOLDING_VOUCHER_FIELD: dict = {
     "VAT Withholding": "vat_withholding_voucher_number",
     "ISLR": "islr_receipt_number",
+    "Municipal Withholding": "municipal_receipt_number",
 }
 
 
