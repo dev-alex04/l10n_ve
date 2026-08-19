@@ -504,6 +504,162 @@ def check_retentions(months: int = 3, branch: str | None = None, limit: int = 10
 		),
 	}
 
+def _company(company: str | None) -> str:
+	"""La empresa, validada. Una que no existe hace que todo dé cero sin error."""
+	company = company or frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
+		"Global Defaults", "default_company"
+	)
+	if not company or not frappe.db.exists("Company", company):
+		existentes = ", ".join(frappe.get_all("Company", pluck="name")) or "ninguna"
+		frappe.throw(
+			f"No existe la empresa «{company or '(sin empresa)'}». Preguntando por una "
+			f"empresa equivocada las consultas dan cero y parece que no hay datos. "
+			f"Empresas: {existentes}."
+		)
+	return company
+
+
+def check_period_impact(from_date: str, to_date: str, company: str | None = None) -> dict:
+	"""Qué hay en un período contable y qué se rompería si se toca.
+
+	La pregunta que originó todo esto fue «lo de enero a junio es basura, ¿lo podemos
+	borrar?», y contestarla bien exige cuatro cosas a la vez: cuánto hay, qué de eso
+	sostiene documentos posteriores, qué ya se declaró ante el SENIAT, y qué queda
+	abierto. Por separado ninguna alcanza.
+
+	Sin esto el asistente contestaba «no se puede» —conclusión correcta— **sin una
+	sola cifra**: un razonamiento genérico de ERPNext que no menciona que detrás del
+	período hay 24.138 documentos ni que 5.873 pagos sostienen facturas posteriores.
+	"""
+	company = _company(company)
+
+	volumen = frappe.db.sql(
+		"""SELECT voucher_type, COUNT(DISTINCT voucher_no) documentos, COUNT(*) asientos
+		   FROM `tabGL Entry`
+		   WHERE posting_date BETWEEN %(desde)s AND %(hasta)s
+		     AND IFNULL(is_cancelled,0)=0 AND company=%(company)s
+		   GROUP BY voucher_type ORDER BY documentos DESC""",
+		{"desde": from_date, "hasta": to_date, "company": company},
+		as_dict=True,
+	)
+
+	# Lo que ATA el período a lo que vino después. En un ISP con pagos por adelantado
+	# la facturación de cada mes vuelve a tomar un pago viejo, así que borrarlo deja
+	# sin pago a facturas que ya se emitieron.
+	cruce = frappe.db.sql(
+		"""SELECT COUNT(DISTINCT pe.name) pagos, COUNT(DISTINCT si.name) facturas,
+		          ROUND(SUM(per.allocated_amount),2) monto
+		   FROM `tabPayment Entry Reference` per
+		   JOIN `tabPayment Entry` pe ON pe.name = per.parent
+		   JOIN `tabSales Invoice` si ON si.name = per.reference_name
+		   WHERE pe.docstatus=1 AND si.docstatus=1 AND per.reference_doctype='Sales Invoice'
+		     AND pe.posting_date BETWEEN %(desde)s AND %(hasta)s
+		     AND si.posting_date > %(hasta)s""",
+		{"desde": from_date, "hasta": to_date},
+		as_dict=True,
+	)[0]
+
+	# Certificado ante el SENIAT = lo irreversible. Un período sin nada emitido se
+	# puede corregir sin riesgo fiscal; uno con documentos emitidos, no.
+	#
+	# Las dos señales van SEPARADAS y no se colapsan en una, porque en datos reales
+	# divergen y colapsarlas miente. Medido sobre ene-jun 2026: 7.155 facturas con
+	# `bill_control` pero solo 2.386 con log de transmisión — el número de control de
+	# enero a mayo viene de otro lado (formato `00549` contra el `00-00235350` que
+	# devuelve HKA) y en ese tramo hay UN solo log, de Error. Tomar `bill_control`
+	# como prueba de transmisión daba 7.155 documentos «ante el SENIAT» que nunca
+	# llegaron.
+	fiscal = frappe.db.sql(
+		f"""SELECT
+		      SUM(CASE WHEN EXISTS(
+		            SELECT 1 FROM `tabVE Digital Invoice Log` l
+		            WHERE l.sales_invoice = si.name AND l.status = 'Success'
+		              AND l.document_type = 'Sales Invoice') THEN 1 ELSE 0 END) transmitidas,
+		      SUM(CASE WHEN IFNULL(si.bill_control,'') <> '' THEN 1 ELSE 0 END) con_control,
+		      COUNT(*) facturas
+		    FROM `tabSales Invoice` si
+		    WHERE si.docstatus=1 AND si.company=%(company)s
+		      AND si.posting_date BETWEEN %(desde)s AND %(hasta)s""",
+		{"desde": from_date, "hasta": to_date, "company": company},
+		as_dict=True,
+	)[0]
+
+	# Cartera abierta del período, por las DOS vías, porque divergen y esa divergencia
+	# es un hallazgo en sí: una factura puede figurar pagada en el documento y seguir
+	# con saldo en el mayor.
+	segun_mayor = frappe.db.sql(
+		"""SELECT COUNT(*) c, ROUND(SUM(s),2) monto FROM (
+		     SELECT gl.against_voucher, ROUND(SUM(gl.debit)-SUM(gl.credit),2) s
+		     FROM `tabGL Entry` gl JOIN `tabAccount` a ON a.name = gl.account
+		     WHERE a.account_type='Receivable' AND a.company=%(company)s
+		       AND gl.posting_date <= %(hasta)s AND IFNULL(gl.is_cancelled,0)=0
+		       AND gl.against_voucher_type='Sales Invoice' AND IFNULL(gl.against_voucher,'')<>''
+		     GROUP BY gl.against_voucher
+		     HAVING ROUND(SUM(gl.debit)-SUM(gl.credit),2) > 0) t""",
+		{"hasta": to_date, "company": company},
+		as_dict=True,
+	)[0]
+	segun_documento = frappe.db.sql(
+		"""SELECT COUNT(*) c, ROUND(SUM(outstanding_amount),2) monto FROM `tabSales Invoice`
+		   WHERE docstatus=1 AND company=%(company)s AND outstanding_amount > 0
+		     AND posting_date BETWEEN %(desde)s AND %(hasta)s""",
+		{"desde": from_date, "hasta": to_date, "company": company},
+		as_dict=True,
+	)[0]
+
+	total_docs = sum(v.documentos for v in volumen)
+	total_asientos = sum(v.asientos for v in volumen)
+
+	return {
+		"company": company,
+		"periodo": {"desde": from_date, "hasta": to_date},
+		"volumen": {
+			"documentos": total_docs,
+			"asientos": total_asientos,
+			"por_tipo": [dict(v) for v in volumen],
+		},
+		"ata_documentos_posteriores": {
+			"pagos": cruce.pagos or 0,
+			"facturas_posteriores": cruce.facturas or 0,
+			"monto": flt(cruce.monto),
+			"significa": (
+				"Pagos con fecha DENTRO del período que están aplicados a facturas de "
+				"DESPUÉS. Si el período se elimina, esas facturas quedan sin pago."
+			),
+		},
+		"certificado_ante_el_seniat": {
+			"facturas_del_periodo": cint(fiscal.facturas),
+			"con_log_de_transmision": cint(fiscal.transmitidas),
+			"con_numero_de_control": cint(fiscal.con_control),
+			"significa": (
+				"`con_log_de_transmision` es la evidencia REAL de que el documento llegó al "
+				"SENIAT. `con_numero_de_control` es más débil: puede venir de una carga "
+				"histórica y no de una emisión.\n"
+				"Si `con_log_de_transmision` es 0, corregir el período no tiene riesgo "
+				"fiscal. Si no lo es, ESOS documentos ya están declarados y no se deshacen: "
+				"se anulan con nota de crédito y se reemiten."
+			),
+		},
+		"cartera_abierta": {
+			"segun_el_mayor_al_corte": {"facturas": segun_mayor.c or 0, "monto": flt(segun_mayor.monto)},
+			"segun_el_documento_hoy": {"facturas": segun_documento.c or 0, "monto": flt(segun_documento.monto)},
+			"significa": (
+				"Las dos vías miden cosas distintas y suelen NO coincidir. El mayor dice "
+				"cuánto se debía a la fecha de corte; `outstanding_amount` dice cuánto "
+				"queda HOY. Una brecha grande además delata facturas que figuran pagadas "
+				"en el documento mientras el mayor les sigue viendo deuda."
+			),
+		},
+		"moneda": frappe.get_cached_value("Company", company, "default_currency"),
+		"nota": (
+			"Para un saldo inicial a una fecha pasada se usa el mayor, nunca el pendiente "
+			"actual del documento.\n"
+			"Si alguien plantea borrar o depurar el período, comprobá ADEMÁS que exista "
+			"la apertura con check_opening_balances: sin ella no hay respaldo debajo."
+		),
+	}
+
+
 def check_opening_balances(company: str | None = None) -> dict:
 	"""¿Se cargaron los saldos iniciales, o solo se supone que sí?
 
@@ -525,20 +681,11 @@ def check_opening_balances(company: str | None = None) -> dict:
 	anterior— y **necesariamente** se contabiliza contra una cuenta transitoria de
 	apertura. Que esas dos estén vacías sí concluye.
 	"""
-	company = company or frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
-		"Global Defaults", "default_company"
-	)
-
-	# Una empresa que no existe haría que las cuatro vías den cero y esta herramienta
-	# respondería «no hay apertura» con toda seguridad. Es el peor lugar del sistema
-	# para un falso negativo silencioso: es justo la respuesta que autoriza a borrar.
-	if not company or not frappe.db.exists("Company", company):
-		existentes = ", ".join(frappe.get_all("Company", pluck="name")) or "ninguna"
-		frappe.throw(
-			f"No puedo comprobar la apertura de «{company or '(sin empresa)'}» porque esa "
-			f"empresa no existe. Preguntando por una empresa equivocada, las cuatro vías "
-			f"darían cero y parecería que no hay apertura. Empresas: {existentes}."
-		)
+	# La validación importa el doble acá: una empresa que no existe haría que las
+	# cuatro vías den cero y esta herramienta respondería «no hay apertura» con toda
+	# seguridad. Es el peor lugar del sistema para un falso negativo silencioso,
+	# porque es justo la respuesta que autoriza a borrar.
+	company = _company(company)
 
 	def contar(sql, **kw):
 		return int(frappe.db.sql(sql, {"company": company, **kw})[0][0] or 0)
@@ -662,6 +809,34 @@ def check_opening_balances(company: str | None = None) -> dict:
 
 
 TOOLS = [
+	{
+		"name": "check_period_impact",
+		"handler": check_period_impact,
+		"writes": False,
+		# La cláusula «y también para cuántas facturas/pagos hubo entre tal y tal fecha»
+		# tumbó el canario `natural-morosos-navegando` de 5/5 a 0/5 — bisecado, sola
+		# rompe—. «Cuántos … hubo» es la forma de una pregunta de cohorte, y compite con
+		# las herramientas de cohorte del ISP en preguntas que no hablan de períodos.
+		# Se saca, y el disparador queda solo en la intención de TOCAR el período.
+		"description": (
+			"Qué hay en un período contable y qué se rompería si se toca: cuántos "
+			"documentos, cuáles sostienen documentos POSTERIORES, qué se certificó ante el "
+			"SENIAT y qué queda abierto.\n"
+			"Es para cuando alguien plantea borrar, depurar, reversar o cerrar un período "
+			"contable completo.\n"
+			"Contestar «no se puede borrar» sin estas cifras es una opinión; con ellas es "
+			"un dictamen."
+		),
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"from_date": {"type": "string", "description": "Inicio del período (YYYY-MM-DD)."},
+				"to_date": {"type": "string", "description": "Fin del período (YYYY-MM-DD)."},
+				"company": {"type": "string", "description": "Empresa. Por defecto, la del usuario."},
+			},
+			"required": ["from_date", "to_date"],
+		},
+	},
 	{
 		"name": "check_opening_balances",
 		"handler": check_opening_balances,

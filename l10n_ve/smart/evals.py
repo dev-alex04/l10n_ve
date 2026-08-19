@@ -83,11 +83,30 @@ def get_cases(fx):
 			"question": "el banco cerró en 290 mil bolívares pero acá la cuenta tiene 29 "
 			"millones, ¿qué está pasando?",
 			"forbid": ["check_opening_balances"],
-			"note": "Los dos casos de arriba tienen su contracara, y hace falta: al sumar "
-			"`check_opening_balances` esta pregunta —que es de CONCILIACIÓN— pasó a "
-			"contestarse con «no hay saldos iniciales» más dos causas especuladas. Antes "
-			"pedía aclaración, que era menos pero no era falso. Que falte la apertura no "
-			"explica que el banco y la contabilidad no coincidan.",
+			"note": "Este caso falló 4 de 4 mientras solo tenía el `forbid`, y esa terquedad "
+			"fue el diagnóstico: NINGUNA herramienta contestaba «¿por qué el banco no "
+			"cuadra?», así que el modelo agarraba la única de diagnóstico contable que "
+			"tenía y contestaba con «no hay saldos iniciales» más dos causas inventadas. "
+			"Prohibir sin ofrecer alternativa no alcanza — prefiere desobedecer a no "
+			"contestar. La causa real eran 3.369 movimientos sin conciliar.",
+		},
+		{
+			"id": "borrar-periodo-con-cifras",
+			"question": "lo que está en el sistema de enero a junio de 2026 es basura, "
+			"¿lo podemos eliminar y arrancar limpio desde julio?",
+			"expect": ["check_period_impact"],
+			"note": "Se midió dos veces que el modelo contesta «no se puede» —conclusión "
+			"correcta— con CERO herramientas y cero cifras: un razonamiento genérico de "
+			"ERPNext. La conclusión correcta sin evidencia no le sirve a quien tiene que "
+			"defenderla frente a su cliente.",
+		},
+		{
+			"id": "cuantas-facturas-en-el-periodo",
+			"question": "¿cuántas facturas de venta se emitieron entre enero y junio de 2026?",
+			"forbid": ["check_opening_balances"],
+			"note": "Se puede contestar por dos vías legítimas —`Sales Register`, que "
+			"reconcilia con el mayor, o check_period_impact— así que no se fija cuál. Lo "
+			"que sí se fija es que un conteo de documentos no se conteste con la apertura.",
 		},
 		{
 			"id": "balance-igual-hay-que-correrlo",
