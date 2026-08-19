@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.49.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+- Implementación de la validación de impacto de periodo (`check_period_impact`) en el módulo smart.
+- Adición de los reportes de Registro de Ventas (Sales Register) y Libro Mayor (General Ledger) al catálogo del sistema. d59d042
+
+---
+
 ## [v2.48.1] - 2026-08-19
 
 ### 🐛 Correcciones (Fixes)
