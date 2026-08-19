@@ -54,7 +54,6 @@ frappe.query_reports["ve_journal_book"] = {
 			"label": __("Cuenta Contable"),
 			"fieldtype": "Link",
 			"options": "Account",
-			"ignore_permissions": 1,
 			"get_query": function () {
 				let company = frappe.query_report.get_filter_value("company");
 				return {
@@ -67,7 +66,6 @@ frappe.query_reports["ve_journal_book"] = {
 			"label": __("Tipo de Tercero"),
 			"fieldtype": "Link",
 			"options": "DocType",
-			"ignore_permissions": 1,
 			"get_query": function () {
 				return {
 					filters: {
@@ -83,7 +81,6 @@ frappe.query_reports["ve_journal_book"] = {
 			"fieldname": "party",
 			"label": __("Tercero"),
 			"fieldtype": "Dynamic Link",
-			"ignore_permissions": 1,
 			"get_options": function () {
 				return frappe.query_report.get_filter_value("party_type");
 			}
@@ -93,7 +90,6 @@ frappe.query_reports["ve_journal_book"] = {
 			"label": __("Centro de Costo"),
 			"fieldtype": "Link",
 			"options": "Cost Center",
-			"ignore_permissions": 1,
 			"get_query": function () {
 				let company = frappe.query_report.get_filter_value("company");
 				return {
@@ -105,8 +101,7 @@ frappe.query_reports["ve_journal_book"] = {
 			"fieldname": "include_cancelled",
 			"label": __("Incluir Anulados"),
 			"fieldtype": "Check",
-			"default": 0,
-			"ignore_permissions": 1
+			"default": 0
 		}
 	],
 	"onload": function (report) {

@@ -54,36 +54,31 @@
    "fieldname": "account",
    "fieldtype": "Link",
    "label": "Cuenta Contable",
-   "options": "Account",
-   "ignore_permissions": 1
+   "options": "Account"
   },
   {
    "fieldname": "party_type",
    "fieldtype": "Link",
    "label": "Tipo de Tercero",
-   "options": "DocType",
-   "ignore_permissions": 1
+   "options": "DocType"
   },
   {
    "fieldname": "party",
    "fieldtype": "Dynamic Link",
    "label": "Tercero",
-   "options": "party_type",
-   "ignore_permissions": 1
+   "options": "party_type"
   },
   {
    "fieldname": "cost_center",
    "fieldtype": "Link",
    "label": "Centro de Costo",
-   "options": "Cost Center",
-   "ignore_permissions": 1
+   "options": "Cost Center"
   },
   {
    "fieldname": "include_cancelled",
    "fieldtype": "Check",
    "label": "Incluir Anulados",
-   "default": 0,
-   "ignore_permissions": 1
+   "default": 0
   }
  ],
  "idx": 0,
