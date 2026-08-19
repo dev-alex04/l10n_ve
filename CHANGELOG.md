@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v2.48.0] - 2026-08-19
 
 ### ✨ Funcionalidades (Features)
+- Implementación de descubrimiento automático de suites de prueba basado en archivos, eliminando la necesidad de realizar registros manuales. [c23193f](https://github.com/repo/commit/c23193f)
+
+---
+
+## [v2.48.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
 * Implementación de la función `check_opening_balances` dentro del módulo smart para la validación de saldos iniciales.
 
 ### 🐛 Correcciones (Fixes)
