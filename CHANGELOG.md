@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.50.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+- **Mejoras integrales al Libro Diario:** Se implementaron optimizaciones significativas que incluyen un nuevo selector de moneda, validación de cuadratura de asientos contables y ajustes para cumplir con el formato legal requerido. (87369bb)
+
+### 🐛 Correcciones (Fixes)
+- **Lógica de conversión de divisas:** Se corrigió el comportamiento del sistema para evitar que se asuma una tasa de cambio 1:1 automáticamente en el libro diario cuando no existe una tasa configurada. (5e8c8b9)
+- **Formateo de datos en reportes:** Se aplicó un formateo seguro para fechas y montos en la plantilla HTML del reporte `ve_journal_book`, mejorando la integridad visual de los datos. (a779c60)
+
+---
+
 ## [v2.49.0] - 2026-08-19
 
 ### ✨ Funcionalidades (Features)
