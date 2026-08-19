@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.48.1] - 2026-08-19
+
+### 🐛 Correcciones (Fixes)
+- **Localización Venezuela (l10n_ve):** Se corrigió la lógica de importación de `ClosedAccountingPeriod` y se optimizó el sistema de registros para evitar la saturación de los logs con entradas redundantes de una misma factura. (e45ccd0)
+
+---
+
 ## [v2.48.0] - 2026-08-19
 
 ### ✨ Funcionalidades (Features)
