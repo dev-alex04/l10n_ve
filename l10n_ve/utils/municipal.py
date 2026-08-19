@@ -35,6 +35,8 @@ def get_municipal_withholding_rate(
         ["is_special_taxpayer", "municipal_withholding_rate", "municipality_tax"],
     ) or (0, None, None)
 
+    # Regla de negocio: La retención ISAE aplica a clientes designados como Contribuyentes Especiales
+    # por la ordenanza municipal o el ente tributario (reflejado en is_special_taxpayer del Customer).
     if not is_special:
         return 0.0
 
@@ -52,20 +54,17 @@ def get_municipal_withholding_rate(
 def calculate_municipal_amount(
     net_total: float,
     rate: float,
-    conversion_rate: float = 1.0,  # noqa: ARG001
 ) -> float:
-    """Calcula el monto de retención municipal en moneda de referencia (USD).
+    """Calcula el monto de retención municipal en moneda del documento.
 
     Fórmula simple: monto = net_total × (rate / 100)
-    net_total debe venir ya en moneda de referencia (USD).
 
     Args:
-        net_total:       Base imponible en USD.
-        rate:            Porcentaje de retención (ej: 1.5).
-        conversion_rate: Reservado para consistencia con islr.py.
+        net_total: Base imponible.
+        rate:      Porcentaje de retención (ej: 1.5 para 1.5 %).
 
     Returns:
         Monto de retención redondeado a 2 decimales, mínimo 0.
     """
-    amount: float = flt(net_total) * flt(rate) / 100
+    amount: float = flt(net_total) * (flt(rate) / 100.0)
     return flt(max(amount, 0), 2)
