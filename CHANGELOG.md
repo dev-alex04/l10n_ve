@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.50.1] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+- Integración de los campos `bill_no` y `bill_control` en el Libro Mayor General (GL Entry) al procesar asientos contables (JE) para mejorar la trazabilidad y visualización de documentos. a0c0182
+- Implementación de lógica para la gestión de retenciones de ISLR sobre facturas de compra una vez que estas han sido aprobadas. a31033b
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en el módulo de compras para eliminar valores predeterminados arbitrarios en el cálculo de retenciones retroactivas, garantizando la integridad de los datos fiscales. 4f769f8
+
+---
+
 ## [v2.50.0] - 2026-08-19
 
 ### ✨ Funcionalidades (Features)
