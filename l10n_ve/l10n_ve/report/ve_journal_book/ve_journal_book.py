@@ -142,11 +142,19 @@ def get_hierarchical_data(
     if not accounts_data:
         return columns, []
 
-    # Tasa promedio / actual para conversión en jerarquía si aplica
+    # Tasa promedio / actual para conversión en jerarquía si aplica.
+    #
+    # SIN `or 1.0`. `get_exchange_rate` devuelve 0 cuando no hay tasa cargada para esa
+    # fecha --lo dice su propio docstring, el 0 es la señal de "todavía no está"-- y
+    # convertirlo en 1.0 significaría dividir por uno: la columna en dólares mostraría
+    # el monto en BOLÍVARES sin convertir, rotulado como USD. En un Libro Diario del
+    # Art. 32, firmado por un Contador Público Colegiado, ese número es una cifra falsa
+    # con cara de plausible. Con 0, las guardas `if rate > 0` de más abajo dejan la
+    # celda en 0,00: sigue sin ser el número, pero se ve que falta.
     rate = 1.0
     if currency_filter in ["USD", "Bimoneda"]:
         rate_date = to_date or from_date or frappe.utils.nowdate()
-        rate = flt(get_exchange_rate(rate_date, "USD")) or 1.0
+        rate = flt(get_exchange_rate(rate_date, "USD"))
 
     parent_map = {acc.account: acc.parent_account for acc in accounts_data}
     depth_cache = {}
@@ -536,13 +544,26 @@ def get_transactional_data(
             employees[em.name] = em.employee_name or em.name
 
     rate_cache = {}
+    fechas_sin_tasa: set = set()
 
     def get_rate(posting_date, doc_rate):
+        """Tasa del documento si la trae; si no, la del día. 0 si no hay ninguna.
+
+        Devuelve 0 y NO 1.0 a propósito. `get_exchange_rate` usa el 0 como señal de
+        "no hay tasa para esa fecha" (ver su docstring), y taparlo con 1.0 haría que
+        la columna en dólares muestre el monto en BOLÍVARES sin convertir. Las guardas
+        `if rate > 0` de abajo dejan esas celdas en 0,00, que es visiblemente incompleto
+        en vez de silenciosamente falso -- y las fechas afectadas se avisan al abrir el
+        reporte, para que nadie firme un libro sin saber cuáles son.
+        """
         if doc_rate and flt(doc_rate) > 0:
             return flt(doc_rate)
         d_str = str(posting_date)
         if d_str not in rate_cache:
-            rate_cache[d_str] = flt(get_exchange_rate(d_str, "USD")) or 1.0
+            tasa = flt(get_exchange_rate(d_str, "USD"))
+            if not tasa:
+                fechas_sin_tasa.add(d_str)
+            rate_cache[d_str] = tasa
         return rate_cache[d_str]
 
     data = []
@@ -856,4 +877,21 @@ def get_transactional_data(
         total_row["credit_usd"] = round(grand_cred_usd, 2)
 
     data.append(total_row)
+
+    # Que la falta se VEA. Con `rate = 0` las celdas en dolares de esas fechas quedan en
+    # 0,00, y un cero se puede leer como "no hubo movimiento en divisas" en vez de "no
+    # habia tasa". Este aviso es la diferencia entre las dos lecturas, y aparece antes de
+    # que nadie exporte el PDF que va a firmar.
+    if fechas_sin_tasa:
+        fechas = ", ".join(sorted(fechas_sin_tasa)[:10])
+        resto = f" y {len(fechas_sin_tasa) - 10} mas" if len(fechas_sin_tasa) > 10 else ""
+        frappe.msgprint(
+            _("No hay tasa de cambio cargada para {0} fecha(s): {1}{2}. "
+              "Los asientos de esas fechas quedan en 0,00 en las columnas de dolares: "
+              "NO estan convertidos. Cargue la tasa del BCV y vuelva a generar el reporte "
+              "antes de imprimir el libro.").format(len(fechas_sin_tasa), fechas, resto),
+            title=_("Faltan tasas de cambio"),
+            indicator="orange",
+        )
+
     return data
