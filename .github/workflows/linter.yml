@@ -1,0 +1,39 @@
+name: Linters
+
+on:
+  pull_request:
+    branches: [development, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linters-l10n_ve-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # El escaneo es diferencial: semgrep compara contra la base del PR y solo
+          # reporta hallazgos NUEVOS. Sin el historial no puede calcular esa base y
+          # escanearia todo, incluida la deuda previa.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Descargar las reglas de Frappe
+        run: git clone --depth 1 https://github.com/frappe/semgrep-rules.git frappe-semgrep-rules
+
+      - name: Correr semgrep
+        run: |
+          pip install semgrep
+          semgrep ci \
+            --config ./frappe-semgrep-rules/rules \
+            --config r/python.lang.correctness \
+            --config .semgrep

@@ -1,0 +1,51 @@
+# Reglas propias de Domina. Complementan las de frappe/semgrep-rules; acá va lo que
+# nace de incidentes nuestros y ninguna regla genérica mira.
+rules:
+  - id: domina-exchange-rate-falsy-default
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Una tasa de cambio con default `or 1` afirma que dos monedas valen igual, y el
+      número sale impreso en un documento fiscal. Si la tasa falta, hay que cortar.
+      Ver AGENTS.md ("En lo fiscal se falla") y el PR #546, donde ya se corrigió esto.
+    patterns:
+      - pattern-either:
+          - pattern: $X.conversion_rate or $DEFAULT
+          - pattern: $X.plc_conversion_rate or $DEFAULT
+          - pattern: $X.exchange_rate or $DEFAULT
+          - pattern: flt($X.conversion_rate) or $DEFAULT
+          - pattern: flt($X.plc_conversion_rate) or $DEFAULT
+          - pattern: flt($X.exchange_rate) or $DEFAULT
+          - pattern: $X.get("conversion_rate") or $DEFAULT
+          - pattern: flt($X.get("conversion_rate")) or $DEFAULT
+      - metavariable-comparison:
+          comparison: $DEFAULT != 0
+          metavariable: $DEFAULT
+
+  - id: domina-hardcoded-company-currency
+    languages: [python]
+    severity: ERROR
+    message: >-
+      La moneda de la empresa no se adivina con un literal: si no resuelve, es
+      configuración faltante y hay que cortar. Un `or "VEF"` en un sitio con otra
+      moneda calcula todo el carril local con la divisa equivocada.
+    patterns:
+      - pattern-either:
+          - pattern: $X or "VEF"
+          - pattern: $X or "VED"
+          - pattern: $X or 'VEF'
+          - pattern: $X or 'VED'
+
+  - id: domina-first-available-fiscal-rate
+    languages: [python]
+    severity: WARNING
+    message: >-
+      "El primero disponible" no es un respaldo para una alícuota: es aplicar la de
+      otro tipo de persona o de otro rubro. Si no hay fila para el caso, se corta.
+      Ver AGENTS.md y el PR #546.
+    patterns:
+      - pattern: |
+          $ROW = next((... for $R in $ROWS if ...), None)
+          ...
+          if not $ROW:
+              $ROW = next((... for $R2 in $ROWS if ...), None)
