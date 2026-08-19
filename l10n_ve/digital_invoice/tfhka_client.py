@@ -52,7 +52,11 @@ class TFHKAClient:
         # se correspondan. Acá se elegía la clave con un bool() sobre el flag y se usaba
         # la URL tal cual viniera: en modo producción con una production_url de demo no
         # se certificaba nada y el sistema no se enteraba.
-        _, self.base_url = resolve_endpoint()
+        # `is_production` NO se usa, y el nombre es a proposito: si se vuelve a
+        # escribir `_, self.base_url = ...`, Python trata `_` como local en TODA
+        # esta funcion y los `_("...")` de mas arriba revientan con
+        # UnboundLocalError antes de llegar hasta aca. No lo "limpies".
+        is_production, self.base_url = resolve_endpoint()  # noqa: F841
 
         self.username = site_cfg.get("username") or ""
         self.password = site_cfg.get("password") or ""

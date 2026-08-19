@@ -53,6 +53,26 @@
                 placeholder: __("Hasta"),
             });
         }
+
+        const has_withholding_filter = report.filters.some(f => f.fieldname === "withholding_voucher_status");
+        if (!has_withholding_filter) {
+            const to_date_idx = report.filters.findIndex(f => f.fieldname === "to_date");
+            const insert_idx = to_date_idx !== -1 ? to_date_idx + 1 : report.filters.length;
+            report.filters.splice(insert_idx, 0, {
+                fieldname: "withholding_voucher_status",
+                label: __("Comprobantes"),
+                fieldtype: "Select",
+                options: [
+                    "",
+                    "Con Comprobantes Pendientes",
+                    "Pendiente IVA",
+                    "Pendiente ISLR",
+                    "Con Comprobantes Registrados",
+                    "No aplica"
+                ],
+                default: "",
+            });
+        }
     };
 
     let report = frappe.query_reports["Accounts Receivable"];

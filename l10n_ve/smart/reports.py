@@ -144,4 +144,32 @@ REPORTS = [
 		"answers": "Activos fijos y su depreciación a una fecha.",
 		"filters": _CORTE,
 	},
+	# --- de ERPNext, verificados contra el mayor antes de exponerlos ---
+	#
+	# Exponer un reporte cuesta casi nada —el catálogo es dato que el modelo pide, no
+	# prompt que carga siempre— pero exponer uno que no reconcilia sale caro: entrega
+	# un número plausible y falso. Estos dos se probaron; otros tres se descartaron.
+	# `Accounts Receivable` al 30-06-2026 devolvió −707.874,52 donde el mayor dice
+	# +544.297,79, y `Trial Balance for Party` lista las 2.419 partes en vez de las
+	# 416 con saldo. Para eso está `account_balance_by_party`.
+	{
+		"report": "Sales Register",
+		"answers": (
+			"Las facturas de venta emitidas en un período, una por fila. Es la que "
+			"contesta «cuántas facturas se emitieron»: verificado contra el mayor, "
+			"devuelve exactamente los mismos documentos. El Libro de Ventas fiscal "
+			"agrupa distinto y da otro conteo."
+		),
+		"filters": _PERIODO + ["customer", "branch", "cost_center"],
+	},
+	{
+		"report": "General Ledger",
+		"answers": (
+			"Mayor de una cuenta: cada movimiento con su contraparte y el saldo que va "
+			"quedando. Sirve para explicar de dónde sale un saldo. ENORME —una cuenta "
+			"bancaria de un mes son miles de filas—: pedilo siempre con `account` y un "
+			"rango corto, y usá `contains` para una contraparte concreta."
+		),
+		"filters": _PERIODO + ["account", "party_type", "party", "cost_center", "project"],
+	},
 ]
