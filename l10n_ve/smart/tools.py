@@ -519,6 +519,164 @@ def _company(company: str | None) -> str:
 	return company
 
 
+def check_bank_reconciliation(
+	bank_account: str | None = None, to_date: str | None = None, company: str | None = None
+) -> dict:
+	"""Cuánto del extracto bancario está conciliado contra la contabilidad, y cuánto no.
+
+	Nace del caso que no se podía contestar. La contadora dijo «el banco cerró en 290
+	mil bolívares pero acá la cuenta tiene 29 millones», y el asistente —que no tenía
+	ninguna herramienta de conciliación— contestó con lo único parecido que encontró:
+	«no se cargaron los saldos iniciales», más dos causas inventadas. Ninguna era.
+
+	La causa real: de 13.353 movimientos del extracto de esa cuenta, **3.369 nunca se
+	cruzaron contra la contabilidad**. El mayor y el banco son dos universos que no se
+	tocaron, y por eso no coinciden.
+
+	El saldo del mayor de una cuenta con conciliación pendiente **no es comparable**
+	con lo que dice el banco. Devolverlo sin esa advertencia es dar por respuesta el
+	número que la persona está señalando como el problema.
+	"""
+	company = _company(company)
+	to_date = to_date or frappe.utils.nowdate()
+
+	filtro = "AND bt.bank_account = %(cuenta)s" if bank_account else ""
+	filas = frappe.db.sql(
+		f"""SELECT bt.bank_account, bt.status, COUNT(*) n,
+		           ROUND(SUM(bt.deposit),2) depositos, ROUND(SUM(bt.withdrawal),2) retiros
+		    FROM `tabBank Transaction` bt
+		    WHERE bt.docstatus = 1 AND bt.date <= %(hasta)s AND bt.company = %(company)s
+		      {filtro}
+		    GROUP BY bt.bank_account, bt.status""",
+		{"hasta": to_date, "company": company, "cuenta": bank_account},
+		as_dict=True,
+	)
+
+	por_cuenta: dict[str, dict] = {}
+	for f in filas:
+		d = por_cuenta.setdefault(f.bank_account, {
+			"bank_account": f.bank_account, "conciliados": 0, "sin_conciliar": 0,
+			"depositos_sin_conciliar": 0.0, "retiros_sin_conciliar": 0.0,
+		})
+		if f.status == "Reconciled":
+			d["conciliados"] += f.n
+		else:
+			d["sin_conciliar"] += f.n
+			d["depositos_sin_conciliar"] = round(d["depositos_sin_conciliar"] + flt(f.depositos), 2)
+			d["retiros_sin_conciliar"] = round(d["retiros_sin_conciliar"] + flt(f.retiros), 2)
+
+	cuentas = []
+	for d in por_cuenta.values():
+		total = d["conciliados"] + d["sin_conciliar"]
+		d["movimientos"] = total
+		d["porcentaje_sin_conciliar"] = round(d["sin_conciliar"] / total * 100, 1) if total else 0.0
+
+		# El saldo contable de la cuenta a la que apunta esta cuenta bancaria. Es el
+		# número que la gente compara contra el banco, y el que hay que calificar.
+		cuenta_contable = frappe.db.get_value("Bank Account", d["bank_account"], "account")
+		d["cuenta_contable"] = cuenta_contable
+		if cuenta_contable:
+			saldo = frappe.db.sql(
+				"""SELECT ROUND(SUM(debit)-SUM(credit),2) FROM `tabGL Entry`
+				   WHERE account=%(cuenta)s AND posting_date <= %(hasta)s
+				     AND IFNULL(is_cancelled,0)=0""",
+				{"cuenta": cuenta_contable, "hasta": to_date},
+			)[0][0]
+			d["saldo_contable"] = flt(saldo)
+
+		d["veredicto"] = (
+			f"{d['porcentaje_sin_conciliar']}% del movimiento no está conciliado: el saldo "
+			f"contable NO es comparable con el del banco."
+			if d["porcentaje_sin_conciliar"] >= 1
+			else "Conciliada: el saldo contable sí es comparable con el del banco."
+		)
+		cuentas.append(d)
+
+	cuentas.sort(key=lambda d: -d["porcentaje_sin_conciliar"])
+	return {
+		"company": company,
+		"al": to_date,
+		"cuentas": cuentas,
+		"moneda": frappe.get_cached_value("Company", company, "default_currency"),
+		"nota": (
+			"Una diferencia entre lo que dice el banco y lo que dice la contabilidad casi "
+			"siempre es conciliación pendiente, NO saldos iniciales faltantes ni un error "
+			"de decimales.\n"
+			"Si una cuenta tiene movimiento sin conciliar, decilo ANTES de dar su saldo: "
+			"ese saldo es exactamente el número que la persona está cuestionando."
+		),
+	}
+
+
+def account_balance_by_party(
+	account: str, to_date: str | None = None, limit: int = 15, company: str | None = None
+) -> dict:
+	"""El saldo de una cuenta de clientes o proveedores, repartido por parte, a una fecha.
+
+	Existe porque ningún reporte del catálogo lo contesta bien. Se probaron los tres
+	candidatos contra el mayor: `Accounts Receivable` al 30-06-2026 devolvió
+	**−707.874,52** donde el mayor dice **+544.297,79**, y `Trial Balance for Party`
+	lista las 2.419 partes en vez de las 416 que tienen saldo. Un reporte que no
+	reconcilia entrega un número plausible y falso.
+
+	Sale del MAYOR, no de ``outstanding_amount``: ese campo es el estado de HOY y no
+	sirve para una fecha pasada.
+	"""
+	company = _company(company)
+	to_date = to_date or frappe.utils.nowdate()
+	limit = max(1, min(cint(limit) or 15, MAX_ROWS))
+
+	cuenta = account if frappe.db.exists("Account", account) else frappe.db.get_value(
+		"Account", {"company": company, "name": ["like", f"{account}%"]}, "name"
+	) or frappe.db.get_value(
+		"Account", {"company": company, "account_name": ["like", f"%{account}%"]}, "name"
+	)
+	if not cuenta:
+		frappe.throw(
+			f"No encuentro la cuenta «{account}». Pasá el código o el nombre tal como "
+			f"figura en el plan de cuentas."
+		)
+
+	filas = frappe.db.sql(
+		"""SELECT gl.party_type, gl.party, ROUND(SUM(gl.debit)-SUM(gl.credit),2) saldo
+		   FROM `tabGL Entry` gl
+		   WHERE gl.account = %(cuenta)s AND gl.posting_date <= %(hasta)s
+		     AND IFNULL(gl.is_cancelled,0)=0 AND IFNULL(gl.party,'') <> ''
+		   GROUP BY gl.party_type, gl.party
+		   HAVING ROUND(SUM(gl.debit)-SUM(gl.credit),2) <> 0
+		   ORDER BY ABS(ROUND(SUM(gl.debit)-SUM(gl.credit),2)) DESC""",
+		{"cuenta": cuenta, "hasta": to_date},
+		as_dict=True,
+	)
+
+	total_cuenta = frappe.db.sql(
+		"""SELECT ROUND(SUM(debit)-SUM(credit),2) FROM `tabGL Entry`
+		   WHERE account=%(cuenta)s AND posting_date <= %(hasta)s AND IFNULL(is_cancelled,0)=0""",
+		{"cuenta": cuenta, "hasta": to_date},
+	)[0][0]
+
+	suma_partes = round(sum(flt(f.saldo) for f in filas), 2)
+	return {
+		"cuenta": cuenta,
+		"al": to_date,
+		"partes_con_saldo": len(filas),
+		"suma_de_partes": suma_partes,
+		"saldo_de_la_cuenta": flt(total_cuenta),
+		"cuadra": abs(suma_partes - flt(total_cuenta)) < 0.01,
+		"moneda": frappe.get_cached_value("Company", company, "default_currency"),
+		"mayores": [
+			{"parte": f.party, "tipo": f.party_type, "saldo": flt(f.saldo)} for f in filas[:limit]
+		],
+		"nota": (
+			f"Son {len(filas)} partes con saldo distinto de cero, no el total de clientes "
+			f"registrados. Si `cuadra` es false hay movimiento en la cuenta SIN parte "
+			f"asignada, y la diferencia es ese monto: {round(flt(total_cuenta) - suma_partes, 2)}.\n"
+			"Los montos salen del mayor a la fecha pedida, no del pendiente actual de cada "
+			"documento. Para una fecha pasada son cosas distintas."
+		),
+	}
+
+
 def check_period_impact(from_date: str, to_date: str, company: str | None = None) -> dict:
 	"""Qué hay en un período contable y qué se rompería si se toca.
 
@@ -809,6 +967,55 @@ def check_opening_balances(company: str | None = None) -> dict:
 
 
 TOOLS = [
+	{
+		"name": "check_bank_reconciliation",
+		"handler": check_bank_reconciliation,
+		"writes": False,
+		"description": (
+			"Cuánto del extracto de una cuenta bancaria está conciliado contra la "
+			"contabilidad, y cuánto no.\n"
+			"Usala SIEMPRE que el banco y el sistema no coincidan: «el banco cerró en X "
+			"pero acá dice Y», «esta cuenta está descuadrada», «¿por qué sobra plata en el "
+			"banco?».\n"
+			"Una diferencia entre banco y contabilidad es conciliación pendiente, NO falta "
+			"de saldos iniciales ni un error de decimales. Y si la cuenta tiene movimiento "
+			"sin conciliar, su saldo contable NO es comparable con el del banco: avisalo "
+			"antes de dar el número."
+		),
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"bank_account": {"type": "string", "description": "Cuenta bancaria. Omitila para ver todas."},
+				"to_date": {"type": "string", "description": "Fecha de corte (YYYY-MM-DD). Por defecto hoy."},
+				"company": {"type": "string", "description": "Empresa. Por defecto, la del usuario."},
+			},
+		},
+	},
+	{
+		"name": "account_balance_by_party",
+		"handler": account_balance_by_party,
+		"writes": False,
+		"description": (
+			"Reparte el saldo de UNA cuenta de clientes o proveedores entre las partes que "
+			"lo componen, a una fecha.\n"
+			"Usala para «cuántos clientes deben», «quiénes componen las cuentas por "
+			"cobrar», «el detalle de la cuenta por cliente».\n"
+			"Devuelve CUÁNTAS partes tienen saldo distinto de cero, que no es lo mismo que "
+			"cuántos clientes hay registrados.\n"
+			"Para el saldo TOTAL de una cuenta sin desglosar alcanza con run_report; ésta "
+			"es para el desglose."
+		),
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"account": {"type": "string", "description": "Código o nombre de la cuenta contable."},
+				"to_date": {"type": "string", "description": "Fecha de corte (YYYY-MM-DD). Por defecto hoy."},
+				"limit": {"type": "integer", "description": "Cuántas partes listar."},
+				"company": {"type": "string", "description": "Empresa. Por defecto, la del usuario."},
+			},
+			"required": ["account"],
+		},
+	},
 	{
 		"name": "check_period_impact",
 		"handler": check_period_impact,
