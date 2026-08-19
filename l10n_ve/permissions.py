@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import frappe
+from frappe.utils import cint
 from typing import List, Dict, Union, Any
 
 def is_admin_user(user: str) -> bool:
@@ -284,12 +285,26 @@ def has_ve_branch_permission(doc: Any, ptype: str = "read", user: str = None) ->
     branch_fields: List[str] = _get_branch_fields_for_doctype(doc.doctype)
     if not branch_fields:
         return True
-        
+
     for field in branch_fields:
         val = doc.get(field)
         if val and val in allowed:
             return True
-            
+
+    # Sin sucursal en ningún campo: el documento no es "de otra sucursal", es de ninguna.
+    # Tratarlo como ajeno lo dejaba fuera del alcance de TODO usuario restringido --o sea,
+    # de nadie salvo los admin--, que es más estricto que el propio Frappe: su chequeo de
+    # User Permissions saltea el campo vacío salvo que `apply_strict_user_permissions` esté
+    # activo (`check_user_permission_on_link_fields` en frappe/permissions.py). Se sigue ese
+    # mismo criterio para no contradecir al núcleo, y el ajuste del sitio manda.
+    #
+    # Caso que lo destapó: los anticipos que crea el conector de Bancaribe nacen sin
+    # sucursal --121 de 20.113 pagos emitidos en producción al 19-ago-2026-- y al cruzarlos
+    # contra una factura desde el panel ISP el usuario recibía "No permitido mediante el
+    # controlador de comprobación de permisos", sin forma de destrabarlo desde la interfaz.
+    if not any(doc.get(field) for field in branch_fields):
+        return not cint(frappe.get_system_settings("apply_strict_user_permissions"))
+
     return False
 
 def _get_branch_fields_for_doctype(doctype: str) -> List[str]:
