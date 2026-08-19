@@ -33,7 +33,22 @@ jobs:
       - name: Correr semgrep
         run: |
           pip install semgrep
+          # frappe-modifying-but-not-comitting-other-method ancla el hallazgo en la
+          # linea del `class`, o sea que su huella abarca la clase ENTERA: cualquier
+          # cambio adentro le cambia el texto al match y el escaneo diferencial lo
+          # reporta como nuevo, aunque sea de siempre. Medido en l10n_ve#616, ocho de
+          # los nueve hallazgos que lo bloqueaban eran esto.
+          #
+          # Y son falsos positivos: el `pattern-not` con el que la regla reconoce que
+          # el campo SI se persiste exige la forma `db_set(..., self.$ATTR, ...)`, asi
+          # que no reconoce `self.db_set("hka_status", "Pendiente")` --valor literal--
+          # ni los shims que se setean en memoria a proposito antes de delegar al
+          # super de ERPNext.
+          #
+          # La hermana `frappe-modifying-but-not-comitting` (sin sufijo) NO se excluye:
+          # esa ancla en el metodo, no en la clase, y se comporta bien.
           semgrep ci \
             --config ./frappe-semgrep-rules/rules \
             --config r/python.lang.correctness \
-            --config .semgrep
+            --config .semgrep \
+            --exclude-rule frappe-semgrep-rules.rules.frappe-modifying-but-not-comitting-other-method
