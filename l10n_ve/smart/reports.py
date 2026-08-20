@@ -62,12 +62,26 @@ REPORTS = [
 	},
 	{
 		"report": "VAT Withholding",
-		"answers": "Comprobantes de retención de IVA que emitimos a proveedores.",
+		"answers": (
+			"Los comprobantes de retención de IVA que EMITIMOS al pagarle a un proveedor: "
+			"plata que le retuvimos y que le debemos al SENIAT. Es dinero que sale de "
+			"nuestra caja hacia el fisco.\n"
+			"Ojo con la dirección: lo que a NOSOTROS nos retienen los CLIENTES es lo "
+			"contrario —hace que entre menos plata de la facturada— y no está en este "
+			"reporte."
+		),
 		"filters": _PERIODO + ["supplier"],
 	},
 	{
 		"report": "ISLR Withholding",
-		"answers": "Comprobantes de retención de ISLR que emitimos a proveedores.",
+		"answers": (
+			"Los comprobantes de retención de ISLR que EMITIMOS al pagarle a un proveedor: "
+			"plata que le retuvimos y que le debemos al SENIAT. Es dinero que sale de "
+			"nuestra caja hacia el fisco.\n"
+			"Ojo con la dirección: lo que a NOSOTROS nos retienen los CLIENTES es lo "
+			"contrario —hace que entre menos plata de la facturada— y no está en este "
+			"reporte."
+		),
 		"filters": _PERIODO + ["supplier", "group_by"],
 	},
 	# --- Fiscal / regulatorio ---
