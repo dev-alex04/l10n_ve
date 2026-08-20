@@ -31,6 +31,9 @@ frappe.ui.form.on("Sales Invoice", {
     frm.set_df_property("islr_receipt_number", "read_only", true);
     frm.set_df_property("islr_date", "read_only", true);
     frm.set_df_property("voucher_image_islr", "read_only", true);
+    frm.set_df_property("municipal_receipt_number", "read_only", true);
+    frm.set_df_property("municipal_date", "read_only", true);
+    frm.set_df_property("voucher_image_municipal", "read_only", true);
 
     // Mover esto a una funcion
     realtime_numeric_validation(frm, "bill_no");
@@ -1426,6 +1429,9 @@ function setup_voucher_buttons(frm) {
   const has_islr_withholding = frm.doc.taxes
     ? frm.doc.taxes.some((t) => t.charge_type === "ISLR")
     : false;
+  const has_municipal_withholding = frm.doc.taxes
+    ? frm.doc.taxes.some((t) => t.charge_type === "Municipal Withholding")
+    : false;
 
   frappe.db.get_value(
     "Customer",
@@ -1434,6 +1440,7 @@ function setup_voucher_buttons(frm) {
       "is_special_taxpayer",
       "tax_withholding_category",
       "tabulator_islr",
+      "municipal_withholding_rate",
       "type_of_person",
     ],
     (customer_data) => {
@@ -1446,6 +1453,9 @@ function setup_voucher_buttons(frm) {
       const show_islr =
         has_islr_withholding ||
         (customer_data.is_special_taxpayer && customer_data.tabulator_islr);
+      const show_municipal =
+        has_municipal_withholding ||
+        (customer_data.is_special_taxpayer && flt(customer_data.municipal_withholding_rate) > 0);
 
       // Limpiar para evitar duplicados al refrescar el formulario
       frm.page.remove_inner_button(
@@ -1454,6 +1464,10 @@ function setup_voucher_buttons(frm) {
       );
       frm.page.remove_inner_button(
         __("Retención de ISLR"),
+        __("Cargar Comprobante"),
+      );
+      frm.page.remove_inner_button(
+        __("Retención Municipal"),
         __("Cargar Comprobante"),
       );
 
@@ -1484,8 +1498,120 @@ function setup_voucher_buttons(frm) {
           __("Cargar Comprobante"),
         );
       }
+
+      if (show_municipal) {
+        frm.add_custom_button(
+          __("Retención Municipal"),
+          () => {
+            open_upload_municipal_modal(frm);
+          },
+          __("Cargar Comprobante"),
+        );
+      }
     },
   );
+}
+
+function open_upload_municipal_modal(frm) {
+  const dialog = new frappe.ui.Dialog({
+    title: __("Cargar Comprobante de Retención Municipal (ISAE)"),
+    fields: [
+      {
+        label: __("Número de Comprobante Municipal"),
+        fieldname: "municipal_receipt_number",
+        fieldtype: "Data",
+        reqd: 0,
+        default: frm.doc.municipal_receipt_number,
+      },
+      {
+        label: __("Fecha de registro"),
+        fieldname: "municipal_date",
+        fieldtype: "Date",
+        default: frm.doc.municipal_date || frappe.datetime.get_today(),
+        reqd: 1,
+      },
+      {
+        label: __("Fecha de Comprobante Municipal"),
+        fieldname: "registration_date",
+        fieldtype: "Date",
+        default: frm.doc.municipal_registration_date || frappe.datetime.get_today(),
+        reqd: 1,
+      },
+      {
+        label: __("Imagen/PDF del Comprobante Municipal"),
+        fieldname: "voucher_image_municipal",
+        fieldtype: "Attach",
+        reqd: 1,
+        default: frm.doc.voucher_image_municipal,
+      },
+    ],
+    primary_action_label: __("Subir y Guardar"),
+    primary_action: (values) => {
+      if (!values.municipal_date || !values.voucher_image_municipal) {
+        frappe.msgprint({
+          title: __("Error de Validación"),
+          indicator: "red",
+          message: __(
+            "Debe ingresar la Fecha y adjuntar el archivo del Comprobante Municipal.",
+          ),
+        });
+        return;
+      }
+      if (
+        !validate_voucher_file_frontend(values.voucher_image_municipal, [
+          "pdf",
+          "jpg",
+          "jpeg",
+          "png",
+        ])
+      ) {
+        return;
+      }
+
+      if (frm.doc.docstatus === 0) {
+        frm.set_value("municipal_receipt_number", values.municipal_receipt_number);
+        frm.set_value("municipal_date", values.municipal_date);
+        frm.set_value("voucher_image_municipal", values.voucher_image_municipal);
+        frm.set_value("municipal_registration_date", values.registration_date);
+
+        frm.save().then(() => {
+          frappe.show_alert({
+            message: __(
+              "Factura guardada con los datos del comprobante Municipal.",
+            ),
+            indicator: "green",
+          });
+          dialog.hide();
+        });
+      } else {
+        frappe.call({
+          method: "l10n_ve.overrides.sales_invoice.upload_municipal_voucher_data",
+          args: {
+            docname: frm.doc.name,
+            municipal_receipt_number: values.municipal_receipt_number,
+            municipal_date: values.municipal_date,
+            file_url: values.voucher_image_municipal,
+            registration_date: values.registration_date,
+          },
+          callback: function (r) {
+            if (r.message && r.message.status === "success") {
+              frappe.msgprint(
+                __("Comprobante Municipal cargado exitosamente."),
+              );
+              frm.reload_doc();
+              dialog.hide();
+            } else if (r.message && r.message.status === "error") {
+              frappe.msgprint(
+                __("Error al guardar: " + r.message.msg),
+                "Error",
+              );
+            }
+          },
+        });
+      }
+    },
+  });
+  dialog.show();
 }
 
 function open_upload_vat_modal(frm) {
@@ -1900,7 +2026,7 @@ function setup_government_withholding_button(frm) {
     __("Cargar Comprobante"),
   );
 
-  if (frm.doc.docstatus !== 1 || flt(frm.doc.outstanding_amount) <= 0) return;
+  if (frm.doc.docstatus !== 1) return;
 
   frm.add_custom_button(
     __("Retención Gubernamental"),
@@ -1924,54 +2050,81 @@ function setup_government_withholding_button(frm) {
 function open_government_withholding_dialog(frm, ctx) {
   const outstanding = flt(ctx.outstanding);
   const currency = ctx.currency;
+  const has_balance = outstanding > 0.001;
+
+  const fields = [
+    {
+      label: __("Moneda"),
+      fieldname: "display_currency",
+      fieldtype: "Data",
+      hidden: 1,
+      default: currency,
+    },
+    {
+      label: __("Monto Pendiente"),
+      fieldname: "outstanding_display",
+      fieldtype: "Currency",
+      options: "display_currency",
+      default: outstanding,
+      read_only: 1,
+    },
+  ];
+
+  if (has_balance) {
+    fields.push({
+      label: __("Monto de Retención"),
+      fieldname: "amount",
+      fieldtype: "Currency",
+      options: "display_currency",
+      reqd: 1,
+      default: outstanding,
+      description: __("Ingrese el monto de la retención a descontar."),
+    });
+  }
+
+  fields.push(
+    {
+      label: __("Número de Comprobante"),
+      fieldname: "voucher_number",
+      fieldtype: "Data",
+      placeholder: __("Ej. 2026080001 (Opcional)"),
+      default: frm.doc.municipal_receipt_number || "",
+    },
+    {
+      label: __("Fecha de Comprobante"),
+      fieldname: "voucher_date",
+      fieldtype: "Date",
+      default: frm.doc.municipal_date || frappe.datetime.get_today(),
+    },
+    {
+      label: __("Imagen/PDF del Comprobante"),
+      fieldname: "voucher_file",
+      fieldtype: "Attach",
+      default: frm.doc.voucher_image_municipal || "",
+      description: __("Adjuntar archivo del comprobante (Opcional)"),
+    },
+    {
+      label: __("Descripción / Concepto"),
+      fieldname: "description",
+      fieldtype: "Small Text",
+      placeholder: __(
+        "Ej. Retención Timbre Fiscal / Impuesto Municipal de la factura",
+      ),
+    },
+  );
 
   const dialog = new frappe.ui.Dialog({
-    title: __("Registrar Retención Gubernamental"),
-    fields: [
-      {
-        label: __("Moneda"),
-        fieldname: "display_currency",
-        fieldtype: "Data",
-        hidden: 1,
-        default: currency,
-      },
-      {
-        label: __("Monto Pendiente"),
-        fieldname: "outstanding_display",
-        fieldtype: "Currency",
-        options: "display_currency",
-        default: outstanding,
-        read_only: 1,
-      },
-      {
-        label: __("Monto de Retención"),
-        fieldname: "amount",
-        fieldtype: "Currency",
-        options: "display_currency",
-        reqd: 1,
-        default: outstanding,
-        description: __("Ingrese el monto de la retención a descontar."),
-      },
-      {
-        label: __("Número de Comprobante"),
-        fieldname: "voucher_number",
-        fieldtype: "Data",
-        placeholder: __("Ej. 2026080001 (Opcional)"),
-      },
-      {
-        label: __("Descripción / Concepto"),
-        fieldname: "description",
-        fieldtype: "Small Text",
-        placeholder: __(
-          "Ej. Retención Timbre Fiscal / Impuesto Municipal de la factura",
-        ),
-      },
-    ],
-    primary_action_label: __("Confirmar y Contabilizar"),
+    title: has_balance
+      ? __("Registrar Retención Gubernamental")
+      : __("Cargar Comprobante de Retención"),
+    fields: fields,
+    primary_action_label: has_balance
+      ? __("Confirmar y Contabilizar")
+      : __("Guardar Comprobante"),
     primary_action: function (values) {
-      const amount = flt(values.amount);
+      const amount = has_balance ? flt(values.amount) : 0;
 
-      if (amount <= 0) {
+      if (has_balance && amount <= 0) {
         frappe.msgprint({
           title: __("Monto Inválido"),
           indicator: "red",
@@ -1980,9 +2133,19 @@ function open_government_withholding_dialog(frm, ctx) {
         return;
       }
 
-      // Espejo del tope del servidor, para ahorrar el viaje. La reja de verdad es
-      // la del backend, que revalida bajo bloqueo de la fila de la factura.
-      if (amount > outstanding + 0.001) {
+      if (
+        values.voucher_file &&
+        !validate_voucher_file_frontend(values.voucher_file, [
+          "pdf",
+          "jpg",
+          "jpeg",
+          "png",
+        ])
+      ) {
+        return;
+      }
+
+      if (has_balance && amount > outstanding + 0.001) {
         frappe.msgprint({
           title: __("Exceso de Monto"),
           indicator: "red",
@@ -1995,27 +2158,57 @@ function open_government_withholding_dialog(frm, ctx) {
       }
 
       dialog.hide();
-      frappe.call({
-        method:
-          "l10n_ve.overrides.sales_invoice.create_government_withholding_journal_entry",
-        args: {
-          docname: frm.doc.name,
-          amount: amount,
-          description: values.description,
-          voucher_number: values.voucher_number,
-        },
-        freeze: true,
-        freeze_message: __("Contabilizando la retención..."),
-        callback: function (r) {
-          if (r.exc || !r.message) return;
-          frappe.msgprint({
-            title: __("Retención Gubernamental registrada exitosamente."),
-            indicator: "green",
-            message: r.message.message,
-          });
-          frm.reload_doc();
-        },
-      });
+
+      if (has_balance && amount > 0) {
+        frappe.call({
+          method:
+            "l10n_ve.overrides.sales_invoice.create_government_withholding_journal_entry",
+          args: {
+            docname: frm.doc.name,
+            amount: amount,
+            description: values.description,
+            voucher_number: values.voucher_number,
+            voucher_date: values.voucher_date,
+            voucher_file: values.voucher_file,
+          },
+          freeze: true,
+          freeze_message: __("Contabilizando la retención..."),
+          callback: function (r) {
+            if (r.exc || !r.message) return;
+            frappe.msgprint({
+              title: __("Retención Gubernamental registrada exitosamente."),
+              indicator: "green",
+              message: r.message.message,
+            });
+            frm.reload_doc();
+          },
+        });
+      } else {
+        frappe.call({
+          method:
+            "l10n_ve.overrides.sales_invoice.upload_municipal_voucher_data",
+          args: {
+            docname: frm.doc.name,
+            municipal_receipt_number: values.voucher_number,
+            municipal_date: values.voucher_date,
+            file_url: values.voucher_file,
+            registration_date: values.voucher_date,
+          },
+          freeze: true,
+          freeze_message: __("Guardando comprobante..."),
+          callback: function (r) {
+            if (r.exc || !r.message) return;
+            frappe.msgprint({
+              title: __("Comprobante cargado exitosamente."),
+              indicator: "green",
+              message: __(
+                "Factura actualizada con los datos del comprobante.",
+              ),
+            });
+            frm.reload_doc();
+          },
+        });
+      }
     },
   });
 

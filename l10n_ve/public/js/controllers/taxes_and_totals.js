@@ -90,6 +90,13 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
         break;
       }
     }
+  } else if (tax.charge_type == "Municipal Withholding") {
+    // El monto se asigna al primer ítem y cero al resto (igual que Python)
+    if (item.idx === 1) {
+      current_tax_amount = (flt(tax.rate) / 100.0) * this.frm.doc.net_total;
+    } else {
+      current_tax_amount = 0.0;
+    }
   }
 
   if (!tax.dont_recompute_tax) {
@@ -125,10 +132,10 @@ erpnext.taxes_and_totals.prototype.set_cumulative_total = function (
   }
 
   if (tax.is_tax_withholding_account) {
-    //  Se resta la retención de IVA e ISLR
+    //  Se resta la retención de IVA, ISLR e Impuesto Municipal
 
     if (
-      ["VAT Withholding", "ISLR"].includes(tax.charge_type) &&
+      ["VAT Withholding", "ISLR", "Municipal Withholding"].includes(tax.charge_type) &&
       __VE_DOCTYPES_JS__.includes(this.frm.doc.doctype)
     ) {
       //  Se asegura que la retención siempre reste, independientemente de su signo original
@@ -245,6 +252,12 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
           Math.max(base_islr, 0),
           precision("base_tax_amount", tax),
         );
+      } else if (tax.charge_type === "Municipal Withholding") {
+        // Base Bs = base gravable (sin exentos) × tasa
+        tax.base_tax_amount = flt(
+          (base_taxable_vef * flt(tax.rate)) / 100,
+          precision("base_tax_amount", tax),
+        );
       } else if (tax.charge_type === "On Previous Row Amount") {
         const prev_idx = cint(tax.row_id) - 1;
         if (prev_idx >= 0 && prev_idx < this.frm.doc.taxes.length) {
@@ -301,7 +314,7 @@ erpnext.taxes_and_totals.prototype._recalculate_base_tax_amounts_ve =
 
       if (tax.is_tax_withholding_account) {
         if (
-          ["VAT Withholding", "ISLR"].includes(tax.charge_type) &&
+          ["VAT Withholding", "ISLR", "Municipal Withholding"].includes(tax.charge_type) &&
           __VE_DOCTYPES_JS__.includes(this.frm.doc.doctype)
         ) {
           tax.base_total = flt(
