@@ -1133,3 +1133,542 @@ def create_government_withholding_journal_entry_for_purchase_invoice(
         "journal_entry": je.name,
         "message": _("Asiento Contable de Retención Gubernamental {0} creado y sometido exitosamente.").format(je_link),
     }
+
+
+# ===================================================================== #
+# Aplicación Retroactiva de Retenciones en Facturas de Compra           #
+# (post-aprobación, docstatus == 1)                                     #
+# ===================================================================== #
+
+#: Nombre en español de cada tipo de retención para mensajes al usuario.
+_PURCHASE_WITHHOLDING_LABEL: dict = {"VAT": "IVA", "ISLR": "ISLR"}
+
+
+def _purchase_withholding_label(withholding_type: str) -> str:
+    return _PURCHASE_WITHHOLDING_LABEL.get(withholding_type, withholding_type)
+
+
+def _get_purchase_vat_category_rate(tax_withholding_category: str, company: str) -> float:
+    """Obtiene la tasa de retención de IVA desde la Categoría de Retención.
+    Fallback a 75% (tasa legal venezolana) si no hay configuración.
+    """
+    if not tax_withholding_category:
+        return 75.0
+
+    rates = frappe.db.get_all(
+        "Tax Withholding Rate",
+        filters={"parent": tax_withholding_category},
+        fields=["tax_withholding_rate"],
+        limit=1,
+    )
+    if rates:
+        return flt(rates[0].tax_withholding_rate)
+
+    accounts = frappe.db.get_all(
+        "Tax Withholding Account",
+        filters={"parent": tax_withholding_category, "company": company},
+        fields=["tax_withholding_rate"],
+        limit=1,
+    )
+    if accounts and accounts[0].get("tax_withholding_rate"):
+        return flt(accounts[0]["tax_withholding_rate"])
+
+    return 75.0  # Tasa legal venezolana por defecto
+
+
+def _calculate_purchase_withholding_base_amount(
+    invoice: object, withholding_type: str, tabulator_name: str = None
+) -> float:
+    """Calcula el monto de retención en moneda local (Bs) desde los valores de la factura.
+
+    Para VAT: porcentaje de retención sobre el monto base del IVA (filas VAT).
+    Para ISLR: alícuota del tabulador seleccionado sobre la base imponible.
+    Retorna el monto en moneda de la compañía (Bs).
+    """
+    base_amount = 0.0
+
+    if withholding_type == "VAT":
+        tax_withholding_category = frappe.db.get_value(
+            "Supplier", invoice.supplier, "tax_withholding_category"
+        )
+        if not tax_withholding_category:
+            frappe.throw(
+                _("El proveedor {0} no tiene configurada una Categoría de Retención de IVA.").format(
+                    invoice.supplier
+                )
+            )
+
+        vat_rate = _get_purchase_vat_category_rate(tax_withholding_category, invoice.company)
+        vat_base_bs = sum(flt(t.base_tax_amount) for t in invoice.taxes if t.charge_type == "VAT")
+        if vat_base_bs <= 0:
+            frappe.throw(
+                _(
+                    "La factura {0} no tiene impuesto IVA con monto base positivo. "
+                    "No es posible calcular la retención de IVA."
+                ).format(invoice.name)
+            )
+        base_amount = flt(vat_base_bs * (vat_rate / 100.0), 2)
+
+    elif withholding_type == "ISLR":
+        if not tabulator_name:
+            frappe.throw(_("Debe especificar el concepto de ISLR (Tabulador)."))
+
+        type_of_person = frappe.db.get_value("Supplier", invoice.supplier, "type_of_person") or ""
+        tab_doc = frappe.get_doc("Tabulator ISLR", tabulator_name)
+        if not tab_doc.aliquot:
+            frappe.throw(
+                _("El tabulador '{0}' no tiene alícuotas configuradas.").format(tabulator_name)
+            )
+
+        target_row = None
+        if type_of_person:
+            target_row = next(
+                (r for r in tab_doc.aliquot if r.types_of_person == type_of_person and flt(r.aliquot) > 0),
+                None,
+            )
+
+        if not target_row:
+            frappe.throw(
+                _(
+                    "No se encontró alícuota válida en el tabulador '{0}' "
+                    "para el tipo de persona '{1}'."
+                ).format(tabulator_name, type_of_person or _("No configurado"))
+            )
+
+        subtrahend = flt(target_row.subtracting)
+        percentage_base = flt(target_row.percentage_base)
+        if percentage_base <= 0:
+            # Un 0 configurado pasaba a 100 %: 100x de diferencia en la base.
+            frappe.throw(
+                _("El tabulador '{0}' tiene el porcentaje de base en 0 para el tipo "
+                  "de persona '{1}'. Corrija el tabulador antes de retener.").format(
+                      tabulator_name, type_of_person or _("No configurado"))
+            )
+        islr_rate = flt(target_row.aliquot)
+        net_total_bs = flt(invoice.base_net_total)
+        calculated_base_bs = flt(net_total_bs * (percentage_base / 100.0))
+        base_amount = flt((calculated_base_bs * (islr_rate / 100.0)) - subtrahend, 2)
+        if base_amount < 0:
+            base_amount = 0.0
+
+    if base_amount <= 0:
+        frappe.throw(
+            _(
+                "El monto de retención calculado ({0} Bs) es cero o negativo. "
+                "Verifique la configuración fiscal del proveedor o la factura."
+            ).format(base_amount)
+        )
+
+    return base_amount
+
+
+def _create_purchase_taxes_row(
+    invoice: object,
+    charge_type: str,
+    tax_account: str,
+    withholding_type: str,
+    amount: float,
+    base_amount: float,
+    rate: float,
+    tabulator_name: str = None,
+) -> object:
+    """Inserta una nueva fila en Purchase Taxes and Charges para la retención."""
+    idx = len(invoice.taxes) + 1
+    cost_center = invoice.cost_center or frappe.get_cached_value(
+        "Company", invoice.company, "cost_center"
+    )
+
+    tax_row = frappe.new_doc("Purchase Taxes and Charges")
+    tax_row.parent = invoice.name
+    tax_row.parenttype = "Purchase Invoice"
+    tax_row.parentfield = "taxes"
+    tax_row.idx = idx
+    tax_row.charge_type = charge_type
+    tax_row.add_deduct_tax = "Deduct"
+    tax_row.category = "Total"
+    tax_row.account_head = tax_account
+    tax_row.description = f"Retención de {_purchase_withholding_label(withholding_type)} (Ajuste)"
+    tax_row.rate = flt(rate)
+    tax_row.tax_amount = amount
+    tax_row.base_tax_amount = base_amount
+    tax_row.tax_amount_after_discount_amount = amount
+    tax_row.base_tax_amount_after_discount_amount = base_amount
+    tax_row.is_tax_withholding_account = 1
+    tax_row.dont_recompute_tax = 1
+    tax_row.cost_center = cost_center
+
+    if tabulator_name and withholding_type == "ISLR":
+        tab_doc = frappe.get_cached_doc("Tabulator ISLR", tabulator_name)
+        tax_row.tabulator_islr = tab_doc.name
+        tax_row.code = tab_doc.codigo
+
+    tax_row.db_insert()
+    return tax_row
+
+
+def _create_purchase_withholding_journal_entry(
+    invoice: object,
+    withholding_type: str,
+    tax_account: str,
+    amount: float,
+    base_amount: float,
+    conversion_rate: float,
+    company_currency: str,
+    invoice_currency: str,
+) -> object:
+    """Construye y somete el Asiento Contable de retención para la Factura de Compra.
+
+    Estructura del asiento:
+      DÉBITO  → credit_to (Cuentas por Pagar del proveedor) referenciando la PI
+      CRÉDITO → cuenta de retención (tax_account)
+
+    Si la retención supera el saldo pendiente, el exceso se asienta sin referencia (is_advance=Yes).
+    """
+    tax_account_currency = (
+        frappe.db.get_value("Account", tax_account, "account_currency") or company_currency
+    )
+    payable_account_currency = (
+        frappe.db.get_value("Account", invoice.credit_to, "account_currency") or company_currency
+    )
+    cost_center = invoice.cost_center or frappe.get_cached_value(
+        "Company", invoice.company, "cost_center"
+    )
+
+    outstanding_bs = flt(invoice.outstanding_amount)
+    if payable_account_currency != company_currency:
+        outstanding_bs = flt(invoice.outstanding_amount * conversion_rate)
+
+    total_debit_bs = base_amount
+
+    je = frappe.new_doc("Journal Entry")
+    je.company = invoice.company
+    je.posting_date = frappe.utils.today()
+    je.user_remark = (
+        f"Retención de {_purchase_withholding_label(withholding_type)} registrada "
+        f"para la factura de compra {invoice.name}."
+    )
+
+    je.multi_currency = (
+        1
+        if (
+            invoice_currency != company_currency
+            or tax_account_currency != company_currency
+            or payable_account_currency != company_currency
+        )
+        else 0
+    )
+
+    # --- METADATOS FISCALES PARA LAS FILAS (Journal Entry Account) ---
+    fiscal_metadata = {
+        "bill_no": invoice.bill_no or invoice.name,
+        "bill_control": invoice.get("bill_control"),
+        "branch": invoice.get("branch"),
+    }
+
+    # --- Partida de DÉBITO (Cuentas por Pagar → reduce deuda con proveedor) ---
+    is_fully_paid = outstanding_bs <= 0
+    if is_fully_paid:
+        debit_invoice_bs = 0.0
+        debit_advance_bs = total_debit_bs
+    else:
+        has_overpayment = total_debit_bs > outstanding_bs
+        if has_overpayment:
+            debit_invoice_bs = outstanding_bs
+            debit_advance_bs = flt(total_debit_bs - outstanding_bs, 2)
+        else:
+            debit_invoice_bs = total_debit_bs
+            debit_advance_bs = 0.0
+
+    pay_exchange_rate = (
+        conversion_rate
+        if (
+            payable_account_currency != company_currency
+            and payable_account_currency == invoice_currency
+        )
+        else 1.0
+    )
+
+    if debit_invoice_bs > 0:
+        pay_row_invoice = {
+            "account": invoice.credit_to,
+            "party_type": "Supplier",
+            "party": invoice.supplier,
+            "reference_type": "Purchase Invoice",
+            "reference_name": invoice.name,
+            "cost_center": cost_center,
+        }
+        if payable_account_currency != company_currency:
+            proportional_amount = (
+                flt(debit_invoice_bs / pay_exchange_rate, 2) if pay_exchange_rate else debit_invoice_bs
+            )
+            pay_row_invoice.update(
+                {
+                    "account_currency": payable_account_currency,
+                    "exchange_rate": pay_exchange_rate,
+                    "debit_in_account_currency": proportional_amount,
+                    "debit": debit_invoice_bs,
+                }
+            )
+        else:
+            pay_row_invoice.update(
+                {
+                    "debit_in_account_currency": debit_invoice_bs,
+                    "debit": debit_invoice_bs,
+                    "exchange_rate": 1.0,
+                }
+            )
+        pay_row_invoice.update(fiscal_metadata)
+        je.append("accounts", pay_row_invoice)
+
+    if debit_advance_bs > 0:
+        pay_row_advance = {
+            "account": invoice.credit_to,
+            "party_type": "Supplier",
+            "party": invoice.supplier,
+            "cost_center": cost_center,
+            "is_advance": "Yes",
+            **fiscal_metadata,
+        }
+        if payable_account_currency != company_currency:
+            overpayment_amount = (
+                flt(debit_advance_bs / pay_exchange_rate, 2) if pay_exchange_rate else debit_advance_bs
+            )
+            pay_row_advance.update(
+                {
+                    "account_currency": payable_account_currency,
+                    "exchange_rate": pay_exchange_rate,
+                    "debit_in_account_currency": overpayment_amount,
+                    "debit": debit_advance_bs,
+                }
+            )
+        else:
+            pay_row_advance.update(
+                {
+                    "debit_in_account_currency": debit_advance_bs,
+                    "debit": debit_advance_bs,
+                    "exchange_rate": 1.0,
+                }
+            )
+        je.append("accounts", pay_row_advance)
+
+    # --- Partida de CRÉDITO (cuenta de retención) ---
+    tax_je_row = {"account": tax_account, "cost_center": cost_center, **fiscal_metadata}
+    if tax_account_currency != company_currency:
+        tax_je_row.update(
+            {
+                "account_currency": tax_account_currency,
+                "exchange_rate": conversion_rate if tax_account_currency == invoice_currency else 1.0,
+                "credit_in_account_currency": amount
+                if tax_account_currency == invoice_currency
+                else base_amount,
+                "credit": base_amount,
+            }
+        )
+    else:
+        tax_je_row.update(
+            {
+                "credit_in_account_currency": base_amount,
+                "credit": base_amount,
+                "exchange_rate": 1.0,
+            }
+        )
+    je.append("accounts", tax_je_row)
+
+    try:
+        je.insert(ignore_permissions=True)
+        je.submit()
+
+        for row in je.accounts:
+            bill_no = row.get("bill_no")
+            bill_control = row.get("bill_control")
+
+            if bill_no or bill_control:
+                frappe.db.sql("""
+                    UPDATE `tabGL Entry`
+                    SET bill_no = %s, bill_control = %s
+                    WHERE voucher_type = 'Journal Entry'
+                    AND voucher_no = %s
+                    AND account = %s
+                """, (bill_no, bill_control, je.name, row.account))
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error Contabilizando Retención en Compra")
+        frappe.throw(_(
+            "Error al intentar contabilizar la retención: {0}"
+        ).format(str(e)))
+
+    return je
+
+
+def _validate_purchase_withholding_account(
+    invoice: object, withholding_type: str, tax_account: str
+) -> None:
+    """Valida que la cuenta de retención exista, pertenezca a la compañía de la factura
+    y coincida con la cuenta oficial configurada para compras."""
+    if not tax_account:
+        frappe.throw(_("Debe especificar una cuenta contable de retención."))
+
+    account_data = frappe.db.get_value(
+        "Account", tax_account, ["company", "is_group"], as_dict=True
+    )
+    if not account_data:
+        frappe.throw(_("La cuenta contable {0} no existe.").format(tax_account))
+    if account_data.company != invoice.company:
+        frappe.throw(
+            _(
+                "La cuenta contable {0} pertenece a la compañía {1}, "
+                "pero la factura es de la compañía {2}."
+            ).format(tax_account, account_data.company, invoice.company)
+        )
+    if account_data.is_group:
+        frappe.throw(
+            _("La cuenta contable {0} es de tipo Grupo y no puede recibir asientos directos.").format(
+                tax_account
+            )
+        )
+
+    company_fields = ["purchase_vat_withholding_account", "purchase_islr_account"]
+    company_config = frappe.db.get_value("Company", invoice.company, company_fields, as_dict=True)
+    if not company_config:
+        return  # Sin configuración en Company, no se bloquea
+
+    if withholding_type == "VAT":
+        official_account = company_config.purchase_vat_withholding_account
+        error_msg = _(
+            "La cuenta contable {0} no coincide con la cuenta de Retención de IVA de compras "
+            "configurada en la Compañía ({1})."
+        )
+    else:
+        official_account = company_config.purchase_islr_account
+        error_msg = _(
+            "La cuenta contable {0} no coincide con la cuenta de Retención de ISLR de compras "
+            "configurada en la Compañía ({1})."
+        )
+
+    if official_account and tax_account != official_account:
+        frappe.throw(error_msg.format(tax_account, official_account))
+
+
+@frappe.whitelist()
+def apply_retroactive_purchase_withholding(
+    invoice_name: str,
+    withholding_type: str,
+    tax_account: str,
+    company: str,
+    tabulator_name: str = None,
+) -> dict:
+    """Aplica retroactivamente una retención (IVA o ISLR) a una Factura de Compra aprobada.
+
+    Flujo:
+    1. Valida permisos del usuario (Accounts Manager / Accounts User / System Manager).
+    2. Verifica que la factura esté en estado Aprobado (docstatus == 1).
+    3. Valida la cuenta de retención contra la configuración de la compañía.
+    4. Detecta duplicados en la tabla de impuestos.
+    5. Calcula el monto de retención en Bs y en moneda del documento.
+    6. Inserta la fila en Purchase Taxes and Charges.
+    7. Crea y somete el Journal Entry correspondiente.
+    8. Actualiza la descripción de la fila con el nombre del JE generado.
+
+    Args:
+        invoice_name: Nombre de la Purchase Invoice (docstatus == 1).
+        withholding_type: "VAT" o "ISLR".
+        tax_account: Cuenta contable de retención (purchase_vat_withholding_account o purchase_islr_account).
+        company: Compañía de la factura (para validación cruzada).
+        tabulator_name: Requerido solo cuando withholding_type == "ISLR".
+
+    Returns:
+        dict con status="success" y msg descriptivo.
+    """
+    _require_withholding_permissions()
+
+    if withholding_type not in ("VAT", "ISLR"):
+        frappe.throw(_("Tipo de retención inválido: {0}. Use 'VAT' o 'ISLR'.").format(withholding_type))
+
+    if not frappe.db.exists("Purchase Invoice", {"name": invoice_name, "company": company, "docstatus": 1}):
+        frappe.throw(
+            _("No se encontró ninguna Factura de Compra aprobada con el identificador '{0}' para la empresa {1}.").format(
+                invoice_name, company
+            )
+        )
+
+    invoice = frappe.get_doc("Purchase Invoice", invoice_name)
+
+    frappe.has_permission("Purchase Invoice", ptype="write", doc=invoice, throw=True)
+
+    _validate_purchase_withholding_account(invoice, withholding_type, tax_account)
+
+    charge_type = "VAT Withholding" if withholding_type == "VAT" else "ISLR"
+
+    duplicate = any(
+        t.charge_type == charge_type and t.account_head == tax_account for t in invoice.taxes
+    )
+    if duplicate:
+        frappe.throw(
+            _(
+                "La factura {0} ya tiene una retención de tipo '{1}' con la cuenta {2}. "
+                "No se puede aplicar una retención duplicada."
+            ).format(invoice.name, charge_type, tax_account)
+        )
+
+    company_currency = frappe.get_cached_value("Company", invoice.company, "default_currency")
+    invoice_currency = invoice.currency or company_currency
+
+    base_amount = _calculate_purchase_withholding_base_amount(invoice, withholding_type, tabulator_name)
+
+    if invoice_currency != company_currency:
+        # Se valida ANTES de usar. Con `or 1.0` delante, el throw de abajo era
+        # inalcanzable y una tasa ausente se leia como "1", o sea afirmar que el dolar
+        # y el bolivar valen igual, sobre un monto que se declara.
+        conversion_rate = flt(invoice.conversion_rate)
+        if not conversion_rate:
+            frappe.throw(
+                _(
+                    "La factura {0} está en moneda extranjera ({1}) pero no tiene una "
+                    "tasa de conversión válida."
+                ).format(invoice.name, invoice_currency)
+            )
+        amount = flt(base_amount / conversion_rate, invoice.precision("tax_amount", "taxes") or 2)
+    else:
+        conversion_rate = 1.0
+        amount = base_amount
+
+    # Obtener la tasa (rate) para la fila de impuesto
+    rate = 0.0
+    if withholding_type == "VAT":
+        tax_withholding_category = frappe.db.get_value(
+            "Supplier", invoice.supplier, "tax_withholding_category"
+        )
+        rate = _get_purchase_vat_category_rate(tax_withholding_category, invoice.company)
+    elif withholding_type == "ISLR" and tabulator_name:
+        type_of_person = frappe.db.get_value("Supplier", invoice.supplier, "type_of_person") or ""
+        tab_doc = frappe.get_cached_doc("Tabulator ISLR", tabulator_name)
+        target_row = None
+        if type_of_person:
+            target_row = next(
+                (r for r in tab_doc.aliquot if r.types_of_person == type_of_person and flt(r.aliquot) > 0),
+                None,
+            )
+        if target_row:
+            rate = flt(target_row.aliquot)
+
+    tax_row = _create_purchase_taxes_row(
+        invoice, charge_type, tax_account, withholding_type, amount, base_amount, rate, tabulator_name
+    )
+
+    je = _create_purchase_withholding_journal_entry(
+        invoice, withholding_type, tax_account, amount, base_amount,
+        conversion_rate, company_currency, invoice_currency
+    )
+
+    frappe.db.set_value(
+        "Purchase Taxes and Charges",
+        tax_row.name,
+        "description",
+        f"Retención de {_purchase_withholding_label(withholding_type)} (Ajuste) - Asiento: {je.name}",
+    )
+
+    return {
+        "status": "success",
+        "journal_entry": je.name,
+        "msg": f"Retención de {_purchase_withholding_label(withholding_type)} aplicada. Asiento {je.name} creado y sometido.",
+    }

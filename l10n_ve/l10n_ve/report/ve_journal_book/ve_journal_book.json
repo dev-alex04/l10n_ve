@@ -27,12 +27,58 @@
    "mandatory": 1
   },
   {
+   "fieldname": "currency_filter",
+   "fieldtype": "Select",
+   "label": "Moneda",
+   "options": "VES\nUSD\nBimoneda",
+   "default": "VES",
+   "mandatory": 1
+  },
+  {
    "fieldname": "presentation",
    "fieldtype": "Select",
    "label": "Presentación / Nivel",
-   "options": "Detallado\nResumido\n1° Nivel\n2° Nivel\n3° Nivel",
+   "options": "Detallado\nResumido\n1° Nivel\n2° Nivel\n3° Nivel\n4° Nivel",
    "default": "Detallado",
    "mandatory": 1
+  },
+  {
+   "fieldname": "voucher_type",
+   "fieldtype": "Select",
+   "label": "Tipo de Comprobante",
+   "options": "Todos\nJournal Entry\nSales Invoice\nPurchase Invoice\nPayment Entry\nVE Sales Debit Note\nVE Sales Credit Note\nVE Purchase Debit Note\nVE Purchase Credit Note",
+   "default": "Todos",
+   "ignore_permissions": 1
+  },
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "label": "Cuenta Contable",
+   "options": "Account"
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Link",
+   "label": "Tipo de Tercero",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "label": "Tercero",
+   "options": "party_type"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Centro de Costo",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "include_cancelled",
+   "fieldtype": "Check",
+   "label": "Incluir Anulados",
+   "default": 0
   }
  ],
  "idx": 0,
