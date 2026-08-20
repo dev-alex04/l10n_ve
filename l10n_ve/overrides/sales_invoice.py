@@ -2411,16 +2411,23 @@ def create_government_withholding_journal_entry(
     je.insert(ignore_permissions=True)
     je.submit()
 
-    if voucher_number and str(voucher_number).strip() and invoice.meta.has_field("municipal_receipt_number"):
-        invoice.db_set("municipal_receipt_number", str(voucher_number).strip(), update_modified=False)
+    meta = getattr(invoice, "meta", None)
+    has_receipt = meta.has_field("municipal_receipt_number") if meta else ("municipal_receipt_number" in invoice)
+    has_date = meta.has_field("municipal_date") if meta else ("municipal_date" in invoice)
+    has_img = meta.has_field("voucher_image_municipal") if meta else ("voucher_image_municipal" in invoice)
 
-    if voucher_date and str(voucher_date).strip() and invoice.meta.has_field("municipal_date"):
-        invoice.db_set("municipal_date", str(voucher_date).strip(), update_modified=False)
+    if callable(getattr(invoice, "db_set", None)):
+        if voucher_number and str(voucher_number).strip() and has_receipt:
+            invoice.db_set("municipal_receipt_number", str(voucher_number).strip(), update_modified=False)
+
+        if voucher_date and str(voucher_date).strip() and has_date:
+            invoice.db_set("municipal_date", str(voucher_date).strip(), update_modified=False)
+
+        if voucher_file and str(voucher_file).strip() and has_img:
+            invoice.db_set("voucher_image_municipal", str(voucher_file).strip(), update_modified=False)
 
     if voucher_file and str(voucher_file).strip():
         file_url = str(voucher_file).strip()
-        if invoice.meta.has_field("voucher_image_municipal"):
-            invoice.db_set("voucher_image_municipal", file_url, update_modified=False)
         try:
             frappe.get_doc({
                 "doctype": "File",
