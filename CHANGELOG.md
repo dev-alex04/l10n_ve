@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.53.0] - 2026-08-20
+
+### ✨ Funcionalidades (Features)
+- Implementación de la propiedad `ignore_permissions` aplicada exclusivamente al filtro de tipo de comprobante (`voucher_type`) en el módulo de reportes. 1578b508
+- Habilitación de `ignore_permissions` en los filtros de reportes y aplicación de formateo seguro mediante Jinja para el reporte de libro diario (`ve_journal_book`). fd495996
+
+---
+
+## [v2.52.0] - 2026-08-20
+
+### ✨ Funcionalidades (Features)
+- **Gestión de Nombres**: Se implementó el uso de **Naming Series** para las entidades de Clientes (Customer) y Proveedores (Supplier), permitiendo una estandarización más flexible de los identificadores.
+- **Interfaz de Usuario**: Se agregaron títulos descriptivos en los campos de tipo **Link**, mejorando la legibilidad y la experiencia de búsqueda dentro de la plataforma. [0a5b0e77]
+
+---
+
+## [v2.51.1] - 2026-08-19
+
+### 🐛 Correcciones (Fixes)
+- Se integró una advertencia en el módulo **smart** referente a la sobreestimación de facturas «Emitidas» en el reporte HKA al consultar periodos históricos, mejorando la precisión en la interpretación de los datos reportados. [32f10e7c]
+
+---
+
+## [v2.51.0] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+- Implementación de nuevas capacidades en el módulo smart: se añadieron las funciones `check_bank_reconciliation` para la verificación de conciliaciones bancarias y `account_balance_by_party` para la consulta de saldos de cuenta por tercero. [8261be1]
+
+---
+
+## [v2.50.1] - 2026-08-19
+
+### ✨ Funcionalidades (Features)
+- Integración de los campos `bill_no` y `bill_control` en el Libro Mayor General (GL Entry) al procesar asientos contables (JE) para mejorar la trazabilidad y visualización de documentos. a0c0182
+- Implementación de lógica para la gestión de retenciones de ISLR sobre facturas de compra una vez que estas han sido aprobadas. a31033b
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en el módulo de compras para eliminar valores predeterminados arbitrarios en el cálculo de retenciones retroactivas, garantizando la integridad de los datos fiscales. 4f769f8
+
+---
+
 ## [v2.50.0] - 2026-08-19
 
 ### ✨ Funcionalidades (Features)

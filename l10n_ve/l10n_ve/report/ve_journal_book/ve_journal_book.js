@@ -46,7 +46,8 @@ frappe.query_reports["ve_journal_book"] = {
 			"label": __("Tipo de Comprobante"),
 			"fieldtype": "Select",
 			"options": "Todos\nJournal Entry\nSales Invoice\nPurchase Invoice\nPayment Entry\nVE Sales Debit Note\nVE Sales Credit Note\nVE Purchase Debit Note\nVE Purchase Credit Note",
-			"default": "Todos"
+			"default": "Todos",
+			"ignore_permissions": 1
 		},
 		{
 			"fieldname": "account",

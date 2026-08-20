@@ -74,9 +74,16 @@ REPORTS = [
 	{
 		"report": "VE HKA Invoices Status",
 		"answers": (
-			"Estado de certificación de cada factura ante el SENIAT vía HKA. Para el "
-			"diagnóstico de qué NO llegó y por qué, check_hka es mejor: el campo de estado "
-			"no es evidencia de certificación."
+			"Estado de certificación de cada factura ante el SENIAT vía HKA, con su propio "
+			"resumen: total, emitidas, con error, pendientes y anuladas.\n"
+			"OJO con «Emitidas»: se apoya en `bill_control` O en un log de envío exitoso, y "
+			"para períodos históricos eso SOBREESTIMA. Medido en ene-jun 2026: el reporte "
+			"cuenta 6.882 emitidas, y solo 2.386 tienen log de transmisión —todas de junio, "
+			"que es cuando arrancó HKA—. Las otras traen un número de control cargado por "
+			"otra vía.\n"
+			"Si la pregunta es cuántas se TRANSMITIERON de verdad, usá check_period_impact, "
+			"que separa las dos señales. Para el diagnóstico de qué no llegó y por qué, "
+			"check_hka."
 		),
 		"filters": _PERIODO + ["document_type", "status"],
 	},
