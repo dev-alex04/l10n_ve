@@ -16,7 +16,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Administración",
-   "link_count": 8,
+   "link_count": 7,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -98,17 +98,6 @@
    "type": "Link"
   },
   {
-   "dependencies": "",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Reporte Pro",
-   "link_count": 0,
-   "link_to": "reporte-pro",
-   "link_type": "Page",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
    "hidden": 0,
    "is_query_report": 0,
    "label": "Reportes Importantes",
@@ -144,8 +133,8 @@
    "is_query_report": 0,
    "label": "Conciliación de Cajas",
    "link_count": 0,
-   "link_to": "/app/workspace/cajas",
-   "link_type": "URL",
+   "link_to": "cajas",
+   "link_type": "Page",
    "onboard": 0,
    "type": "Link"
   },
