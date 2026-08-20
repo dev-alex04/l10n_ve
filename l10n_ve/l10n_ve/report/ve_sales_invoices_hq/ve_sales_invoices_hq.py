@@ -71,8 +71,10 @@ def get_hq_data(filters=None) -> dict:
     # después por el subárbol.
     branch_filter: str = filters.get("branch") or ""
     main_branch_filter: str = filters.get("main_branch") or ""
-    # El libro no conoce este filtro: se resuelve aquí.
+    municipality_filter: str = filters.get("municipality") or ""
+    # El libro no conoce estos filtros: se resuelven aquí.
     filters.pop("main_branch", None)
+    filters.pop("municipality", None)
 
     subtree: set | None = _get_branch_subtree(branch_filter)
     if subtree:
@@ -80,13 +82,17 @@ def get_hq_data(filters=None) -> dict:
 
     # Sucursales admitidas. Filtrar por sucursal principal X equivale a su
     # subárbol, porque X cuelga de la raíz: todo lo que consolida en X está
-    # debajo de X. Si además hay filtro de sucursal, se intersectan.
+    # debajo de X. Si además hay filtro de sucursal o municipio, se intersectan.
     allowed: set | None = subtree
     if main_branch_filter:
         main_allowed: set = (
             _get_branch_subtree(main_branch_filter) or {main_branch_filter}
         )
         allowed = main_allowed if allowed is None else (allowed & main_allowed)
+
+    if municipality_filter:
+        muni_allowed: set = _get_branches_by_municipality(municipality_filter)
+        allowed = muni_allowed if allowed is None else (allowed & muni_allowed)
 
     columns: list[dict] = _sales_book_columns()
     main_data, adjustment_data = _sales_book_data(filters)
@@ -112,6 +118,7 @@ def get_hq_data(filters=None) -> dict:
         "report_summary": report_summary,
         "branch": branch_filter,
         "main_branch": main_branch_filter,
+        "municipality": municipality_filter,
         "subtree": subtree,
     }
 
@@ -280,13 +287,18 @@ def execute(filters=None):
     # 3er valor = 'message': Frappe lo pinta entre los filtros y las tarjetas de
     # totales (query_report.js -> show_status / $status).
     message: str = _build_report_message(
-        hq["branch"], hq["subtree"], hq["main_branch"]
+        hq["branch"], hq["subtree"], hq["main_branch"], hq.get("municipality", "")
     )
 
     return columns, data, message, None, hq["report_summary"]
 
 
-def _build_report_message(branch: str, subtree: set | None, main_branch: str = "") -> str:
+def _build_report_message(
+    branch: str,
+    subtree: set | None,
+    main_branch: str = "",
+    municipality: str = "",
+) -> str:
     """Descripción que se muestra sobre el reporte (bajo los filtros).
 
     Explica de dónde salen los números y hace visible el rollup: sin esto, al
@@ -339,6 +351,17 @@ def _build_report_message(branch: str, subtree: set | None, main_branch: str = "
             )
         )
 
+    if municipality:
+        muni_label = (
+            frappe.db.get_value(MUNICIPALITY_DOCTYPE, municipality, "municipality")
+            or municipality
+        )
+        lineas.append(
+            "<b>→</b> {0} <b>{1}</b>.".format(
+                _("Filtrando por municipio"), muni_label
+            )
+        )
+
     return "<br>".join(lineas)
 
 
@@ -374,6 +397,18 @@ def _get_branch_subtree(branch: str | None) -> set | None:
         pluck="name",
     )
     return set(names) if len(names) > 1 else None
+
+
+def _get_branches_by_municipality(municipality: str | None) -> set:
+    """Nombres de las sucursales asignadas al municipio indicado."""
+    if not municipality:
+        return set()
+    names: list[str] = frappe.get_all(
+        BRANCH_DOCTYPE,
+        filters={"municipality": municipality},
+        pluck="name",
+    )
+    return set(names)
 
 
 # Campos que componen las dos columnas consolidadas del HQ. Van como constantes porque
