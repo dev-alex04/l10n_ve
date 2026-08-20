@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.52.0] - 2026-08-20
+
+### ✨ Funcionalidades (Features)
+- **Gestión de Nombres**: Se implementó el uso de **Naming Series** para las entidades de Clientes (Customer) y Proveedores (Supplier), permitiendo una estandarización más flexible de los identificadores.
+- **Interfaz de Usuario**: Se agregaron títulos descriptivos en los campos de tipo **Link**, mejorando la legibilidad y la experiencia de búsqueda dentro de la plataforma. [0a5b0e77]
+
+---
+
 ## [v2.51.1] - 2026-08-19
 
 ### 🐛 Correcciones (Fixes)
