@@ -101,7 +101,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Reportes Importantes",
-   "link_count": 10,
+   "link_count": 9,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -133,8 +133,8 @@
    "is_query_report": 0,
    "label": "Conciliación de Cajas",
    "link_count": 0,
-   "link_to": "cajas",
-   "link_type": "Page",
+   "link_to": "/app/workspace/cajas",
+   "link_type": "URL",
    "onboard": 0,
    "type": "Link"
   },
