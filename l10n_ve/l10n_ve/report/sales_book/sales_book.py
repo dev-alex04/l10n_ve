@@ -208,10 +208,28 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
     query_base: str = get_query()
 
     # Filtro opcional de sucursal: se inyecta en ambas fuentes del UNION ALL.
+    #
+    # Dos formas, y la lista gana: `branch` es UNA sucursal (lo que usa el Libro de
+    # Ventas), y `branches` es un conjunto ya resuelto por el llamador. La segunda
+    # existe para el HQ, que consolida por subárbol, sucursal principal y municipio:
+    # sin ella tiene que traer el período entero y recortar en memoria --medido, hasta
+    # un 99 % de las filas descartadas--. Ninguna de las dos interpola nada: van como
+    # parámetros y pymysql expande la tupla a `(a, b, c)`.
     branch: str = filters.get("branch") or ""
-    branch_filter_inv: str = "AND siv.branch = %(branch)s" if branch else ""
-    branch_filter_nc: str = "AND nc.branch = %(branch)s" if branch else ""
-    branch_filter_nd: str = "AND nd.branch = %(branch)s" if branch else ""
+    branches: list = sorted({b for b in (filters.get("branches") or []) if b})
+
+    if branches:
+        branch_filter_inv: str = "AND siv.branch IN %(branches)s"
+        branch_filter_nc: str = "AND nc.branch IN %(branches)s"
+        branch_filter_nd: str = "AND nd.branch IN %(branches)s"
+    elif branch:
+        branch_filter_inv: str = "AND siv.branch = %(branch)s"
+        branch_filter_nc: str = "AND nc.branch = %(branch)s"
+        branch_filter_nd: str = "AND nd.branch = %(branch)s"
+    else:
+        branch_filter_inv: str = ""
+        branch_filter_nc: str = ""
+        branch_filter_nd: str = ""
 
     # --- Datos del período principal ---
     # Dos placeholders independientes: {inv_cond} para tabSales Invoice (alias siv),
@@ -276,7 +294,9 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
         "company_currency": company_currency,
         "fiscal_cutoff": _FISCAL_CUTOFF_DATE,
     }
-    if branch:
+    if branches:
+        sql_params["branches"] = tuple(branches)
+    elif branch:
         sql_params["branch"] = branch
 
     main_data = frappe.db.sql(main_query, sql_params, as_dict=1)

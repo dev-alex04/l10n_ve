@@ -44,6 +44,14 @@
    "label": "To Date",
    "mandatory": 0,
    "wildcard_filter": 0
+  },
+  {
+   "fieldname": "municipality",
+   "fieldtype": "Link",
+   "label": "Municipio",
+   "mandatory": 0,
+   "options": "VE Municipality",
+   "wildcard_filter": 0
   }
  ],
  "idx": 0,
