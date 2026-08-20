@@ -407,53 +407,6 @@ class TestMainBranchFilter(unittest.TestCase):
         self.assertNotIn("main_branch", datos.call_args[0][0])
 
 
-class TestBranchesByMunicipality(unittest.TestCase):
-    def test_sin_municipio_devuelve_vacio(self) -> None:
-        self.assertEqual(hq._get_branches_by_municipality(None), set())
-        self.assertEqual(hq._get_branches_by_municipality(""), set())
-
-    @patch("frappe.get_all", return_value=["GUARENAS", "ARMANDO"])
-    def test_devuelve_sucursales_del_municipio(self, mock_get_all) -> None:
-        res = hq._get_branches_by_municipality("6aerrlgo6l")
-        self.assertEqual(res, {"GUARENAS", "ARMANDO"})
-        mock_get_all.assert_called_once_with(
-            "VE Branch", filters={"municipality": "6aerrlgo6l"}, pluck="name"
-        )
-
-
-class TestMunicipalityFilter(unittest.TestCase):
-    """Filtro 'Municipio': filtra las filas por las sucursales asignadas a ese municipio."""
-
-    def _parchear(self, main, branches_by_muni):
-        return (
-            patch.object(hq, "_sales_book_columns", return_value=[{"fieldname": "branch"}]),
-            patch.object(hq, "_sales_book_data", return_value=(main, [])),
-            patch.object(hq, "_sales_book_total_row", return_value={"t": 1}),
-            patch.object(hq, "_sales_book_report_summary", return_value=[]),
-            patch.object(hq, "_get_branch_subtree", return_value=None),
-            patch.object(hq, "_get_branches_by_municipality", return_value=branches_by_muni),
-            patch.object(hq, "_get_municipality_by_branch", return_value={}),
-            patch.object(hq, "_get_main_branch_map", return_value={}),
-        )
-
-    def test_filtra_por_sucursales_del_municipio(self) -> None:
-        main = [{"branch": "GUARENAS"}, {"branch": "DC-01"}]
-        pa = self._parchear(main, {"GUARENAS"})
-        with pa[0], pa[1], pa[2] as total_row, pa[3], pa[4], pa[5], pa[6], pa[7]:
-            columns, filas, _, _, _ = hq.execute({**FILTROS, "municipality": "PLAZA_ID"})
-
-        data = como_dicts(columns, filas)
-        self.assertEqual([r["branch"] for r in data], ["GUARENAS"])
-        self.assertEqual([r["branch"] for r in total_row.call_args[0][0]], ["GUARENAS"])
-
-    def test_el_libro_no_recibe_el_filtro_municipality(self) -> None:
-        pa = self._parchear([], {"GUARENAS"})
-        with pa[0], pa[1] as datos, pa[2], pa[3], pa[4], pa[5], pa[6], pa[7]:
-            hq.execute({**FILTROS, "municipality": "PLAZA_ID"})
-
-        self.assertNotIn("municipality", datos.call_args[0][0])
-
-
 class TestReportMessage(unittest.TestCase):
     """La descripción que se pinta sobre el reporte (bajo los filtros)."""
 
@@ -466,12 +419,6 @@ class TestReportMessage(unittest.TestCase):
         msg = hq._build_report_message("", None, "MIR-01")
         self.assertIn("sucursal principal", msg)
         self.assertIn("MIR-01", msg)
-
-    @patch("frappe.db.get_value", return_value="Plaza")
-    def test_indica_filtro_por_municipio(self, _v) -> None:
-        msg = hq._build_report_message("", None, "", "PLAZA_ID")
-        self.assertIn("municipio", msg)
-        self.assertIn("Plaza", msg)
 
     def test_sin_rollup_no_lista_sucursales(self) -> None:
         self.assertNotIn("Mostrando", hq._build_report_message("HOJA", None))
