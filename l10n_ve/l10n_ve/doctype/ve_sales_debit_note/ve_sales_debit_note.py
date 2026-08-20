@@ -486,6 +486,7 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
 
         self.set_tax_withholding_ve()
         self.set_islr_withholding_ve()
+        self.set_municipal_withholding_ve()
 
         for i, tax in enumerate(self.taxes or [], start=1):
             tax.idx = i

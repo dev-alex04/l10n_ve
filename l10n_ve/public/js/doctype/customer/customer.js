@@ -46,6 +46,22 @@ frappe.ui.form.on("Customer", {
       render_balance_indicators(frm);
       render_custom_account_summary(frm);
     }
+
+    // Botón de impuesto municipal — solo para contribuyentes especiales ya guardados
+    if (!frm.is_new() && frm.doc.is_special_taxpayer) {
+      frm.add_custom_button(__("Configurar Impuesto Municipal"), function () {
+        open_municipal_tax_dialog(frm);
+      }, __("Impuestos"));
+    }
+
+    // Filtro para no traer actividades de grupo en el formulario
+    frm.set_query("economic_activity", function () {
+      return {
+        filters: {
+          is_group: 0,
+        },
+      };
+    });
   },
 
   nature_of_the_taxpayer: function (frm) {
@@ -88,6 +104,10 @@ function handle_customer_field_change(frm, fieldname) {
     frm.set_value("tax_withholding_category", "");
     frm.set_df_property("tax_withholding_category", "reqd", 0);
     frm.toggle_display("tax_withholding_category", false);
+    frm.toggle_display("ve_municipality", false);
+    frm.toggle_display("economic_activity", false);
+    frm.toggle_display("municipal_withholding_rate", false);
+    frm.toggle_display("municipality_tax", false);
   } else {
     frm.toggle_display("is_special_taxpayer", true);
     frm.toggle_display("tabulator_islr", true);
@@ -97,47 +117,74 @@ function handle_customer_field_change(frm, fieldname) {
     frm.set_df_property("tax_withholding_category", "reqd", is_special ? 1 : 0);
     if (!is_special) {
       frm.set_value("tax_withholding_category", "");
+      frm.set_value("ve_municipality", "");
+      frm.set_value("economic_activity", "");
+      frm.set_value("municipal_withholding_rate", 0);
+      frm.set_value("municipality_tax", "");
     }
+    frm.toggle_display("ve_municipality", is_special);
+    frm.toggle_display("economic_activity", is_special);
+    frm.toggle_display("municipal_withholding_rate", is_special);
+    frm.toggle_display("municipality_tax", is_special);
   }
 }
 
 function reorganize_customer_fields(frm) {
-  let tax_id_field_wrapper = frm.get_field("tax_id").$wrapper;
-  let type_of_person_field_wrapper = frm.get_field("type_of_person").$wrapper;
-  let customer_type_field_wrapper = frm.get_field("customer_type").$wrapper;
-  let customer_name_field_wrapper = frm.get_field("customer_name").$wrapper;
+  let tax_id_field_wrapper = frm.get_field("tax_id")?.$wrapper;
+  let type_of_person_field_wrapper = frm.get_field("type_of_person")?.$wrapper;
+  let customer_type_field_wrapper = frm.get_field("customer_type")?.$wrapper;
+  let customer_name_field_wrapper = frm.get_field("customer_name")?.$wrapper;
   let type_of_document_field_wrapper =
-    frm.get_field("type_of_document").$wrapper;
+    frm.get_field("type_of_document")?.$wrapper;
   let nature_of_the_taxpayer_field_wrapper = frm.get_field(
     "nature_of_the_taxpayer",
-  ).$wrapper;
+  )?.$wrapper;
 
   // Solo organizamos los campos de la pestaña de Detalles
-  customer_type_field_wrapper.insertAfter(customer_name_field_wrapper);
-  type_of_document_field_wrapper.insertAfter(customer_type_field_wrapper);
-  nature_of_the_taxpayer_field_wrapper.insertAfter(
-    type_of_document_field_wrapper,
-  );
-  type_of_person_field_wrapper.insertAfter(
-    nature_of_the_taxpayer_field_wrapper,
-  );
-  tax_id_field_wrapper.insertAfter(type_of_person_field_wrapper);
+  if (customer_name_field_wrapper) {
+    if (customer_type_field_wrapper) customer_type_field_wrapper.insertAfter(customer_name_field_wrapper);
+    if (type_of_document_field_wrapper) type_of_document_field_wrapper.insertAfter(customer_type_field_wrapper || customer_name_field_wrapper);
+    if (nature_of_the_taxpayer_field_wrapper) nature_of_the_taxpayer_field_wrapper.insertAfter(type_of_document_field_wrapper || customer_name_field_wrapper);
+    if (type_of_person_field_wrapper) type_of_person_field_wrapper.insertAfter(nature_of_the_taxpayer_field_wrapper || customer_name_field_wrapper);
+    if (tax_id_field_wrapper) tax_id_field_wrapper.insertAfter(type_of_person_field_wrapper || customer_name_field_wrapper);
+  }
 
-  // Moviendo campos fiscales a la sección 'Información Fiscal'
-  let is_special_taxpayer_field_wrapper = frm.get_field(
-    "is_special_taxpayer",
-  ).$wrapper;
-  let tax_withholding_category_field_wrapper = frm.get_field(
-    "tax_withholding_category",
-  ).$wrapper;
-  let tabulator_islr_field_wrapper = frm.get_field("tabulator_islr").$wrapper;
+  // Moviendo campos fiscales a la sección 'Información Fiscal' dividiendo en 2 columnas (Izquierda SENIAT, Derecha ISAE)
+  let is_special_taxpayer_field_wrapper = frm.get_field("is_special_taxpayer")?.$wrapper;
+  let tax_withholding_category_field_wrapper = frm.get_field("tax_withholding_category")?.$wrapper;
+  let tabulator_islr_field_wrapper = frm.get_field("tabulator_islr")?.$wrapper;
 
-  tax_withholding_category_field_wrapper.insertAfter(
-    is_special_taxpayer_field_wrapper,
-  );
-  tabulator_islr_field_wrapper.insertAfter(
-    tax_withholding_category_field_wrapper,
-  );
+  let ve_municipality_field_wrapper = frm.get_field("ve_municipality")?.$wrapper;
+  let economic_activity_field_wrapper = frm.get_field("economic_activity")?.$wrapper;
+  let municipal_withholding_rate_field_wrapper = frm.get_field("municipal_withholding_rate")?.$wrapper;
+  let municipality_tax_field_wrapper = frm.get_field("municipality_tax")?.$wrapper;
+
+  if (is_special_taxpayer_field_wrapper) {
+    let $section = is_special_taxpayer_field_wrapper.closest(".form-section");
+    if ($section && $section.length) {
+      let $section_body = $section.find(".section-body");
+      let $cols = $section_body.children(".form-column");
+
+      let $col1 = $cols.eq(0);
+      let $col2 = $cols.eq(1);
+
+      if (!$col2 || !$col2.length) {
+        $col2 = $('<div class="form-column col-sm-6"></div>').appendTo($section_body);
+        $col1.removeClass("col-sm-12").addClass("col-sm-6");
+      }
+
+      // Columna 1 (Izquierda): Retenciones Nacionales (SENIAT / ISLR) + Alícuota Municipal
+      if (is_special_taxpayer_field_wrapper) $col1.append(is_special_taxpayer_field_wrapper);
+      if (tax_withholding_category_field_wrapper) $col1.append(tax_withholding_category_field_wrapper);
+      if (tabulator_islr_field_wrapper) $col1.append(tabulator_islr_field_wrapper);
+      if (municipal_withholding_rate_field_wrapper) $col1.append(municipal_withholding_rate_field_wrapper);
+
+      // Columna 2 (Derecha): Datos Municipales (ISAE)
+      if (ve_municipality_field_wrapper) $col2.append(ve_municipality_field_wrapper);
+      if (economic_activity_field_wrapper) $col2.append(economic_activity_field_wrapper);
+      if (municipality_tax_field_wrapper) $col2.append(municipality_tax_field_wrapper);
+    }
+  }
 }
 
 /**
@@ -268,5 +315,211 @@ function render_custom_account_summary(frm) {
         }
       }
     }
+  });
+}
+
+/**
+ * Abre el diálogo para configurar el impuesto municipal (ISAE) del cliente.
+ *
+ * - Pre-carga los valores ya guardados en el cliente.
+ * - Busca la alícuota existente en VE Municipality Taxes para el par
+ *   (municipio, actividad económica) seleccionados.
+ * - Al confirmar: crea o actualiza el registro en VE Municipality Taxes y
+ *   enlaza los campos custom_* en el Customer sin requerir un save() del form.
+ */
+function open_municipal_tax_dialog(frm) {
+  // 1. Primero traemos la info actual del cliente
+  frappe.call({
+    method: "l10n_ve.overrides.customer.get_municipal_tax_info",
+    args: { customer: frm.doc.name },
+    callback: function (r) {
+      if (r.exc) return;
+
+      const info = r.message || {};
+
+      const dialog = new frappe.ui.Dialog({
+        title: __("Configurar Impuesto Municipal (ISAE)"),
+        fields: [
+          {
+            label: __("Municipio"),
+            fieldname: "municipality",
+            fieldtype: "Link",
+            options: "VE Municipality",
+            reqd: 1,
+            default: info.municipality || info.suggested_municipality || frm.doc.ve_municipality || "",
+            description: __("Municipio donde el cliente ejerce actividad y aplica el ISAE."),
+          },
+          {
+            label: __("Actividad Económica"),
+            fieldname: "economic_activity",
+            fieldtype: "Link",
+            options: "VE Economic Activity",
+            reqd: 1,
+            default: info.economic_activity || frm.doc.economic_activity || "",
+            description: __("Actividad económica registrada del cliente."),
+          },
+          {
+            label: __("Código de Actividad"),
+            fieldname: "activity_code",
+            fieldtype: "Data",
+            read_only: 0,
+            default: "",
+            description: __("Código de actividad. Se pre-rellena desde la Actividad Económica pero puede modificarse si difiere."),
+          },
+          {
+            label: __("Alícuota (%)"),
+            fieldname: "aliquot",
+            fieldtype: "Float",
+            precision: 2,
+            reqd: 1,
+            default: info.existing_aliquot || info.municipal_withholding_rate || 0,
+            description: __("Porcentaje de retención ISAE a aplicar. Se prellenará si ya existe el impuesto para este municipio + actividad."),
+          },
+        ],
+        primary_action_label: __("Guardar"),
+        primary_action: function (values) {
+          const rate = flt(values.aliquot);
+          if (rate < 0 || rate > 100) {
+            frappe.msgprint({
+              title: __("Alícuota Inválida"),
+              indicator: "red",
+              message: __("La alícuota municipal debe estar entre 0% y 100%."),
+            });
+            return;
+          }
+
+          frappe.call({
+            method: "l10n_ve.overrides.customer.setup_or_update_municipal_tax",
+            args: {
+              customer: frm.doc.name,
+              municipality: values.municipality,
+              economic_activity: values.economic_activity,
+              aliquot: values.aliquot,
+              activity_code: values.activity_code,
+            },
+            freeze: true,
+            freeze_message: __("Configurando impuesto municipal..."),
+            callback: function (res) {
+              if (res.exc) return;
+
+              // Actualizar el form en memoria sin requerir un save del usuario
+              frm.set_value("ve_municipality", values.municipality);
+              frm.set_value("economic_activity", res.message.economic_activity);
+              frm.set_value("municipality_tax", res.message.municipality_tax);
+              frm.set_value("municipal_withholding_rate", res.message.aliquot);
+
+              frappe.show_alert({
+                message: __("Impuesto municipal configurado: {0}% — {1}", [
+                  res.message.aliquot,
+                  res.message.municipality_tax,
+                ]),
+                indicator: "green",
+              });
+
+              dialog.hide();
+              frm.reload_doc();
+            },
+          });
+        },
+        secondary_action_label: __("Eliminar Impuesto"),
+        secondary_action: function () {
+          frappe.confirm(
+            __("¿Está seguro de eliminar la configuración de impuesto municipal de este cliente?"),
+            function () {
+              frappe.call({
+                method: "l10n_ve.overrides.customer.remove_municipal_tax",
+                args: { customer: frm.doc.name },
+                freeze: true,
+                freeze_message: __("Eliminando impuesto municipal..."),
+                callback: function (res) {
+                  if (res.exc) return;
+                  frappe.show_alert({
+                    message: __("Configuración de impuesto municipal eliminada."),
+                    indicator: "orange",
+                  });
+                  dialog.hide();
+                  frm.reload_doc();
+                },
+              });
+            }
+          );
+        },
+      });
+
+      // Cuando cambia la actividad económica: traer el código y buscar alícuota existente
+      dialog.fields_dict.economic_activity.df.onchange = function () {
+        const act = dialog.get_value("economic_activity");
+        const mun = dialog.get_value("municipality");
+
+        if (act) {
+          frappe.db.get_value("VE Economic Activity", act, "code", function (data) {
+            dialog.set_value("activity_code", data.code || "");
+          });
+        }
+
+        if (act && mun) {
+          frappe.db.get_value(
+            "VE Municipality Taxes",
+            { municipality: mun, economic_activity: act },
+            ["name", "aliquot"],
+            function (data) {
+              if (data && data.aliquot) {
+                dialog.set_value("aliquot", data.aliquot);
+                frappe.show_alert({
+                  message: __("Alícuota existente cargada: {0}%", [data.aliquot]),
+                  indicator: "blue",
+                });
+              }
+            }
+          );
+        }
+      };
+
+      // Al cambiar municipio: también buscar alícuota existente
+      dialog.fields_dict.municipality.df.onchange = function () {
+        const mun = dialog.get_value("municipality");
+        const act = dialog.get_value("economic_activity");
+
+        if (act && mun) {
+          frappe.db.get_value(
+            "VE Municipality Taxes",
+            { municipality: mun, economic_activity: act },
+            ["name", "aliquot"],
+            function (data) {
+              if (data && data.aliquot) {
+                dialog.set_value("aliquot", data.aliquot);
+                frappe.show_alert({
+                  message: __("Alícuota existente cargada: {0}%", [data.aliquot]),
+                  indicator: "blue",
+                });
+              }
+            }
+          );
+        }
+      };
+
+      // Pre-cargar código si ya hay actividad seleccionada
+      if (info.economic_activity) {
+        frappe.db.get_value(
+          "VE Economic Activity",
+          info.economic_activity,
+          "code",
+          function (data) {
+            dialog.set_value("activity_code", data.code || "");
+          }
+        );
+      }
+
+      // Filtro para no traer actividades de grupo en el diálogo
+      dialog.fields_dict.economic_activity.get_query = function () {
+        return {
+          filters: {
+            is_group: 0,
+          },
+        };
+      };
+
+      dialog.show();
+    },
   });
 }

@@ -988,7 +988,13 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
 
 @frappe.whitelist()
-def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None, registration_date=None) -> dict:
+def upload_voucher_data(
+    docname: str,
+    voucher_number: str | None = None,
+    withholding_date: str | None = None,
+    file_url: str | None = None,
+    registration_date: str | None = None
+) -> dict:
     try:
         if not withholding_date or not file_url:
             frappe.throw(_("Faltan datos obligatorios."))
@@ -1043,7 +1049,13 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
 
 
 @frappe.whitelist()
-def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_url=None, registration_date=None) -> dict:
+def upload_islr_voucher_data(
+    docname: str,
+    islr_date: str,
+    islr_receipt_number: str | None = None,
+    file_url: str | None = None,
+    registration_date: str | None = None
+) -> dict:
     try:
         if not islr_date or not file_url:
             frappe.throw(_("La fecha y el archivo del comprobante de ISLR son obligatorios."))
@@ -1099,6 +1111,72 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error ISLR Portal")
+        return {"status": "error", "msg": str(e)}
+
+
+@frappe.whitelist()
+def upload_municipal_voucher_data(
+    docname: str,
+    municipal_date: str,
+    municipal_receipt_number: str | None = None,
+    file_url: str | None = None,
+    registration_date: str | None = None
+) -> dict:
+    try:
+        if not municipal_date or not file_url:
+            frappe.throw(_("La fecha y el archivo del comprobante Municipal son obligatorios."))
+
+        if file_url:
+            validate_portal_upload(file_url, 5)
+
+        invoice_doc = frappe.get_doc("Sales Invoice", docname)
+
+        if not has_accounting_permission():
+            if not is_period_open(municipal_date, "Municipal"):
+                frappe.throw(closed_period_msg())
+
+            current_date = invoice_doc.get("municipal_date")
+            if current_date and not is_period_open(current_date, "Municipal"):
+                frappe.throw(_("El periodo de declaración para esta retención municipal ha finalizado. Debe comunicarse con el departamento de soporte."))
+
+        delete_old_attachment(invoice_doc, "voucher_image_municipal", file_url)
+
+        file_doc_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+        if file_doc_name:
+            frappe.db.set_value("File", file_doc_name, {
+                "attached_to_doctype": "Sales Invoice",
+                "attached_to_name": docname
+            })
+
+        registration_date = registration_date if registration_date else nowdate()
+
+        frappe.db.set_value("Sales Invoice", docname, {
+            'municipal_receipt_number': municipal_receipt_number,
+            'municipal_date': municipal_date,
+            'voucher_image_municipal': file_url,
+            'municipal_registration_date': registration_date
+        }, update_modified=True)
+
+        comment_text = f"Comprobante de Retención Municipal actualizado. Número: {municipal_receipt_number or 'S/N'}. Fecha: {municipal_date}."
+        
+        comment = frappe.get_doc({
+            "doctype": "Comment",
+            "comment_type": "Comment",
+            "reference_doctype": "Sales Invoice",
+            "reference_name": docname,
+            "content": comment_text,
+            "comment_email": frappe.session.user
+        })
+        comment.flags.ignore_permissions = True
+        comment.insert(ignore_permissions=True)
+
+        return {
+            "status": "success",
+            "msg": "Factura de Venta actualizada con los datos del comprobante Municipal."
+        }
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error Municipal Portal")
         return {"status": "error", "msg": str(e)}
 
 def _validate_void_authorization(doc) -> None:
@@ -1746,6 +1824,7 @@ def update_invoice_metadata(invoice: "SalesInvoice", data: dict) -> None:
 WITHHOLDING_VOUCHER_FIELD: dict = {
     "VAT Withholding": "vat_withholding_voucher_number",
     "ISLR": "islr_receipt_number",
+    "Municipal Withholding": "municipal_receipt_number",
 }
 
 
@@ -2219,7 +2298,12 @@ def get_government_withholding_context(docname: str) -> dict:
 
 @frappe.whitelist()
 def create_government_withholding_journal_entry(
-    docname: str, amount: float, description: str = None, voucher_number: str = None
+    docname: str,
+    amount: float,
+    description: str = None,
+    voucher_number: str = None,
+    voucher_date: str = None,
+    voucher_file: str = None,
 ) -> dict:
     """Crea y somete un Asiento Contable de Retención Gubernamental para una Factura de Venta.
 
@@ -2289,6 +2373,8 @@ def create_government_withholding_journal_entry(
     remark_parts = []
     if voucher_number and str(voucher_number).strip():
         remark_parts.append(f"Comprobante N°: {str(voucher_number).strip()}")
+    if voucher_date and str(voucher_date).strip():
+        remark_parts.append(f"Fecha: {str(voucher_date).strip()}")
     if description and description.strip():
         remark_parts.append(description.strip())
     else:
@@ -2342,6 +2428,42 @@ def create_government_withholding_journal_entry(
 
     je.insert(ignore_permissions=True)
     je.submit()
+
+    meta = getattr(invoice, "meta", None)
+    has_receipt = meta.has_field("municipal_receipt_number") if meta else ("municipal_receipt_number" in invoice)
+    has_date = meta.has_field("municipal_date") if meta else ("municipal_date" in invoice)
+    has_img = meta.has_field("voucher_image_municipal") if meta else ("voucher_image_municipal" in invoice)
+
+    if callable(getattr(invoice, "db_set", None)):
+        if voucher_number and str(voucher_number).strip() and has_receipt:
+            invoice.db_set("municipal_receipt_number", str(voucher_number).strip(), update_modified=False)
+
+        if voucher_date and str(voucher_date).strip() and has_date:
+            invoice.db_set("municipal_date", str(voucher_date).strip(), update_modified=False)
+
+        if voucher_file and str(voucher_file).strip() and has_img:
+            invoice.db_set("voucher_image_municipal", str(voucher_file).strip(), update_modified=False)
+
+    if voucher_file and str(voucher_file).strip():
+        file_url = str(voucher_file).strip()
+        try:
+            frappe.get_doc({
+                "doctype": "File",
+                "file_url": file_url,
+                "attached_to_doctype": "Journal Entry",
+                "attached_to_name": je.name,
+                "is_private": 0,
+            }).insert(ignore_permissions=True)
+
+            frappe.get_doc({
+                "doctype": "File",
+                "file_url": file_url,
+                "attached_to_doctype": "Sales Invoice",
+                "attached_to_name": invoice.name,
+                "is_private": 0,
+            }).insert(ignore_permissions=True)
+        except Exception as e:
+            frappe.log_error(f"Error adjuntando comprobante gubernamental: {e}")
 
     return {
         "status": "success",

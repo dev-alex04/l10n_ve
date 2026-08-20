@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from frappe.utils import flt
 from erpnext.selling.doctype.customer.customer import Customer
 from l10n_ve.utils.utils import validate_tax_id_format, validate_unique_tax_id, validate_taxpayer_and_person_type_consistency
 from l10n_ve.utils.utils import link_address_to_party
@@ -12,6 +13,17 @@ class VECustomer(Customer):
         validate_tax_id_format(self)
         validate_unique_tax_id(self)
         validate_taxpayer_and_person_type_consistency(self)
+
+        if not self.is_special_taxpayer:
+            self.tax_withholding_category = None
+            self.ve_municipality = None
+            self.economic_activity = None
+            self.municipal_withholding_rate = 0.0
+            self.municipality_tax = None
+        elif self.municipal_withholding_rate is not None:
+            rate = flt(self.municipal_withholding_rate)
+            if rate < 0 or rate > 100:
+                frappe.throw(_("La alícuota municipal debe estar entre 0% y 100%."))
 
     def on_update(self):
         super().on_update()
@@ -173,3 +185,208 @@ def get_balance_summary(customer: str) -> dict:
         "unapplied_credits": unapplied_credits,
         "open_invoices": formatted_invoices
     }
+
+
+@frappe.whitelist()
+def get_municipal_tax_info(customer: str) -> dict:
+    """Retorna la información actual de retención municipal de un cliente.
+
+    Pre-carga los valores guardados o intenta resolver el municipio predeterminado
+    desde las direcciones del cliente.
+
+    Args:
+        customer: Nombre del Customer.
+
+    Returns:
+        Diccionario con municipality, economic_activity, municipality_tax,
+        municipal_withholding_rate, la alícuota existente y el municipio sugerido.
+    """
+    doc = frappe.get_cached_doc("Customer", customer)
+
+    suggested_municipality = ""
+    # Intentar resolver el municipio predeterminado desde la dirección
+    # Primero buscamos dirección predeterminada de facturación o envío
+    address_name = frappe.db.get_value(
+        "Dynamic Link",
+        {"link_doctype": "Customer", "link_name": customer, "parenttype": "Address"},
+        "parent"
+    )
+    if address_name:
+        addr = frappe.get_cached_doc("Address", address_name)
+        if addr.county and frappe.db.exists("VE Municipality", addr.county):
+            suggested_municipality = addr.county
+        elif addr.parish:
+            mun = frappe.db.get_value("VE Parish", addr.parish, "municipality")
+            if mun and frappe.db.exists("VE Municipality", mun):
+                suggested_municipality = mun
+
+    result: dict = {
+        "municipality": doc.get("ve_municipality") or suggested_municipality or "",
+        "economic_activity": doc.get("economic_activity") or "",
+        "municipality_tax": doc.get("municipality_tax") or "",
+        "municipal_withholding_rate": float(doc.get("municipal_withholding_rate") or 0),
+        "existing_aliquot": 0.0,
+        "suggested_municipality": suggested_municipality,
+    }
+
+    # Intentar traer la alícuota del registro existente en VE Municipality Taxes
+    municipality = result["municipality"]
+    economic_activity = result["economic_activity"]
+    if municipality and economic_activity:
+        existing = frappe.db.get_value(
+            "VE Municipality Taxes",
+            {"municipality": municipality, "economic_activity": economic_activity},
+            ["name", "aliquot"],
+            as_dict=True,
+        )
+        if existing:
+            result["municipality_tax"] = existing.name
+            result["existing_aliquot"] = float(existing.aliquot or 0)
+
+    return result
+
+
+@frappe.whitelist()
+def setup_or_update_municipal_tax(
+    customer: str,
+    municipality: str,
+    economic_activity: str,
+    aliquot: float,
+    activity_code: str = None,
+) -> dict:
+    """Crea o actualiza el registro en VE Municipality Taxes y enlaza al cliente.
+
+    Si se proporciona `activity_code`, busca el registro por su campo `code` o
+    `name`, o crea una nueva actividad económica si no existe.
+
+    Args:
+        customer:          Nombre del Customer.
+        municipality:      Nombre del registro VE Municipality.
+        economic_activity: Nombre o código del registro VE Economic Activity.
+        aliquot:           Alícuota de retención en % (ej: 1.5).
+        activity_code:     Código de actividad editado por el usuario.
+
+    Returns:
+        Diccionario con el nombre del registro VE Municipality Taxes, alícuota y actividad.
+    """
+    frappe.has_permission("Customer", ptype="write", doc=customer, throw=True)
+
+    aliquot = float(aliquot or 0)
+    if aliquot < 0 or aliquot > 100:
+        frappe.throw(_("La alícuota municipal debe estar entre 0% y 100%."))
+
+    target_act_docname: str | None = None
+
+    # 1. Intentar resolver la actividad económica por activity_code (por campo code o name)
+    if activity_code:
+        target_act_docname = frappe.db.get_value("VE Economic Activity", {"code": activity_code}, "name")
+        if not target_act_docname and frappe.db.exists("VE Economic Activity", activity_code):
+            target_act_docname = activity_code
+
+    # 2. Si no se encontró por activity_code, buscar por el economic_activity recibido
+    if not target_act_docname and economic_activity:
+        if frappe.db.exists("VE Economic Activity", economic_activity):
+            target_act_docname = economic_activity
+        else:
+            target_act_docname = frappe.db.get_value("VE Economic Activity", {"code": economic_activity}, "name")
+
+    # 3. Si aún no existe y se ingresó un activity_code nuevo, crear la actividad económica
+    if not target_act_docname and activity_code:
+        orig = None
+        if economic_activity and frappe.db.exists("VE Economic Activity", economic_activity):
+            orig = frappe.get_doc("VE Economic Activity", economic_activity)
+
+        if orig:
+            new_act = frappe.get_doc({
+                "doctype": "VE Economic Activity",
+                "code": activity_code,
+                "sector": orig.sector,
+                "group": orig.group,
+                "branch": orig.branch,
+                "description": orig.description,
+                "is_group": 0,
+                "parent_ve_economic_activity": orig.parent_ve_economic_activity,
+            })
+        else:
+            new_act = frappe.get_doc({
+                "doctype": "VE Economic Activity",
+                "code": activity_code,
+                "sector": "TERCIARIO",
+                "group": "SERVICIOS",
+                "branch": "TELECOMUNICACIONES",
+                "description": f"Actividad económica {activity_code}",
+                "is_group": 0,
+            })
+
+        new_act.insert(ignore_permissions=True)
+        frappe.db.commit()
+        target_act_docname = new_act.name
+
+    if not target_act_docname:
+        frappe.throw(_("No se pudo encontrar ni crear la Actividad Económica especificada."))
+
+    economic_activity = target_act_docname
+
+    # Obtener state del municipio para el campo requerido en VE Municipality Taxes
+    state = frappe.get_cached_value("VE Municipality", municipality, "state") or ""
+
+    existing_name: str | None = frappe.db.get_value(
+        "VE Municipality Taxes",
+        {"municipality": municipality, "economic_activity": economic_activity},
+        "name",
+    )
+
+    if existing_name:
+        # Actualizar la alícuota si cambió
+        frappe.db.set_value(
+            "VE Municipality Taxes", existing_name, "aliquot", aliquot,
+            update_modified=True
+        )
+        tax_name: str = existing_name
+    else:
+        # Crear el registro de impuesto municipal
+        tax_doc = frappe.get_doc({
+            "doctype": "VE Municipality Taxes",
+            "state": state,
+            "municipality": municipality,
+            "economic_activity": economic_activity,
+            "aliquot": aliquot,
+        })
+        tax_doc.flags.ignore_links = True
+        tax_doc.insert(ignore_permissions=True)
+        tax_name = tax_doc.name
+
+    # Actualizar el Customer
+    frappe.db.set_value("Customer", customer, {
+        "ve_municipality": municipality,
+        "economic_activity": economic_activity,
+        "municipality_tax": tax_name,
+        "municipal_withholding_rate": aliquot,
+    }, update_modified=True)
+
+    frappe.db.commit()
+
+    return {
+        "municipality_tax": tax_name,
+        "aliquot": aliquot,
+        "economic_activity": economic_activity,
+    }
+
+
+@frappe.whitelist()
+def remove_municipal_tax(customer: str) -> dict:
+    """Elimina la configuración de impuesto municipal del cliente (resetea los campos a vacío)."""
+    frappe.has_permission("Customer", ptype="write", doc=customer, throw=True)
+
+    frappe.db.set_value("Customer", customer, {
+        "ve_municipality": "",
+        "economic_activity": "",
+        "municipality_tax": "",
+        "municipal_withholding_rate": 0.0,
+    }, update_modified=True)
+
+    frappe.db.commit()
+
+    return {"status": "success"}
+
+
