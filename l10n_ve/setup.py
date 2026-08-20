@@ -1664,6 +1664,28 @@ def create_custom_roles() -> None:
             role.insert(ignore_permissions=True)
             print(f"  -> Rol creado: {role_name}")
 
+        # Asegurar permisos exclusivos de Reporte Gerencial
+        if frappe.db.exists("DocType", "Reporte Gerencial"):
+            frappe.db.sql("DELETE FROM `tabCustom DocPerm` WHERE parent='Reporte Gerencial'")
+            frappe.db.sql("DELETE FROM `tabDocPerm` WHERE parent='Reporte Gerencial' AND role != 'Executive Reporting Manager'")
+            if not frappe.db.exists("DocPerm", {"parent": "Reporte Gerencial", "role": "Executive Reporting Manager"}):
+                dp = frappe.get_doc({
+                    "doctype": "DocPerm",
+                    "parent": "Reporte Gerencial",
+                    "parenttype": "DocType",
+                    "parentfield": "permissions",
+                    "role": "Executive Reporting Manager",
+                    "read": 1,
+                    "write": 1,
+                    "create": 1,
+                    "delete": 1,
+                    "share": 1,
+                    "print": 1,
+                    "email": 1,
+                    "permlevel": 0,
+                })
+                dp.insert(ignore_permissions=True)
+
         frappe.db.commit()
 
     except Exception as e:

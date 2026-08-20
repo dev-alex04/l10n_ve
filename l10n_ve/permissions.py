@@ -254,6 +254,11 @@ def has_ve_branch_permission(doc: Any, ptype: str = "read", user: str = None) ->
     if is_admin_user(user):
         return True
 
+    # Caso especial: Reporte Gerencial es un DocType 'Single' consolidado a nivel nacional.
+    # El control de acceso lo gestiona exclusivamente el rol 'Executive Reporting Manager' vía DocPerm.
+    if doc and getattr(doc, "doctype", None) == "Reporte Gerencial":
+        return True
+
     # Estricto: si el usuario intenta abrir un ancestro al que no tiene permiso
     # explícito, debe ser bloqueado aunque la vista de árbol lo muestre.
     allowed: List[str] = get_allowed_branches(user, include_ancestors=False)
