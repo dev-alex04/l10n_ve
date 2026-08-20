@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.53.0] - 2026-08-20
+
+### ✨ Funcionalidades (Features)
+- Implementación de la propiedad `ignore_permissions` aplicada exclusivamente al filtro de tipo de comprobante (`voucher_type`) en el módulo de reportes. 1578b508
+- Habilitación de `ignore_permissions` en los filtros de reportes y aplicación de formateo seguro mediante Jinja para el reporte de libro diario (`ve_journal_book`). fd495996
+
+---
+
 ## [v2.52.0] - 2026-08-20
 
 ### ✨ Funcionalidades (Features)
