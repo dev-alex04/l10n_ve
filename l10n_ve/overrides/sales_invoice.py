@@ -988,7 +988,13 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
 
 @frappe.whitelist()
-def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None, registration_date=None) -> dict:
+def upload_voucher_data(
+    docname: str,
+    voucher_number: str | None = None,
+    withholding_date: str | None = None,
+    file_url: str | None = None,
+    registration_date: str | None = None
+) -> dict:
     try:
         if not withholding_date or not file_url:
             frappe.throw(_("Faltan datos obligatorios."))
@@ -1043,7 +1049,13 @@ def upload_voucher_data(docname, voucher_number, withholding_date, file_url=None
 
 
 @frappe.whitelist()
-def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_url=None, registration_date=None) -> dict:
+def upload_islr_voucher_data(
+    docname: str,
+    islr_date: str,
+    islr_receipt_number: str | None = None,
+    file_url: str | None = None,
+    registration_date: str | None = None
+) -> dict:
     try:
         if not islr_date or not file_url:
             frappe.throw(_("La fecha y el archivo del comprobante de ISLR son obligatorios."))
@@ -1103,7 +1115,13 @@ def upload_islr_voucher_data(docname, islr_date, islr_receipt_number=None, file_
 
 
 @frappe.whitelist()
-def upload_municipal_voucher_data(docname, municipal_date, municipal_receipt_number=None, file_url=None, registration_date=None) -> dict:
+def upload_municipal_voucher_data(
+    docname: str,
+    municipal_date: str,
+    municipal_receipt_number: str | None = None,
+    file_url: str | None = None,
+    registration_date: str | None = None
+) -> dict:
     try:
         if not municipal_date or not file_url:
             frappe.throw(_("La fecha y el archivo del comprobante Municipal son obligatorios."))
