@@ -4,8 +4,8 @@
 <style>
     @media print {
         @page {
-            size: letter portrait;
-            margin: 8mm 10mm 8mm 10mm;
+            size: letter landscape;
+            margin: 8mm 8mm 8mm 8mm;
         }
         .page-container {
             page-break-before: always;
@@ -17,391 +17,327 @@
         .page-container:first-child {
             page-break-before: avoid;
         }
-        .title-badge {
-            margin: 8px 0 10px 0 !important;
-            padding: 6px 10px !important;
+        .no-print {
+            display: none !important;
         }
-        .ledger-table {
-            margin-top: 8px !important;
-        }
-        .ledger-table th {
-            padding: 5px 6px !important;
-        }
-        .ledger-table td {
-            padding: 5px 6px !important;
-        }
-        .group-header-row td {
-            padding-top: 6px !important;
-            padding-bottom: 6px !important;
-        }
-        .totals-row td {
-            padding: 6px 6px !important;
-        }
-        .grand-totals-row td {
-            padding: 8px 6px !important;
+        .signatures-container {
+            page-break-inside: avoid;
         }
     }
     
     @media screen {
         body {
             background-color: #f1f5f9;
-            padding: 30px 15px;
+            padding: 20px 10px;
         }
         .page-container {
-            max-width: 8.5in;
+            max-width: 11in;
             margin: 0 auto 30px auto;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
             border-radius: 8px;
             border: 1px solid #e2e8f0;
-            padding: 40px !important;
+            padding: 30px !important;
         }
     }
     
     body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         color: #1e293b;
-        font-size: 9px;
+        font-size: 8.5px;
         background-color: #fff;
         margin: 0;
         padding: 0;
-        line-height: 1.45;
+        line-height: 1.35;
     }
     
     .page-container {
         background-color: #fff;
-        padding: 20px;
+        padding: 15px;
         box-sizing: border-box;
     }
     
     .report-header {
         width: 100%;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
         border-collapse: collapse;
     }
     
     .report-header td {
         border: none;
         padding: 0;
+        vertical-align: middle;
+    }
+    
+    .company-logo {
+        max-height: 50px;
+        max-width: 160px;
+        object-fit: contain;
+    }
+    
+    .company-name {
+        font-size: 13px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .company-rif {
+        font-size: 10px;
+        font-weight: 700;
+        color: #334155;
+        margin-top: 2px;
+    }
+    
+    .company-address {
+        font-size: 8px;
+        color: #64748b;
+        margin-top: 2px;
+        max-width: 500px;
     }
     
     .title-badge {
         background-color: #f8fafc;
         border: 1px solid #e2e8f0;
-        border-left: 4px solid #84cc16; /* Verde Galanet */
+        border-left: 4px solid #16a34a;
         border-radius: 0 4px 4px 0;
-        padding: 10px 14px;
-        text-align: left;
-        margin: 15px 0 20px 0;
+        padding: 8px 12px;
+        margin: 10px 0 14px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
     
     .title-badge h1 {
         margin: 0;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 1.2px;
         color: #0f172a;
-    }
-    
-    .title-badge p {
-        margin: 4px 0 0 0;
-        font-size: 7.5px;
-        font-weight: 600;
-        color: #64748b;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+    }
+    
+    .title-badge .subtitle {
+        font-size: 9px;
+        color: #475569;
+        margin-top: 2px;
+        font-weight: 500;
+    }
+
+    .currency-pill {
+        display: inline-block;
+        padding: 3px 8px;
+        font-size: 8.5px;
+        font-weight: 700;
+        border-radius: 12px;
+        background-color: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        text-transform: uppercase;
     }
     
     .ledger-table {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 15px;
-    }
-    
-    thead {
-        display: table-header-group;
-    }
-    
-    tr, td {
-        page-break-inside: avoid !important;
+        margin-top: 6px;
     }
     
     .ledger-table th {
-        font-size: 8px;
+        background-color: #f1f5f9;
+        color: #334155;
         font-weight: 700;
-        color: #1e293b;
-        background-color: #f8fafc;
-        border-top: 2px solid #1e293b;
-        border-bottom: 2px solid #84cc16; /* Verde Galanet bottom line */
-        padding: 8px 6px;
-        text-align: left;
         text-transform: uppercase;
+        font-size: 7.5px;
         letter-spacing: 0.5px;
+        padding: 5px 6px;
+        border: 1px solid #cbd5e1;
+        text-align: left;
     }
     
     .ledger-table td {
-        padding: 7px 6px;
-        vertical-align: middle;
-        border-bottom: 1px solid #f1f5f9;
-        line-height: 1.4;
+        padding: 4px 5px;
+        border-bottom: 1px solid #e2e8f0;
+        border-right: 1px solid #f1f5f9;
+        border-left: 1px solid #f1f5f9;
+        font-size: 8px;
         color: #334155;
-    }
-    
-    .ledger-table tr.leaf-row:nth-child(even) {
-        background-color: #f8fafc;
+        vertical-align: top;
     }
     
     .text-right {
-        text-align: right;
+        text-align: right !important;
     }
     
-    .bold {
-        font-weight: bold;
+    .text-center {
+        text-align: center !important;
     }
-    
-    .indent-line {
-        border-left: 1.5px solid #cbd5e1;
-        padding-left: 8px;
-        display: inline-block;
+
+    .voucher-total-row td {
+        background-color: #f8fafc !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        border-top: 1px solid #94a3b8 !important;
+        border-bottom: 1px solid #94a3b8 !important;
     }
-    
-    .group-header-row td {
-        font-weight: 700;
-        color: #0f172a;
-        background-color: #f1f5f9;
-        padding-top: 9px;
-        padding-bottom: 9px;
-        font-size: 9px;
-        border-top: 1px solid #e2e8f0;
-        border-bottom: 1px solid #cbd5e1;
-    }
-    
-    .totals-row td {
-        font-weight: 700;
-        background-color: #f8fafc;
-        border-top: 1.5px solid #84cc16;
-        border-bottom: 1.5px solid #cbd5e1;
-        color: #0f172a;
-        padding: 8px 6px;
-        font-size: 8.5px;
-    }
-    
+
     .grand-totals-row td {
-        font-weight: 800;
-        background-color: #f1f5f9;
-        border-top: 2px solid #1e293b;
-        border-bottom: 4px double #1e293b;
+        background-color: #e2e8f0 !important;
+        font-weight: 800 !important;
+        color: #0f172a !important;
+        font-size: 9px !important;
+        border-top: 2px solid #64748b !important;
+        border-bottom: 2px solid #64748b !important;
+    }
+
+    .signatures-container {
+        margin-top: 30px;
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .signatures-container td {
+        border: none;
+        width: 33.33%;
+        text-align: center;
+        vertical-align: top;
+        padding: 10px 20px;
+    }
+
+    .signature-line {
+        border-top: 1px solid #475569;
+        margin-top: 40px;
+        margin-bottom: 5px;
+        width: 80%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .signature-title {
+        font-size: 8.5px;
+        font-weight: 700;
         color: #0f172a;
-        padding: 10px 6px;
-        font-size: 9px;
+        text-transform: uppercase;
+    }
+
+    .signature-sub {
+        font-size: 7.5px;
+        color: #64748b;
+        margin-top: 1px;
     }
 </style>
 
-{%
-    if (!data || data.length === 0) {
-        print("<div class='alert alert-warning'>No hay datos para mostrar</div>");
-    } else {
-        var company_name = (filters && filters.company) || "";
-        var company_rif = "";
-        var company_address = "";
-        
-        var comp_doc = (typeof frappe !== "undefined" && frappe.model && frappe.model.get_doc) ? frappe.model.get_doc("Company", company_name) : null;
-        if (data && data[0] && data[0].company_rif) {
-            company_rif = data[0].company_rif;
-        } else if (comp_doc) {
-            company_rif = comp_doc.tax_id || "";
-        }
-        
-        if (data && data[0] && data[0].company_address) {
-            company_address = data[0].company_address;
-        }
-        var company_logo = (data && data[0] && data[0].company_logo) || (comp_doc && comp_doc.company_logo) || "";
-        
-        var from_date = (filters && filters.from_date) || "";
-        var to_date = (filters && filters.to_date) || "";
-        var presentation = (filters && filters.presentation) || "Detallado";
-        var is_level = (presentation.indexOf("Nivel") !== -1);
-        
-        /* Formatters */
-        var formatCurrency = function(val) {
-            if (val === undefined || val === null || isNaN(val) || val === "") return "";
-            var formatted = Math.abs(val).toFixed(2)
-                .replace('.', ',')
-                .replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-            if (val < -0.005) {
-                return "(" + formatted + ")";
-            }
-            return formatted;
-        };
-        
-        var formatDate = function(dateStr) {
-            if (!dateStr) return "";
-            var parts = dateStr.split('-');
-            if (parts.length === 3) {
-                return parts[2] + "/" + parts[1] + "/" + parts[0];
-            }
-            return dateStr;
-        };
-        
-        var getMonthName = function(dateStr) {
-            if (!dateStr) return "";
-            var parts = dateStr.split('-');
-            var monthNum = parseInt(parts[1], 10);
-            var months = [
-                "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-            ];
-            return months[monthNum - 1];
-        };
-        
-        var getYear = function(dateStr) {
-            if (!dateStr) return "";
-            return dateStr.split('-')[0];
-        };
-        
-        var getTodayDateTime = function() {
-            var now = new Date();
-            var day = ("0" + now.getDate()).slice(-2);
-            var month = ("0" + (now.getMonth() + 1)).slice(-2);
-            var year = now.getFullYear();
-            var hours = now.getHours();
-            var minutes = ("0" + now.getMinutes()).slice(-2);
-            var ampm = hours >= 12 ? 'p.m.' : 'a.m.';
-            hours = hours % 12;
-            hours = hours ? hours : 12;
-            return "Emitido el " + day + "/" + month + "/" + year + " a las " + hours + ":" + minutes + " " + ampm;
-        };
+<div class="page-container">
+    <!-- ENCABEZADO LEGAL -->
+    <table class="report-header">
+        <tr>
+            <td style="width: 65%;">
+                {% if data and data[0].company_name %}
+                    <h2 class="company-name">{{ data[0].company_name }}</h2>
+                {% else %}
+                    <h2 class="company-name">{{ filters.company }}</h2>
+                {% endif %}
+                
+                {% if data and data[0].company_rif %}
+                    <div class="company-rif">R.I.F.: {{ data[0].company_rif }}</div>
+                {% endif %}
+                
+                {% if data and data[0].company_address %}
+                    <div class="company-address">{{ data[0].company_address }}</div>
+                {% endif %}
+            </td>
+            <td style="width: 35%; text-align: right;">
+                {% if data and data[0].company_logo %}
+                    <img src="{{ data[0].company_logo }}" class="company-logo" alt="Logo">
+                {% endif %}
+                <div style="font-size: 7.5px; color: #94a3b8; margin-top: 4px;">
+                    Emitido: {{ frappe.utils.format_datetime(frappe.utils.now_datetime()) }}
+                </div>
+            </td>
+        </tr>
+    </table>
 
-        var emit_time = getTodayDateTime();
-        var report_month = getMonthName(from_date);
-        var report_year = getYear(from_date);
-        
-        var html = '<div class="page-container">' +
-                    '<table class="report-header" style="width: 100%; border-collapse: collapse; margin-bottom: 5px;">' +
-                        '<tr>' +
-                            '<td style="width: 45%; vertical-align: middle; border: none; padding: 0;">' +
-                                (company_logo ? '<img src="' + company_logo + '" style="max-height: 40px; display: block;" alt="Logo">' : '') +
-                            '</td>' +
-                            '<td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: \'Outfit\', \'Inter\', sans-serif; color: #334155; line-height: 1.35;">' +
-                                '<div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">' + company_name + '</div>' +
-                                '<div style="font-size: 8px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: ' + company_rif + '</div>' +
-                                '<div style="font-size: 8px; color: #64748b; margin-top: 2px;">' + emit_time + '</div>' +
-                            '</td>' +
-                        '</tr>' +
-                    '</table>' +
-                    '<div style="width: 100%; height: 3px; background: linear-gradient(90deg, #84cc16 0%, #1e293b 100%); margin-top: 5px; margin-bottom: 10px;"></div>' +
-                    '<div class="title-badge">' +
-                        '<h1>Libro Diario</h1>' +
-                        '<p>Desde ' + formatDate(from_date) + ' Hasta ' + formatDate(to_date) + ' &nbsp;|&nbsp; Expresado en Bolívares &nbsp;|&nbsp; Presentación: ' + presentation + '</p>' +
-                    '</div>' +
-                    '<table class="ledger-table">' +
-                        '<thead>' +
-                            '<tr>';
-        if (is_level) {
-            html +=         '<th style="width: 15%;">Código</th>' +
-                            '<th style="width: 55%;">Cuenta Contable</th>' +
-                            '<th style="width: 15%; text-align: right;">Debe</th>' +
-                            '<th style="width: 15%; text-align: right;">Haber</th>';
-        } else {
-            html +=         '<th style="width: 10%;">Fecha</th>' +
-                            '<th style="width: 18%;">Referencia</th>' +
-                            '<th style="width: 25%;">Cuenta Contable</th>' +
-                            '<th style="width: 23%;">Descripción / Glosa</th>' +
-                            '<th style="width: 12%; text-align: right;">Debe</th>' +
-                            '<th style="width: 12%; text-align: right;">Haber</th>';
-        }
-        html +=         '</tr>' +
-                    '</thead>' +
-                    '<tbody>';
-        
-        for (var idx = 0; idx < data.length; idx++) {
-            var row = data[idx];
-            
-            if (is_level) {
-                if (row.is_group_header) {
-                    var acc_html = row.account;
-                    if (row.indent > 0) {
-                        acc_html = '<span class="indent-line" style="margin-left: ' + (row.indent * 10) + 'px;">' + row.account + '</span>';
-                    }
-                    html += '<tr class="group-header-row">' +
-                            '<td style="width: 15%;">' + (row.account_number || "") + '</td>' +
-                            '<td style="width: 55%;">' + acc_html + '</td>' +
-                            '<td style="width: 15%;" class="text-right"></td>' +
-                            '<td style="width: 15%;" class="text-right"></td>' +
-                           '</tr>';
-                } else if (row.is_group_total) {
-                    var acc_html = row.account;
-                    if (row.indent > 0) {
-                        acc_html = '<span class="indent-line" style="margin-left: ' + (row.indent * 10) + 'px;">' + row.account + '</span>';
-                    }
-                    html += '<tr class="totals-row">' +
-                            '<td style="width: 15%;"></td>' +
-                            '<td style="width: 55%;">' + acc_html + '</td>' +
-                            '<td style="width: 15%;" class="text-right">' + formatCurrency(row.debit) + '</td>' +
-                            '<td style="width: 15%;" class="text-right">' + formatCurrency(row.credit) + '</td>' +
-                           '</tr>';
-                } else if (row.is_total) {
-                    html += '<tr class="grand-totals-row">' +
-                            '<td style="width: 15%;"></td>' +
-                            '<td style="width: 55%;">' + row.account + '</td>' +
-                            '<td style="width: 15%;" class="text-right">' + formatCurrency(row.debit) + '</td>' +
-                            '<td style="width: 15%;" class="text-right">' + formatCurrency(row.credit) + '</td>' +
-                           '</tr>';
-                } else {
-                    /* Leaf account */
-                    var acc_html = row.account;
-                    if (row.indent > 0) {
-                        acc_html = '<span class="indent-line" style="margin-left: ' + (row.indent * 10) + 'px;">' + row.account + '</span>';
-                    }
-                    html += '<tr class="leaf-row">' +
-                            '<td style="width: 15%;">' + (row.account_number || "") + '</td>' +
-                            '<td style="width: 55%;">' + acc_html + '</td>' +
-                            '<td style="width: 15%;" class="text-right">' + formatCurrency(row.debit) + '</td>' +
-                            '<td style="width: 15%;" class="text-right">' + formatCurrency(row.credit) + '</td>' +
-                           '</tr>';
-                }
-            } else {
-                /* Transactional report */
-                if (row.is_total) {
-                    var is_grand = (row.account && row.account.indexOf("TOTAL GENERAL") !== -1);
-                    var row_class = is_grand ? 'grand-totals-row' : 'totals-row';
-                    html += '<tr class="' + row_class + '">' +
-                            '<td></td><td></td>' +
-                            '<td>' + row.account + '</td>' +
-                            '<td></td>' +
-                            '<td class="text-right">' + formatCurrency(row.debit) + '</td>' +
-                            '<td class="text-right">' + formatCurrency(row.credit) + '</td>' +
-                           '</tr>';
-                } else if (row.posting_date === "" && row.voucher_no === "" && row.account === "" && row.narration === "") {
-                    /* Spacer row */
-                    html += '<tr><td colspan="6" style="height: 10px; border: none;"></td></tr>';
-                } else {
-                    html += '<tr class="leaf-row">' +
-                            '<td>' + formatDate(row.posting_date) + '</td>' +
-                            '<td>' + (row.voucher_no || "") + '</td>' +
-                            '<td>' + (row.account || "") + '</td>' +
-                            '<td>' + (row.narration || "") + '</td>' +
-                            '<td class="text-right">' + formatCurrency(row.debit) + '</td>' +
-                            '<td class="text-right">' + formatCurrency(row.credit) + '</td>' +
-                           '</tr>';
-                }
-            }
-        }
-        
-        html += '</tbody></table>' +
-                '<div style="width: 100%; height: 1px; background-color: #cbd5e1; margin-top: 15px; margin-bottom: 5px;"></div>' +
-                '<table style="width: 100%; border-collapse: collapse; border: none; font-size: 7.5px; color: #64748b; font-family: \'Outfit\', \'Inter\', sans-serif;">' +
-                    '<tr>' +
-                        '<td style="width: 50%; border: none; padding: 0;">' +
-                            (company_address ? '<div><b>Dirección:</b> ' + company_address + '</div>' : '') +
-                        '</td>' +
-                        '<td style="width: 50%; text-align: right; border: none; padding: 0; vertical-align: top; font-weight: 600; color: #475569;">' +
-                            company_name.toUpperCase() +
-                        '</td>' +
-                    '</tr>' +
-                '</table>' +
-                '</div>';
-        
-    }
-%}
-{%= html || "" %}
+    <!-- TÍTULO Y PARÁMETROS -->
+    <div class="title-badge">
+        <div>
+            <h1>LIBRO DIARIO GENERAL</h1>
+            <div class="subtitle">
+                <strong>Período:</strong> {{ frappe.format_date(filters.from_date) }} al {{ frappe.format_date(filters.to_date) }} | 
+                <strong>Modo:</strong> {{ filters.presentation or "Detallado" }}
+                {% if filters.voucher_type and filters.voucher_type != "Todos" %}
+                    | <strong>Comprobante:</strong> {{ filters.voucher_type }}
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            {% set c_filter = filters.currency_filter or "VES" %}
+            {% if c_filter == "VES" %}
+                <span class="currency-pill">Expresado en Bolívares (Bs.)</span>
+            {% elif c_filter == "USD" %}
+                <span class="currency-pill">Expresado en Dólares (USD)</span>
+            {% else %}
+                <span class="currency-pill">Expresado en Bimoneda (Bs. / USD)</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- TABLA DE CONTENIDO -->
+    <table class="ledger-table">
+        <thead>
+            <tr>
+                {% for col in columns %}
+                    <th class="{% if col.fieldtype == 'Currency' or col.fieldtype == 'Float' %}text-right{% elif col.fieldtype == 'Date' %}text-center{% endif %}">
+                        {{ col.label }}
+                    </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in data %}
+                {% if row.is_spacer %}
+                    <tr>
+                        <td colspan="{{ columns|length }}" style="padding: 2px 0; border: none; background-color: #f8fafc;"></td>
+                    </tr>
+                {% else %}
+                    <tr class="{% if row.is_voucher_total %}voucher-total-row{% elif row.is_total %}grand-totals-row{% endif %}">
+                        {% for col in columns %}
+                            <td class="{% if col.fieldtype == 'Currency' or col.fieldtype == 'Float' %}text-right{% elif col.fieldtype == 'Date' %}text-center{% endif %}">
+                                {% set val = row[col.fieldname] %}
+                                {% if val is not none and val != "" %}
+                                    {% if col.fieldtype == "Currency" or col.fieldtype == "Float" %}
+                                        {{ frappe.format(val, col) }}
+                                    {% elif col.fieldtype == "Date" %}
+                                        {{ frappe.format_date(val) }}
+                                    {% else %}
+                                        {{ val }}
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- FIRMAS LEGALES (CÓDIGO DE COMERCIO ART. 32) -->
+    <table class="signatures-container">
+        <tr>
+            <td>
+                <div class="signature-line"></div>
+                <div class="signature-title">Contador Público Colegiado</div>
+                <div class="signature-sub">C.P.C. N° _________________</div>
+            </td>
+            <td>
+                <div class="signature-line"></div>
+                <div class="signature-title">Administración / Finanzas</div>
+                <div class="signature-sub">Revisado y Aprobado</div>
+            </td>
+            <td>
+                <div class="signature-line"></div>
+                <div class="signature-title">Representante Legal</div>
+                <div class="signature-sub">{{ data[0].company_name if data else filters.company }}</div>
+            </td>
+        </tr>
+    </table>
+</div>

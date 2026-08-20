@@ -24,6 +24,7 @@ frappe.ui.form.on("Purchase Invoice", {
     setup_withholding_voucher_buttons(frm);
     setup_purchase_exchange_difference_button(frm);
     setup_government_withholding_button(frm);
+    setup_retroactive_withholding_buttons(frm);
   },
 
   is_debit_note: function (frm) {
@@ -183,118 +184,157 @@ function set_islr_buttons(frm) {
   }
 }
 
-/**
- * Muestra el diálogo para seleccionar un concepto ISLR del tabulador.
- * Obtiene el tipo de persona del proveedor para filtrar las alícuotas válidas.
- *
- * @param {object} frm - La instancia del formulario
- */
-function show_islr_dialog(frm) {
-  frappe.db
-    .get_value("Supplier", frm.doc.supplier, "type_of_person")
-    .then((r) => {
-      const type_of_person = r.message.type_of_person || "";
-      const type_of_person_label = type_of_person ? __(type_of_person) : __("No configurado");
+async function show_islr_dialog(frm) {
+  // 1. Consultar Proveedor y Compañía en paralelo sin anidar callbacks
+  const [supplier_res, company_res] = await Promise.all([
+    frappe.db.get_value("Supplier", frm.doc.supplier, "type_of_person"),
+    frappe.db.get_value("Company", frm.doc.company, "purchase_islr_account")
+  ]);
 
-      // Códigos ISLR ya cargados en la factura (para excluir duplicados)
-      const existing_codes = (frm.doc.taxes || [])
-        .filter((tax) => tax.charge_type === "ISLR" && tax.code)
-        .map((tax) => tax.code);
+  const type_of_person = supplier_res?.message?.type_of_person || "";
+  const islr_account = company_res?.message?.purchase_islr_account || null;
+  const type_of_person_label = type_of_person ? __(type_of_person) : __("No configurado");
 
-      const dialog = new frappe.ui.Dialog({
-        title: __("Agregar Retención de ISLR"),
-        fields: [
-          {
-            fieldtype: "HTML",
-            fieldname: "islr_info",
-            options: `
-              <div style="padding: 10px 12px; margin-bottom: 12px;
-                          border: 1px solid var(--border-color);
-                          border-radius: var(--border-radius);
-                          background: var(--bg-color);">
-                <div style="margin-bottom: 4px;">
-                  <strong>Proveedor:</strong> ${frm.doc.supplier_name}
-                </div>
-                <div style="margin-bottom: 4px;">
-                  <strong>Tipo de Persona:</strong> ${type_of_person_label}
-                </div>
-                <div>
-                  <strong>Base Imponible:</strong>
-                  ${frappe.format(frm.doc.total, { fieldtype: "Currency" })}
-                </div>
-              </div>
-            `,
-          },
-          {
-            fieldtype: "Link",
-            fieldname: "tabulator_islr",
-            label: __("Concepto ISLR"),
-            options: "Tabulator ISLR",
-            reqd: 1,
-            get_query: function () {
-              return {
-                query:
-                  "l10n_ve.overrides.purchase_invoice.get_tabulators_by_person_type",
-                filters: {
-                  existing_codes: existing_codes,
-                },
-              };
+  // Códigos ISLR ya cargados en la factura (para excluir duplicados)
+  const existing_codes = (frm.doc.taxes || [])
+    .filter((tax) => tax.charge_type === "ISLR" && tax.code)
+    .map((tax) => tax.code);
+
+  // 2. Construir el diálogo con el flujo totalmente plano
+  const dialog = new frappe.ui.Dialog({
+    title: __("Agregar Retención de ISLR"),
+    fields: [
+      {
+        fieldtype: "HTML",
+        fieldname: "islr_info",
+        options: `
+          <div style="padding: 10px 12px; margin-bottom: 12px;
+                      border: 1px solid var(--border-color);
+                      border-radius: var(--border-radius);
+                      background: var(--bg-color);">
+            <div style="margin-bottom: 4px;">
+              <strong>Proveedor:</strong> ${frm.doc.supplier_name}
+            </div>
+            <div style="margin-bottom: 4px;">
+              <strong>Tipo de Persona:</strong> ${type_of_person_label}
+            </div>
+            <div>
+              <strong>Base Imponible:</strong>
+              ${frappe.format(frm.doc.total, { fieldtype: "Currency" })}
+            </div>
+          </div>
+        `,
+      },
+      {
+        fieldtype: "Link",
+        fieldname: "tabulator_islr",
+        label: __("Concepto ISLR"),
+        options: "Tabulator ISLR",
+        reqd: 1,
+        get_query: function () {
+          return {
+            query: "l10n_ve.overrides.purchase_invoice.get_tabulators_by_person_type",
+            filters: {
+              existing_codes: existing_codes,
             },
-          },
-          {
-            fieldtype: "Section Break",
-            fieldname: "preview_section",
-            label: __("Vista previa del cálculo"),
-            depends_on: "eval:doc.tabulator_islr",
-          },
-          {
-            fieldtype: "HTML",
-            fieldname: "calculation_preview",
-          },
-        ],
-        primary_action_label: __("Aplicar Retención"),
-        primary_action(values) {
-          if (!values.tabulator_islr) {
-            frappe.msgprint(__("Debe seleccionar un concepto de ISLR."));
-            return;
-          }
-
-          dialog.hide();
-          frappe.dom.freeze(__("Calculando retención de ISLR..."));
-
-          frm
-            .call("set_islr_concept", {
-              tabulator_name: values.tabulator_islr,
-            })
-            .then(() => {
-              frappe.dom.unfreeze();
-              frm.reload_doc();
-            })
-            .catch(() => {
-              frappe.dom.unfreeze();
-              frappe.msgprint({
-                title: __("Error"),
-                message: __(
-                  "Ocurrió un error al calcular la retención. " +
-                    "Verifique la configuración del tabulador e intente nuevamente.",
-                ),
-                indicator: "red",
-              });
-            });
+          };
         },
-      });
+      },
+      {
+        fieldtype: "Section Break",
+        fieldname: "preview_section",
+        label: __("Vista previa del cálculo"),
+        depends_on: "eval:doc.tabulator_islr",
+      },
+      {
+        fieldtype: "HTML",
+        fieldname: "calculation_preview",
+      },
+    ],
+    primary_action_label: __("Aplicar Retención"),
+    primary_action(values) {
+      if (!values.tabulator_islr) {
+        frappe.msgprint(__("Debe seleccionar un concepto de ISLR."));
+        return;
+      }
 
-      // Vista previa al seleccionar un tabulador
-      dialog.fields_dict.tabulator_islr.$input.on("change", function () {
-        update_islr_preview(dialog, frm, type_of_person);
-      });
-      // Actualizar tambien cuando se selecciona via awesomebar
-      dialog.fields_dict.tabulator_islr.df.onchange = function () {
-        update_islr_preview(dialog, frm, type_of_person);
-      };
+      dialog.hide();
 
-      dialog.show();
-    });
+      // CASO 1: Factura en Borrador (docstatus == 0)
+      if (frm.doc.docstatus === 0) {
+        frappe.dom.freeze(__("Calculando retención de ISLR..."));
+        frm
+          .call("set_islr_concept", {
+            tabulator_name: values.tabulator_islr,
+          })
+          .then(() => {
+            frappe.dom.unfreeze();
+            frm.reload_doc();
+          })
+          .catch(() => {
+            frappe.dom.unfreeze();
+            frappe.msgprint({
+              title: __("Error"),
+              message: __(
+                "Ocurrió un error al calcular la retención. " +
+                "Verifique la configuración del tabulador e intente nuevamente."
+              ),
+              indicator: "red",
+            });
+          });
+      }
+      // CASO 2: Factura Aprobada (docstatus == 1)
+      else if (frm.doc.docstatus === 1) {
+        if (!islr_account) {
+          frappe.msgprint({
+            title: __("Cuenta no configurada"),
+            message: __(
+              "La Cuenta de Retención de ISLR de Compras no está configurada " +
+              "en la Compañía. Configure el campo 'Cuenta de ISLR (Compras)' " +
+              "en el formulario de Compañía."
+            ),
+            indicator: "red",
+          });
+          return;
+        }
+
+        frappe.dom.freeze(__("Aplicando Retención de ISLR y generando asiento..."));
+        frappe.call({
+          method: "l10n_ve.overrides.purchase_invoice.apply_retroactive_purchase_withholding",
+          args: {
+            invoice_name: frm.doc.name,
+            withholding_type: "ISLR",
+            tax_account: islr_account,
+            company: frm.doc.company,
+            tabulator_name: values.tabulator_islr,
+          },
+          callback(r) {
+            frappe.dom.unfreeze();
+            if (r.message && r.message.status === "success") {
+              frappe.show_alert({
+                message: r.message.msg,
+                indicator: "green",
+              });
+              frm.reload_doc();
+            }
+          },
+          error() {
+            frappe.dom.unfreeze();
+          },
+        });
+      }
+    },
+  });
+
+  // Eventos de vista previa
+  dialog.fields_dict.tabulator_islr.$input.on("change", function () {
+    update_islr_preview(dialog, frm, type_of_person);
+  });
+  dialog.fields_dict.tabulator_islr.df.onchange = function () {
+    update_islr_preview(dialog, frm, type_of_person);
+  };
+
+  dialog.show();
 }
 
 /**
@@ -356,7 +396,7 @@ function update_islr_preview(dialog, frm, type_of_person) {
       );
       const islr_amount = flt(
         (tax_base * flt(aliquot_info.aliquot)) / 100 -
-          flt(aliquot_info.subtracting),
+        flt(aliquot_info.subtracting),
         2,
       );
 
@@ -516,7 +556,7 @@ function setup_withholding_voucher_buttons(frm) {
               title: __("Sin respuesta del servidor"),
               message: __(
                 "No se recibió confirmación. Verifique en la lista de comprobantes " +
-                  "de retención si el documento fue creado antes de reintentar.",
+                "de retención si el documento fue creado antes de reintentar.",
               ),
               indicator: "orange",
             });
@@ -539,9 +579,9 @@ function setup_withholding_voucher_buttons(frm) {
                 ]) +
                 (result.bill_control
                   ? "<br>" +
-                    __("N° de Control: <b>{0}</b>", [
-                      frappe.utils.escape_html(result.bill_control),
-                    ])
+                  __("N° de Control: <b>{0}</b>", [
+                    frappe.utils.escape_html(result.bill_control),
+                  ])
                   : ""),
               indicator: "green",
             });
@@ -552,8 +592,8 @@ function setup_withholding_voucher_buttons(frm) {
               message:
                 __(
                   "El comprobante {0} fue creado y aprobado, pero la emisión a HKA falló. " +
-                    "Quedará pendiente de emisión: puede reintentarla desde el comprobante " +
-                    "(o la reintenta el envío automático, si está activo).",
+                  "Quedará pendiente de emisión: puede reintentarla desde el comprobante " +
+                  "(o la reintenta el envío automático, si está activo).",
                   [link],
                 ) +
                 (result.error
@@ -805,4 +845,141 @@ function open_government_withholding_dialog(frm) {
   });
 
   dialog.show();
+}
+
+// ------------------------------------------------------------------ //
+// Aplicación Retroactiva de Retenciones (docstatus == 1)             //
+// ------------------------------------------------------------------ //
+
+/**
+ * Agrega el menú "Aplicar Retención" con las opciones de IVA e ISLR
+ * para facturas de compra en estado Aprobado (docstatus == 1).
+ * Solo muestra cada botón si la retención correspondiente aún no existe
+ * en la tabla de impuestos.
+ *
+ * @param {object} frm - La instancia del formulario
+ */
+function setup_retroactive_withholding_buttons(frm) {
+  if (
+    frm.doc.docstatus !== 1 ||
+    frm.doc.is_return ||
+    frm.doc.is_debit_note ||
+    !frm.doc.supplier
+  ) {
+    return;
+  }
+
+  const taxes = frm.doc.taxes || [];
+  const has_vat_withholding = taxes.some(
+    (t) => t.charge_type === "VAT Withholding" && flt(t.tax_amount),
+  );
+  const has_islr_withholding = taxes.some(
+    (t) => t.charge_type === "ISLR" && flt(t.tax_amount),
+  );
+
+  // Ambas retenciones ya aplicadas: no hay nada que agregar
+  if (has_vat_withholding && has_islr_withholding) {
+    return;
+  }
+
+  frappe.db
+    .get_value("Supplier", frm.doc.supplier, [
+      "tax_withholding_category",
+      "type_of_person",
+    ])
+    .then((r) => {
+      const supplier_data = r.message || {};
+
+      // Retención de IVA: solo si el proveedor tiene categoría de retención
+      // y la factura aún no la tiene aplicada.
+      if (!has_vat_withholding && supplier_data.tax_withholding_category) {
+        frm.add_custom_button(
+          __("Retención de IVA"),
+          () => apply_purchase_vat_withholding(frm, supplier_data),
+          __("Aplicar Retención"),
+        );
+      }
+
+      // Retención de ISLR: siempre disponible si aún no está aplicada,
+      // ya que el concepto se selecciona en el diálogo.
+      // if (!has_islr_withholding) {
+      //   frm.add_custom_button(
+      //     __("Retención de ISLR"),
+      //     () => apply_purchase_islr_withholding_dialog(frm, supplier_data),
+      //     __("Aplicar Retención"),
+      //   );
+      // }
+      if (!has_islr_withholding) {
+        frm.add_custom_button(
+          __("Retención de ISLR"),
+          () => show_islr_dialog(frm),
+          __("Aplicar Retención")
+        );
+      }
+    });
+}
+
+/**
+ * Aplica retroactivamente la Retención de IVA a una Factura de Compra aprobada.
+ * Obtiene la cuenta desde la compañía y llama al backend tras confirmar el usuario.
+ *
+ * @param {object} frm           - Instancia del formulario
+ * @param {object} supplier_data - Datos del proveedor (tax_withholding_category, type_of_person)
+ */
+function apply_purchase_vat_withholding(frm, supplier_data) {
+  frappe.db
+    .get_value(
+      "Company",
+      frm.doc.company,
+      "purchase_vat_withholding_account",
+    )
+    .then((r) => {
+      const co_data = r.message || {};
+      const vat_account = co_data.purchase_vat_withholding_account;
+
+      if (!vat_account) {
+        frappe.msgprint({
+          title: __("Cuenta no configurada"),
+          message: __(
+            "La Cuenta de Retención de IVA de Compras no está configurada "
+            + "en la Compañía {0}. Vaya a Compañía y configure el campo "
+            + "'Cuenta de Retención de IVA (Compras)'.",
+            [frm.doc.company],
+          ),
+          indicator: "red",
+        });
+        return;
+      }
+
+      frappe.confirm(
+        __(
+          "¿Desea aplicar la Retención de IVA a esta factura? "
+          + "Se generará el asiento contable correspondiente y se "
+          + "reducirá el saldo pendiente.",
+        ),
+        () => {
+          frappe.call({
+            method:
+              "l10n_ve.overrides.purchase_invoice.apply_retroactive_purchase_withholding",
+            args: {
+              invoice_name: frm.doc.name,
+              withholding_type: "VAT",
+              tax_account: vat_account,
+              company: frm.doc.company,
+            },
+            freeze: true,
+            freeze_message: __("Aplicando Retención de IVA y generando asiento..."),
+            callback(r) {
+              if (r.message && r.message.status === "success") {
+                frappe.show_alert({
+                  message: r.message.msg,
+                  indicator: "green",
+                });
+                frm.reload_doc();
+              }
+            },
+          });
+        },
+      );
+    });
 }
