@@ -540,8 +540,12 @@ def check_bank_reconciliation(
 	company = _company(company)
 	to_date = to_date or frappe.utils.nowdate()
 
+	# `filtro` es uno de DOS literales fijos, elegidos por un booleano -- nunca
+	# contiene entrada del usuario. La cuenta viaja como parametro (`%(cuenta)s`),
+	# que es justo lo que la regla quiere. Semgrep marca el f-string sin poder
+	# distinguir "interpola un literal" de "interpola lo que mando el cliente".
 	filtro = "AND bt.bank_account = %(cuenta)s" if bank_account else ""
-	filas = frappe.db.sql(
+	filas = frappe.db.sql(  # nosemgrep
 		f"""SELECT bt.bank_account, bt.status, COUNT(*) n,
 		           ROUND(SUM(bt.deposit),2) depositos, ROUND(SUM(bt.withdrawal),2) retiros
 		    FROM `tabBank Transaction` bt

@@ -276,8 +276,7 @@ async function show_islr_dialog(frm) {
             frappe.msgprint({
               title: __("Error"),
               message: __(
-                "Ocurrió un error al calcular la retención. " +
-                "Verifique la configuración del tabulador e intente nuevamente."
+                "Ocurrió un error al calcular la retención. Verifique la configuración del tabulador e intente nuevamente."
               ),
               indicator: "red",
             });
@@ -289,9 +288,7 @@ async function show_islr_dialog(frm) {
           frappe.msgprint({
             title: __("Cuenta no configurada"),
             message: __(
-              "La Cuenta de Retención de ISLR de Compras no está configurada " +
-              "en la Compañía. Configure el campo 'Cuenta de ISLR (Compras)' " +
-              "en el formulario de Compañía."
+              "La Cuenta de Retención de ISLR de Compras no está configurada en la Compañía. Configure el campo 'Cuenta de ISLR (Compras)' en el formulario de Compañía."
             ),
             indicator: "red",
           });
@@ -555,8 +552,7 @@ function setup_withholding_voucher_buttons(frm) {
             frappe.msgprint({
               title: __("Sin respuesta del servidor"),
               message: __(
-                "No se recibió confirmación. Verifique en la lista de comprobantes " +
-                "de retención si el documento fue creado antes de reintentar.",
+                "No se recibió confirmación. Verifique en la lista de comprobantes de retención si el documento fue creado antes de reintentar.",
               ),
               indicator: "orange",
             });
@@ -591,9 +587,7 @@ function setup_withholding_voucher_buttons(frm) {
               title: __("Comprobante creado — emisión pendiente"),
               message:
                 __(
-                  "El comprobante {0} fue creado y aprobado, pero la emisión a HKA falló. " +
-                  "Quedará pendiente de emisión: puede reintentarla desde el comprobante " +
-                  "(o la reintenta el envío automático, si está activo).",
+                  "El comprobante {0} fue creado y aprobado, pero la emisión a HKA falló. Quedará pendiente de emisión: puede reintentarla desde el comprobante (o la reintenta el envío automático, si está activo).",
                   [link],
                 ) +
                 (result.error
@@ -941,9 +935,7 @@ function apply_purchase_vat_withholding(frm, supplier_data) {
         frappe.msgprint({
           title: __("Cuenta no configurada"),
           message: __(
-            "La Cuenta de Retención de IVA de Compras no está configurada "
-            + "en la Compañía {0}. Vaya a Compañía y configure el campo "
-            + "'Cuenta de Retención de IVA (Compras)'.",
+            "La Cuenta de Retención de IVA de Compras no está configurada en la Compañía {0}. Vaya a Compañía y configure el campo 'Cuenta de Retención de IVA (Compras)'.",
             [frm.doc.company],
           ),
           indicator: "red",
@@ -953,9 +945,7 @@ function apply_purchase_vat_withholding(frm, supplier_data) {
 
       frappe.confirm(
         __(
-          "¿Desea aplicar la Retención de IVA a esta factura? "
-          + "Se generará el asiento contable correspondiente y se "
-          + "reducirá el saldo pendiente.",
+          "¿Desea aplicar la Retención de IVA a esta factura? Se generará el asiento contable correspondiente y se reducirá el saldo pendiente.",
         ),
         () => {
           frappe.call({
