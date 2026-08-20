@@ -95,11 +95,22 @@ def get_hq_data(filters=None) -> dict:
         allowed = muni_allowed if allowed is None else (allowed & muni_allowed)
 
     columns: list[dict] = _sales_book_columns()
-    main_data, adjustment_data = _sales_book_data(filters)
 
-    if allowed is not None:
-        main_data = [r for r in main_data if r.get("branch") in allowed]
-        adjustment_data = [r for r in adjustment_data if r.get("branch") in allowed]
+    # El recorte va al SQL, no a memoria. `sales_book` acepta `branches` (lista)
+    # ademas de `branch` (uno solo), asi que el conjunto ya resuelto --subarbol,
+    # sucursal principal, municipio-- se empuja hacia abajo. Antes se traia el
+    # periodo entero y se descartaba en Python: medido sobre julio, filtrar por un
+    # municipio traia 4.085 filas para quedarse con 42.
+    if allowed is not None and not allowed:
+        # Conjunto vacio = ninguna sucursal matchea. NO es lo mismo que "sin filtro":
+        # corresponden cero filas, no todas. Y no se puede delegar en `branches=[]`,
+        # que aguas abajo es falsy y haria que el filtro se ignore.
+        main_data, adjustment_data = [], []
+    else:
+        if allowed is not None:
+            filters["branches"] = sorted(allowed)
+            filters.pop("branch", None)
+        main_data, adjustment_data = _sales_book_data(filters)
 
     _add_hq_columns(columns, main_data + adjustment_data)
     _humanize_columns(columns)
@@ -120,6 +131,7 @@ def get_hq_data(filters=None) -> dict:
         "main_branch": main_branch_filter,
         "municipality": municipality_filter,
         "subtree": subtree,
+        "allowed_count": None if allowed is None else len(allowed),
     }
 
 
@@ -287,7 +299,11 @@ def execute(filters=None):
     # 3er valor = 'message': Frappe lo pinta entre los filtros y las tarjetas de
     # totales (query_report.js -> show_status / $status).
     message: str = _build_report_message(
-        hq["branch"], hq["subtree"], hq["main_branch"], hq.get("municipality", "")
+        hq["branch"],
+        hq["subtree"],
+        hq["main_branch"],
+        hq.get("municipality", ""),
+        hq.get("allowed_count"),
     )
 
     return columns, data, message, None, hq["report_summary"]
@@ -298,6 +314,7 @@ def _build_report_message(
     subtree: set | None,
     main_branch: str = "",
     municipality: str = "",
+    allowed_count: int | None = None,
 ) -> str:
     """Descripción que se muestra sobre el reporte (bajo los filtros).
 
@@ -352,15 +369,39 @@ def _build_report_message(
         )
 
     if municipality:
+        # El nombre del DocType es un hash: hay que resolver al titulo. Se pide el
+        # campo al meta y no se hardcodea "municipality", igual que
+        # `_get_municipality_by_branch`.
+        title_field: str = (
+            frappe.get_meta(MUNICIPALITY_DOCTYPE).get_title_field() or "name"
+        )
         muni_label = (
-            frappe.db.get_value(MUNICIPALITY_DOCTYPE, municipality, "municipality")
+            frappe.db.get_value(MUNICIPALITY_DOCTYPE, municipality, title_field)
             or municipality
         )
-        lineas.append(
-            "<b>→</b> {0} <b>{1}</b>.".format(
-                _("Filtrando por municipio"), muni_label
+        if allowed_count == 0:
+            # Sin esto el reporte sale vacio y parece roto. Casi ninguna sucursal
+            # tiene el municipio cargado, asi que el caso es frecuente.
+            lineas.append(
+                "<b>→</b> {0} <b>{1}</b>. {2}".format(
+                    _("Filtrando por municipio"),
+                    muni_label,
+                    _("Ninguna sucursal tiene ese municipio asignado."),
+                )
             )
-        )
+        else:
+            sufijo = (
+                " ({0})".format(
+                    _("{0} sucursal(es)").format(allowed_count)
+                )
+                if allowed_count
+                else ""
+            )
+            lineas.append(
+                "<b>→</b> {0} <b>{1}</b>{2}.".format(
+                    _("Filtrando por municipio"), muni_label, sufijo
+                )
+            )
 
     return "<br>".join(lineas)
 
@@ -399,16 +440,58 @@ def _get_branch_subtree(branch: str | None) -> set | None:
     return set(names) if len(names) > 1 else None
 
 
+def _get_branch_municipality_map() -> dict:
+    """Mapa ``{sucursal: id de municipio}`` de TODAS las sucursales, con herencia.
+
+    Una sucursal sin municipio propio hereda el del ancestro mas cercano que si lo
+    tenga. ``VE Branch`` es un arbol y los filtros de sucursal ya se expanden por
+    subarbol (``_get_branch_subtree``): si el municipio hiciera match plano, el mismo
+    dato quedaria filtrado distinto segun por donde se entre. Medido en produccion,
+    con match plano se perdian las facturas de una sucursal hija cuyo padre si tenia
+    municipio.
+
+    Se resuelve de una sola consulta --son decenas de sucursales-- y se memoiza por
+    request, porque la usan tanto el filtro como la columna.
+    """
+    cache = getattr(frappe.local, "_hq_branch_municipality", None)
+    if cache is not None:
+        return cache
+
+    rows: list[dict] = frappe.get_all(
+        BRANCH_DOCTYPE,
+        fields=["name", "municipality", f"parent_{frappe.scrub(BRANCH_DOCTYPE)} as parent"],
+    )
+    propio: dict = {r["name"]: (r.get("municipality") or "") for r in rows}
+    padre: dict = {r["name"]: (r.get("parent") or "") for r in rows}
+
+    resuelto: dict = {}
+
+    def heredar(nombre: str, visitados: set) -> str:
+        if nombre in resuelto:
+            return resuelto[nombre]
+        if not nombre or nombre in visitados:  # ciclo: el arbol no deberia tenerlos
+            return ""
+        visitados.add(nombre)
+        valor = propio.get(nombre) or heredar(padre.get(nombre, ""), visitados)
+        resuelto[nombre] = valor
+        return valor
+
+    for nombre in propio:
+        heredar(nombre, set())
+
+    frappe.local._hq_branch_municipality = resuelto
+    return resuelto
+
+
 def _get_branches_by_municipality(municipality: str | None) -> set:
-    """Nombres de las sucursales asignadas al municipio indicado."""
+    """Nombres de las sucursales del municipio indicado, incluidas las que lo heredan."""
     if not municipality:
         return set()
-    names: list[str] = frappe.get_all(
-        BRANCH_DOCTYPE,
-        filters={"municipality": municipality},
-        pluck="name",
-    )
-    return set(names)
+    return {
+        sucursal
+        for sucursal, muni in _get_branch_municipality_map().items()
+        if muni == municipality
+    }
 
 
 # Campos que componen las dos columnas consolidadas del HQ. Van como constantes porque
@@ -561,11 +644,12 @@ def _get_municipality_by_branch(branches: set) -> dict:
     if not branches:
         return {}
 
-    rows: list[dict] = frappe.get_all(
-        BRANCH_DOCTYPE,
-        filters={"name": ["in", list(branches)]},
-        fields=["name", "municipality"],
-    )
+    # Mismo mapa que usa el filtro: una sola consulta a VE Branch por request.
+    por_sucursal: dict = _get_branch_municipality_map()
+    rows: list[dict] = [
+        frappe._dict({"name": b, "municipality": por_sucursal.get(b, "")})
+        for b in branches
+    ]
 
     municipality_ids: set = {r.municipality for r in rows if r.municipality}
     labels: dict = {}

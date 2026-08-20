@@ -10,7 +10,7 @@ RECORTADAS con las propias funciones del libro.
 """
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import frappe
 
@@ -35,6 +35,28 @@ def como_dicts(columns: list, data: list) -> list:
     """
     fieldnames = [c["fieldname"] for c in columns]
     return [dict(zip(fieldnames, row)) for row in data]
+
+
+def _libro_falso(main, adjustment=None):
+    """Doble de `_sales_book_data` que respeta `branches`, como hace el SQL real.
+
+    El recorte por sucursal vive en la consulta (`AND branch IN %(branches)s`) y no
+    en memoria: un doble que devolviera todo sin mirar los filtros daria por buenas
+    cosas que en produccion no pasan.
+    """
+    adjustment = adjustment or []
+
+    def _data(filters):
+        permitidas = filters.get("branches")
+        if permitidas is None:
+            return list(main), list(adjustment)
+        ok = set(permitidas)
+        return (
+            [r for r in main if r.get("branch") in ok],
+            [r for r in adjustment if r.get("branch") in ok],
+        )
+
+    return _data
 
 
 class TestFormatFiscalDocumentNo(unittest.TestCase):
@@ -93,7 +115,7 @@ class TestExecute(unittest.TestCase):
         """Parchea las piezas del libro; devuelve los mocks relevantes."""
         return (
             patch.object(hq, "_sales_book_columns", return_value=[{"fieldname": "branch"}]),
-            patch.object(hq, "_sales_book_data", return_value=(main, adjustment)),
+            patch.object(hq, "_sales_book_data", side_effect=_libro_falso(main, adjustment)),
             patch.object(hq, "_sales_book_total_row", return_value={"t": 1}),
             patch.object(hq, "_sales_book_report_summary", return_value=[{"label": "Total"}]),
             patch.object(hq, "_get_branch_subtree", return_value=subtree),
@@ -354,7 +376,7 @@ class TestMainBranchFilter(unittest.TestCase):
     def _parchear(self, main, subtree_side_effect):
         return (
             patch.object(hq, "_sales_book_columns", return_value=[{"fieldname": "branch"}]),
-            patch.object(hq, "_sales_book_data", return_value=(main, [])),
+            patch.object(hq, "_sales_book_data", side_effect=_libro_falso(main)),
             patch.object(hq, "_sales_book_total_row", return_value={"t": 1}),
             patch.object(hq, "_sales_book_report_summary", return_value=[]),
             patch.object(hq, "_get_branch_subtree", side_effect=subtree_side_effect),
@@ -480,3 +502,99 @@ class TestExcelExport(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMunicipalityFilter(unittest.TestCase):
+    """Filtro de municipio: herencia por arbol, interseccion y empuje al SQL."""
+
+    # Arbol de prueba: PADRE tiene municipio, HIJO no --hereda--, OTRA tiene otro.
+    MAPA = {"PADRE": "muni-a", "HIJO": "muni-a", "OTRA": "muni-b", "SIN": ""}
+
+    def test_hereda_el_municipio_del_padre(self) -> None:
+        """Una sucursal sin municipio propio cuenta como la de su ancestro."""
+        with patch.object(hq, "_get_branch_municipality_map", return_value=self.MAPA):
+            self.assertEqual(
+                hq._get_branches_by_municipality("muni-a"), {"PADRE", "HIJO"}
+            )
+
+    def test_no_arrastra_sucursales_de_otro_municipio(self) -> None:
+        with patch.object(hq, "_get_branch_municipality_map", return_value=self.MAPA):
+            self.assertEqual(hq._get_branches_by_municipality("muni-b"), {"OTRA"})
+
+    def test_municipio_sin_sucursales_da_conjunto_vacio(self) -> None:
+        with patch.object(hq, "_get_branch_municipality_map", return_value=self.MAPA):
+            self.assertEqual(hq._get_branches_by_municipality("muni-z"), set())
+
+    def test_sin_municipio_devuelve_vacio(self) -> None:
+        self.assertEqual(hq._get_branches_by_municipality(""), set())
+        self.assertEqual(hq._get_branches_by_municipality(None), set())
+
+    def test_el_conjunto_se_empuja_al_sql_y_no_se_filtra_en_memoria(self) -> None:
+        """El libro tiene que recibir `branches`; si no, se trae el periodo entero."""
+        capturado: dict = {}
+
+        def fake_data(filters):
+            capturado.update(filters)
+            return [], []
+
+        with (
+            patch.object(hq, "_get_branch_municipality_map", return_value=self.MAPA),
+            patch.object(hq, "_sales_book_data", side_effect=fake_data),
+            patch.object(hq, "_get_main_branch_map", return_value={}),
+            patch.object(hq, "_validate_filters", return_value=None),
+        ):
+            hq.get_hq_data({"municipality": "muni-a"})
+
+        self.assertEqual(capturado.get("branches"), ["HIJO", "PADRE"])
+        self.assertNotIn("municipality", capturado)
+
+    def test_municipio_sin_sucursales_no_consulta_el_libro(self) -> None:
+        """Conjunto vacio = cero filas. Si consultara, devolveria TODAS."""
+        with (
+            patch.object(hq, "_get_branch_municipality_map", return_value=self.MAPA),
+            patch.object(hq, "_sales_book_data") as libro,
+            patch.object(hq, "_get_main_branch_map", return_value={}),
+            patch.object(hq, "_validate_filters", return_value=None),
+        ):
+            resultado = hq.get_hq_data({"municipality": "muni-z"})
+
+        libro.assert_not_called()
+        self.assertEqual(resultado["main_data"], [])
+        self.assertEqual(resultado["allowed_count"], 0)
+
+    def test_interseccion_con_el_filtro_de_sucursal(self) -> None:
+        """Municipio + sucursal = interseccion, no union."""
+        capturado: dict = {}
+
+        def fake_data(filters):
+            capturado.update(filters)
+            return [], []
+
+        with (
+            patch.object(hq, "_get_branch_municipality_map", return_value=self.MAPA),
+            patch.object(hq, "_get_branch_subtree", return_value={"PADRE", "OTRA"}),
+            patch.object(hq, "_sales_book_data", side_effect=fake_data),
+            patch.object(hq, "_get_main_branch_map", return_value={}),
+            patch.object(hq, "_validate_filters", return_value=None),
+        ):
+            hq.get_hq_data({"branch": "PADRE", "municipality": "muni-a"})
+
+        self.assertEqual(capturado.get("branches"), ["PADRE"])
+
+    def test_el_mensaje_avisa_cuando_no_matcheo_ninguna(self) -> None:
+        with (
+            patch.object(hq.frappe, "get_meta", return_value=Mock(get_title_field=lambda: "municipality")),
+            patch.object(hq.frappe.db, "get_value", return_value="Plaza"),
+        ):
+            msg = hq._build_report_message("", None, "", "muni-z", 0)
+        self.assertIn("Plaza", msg)
+        self.assertIn("Ninguna sucursal", msg)
+
+    def test_el_mensaje_dice_cuantas_matchearon(self) -> None:
+        with (
+            patch.object(hq.frappe, "get_meta", return_value=Mock(get_title_field=lambda: "municipality")),
+            patch.object(hq.frappe.db, "get_value", return_value="Plaza"),
+        ):
+            msg = hq._build_report_message("", None, "", "muni-a", 2)
+        self.assertIn("Plaza", msg)
+        self.assertIn("2", msg)
