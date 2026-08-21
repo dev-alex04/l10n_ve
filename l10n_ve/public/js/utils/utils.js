@@ -193,10 +193,14 @@ function set_nature_filter(frm) {
     allowed_natures = ["Venezuelan", "Extranjero"];
   } else if (doc_type === "Passport") {
     allowed_natures = ["Extranjero"];
-    frm.set_value("nature_of_the_taxpayer", "Extranjero");
+    if (frm.doc.nature_of_the_taxpayer !== "Extranjero") {
+      frm.set_value("nature_of_the_taxpayer", "Extranjero");
+    }
   } else if (doc_type === "DEA") {
     allowed_natures = ["Educational"];
-    frm.set_value("nature_of_the_taxpayer", "Educational");
+    if (frm.doc.nature_of_the_taxpayer !== "Educational") {
+      frm.set_value("nature_of_the_taxpayer", "Educational");
+    }
   } else {
     // Para RIF u otros, permitir todas las opciones
     allowed_natures = RIF_LEGAL_NATURES.concat(RIF_NATURAL_NATURES);
