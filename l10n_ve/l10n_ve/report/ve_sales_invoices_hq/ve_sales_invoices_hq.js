@@ -56,6 +56,13 @@ frappe.query_reports["VE Sales Invoices HQ"] = {
       on_change: _hq_mark_stale,
     },
     {
+      fieldname: "municipality",
+      label: __("Municipio"),
+      fieldtype: "Link",
+      options: "VE Municipality",
+      on_change: _hq_mark_stale,
+    },
+    {
       // Ejecución manual: el reporte es pesado y Frappe re-ejecuta con cada
       // cambio de filtro. Como filtro de tipo Button queda dentro de la fila,
       // junto a Sucursal Principal.
