@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.54.1] - 2026-08-22
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el alineador de tasas del BCV que modificaba la fecha de emisión en los documentos en estado borrador. b95a95c3
+
+---
+
 ## [v2.54.0] - 2026-08-20
 
 ### ✨ Funcionalidades (Features)
