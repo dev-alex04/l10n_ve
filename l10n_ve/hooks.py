@@ -460,9 +460,37 @@ scheduler_events = {
         "0 7,12,16 * * *": ["l10n_ve.tasks.send_unsent_hka_documents_notice"],
         "0 8 * * *": ["l10n_ve.tasks.send_3_days_retention_reminders"],
         "0 8 22 * *": ["l10n_ve.tasks.send_monthly_deadline_retention_reminders"],
-        "0 * * * *": [
+        # El minuto :00 quedo vacio a proposito. Ahi convergian 15 crons de las tres apps
+        # (l10n_ve, domina_isp y mint) y encima el scheduler de Frappe encola en esa misma
+        # pasada sus propios Hourly / Hourly Long / Hourly Maintenance. Medido el
+        # 21-ago-2026 en galanet-prod: la cola de RQ pica en :55-:00 hasta 629 trabajos
+        # pendientes sobre ~7 workers, con el resto de la hora casi vacia. No es falta de
+        # capacidad --el trabajo total son ~131 min/dia de worker sobre ~10.000
+        # disponibles-- es que llega todo junto.
+        #
+        # Los minutos elegidos evitan los multiplos de 5 (los toma el `*/5` de HKA de mas
+        # abajo y el `*/15`) y los que ya usa domina_isp.
+        "9 */3 * * *": [
+            # Cada 3 h en vez de cada hora. El BCV publica la tasa UNA vez por dia habil,
+            # asi que 8 intentos diarios sobran para agarrarla --y si un intento falla, el
+            # siguiente reintenta: la funcion es idempotente, crea o actualiza la fila del
+            # dia--.
+            #
+            # OJO, el costo no es solo traer la tasa: esta funcion tambien llama a
+            # `reconcile_draft_invoice_exchange_rates()`, que realinea los borradores que
+            # esperaban la tasa nueva. Con esta cadencia un borrador puede esperar hasta
+            # 3 h en vez de 1 para quedar realineado. El trabajo total NO baja --los mismos
+            # borradores se procesan, en tandas mas grandes--; lo que baja es el numero de
+            # despertadas y la presion sobre la cola.
             "l10n_ve.tasks.create_currency_exchange",
+        ],
+        "36 * * * *": [
+            # Limpieza de Error Logs ya resueltos: no depende de un minuto exacto.
             "l10n_ve.tasks.cleanup_resolved_digital_invoice_error_logs",
+        ],
+        "17 * * * *": [
+            # Reconciliacion de campos fiscales contra HKA. Sigue siendo horaria: lo unico
+            # que cambia es que ya no compite con los otros 14 crons de la hora en punto.
             "l10n_ve.digital_invoice.reconciliation.reconcile_hka_fiscal_fields",
         ],
         "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
