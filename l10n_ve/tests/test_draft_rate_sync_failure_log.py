@@ -6,11 +6,16 @@ Tests del registro agregado de fallos al alinear la tasa BCV de borradores.
 
 Regresión de la firma "BCV: no se pudo alinear la tasa de ACC-SINV-*" (227
 entradas entre el 4 y el 13 de agosto de 2026): **una sola** factura atascada
-—ACC-SINV-2026-21533, cuyo cronograma de pago tiene el vencimiento antes de la
-fecha de emisión, así que ERPNext nunca la deja guardar— escribía una entrada
-de Error Log por cada corrida del job. La factura no se puede arreglar desde
-acá (es dato), pero el job no debe reportarla una y otra vez ni ahogar al resto
-del registro: se acumulan los fallos y se escribe UNO por corrida.
+—ACC-SINV-2026-21533— escribía una entrada de Error Log por cada corrida del
+job. El job no debe reportarla una y otra vez ni ahogar al resto del registro:
+se acumulan los fallos y se escribe UNO por corrida.
+
+CORRECCIÓN (21-ago-2026): este docstring decía que la factura tenía "el
+vencimiento antes de la fecha de emisión" y que "no se puede arreglar desde acá
+(es dato)". Las dos cosas eran falsas. Verificado en producción: su
+``posting_date`` y su ``due_date`` son AMBOS 2026-08-03, y su cronograma de pago
+también. Lo que fallaba era el propio job, que guardaba sin ``set_posting_time``
+—ver :class:`TestPreservaLaFechaDeEmision`—.
 """
 
 import unittest
@@ -145,3 +150,86 @@ class TestDraftRateSyncFailureLog(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _SpyInvoice(_StubInvoice):
+    """Registra el estado del documento EN EL MOMENTO del save."""
+
+    def __init__(self, name, falla=False):
+        super().__init__(name, falla)
+        self.posting_date = "2026-08-03"
+        self.set_posting_time = 0
+        self.visto_en_save = None
+
+    def save(self, ignore_permissions=False):
+        self.visto_en_save = {
+            "set_posting_time": self.set_posting_time,
+            "posting_date": self.posting_date,
+        }
+        super().save(ignore_permissions=ignore_permissions)
+
+
+class TestPreservaLaFechaDeEmision(unittest.TestCase):
+    """El alineador no puede moverle la fecha de emisión a la factura que arregla.
+
+    ERPNext re-escribe ``posting_date`` con la fecha de hoy en cada ``save()`` cuando el
+    documento no trae ``set_posting_time`` (``transaction_base.validate_posting_time``).
+    Como en el ISP la factura vence el mismo día que se emite, mover la emisión a hoy deja
+    ``due_date`` antes que ``posting_date`` y ERPNext rechaza el guardado.
+
+    El efecto era que fallaban **exactamente** las facturas que esta función existe para
+    arreglar: las generadas por adelantado, que son las de fecha vieja. Medido en
+    producción el 21-ago-2026: 809 entradas de Error Log desde el 1 de agosto contra UNA
+    sola factura alineada con éxito en 21 días —y esa se creó y se alineó el mismo día,
+    que es el único caso donde mover la fecha a hoy no cambiaba nada—.
+    """
+
+    def setUp(self):
+        self.doc = _SpyInvoice("ACC-SINV-2026-21533")
+
+        def _get_single_value(doctype, fieldname):
+            if fieldname == "default_currency":
+                return "VEF"
+            if fieldname == "cutoff_date":
+                return "2026-01-01"
+            return None
+
+        db = frappe._dict(
+            get_single_value=_get_single_value,
+            get_value=lambda *a, **k: 746.6297,
+            exists=lambda *a, **k: False,
+            count=lambda *a, **k: 0,
+            commit=lambda *a, **k: None,
+        )
+        drafts = [frappe._dict({
+            "name": self.doc.name, "customer": "CUST-1", "posting_date": "2026-08-03",
+            "conversion_rate": 700.0, "currency": "USD",
+        })]
+
+        parches = [
+            patch.object(frappe, "db", db),
+            patch.object(frappe, "get_all", side_effect=lambda *a, **k: drafts),
+            patch.object(frappe, "get_doc", side_effect=lambda dt, name: self.doc),
+            patch.object(frappe, "log_error", side_effect=lambda *a, **k: None),
+            patch("l10n_ve.utils.utils.is_juridical_customer", return_value=False),
+        ]
+        for p in parches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_el_save_lleva_set_posting_time(self):
+        tasks.reconcile_draft_invoice_exchange_rates()
+        self.assertIsNotNone(self.doc.visto_en_save, "no se llegó a guardar")
+        self.assertEqual(
+            self.doc.visto_en_save["set_posting_time"], 1,
+            "sin set_posting_time, ERPNext le mueve la fecha de emisión a hoy",
+        )
+
+    def test_la_fecha_de_emision_no_se_toca(self):
+        tasks.reconcile_draft_invoice_exchange_rates()
+        self.assertEqual(self.doc.visto_en_save["posting_date"], "2026-08-03")
+
+    def test_la_tasa_si_se_aplica(self):
+        tasks.reconcile_draft_invoice_exchange_rates()
+        self.assertEqual(self.doc.conversion_rate, 746.6297)
+        self.assertEqual(self.doc.plc_conversion_rate, 746.6297)

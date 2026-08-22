@@ -156,6 +156,21 @@ def reconcile_draft_invoice_exchange_rates(limit: int = DRAFT_RATE_SYNC_LIMIT) -
                 continue
             doc.conversion_rate = official
             doc.plc_conversion_rate = official
+            # ERPNext RE-ESCRIBE `posting_date` con la fecha de hoy en cada `save()` si el
+            # documento no trae `set_posting_time` (transaction_base.validate_posting_time).
+            # Sin esta linea, alinear la tasa de un borrador viejo le mueve la fecha de
+            # emision al dia de la corrida --y como en el ISP la factura vence el mismo dia
+            # que se emite, `due_date` queda ANTES del nuevo `posting_date` y ERPNext tira
+            # "Due Date cannot be before Posting". Es decir: fallaban EXACTAMENTE las
+            # facturas que esta funcion existe para arreglar, las generadas por adelantado.
+            #
+            # Medido en galanet-prod el 21-ago-2026: 809 entradas de Error Log desde el 1 de
+            # agosto, casi todas de la misma factura reintentada cada hora, contra UNA sola
+            # factura alineada con exito en 21 dias --y esa se creo y se alineo el mismo dia,
+            # que es el unico caso donde mover la fecha a hoy no cambiaba nada--.
+            #
+            # Mismo gotcha que en `regenerate_current_invoice`.
+            doc.set_posting_time = 1
             doc.save(ignore_permissions=True)
             updated.append(inv.name)
         except Exception as e:

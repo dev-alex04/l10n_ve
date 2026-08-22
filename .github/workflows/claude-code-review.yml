@@ -1,0 +1,38 @@
+name: Revisión de Claude
+
+# La lógica y el prompt viven en shared-actions: acá van ocho líneas y el foco
+# propio de este repo. Un cambio de criterio se hace allá, una sola vez.
+#
+# No corta el merge: es un comentario, no un gate. Los que cortan siguen siendo
+# el CI y los linters de este repo.
+
+on:
+  pull_request:
+    # `ready_for_review` está para que un PR que nace como borrador se revise
+    # cuando el autor lo marca listo -- sin él, ese PR nunca se revisaría, porque
+    # el reusable saltea los borradores y `synchronize` ya habría pasado.
+    types: [opened, synchronize, ready_for_review, reopened]
+
+# Una revisión por rama. Si alguien empuja tres commits seguidos se cancela la
+# corrida vieja en vez de pagar tres revisiones de las cuales dos ya no aplican.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  call-claude-review:
+    uses: Grupo-Altia/shared-actions/.github/workflows/claude-review-reusable.yml@main
+    secrets: inherit
+    with:
+      foco: >-
+          Este repo emite documentos fiscales ante el SENIAT vía HKA. Mirá con especial
+          cuidado lo que toque retenciones (IVA, ISLR, municipal), correlativos y
+          series, y cualquier cosa que resuelva una tasa de cambio: un `or 1` sobre
+          una tasa afirma que dos monedas valen igual, y ese número sale impreso en
+          un documento legal que alguien firma. Las alícuotas y tabuladores no se
+          adivinan: si no hay fila para el caso, fallar cerrado es correcto.
