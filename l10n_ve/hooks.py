@@ -249,7 +249,7 @@ after_install = [
 
 after_migrate = [
     "l10n_ve.patches.monkey_patches.apply_post_db_patches",
-    # `create_currency_exchange` NO va aca. Ya corre cada hora en scheduler_events, asi que
+    # `create_currency_exchange` NO va aca. Ya corre cada 3 h en scheduler_events, asi que
     # el llamado en cada migracion era redundante -- y ademas: (1) hace llamadas de red
     # (BCV/SENIAT, con fallback a una API externa y a scraping), asi que un `bench migrate`
     # quedaba a merced de un servicio ajeno; y (2) termina en
