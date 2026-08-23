@@ -153,6 +153,94 @@ def get_columns() -> list[dict]:
     ]
 
 
+BRANCH_DOCTYPE: str = "VE Branch"
+
+
+def get_branch_subtree(branch: str | None) -> set | None:
+    """Nombres de la sucursal y sus descendientes, o ``None`` si no hay rollup.
+
+    Devuelve ``None`` cuando no hay filtro de sucursal o cuando la elegida es
+    una hoja: en ese caso conviene dejar que el libro filtre en SQL (usa el
+    índice ``branch_index``) en vez de traer todo y recortar en memoria.
+    """
+    if not branch:
+        return None
+
+    node = frappe.db.get_value(BRANCH_DOCTYPE, branch, ["lft", "rgt"], as_dict=True)
+    if not node or node.lft is None or node.rgt is None:
+        return None
+
+    names: list[str] = frappe.get_all(
+        BRANCH_DOCTYPE,
+        filters={"lft": [">=", node.lft], "rgt": ["<=", node.rgt]},
+        pluck="name",
+    )
+    return set(names) if len(names) > 1 else None
+
+
+def resolve_branch_scope(branch: str | None, main_branch: str | None) -> set | None:
+    """Las sucursales que los filtros admiten, o ``None`` si no hay que acotar por conjunto.
+
+    Cruza ``branch`` (cualquier nodo del árbol) con ``main_branch`` (las de
+    consolidación). Filtrar por una principal X equivale a su subárbol, porque X cuelga
+    de la raíz y todo lo que consolida en X está debajo. Con los dos puestos, se
+    intersectan.
+
+    ``None`` significa que no hay nada que acotar por conjunto: o no hay filtros, o
+    ``branch`` es una HOJA y conviene la igualdad simple, que usa ``branch_index``.
+
+    Un conjunto VACÍO no es lo mismo que ``None``: son cero filas, no todas.
+    """
+    scope: set | None = get_branch_subtree(branch)
+
+    if main_branch:
+        scope = narrow_branch_scope(
+            scope, branch, get_branch_subtree(main_branch) or {main_branch})
+
+    return scope
+
+
+def narrow_branch_scope(scope: set | None, branch: str | None, extra: set) -> set:
+    """Intersecta un scope de sucursales con otro conjunto SIN perder la hoja.
+
+    ``scope`` puede venir en ``None``, y ese ``None`` es ambiguo si se lo lee de
+    apuro: significa «no hay nada que acotar por conjunto», pero eso cubre DOS
+    casos --no hay filtro de sucursal, o la elegida es una HOJA y se prefiere la
+    igualdad simple, que usa ``branch_index``--. Al intersectar, el segundo caso
+    NO puede tratarse como «sin filtro»: el nodo tiene que entrar igual, o la
+    sucursal pedida se pierde y devuelve de más.
+
+    Ese fue el bug: pedir una hoja de OTRA sucursal principal devolvía el
+    subárbol entero de la principal --medido, 1.227 filas donde correspondían
+    cero-- porque el filtro de sucursal desaparecía. El HQ lo repetía además
+    contra el filtro de municipio, con el mismo desenlace.
+
+    Devuelve siempre un conjunto: vacío significa cero filas, nunca «todas».
+    """
+    if scope is None:
+        return ({branch} & extra) if branch else set(extra)
+    return scope & extra
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def get_main_branches(doctype, txt, searchfield, start, page_len, filters):
+    """Link query del filtro 'Sucursal Principal': solo las de consolidación.
+
+    Son las que cuelgan directo de la raíz del árbol. Ofrecer las sucursales
+    completas obligaría al usuario a saber de memoria cuáles consolidan.
+    """
+    return frappe.db.sql("""
+        SELECT b.name
+        FROM `tabVE Branch` b
+        INNER JOIN `tabVE Branch` raiz ON raiz.name = b.parent_ve_branch
+        WHERE IFNULL(raiz.parent_ve_branch, '') = ''
+          AND b.name LIKE %(txt)s
+        ORDER BY b.name
+        LIMIT %(start)s, %(page_len)s
+    """, {"txt": "%" + txt + "%", "start": start, "page_len": page_len})
+
+
 def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
 
     """
@@ -215,7 +303,20 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
     # sin ella tiene que traer el período entero y recortar en memoria --medido, hasta
     # un 99 % de las filas descartadas--. Ninguna de las dos interpola nada: van como
     # parámetros y pymysql expande la tupla a `(a, b, c)`.
+    # `branches` puede venir ya resuelto por un llamador --el HQ lo hace-- o resolverse
+    # acá desde `branch` y `main_branch`. Sin esto, filtrar el Libro por una sucursal
+    # GRUPO devolvía CERO filas: ninguna factura se emite contra el nodo padre.
     branch: str = filters.get("branch") or ""
+    if not filters.get("branches"):
+        scope: set | None = resolve_branch_scope(branch, filters.get("main_branch"))
+        if scope is not None:
+            # Conjunto vacío: ninguna sucursal matchea. Se fuerza un centinela imposible
+            # en vez de dejarlo vacío, porque `branches=[]` es falsy y unas líneas más
+            # abajo haría que el filtro se ignore y se devolviera TODO.
+            filters["branches"] = sorted(scope) if scope else ["__ninguna__"]
+            branch = ""
+            filters.pop("branch", None)
+
     branches: list = sorted({b for b in (filters.get("branches") or []) if b})
 
     if branches:
