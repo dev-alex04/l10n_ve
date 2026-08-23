@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.55.0] - 2026-08-23
+
+### ✨ Funcionalidades (Features)
+- Se implementó el filtro «Sucursal Principal» y la funcionalidad de consolidación (rollup) de subárboles en el Libro de Ventas. [6473f545]
+
+### 🐛 Correcciones (Fixes)
+- Corregida la lógica en el Libro de Ventas donde el HQ perdía la referencia de hoja (leaf) en la jerarquía, extendiendo el comportamiento más allá de la sucursal principal. [f3cf2ac7]
+
+---
+
 ## [v2.54.1] - 2026-08-22
 
 ### 🐛 Correcciones (Fixes)
