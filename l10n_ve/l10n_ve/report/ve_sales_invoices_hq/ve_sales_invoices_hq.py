@@ -40,6 +40,12 @@ from frappe import _
 from frappe.utils import flt, getdate
 
 from l10n_ve.l10n_ve.report.sales_book.sales_book import (
+    # El rollup de sucursal vive en `sales_book` y no acá: este módulo es un wrapper
+    # --«la única fuente de verdad fiscal es sales_book»-- y el Libro necesitaba el
+    # mismo rollup. `get_main_branches` se reexporta para que la ruta punteada que el
+    # JS de este reporte tiene hardcodeada siga resolviendo.
+    get_branch_subtree,
+    get_main_branches,  # noqa: F401  (reexport para el link query del JS)
     get_columns as _sales_book_columns,
     get_report_summary as _sales_book_report_summary,
     get_sales_data as _sales_book_data,
@@ -76,7 +82,7 @@ def get_hq_data(filters=None) -> dict:
     filters.pop("main_branch", None)
     filters.pop("municipality", None)
 
-    subtree: set | None = _get_branch_subtree(branch_filter)
+    subtree: set | None = get_branch_subtree(branch_filter)
     if subtree:
         filters.pop("branch", None)
 
@@ -86,7 +92,7 @@ def get_hq_data(filters=None) -> dict:
     allowed: set | None = subtree
     if main_branch_filter:
         main_allowed: set = (
-            _get_branch_subtree(main_branch_filter) or {main_branch_filter}
+            get_branch_subtree(main_branch_filter) or {main_branch_filter}
         )
         allowed = main_allowed if allowed is None else (allowed & main_allowed)
 
@@ -418,28 +424,6 @@ def _validate_filters(filters: dict) -> None:
         frappe.throw(_("La Fecha Desde no puede ser posterior a la Fecha Hasta."))
 
 
-def _get_branch_subtree(branch: str | None) -> set | None:
-    """Nombres de la sucursal y sus descendientes, o ``None`` si no hay rollup.
-
-    Devuelve ``None`` cuando no hay filtro de sucursal o cuando la elegida es
-    una hoja: en ese caso conviene dejar que el libro filtre en SQL (usa el
-    índice ``branch_index``) en vez de traer todo y recortar en memoria.
-    """
-    if not branch:
-        return None
-
-    node = frappe.db.get_value(BRANCH_DOCTYPE, branch, ["lft", "rgt"], as_dict=True)
-    if not node or node.lft is None or node.rgt is None:
-        return None
-
-    names: list[str] = frappe.get_all(
-        BRANCH_DOCTYPE,
-        filters={"lft": [">=", node.lft], "rgt": ["<=", node.rgt]},
-        pluck="name",
-    )
-    return set(names) if len(names) > 1 else None
-
-
 def _get_branch_municipality_map() -> dict:
     """Mapa ``{sucursal: id de municipio}`` de TODAS las sucursales, con herencia.
 
@@ -676,20 +660,3 @@ def _insert_column_after(columns: list[dict], fieldname: str, column: dict) -> N
     columns.append(column)
 
 
-@frappe.whitelist()
-@frappe.validate_and_sanitize_search_inputs
-def get_main_branches(doctype, txt, searchfield, start, page_len, filters):
-    """Link query del filtro 'Sucursal Principal': solo las de consolidación.
-
-    Son las que cuelgan directo de la raíz del árbol. Ofrecer las sucursales
-    completas obligaría al usuario a saber de memoria cuáles consolidan.
-    """
-    return frappe.db.sql("""
-        SELECT b.name
-        FROM `tabVE Branch` b
-        INNER JOIN `tabVE Branch` raiz ON raiz.name = b.parent_ve_branch
-        WHERE IFNULL(raiz.parent_ve_branch, '') = ''
-          AND b.name LIKE %(txt)s
-        ORDER BY b.name
-        LIMIT %(start)s, %(page_len)s
-    """, {"txt": "%" + txt + "%", "start": start, "page_len": page_len})
