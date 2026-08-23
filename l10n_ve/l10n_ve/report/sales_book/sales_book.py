@@ -194,21 +194,32 @@ def resolve_branch_scope(branch: str | None, main_branch: str | None) -> set | N
     scope: set | None = get_branch_subtree(branch)
 
     if main_branch:
-        main_scope: set = get_branch_subtree(main_branch) or {main_branch}
-        if scope is None:
-            # `branch` no vino, o es una HOJA --y para una hoja `get_branch_subtree`
-            # devuelve `None`, que es el atajo de «filtrá con igualdad simple»--.
-            # Cuando hay que intersectar, ese `None` NO puede leerse como «sin filtro»:
-            # el nodo tiene que entrar igual, si no la sucursal pedida se pierde.
-            #
-            # El bug que esto arregla venia del HQ: pedir una hoja de OTRA principal
-            # devolvia el subarbol entero de la principal --medido, 1.227 filas donde
-            # correspondian cero-- porque el filtro de sucursal desaparecia.
-            scope = ({branch} & main_scope) if branch else main_scope
-        else:
-            scope = scope & main_scope
+        scope = narrow_branch_scope(
+            scope, branch, get_branch_subtree(main_branch) or {main_branch})
 
     return scope
+
+
+def narrow_branch_scope(scope: set | None, branch: str | None, extra: set) -> set:
+    """Intersecta un scope de sucursales con otro conjunto SIN perder la hoja.
+
+    ``scope`` puede venir en ``None``, y ese ``None`` es ambiguo si se lo lee de
+    apuro: significa «no hay nada que acotar por conjunto», pero eso cubre DOS
+    casos --no hay filtro de sucursal, o la elegida es una HOJA y se prefiere la
+    igualdad simple, que usa ``branch_index``--. Al intersectar, el segundo caso
+    NO puede tratarse como «sin filtro»: el nodo tiene que entrar igual, o la
+    sucursal pedida se pierde y devuelve de más.
+
+    Ese fue el bug: pedir una hoja de OTRA sucursal principal devolvía el
+    subárbol entero de la principal --medido, 1.227 filas donde correspondían
+    cero-- porque el filtro de sucursal desaparecía. El HQ lo repetía además
+    contra el filtro de municipio, con el mismo desenlace.
+
+    Devuelve siempre un conjunto: vacío significa cero filas, nunca «todas».
+    """
+    if scope is None:
+        return ({branch} & extra) if branch else set(extra)
+    return scope & extra
 
 
 @frappe.whitelist()
