@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.57.1] - 2026-08-24
+
+### ✨ Funcionalidades (Features)
+- Se realizó una refactorización en la localización de Venezuela (l10n_ve) para remover el módulo de reporte pro. [c0a28e19]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la configuración del Workspace para establecer la Conciliación de Cajas como una URL funcional y corregir la sincronización del contador de enlaces (link_count). [f5e00db5]
+
+---
+
 ## [v2.57.0] - 2026-08-24
 
 ### ✨ Funcionalidades (Features)
