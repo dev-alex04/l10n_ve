@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.57.3] - 2026-08-24
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió el cálculo en el libro de ventas para asegurar que la base por alícuota refleje correctamente la base real de la factura. (#666)
+
+---
+
 ## [v2.57.2] - 2026-08-24
 
 ### ✨ Funcionalidades (Features)
