@@ -16,7 +16,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Administración",
-   "link_count": 8,
+   "link_count": 7,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -98,21 +98,10 @@
    "type": "Link"
   },
   {
-   "dependencies": "",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Reporte Pro",
-   "link_count": 0,
-   "link_to": "reporte-pro",
-   "link_type": "Page",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
    "hidden": 0,
    "is_query_report": 0,
    "label": "Reportes Importantes",
-   "link_count": 10,
+   "link_count": 9,
    "onboard": 0,
    "type": "Card Break"
   },

@@ -16,7 +16,7 @@ l10n_ve.patches.accounts.clear_igtf_for_specific_invoices
 l10n_ve.patches.accounts.backfill_gl_entry_bill_fields
 l10n_ve.patches.accounts.backfill_gl_entry_bill_fields #2026-07-27-notas-ve
 l10n_ve.patches.model.fix_general_ledger_translation
-l10n_ve.patches.model.force_reload_administracion_workspace
+l10n_ve.patches.model.force_reload_administracion_workspace #2026-08-20-clean-ws
 l10n_ve.patches.setup.backfill_bank_logos
 l10n_ve.patches.model.backfill_voucher_supplier_name
 l10n_ve.patches.setup.create_retention_reminder_email_template
