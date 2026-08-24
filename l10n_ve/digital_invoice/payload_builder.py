@@ -65,6 +65,9 @@ def to_camel_case(key: str) -> str:
     return key[0].lower() + key[1:]
 
 
+from l10n_ve.digital_invoice.hka_environment import notification_emails
+
+
 def clean_payload(d):
     """
     1. Elimina nulos y vacíos para evitar colapsos en el parser.
@@ -446,10 +449,11 @@ class TFHKAPayloadBuilder:
             "Pais": "VE",
             "Notificar": None,
             "Telefono": [self.doc.contact_mobile],
-            "Correo": (
-                [e.strip() for e in self.doc.contact_email.split(",") if e.strip()]
-                if self.doc.contact_email
-                else []
+            # En un sitio que no es producción el correo del cliente se desvía al de
+            # pruebas. La regla vive en hka_environment para que el payload y la vista
+            # previa digan lo mismo.
+            "Correo": notification_emails(
+                [e.strip() for e in (self.doc.contact_email or "").split(",") if e.strip()]
             ),
             "OtrosEnvios": None
         }

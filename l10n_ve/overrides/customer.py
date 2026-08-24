@@ -50,7 +50,6 @@ def get_customer_emails(customer_name):
 
     return VECustomer.get_email_list(doc)
 
-
 def get_customer_dashboard_data(data: dict) -> dict:
     """
     Extiende el tablero de conexiones del Cliente para incluir

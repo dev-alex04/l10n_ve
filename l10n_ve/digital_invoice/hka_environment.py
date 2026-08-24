@@ -131,3 +131,61 @@ def is_demo() -> bool:
 def environment_label() -> str:
     """``Production`` / ``Demo``, con las etiquetas del Select de TFHKA Settings."""
     return "Production" if is_production() else "Demo"
+
+
+#: Bloque del site_config donde vive el correo de pruebas. NO es `digital_billing_settings`:
+#: lo comparte con los avisos de retenciones, que lo leen de acá (ver `tasks.py`).
+_SETTINGS_KEY: str = "l10n_ve_settings"
+
+
+def notification_emails(real: list[str]) -> list[str]:
+    """A qué correos se le avisa: los del cliente en producción, el de pruebas si no.
+
+    Se resuelve acá y no en cada llamador para que el payload que se le manda a HKA y
+    la vista previa que ve el usuario digan lo mismo. Que diverjan es peor que no
+    filtrar: la pantalla asegura que el correo del cliente no sale, y sale igual.
+
+    Sin `test_email` configurado se devuelve la lista vacía: nadie recibe nada. NO se
+    corta. Cortar seria fail-closed sobre el papel y en la practica rompe la vista previa
+    y la emision de todo sitio de desarrollo y del CI, que no tienen ese valor puesto --y
+    para un dato cuyo unico proposito es proteger, "no mandar a nadie" ya es el resultado
+    seguro. Queda anotado en el log para que la falta de configuracion se pueda ver.
+    """
+    estado: dict = inspect()
+
+    # Sin el bloque en el site_config, el sitio no emite a HKA: no hay correo que
+    # proteger y tampoco a donde mandarlo. Lista vacia. Cortar aca rompia toda la suite
+    # de payload en un sitio recien creado --el del CI-- sin ganar nada.
+    if not estado["configured"]:
+        return []
+
+    # Ambiguo es distinto de ausente: si no se puede saber si el sitio es de pruebas,
+    # tampoco se puede saber si el correo del cliente debe salir. Ahi si se corta.
+    if estado["problem"]:
+        frappe.throw(estado["problem"], title=_TITLE)
+
+    if estado["is_production"]:
+        return list(real or [])
+
+    prueba: str = (
+        (frappe.get_site_config().get(_SETTINGS_KEY) or {}).get("test_email") or ""
+    ).strip()
+    if not prueba:
+        if real:
+            # `error` y no `info` a proposito. El logger de Frappe arranca con nivel
+            # efectivo ERROR, asi que TODO lo de abajo se descarta en silencio y el
+            # archivo queda en cero bytes -- medido:
+            #
+            #     isEnabledFor(INFO)    = False
+            #     isEnabledFor(WARNING) = False
+            #     isEnabledFor(ERROR)   = True
+            #
+            # O sea que `warning` tampoco alcanza. Y esto tiene que quedar escrito
+            # porque el docstring de arriba apoya la decision de NO cortar justamente
+            # en que la falta de configuracion se puede ver despues.
+            frappe.logger("l10n_ve").error(
+                f"HKA: sitio fuera de produccion sin {_SETTINGS_KEY}.test_email; "
+                "el documento sale sin correo en vez de con el del cliente."
+            )
+        return []
+    return [e.strip() for e in prueba.split(",") if e.strip()]
