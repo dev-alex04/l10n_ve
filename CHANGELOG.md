@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.57.0] - 2026-08-24
+
+### ✨ Funcionalidades (Features)
+- Implementación de permisos exclusivos para el Reporte Gerencial, restringiendo su acceso únicamente al rol de **Executive Reporting Manager**. (6ae33dc5)
+
+### 🐛 Correcciones (Fixes)
+- Corrección en la lógica de restricciones del Reporte Gerencial para asegurar que el reporte siempre mantenga un propietario asignado. (6bc13525)
+
+---
+
 ## [v2.56.1] - 2026-08-24
 
 ### 🐛 Correcciones (Fixes)
