@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.57.4] - 2026-08-24
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió una vulnerabilidad crítica de seguridad en el proceso de generación de PDFs, donde el inlineado de CSS permitía el acceso no autorizado a archivos del sistema de archivos local. (#667)
+
+---
+
 ## [v2.57.3] - 2026-08-24
 
 ### 🐛 Correcciones (Fixes)
