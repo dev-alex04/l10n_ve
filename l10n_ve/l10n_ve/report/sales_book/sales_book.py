@@ -655,15 +655,79 @@ def _get_legacy_calc_columns() -> str:
     """
 
 
+#: Clase de contribuyente por RIF, igual que las columnas de IVA de abajo.
+_NON_TAXPAYER_COND: str = "(tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E'))"
+_TAXPAYER_COND: str = "tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E')"
+
+
+def _base_column_new_calc(taxpayer_cond: str, rate_param: str, alias: str) -> str:
+    """UNA columna de base imponible del cálculo nuevo.
+
+    **La base es la REAL de la factura** (``base_net_total`` menos la porción exenta)
+    cuando el documento tiene una sola alícuota de IVA —que es el 100 por ciento de los
+    casos medidos: cero facturas multi-alícuota en todo el histórico—. Reconstruirla
+    desde el impuesto (``base_tax_amount * 100/tasa``) amplificaba x6,25 el redondeo a
+    2 decimales del IVA guardado: hasta ±0,031 por factura, que sobre un mes real sumaba
+    Bs. +17,85 y hacía que base + IVA no diera el total. Medido sobre MIR-01 agosto-2026:
+    3.156 de 3.165 filas con deriva de céntimos.
+
+    La reconstrucción queda SOLO como fallback multi-alícuota, donde el neto no viene
+    partido por tasa y derivarlo del impuesto es la única forma de asignar porciones.
+
+    **La detección de «tasa única» cuenta TODAS las líneas de IVA, incluidas las de
+    tasa 0.** Filtrarlas por ``base_tax_amount <> 0`` --que es lo natural de escribir,
+    porque una línea al 0 por ciento aporta impuesto cero-- las volvía invisibles al
+    conteo: una factura que mezclara 16 por ciento con 0 por ciento contaría UNA tasa,
+    entraría por la rama de base real y le asignaría a la columna del 16 por ciento
+    TAMBIÉN el neto de las líneas al 0, declarándolo como si tributara. Contando todas,
+    esa factura da dos tasas y cae al fallback, que reconstruye desde el impuesto y por
+    construcción deja fuera lo que no tributa. Hoy no existe ninguna factura así --cero
+    en las tres tablas, contando todas las tasas-- pero el modo de fallar es silencioso
+    y la guarda no cuesta nada.
+
+    El ``SUM(...) > 0`` decide cuál de las seis columnas recibe el neto real: la clase
+    de contribuyente es constante por factura y la tasa única selecciona la columna;
+    para las otras cinco el fallback reconstruye sobre cero líneas y da 0, igual que
+    antes. Los documentos sin IVA (exonerados) no entran a ninguna base por ninguno de
+    los dos caminos: mismo comportamiento que siempre.
+    """
+    return f"""CASE
+                WHEN COUNT(DISTINCT CASE WHEN tstac.charge_type = 'VAT'
+                                         THEN tstac.rate END) = 1
+                     AND SUM(CASE WHEN {taxpayer_cond} AND tstac.rate = %({rate_param})s
+                                   AND tstac.charge_type = 'VAT'
+                                  THEN ABS(tstac.base_tax_amount) ELSE 0 END) > 0
+                THEN (COALESCE(MAX(siv.base_net_total), 0) - COALESCE(MAX(siv.base_total_exempt), 0))
+                     * MAX(siv.amount_sign) * (1 - MAX(siv.is_void))
+                ELSE SUM(CASE WHEN {taxpayer_cond} AND tstac.rate = %({rate_param})s
+                               AND tstac.charge_type = 'VAT'
+                              THEN tstac.base_tax_amount * (100.0 / %({rate_param})s) ELSE 0 END)
+                     * MAX(siv.amount_sign) * (1 - MAX(siv.is_void))
+            END AS {alias}"""
+
+
 def _get_new_calc_columns() -> str:
     """Columnas de cálculo NUEVO (facturas posteriores al corte fiscal).
 
     Usa base_net_total y base_tax_amount directamente (fuente de verdad VEF).
-    Las bases por alícuota se derivan del IVA por fila: base_tax_amount * (100/rate),
-    de modo que en facturas multi-alícuota cada columna recibe solo su porción.
+    Las bases por alícuota son la base REAL de la factura cuando hay una sola tasa
+    --ver ``_base_column_new_calc``: reconstruirlas desde el IVA amplificaba el
+    redondeo y base + IVA no daba el total--. La reconstrucción queda solo como
+    fallback multi-alícuota.
     Incluye (1-is_void) para anular montos en facturas void.
     Filtra charge_type='VAT' en bases por alícuota.
     """
+    cols = {
+        "_bc_" + alias: _base_column_new_calc(cond, rate, alias)
+        for cond, rate, alias in (
+            (_NON_TAXPAYER_COND, "general_rate", "base_general_non_taxpayer"),
+            (_NON_TAXPAYER_COND, "reduced_rate", "base_reduced_non_taxpayer"),
+            (_NON_TAXPAYER_COND, "additional_rate", "base_additional_non_taxpayer"),
+            (_TAXPAYER_COND, "general_rate", "base_general_taxpayer"),
+            (_TAXPAYER_COND, "reduced_rate", "base_reduced_taxpayer"),
+            (_TAXPAYER_COND, "additional_rate", "base_additional_taxpayer"),
+        )
+    }
     return """
             -- NUEVO: base_* almacenados (fuente de verdad VEF)
             -- MAX(siv.*): compatibilidad con ONLY_FULL_GROUP_BY (GROUP BY siv.name = PK, 1 fila por grupo)
@@ -676,24 +740,23 @@ def _get_new_calc_columns() -> str:
             MAX(siv.base_amount_igtf) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_amount_igtf,
             MAX(siv.total_igtf) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS total_igtf,
 
-            -- Base por alícuota derivada del IVA por fila: base_tax_amount * (100/rate)
-            -- base_tax_amount ya está en VEF (no requiere conversion_rate). Soporta multi-alícuota:
-            -- cada columna recibe SOLO la porción de su tasa, no la base imponible total.
+            -- Bases por alícuota: la REAL de la factura con tasa única; reconstruida
+            -- solo como fallback multi-alícuota (ver _base_column_new_calc).
             -- No contribuyente: RIF cuyo primer caracter (sin guion) es V o E, o sin RIF
             -- Se usa REPLACE para cubrir formatos con guion (V-) y sin guion (V)
-            SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_non_taxpayer,
+            {_bc_base_general_non_taxpayer},
             SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_non_taxpayer,
-            SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_non_taxpayer,
+            {_bc_base_reduced_non_taxpayer},
             SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_non_taxpayer,
-            SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_non_taxpayer,
+            {_bc_base_additional_non_taxpayer},
             SUM(CASE WHEN (tc.tax_id IS NULL OR tc.tax_id = '' OR LEFT(REPLACE(tc.tax_id, '-', ''), 1) IN ('V', 'E')) AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_non_taxpayer,
 
             -- Contribuyente: RIF con primer caracter (sin guion) distinto de V/E
-            SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(general_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_general_taxpayer,
+            {_bc_base_general_taxpayer},
             SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(general_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_general_taxpayer,
-            SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(reduced_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_reduced_taxpayer,
+            {_bc_base_reduced_taxpayer},
             SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(reduced_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_reduced_taxpayer,
-            SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount * (100.0 / %(additional_rate)s) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS base_additional_taxpayer,
+            {_bc_base_additional_taxpayer},
             SUM(CASE WHEN tc.tax_id IS NOT NULL AND tc.tax_id != '' AND LEFT(REPLACE(tc.tax_id, '-', ''), 1) NOT IN ('V', 'E') AND tstac.rate = %(additional_rate)s AND tstac.charge_type = 'VAT' THEN tstac.base_tax_amount ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void)) AS iva_additional_taxpayer,
             -- IVA retenido solo cuando existe comprobante emitido Y la retención pertenece al período
             -- consultado; si withholding_date es NULL (fecha desconocida) se atribuye al período de emisión
@@ -711,7 +774,7 @@ def _get_new_calc_columns() -> str:
             END AS vat_withholding_rate,
             MAX(siv.posting_date) AS posting_date_sort,
             MAX(siv.withholding_date) AS withholding_date_sort
-    """
+    """.format(**cols)
 
 
 def get_query() -> str:
