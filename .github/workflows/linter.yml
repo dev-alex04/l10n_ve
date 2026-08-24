@@ -16,7 +16,7 @@ jobs:
     name: Semgrep
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # El escaneo es diferencial: semgrep compara contra la base del PR y solo
           # reporta hallazgos NUEVOS. Sin el historial no puede calcular esa base y
