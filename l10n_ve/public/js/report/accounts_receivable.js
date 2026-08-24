@@ -75,6 +75,25 @@
         }
     };
 
+    const patch_query_report_prototype = () => {
+        if (
+            frappe.views &&
+            frappe.views.QueryReport &&
+            frappe.views.QueryReport.prototype &&
+            typeof frappe.views.QueryReport.prototype.setup_filters === "function" &&
+            !frappe.views.QueryReport._ar_ve_patched
+        ) {
+            const original_setup_filters = frappe.views.QueryReport.prototype.setup_filters;
+            frappe.views.QueryReport.prototype.setup_filters = function () {
+                if (this.report_name === "Accounts Receivable" && this.report_settings) {
+                    define_report_override(this.report_settings);
+                }
+                return original_setup_filters.apply(this, arguments);
+            };
+            frappe.views.QueryReport._ar_ve_patched = true;
+        }
+    };
+
     let report = frappe.query_reports["Accounts Receivable"];
     if (report) {
         define_report_override(report);
@@ -91,5 +110,11 @@
             configurable: true,
             enumerable: true,
         });
+    }
+
+    // Parchear prototipo inmediatamente o al estar listo el desk
+    patch_query_report_prototype();
+    if (typeof $ !== "undefined" && $(document).on) {
+        $(document).on("app_ready page-change", patch_query_report_prototype);
     }
 })();
