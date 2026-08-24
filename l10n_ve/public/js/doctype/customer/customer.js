@@ -99,9 +99,11 @@ function handle_customer_field_change(frm, fieldname) {
   if (doc_type === "Cedula" || doc_type === "Passport") {
     frm.toggle_display("is_special_taxpayer", false);
     frm.toggle_display("tabulator_islr", false);
-    frm.set_value("is_special_taxpayer", 0);
-    frm.set_value("tabulator_islr", "");
-    frm.set_value("tax_withholding_category", "");
+    if (fieldname) {
+      if (frm.doc.is_special_taxpayer) frm.set_value("is_special_taxpayer", 0);
+      if (frm.doc.tabulator_islr) frm.set_value("tabulator_islr", "");
+      if (frm.doc.tax_withholding_category) frm.set_value("tax_withholding_category", "");
+    }
     frm.set_df_property("tax_withholding_category", "reqd", 0);
     frm.toggle_display("tax_withholding_category", false);
     frm.toggle_display("ve_municipality", false);
@@ -115,12 +117,12 @@ function handle_customer_field_change(frm, fieldname) {
     const is_special = frm.doc.is_special_taxpayer;
     frm.toggle_display("tax_withholding_category", is_special);
     frm.set_df_property("tax_withholding_category", "reqd", is_special ? 1 : 0);
-    if (!is_special) {
-      frm.set_value("tax_withholding_category", "");
-      frm.set_value("ve_municipality", "");
-      frm.set_value("economic_activity", "");
-      frm.set_value("municipal_withholding_rate", 0);
-      frm.set_value("municipality_tax", "");
+    if (!is_special && fieldname) {
+      if (frm.doc.tax_withholding_category) frm.set_value("tax_withholding_category", "");
+      if (frm.doc.ve_municipality) frm.set_value("ve_municipality", "");
+      if (frm.doc.economic_activity) frm.set_value("economic_activity", "");
+      if (frm.doc.municipal_withholding_rate) frm.set_value("municipal_withholding_rate", 0);
+      if (frm.doc.municipality_tax) frm.set_value("municipality_tax", "");
     }
     frm.toggle_display("ve_municipality", is_special);
     frm.toggle_display("economic_activity", is_special);
