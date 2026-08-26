@@ -1,4 +1,4 @@
-__version__ = "v2.57.4"
+__version__ = "v2.57.5"
 
 import frappe
 
