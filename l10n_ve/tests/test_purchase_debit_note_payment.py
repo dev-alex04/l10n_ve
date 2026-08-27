@@ -4,6 +4,11 @@ La ND de compra lleva outstanding propio --el hook de GL Entry se lo recalcula c
 AP (credit - debit)-- asi que se paga contra si misma y no a traves de la factura
 afectada. Antes de esto solo estaba cableada la ND de VENTAS: faltaban la lista
 blanca del servidor, el manejo en `get_payment_entry` y el boton del formulario.
+
+ALCANCE: aca van las piezas aisladas. El pago DE VERDAD --emitir el Payment Entry y
+ver moverse el outstanding-- vive en `test_purchase_debit_note_payment_e2e`, y esa
+separacion importa: el bug que motivo la feature solo aparece emitiendo, y un test
+con `PurchaseInvoice.set_status` mockeado como los de aca no lo atrapa.
 """
 
 import unittest
@@ -57,34 +62,6 @@ class TestValidReferenceDoctypes(unittest.TestCase):
                 valid = self._pe(parte).get_valid_reference_doctypes()
             self.assertNotIn("VE Purchase Credit Note", valid)
             self.assertNotIn("VE Sales Credit Note", valid)
-
-
-class TestDebitNotePaymentDirection(unittest.TestCase):
-    """La tabla que traduce cada ND a sentido de pago y cuenta."""
-
-    def test_la_nd_de_compra_es_un_pago_a_proveedor(self):
-        cfg = pe_mod._VE_DEBIT_NOTE_PAYMENT["VE Purchase Debit Note"]
-        self.assertEqual(cfg["party_type"], "Supplier")
-        self.assertEqual(cfg["payment_type"], "Pay")
-
-    def test_la_nd_de_ventas_es_un_cobro_a_cliente(self):
-        cfg = pe_mod._VE_DEBIT_NOTE_PAYMENT["VE Sales Debit Note"]
-        self.assertEqual(cfg["party_type"], "Customer")
-        self.assertEqual(cfg["payment_type"], "Receive")
-
-    def test_la_cuenta_va_del_lado_que_corresponde(self):
-        """En un cobro la cuenta de la parte va en paid_from; en un pago, en paid_to.
-
-        Es la semantica de ERPNext (payment_entry.py:2936-2937). Invertirlo deja el
-        asiento del lado equivocado sin que nada avise.
-        """
-        compra = pe_mod._VE_DEBIT_NOTE_PAYMENT["VE Purchase Debit Note"]
-        self.assertEqual(compra["account_field"], "credit_to")
-        self.assertEqual(compra["pe_account_field"], "paid_to")
-
-        venta = pe_mod._VE_DEBIT_NOTE_PAYMENT["VE Sales Debit Note"]
-        self.assertEqual(venta["account_field"], "debit_to")
-        self.assertEqual(venta["pe_account_field"], "paid_from")
 
 
 class TestPurchaseDebitNoteSetStatus(unittest.TestCase):
