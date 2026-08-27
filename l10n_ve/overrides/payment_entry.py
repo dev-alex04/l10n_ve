@@ -37,9 +37,19 @@ class CustomPaymentEntry(PaymentEntry):
         return super().allocate_amount_to_references(paid_amount, received_amount, allocate_payment_amount)
 
     def get_valid_reference_doctypes(self) -> tuple:
-        """Extiende los doctypes de referencia válidos para incluir ND."""
+        """Extiende los doctypes de referencia válidos para incluir las ND.
+
+        Las notas de débito llevan outstanding propio --el hook de GL Entry se lo
+        recalcula-- así que se cobran/pagan directamente. Las notas de CRÉDITO no
+        entran: no tienen outstanding, reducen el de la factura original.
+        """
         valid: tuple = super().get_valid_reference_doctypes() or ()
-        ve_doctypes: tuple = ("VE Sales Debit Note",)
+        if self.party_type == "Customer":
+            ve_doctypes: tuple = ("VE Sales Debit Note",)
+        elif self.party_type == "Supplier":
+            ve_doctypes = ("VE Purchase Debit Note",)
+        else:
+            ve_doctypes = ()
         return valid + tuple(dt for dt in ve_doctypes if dt not in valid)
 
     def calculate_igtf_taxes(self) -> None:
@@ -1084,6 +1094,24 @@ class CustomPaymentEntry(PaymentEntry):
         self.transaction_exchange_rate = self.exchange_rate
 
 
+# Notas de débito que se cobran/pagan directamente. `account_field` es la cuenta de
+# la parte en la ND, y `pe_account_field` dónde va esa cuenta en el Payment Entry.
+_VE_DEBIT_NOTE_PAYMENT: dict = {
+    "VE Sales Debit Note": {
+        "party_type": "Customer",
+        "payment_type": "Receive",
+        "account_field": "debit_to",
+        "pe_account_field": "paid_from",
+    },
+    "VE Purchase Debit Note": {
+        "party_type": "Supplier",
+        "payment_type": "Pay",
+        "account_field": "credit_to",
+        "pe_account_field": "paid_to",
+    },
+}
+
+
 @frappe.whitelist()
 def get_payment_entry(
     dt,
@@ -1099,10 +1127,15 @@ def get_payment_entry(
 ) -> PaymentEntry:
 
     # ERPNext no reconoce DocTypes custom en set_party_type() ni
-    # set_payment_type(). Para la ND forzamos los valores correctos.
-    if dt == "VE Sales Debit Note":
-        party_type = party_type or "Customer"
-        payment_type = payment_type or "Receive"
+    # set_payment_type(). Para las ND forzamos los valores correctos.
+    #
+    # El campo de cuenta depende del sentido: en un cobro (Receive) la cuenta de
+    # la parte va en `paid_from`, y en un pago (Pay) en `paid_to`
+    # (payment_entry.py:2936-2937 de ERPNext).
+    ve_note = _VE_DEBIT_NOTE_PAYMENT.get(dt)
+    if ve_note:
+        party_type = party_type or ve_note["party_type"]
+        payment_type = payment_type or ve_note["payment_type"]
 
     payment_entry: PaymentEntry = _original_get_payment_entry(
         dt,
@@ -1117,12 +1150,14 @@ def get_payment_entry(
         created_from_payment_request=created_from_payment_request,
     )
 
-    # ERPNext usa get_party_account() genérica para DocTypes desconocidos,
-    # lo cual podría devolver una cuenta AR distinta a la de la ND.
-    if dt == "VE Sales Debit Note":
-        nd_doc = frappe.get_cached_doc("VE Sales Debit Note", dn)
-        if nd_doc.debit_to and payment_entry.paid_from != nd_doc.debit_to:
-            payment_entry.paid_from = nd_doc.debit_to
+    # ERPNext usa get_party_account() genérica para DocTypes desconocidos, que
+    # puede devolver una cuenta distinta a la que la ND tiene asignada.
+    if ve_note:
+        nd_doc = frappe.get_cached_doc(dt, dn)
+        cuenta = nd_doc.get(ve_note["account_field"])
+        destino = ve_note["pe_account_field"]
+        if cuenta and payment_entry.get(destino) != cuenta:
+            payment_entry.set(destino, cuenta)
 
     igtf_rate: float = frappe.db.get_single_value(
       "Venezuela Account Settings",
