@@ -20,8 +20,12 @@ frappe.ui.form.on("Journal Entry", {
 frappe.ui.form.on("Journal Entry Account", {
     account: function(frm, cdt, cdn) {
         var d = locals[cdt][cdn];
-        if (d.account) {
-            frappe.db.get_value("Account", d.account, "account_number", function(r) {
+        var selected_account = d.account;
+        if (selected_account) {
+            frappe.db.get_value("Account", selected_account, "account_number", function(r) {
+                if (!locals[cdt] || !locals[cdt][cdn] || locals[cdt][cdn].account !== selected_account) {
+                    return;
+                }
                 frappe.model.set_value(cdt, cdn, "account_number", (r && r.account_number) || "");
             });
         } else {
