@@ -1114,16 +1114,16 @@ _VE_DEBIT_NOTE_PAYMENT: dict = {
 
 @frappe.whitelist()
 def get_payment_entry(
-    dt,
-    dn,
-    party_amount=None,
-    bank_account=None,
-    bank_amount=None,
-    party_type=None,
-    payment_type=None,
-    reference_date=None,
-    ignore_permissions=False,
-    created_from_payment_request=False,
+    dt: str,
+    dn: str,
+    party_amount: float | None = None,
+    bank_account: str | None = None,
+    bank_amount: float | None = None,
+    party_type: str | None = None,
+    payment_type: str | None = None,
+    reference_date: str | None = None,
+    ignore_permissions: bool = False,
+    created_from_payment_request: bool = False,
 ) -> PaymentEntry:
 
     # ERPNext no reconoce DocTypes custom en set_party_type() ni
