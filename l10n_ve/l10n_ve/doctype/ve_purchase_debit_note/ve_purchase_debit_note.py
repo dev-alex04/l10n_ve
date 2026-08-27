@@ -95,11 +95,22 @@ class VEPurchaseDebitNote(TaxesMixin, PurchaseInvoice):
         update_modified: bool = True,
     ) -> None:
         """
-        Sobrescribe set_status para evitar AttributeError por falta de due_date,
-        el cual no existe en el esquema de base de datos de la ND.
+        Sobrescribe set_status para rellenar los campos de Purchase Invoice que la
+        ND no tiene en su esquema.
+
+        `set_status` de ERPNext lee `due_date`, `is_return`, `outstanding_amount` y
+        `status`; de esos, la ND solo tiene los dos ultimos. Sin el relleno explota
+        con AttributeError, y el camino donde explota no es evidente: se llega desde
+        el hook de GL Entry que recalcula el outstanding al aprobar un Payment Entry
+        --o sea, al PAGAR la nota--, no al emitirla.
+
+        `is_return` va en 0 y no es un detalle: una ND aumenta la deuda, no la
+        devuelve. Con 1, ERPNext invertiria el signo del estado.
         """
         if not self.get("due_date"):
             self.due_date = self.posting_date or frappe.utils.today()
+        if self.get("is_return") is None:
+            self.is_return = 0
         super().set_status(update=update, status=status, update_modified=update_modified)
 
     def _update_parent_invoice_status(self) -> None:
