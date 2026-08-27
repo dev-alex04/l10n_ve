@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.58.0] - 2026-08-27
+
+### ✨ Funcionalidades (Features)
+- Se habilitó la capacidad de procesar pagos para Notas de Débito de compra. 427400c2
+
+### 🐛 Correcciones (Fixes)
+- Se ajustó la lógica de anulación de pagos para garantizar que el saldo de la Nota de Débito se reintegre correctamente al anular la transacción. 6a885fd9
+
+---
+
 ## [v2.57.5] - 2026-08-26
 
 ### 🐛 Correcciones (Fixes)
