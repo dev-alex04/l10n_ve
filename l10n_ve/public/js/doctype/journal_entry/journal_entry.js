@@ -13,9 +13,16 @@ frappe.ui.form.on("Journal Entry", {
             }).then(function(results) {
                 var by_name = {};
                 (results || []).forEach(function(r) { by_name[r.name] = r.account_number; });
+                var grid = frm.fields_dict.accounts && frm.fields_dict.accounts.grid;
                 (frm.doc.accounts || []).forEach(function(row) {
                     if (row.account && !row.account_number && by_name[row.account]) {
-                        frappe.model.set_value(row.doctype, row.name, "account_number", by_name[row.account]);
+                        row.account_number = by_name[row.account];
+                        if (locals[row.doctype] && locals[row.doctype][row.name]) {
+                            locals[row.doctype][row.name].account_number = by_name[row.account];
+                        }
+                        if (grid && grid.grid_rows_by_docname && grid.grid_rows_by_docname[row.name]) {
+                            grid.grid_rows_by_docname[row.name].refresh_field("account_number");
+                        }
                     }
                 });
             });
