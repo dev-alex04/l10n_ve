@@ -18,21 +18,6 @@ frappe.ui.form.on("Journal Entry", {
 });
 
 frappe.ui.form.on("Journal Entry Account", {
-    account: function(frm, cdt, cdn) {
-        var d = locals[cdt][cdn];
-        var selected_account = d.account;
-        if (selected_account) {
-            frappe.db.get_value("Account", selected_account, "account_number", function(r) {
-                if (!locals[cdt] || !locals[cdt][cdn] || locals[cdt][cdn].account !== selected_account) {
-                    return;
-                }
-                frappe.model.set_value(cdt, cdn, "account_number", (r && r.account_number) || "");
-            });
-        } else {
-            frappe.model.set_value(cdt, cdn, "account_number", "");
-        }
-    },
-
     debit_in_account_currency: function(frm, cdt, cdn) {
         var d = locals[cdt][cdn];
         if (flt(d.debit_in_account_currency) > 0) {
