@@ -9,7 +9,7 @@ frappe.ui.form.on("Journal Entry", {
             frappe.db.get_list("Account", {
                 filters: { name: ["in", accounts] },
                 fields: ["name", "account_number"],
-                limit: accounts.length
+                page_length: accounts.length
             }).then(function(results) {
                 var by_name = {};
                 (results || []).forEach(function(r) { by_name[r.name] = r.account_number; });
