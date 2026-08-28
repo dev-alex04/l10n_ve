@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.60.1] - 2026-08-28
+
+### 🐛 Correcciones (Fixes)
+- Se ocultó el botón de conciliación directa en las entradas de pago (payment_entry) al realizar procesamientos por lote para asegurar la consistencia del flujo de trabajo (#674).
+
+---
+
 ## [v2.60.0] - 2026-08-28
 
 ### ✨ Funcionalidades (Features)
