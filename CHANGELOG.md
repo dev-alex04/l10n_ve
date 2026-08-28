@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.59.0] - 2026-08-28
+
+### ✨ Funcionalidades (Features)
+- Se implementó la lógica para ocultar el campo de selección "Utilizar para gastos" en las sucursales de Venezuela (VE Branch). 04e6ec8b
+
+---
+
 ## [v2.58.0] - 2026-08-27
 
 ### ✨ Funcionalidades (Features)
