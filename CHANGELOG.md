@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.60.0] - 2026-08-28
+
+### ✨ Funcionalidades (Features)
+- Implementación del nuevo campo de número de cuenta en la tabla de detalles de los Asientos de Diario (Journal Entry) bajo el ticket DLE-10. b1254ea5
+
+### 🐛 Correcciones (Fixes)
+- Prevención de condiciones de carrera (race conditions) en el manejador de cuentas de los asientos de diario para asegurar la integridad de los datos. e7a0e599
+- Optimización de la sincronización del número de cuenta mediante el ajuste de la propiedad `fetch_if_empty`. 1738f433
+- Simplificación de la lógica de asignación del número de cuenta, eliminando procesos redundantes de inferencia de nombres. 1d545396
+- Mejora en la consistencia de la interfaz y delegación del proceso de obtención de datos (fetch) directamente al framework Frappe. 10a0e79c
+
+---
+
 ## [v2.59.0] - 2026-08-28
 
 ### ✨ Funcionalidades (Features)
