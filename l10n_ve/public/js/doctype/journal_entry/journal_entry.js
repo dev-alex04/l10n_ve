@@ -13,16 +13,11 @@ frappe.ui.form.on("Journal Entry", {
             }).then(function(results) {
                 var by_name = {};
                 (results || []).forEach(function(r) { by_name[r.name] = r.account_number; });
-                var needs_refresh = false;
                 (frm.doc.accounts || []).forEach(function(row) {
                     if (row.account && !row.account_number && by_name[row.account]) {
-                        row.account_number = by_name[row.account];
-                        needs_refresh = true;
+                        frappe.model.set_value(row.doctype, row.name, "account_number", by_name[row.account]);
                     }
                 });
-                if (needs_refresh) {
-                    frm.refresh_field("accounts");
-                }
             });
         }
     },
