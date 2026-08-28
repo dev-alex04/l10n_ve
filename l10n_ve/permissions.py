@@ -243,6 +243,13 @@ def get_ve_branch_permission_query(user: str, doctype: str = None) -> str:
         
     return " OR ".join(conditions)
 
+# DocType consolidados a nivel nacional, donde la sucursal no aplica como criterio de
+# acceso. Ver `has_ve_branch_permission`.
+DOCTYPES_SIN_SUCURSAL: frozenset[str] = frozenset({
+    "Reporte Gerencial",
+})
+
+
 def has_ve_branch_permission(doc: Any, ptype: str = "read", user: str = None) -> bool:
     """
     Valida permisos a nivel de documento individual (has_permission hook).
@@ -252,6 +259,16 @@ def has_ve_branch_permission(doc: Any, ptype: str = "read", user: str = None) ->
         user = frappe.session.user
         
     if is_admin_user(user):
+        return True
+
+    # Estos DocType son consolidados a nivel nacional: la sucursal no los acota y el
+    # control de acceso queda entero en manos del rol, vía DocPerm.
+    #
+    # Va ANTES del corte por `allowed` de abajo, y eso es deliberado: un usuario sin
+    # ninguna sucursal asignada tiene que poder abrirlos igual. La rama de `issingle`
+    # que está más abajo no alcanza, porque para entonces ya se cortó con
+    # `if not allowed: return False`.
+    if doc and getattr(doc, "doctype", None) in DOCTYPES_SIN_SUCURSAL:
         return True
 
     # Estricto: si el usuario intenta abrir un ancestro al que no tiene permiso

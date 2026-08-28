@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import frappe
 from frappe import _
 
@@ -135,6 +136,20 @@ class CustomCompany(Company):
     def format_number(self, number_format: str | None, number: int) -> str:
         """
         Función de utilidad para aplicar el formato al número.
+
+        Los `#` no siempre vienen en un solo bloque: el número de control venezolano
+        se escribe `##-########` --así lo valida `HKA_CONTROL_RE` y así está impreso
+        en producción, `00-00220248`--, o sea **un solo número repartido entre los
+        grupos**, no un número por grupo. Por eso se rellena a lo ancho de todos los
+        `#` juntos y después se consumen los dígitos de izquierda a derecha.
+
+        El `replace('#' * total, ...)` anterior buscaba los `#` seguidos: con un solo
+        grupo acertaba, pero con `##-######` buscaba ocho consecutivos que ahí no
+        existen y devolvía **el patrón sin sustituir**.
+
+        Cuando el número ya no entra a lo ancho del formato, el excedente se lo lleva
+        el primer grupo, para que el tramo de la derecha conserve el ancho que la
+        imprenta espera.
         """
         # Asegura que number_format no sea None
         number_format = number_format or ""
@@ -145,7 +160,26 @@ class CustomCompany(Company):
         num_placeholders = number_format.count('#')
         formatted_number = str(number).zfill(num_placeholders)
 
-        return number_format.replace('#' * num_placeholders, formatted_number)
+        # `zfill` no recorta: si el número es más largo que el formato, sobran dígitos.
+        leftover = len(formatted_number) - num_placeholders
+        parts: list[str] = []
+        pos = 0
+
+        # El patrón parte el formato en tramos alternados de `#` y de literales, sin
+        # dejar huecos: todo carácter cae en uno o en otro.
+        for chunk in re.finditer(r'#+|[^#]+', number_format):
+            text = chunk.group()
+
+            if not text.startswith('#'):
+                parts.append(text)
+                continue
+
+            width = len(text) + leftover
+            leftover = 0
+            parts.append(formatted_number[pos:pos + width])
+            pos += width
+
+        return ''.join(parts)
 
     def before_save(self):
 

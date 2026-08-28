@@ -5,6 +5,108 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.60.0] - 2026-08-28
+
+### ✨ Funcionalidades (Features)
+- Implementación del nuevo campo de número de cuenta en la tabla de detalles de los Asientos de Diario (Journal Entry) bajo el ticket DLE-10. b1254ea5
+
+### 🐛 Correcciones (Fixes)
+- Prevención de condiciones de carrera (race conditions) en el manejador de cuentas de los asientos de diario para asegurar la integridad de los datos. e7a0e599
+- Optimización de la sincronización del número de cuenta mediante el ajuste de la propiedad `fetch_if_empty`. 1738f433
+- Simplificación de la lógica de asignación del número de cuenta, eliminando procesos redundantes de inferencia de nombres. 1d545396
+- Mejora en la consistencia de la interfaz y delegación del proceso de obtención de datos (fetch) directamente al framework Frappe. 10a0e79c
+
+---
+
+## [v2.59.0] - 2026-08-28
+
+### ✨ Funcionalidades (Features)
+- Se implementó la lógica para ocultar el campo de selección "Utilizar para gastos" en las sucursales de Venezuela (VE Branch). 04e6ec8b
+
+---
+
+## [v2.58.0] - 2026-08-27
+
+### ✨ Funcionalidades (Features)
+- Se habilitó la capacidad de procesar pagos para Notas de Débito de compra. 427400c2
+
+### 🐛 Correcciones (Fixes)
+- Se ajustó la lógica de anulación de pagos para garantizar que el saldo de la Nota de Débito se reintegre correctamente al anular la transacción. 6a885fd9
+
+---
+
+## [v2.57.5] - 2026-08-26
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el módulo de empresas donde el formato del número de control se devolvía de forma literal sin realizar las sustituciones de valores correspondientes. fca88528
+
+---
+
+## [v2.57.4] - 2026-08-24
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió una vulnerabilidad crítica de seguridad en el proceso de generación de PDFs, donde el inlineado de CSS permitía el acceso no autorizado a archivos del sistema de archivos local. (#667)
+
+---
+
+## [v2.57.3] - 2026-08-24
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió el cálculo en el libro de ventas para asegurar que la base por alícuota refleje correctamente la base real de la factura. (#666)
+
+---
+
+## [v2.57.2] - 2026-08-24
+
+### ✨ Funcionalidades (Features)
+- Implementación de lógica para interceptar correos electrónicos antes del envío del payload al proveedor HKA. (#626)
+
+---
+
+## [v2.57.1] - 2026-08-24
+
+### ✨ Funcionalidades (Features)
+- Se realizó una refactorización en la localización de Venezuela (l10n_ve) para remover el módulo de reporte pro. [c0a28e19]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la configuración del Workspace para establecer la Conciliación de Cajas como una URL funcional y corregir la sincronización del contador de enlaces (link_count). [f5e00db5]
+
+---
+
+## [v2.57.0] - 2026-08-24
+
+### ✨ Funcionalidades (Features)
+- Implementación de permisos exclusivos para el Reporte Gerencial, restringiendo su acceso únicamente al rol de **Executive Reporting Manager**. (6ae33dc5)
+
+### 🐛 Correcciones (Fixes)
+- Corrección en la lógica de restricciones del Reporte Gerencial para asegurar que el reporte siempre mantenga un propietario asignado. (6bc13525)
+
+---
+
+## [v2.56.1] - 2026-08-24
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el módulo de clientes que provocaba que el estado no guardado persistiera incorrectamente tras refrescar el formulario. [976734f2]
+
+---
+
+## [v2.56.0] - 2026-08-24
+
+### ✨ Funcionalidades (Features)
+- Se agregó el parámetro `ignore_permissions` en el filtro de comprobantes para el reporte de cuentas por cobrar. [521b91dd]
+
+---
+
+## [v2.55.0] - 2026-08-23
+
+### ✨ Funcionalidades (Features)
+- Se implementó el filtro «Sucursal Principal» y la funcionalidad de consolidación (rollup) de subárboles en el Libro de Ventas. [6473f545]
+
+### 🐛 Correcciones (Fixes)
+- Corregida la lógica en el Libro de Ventas donde el HQ perdía la referencia de hoja (leaf) en la jerarquía, extendiendo el comportamiento más allá de la sucursal principal. [f3cf2ac7]
+
+---
+
 ## [v2.54.1] - 2026-08-22
 
 ### 🐛 Correcciones (Fixes)

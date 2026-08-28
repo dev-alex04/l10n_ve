@@ -41,6 +41,19 @@ frappe.query_reports["Sales book"] = {
         filters: { company: frappe.query_report.get_filter_value("company") },
       }),
     },
+    {
+      // Solo las sucursales de consolidación (las que cuelgan de la raíz). Mismo
+      // link query que el reporte HQ, ahora vive en `sales_book` porque los dos lo
+      // usan y el HQ es un wrapper de este módulo.
+      fieldname: "main_branch",
+      label: __("Sucursal Principal"),
+      fieldtype: "Link",
+      options: "VE Branch",
+      get_query: () => ({
+        query:
+          "l10n_ve.l10n_ve.report.sales_book.sales_book.get_main_branches",
+      }),
+    },
   ],
 
   onload: function (report) {

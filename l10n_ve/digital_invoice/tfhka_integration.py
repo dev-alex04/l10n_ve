@@ -1130,6 +1130,7 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     Es 100% read-only: no asigna números, no modifica la DB, no envía a HKA.
     Los números de documento y control son proyectados (último + 1).
     """
+    from l10n_ve.digital_invoice.hka_environment import notification_emails
     from l10n_ve.digital_invoice.payload_builder import clean_address as _clean_address
 
     frappe.has_permission("Sales Invoice", "submit", doc=invoice_name, throw=True)
@@ -1295,7 +1296,13 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
         "customer_tax_id": customer.tax_id or "",
         "customer_address": customer_address,
         "customer_phone": doc.contact_mobile or "",
-        "customer_email": doc.contact_email or "",
+        # Misma resolución que el payload (payload_builder), para que la pantalla
+        # no prometa algo distinto de lo que se manda.
+        "customer_email": ", ".join(
+            notification_emails(
+                [e.strip() for e in (doc.contact_email or "").split(",") if e.strip()]
+            )
+        ),
         "id_servicio": customer.tax_id or "",
         "zona": zona,
         "nodo": nodo,

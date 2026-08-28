@@ -3,10 +3,14 @@
 
 frappe.ui.form.on("VE Branch", {
   refresh(frm) {
+    frm.set_df_property("is_expenses_branch", "hidden", 1);
+    frm.toggle_display("is_expenses_branch", false);
     frm.trigger("setup_fields");
   },
 
   onload(frm) {
+    frm.set_df_property("is_expenses_branch", "hidden", 1);
+    frm.toggle_display("is_expenses_branch", false);
     frm.set_query("parent_ve_branch", function () {
       return {
         filters: {
@@ -17,6 +21,8 @@ frappe.ui.form.on("VE Branch", {
   },
 
   setup(frm) {
+    frm.set_df_property("is_expenses_branch", "hidden", 1);
+    frm.toggle_display("is_expenses_branch", false);
     frm.trigger("setup_fields");
 
     frm.set_query("mode_of_payment", "mode_of_payments", function () {
@@ -117,6 +123,7 @@ frappe.ui.form.on("VE Branch", {
   },
 
   setup_fields(frm) {
+    frm.set_df_property("is_expenses_branch", "hidden", 1);
     const is_group = frm.doc.is_group;
 
     if (is_group) {

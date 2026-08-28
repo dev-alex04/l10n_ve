@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch
 import frappe
 
 from l10n_ve.l10n_ve.report.ve_sales_invoices_hq import excel_export as xls
+from l10n_ve.l10n_ve.report.sales_book import sales_book
 from l10n_ve.l10n_ve.report.ve_sales_invoices_hq import ve_sales_invoices_hq as hq
 
 FILTROS: dict = {
@@ -94,18 +95,18 @@ class TestBranchSubtree(unittest.TestCase):
     """El rollup solo aplica a sucursales con descendientes."""
 
     def test_sin_sucursal_no_hay_rollup(self) -> None:
-        self.assertIsNone(hq._get_branch_subtree(None))
+        self.assertIsNone(sales_book.get_branch_subtree(None))
 
     @patch("frappe.get_all", return_value=["HOJA"])
     @patch("frappe.db.get_value", return_value=frappe._dict(lft=4, rgt=5))
     def test_hoja_no_hace_rollup(self, _v, _a) -> None:
         # Una sola coincidencia (ella misma) -> conviene el filtro SQL del libro.
-        self.assertIsNone(hq._get_branch_subtree("HOJA"))
+        self.assertIsNone(sales_book.get_branch_subtree("HOJA"))
 
     @patch("frappe.get_all", return_value=["PADRE", "HIJA"])
     @patch("frappe.db.get_value", return_value=frappe._dict(lft=2, rgt=19))
     def test_grupo_devuelve_subarbol(self, _v, _a) -> None:
-        self.assertEqual(hq._get_branch_subtree("PADRE"), {"PADRE", "HIJA"})
+        self.assertEqual(sales_book.get_branch_subtree("PADRE"), {"PADRE", "HIJA"})
 
 
 class TestExecute(unittest.TestCase):
@@ -118,7 +119,7 @@ class TestExecute(unittest.TestCase):
             patch.object(hq, "_sales_book_data", side_effect=_libro_falso(main, adjustment)),
             patch.object(hq, "_sales_book_total_row", return_value={"t": 1}),
             patch.object(hq, "_sales_book_report_summary", return_value=[{"label": "Total"}]),
-            patch.object(hq, "_get_branch_subtree", return_value=subtree),
+            patch.object(sales_book, "get_branch_subtree", return_value=subtree),
             patch.object(hq, "_get_municipality_by_branch", return_value={"A": "Plaza"}),
             patch.object(hq, "_get_main_branch_map", return_value={"A": "MIR-01"}),
         )
@@ -373,21 +374,29 @@ class TestMainBranchMap(unittest.TestCase):
 class TestMainBranchFilter(unittest.TestCase):
     """Filtro 'Sucursal Principal': equivale al subárbol de esa sucursal."""
 
-    def _parchear(self, main, subtree_side_effect):
+    def _parchear(self, main, arbol: dict):
+        """``arbol`` mapea sucursal -> subárbol (``None`` = hoja, el atajo de igualdad).
+
+        Antes esto era una LISTA de valores de retorno, o sea que fijaba cuántas veces
+        y en qué orden se consultaba el árbol. Al pasar el cruce al helper compartido
+        --que consulta una vez más, para el mensaje del reporte-- los tests se caían
+        por `StopIteration` sin que hubiera nada roto. Un mapa por nombre dice lo que
+        el test de verdad quiere decir y no se rompe si cambia el número de llamadas.
+        """
+        subtree_side_effect = lambda b: arbol.get(b)  # noqa: E731
         return (
             patch.object(hq, "_sales_book_columns", return_value=[{"fieldname": "branch"}]),
             patch.object(hq, "_sales_book_data", side_effect=_libro_falso(main)),
             patch.object(hq, "_sales_book_total_row", return_value={"t": 1}),
             patch.object(hq, "_sales_book_report_summary", return_value=[]),
-            patch.object(hq, "_get_branch_subtree", side_effect=subtree_side_effect),
+            patch.object(sales_book, "get_branch_subtree", side_effect=subtree_side_effect),
             patch.object(hq, "_get_municipality_by_branch", return_value={}),
             patch.object(hq, "_get_main_branch_map", return_value={}),
         )
 
     def test_filtra_por_el_subarbol_de_la_principal(self) -> None:
         main = [{"branch": "HIJA"}, {"branch": "NIETA"}, {"branch": "AJENA"}]
-        # sin filtro de sucursal -> None; para la principal -> su subárbol
-        pa = self._parchear(main, [None, {"MIR-01", "HIJA", "NIETA"}])
+        pa = self._parchear(main, {"MIR-01": {"MIR-01", "HIJA", "NIETA"}})
         with pa[0], pa[1], pa[2] as total_row, pa[3], pa[4], pa[5], pa[6]:
             columns, filas, _, _, _ = hq.execute({**FILTROS, "main_branch": "MIR-01"})
 
@@ -400,8 +409,7 @@ class TestMainBranchFilter(unittest.TestCase):
     def test_se_intersecta_con_el_filtro_de_sucursal(self) -> None:
         """Principal MIR-01 + sucursal de otro árbol => sin resultados."""
         main = [{"branch": "HIJA"}, {"branch": "AJENA"}]
-        # subárbol de la sucursal pedida, y luego el de la principal
-        pa = self._parchear(main, [{"AJENA", "OTRA"}, {"MIR-01", "HIJA"}])
+        pa = self._parchear(main, {"DC-02": {"AJENA", "OTRA"}, "MIR-01": {"MIR-01", "HIJA"}})
         with pa[0], pa[1], pa[2], pa[3], pa[4], pa[5], pa[6]:
             columns, filas, _, _, _ = hq.execute({**FILTROS, "branch": "DC-02", "main_branch": "MIR-01"})
 
@@ -412,7 +420,7 @@ class TestMainBranchFilter(unittest.TestCase):
     def test_principal_sin_hijas_se_filtra_a_si_misma(self) -> None:
         """ARA-02 y compañía no tienen descendientes: subtree devuelve None."""
         main = [{"branch": "ARA-02"}, {"branch": "OTRA"}]
-        pa = self._parchear(main, [None, None])
+        pa = self._parchear(main, {})
         with pa[0], pa[1], pa[2], pa[3], pa[4], pa[5], pa[6]:
             columns, filas, _, _, _ = hq.execute({**FILTROS, "main_branch": "ARA-02"})
 
@@ -420,9 +428,40 @@ class TestMainBranchFilter(unittest.TestCase):
 
         self.assertEqual([r["branch"] for r in data], ["ARA-02"])
 
+    def test_una_HOJA_de_otra_principal_devuelve_CERO(self) -> None:
+        """El bug que este PR arregla, medido por el camino real del reporte.
+
+        `get_branch_subtree` devuelve ``None`` para una hoja, y ese ``None`` es el
+        atajo de «filtrá con igualdad simple», no «sin filtro de sucursal». Al cruzar
+        con la principal se leía como lo segundo y la hoja desaparecía: el reporte
+        devolvía el subárbol ENTERO de la principal --1.227 filas donde correspondían
+        cero--. Es un reporte fiscal: de más es peor que vacío.
+
+        El helper compartido ya lo arreglaba para el Libro de Ventas; el HQ seguía con
+        su cruce propio, así que el arreglo entró en un lado y no en el otro.
+        """
+        main = [{"branch": "HIJA"}, {"branch": "NIETA"}, {"branch": "AJENA"}]
+        # DC-02 es HOJA (no está en el mapa -> None) y no cuelga de MIR-01.
+        pa = self._parchear(main, {"MIR-01": {"MIR-01", "HIJA", "NIETA"}})
+        with pa[0], pa[1], pa[2], pa[3], pa[4], pa[5], pa[6]:
+            columns, filas, _, _, _ = hq.execute(
+                {**FILTROS, "branch": "DC-02", "main_branch": "MIR-01"})
+
+        self.assertEqual(como_dicts(columns, filas), [])
+
+    def test_una_HOJA_que_SI_cuelga_de_la_principal_se_conserva(self) -> None:
+        """La contracara: el arreglo no puede vaciar el caso legítimo."""
+        main = [{"branch": "HIJA"}, {"branch": "NIETA"}]
+        pa = self._parchear(main, {"MIR-01": {"MIR-01", "HIJA", "NIETA"}})
+        with pa[0], pa[1], pa[2], pa[3], pa[4], pa[5], pa[6]:
+            columns, filas, _, _, _ = hq.execute(
+                {**FILTROS, "branch": "HIJA", "main_branch": "MIR-01"})
+
+        self.assertEqual([r["branch"] for r in como_dicts(columns, filas)], ["HIJA"])
+
     def test_el_libro_no_recibe_el_filtro_propio(self) -> None:
         """'main_branch' no existe en sales_book: no debe llegarle."""
-        pa = self._parchear([], [None, {"X"}])
+        pa = self._parchear([], {"MIR-01": {"X"}})
         with pa[0], pa[1] as datos, pa[2], pa[3], pa[4], pa[5], pa[6]:
             hq.execute({**FILTROS, "main_branch": "MIR-01"})
 
@@ -572,7 +611,7 @@ class TestMunicipalityFilter(unittest.TestCase):
 
         with (
             patch.object(hq, "_get_branch_municipality_map", return_value=self.MAPA),
-            patch.object(hq, "_get_branch_subtree", return_value={"PADRE", "OTRA"}),
+            patch.object(sales_book, "get_branch_subtree", return_value={"PADRE", "OTRA"}),
             patch.object(hq, "_sales_book_data", side_effect=fake_data),
             patch.object(hq, "_get_main_branch_map", return_value={}),
             patch.object(hq, "_validate_filters", return_value=None),
@@ -580,6 +619,51 @@ class TestMunicipalityFilter(unittest.TestCase):
             hq.get_hq_data({"branch": "PADRE", "municipality": "muni-a"})
 
         self.assertEqual(capturado.get("branches"), ["PADRE"])
+
+    def test_una_HOJA_fuera_del_municipio_devuelve_CERO(self) -> None:
+        """El municipio cruzaba a mano y perdía la hoja igual que la principal.
+
+        Con una hoja (subtree ``None``) el cruce hacía ``allowed = muni_allowed`` y el
+        filtro de sucursal desaparecía: pedir una sucursal Y un municipio devolvía
+        TODAS las del municipio. Se ve solo si la hoja no pertenece al municipio.
+        """
+        capturado: dict = {}
+
+        def fake_data(filters):
+            capturado.update(filters)
+            return [], []
+
+        with (
+            patch.object(hq, "_get_branch_municipality_map", return_value=self.MAPA),
+            patch.object(sales_book, "get_branch_subtree", return_value=None),
+            patch.object(hq, "_sales_book_data", side_effect=fake_data) as libro,
+            patch.object(hq, "_get_main_branch_map", return_value={}),
+            patch.object(hq, "_validate_filters", return_value=None),
+        ):
+            resultado = hq.get_hq_data({"branch": "AJENA", "municipality": "muni-a"})
+
+        libro.assert_not_called()
+        self.assertEqual(resultado["main_data"], [])
+        self.assertEqual(resultado["allowed_count"], 0)
+
+    def test_una_HOJA_dentro_del_municipio_se_conserva(self) -> None:
+        """La contracara: la hoja legítima sigue acotando a sí misma."""
+        capturado: dict = {}
+
+        def fake_data(filters):
+            capturado.update(filters)
+            return [], []
+
+        with (
+            patch.object(hq, "_get_branch_municipality_map", return_value=self.MAPA),
+            patch.object(sales_book, "get_branch_subtree", return_value=None),
+            patch.object(hq, "_sales_book_data", side_effect=fake_data),
+            patch.object(hq, "_get_main_branch_map", return_value={}),
+            patch.object(hq, "_validate_filters", return_value=None),
+        ):
+            hq.get_hq_data({"branch": "HIJO", "municipality": "muni-a"})
+
+        self.assertEqual(capturado.get("branches"), ["HIJO"])
 
     def test_el_mensaje_avisa_cuando_no_matcheo_ninguna(self) -> None:
         with (
@@ -598,3 +682,88 @@ class TestMunicipalityFilter(unittest.TestCase):
             msg = hq._build_report_message("", None, "", "muni-a", 2)
         self.assertIn("Plaza", msg)
         self.assertIn("2", msg)
+
+
+class TestResolveBranchScope(unittest.TestCase):
+    """El cruce de ``branch`` con ``main_branch``, ahora compartido con el Libro.
+
+    Vive en ``sales_book`` porque los dos reportes lo necesitan: el HQ ya lo tenía y el
+    Libro devolvía CERO filas al filtrar por una sucursal grupo.
+    """
+
+    def _scope(self, branch, main, arbol):
+        with patch.object(sales_book, "get_branch_subtree",
+                          side_effect=lambda b: arbol.get(b)):
+            return sales_book.resolve_branch_scope(branch, main)
+
+    #: G es grupo (hijas H1, H2); L y M son hojas -> ``None``, el atajo de igualdad.
+    ARBOL = {"G": {"G", "H1", "H2"}, "L": None, "M": None, "P": {"P", "L"}}
+
+    def test_sin_filtros_no_acota(self):
+        self.assertIsNone(self._scope(None, None, self.ARBOL))
+
+    def test_hoja_sola_deja_la_igualdad_simple(self):
+        """``None`` es el atajo para que el plan use ``branch_index``."""
+        self.assertIsNone(self._scope("L", None, self.ARBOL))
+
+    def test_grupo_solo_devuelve_su_subarbol(self):
+        self.assertEqual(self._scope("G", None, self.ARBOL), {"G", "H1", "H2"})
+
+    def test_principal_sola_devuelve_su_subarbol(self):
+        self.assertEqual(self._scope(None, "P", self.ARBOL), {"P", "L"})
+
+    def test_una_HOJA_de_la_principal_NO_se_pierde(self):
+        """El bug que traía el HQ: la hoja desaparecía y quedaba solo la principal.
+
+        ``get_branch_subtree`` devuelve ``None`` para una hoja, y ese ``None`` se leía
+        como «sin filtro de sucursal». Medido antes del arreglo: pedir una hoja ajena a
+        la principal devolvía 1.227 filas donde correspondían cero.
+        """
+        self.assertEqual(self._scope("L", "P", self.ARBOL), {"L"})
+
+    def test_una_hoja_AJENA_a_la_principal_no_devuelve_nada(self):
+        """Cero filas, no todas: la intersección es vacía y hay que respetarla."""
+        self.assertEqual(self._scope("M", "P", self.ARBOL), set())
+
+    def test_grupo_ajeno_a_la_principal_tampoco(self):
+        self.assertEqual(self._scope("G", "P", self.ARBOL), set())
+
+
+class TestElLibroResuelveSusFiltros(unittest.TestCase):
+    """``get_sales_data`` acota por conjunto sin que el llamador tenga que resolverlo.
+
+    Se leen las decisiones en el fuente en vez de ejecutar la función: simular
+    ``frappe.db.sql`` entero rompe la carga de otros doctypes que ``get_sales_data``
+    toca de paso, y el test terminaba probando el mock. El comportamiento contra la
+    base ya quedó medido a mano sobre los siete casos del árbol real.
+    """
+
+    def _fuente(self):
+        import inspect
+
+        f = inspect.getsource(sales_book.get_sales_data)
+        return f[f.index("branch: str = filters.get"):f.index("--- Datos del período")]
+
+    def test_resuelve_el_scope_cuando_el_llamador_no_lo_dio(self):
+        """El HQ pasa ``branches`` ya resuelto; el Libro tiene que resolverlo solo."""
+        f = self._fuente()
+        self.assertIn('if not filters.get("branches"):', f)
+        self.assertIn("resolve_branch_scope(branch", f)
+        self.assertIn('filters.get("main_branch")', f)
+
+    def test_un_conjunto_vacio_NO_se_lee_como_sin_filtro(self):
+        """``branches=[]`` es falsy unas líneas más abajo: devolvería TODO.
+
+        Se fuerza un centinela imposible para que devuelva cero, que es la respuesta
+        correcta cuando ninguna sucursal matchea.
+        """
+        f = self._fuente()
+        self.assertIn('["__ninguna__"]', f)
+
+    def test_la_hoja_conserva_la_igualdad_simple(self):
+        """El ``elif branch`` tiene que seguir vivo: usa ``branch_index``."""
+        import inspect
+
+        f = inspect.getsource(sales_book.get_sales_data)
+        self.assertIn("AND siv.branch = %(branch)s", f)
+        self.assertIn("AND siv.branch IN %(branches)s", f)

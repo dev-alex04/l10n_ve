@@ -2,6 +2,7 @@ import re
 import os
 import glob
 import frappe
+from frappe import _
 from frappe.utils.pdf import get_pdf
 from frappe.core.doctype.access_log.access_log import make_access_log
 
@@ -64,6 +65,32 @@ def _sanitize_html_for_wkhtmltopdf(html):
                 rel_path = clean_href.lstrip("/")
                 abs_path = os.path.join(frappe.local.sites_path, rel_path)
 
+                # El `startswith("/assets/")` NO alcanza como guarda: se mide sobre el
+                # TEXTO del href y `os.path.join` no normaliza, asi que un href como
+                # `/assets/../../../../../etc/passwd` lo pasa y termina leyendo fuera
+                # del bench. El contenido vuelve embebido en un <style> dentro del PDF,
+                # o sea que el archivo se filtra a quien lo descarga. Medido antes del
+                # arreglo: alcanzaba /etc/passwd, el site_config.json del sitio y
+                # ~/.ssh/id_rsa.
+                #
+                # Se usa `normpath` y NO `realpath`: normpath colapsa los `..`, que es
+                # el ataque, sin seguir symlinks. realpath los sigue, y como cada
+                # `sites/assets/<app>` es un symlink al `public/` de esa app, resolverlo
+                # saca la ruta LEGITIMA del directorio -- probado, bloqueaba todo el CSS
+                # real.
+                # La guarda mide la ruta NORMALIZADA, asi que hay que abrir esa misma
+                # y no la cruda: si no, el chequeo y el `open()` hablan de archivos
+                # distintos. `sites/assets/<app>` es un symlink al `public/` de la app,
+                # o sea que esta un nivel MAS PROFUNDO que su posicion lexica; con eso,
+                # `/assets/l10n_ve/../hooks.py` normaliza a `sites/assets/hooks.py`
+                # --adentro, pasa-- pero el `open()` sin normalizar sigue el symlink y
+                # termina leyendo `apps/l10n_ve/l10n_ve/hooks.py`. Reasignar `abs_path`
+                # cierra ese desfase: lo que se valida es lo que se abre.
+                base_assets = os.path.normpath(os.path.join(frappe.local.sites_path, "assets"))
+                abs_path = os.path.normpath(abs_path)
+                if not abs_path.startswith(base_assets + os.sep):
+                    return ""
+
                 # If exact file doesn't exist, try to match by glob (wildcard the hash)
                 if not os.path.exists(abs_path):
                     directory, filename = os.path.split(abs_path)
@@ -78,6 +105,11 @@ def _sanitize_html_for_wkhtmltopdf(html):
 
                 if os.path.exists(abs_path):
                     try:
+                        # El hallazgo de `frappe-security-file-traversal` esta atendido arriba: la
+                        # guarda de `normpath` contra sites/assets corre antes de llegar aca, asi que
+                        # `abs_path` no puede apuntar fuera del directorio de assets. La regla marca el
+                        # `open()` por si solo y no ve esa comprobacion.
+                        # nosemgrep
                         with open(abs_path, 'r', encoding='utf-8') as f:
                             css_content = f.read()
                         return f"<style>{css_content}</style>"
@@ -128,7 +160,7 @@ def _sanitize_html_for_wkhtmltopdf(html):
 
 
 @frappe.whitelist()
-def custom_report_to_pdf(html, orientation="Landscape"):
+def custom_report_to_pdf(html: str, orientation: str = "Landscape") -> None:
 	"""Custom report_to_pdf that handles proxy/DNS issues with wkhtmltopdf.
 
 	wkhtmltopdf may fail to resolve the server's own hostname (e.g. api.local)
@@ -142,6 +174,13 @@ def custom_report_to_pdf(html, orientation="Landscape"):
 	except Exception:
 		# If log insertion fails, do not block PDF generation
 		pass
+
+	# Este metodo esta whitelisted y recibe HTML arbitrario de quien lo llame, que
+	# despues se le pasa a wkhtmltopdf. Sin esta guarda cualquiera que tenga una
+	# sesion --incluido un usuario de portal sin ningun rol de escritorio-- puede
+	# mandar su propio HTML y hacerlo renderizar del lado del servidor.
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Debe iniciar sesión."), frappe.PermissionError)
 
 	frappe.local.response.filename = "report.pdf"
 

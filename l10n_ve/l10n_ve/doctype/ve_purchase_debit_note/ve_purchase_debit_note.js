@@ -98,6 +98,37 @@ frappe.ui.form.on("VE Purchase Debit Note", {
         __("Ver"),
       );
     }
+
+    // ── Grupo "Crear": pago contra la ND ──────────────────────────────────
+    // La ND de compra lleva outstanding propio --el hook de GL Entry se lo
+    // recalcula como AP (credit - debit)--, asi que se paga directo y no a
+    // traves de la factura afectada. Mismo criterio que la ND de ventas.
+    if (frm.doc.docstatus === 1 && flt(frm.doc.outstanding_amount) > 0) {
+      frm.add_custom_button(
+        __("Pago"),
+        function () {
+          frappe.call({
+            method:
+              "erpnext.accounts.doctype.payment_entry" +
+              ".payment_entry.get_payment_entry",
+            args: {
+              dt: "VE Purchase Debit Note",
+              dn: frm.doc.name,
+            },
+            freeze: true,
+            freeze_message: __("Preparando pago..."),
+            callback: function (r) {
+              if (r.message) {
+                const doclist = frappe.model.sync(r.message);
+                frappe.set_route("Form", doclist[0].doctype, doclist[0].name);
+              }
+            },
+          });
+        },
+        __("Crear"),
+      );
+      frm.page.set_inner_btn_group_as_primary(__("Crear"));
+    }
   },
 
   // Al seleccionar la factura original: auto-poblar datos desde la PI
