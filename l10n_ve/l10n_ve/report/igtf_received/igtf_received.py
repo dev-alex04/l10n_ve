@@ -49,6 +49,13 @@ def execute(filters=None):
 def get_columns():
 	return [
 		{
+			"fieldname": "branch",
+			"label": _("Sucursal"),
+			"fieldtype": "Link",
+			"options": "VE Branch",
+			"width": 120
+		},
+		{
 			"fieldname": "date",
 			"label": _("Fecha"),
 			"fieldtype": "Date",
@@ -144,6 +151,7 @@ def get_data(filters):
 				pass
 
 		data.append(frappe._dict({
+			"branch": row.get("branch"),
 			"date": posting_date,
 			"invoice": row.get("name"),
 			"bill_no": row.get("bill_no"),

@@ -545,6 +545,7 @@ def _get_common_columns() -> str:
             {transaction_type_placeholder}
             siv.is_void,
             siv.is_return,
+            siv.is_debit_note,
             siv.docstatus,
             siv.branch,
             DATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,

@@ -12,6 +12,17 @@ frappe.query_reports["IGTF received"] = {
 			"reqd": 1
 		},
 		{
+			"fieldname": "branch",
+			"label": __("Sucursal"),
+			"fieldtype": "Link",
+			"options": "VE Branch",
+			"default": "",
+			"reqd": 0,
+			"get_query": () => ({
+				filters: { company: frappe.query_report.get_filter_value("company") },
+			}),
+		},
+		{
 			"fieldname": "from_date",
 			"label": __("From Date"),
 			"fieldtype": "Date",

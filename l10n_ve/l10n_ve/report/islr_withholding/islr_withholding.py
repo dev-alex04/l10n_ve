@@ -48,6 +48,7 @@ def get_columns(filters):
             {"fieldname": "subtracting", "label": _("Sustraendo"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "rate", "label": _("% Retención ISLR"), "fieldtype": "Percent", "width": "auto"},
             {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "branch", "label": _("Sucursal"), "fieldtype": "Link", "options": "VE Branch", "width": "auto"},
             {"fieldname": "parent", "label": _("Documento Retención"), "fieldtype": "Link", "options": "ISLR Withholding Voucher", "width": "auto"},
             {"fieldname": "status", "label": _("Estado del Documento"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "declared_status", "label": _("Estado del Comprobante"), "fieldtype": "Data", "width": "auto"}
@@ -69,6 +70,10 @@ def get_data(filters):
         conditions += " AND parent.supplier = %(supplier)s"
         query_params["supplier"] = filters.get("supplier")
 
+    if filters.get("branch"):
+        conditions += " AND (parent.branch = %(branch)s OR pi.branch = %(branch)s)"
+        query_params["branch"] = filters.get("branch")
+
     group_by = filters.get("group_by") or "Detalle"
 
     if group_by == "Por Proveedor":
@@ -86,6 +91,8 @@ def get_data(filters):
                 `tabISLR Withholding Voucher` parent ON child.parent = parent.name
             INNER JOIN
                 `tabSupplier` supp ON parent.supplier = supp.name
+            LEFT JOIN
+                `tabPurchase Invoice` pi ON child.purchase_invoice = pi.name
             WHERE
                 parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 AND parent.docstatus = 1
@@ -109,6 +116,8 @@ def get_data(filters):
                 `tabISLR Withholding Voucher` parent ON child.parent = parent.name
             LEFT JOIN
                 `tabTabulator ISLR` tab_islr ON child.code = tab_islr.codigo
+            LEFT JOIN
+                `tabPurchase Invoice` pi ON child.purchase_invoice = pi.name
             WHERE
                 parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 AND parent.docstatus = 1
@@ -136,6 +145,7 @@ def get_data(filters):
                 child.subtracting,
                 child.rate,
                 child.islr_amount,
+                COALESCE(parent.branch, pi.branch) AS branch,
                 child.parent,
                 parent.is_declared,
                 CASE 
@@ -155,6 +165,8 @@ def get_data(filters):
                 `tabSupplier` supp ON parent.supplier = supp.name
             LEFT JOIN
                 `tabTabulator ISLR` tab_islr ON child.code = tab_islr.codigo
+            LEFT JOIN
+                `tabPurchase Invoice` pi ON child.purchase_invoice = pi.name
             WHERE
                 parent.posting_date BETWEEN %(from_date)s AND %(to_date)s
                 AND parent.docstatus != 2

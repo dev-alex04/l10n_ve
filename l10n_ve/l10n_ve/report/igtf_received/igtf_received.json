@@ -16,6 +16,14 @@
    "wildcard_filter": 0
   },
   {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Sucursal",
+   "mandatory": 0,
+   "options": "VE Branch",
+   "wildcard_filter": 0
+  },
+  {
    "fieldname": "from_date",
    "fieldtype": "Date",
    "label": "From Date",
