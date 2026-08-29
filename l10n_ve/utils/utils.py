@@ -90,6 +90,115 @@ def get_supplier_address(supplier_name):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error getting supplier address")
 
+# Qué implica cada letra de un documento venezolano. Vive al lado de
+# `validate_taxpayer_and_person_type_consistency` a propósito: es la regla que tiene que
+# satisfacer, y separarlas es como se desincronizan.
+#
+# El `label` es para mostrar; el resto son los valores internos de los Select.
+IDENTITY_BY_LETTER: dict[str, dict[str, str]] = {
+    "V": {
+        "label": "Venezolano (persona natural)",
+        "nature_of_the_taxpayer": "Venezuelan",
+        "type_of_person": "Natural person domiciled",
+        "customer_type": "Individual",
+        "short_document": "Cedula",
+        "long_document": "RIF",
+    },
+    "E": {
+        "label": "Extranjero con cédula (persona natural)",
+        "nature_of_the_taxpayer": "Extranjero",
+        "type_of_person": "Natural person domiciled",
+        "customer_type": "Individual",
+        "short_document": "Cedula",
+        "long_document": "RIF",
+    },
+    "P": {
+        "label": "Extranjero con pasaporte",
+        "nature_of_the_taxpayer": "Passport",
+        "type_of_person": "Non-domiciled natural person",
+        "customer_type": "Individual",
+        "short_document": "Passport",
+        "long_document": "Passport",
+    },
+    "J": {
+        "label": "Empresa",
+        "nature_of_the_taxpayer": "Juridical",
+        "type_of_person": "Domiciled legal entity",
+        "customer_type": "Company",
+        "short_document": "RIF",
+        "long_document": "RIF",
+    },
+    "G": {
+        "label": "Ente gubernamental",
+        "nature_of_the_taxpayer": "Government",
+        "type_of_person": "Domiciled legal entity",
+        "customer_type": "Company",
+        "short_document": "RIF",
+        "long_document": "RIF",
+    },
+    "C": {
+        "label": "Consejo comunal",
+        "nature_of_the_taxpayer": "Communal",
+        "type_of_person": "Domiciled legal entity",
+        "customer_type": "Company",
+        "short_document": "RIF",
+        "long_document": "RIF",
+    },
+}
+
+# Un RIF de persona natural lleva 9 dígitos; una cédula, entre 6 y 8. Es lo único que
+# distingue "V12345678" de "V123456789".
+SHORT_DOCUMENT_MAX_DIGITS = 8
+
+
+def split_document_number(raw: str | None) -> tuple[str, str]:
+    """Parte un documento en (letra, dígitos). ("", "") si no se entiende.
+
+    Tolera lo que la gente escribe: "V-12.345.678", "v12345678", con espacios. Un número
+    sin letra devuelve letra vacía: no se adivina, porque de la letra dependen la
+    retención y el documento fiscal.
+    """
+    limpio = re.sub(r"[^A-Za-z0-9]", "", raw or "").upper()
+
+    if not limpio:
+        return "", ""
+
+    if limpio[0] in IDENTITY_BY_LETTER:
+        return limpio[0], limpio[1:]
+
+    return "", limpio
+
+
+def classify_party_by_document(raw: str | None, document_type: str | None = None) -> dict:
+    """Los campos fiscales que corresponden a ese documento, o `{}` si no se puede saber.
+
+    Existe porque **omitir estos campos no deja la parte sin clasificar**: son Select
+    obligatorios, y Frappe rellena un Select obligatorio vacío con su PRIMERA opción. Sin
+    esto, un Customer creado desde código nace `RIF` + `Juridical` --persona jurídica--
+    aunque tenga cédula y aunque se haya pedido `customer_type` Individual. No hay error
+    en pantalla; se descubre cuando la retención de ISLR sale mal.
+
+    `document_type` es lo que un humano eligió y manda sobre lo que se deduzca de la
+    longitud, pero sólo si es posible para esa letra: una "J" no tiene cédula.
+    """
+    letter, digits = split_document_number(raw)
+    entrada = IDENTITY_BY_LETTER.get(letter)
+
+    if not entrada:
+        return {}
+
+    posibles = list(dict.fromkeys([entrada["short_document"], entrada["long_document"]]))
+    elegido = document_type if document_type in posibles else None
+    corto = len(digits) <= SHORT_DOCUMENT_MAX_DIGITS
+
+    return {
+        "type_of_document": elegido or (entrada["short_document"] if corto else entrada["long_document"]),
+        "nature_of_the_taxpayer": entrada["nature_of_the_taxpayer"],
+        "type_of_person": entrada["type_of_person"],
+        "customer_type": entrada["customer_type"],
+    }
+
+
 def validate_taxpayer_and_person_type_consistency(doc):
     """
     Valida que 'Nature of the Taxpayer' y 'Type of person' sean consistentes.
