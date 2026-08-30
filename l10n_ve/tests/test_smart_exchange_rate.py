@@ -19,8 +19,6 @@ Corren sin site.
 import unittest
 from unittest.mock import MagicMock, patch
 
-import frappe
-
 from l10n_ve.smart.tools import get_exchange_rate
 
 MODULE = "l10n_ve.smart.tools"
