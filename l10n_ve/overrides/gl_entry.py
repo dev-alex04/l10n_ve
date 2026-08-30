@@ -45,8 +45,12 @@ def update_ve_outstanding_amount(doc, method: str | None = None) -> None:
     if doc.flags.update_outstanding != "Yes":
         return
 
-    if doc.is_cancelled:
-        return
+    # OJO: NO se corta cuando el asiento viene cancelado. Al anular un pago, ERPNext
+    # marca sus GL Entry con is_cancelled=1 y dispara este mismo on_update; si se
+    # saliera aca, el outstanding se quedaria con el valor de cuando estaba pagada y
+    # la nota figuraria saldada para siempre. Recalcular es correcto igual, porque la
+    # consulta de abajo ya filtra `is_cancelled = 0`: al pasar por aca despues de la
+    # anulacion, la suma excluye el pago anulado y el saldo vuelve solo.
 
     against_voucher_type: str = doc.against_voucher_type
     against_voucher: str = doc.against_voucher

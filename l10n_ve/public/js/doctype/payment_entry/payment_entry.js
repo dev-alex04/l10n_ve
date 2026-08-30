@@ -108,6 +108,11 @@ frappe.ui.form.on("Payment Entry", {
     set_payment_entry_buttons(frm);
     frm.events.set_reference_no_required(frm);
     frm.events.set_branch_description(frm);
+    frm.events.toggle_is_batch_payment(frm);
+
+    if (frm.doc.docstatus === 1) {
+      frm.events.set_reconciliation_indicator(frm);
+    }
   },
 
   mode_of_payment: function (frm) {
@@ -116,6 +121,77 @@ frappe.ui.form.on("Payment Entry", {
 
   payment_type: function (frm) {
     frm.events.set_branch_description(frm);
+    frm.events.toggle_is_batch_payment(frm);
+    set_payment_entry_buttons(frm);
+  },
+
+  /**
+   * En qué punto de la conciliación está este cobro/pago, en la cabecera.
+   *
+   * La regla es la misma para cobros y pagos y por eso está escrita una sola vez: antes
+   * eran dos ramas casi idénticas, y la de `Pay` se quedó sin caso final. Un pago emitido
+   * cuyo estado no fuera exactamente «Conciliación Pendiente» --por ejemplo uno viejo, de
+   * antes de que existiera el campo-- no recibía ningún indicador, así que el usuario veía
+   * el de Frappe y no sabía si estaba conciliado o no.
+   *
+   * El efectivo se trata aparte a propósito: no pasa por el banco, así que no hay extracto
+   * contra el cual conciliarlo y decir «Por conciliar» sería anunciar algo que nunca va a
+   * ocurrir. Cambia sólo la palabra según de qué lado esté el dinero.
+   */
+  set_reconciliation_indicator: function (frm) {
+    const estado = frm.doc.custom_reconciliation_status;
+
+    if (estado === "Conciliado" || frm.doc.clearance_date) {
+      frm.page.set_indicator(__("Conciliado"), "green");
+      return;
+    }
+
+    if (estado === "Revisar") {
+      frm.page.set_indicator(__("Revisar"), "orange");
+      return;
+    }
+
+    if (!frm.doc.mode_of_payment) {
+      frm.page.set_indicator(__("Por conciliar"), "orange");
+      return;
+    }
+
+    // El TIPO del modo de pago, no su nombre. Buscar «efectivo» dentro del nombre deja
+    // fuera a un modo de tipo Cash que se llame «Caja», y ese pago se quedaría en «Por
+    // conciliar» para siempre: cobranza perseguiría una conciliación bancaria que no
+    // puede existir, que es justo lo que este caso viene a evitar. Es el mismo criterio
+    // que usa `set_reference_no_required` unas líneas más abajo, y el que tiene el
+    // servidor en `CASH_LIKE_TYPES` (payment_reconciliation.py) por si algún día hay que
+    // extenderlo a los otros tipos sin extracto.
+    frappe.db
+      .get_value("Mode of Payment", frm.doc.mode_of_payment, "type")
+      .then((r) => {
+        if (r.message?.type === "Cash") {
+          frm.page.set_indicator(
+            frm.doc.payment_type === "Pay" ? __("Pagado") : __("Recibido"),
+            "green"
+          );
+        } else {
+          frm.page.set_indicator(__("Por conciliar"), "orange");
+        }
+      });
+  },
+
+  toggle_is_batch_payment: function (frm) {
+    if (!frm.fields_dict.is_batch_payment) {
+      return;
+    }
+
+    const es_pago = frm.doc.payment_type === "Pay";
+    frm.toggle_display("is_batch_payment", es_pago);
+
+    // Ocultar no es limpiar. Sin este reset alcanza con Pay -> tildar la casilla ->
+    // volver a Receive para que el cobro quede marcado como lote con el campo invisible,
+    // y entonces «Intentar conciliar» desaparece de un cobro legítimo. El lote es una
+    // figura de los pagos a proveedor: en un cobro no significa nada.
+    if (!es_pago && frm.doc.is_batch_payment) {
+      frm.set_value("is_batch_payment", 0);
+    }
   },
 
   /**
@@ -384,6 +460,9 @@ function get_included_taxes(frm) {
 }
 
 function set_payment_entry_buttons(frm) {
+  frm.page.remove_custom_button(__("Agregar concepto de ISLR"));
+  frm.page.remove_custom_button(__("Intentar conciliar"));
+
   if (
     frm.doc.docstatus == 0 &&
     frm.doc.party_type &&
@@ -398,10 +477,18 @@ function set_payment_entry_buttons(frm) {
   }
 
   // Cobro en borrador: intentar conciliar con su depósito bancario y aprobar.
+  //
+  // `is_batch_payment` se comprueba porque un cobro SÍ puede acabar marcado como lote:
+  // basta pasar el documento por `Pay`, tildar la casilla y volver a `Receive` --ocultar
+  // un campo no limpia su valor--. `toggle_is_batch_payment` lo resetea justamente para
+  // eso, y esta condición es la segunda red, por si el flag llega por API o por una carga
+  // de datos. Si ocurre, conciliarlo por acá se saltaría el módulo de lotes, que es quien
+  // lleva la cuenta de cuánto del movimiento queda por asignar.
   if (
     frm.doc.docstatus == 0 &&
     frm.doc.payment_type === "Receive" &&
     frm.doc.reference_no &&
+    !frm.doc.is_batch_payment &&
     !frm.is_new()
   ) {
     frm.add_custom_button(__("Intentar conciliar"), async function () {

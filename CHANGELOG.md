@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.60.1] - 2026-08-28
+
+### 🐛 Correcciones (Fixes)
+- Se ocultó el botón de conciliación directa en las entradas de pago (payment_entry) al realizar procesamientos por lote para asegurar la consistencia del flujo de trabajo (#674).
+
+---
+
+## [v2.60.0] - 2026-08-28
+
+### ✨ Funcionalidades (Features)
+- Implementación del nuevo campo de número de cuenta en la tabla de detalles de los Asientos de Diario (Journal Entry) bajo el ticket DLE-10. b1254ea5
+
+### 🐛 Correcciones (Fixes)
+- Prevención de condiciones de carrera (race conditions) en el manejador de cuentas de los asientos de diario para asegurar la integridad de los datos. e7a0e599
+- Optimización de la sincronización del número de cuenta mediante el ajuste de la propiedad `fetch_if_empty`. 1738f433
+- Simplificación de la lógica de asignación del número de cuenta, eliminando procesos redundantes de inferencia de nombres. 1d545396
+- Mejora en la consistencia de la interfaz y delegación del proceso de obtención de datos (fetch) directamente al framework Frappe. 10a0e79c
+
+---
+
+## [v2.59.0] - 2026-08-28
+
+### ✨ Funcionalidades (Features)
+- Se implementó la lógica para ocultar el campo de selección "Utilizar para gastos" en las sucursales de Venezuela (VE Branch). 04e6ec8b
+
+---
+
+## [v2.58.0] - 2026-08-27
+
+### ✨ Funcionalidades (Features)
+- Se habilitó la capacidad de procesar pagos para Notas de Débito de compra. 427400c2
+
+### 🐛 Correcciones (Fixes)
+- Se ajustó la lógica de anulación de pagos para garantizar que el saldo de la Nota de Débito se reintegre correctamente al anular la transacción. 6a885fd9
+
+---
+
 ## [v2.57.5] - 2026-08-26
 
 ### 🐛 Correcciones (Fixes)
