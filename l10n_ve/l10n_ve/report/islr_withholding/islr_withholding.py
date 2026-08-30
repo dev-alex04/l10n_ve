@@ -4,6 +4,17 @@
 import frappe
 from frappe import _
 
+from l10n_ve.l10n_ve.report.sales_book.sales_book import branch_scope_condition
+
+# La sucursal de la retención es la del comprobante; la de la factura solo entra
+# si el comprobante no la trae. Se define una sola vez porque el WHERE y el
+# SELECT tienen que decir exactamente lo mismo: si filtran distinto de lo que
+# muestran, el usuario pide una sucursal y ve filas rotuladas con otra.
+#
+# `NULLIF` está porque Frappe guarda cadena vacía --no NULL-- en un Link sin
+# cargar, y con `COALESCE` pelado el respaldo no entraría nunca.
+BRANCH_EXPR = "COALESCE(NULLIF(parent.branch, ''), pi.branch)"
+
 def execute(filters=None):
     if not filters:
         return [], []
@@ -70,9 +81,10 @@ def get_data(filters):
         conditions += " AND parent.supplier = %(supplier)s"
         query_params["supplier"] = filters.get("supplier")
 
-    if filters.get("branch"):
-        conditions += " AND (parent.branch = %(branch)s OR pi.branch = %(branch)s)"
-        query_params["branch"] = filters.get("branch")
+    branch_condition, branch_params = branch_scope_condition(
+        filters.get("branch"), BRANCH_EXPR)
+    conditions += branch_condition
+    query_params.update(branch_params)
 
     group_by = filters.get("group_by") or "Detalle"
 
@@ -145,7 +157,7 @@ def get_data(filters):
                 child.subtracting,
                 child.rate,
                 child.islr_amount,
-                COALESCE(parent.branch, pi.branch) AS branch,
+                {BRANCH_EXPR} AS branch,
                 child.parent,
                 parent.is_declared,
                 CASE 
