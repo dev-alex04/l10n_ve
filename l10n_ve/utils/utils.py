@@ -214,10 +214,17 @@ def classify_party_by_document(raw: str | None, document_type: str | None = None
     longitud, pero sólo si es posible para esa letra: una "J" no tiene cédula.
 
     **Clasifica un alta, no reclasifica.** El mapa cubre las seis letras que admite
-    `validate_tax_id_format` y produce seis de las siete naturalezas: `Educational` no
-    sale de ninguna, porque el SENIAT no tiene letra para "educativo" --esas entidades
-    llevan J o G--. Usar esto para reclasificar partes existentes movería a `Juridical`
-    a quien esté marcado como educativo, sin que nadie se entere.
+    `validate_tax_id_format` y produce **cinco de las siete** naturalezas. Quedan fuera
+    dos, y por motivos distintos:
+
+    - `Educational` no tiene letra en el SENIAT: esas entidades llevan J o G.
+    - `Passport` **sí era alcanzable** y se dejó fuera a propósito. La letra P apunta a
+      `Extranjero` porque `get_tax_id_config("Passport", "Passport")` devuelve `None` y
+      entonces `validate_tax_id_format` rechaza cualquier longitud. Los clientes con
+      pasaporte del sitio ya estaban todos en `Extranjero`, así que nadie quedó atrás.
+
+    Usar esto para reclasificar partes existentes movería a cualquiera de esas dos hacia
+    lo que diga su letra, sin que nadie se entere.
     """
     letter, digits = split_document_number(raw)
     entrada = IDENTITY_BY_LETTER.get(letter)

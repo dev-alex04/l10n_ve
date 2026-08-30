@@ -93,6 +93,27 @@ class TestClassifyPartyByDocument(FrappeTestCase):
             classify_party_by_document("J310123456", "Cedula")["type_of_document"], "RIF"
         )
 
+    def test_el_docstring_dice_cuantas_naturalezas_quedan_fuera(self):
+        """El párrafo que advierte "clasifica un alta, no reclasifica" tiene que estar al
+        día: si dice que sólo una queda fuera, quien lo lea da por cubierto el resto.
+
+        Ya se desactualizó una vez --al mover la letra P a `Extranjero`, `Passport` dejó
+        de salir del mapa y el texto seguía nombrando sólo a `Educational`--.
+        """
+        produce = {e["nature_of_the_taxpayer"] for e in IDENTITY_BY_LETTER.values()}
+        opciones = {
+            o.strip()
+            for o in (frappe.get_meta("Customer").get_field("nature_of_the_taxpayer").options or "").split("\n")
+            if o.strip()
+        }
+        fuera = opciones - produce
+        texto = classify_party_by_document.__doc__ or ""
+
+        for naturaleza in fuera:
+            self.assertIn(naturaleza, texto, f"'{naturaleza}' no sale del mapa y el docstring no lo nombra")
+
+        self.assertIn(f"{len(produce)}", texto.replace("cinco", "5").replace("seis", "6"))
+
     def test_cada_letra_tiene_rango_de_longitud_configurado(self):
         """`get_tax_id_config` tiene que saber cuántos dígitos admite cada combinación.
 
