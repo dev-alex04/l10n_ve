@@ -114,7 +114,11 @@ IDENTITY_BY_LETTER: dict[str, dict[str, str]] = {
     },
     "P": {
         "label": "Extranjero con pasaporte",
-        "nature_of_the_taxpayer": "Passport",
+        # `Extranjero` y no `Passport`, aunque las dos sean naturalezas válidas del
+        # Select: `get_tax_id_config` sólo tiene rango para el par (Passport, Extranjero)
+        # --con (Passport, Passport) devuelve None y `validate_tax_id_format` rechaza
+        # cualquier longitud-- y es lo que usan los seis clientes con pasaporte del sitio.
+        "nature_of_the_taxpayer": "Extranjero",
         "type_of_person": "Non-domiciled natural person",
         "customer_type": "Individual",
         "short_document": "Passport",
@@ -146,9 +150,37 @@ IDENTITY_BY_LETTER: dict[str, dict[str, str]] = {
     },
 }
 
-# Un RIF de persona natural lleva 9 dígitos; una cédula, entre 6 y 8. Es lo único que
-# distingue "V12345678" de "V123456789".
-SHORT_DOCUMENT_MAX_DIGITS = 8
+def _document_min_digits(document_type: str, nature: str) -> int:
+    """El piso de dígitos de ese tipo de documento, según `get_tax_id_config`."""
+    limites = get_tax_id_config(document_type, nature)
+
+    if limites is None:
+        return 0
+
+    return limites[0] if isinstance(limites, list) else limites
+
+
+def _fits_document_type(document_type: str, nature: str, digits: str) -> bool:
+    """Si esa cantidad de dígitos entra en lo que ese tipo de documento admite.
+
+    Los límites salen de `get_tax_id_config`, que es donde ya estaban: una cédula lleva
+    entre 6 y 8 dígitos y un RIF exactamente 9. Tenerlos también acá era copiar el techo
+    sin el piso, y entonces "V1" se clasificaba como cédula --un dígito-- para que
+    `validate_tax_id_format` lo rebotara después hablando de un rango que nadie eligió.
+    Es el mismo argumento del comentario de arriba, aplicado a la longitud.
+    """
+    limites = get_tax_id_config(document_type, nature)
+    largo = len(digits or "")
+
+    if limites is None:
+        # Ese par no tiene rango configurado. No poder comprobarlo no es comprobar que
+        # está mal: se acepta y que decida `validate_tax_id_format`.
+        return True
+
+    if isinstance(limites, list):
+        return limites[0] <= largo <= limites[1]
+
+    return largo == limites
 
 
 def split_document_number(raw: str | None) -> tuple[str, str]:
@@ -180,6 +212,12 @@ def classify_party_by_document(raw: str | None, document_type: str | None = None
 
     `document_type` es lo que un humano eligió y manda sobre lo que se deduzca de la
     longitud, pero sólo si es posible para esa letra: una "J" no tiene cédula.
+
+    **Clasifica un alta, no reclasifica.** El mapa cubre las seis letras que admite
+    `validate_tax_id_format` y produce seis de las siete naturalezas: `Educational` no
+    sale de ninguna, porque el SENIAT no tiene letra para "educativo" --esas entidades
+    llevan J o G--. Usar esto para reclasificar partes existentes movería a `Juridical`
+    a quien esté marcado como educativo, sin que nadie se entere.
     """
     letter, digits = split_document_number(raw)
     entrada = IDENTITY_BY_LETTER.get(letter)
@@ -189,10 +227,21 @@ def classify_party_by_document(raw: str | None, document_type: str | None = None
 
     posibles = list(dict.fromkeys([entrada["short_document"], entrada["long_document"]]))
     elegido = document_type if document_type in posibles else None
-    corto = len(digits) <= SHORT_DOCUMENT_MAX_DIGITS
+
+    if not elegido:
+        nature = entrada["nature_of_the_taxpayer"]
+        # El primero cuyo rango admita esa cantidad de dígitos. Si no encaja en ninguno
+        # --el número está mal-- se elige por cercanía: demasiado corto es un intento de
+        # cédula, demasiado largo uno de RIF. No es adivinar la clasificación, que la da
+        # la letra: es elegir de qué rango va a hablar el mensaje de error que sigue.
+        corto = entrada["short_document"]
+        elegido = next(
+            (t for t in posibles if _fits_document_type(t, nature, digits)),
+            corto if len(digits) < _document_min_digits(corto, nature) else entrada["long_document"],
+        )
 
     return {
-        "type_of_document": elegido or (entrada["short_document"] if corto else entrada["long_document"]),
+        "type_of_document": elegido,
         "nature_of_the_taxpayer": entrada["nature_of_the_taxpayer"],
         "type_of_person": entrada["type_of_person"],
         "customer_type": entrada["customer_type"],

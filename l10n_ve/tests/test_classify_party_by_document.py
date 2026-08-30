@@ -23,6 +23,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from l10n_ve.utils.utils import (
     IDENTITY_BY_LETTER,
+    get_tax_id_config,
     classify_party_by_document,
     split_document_number,
     validate_taxpayer_and_person_type_consistency,
@@ -90,6 +91,48 @@ class TestClassifyPartyByDocument(FrappeTestCase):
         """Llega de un formulario: una empresa con cédula no puede colarse por ahí."""
         self.assertEqual(
             classify_party_by_document("J310123456", "Cedula")["type_of_document"], "RIF"
+        )
+
+    def test_cada_letra_tiene_rango_de_longitud_configurado(self):
+        """`get_tax_id_config` tiene que saber cuántos dígitos admite cada combinación.
+
+        Con `None` no hay con qué comparar y `validate_tax_id_format` rechaza cualquier
+        longitud. Pasó con la "P": estaba mapeada a la naturaleza `Passport`, y el único
+        par configurado es (Passport, Extranjero) --que además es el que usan los
+        clientes con pasaporte reales--.
+        """
+        for letra, entrada in IDENTITY_BY_LETTER.items():
+            nature = entrada["nature_of_the_taxpayer"]
+
+            for documento in (entrada["short_document"], entrada["long_document"]):
+                self.assertIsNotNone(
+                    get_tax_id_config(documento, nature),
+                    f"'{letra}' produce ({documento}, {nature}) y eso no tiene rango",
+                )
+
+    def test_la_longitud_la_decide_get_tax_id_config_y_no_una_copia(self):
+        """El rango de la cédula --[6, 8]-- vive en `get_tax_id_config`. Tenerlo también
+        acá era copiar el techo sin el piso."""
+        cedula = get_tax_id_config("Cedula", "Venezuelan")
+        rif = get_tax_id_config("RIF", "Venezuelan")
+
+        # Lo que entra en el rango de la cédula sale cédula; lo que entra en el del RIF,
+        # RIF. Sin números escritos a mano en el test tampoco.
+        for largo in range(cedula[0], cedula[1] + 1):
+            self.assertEqual(
+                classify_party_by_document("V" + "1" * largo)["type_of_document"], "Cedula", largo
+            )
+
+        self.assertEqual(
+            classify_party_by_document("V" + "1" * rif)["type_of_document"], "RIF"
+        )
+
+    def test_un_numero_que_no_entra_en_ninguno_elige_el_mas_cercano(self):
+        """No es adivinar la clasificación --la da la letra-- sino de qué rango va a
+        hablar el mensaje de error que sigue: demasiado corto es un intento de cédula."""
+        self.assertEqual(classify_party_by_document("V1")["type_of_document"], "Cedula")
+        self.assertEqual(
+            classify_party_by_document("V" + "1" * 20)["type_of_document"], "RIF"
         )
 
     def test_todas_las_letras_pasan_su_propia_validacion(self):
