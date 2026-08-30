@@ -1,3 +1,16 @@
+// Modos de pago que NO generan extracto bancario, o sea que no hay nada contra qué
+// conciliarlos: decir «Por conciliar» seria anunciar algo que nunca va a ocurrir.
+//
+// Es la misma lista que `CASH_LIKE_TYPES` en `mint/apis/reconciliation.py`, y tiene que
+// seguir siendolo. Antes aca solo estaba `Cash`, y con eso los dos modos de tipo
+// `Gangway` que hay en produccion --Biopago y BANCARIBE C2P-- quedaban «Por conciliar»
+// PARA SIEMPRE, con cobranza persiguiendo una conciliacion bancaria que no puede
+// existir. Medido: 56 pagos emitidos con BANCARIBE C2P.
+//
+// Se compara por TIPO y no por nombre a proposito: un modo de tipo Cash llamado «Caja»
+// se le escapa a cualquier busqueda de texto.
+const TIPOS_SIN_EXTRACTO = ["Cash", "Gateway", "Gangway"];
+
 frappe.ui.form.on("Payment Entry", {
   setup: function (frm) {
     frm.events.get_current_tax_amount = function (frm, tax) {
@@ -166,7 +179,7 @@ frappe.ui.form.on("Payment Entry", {
     frappe.db
       .get_value("Mode of Payment", frm.doc.mode_of_payment, "type")
       .then((r) => {
-        if (r.message?.type === "Cash") {
+        if (TIPOS_SIN_EXTRACTO.includes(r.message?.type)) {
           frm.page.set_indicator(
             frm.doc.payment_type === "Pay" ? __("Pagado") : __("Recibido"),
             "green"
