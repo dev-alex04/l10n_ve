@@ -114,6 +114,93 @@ def _por_moneda(filas: list) -> dict:
 	return out
 
 
+def get_exchange_rate(date: str | None = None) -> dict:
+	"""La tasa BCV del dólar, con la regla fiscal de qué tasa le toca a cada cliente.
+
+	No es un dato suelto: en Venezuela la tasa que lleva un documento depende de QUIÉN
+	lo recibe, y esa regla ya vive en `get_ve_exchange_rate_for_customer`.
+
+	    Cliente JURÍDICO (y gobierno, comunal, educativo) -> la tasa de HOY
+	    Cliente NATURAL  (y extranjero, pasaporte)        -> la del 1° del mes en curso
+
+	Las dos anclan en hoy y NO en la fecha del documento: lo que se declara ante el
+	SENIAT es la tasa del día en que el documento se EMITE. Una factura de julio cobrada
+	en agosto se emite en agosto y sale a la tasa de agosto.
+
+	Devuelve las dos, porque contestar «la tasa es X» sin decir a quién le aplica es la
+	mitad de la respuesta.
+	"""
+	from frappe.utils import get_first_day, getdate, nowdate
+
+	from l10n_ve.utils.utils import get_exchange_rate as _tasa
+
+	hoy = nowdate()
+	pedida = date or hoy
+	primero_del_mes = str(get_first_day(getdate(pedida)))
+
+	tasa_pedida = flt(_tasa(pedida, "USD"))
+	tasa_natural = flt(_tasa(primero_del_mes, "USD"))
+	moneda = frappe.defaults.get_defaults().get("currency") or "VEF"
+
+	# El lookup es PERMISIVO: si la fecha pedida no tiene tasa cargada, devuelve la
+	# vigente en vez de nada. Sirve para emitir —el BCV no publica sábados ni feriados,
+	# y la tasa del viernes sigue rigiendo— pero acá haría que una fecha SIN tasa se
+	# conteste como si la tuviera: para el 2030-01-01 devolvía la de hoy.
+	#
+	# Se comprueba contra la FILA, no contra el valor: el lookup inverso por importe
+	# confunde días con la misma tasa. Pedido el sábado 15-08 devolvía «17-08», que es
+	# el lunes siguiente — cierto que la tasa no es del 15, pero apuntaba al futuro.
+	real = frappe.db.get_value(
+		"Currency Exchange",
+		{"from_currency": "USD", "date": ["<=", pedida]},
+		"date",
+		order_by="date desc",
+	)
+	es_de_otro_dia = bool(real) and str(real) != str(pedida)
+
+	if not tasa_pedida:
+		return {
+			"fecha": pedida,
+			"tasa": None,
+			"moneda": moneda,
+			"nota": (
+				f"No hay tasa registrada para el {pedida}. NO la estimes ni la deduzcas de "
+				f"otra fecha: la tasa se declara ante el SENIAT y una inventada sale "
+				f"impresa en un documento fiscal. Decí que falta cargarla."
+			),
+		}
+
+	return {
+		"fecha": pedida,
+		"fecha_real_de_la_tasa": str(real) if real else None,
+		"es_de_otro_dia": es_de_otro_dia,
+		"moneda": moneda,
+		"tasa_hoy": round(tasa_pedida, 4),
+		"tasa_primero_del_mes": round(tasa_natural, 4) or None,
+		"por_tipo_de_cliente": {
+			"juridico": round(tasa_pedida, 4),
+			"natural": round(tasa_natural, 4) or None,
+		},
+		"significa": (
+			f"Bs {tasa_pedida:,.2f} por USD, del BCV, para el {pedida}."
+		),
+		"nota": (
+			"QUÉ TASA LE TOCA A CADA UNO, que es la parte que no se deduce:\n"
+			"· Cliente JURÍDICO —y gobierno, comunal, educativo—: la de HOY.\n"
+			"· Cliente NATURAL —y extranjero, pasaporte—: la del 1° del MES EN CURSO.\n"
+			"Las dos anclan en hoy, no en la fecha del documento: lo que se declara es la "
+			"tasa del día en que el documento se EMITE. Si te preguntan «a qué tasa sale "
+			"la factura de fulano», la respuesta depende de su tipo de cliente.\n"
+			"Esta tasa NO sirve para reexpresar saldos ya emitidos: cada documento guarda "
+			"la tasa con la que salió, y convertir con la de hoy da un número que no está "
+			"en ningún lado.\n"
+			"Si `es_de_otro_dia` es verdadero, la fecha pedida NO tiene tasa cargada y esto "
+			"es la del día que dice `fecha_real_de_la_tasa`. Decilo; no la presentes como "
+			"la tasa de la fecha que te pidieron."
+		),
+	}
+
+
 def check_hka(branch: str | None = None, limit: int = 10) -> dict:
 	"""Diagnóstico de facturación digital: qué no llegó al SENIAT, y por qué.
 
@@ -1099,6 +1186,27 @@ TOOLS = [
 				"branch": {"type": "string", "description": "Sucursal (VE Branch), opcional."},
 				"limit": {"type": "integer", "description": "Cuántos clientes listar."},
 			},
+		},
+	},
+	{
+		"name": "get_exchange_rate",
+		"handler": get_exchange_rate,
+		"writes": False,
+		"description": (
+			"La tasa BCV del dólar, y a QUÉ CLIENTE le toca cada una. En Venezuela la tasa "
+			"que lleva un documento depende del tipo de cliente: el jurídico va con la de "
+			"hoy y el natural con la del 1° del mes en curso.\n"
+			"USALA para «¿a cómo está el dólar?», «¿cuál es la tasa de hoy?», «¿a qué tasa "
+			"sale la factura de fulano?», «¿cuál era la tasa del 15?».\n"
+			"NO sirve para reexpresar saldos ya emitidos: cada documento guarda la tasa con "
+			"la que salió."
+		),
+		"parameters": {
+			"type": "object",
+			"properties": {
+				"date": {"type": "string", "description": "Fecha (AAAA-MM-DD). Omitila para la de hoy."},
+			},
+			"required": [],
 		},
 	},
 	{
