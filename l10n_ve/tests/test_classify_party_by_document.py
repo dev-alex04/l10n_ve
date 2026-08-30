@@ -23,8 +23,8 @@ from frappe.tests.utils import FrappeTestCase
 
 from l10n_ve.utils.utils import (
     IDENTITY_BY_LETTER,
-    get_tax_id_config,
     classify_party_by_document,
+    get_tax_id_config,
     split_document_number,
     validate_taxpayer_and_person_type_consistency,
 )
