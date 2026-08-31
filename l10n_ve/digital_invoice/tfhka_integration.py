@@ -1780,15 +1780,35 @@ def _is_last_day_of_month(ref: str | None = None) -> bool:
     return fecha == getdate(get_last_day(fecha))
 
 
+def _month_window(ref: str | None = None) -> tuple[str, str]:
+    """Primer y último día del mes de `ref` (por defecto, hoy)."""
+    fecha = getdate(ref or today())
+    return str(getdate(get_first_day(fecha))), str(getdate(get_last_day(fecha)))
+
+
 def _get_pending_hka_notes(
     doctype: str,
     branches: list[str],
     cutoff_date: str = "2026-04-01",
+    month_start: str | None = None,
+    month_end: str | None = None,
 ) -> list[str]:
     """Notas de crédito/débito aprobadas y aún no emitidas ante HKA.
 
     A diferencia de las facturas NO se exige `status = 'Paid'`: una nota no se cobra,
     basta con que esté aprobada (docstatus = 1).
+
+    **Solo las del mes de la corrida** (`month_start`..`month_end`). Sin esa ventana, la
+    primera pasada barre el rezago histórico y lo re-fecha: `_update_fiscal_dates` mueve
+    el `posting_date` al día del envío y `_sync_gl_entries_date` arrastra los asientos,
+    así que una nota de abril sin emitir se llevaría su efecto contable al mes en curso
+    --medido el 2026-08-31: NC-2026-00008, 8 asientos por Bs 42.496,20 parados en
+    abril--. La ventana es lo que hace que el trabajo sea del mes y de nadie más; una
+    nota vieja se resuelve a mano, con criterio contable, no de arrastre.
+
+    OJO, no es lo mismo que `cutoff_date`, que es el piso global de TFHKA Settings
+    (2026-04-01) y deja pasar todo lo posterior. Ese piso es un interruptor maestro y se
+    conserva; la ventana es la regla de periodo fiscal.
 
     Se exige que la FACTURA AFECTADA ya tenga número fiscal (`bill_no`): el payload de
     la nota lleva `NumeroFacturaAfectada`, y sin él `_get_datos_factura_afectada` lanza
@@ -1807,8 +1827,13 @@ def _get_pending_hka_notes(
     if not branches:
         return []
 
+    if not month_start or not month_end:
+        month_start, month_end = _month_window()
+
     placeholders: str = ", ".join(["%s"] * len(branches))
-    params: list = [doctype] + branches + [cutoff_date, _TFHKA_BATCH_SIZE]
+    params: list = (
+        [doctype] + branches + [cutoff_date, month_start, month_end, _TFHKA_BATCH_SIZE]
+    )
 
     # La interpolación de `doctype` está acotada por la lista blanca `_NOTE_DOCTYPES` de
     # arriba, y `placeholders` son marcadores `%s`: los valores viajan como parámetros.
@@ -1825,6 +1850,7 @@ def _get_pending_hka_notes(
             AND log.document_type = %s
         WHERE nota.branch IN ({placeholders})
           AND nota.posting_date >= %s
+          AND nota.posting_date BETWEEN %s AND %s
           AND nota.docstatus = 1
           AND (nota.bill_control IS NULL OR nota.bill_control = '')
           AND log.name IS NULL
@@ -1835,13 +1861,15 @@ def _get_pending_hka_notes(
     return [r[0] for r in results]
 
 
-def _send_pending_notes(tfhka_settings: dict) -> None:
-    """Envía las notas de crédito y débito de venta pendientes a HKA.
+def _send_pending_notes(tfhka_settings: dict, ref_date: str | None = None) -> None:
+    """Envía las notas de crédito y débito de venta del mes de `ref_date` a HKA.
 
     Misma mecánica que las facturas (serie -> sucursales -> lote), reutilizando
-    `_process_series_invoices` con el doctype correspondiente.
+    `_process_series_invoices` con el doctype correspondiente. `ref_date` fija el mes
+    que se procesa; por defecto, el de hoy.
     """
     cutoff_date: str = tfhka_settings["cutoff_date"]
+    month_start, month_end = _month_window(ref_date)
     active_series: list[dict] = _get_active_billing_series()
     if not active_series:
         return
@@ -1861,13 +1889,16 @@ def _send_pending_notes(tfhka_settings: dict) -> None:
                 doctype=doctype,
                 branches=branches,
                 cutoff_date=cutoff_date,
+                month_start=month_start,
+                month_end=month_end,
             )
             if not pending:
                 continue
 
             _hka_log(
                 f"Serie {series['name']} ({series['operation_mode']}): "
-                f"{len(pending)} {doctype} pendientes en {len(branches)} sucursal(es).",
+                f"{len(pending)} {doctype} pendientes en {len(branches)} sucursal(es) "
+                f"del periodo {month_start}..{month_end}.",
                 "Success",
             )
 
@@ -1883,7 +1914,7 @@ def _send_pending_notes(tfhka_settings: dict) -> None:
             _log_batch_summary(total_success, total_errors, success_docs, error_docs)
 
 
-def send_pending_notes_to_hka(force: bool = False) -> None:
+def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) -> None:
     """Cron del ÚLTIMO DÍA DEL MES: encola el envío de las NC/ND de venta pendientes.
 
     Va aparte del cron de facturas (cada 5 min) a propósito. Al certificar, HKA fija la
@@ -1894,20 +1925,25 @@ def send_pending_notes_to_hka(force: bool = False) -> None:
     2026-08-05 con NC-2026-00036-1, creada el 28-jul y emitida en agosto. Corriendo el
     último día del mes, la nota se certifica dentro del mes en que se creó.
 
+    Solo salen las notas DEL MES de la corrida (ver `_get_pending_hka_notes`): el rezago
+    histórico no se barre solo, porque re-fecharlo movería su efecto contable de un mes
+    ya cerrado al mes en curso. Una nota vieja se emite a mano, con criterio contable.
+
     El día lo fija el `L` del cron en hooks.py, pero se re-valida acá: ese cron vive
     además en una fila editable de `Scheduled Job Type`, y si alguien la cambia el
-    perjuicio es justamente el que este trabajo evita. `force=True` es la puerta para una
-    corrida manual (por ejemplo si el planificador estuvo caído el último día del mes):
+    perjuicio es justamente el que este trabajo evita.
+
+    `force=1` abre la corrida manual y `ref_date` elige el mes, para el caso de que el
+    planificador estuviera caído el último día (todo en un renglón):
 
         bench --site <site> execute
         l10n_ve.digital_invoice.tfhka_integration.send_pending_notes_to_hka
-        --kwargs "{'force': 1}"
-        (todo en un renglon)
+        --kwargs "{'force': 1, 'ref_date': '2026-08-31'}"
 
     Respeta `enabled` y `enable_auto_send` de TFHKA Settings, igual que el cron de
     facturas.
     """
-    if not cint(force) and not _is_last_day_of_month():
+    if not cint(force) and not _is_last_day_of_month(ref_date):
         return
 
     tfhka_settings: dict | None = _get_tfhka_settings()
@@ -1923,10 +1959,11 @@ def send_pending_notes_to_hka(force: bool = False) -> None:
         timeout=_NOTES_BATCH_TIMEOUT,
         job_id="hka-monthly-notes",
         deduplicate=True,
+        ref_date=ref_date,
     )
 
 
-def run_pending_notes_batch() -> None:
+def run_pending_notes_batch(ref_date: str | None = None) -> None:
     """Trabajo de fondo del lote mensual de notas (ver `_NOTES_BATCH_TIMEOUT`).
 
     Vuelve a leer TFHKA Settings porque es un punto de entrada por derecho propio: entre
@@ -1940,7 +1977,7 @@ def run_pending_notes_batch() -> None:
     if not tfhka_settings.get("enable_auto_send"):
         return
 
-    _send_pending_notes(tfhka_settings)
+    _send_pending_notes(tfhka_settings, ref_date=ref_date)
 
 
 @frappe.whitelist()
