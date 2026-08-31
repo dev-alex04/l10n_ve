@@ -1,5 +1,16 @@
 import frappe
-from frappe import _ 
+from frappe import _
+
+from l10n_ve.l10n_ve.report.sales_book.sales_book import branch_scope_condition
+
+# La sucursal de la retención es la del comprobante; la de la factura solo entra
+# si el comprobante no la trae. Se define una sola vez porque el WHERE y el
+# SELECT tienen que decir exactamente lo mismo: si filtran distinto de lo que
+# muestran, el usuario pide una sucursal y ve filas rotuladas con otra.
+#
+# `NULLIF` está porque Frappe guarda cadena vacía --no NULL-- en un Link sin
+# cargar, y con `COALESCE` pelado el respaldo no entraría nunca.
+BRANCH_EXPR = "COALESCE(NULLIF(parent.branch, ''), inv.branch)"
 
 def execute(filters=None):
     if not filters:
@@ -23,6 +34,7 @@ def get_columns():
         {"fieldname": "rate", "label": _("Alícuota IVA (%)"), "fieldtype": "Percent", "width": "auto"},
         {"fieldname": "withholding_rate", "label": _("% Retención IVA"), "fieldtype": "Percent", "width": "auto"},
         {"fieldname": "tax_amount_vat", "label": _("Monto Retención Bs"), "fieldtype": "Currency", "width": "auto"},
+        {"fieldname": "branch", "label": _("Sucursal"), "fieldtype": "Link", "options": "VE Branch", "width": "auto"},
         {"fieldname": "parent", "label": _("Documento Retención"), "fieldtype": "Link", "options": "VAT Withholding Voucher", "width": "auto"},
 		{"fieldname": "declared_status", "label": _("Estado del Comprobante"), "fieldtype": "Data", "width": "auto"}
     ]
@@ -42,6 +54,11 @@ def get_data(filters):
     if filters.get("supplier"):
         conditions += " AND parent.supplier = %(supplier)s"
         query_params["supplier"] = filters.get("supplier")
+
+    branch_condition, branch_params = branch_scope_condition(
+        filters.get("branch"), BRANCH_EXPR)
+    conditions += branch_condition
+    query_params.update(branch_params)
     
     query = f"""
         SELECT
@@ -57,6 +74,7 @@ def get_data(filters):
             child.rate,
             child.withholding_rate,
             child.tax_amount_vat,
+            {BRANCH_EXPR} AS branch,
        		child.parent,
             parent.is_declared,
             CASE 

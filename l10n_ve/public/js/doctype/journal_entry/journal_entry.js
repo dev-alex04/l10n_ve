@@ -1,4 +1,34 @@
 frappe.ui.form.on("Journal Entry", {
+    refresh: function(frm) {
+        // Asegurar que todas las filas existentes muestren su número de cuenta en una sola consulta por lote
+        var accounts = [...new Set((frm.doc.accounts || [])
+            .filter(function(row) { return row.account && !row.account_number; })
+            .map(function(row) { return row.account; }))];
+
+        if (accounts.length > 0) {
+            frappe.db.get_list("Account", {
+                filters: { name: ["in", accounts] },
+                fields: ["name", "account_number"],
+                page_length: accounts.length
+            }).then(function(results) {
+                var by_name = {};
+                (results || []).forEach(function(r) { by_name[r.name] = r.account_number; });
+                var grid = frm.fields_dict.accounts && frm.fields_dict.accounts.grid;
+                (frm.doc.accounts || []).forEach(function(row) {
+                    if (row.account && !row.account_number && by_name[row.account]) {
+                        row.account_number = by_name[row.account];
+                        if (locals[row.doctype] && locals[row.doctype][row.name]) {
+                            locals[row.doctype][row.name].account_number = by_name[row.account];
+                        }
+                        if (grid && grid.grid_rows_by_docname && grid.grid_rows_by_docname[row.name]) {
+                            grid.grid_rows_by_docname[row.name].refresh_field("account_number");
+                        }
+                    }
+                });
+            });
+        }
+    },
+
     validate: function(frm) {
         var errors = [];
         $.each(frm.doc.accounts || [], function(i, d) {
