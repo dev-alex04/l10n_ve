@@ -1332,13 +1332,22 @@ _TFHKA_DELAY_BETWEEN_CALLS: float = 0.5
 # es lo que hace segura esa interpolación.
 _NOTE_DOCTYPES: tuple[str, ...] = ("VE Sales Credit Note", "VE Sales Debit Note")
 
-# Timeout del lote mensual de notas. Los Scheduled Job Type con frecuencia `Cron` van a
-# la cola `default`, que corta a los 300 s (`get_queues_timeout`), y el lote de fin de
-# mes es justo el caso donde se acumulan: 45 NC en agosto-2026, cada una un viaje de red
-# a HKA que puede tardar hasta 51 s (visto en producción el 2026-07-29). Por eso el cron
-# no hace el trabajo, lo encola en `long`, que corta a los 1500 s. Si el worker muriera
-# igual, no se corrompe nada: cada nota commitea la suya y el resto queda pendiente.
-_NOTES_BATCH_TIMEOUT: int = 1500
+# Presupuesto de tiempo del lote mensual de notas. Los Scheduled Job Type con frecuencia
+# `Cron` van a la cola `default`, que corta a los 300 s (`get_queues_timeout`), y el lote
+# de fin de mes es justo el caso donde se acumulan.
+#
+# El default de `long` (1500 s) TAMPOCO alcanza: con los dos números que ya están medidos
+# --45 NC en agosto-2026 y hasta 51 s por nota (producción, 2026-07-29)-- el peor caso da
+# 2.295 s, y `_TFHKA_BATCH_SIZE` es por serie Y por doctype, así que una corrida puede
+# pasar de 100 documentos. Acá un corte no "retrasa": lo que queda espera un MES, y una
+# nota de agosto emitida el 30 de septiembre es exactamente el bug que este cron evita.
+# `enqueue` respeta el timeout explícito (`if not timeout: timeout = ...`), así que el
+# default de la cola no es un techo.
+#
+# El techo real es la medianoche, no la cola: arrancando 21:23, estos 9.000 s vencen
+# 23:53. Y el corte duro está en el bucle (`stop_after_day` de `_process_series_invoices`),
+# que es quien garantiza que ningún documento salga fechado el día siguiente.
+_NOTES_BATCH_TIMEOUT: int = 9000
 
 
 def _hka_log(description: str, status: str = "Info") -> None:
@@ -1438,11 +1447,18 @@ def _process_series_invoices(
     series: dict,
     pending: list[str],
     doctype: str = "Sales Invoice",
+    stop_after_day: str | None = None,
 ) -> tuple[int, int, list[str], list[str]]:
     """Procesa los documentos pendientes de una serie específica.
 
     `doctype` permite reutilizar este recorrido para las notas de crédito y débito
     (ver `_send_pending_notes`); por defecto sigue siendo la factura de venta.
+
+    `stop_after_day` corta el lote si cambia el día. Lo usa el lote mensual de notas:
+    `fecha_hka = today()` se evalúa POR DOCUMENTO, así que un lote que cruza la
+    medianoche fecha el resto en el mes siguiente --el bug que ese cron evita--. Una
+    nota sin enviar no rompe nada; una nota con la fecha del mes equivocado sí. Las
+    facturas no lo pasan y su comportamiento no cambia.
 
     Retorna (exitosas, errores, lista_exitosas, lista_errores).
 
@@ -1457,7 +1473,16 @@ def _process_series_invoices(
     success_invoices: list[str] = []
     error_invoices: list[str] = []
 
-    for invoice_name in pending:
+    for idx, invoice_name in enumerate(pending):
+        if stop_after_day and today() != stop_after_day:
+            _hka_log(
+                f"STOP por cambio de día en serie {series_name}: el lote cruzó la "
+                f"medianoche del {stop_after_day} y quedan {len(pending) - idx} "
+                f"{doctype} sin enviar. Se retoman con force + ref_date.",
+                "Error",
+            )
+            break
+
         try:
             result: bool = process_invoice(invoice_name, doctype=doctype)
 
@@ -1870,6 +1895,7 @@ def _send_pending_notes(tfhka_settings: dict, ref_date: str | None = None) -> No
     """
     cutoff_date: str = tfhka_settings["cutoff_date"]
     month_start, month_end = _month_window(ref_date)
+    dia_del_lote: str = today()
     active_series: list[dict] = _get_active_billing_series()
     if not active_series:
         return
@@ -1903,7 +1929,7 @@ def _send_pending_notes(tfhka_settings: dict, ref_date: str | None = None) -> No
             )
 
             s, e, ok_list, err_list = _process_series_invoices(
-                series, pending, doctype=doctype
+                series, pending, doctype=doctype, stop_after_day=dia_del_lote
             )
             total_success += s
             total_errors += e
@@ -1953,11 +1979,19 @@ def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) 
     if not tfhka_settings.get("enable_auto_send"):
         return
 
+    # El mes ES la unidad de trabajo, así que va en el id. Con un id fijo, `deduplicate`
+    # --que mira sólo el id, nunca los kwargs-- descartaba en SILENCIO la corrida de
+    # recuperación de otro mes mientras el lote del mes estaba encolado: `enqueue` vuelve
+    # sin encolar, el aviso queda en un log interno y `bench execute` no imprime nada, así
+    # que quien la corrió cree que salió. Con el mes adentro, dos disparos del MISMO mes
+    # siguen colapsando (que es la protección que se quería) y julio ya no pisa a agosto.
+    month_start, _ = _month_window(ref_date)
+
     frappe.enqueue(
         "l10n_ve.digital_invoice.tfhka_integration.run_pending_notes_batch",
         queue="long",
         timeout=_NOTES_BATCH_TIMEOUT,
-        job_id="hka-monthly-notes",
+        job_id=f"hka-monthly-notes-{month_start}",
         deduplicate=True,
         ref_date=ref_date,
     )
