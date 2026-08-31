@@ -3,6 +3,7 @@ import re
 import time
 
 import frappe
+from frappe import _
 from frappe.utils import flt, getdate, cint, today, nowdate, get_first_day, get_last_day
 
 from l10n_ve.digital_invoice.emission_rerate import (
@@ -1811,6 +1812,43 @@ def _month_window(ref: str | None = None) -> tuple[str, str]:
     return str(getdate(get_first_day(fecha))), str(getdate(get_last_day(fecha)))
 
 
+def _assert_period_matches_today(ref_date: str | None = None) -> tuple[str, str]:
+    """Ventana del mes de `ref_date`, exigiendo que HOY caiga dentro. Si no, lanza.
+
+    El período manda sobre el argumento. Quien fija la fecha del documento no es
+    `ref_date` sino `fecha_hka = today()`, que `_update_fiscal_dates` escribe en
+    `posting_date`/`due_date` y `_sync_gl_entries_date` arrastra a los asientos, al
+    cronograma y al Payment Ledger. Por eso "recuperar julio" corrido en septiembre no
+    emite notas de julio: las emite fechadas en septiembre, con sus asientos — que es
+    exactamente el daño que este cron existe para evitar.
+
+    No alcanzaba con `_is_last_day_of_month(ref_date)`: comparaba `ref_date` contra el
+    último día de SU PROPIO mes, así que cualquier fin de mes daba True cualquier día, y
+    `ref_date='2026-07-31'` arrancaba un 15 de septiembre sin pedir siquiera `force`.
+
+    Esto NO lo levanta `force`. `force` existe para saltar la exigencia del último día
+    (el planificador falló y se corre esa misma noche), no para emitir fuera de período:
+    una nota vieja se emite a mano desde el documento.
+
+    Es un `throw` y no un `return` silencioso a propósito: con `ref_date=None` la
+    condición no puede fallar --la ventana es la de hoy--, así que sólo la ve una persona
+    que pasó un `ref_date` explícito, y necesita enterarse de que no salió nada.
+    """
+    month_start, month_end = _month_window(ref_date)
+    hoy: str = today()
+    if not (month_start <= hoy <= month_end):
+        frappe.throw(
+            _(
+                "No se puede procesar el período {0}..{1} un {2}: HKA fecha el documento "
+                "el día del envío, así que las notas saldrían fechadas hoy y sus asientos "
+                "se moverían de mes. Para emitir una nota de un período anterior, hacerlo "
+                "a mano desde el documento."
+            ).format(month_start, month_end, hoy),
+            title=_("El período no contiene la fecha de envío"),
+        )
+    return month_start, month_end
+
+
 def _get_pending_hka_notes(
     doctype: str,
     branches: list[str],
@@ -1959,17 +1997,31 @@ def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) 
     además en una fila editable de `Scheduled Job Type`, y si alguien la cambia el
     perjuicio es justamente el que este trabajo evita.
 
-    `force=1` abre la corrida manual y `ref_date` elige el mes, para el caso de que el
-    planificador estuviera caído el último día (todo en un renglón):
+    `force=1` salta la exigencia del último día, para el caso de que el planificador
+    estuviera caído **esa misma noche** (todo en un renglón):
 
         bench --site <site> execute
         l10n_ve.digital_invoice.tfhka_integration.send_pending_notes_to_hka
-        --kwargs "{'force': 1, 'ref_date': '2026-08-31'}"
+        --kwargs "{'force': 1}"
+
+    Esa misma noche, no al día siguiente: el documento sale fechado con `today()`, así que
+    correrlo el 1° de septiembre "para agosto" emitiría notas fechadas en septiembre. Por
+    eso `_assert_period_matches_today` lanza si el período pedido no contiene a hoy, y
+    `force` NO lo levanta. Una nota de un mes ya cerrado se emite a mano desde el
+    documento, no por acá.
+
+    `ref_date` sólo elige el mes dentro de esa restricción; su uso normal es dejarlo en
+    `None`.
 
     Respeta `enabled` y `enable_auto_send` de TFHKA Settings, igual que el cron de
     facturas.
     """
-    if not cint(force) and not _is_last_day_of_month(ref_date):
+    # Primero el argumento: si el período pedido no contiene a hoy, esto lanza.
+    month_start, _month_end = _assert_period_matches_today(ref_date)
+
+    # Y el día se mira en el RELOJ, no en `ref_date`: pasarle un fin de mes cualquiera
+    # no convierte a hoy en fin de mes.
+    if not cint(force) and not _is_last_day_of_month():
         return
 
     tfhka_settings: dict | None = _get_tfhka_settings()
@@ -1985,8 +2037,6 @@ def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) 
     # sin encolar, el aviso queda en un log interno y `bench execute` no imprime nada, así
     # que quien la corrió cree que salió. Con el mes adentro, dos disparos del MISMO mes
     # siguen colapsando (que es la protección que se quería) y julio ya no pisa a agosto.
-    month_start, _ = _month_window(ref_date)
-
     frappe.enqueue(
         "l10n_ve.digital_invoice.tfhka_integration.run_pending_notes_batch",
         queue="long",
@@ -2000,10 +2050,13 @@ def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) 
 def run_pending_notes_batch(ref_date: str | None = None) -> None:
     """Trabajo de fondo del lote mensual de notas (ver `_NOTES_BATCH_TIMEOUT`).
 
-    Vuelve a leer TFHKA Settings porque es un punto de entrada por derecho propio: entre
-    el encolado y la ejecución puede pasar un rato, y el trabajo también se puede
-    reencolar a mano desde la lista de RQ Job.
+    Vuelve a leer TFHKA Settings y a validar el período porque es un punto de entrada por
+    derecho propio: entre el encolado y la ejecución puede pasar un rato --incluso cruzar
+    la medianoche-- y el trabajo también se puede reencolar a mano desde la lista de RQ
+    Job, salteándose `send_pending_notes_to_hka`.
     """
+    _assert_period_matches_today(ref_date)
+
     tfhka_settings: dict | None = _get_tfhka_settings()
     if not tfhka_settings:
         return
