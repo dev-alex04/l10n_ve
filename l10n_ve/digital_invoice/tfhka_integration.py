@@ -3,7 +3,7 @@ import re
 import time
 
 import frappe
-from frappe.utils import flt, getdate, cint, today, nowdate, get_first_day
+from frappe.utils import flt, getdate, cint, today, nowdate, get_first_day, get_last_day
 
 from l10n_ve.digital_invoice.emission_rerate import (
     _blocking_condition,
@@ -1327,6 +1327,19 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
 _TFHKA_BATCH_SIZE: int = 100
 _TFHKA_DELAY_BETWEEN_CALLS: float = 0.5
 
+# Doctypes de nota que el cron de fin de mes envía. Es tupla literal a propósito: el
+# nombre se interpola en el `FROM` de `_get_pending_hka_notes`, así que la lista blanca
+# es lo que hace segura esa interpolación.
+_NOTE_DOCTYPES: tuple[str, ...] = ("VE Sales Credit Note", "VE Sales Debit Note")
+
+# Timeout del lote mensual de notas. Los Scheduled Job Type con frecuencia `Cron` van a
+# la cola `default`, que corta a los 300 s (`get_queues_timeout`), y el lote de fin de
+# mes es justo el caso donde se acumulan: 45 NC en agosto-2026, cada una un viaje de red
+# a HKA que puede tardar hasta 51 s (visto en producción el 2026-07-29). Por eso el cron
+# no hace el trabajo, lo encola en `long`, que corta a los 1500 s. Si el worker muriera
+# igual, no se corrompe nada: cada nota commitea la suya y el resto queda pendiente.
+_NOTES_BATCH_TIMEOUT: int = 1500
+
 
 def _hka_log(description: str, status: str = "Info") -> None:
     """Registra un evento del cron HKA en VE Digital Invoice Log."""
@@ -1424,8 +1437,12 @@ def _send_pending_invoices(tfhka_settings: dict) -> None:
 def _process_series_invoices(
     series: dict,
     pending: list[str],
+    doctype: str = "Sales Invoice",
 ) -> tuple[int, int, list[str], list[str]]:
-    """Procesa las facturas pendientes de una serie específica.
+    """Procesa los documentos pendientes de una serie específica.
+
+    `doctype` permite reutilizar este recorrido para las notas de crédito y débito
+    (ver `_send_pending_notes`); por defecto sigue siendo la factura de venta.
 
     Retorna (exitosas, errores, lista_exitosas, lista_errores).
 
@@ -1442,7 +1459,7 @@ def _process_series_invoices(
 
     for invoice_name in pending:
         try:
-            result: bool = process_invoice(invoice_name)
+            result: bool = process_invoice(invoice_name, doctype=doctype)
 
             if result:
                 success_count += 1
@@ -1482,6 +1499,10 @@ def _process_series_invoices(
                 {"error": True, "message": str(e)},
                 "Error",
                 notes=f"Error enviando {invoice_name}: {str(e)}",
+                # Sin esto el log de una nota que falla queda archivado como
+                # "Sales Invoice" (es el default de _log_request), y los reportes
+                # que agrupan por document_type se lo atribuyen a las facturas.
+                doctype=doctype,
             )
             if stop_on_error:
                 _hka_log(
@@ -1751,6 +1772,175 @@ def _get_pending_hka_invoices(
     """, params, as_list=True)
 
     return [r[0] for r in results]
+
+
+def _is_last_day_of_month(ref: str | None = None) -> bool:
+    """True si `ref` (por defecto hoy) es el último día calendario de su mes."""
+    fecha = getdate(ref or today())
+    return fecha == getdate(get_last_day(fecha))
+
+
+def _get_pending_hka_notes(
+    doctype: str,
+    branches: list[str],
+    cutoff_date: str = "2026-04-01",
+) -> list[str]:
+    """Notas de crédito/débito aprobadas y aún no emitidas ante HKA.
+
+    A diferencia de las facturas NO se exige `status = 'Paid'`: una nota no se cobra,
+    basta con que esté aprobada (docstatus = 1).
+
+    Se exige que la FACTURA AFECTADA ya tenga número fiscal (`bill_no`): el payload de
+    la nota lleva `NumeroFacturaAfectada`, y sin él `_get_datos_factura_afectada` lanza
+    error. Filtrarlas acá evita que el cron falle y llene el log; entran solas en la
+    corrida siguiente, en cuanto la factura original se emita.
+
+    OJO, es un INNER JOIN: una nota sin `return_against` queda fuera en silencio. Hoy no
+    existe ninguna --77 NC y 1 ND, todas con factura afectada, medido el 2026-08-31 en la
+    copia de producción-- pero si el negocio llegara a admitir una nota autónoma habría
+    que darle otro camino, no ampliarlo a LEFT JOIN: sin factura afectada el payload no
+    se puede armar.
+    """
+    if doctype not in _NOTE_DOCTYPES:
+        frappe.throw(f"DocType de nota no soportado: {doctype}")
+
+    if not branches:
+        return []
+
+    placeholders: str = ", ".join(["%s"] * len(branches))
+    params: list = [doctype] + branches + [cutoff_date, _TFHKA_BATCH_SIZE]
+
+    # La interpolación de `doctype` está acotada por la lista blanca `_NOTE_DOCTYPES` de
+    # arriba, y `placeholders` son marcadores `%s`: los valores viajan como parámetros.
+    # nosemgrep
+    results = frappe.db.sql(f"""
+        SELECT nota.name
+        FROM `tab{doctype}` nota
+        INNER JOIN `tabSales Invoice` si
+            ON si.name = nota.return_against
+            AND IFNULL(si.bill_no, '') != ''
+        LEFT JOIN `tabVE Digital Invoice Log` log
+            ON log.sales_invoice = nota.name
+            AND log.status = 'Success'
+            AND log.document_type = %s
+        WHERE nota.branch IN ({placeholders})
+          AND nota.posting_date >= %s
+          AND nota.docstatus = 1
+          AND (nota.bill_control IS NULL OR nota.bill_control = '')
+          AND log.name IS NULL
+        ORDER BY nota.posting_date, nota.name
+        LIMIT %s
+    """, params, as_list=True)
+
+    return [r[0] for r in results]
+
+
+def _send_pending_notes(tfhka_settings: dict) -> None:
+    """Envía las notas de crédito y débito de venta pendientes a HKA.
+
+    Misma mecánica que las facturas (serie -> sucursales -> lote), reutilizando
+    `_process_series_invoices` con el doctype correspondiente.
+    """
+    cutoff_date: str = tfhka_settings["cutoff_date"]
+    active_series: list[dict] = _get_active_billing_series()
+    if not active_series:
+        return
+
+    for doctype in _NOTE_DOCTYPES:
+        total_success: int = 0
+        total_errors: int = 0
+        success_docs: list[str] = []
+        error_docs: list[str] = []
+
+        for series in active_series:
+            branches: list[str] = series["branches"]
+            if not branches:
+                continue
+
+            pending: list[str] = _get_pending_hka_notes(
+                doctype=doctype,
+                branches=branches,
+                cutoff_date=cutoff_date,
+            )
+            if not pending:
+                continue
+
+            _hka_log(
+                f"Serie {series['name']} ({series['operation_mode']}): "
+                f"{len(pending)} {doctype} pendientes en {len(branches)} sucursal(es).",
+                "Success",
+            )
+
+            s, e, ok_list, err_list = _process_series_invoices(
+                series, pending, doctype=doctype
+            )
+            total_success += s
+            total_errors += e
+            success_docs.extend(ok_list)
+            error_docs.extend(err_list)
+
+        if total_success or total_errors:
+            _log_batch_summary(total_success, total_errors, success_docs, error_docs)
+
+
+def send_pending_notes_to_hka(force: bool = False) -> None:
+    """Cron del ÚLTIMO DÍA DEL MES: encola el envío de las NC/ND de venta pendientes.
+
+    Va aparte del cron de facturas (cada 5 min) a propósito. Al certificar, HKA fija la
+    Fecha de Emisión, y del lado de Frappe `_update_fiscal_dates` mueve `posting_date` y
+    `due_date` del documento --y `_sync_gl_entries_date` los asientos, el cronograma y el
+    Payment Ledger-- al día del envío. Con envío continuo, una nota creada a fin de mes
+    se certifica el mes siguiente y se lleva su efecto contable con ella: pasó el
+    2026-08-05 con NC-2026-00036-1, creada el 28-jul y emitida en agosto. Corriendo el
+    último día del mes, la nota se certifica dentro del mes en que se creó.
+
+    El día lo fija el `L` del cron en hooks.py, pero se re-valida acá: ese cron vive
+    además en una fila editable de `Scheduled Job Type`, y si alguien la cambia el
+    perjuicio es justamente el que este trabajo evita. `force=True` es la puerta para una
+    corrida manual (por ejemplo si el planificador estuvo caído el último día del mes):
+
+        bench --site <site> execute
+        l10n_ve.digital_invoice.tfhka_integration.send_pending_notes_to_hka
+        --kwargs "{'force': 1}"
+        (todo en un renglon)
+
+    Respeta `enabled` y `enable_auto_send` de TFHKA Settings, igual que el cron de
+    facturas.
+    """
+    if not cint(force) and not _is_last_day_of_month():
+        return
+
+    tfhka_settings: dict | None = _get_tfhka_settings()
+    if not tfhka_settings:
+        return
+
+    if not tfhka_settings.get("enable_auto_send"):
+        return
+
+    frappe.enqueue(
+        "l10n_ve.digital_invoice.tfhka_integration.run_pending_notes_batch",
+        queue="long",
+        timeout=_NOTES_BATCH_TIMEOUT,
+        job_id="hka-monthly-notes",
+        deduplicate=True,
+    )
+
+
+def run_pending_notes_batch() -> None:
+    """Trabajo de fondo del lote mensual de notas (ver `_NOTES_BATCH_TIMEOUT`).
+
+    Vuelve a leer TFHKA Settings porque es un punto de entrada por derecho propio: entre
+    el encolado y la ejecución puede pasar un rato, y el trabajo también se puede
+    reencolar a mano desde la lista de RQ Job.
+    """
+    tfhka_settings: dict | None = _get_tfhka_settings()
+    if not tfhka_settings:
+        return
+
+    if not tfhka_settings.get("enable_auto_send"):
+        return
+
+    _send_pending_notes(tfhka_settings)
 
 
 @frappe.whitelist()

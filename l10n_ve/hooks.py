@@ -494,6 +494,17 @@ scheduler_events = {
             "l10n_ve.digital_invoice.reconciliation.reconcile_hka_fiscal_fields",
         ],
         "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
+        # Las NC/ND de venta van aparte, el ULTIMO DIA DEL MES (`L`; croniter lo resuelve
+        # y Frappe valida el formato con croniter, asi que resuelve tambien febrero y los
+        # meses de 30). No es una preferencia de cadencia: al certificar, HKA fija la
+        # Fecha de Emision y del lado de Frappe `_update_fiscal_dates` mueve el
+        # posting_date de la nota --y `_sync_gl_entries_date` sus asientos-- al dia del
+        # envio. Con el `*/5` de arriba, una nota creada a fin de mes se certifica el mes
+        # siguiente y cambia de periodo fiscal (paso el 2026-08-05 con NC-2026-00036-1,
+        # creada el 28-jul). A las 21:23 quedan casi 3 h de margen antes de medianoche:
+        # el lote NO puede cruzar el dia, porque `fecha_hka = today()` se evalua por
+        # documento y las ultimas notas quedarian fechadas el 1ro del mes siguiente.
+        "23 21 L * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_notes_to_hka"],
         "*/15 * * * *": ["l10n_ve.tasks.reset_all_prepared_reports"],
         "0 3 1 * *": ["l10n_ve.tasks.purge_old_digital_invoice_success_logs"],
         "0 4 * * *": [
