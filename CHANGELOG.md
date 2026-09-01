@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.61.0] - 2026-09-01
+
+### ✨ Funcionalidades (Features)
+- Implementación del envío automatizado de Notas de Crédito (NC) y Notas de Débito (ND) de venta el último día del mes. 580901c7
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la lógica de persistencia del período al encolar el worker para garantizar la consistencia de los datos frente al tiempo de ejecución. 381baabd
+- Corrección en la validación del período de envío para asegurar la correcta sincronización con el día de ejecución. e4e865f6
+- Optimización del procesamiento de lotes de notas para evitar solapamientos con la medianoche e inclusión del mes en el `job_id`. 89dd0fa9
+- Refinamiento en el filtrado del lote mensual para procesar exclusivamente documentos pertenecientes al mes correspondiente. e51f48b2
+- Reajuste en la programación del horario de ejecución del lote de notas a las 15:23. 0c563492
+
+---
+
 ## [v2.60.2] - 2026-09-01
 
 ### 🐛 Correcciones (Fixes)
