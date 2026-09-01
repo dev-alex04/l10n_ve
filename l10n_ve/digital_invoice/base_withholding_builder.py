@@ -234,8 +234,14 @@ class BaseRetentionPayloadBuilder:
     # ─────────────────────────────────────────────────────────────
 
     def _build_totals_placeholder(self, item_count: int) -> dict:
-        """Nodo Totales: en retenciones va con valores en cero, excepto NroItems."""
-        grand_total: str = "{:.2f}".format(flt(self._get_grand_total()))
+        """Nodo Totales: en retenciones va con valores en cero, excepto NroItems.
+
+        MontoTotalConIVA siempre se envía en valor absoluto positivo: TFHKA
+        rechaza (código 203 / 0102) cualquier monto con signo negativo en el
+        nodo Totales. La naturaleza de NC se indica con EsNegativo=true en el
+        nodo TotalesRetencion de cada subclase.
+        """
+        grand_total: str = "{:.2f}".format(abs(flt(self._get_grand_total())))
 
         return {
             "NroItems": str(item_count),
