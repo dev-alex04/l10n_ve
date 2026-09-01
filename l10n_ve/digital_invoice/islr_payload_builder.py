@@ -93,7 +93,7 @@ class TFHKAISLRPayloadBuilder(BaseRetentionPayloadBuilder):
 
         doc_no: str = (item.doc_no or "").strip()
         serie_doc, num_doc = self._extract_series_and_number(doc_no)
-
+        affected_invoice: str = (item.get("affected_invoice_number") or "").strip()
 
         return {
             "NumeroLinea": str(line_number),
@@ -103,6 +103,7 @@ class TFHKAISLRPayloadBuilder(BaseRetentionPayloadBuilder):
             "NumeroDocumento": num_doc,
             "NumeroControl": item.bill_control or "",
             "TipoTransaccion": "",
+            "NumeroDocumentoAfectado": affected_invoice if tipo_documento in ("02", "03") else "",
             "MontoTotal": "{:.2f}".format(abs(flt(item.grand_total))),
             "MontoExento": "",
             "BaseImponible": "{:.2f}".format(abs(flt(item.islr_base_amount))),
