@@ -31,7 +31,12 @@ class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):
     # ─────────────────────────────────────────────────────────────
 
     def _build_retention_totals(self) -> dict:
-        """Nodo de totales consolidados de la retención IVA."""
+        """Nodo de totales consolidados de la retención IVA.
+
+        Todos los montos se envían en valor absoluto: TFHKA rechaza (203/0102)
+        montos con signo negativo. La diferenciación NC se indica con
+        EsNegativo=true (mismo patrón que el ISLR builder).
+        """
         emission_date: str = self._get_emission_date()
         has_negative: bool = self._has_negative_retention()
 
@@ -41,11 +46,11 @@ class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):
         )
 
         return {
-            "TotalBaseImponible": "{:.2f}".format(flt(self.doc.totals_total)),
+            "TotalBaseImponible": "{:.2f}".format(abs(flt(self.doc.totals_total))),
             "NumeroCompRetencion": self._clean_voucher_number(),
             "FechaEmisionCR": emission_date,
-            "TotalIVA": "{:.2f}".format(flt(self.doc.totals_taxes_and_charges_added)),
-            "TotalRetenido": "{:.2f}".format(total_retenido),
+            "TotalIVA": "{:.2f}".format(abs(flt(self.doc.totals_taxes_and_charges_added))),
+            "TotalRetenido": "{:.2f}".format(abs(total_retenido)),
             "TotalISRL": "",
             "TotalIGTF": "",
             "TipoComprobante": None,
@@ -71,15 +76,20 @@ class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):
         return details
 
     def _build_vat_detail_item(self, item, line_number: int) -> dict:
-        """Construye un detalle individual de retención IVA."""
+        """Construye un detalle individual de retención IVA.
+
+        Montos siempre en positivo (abs): TFHKA rechaza valores negativos en
+        las líneas del comprobante. La diferenciación NC/Factura se indica con
+        TipoDocumento='02' (mismo patrón que el ISLR builder).
+        """
         posting_date: str = getdate(item.posting_date).strftime("%d/%m/%Y")
         doc_type_code: str = self._get_document_type_code_base(item)
 
         iva_percentage: str = "{:.2f}".format(flt(item.rate) / 100)
         withholding_percentage: str = "{:.2f}".format(flt(item.withholding_rate) / 100)
 
-        monto_total: float = flt(item.total) + flt(item.total_exempt) + flt(item.taxes_and_charges_added)
-        retenido: float = flt(item.taxes_and_charges_added) * flt(item.withholding_rate) / 100
+        monto_total: float = abs(flt(item.total)) + abs(flt(item.total_exempt)) + abs(flt(item.taxes_and_charges_added))
+        retenido: float = abs(flt(item.taxes_and_charges_added)) * flt(item.withholding_rate) / 100
 
         bill_no: str = (item.bill_no or "").strip()
         serie_doc, num_doc = self._extract_series_and_number(bill_no)
@@ -94,12 +104,12 @@ class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):
             "NumeroControl": item.bill_control or "",
             "TipoTransaccion": None,
             "MontoTotal": "{:.2f}".format(monto_total),
-            "MontoExento": "{:.2f}".format(flt(item.total_exempt)),
-            "BaseImponible": "{:.2f}".format(flt(item.total)),
+            "MontoExento": "{:.2f}".format(abs(flt(item.total_exempt))),
+            "BaseImponible": "{:.2f}".format(abs(flt(item.total))),
             "Porcentaje": iva_percentage,
             "PorcentajeRetencion": withholding_percentage,
             "Sustraendo": None,
-            "MontoIVA": "{:.2f}".format(flt(item.taxes_and_charges_added)),
+            "MontoIVA": "{:.2f}".format(abs(flt(item.taxes_and_charges_added))),
             "Retenido": "{:.2f}".format(retenido),
             "Percibido": "0",
             "CodigoConcepto": None,
