@@ -1345,9 +1345,10 @@ _NOTE_DOCTYPES: tuple[str, ...] = ("VE Sales Credit Note", "VE Sales Debit Note"
 # `enqueue` respeta el timeout explícito (`if not timeout: timeout = ...`), así que el
 # default de la cola no es un techo.
 #
-# El techo real es la medianoche, no la cola: arrancando 21:23, estos 9.000 s vencen
-# 23:53. Y el corte duro está en el bucle (`stop_after_day` de `_process_series_invoices`),
-# que es quien garantiza que ningún documento salga fechado el día siguiente.
+# El techo real es la medianoche, no la cola: arrancando 15:23, estos 9.000 s vencen 17:53,
+# con horas de sobra. Y el corte duro está en el bucle (`stop_after_day` de
+# `_process_series_invoices`), que es quien garantiza que ningún documento salga fechado el
+# día siguiente aunque el lote se estire.
 _NOTES_BATCH_TIMEOUT: int = 9000
 
 
@@ -2018,7 +2019,7 @@ def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) 
     """
     # La fecha se CONGELA acá y viaja con el trabajo. Con `ref_date=None` el worker
     # recalcula la ventana con SU reloj, y ahí la guarda no puede fallar nunca: la ventana
-    # de hoy siempre se contiene a sí misma. Un lote encolado 21:23 que arranque 00:05
+    # de hoy siempre se contiene a sí misma. Un lote encolado 15:23 que arranque 00:05
     # --cola ocupada, worker reiniciado-- buscaría las notas del mes NUEVO, no encontraría
     # ninguna, y terminaría sin enviar una sola nota del mes que tocaba y sin un solo
     # error. Congelada, ese mismo caso lanza, que es la respuesta correcta. El `job_id` ya
