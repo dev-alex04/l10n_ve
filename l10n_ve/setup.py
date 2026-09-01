@@ -715,28 +715,64 @@ def create_sales_taxes_and_charges_template(company_name: str = None) -> None:
 
                 for i, aliquot in enumerate([16, 8, 15, 31]):
 
-                    if frappe.db.exists(doctype_name,
-                                        f'IVA {aliquot}% - {company["abbr"]}'):
+                    titulo = f'IVA {aliquot}% - {company["abbr"]}'
+
+                    # La existencia se pregunta por CAMPOS, no por `name`. ERPNext nombra
+                    # estas plantillas con `autoname` (`self.name = f"{title} - {abbr}"`,
+                    # sales_taxes_and_charges_template.py:42) y el titulo de aca ya trae la
+                    # abreviatura, asi que el nombre real la lleva DOS veces:
+                    # `IVA 16% - Galanet - Galanet`. Preguntar por `IVA 16% - Galanet` no
+                    # acertaba nunca, la funcion no era idempotente y la segunda corrida
+                    # moria con DuplicateEntryError en la primera plantilla.
+                    #
+                    # No se corrige quitandole la abreviatura al titulo: en un site ya
+                    # instalado eso haria que la guarda siguiera sin acertar --los nombres
+                    # viejos estan duplicados-- y crearia una plantilla PARALELA por
+                    # alicuota. Preguntando por (company, title) aciertan las dos
+                    # convenciones, y los nombres existentes se quedan como estan.
+                    if frappe.db.exists(doctype_name, {
+                        'company': company['name'],
+                        'title': titulo,
+                    }):
                         continue
 
-                    tax_template = frappe.new_doc(doctype_name)
+                    # El try es POR PLANTILLA. Antes habia uno solo envolviendo los tres
+                    # bucles, asi que el primer fallo se llevaba puestas las alicuotas que
+                    # faltaban, las demas companias y la pasada entera de Purchase (Sales
+                    # va primero en el dict). Medido: con las 4 plantillas ya creadas, una
+                    # segunda corrida terminaba con 4 de Sales y 4 de Purchase y una sola
+                    # linea de Failure.
+                    try:
+                        tax_template = frappe.new_doc(doctype_name)
 
-                    tax_template.company = company['name']
-                    tax_template.title = f'IVA {aliquot}% - {company["abbr"]}'
-                    tax_template.is_default = bool(i == 0)
+                        tax_template.company = company['name']
+                        tax_template.title = titulo
+                        tax_template.is_default = bool(i == 0)
 
-                    tax_template.append('taxes', {
-                        'rate': aliquot,
-                        'charge_type': 'VAT',
-                        'add_deduct_tax': 'Add',
-                        'account_head': vat_account_str,
-                        'description': f'IVA {aliquot}%',
-                    })
+                        tax_template.append('taxes', {
+                            'rate': aliquot,
+                            'charge_type': 'VAT',
+                            'add_deduct_tax': 'Add',
+                            'account_head': vat_account_str,
+                            'description': f'IVA {aliquot}%',
+                        })
 
-                    tax_template.insert(ignore_permissions=True)
+                        tax_template.insert(ignore_permissions=True)
 
-                    print(f"Success: Impuesto de IVA {aliquot}% para {doctype} creado exitosamente.")
+                        print(f"Success: Impuesto de IVA {aliquot}% para {doctype} creado exitosamente.")
 
+                    except Exception as e:
+                        print(f"Failure: no se pudo crear IVA {aliquot}% de {doctype} "
+                              f"para {company['name']}: {e}")
+                        frappe.log_error(frappe.get_traceback(),
+                                         'Error en create_sales_taxes_and_charges_template')
+
+    # Red de ultimo recurso para lo que pasa FUERA del bucle: `sales_vat_account` y
+    # `purchase_vat_account` son custom fields de Company (fixtures), asi que en una
+    # instalacion donde todavia no se sincronizaron, el `get_value` de arriba revienta con
+    # "Unknown column". Los dos llamadores dependen de que esta funcion no lance:
+    # `set_data` encadena el resto del setup detras, y `Company.on_update` crearia la
+    # compania a medias.
     except Exception as e:
         print(f"Failure: Ocurrió un error durante la creación del impuesto de IVA: {e}")
         frappe.log_error(frappe.get_traceback(),
