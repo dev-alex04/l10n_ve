@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.61.1] - 2026-09-01
+
+### 🐛 Correcciones (Fixes)
+- Se ocultó el botón de anular factura en la integración con HKA, atendiendo a la deshabilitación de esta función por parte del proveedor a partir del 1 de septiembre. [e9b735b3]
+
+---
+
 ## [v2.61.0] - 2026-09-01
 
 ### ✨ Funcionalidades (Features)
