@@ -9,6 +9,7 @@ const ISLR_ROW_FIELDS = [
   "purchase_invoice_type", "purchase_invoice", "doc_no", "doc_type",
   "bill_control", "posting_date", "grand_total", "islr_base_amount",
   "paid_amount", "rate", "subtracting", "code", "islr_amount",
+  "affected_invoice_number",
 ];
 
 const ISLR_TOTAL_FIELDS = [

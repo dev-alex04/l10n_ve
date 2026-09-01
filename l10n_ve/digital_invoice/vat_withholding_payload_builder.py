@@ -40,27 +40,34 @@ class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):
         emission_date: str = self._get_emission_date()
         is_negative: bool = self._is_net_negative()
 
-        total_retenido: float = abs(flt(self.doc.totals_tax_amount_vat))
+        total_retenido: float = self._calculate_total_retenido()
 
         return {
             "TotalBaseImponible": "{:.2f}".format(abs(flt(self.doc.totals_total))),
             "NumeroCompRetencion": self._clean_voucher_number(),
             "FechaEmisionCR": emission_date,
             "TotalIVA": "{:.2f}".format(abs(flt(self.doc.totals_taxes_and_charges_added))),
-            "TotalRetenido": "{:.2f}".format(total_retenido),
+            "TotalRetenido": "{:.2f}".format(abs(total_retenido)),
             "TotalISRL": "",
             "TotalIGTF": "",
             "TipoComprobante": None,
             "EsNegativo": is_negative,
         }
 
+    def _calculate_total_retenido(self) -> float:
+        """Calcula el total retenido sumando cada línea con su signo según tipo de documento.
+
+        Garantiza consistencia matemática exacta con los montos 'Retenido' del detalle.
+        """
+        return sum(
+            (abs(flt(item.taxes_and_charges_added)) * flt(item.withholding_rate) / 100)
+            * (-1 if self._get_document_type_code_base(item) in ("02", "03") else 1)
+            for item in self.doc.get(self.CHILD_TABLE_FIELD, [])
+        )
+
     def _is_net_negative(self) -> bool:
         """Determina si el comprobante tiene resultado neto consolidado negativo."""
-        return (
-            flt(self.doc.totals_tax_amount_vat) < 0
-            or flt(self.doc.totals_grand_total) < 0
-            or flt(self.doc.totals_total) < 0
-        )
+        return self._calculate_total_retenido() < 0 or flt(self.doc.totals_tax_amount_vat) < 0
 
     # ─────────────────────────────────────────────────────────────
     # DetallesRetencion (IVA)
