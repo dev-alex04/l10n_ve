@@ -2016,8 +2016,17 @@ def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) 
     Respeta `enabled` y `enable_auto_send` de TFHKA Settings, igual que el cron de
     facturas.
     """
+    # La fecha se CONGELA acá y viaja con el trabajo. Con `ref_date=None` el worker
+    # recalcula la ventana con SU reloj, y ahí la guarda no puede fallar nunca: la ventana
+    # de hoy siempre se contiene a sí misma. Un lote encolado 21:23 que arranque 00:05
+    # --cola ocupada, worker reiniciado-- buscaría las notas del mes NUEVO, no encontraría
+    # ninguna, y terminaría sin enviar una sola nota del mes que tocaba y sin un solo
+    # error. Congelada, ese mismo caso lanza, que es la respuesta correcta. El `job_id` ya
+    # llevaba el mes decidido; el kwarg no.
+    ref_congelada: str = ref_date or today()
+
     # Primero el argumento: si el período pedido no contiene a hoy, esto lanza.
-    month_start, _month_end = _assert_period_matches_today(ref_date)
+    month_start, _month_end = _assert_period_matches_today(ref_congelada)
 
     # Y el día se mira en el RELOJ, no en `ref_date`: pasarle un fin de mes cualquiera
     # no convierte a hoy en fin de mes.
@@ -2043,7 +2052,7 @@ def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) 
         timeout=_NOTES_BATCH_TIMEOUT,
         job_id=f"hka-monthly-notes-{month_start}",
         deduplicate=True,
-        ref_date=ref_date,
+        ref_date=ref_congelada,
     )
 
 
