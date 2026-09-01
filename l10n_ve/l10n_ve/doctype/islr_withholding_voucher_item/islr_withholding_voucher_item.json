@@ -15,7 +15,6 @@
   "posting_date",
   "payment_entry_name",
   "doc_type",
-  "affected_invoice_number",
   "section_break_kdlk",
   "grand_total",
   "paid_amount",
@@ -122,12 +121,6 @@
    "label": "Tipo",
    "read_only": 1,
    "reqd": 1
-  },
-  {
-   "fieldname": "affected_invoice_number",
-   "fieldtype": "Data",
-   "label": "Factura Afectada",
-   "read_only": 1
   },
   {
    "fieldname": "islr_base_amount",

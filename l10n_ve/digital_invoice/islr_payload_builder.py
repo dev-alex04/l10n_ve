@@ -93,13 +93,6 @@ class TFHKAISLRPayloadBuilder(BaseRetentionPayloadBuilder):
 
         doc_no: str = (item.doc_no or "").strip()
         serie_doc, num_doc = self._extract_series_and_number(doc_no)
-        affected_invoice: str = (item.get("affected_invoice_number") or "").strip()
-        if not affected_invoice and tipo_documento in ("02", "03") and item.get("purchase_invoice"):
-            inv_type: str = item.get("purchase_invoice_type") or "VE Purchase Credit Note"
-            affected_invoice = (
-                frappe.db.get_value(inv_type, item.purchase_invoice, "affected_invoice_number")
-                or ""
-            ).strip()
 
         return {
             "NumeroLinea": str(line_number),
@@ -109,7 +102,6 @@ class TFHKAISLRPayloadBuilder(BaseRetentionPayloadBuilder):
             "NumeroDocumento": num_doc,
             "NumeroControl": item.bill_control or "",
             "TipoTransaccion": "",
-            "NumeroDocumentoAfectado": affected_invoice if tipo_documento in ("02", "03") else "",
             "MontoTotal": "{:.2f}".format(abs(flt(item.grand_total))),
             "MontoExento": "",
             "BaseImponible": "{:.2f}".format(abs(flt(item.islr_base_amount))),
