@@ -1276,6 +1276,21 @@ def void_document(doctype, name):
     doc.reload()
 
 
+#: La anulación directa ante HKA está deshabilitada desde el 01-sep-2026
+#: (Providencia SNAT/2024/000121): el proveedor dejó de aceptar la operación, y el
+#: único camino fiscal que queda para dejar sin efecto una factura certificada es
+#: la nota de crédito.
+#:
+#: El front ya no ofrece el botón --`HKA_DIRECT_VOID_ENABLED` en
+#: `public/js/doctype/sales_invoice/sales_invoice.js`--, pero eso solo tapa la
+#: puerta: `void_sales_invoice` está whitelisted y sigue siendo alcanzable por API
+#: o por un cliente viejo con el bundle cacheado. Esta bandera la cierra donde
+#: importa.
+#:
+#: Si HKA volviera a habilitarla, hay que poner las DOS en True.
+HKA_DIRECT_VOID_ENABLED: bool = False
+
+
 @frappe.whitelist()
 def void_sales_invoice(
     docname: str,
@@ -1287,6 +1302,8 @@ def void_sales_invoice(
     Anula una Factura de Venta en TFHKA (HKA) y luego cancela el documento
     en Frappe, garantizando atomicidad entre ambos sistemas.
 
+    Deshabilitada desde el 01-sep-2026: ver ``HKA_DIRECT_VOID_ENABLED``.
+
     La lógica de comunicación con HKA está centralizada en
     ``TFHKAClient.void_fiscal_document()``.
 
@@ -1296,6 +1313,16 @@ def void_sales_invoice(
         void_date: Fecha en formato DD/MM/YYYY (convertida por el cliente JS).
         void_time: Hora en HH:MM:SS (24h); se convierte a 12h internamente.
     """
+    if not HKA_DIRECT_VOID_ENABLED:
+        frappe.throw(
+            _(
+                "La anulación directa ante HKA está deshabilitada desde el "
+                "01-sep-2026. Para dejar sin efecto una factura certificada, "
+                "emita una <b>Nota de Crédito</b>."
+            ),
+            title=_("Anulación no disponible"),
+        )
+
     from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 
     invoice: "VESalesInvoice" = frappe.get_doc("Sales Invoice", docname)
