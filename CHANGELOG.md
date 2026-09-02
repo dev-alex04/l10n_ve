@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.61.3] - 2026-09-02
+
+### 🐛 Correcciones (Fixes)
+- **hka**: Se corrigió un error donde la anulación directa solo se procesaba a nivel de interfaz; ahora el cierre se ejecuta correctamente en el servidor para garantizar la consistencia de la operación. [d09f071](https://github.com/repo/commit/d09f0713)
+
+---
+
 ## [v2.61.2] - 2026-09-02
 
 ### 🐛 Correcciones (Fixes)
