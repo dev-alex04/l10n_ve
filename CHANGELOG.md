@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.61.2] - 2026-09-02
+
+### 🐛 Correcciones (Fixes)
+- **HKA:** Se corrigió un error en la lógica de mensajería que dirigía a los usuarios a botones que ya no se encontraban activos. a788ff19
+
+---
+
 ## [v2.61.1] - 2026-09-01
 
 ### 🐛 Correcciones (Fixes)
