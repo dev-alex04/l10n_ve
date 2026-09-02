@@ -170,12 +170,17 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             return
 
         if self.bill_no or self.bill_control:
+            # El mensaje NO nombra el botón «Anular en HKA»: HKA deshabilitó la
+            # anulación directa el 01-sep-2026 y el front lo apaga con
+            # `HKA_DIRECT_VOID_ENABLED` (sales_invoice.js). Nombrarlo mandaba a
+            # buscar en el menú algo que no está, y este throw lo lee el 89 % de
+            # las facturas emitidas. La nota de crédito es el único camino que queda.
             frappe.throw(
                 _(
                     "La factura <b>{0}</b> ya tiene número de documento fiscal "
                     "<b>{1}</b> y número de control <b>{2}</b> asignados por la "
                     "imprenta digital (TFHKA). No puede ser cancelada directamente. "
-                    "Use el botón <b>'Anular en HKA'</b> o emita una Nota de Crédito."
+                    "Emita una Nota de Crédito."
                 ).format(
                     self.name,
                     self.bill_no or "—",
