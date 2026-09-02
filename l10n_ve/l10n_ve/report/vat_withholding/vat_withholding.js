@@ -12,6 +12,17 @@ frappe.query_reports["VAT Withholding"] = {
 			"reqd": 1
 		},
 		{
+			"fieldname": "branch",
+			"label": __("Sucursal"),
+			"fieldtype": "Link",
+			"options": "VE Branch",
+			"default": "",
+			"reqd": 0,
+			"get_query": () => ({
+				filters: { company: frappe.query_report.get_filter_value("company") },
+			}),
+		},
+		{
 			"fieldname": "supplier",
 			"label": __("Supplier"),
 			"fieldtype": "Link",

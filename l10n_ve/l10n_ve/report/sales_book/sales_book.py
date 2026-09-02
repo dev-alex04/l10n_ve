@@ -222,6 +222,34 @@ def narrow_branch_scope(scope: set | None, branch: str | None, extra: set) -> se
     return scope & extra
 
 
+def branch_scope_condition(branch: str | None, column: str) -> tuple[str, dict]:
+    """Condición SQL que acota `column` a la sucursal pedida Y A SU SUBÁRBOL.
+
+    `VE Branch` es un árbol y sus nodos intermedios se usan de verdad --MIR-01
+    tiene 7 descendientes--. Comparar por igualdad contra un nodo padre no falla:
+    devuelve (casi) nada, sin error y sin aviso. El Libro de Ventas ya resuelve
+    el subárbol por su cuenta; esta función existe para que los reportes que
+    arman su propio SQL --las retenciones-- hagan lo mismo, y el filtro
+    «Sucursal» signifique lo mismo en todos.
+
+    `column` tiene que ser la EXPRESIÓN que el SELECT muestra como sucursal, no
+    una columna cualquiera: filtrar por una y mostrar otra deja en pantalla filas
+    rotuladas con una sucursal distinta a la que se pidió.
+
+    Devuelve el fragmento SQL y los parámetros que hay que sumarle a la consulta.
+    """
+    if not branch:
+        return "", {}
+
+    scope: set | None = get_branch_subtree(branch)
+    if scope:
+        return f" AND {column} IN %(branch_scope)s", {"branch_scope": sorted(scope)}
+
+    # Hoja del árbol --o sucursal inexistente, que debe devolver cero filas--:
+    # la igualdad simple alcanza y no hay nada que expandir.
+    return f" AND {column} = %(branch)s", {"branch": branch}
+
+
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
 def get_main_branches(doctype, txt, searchfield, start, page_len, filters):
@@ -545,6 +573,7 @@ def _get_common_columns() -> str:
             {transaction_type_placeholder}
             siv.is_void,
             siv.is_return,
+            siv.is_debit_note,
             siv.docstatus,
             siv.branch,
             DATE_FORMAT(siv.posting_date, '%%d/%%m/%%Y') AS posting_date,

@@ -94,7 +94,6 @@ class TFHKAISLRPayloadBuilder(BaseRetentionPayloadBuilder):
         doc_no: str = (item.doc_no or "").strip()
         serie_doc, num_doc = self._extract_series_and_number(doc_no)
 
-
         return {
             "NumeroLinea": str(line_number),
             "FechaDocumento": posting_date,

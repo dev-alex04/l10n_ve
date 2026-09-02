@@ -110,17 +110,12 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
             self.doctype = "VE Purchase Credit Note"
 
     def make_precision_loss_gl_entry(self, gl_entries: list) -> None:
-        """ERPNext core usa `self.customer` cuando doctype != 'Purchase Invoice'.
-
-        Redundante con `self.customer = self.supplier` en `_init_pi_defaults()`,
-        pero se mantiene como cinturón de seguridad por si el MRO no resuelve
-        el fallback correctamente en todas las rutas de ejecución.
+        """En notas de crédito de compra no se debe generar pérdida de precisión contable,
+        ya que la diferencia entre base_net_amount y net_amount * conversion_rate
+        ya está absorbida por la base de la factura de origen heredada.
+        (Mismo comportamiento que VE Sales Credit Note).
         """
-        self.doctype = "Purchase Invoice"
-        try:
-            super().make_precision_loss_gl_entry(gl_entries)
-        finally:
-            self.doctype = "VE Purchase Credit Note"
+        return
 
     def _grand_total_includes_withholding(self) -> bool:
         """El grand_total de la NC ya descuenta retenciones (es neto).

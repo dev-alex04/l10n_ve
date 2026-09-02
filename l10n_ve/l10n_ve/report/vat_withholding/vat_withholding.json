@@ -36,6 +36,14 @@
    "label": "To Date",
    "mandatory": 0,
    "wildcard_filter": 0
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Sucursal",
+   "mandatory": 0,
+   "options": "VE Branch",
+   "wildcard_filter": 0
   }
  ],
  "idx": 0,

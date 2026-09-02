@@ -1005,6 +1005,24 @@ function setup_debit_note_button(frm) {
   );
 }
 
+// Anulación directa de facturas ante HKA: DESHABILITADA POR LA IMPRENTA el 01/09/2026.
+//
+// Aviso de The Factory HKA del 27-jul-2026 ("🚨Aviso: Anulaciones de Facturas"), en
+// cumplimiento de la Providencia Administrativa SNAT/2024/000121: "la anulación directa de
+// facturas quedará deshabilitada a partir del 01/09/2026. Desde esa fecha, y para preservar
+// la inalterabilidad fiscal, toda modificación o anulación se gestionará de forma exclusiva
+// mediante la emisión de notas de crédito o de débito."
+//
+// Se oculta el botón en vez de dejar que falle: sin esto el usuario recibe el error crudo
+// que devuelva HKA, sin decirle qué hacer en su lugar. La vía correcta es la NOTA DE
+// CRÉDITO, que ya está soportada de punta a punta.
+//
+// Se conserva la función entera detrás del flag para que reactivarla sea una línea, por si
+// la imprenta revierte o habilita excepciones. OJO: esto oculta el botón, no cierra la
+// puerta — `l10n_ve.overrides.sales_invoice.void_sales_invoice` sigue publicado con
+// @frappe.whitelist y es alcanzable por API.
+const HKA_DIRECT_VOID_ENABLED = false;
+
 /**
  * Botón "Anular en HKA" para facturas emitidas ante la imprenta digital.
  * Solo visible cuando docstatus === 1 y la factura tiene bill_no.
@@ -1013,6 +1031,7 @@ function setup_debit_note_button(frm) {
  * @param {object} frm
  */
 function setup_hka_void_button(frm) {
+  if (!HKA_DIRECT_VOID_ENABLED) return;
   if (frm.doc.docstatus !== 1 || !frm.doc.bill_no) return;
   // Misma regla de visibilidad que "Anular Documento": solo Accounts Manager
   // con acceso a la sucursal del documento (ver user_can_void).
