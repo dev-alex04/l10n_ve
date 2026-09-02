@@ -3,7 +3,8 @@ import re
 import time
 
 import frappe
-from frappe.utils import flt, getdate, cint, today, nowdate, get_first_day
+from frappe import _
+from frappe.utils import flt, getdate, cint, today, nowdate, get_first_day, get_last_day
 
 from l10n_ve.digital_invoice.emission_rerate import (
     _blocking_condition,
@@ -1327,6 +1328,29 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
 _TFHKA_BATCH_SIZE: int = 100
 _TFHKA_DELAY_BETWEEN_CALLS: float = 0.5
 
+# Doctypes de nota que el cron de fin de mes envía. Es tupla literal a propósito: el
+# nombre se interpola en el `FROM` de `_get_pending_hka_notes`, así que la lista blanca
+# es lo que hace segura esa interpolación.
+_NOTE_DOCTYPES: tuple[str, ...] = ("VE Sales Credit Note", "VE Sales Debit Note")
+
+# Presupuesto de tiempo del lote mensual de notas. Los Scheduled Job Type con frecuencia
+# `Cron` van a la cola `default`, que corta a los 300 s (`get_queues_timeout`), y el lote
+# de fin de mes es justo el caso donde se acumulan.
+#
+# El default de `long` (1500 s) TAMPOCO alcanza: con los dos números que ya están medidos
+# --45 NC en agosto-2026 y hasta 51 s por nota (producción, 2026-07-29)-- el peor caso da
+# 2.295 s, y `_TFHKA_BATCH_SIZE` es por serie Y por doctype, así que una corrida puede
+# pasar de 100 documentos. Acá un corte no "retrasa": lo que queda espera un MES, y una
+# nota de agosto emitida el 30 de septiembre es exactamente el bug que este cron evita.
+# `enqueue` respeta el timeout explícito (`if not timeout: timeout = ...`), así que el
+# default de la cola no es un techo.
+#
+# El techo real es la medianoche, no la cola: arrancando 15:23, estos 9.000 s vencen 17:53,
+# con horas de sobra. Y el corte duro está en el bucle (`stop_after_day` de
+# `_process_series_invoices`), que es quien garantiza que ningún documento salga fechado el
+# día siguiente aunque el lote se estire.
+_NOTES_BATCH_TIMEOUT: int = 9000
+
 
 def _hka_log(description: str, status: str = "Info") -> None:
     """Registra un evento del cron HKA en VE Digital Invoice Log."""
@@ -1424,8 +1448,19 @@ def _send_pending_invoices(tfhka_settings: dict) -> None:
 def _process_series_invoices(
     series: dict,
     pending: list[str],
+    doctype: str = "Sales Invoice",
+    stop_after_day: str | None = None,
 ) -> tuple[int, int, list[str], list[str]]:
-    """Procesa las facturas pendientes de una serie específica.
+    """Procesa los documentos pendientes de una serie específica.
+
+    `doctype` permite reutilizar este recorrido para las notas de crédito y débito
+    (ver `_send_pending_notes`); por defecto sigue siendo la factura de venta.
+
+    `stop_after_day` corta el lote si cambia el día. Lo usa el lote mensual de notas:
+    `fecha_hka = today()` se evalúa POR DOCUMENTO, así que un lote que cruza la
+    medianoche fecha el resto en el mes siguiente --el bug que ese cron evita--. Una
+    nota sin enviar no rompe nada; una nota con la fecha del mes equivocado sí. Las
+    facturas no lo pasan y su comportamiento no cambia.
 
     Retorna (exitosas, errores, lista_exitosas, lista_errores).
 
@@ -1440,9 +1475,18 @@ def _process_series_invoices(
     success_invoices: list[str] = []
     error_invoices: list[str] = []
 
-    for invoice_name in pending:
+    for idx, invoice_name in enumerate(pending):
+        if stop_after_day and today() != stop_after_day:
+            _hka_log(
+                f"STOP por cambio de día en serie {series_name}: el lote cruzó la "
+                f"medianoche del {stop_after_day} y quedan {len(pending) - idx} "
+                f"{doctype} sin enviar. Se retoman con force + ref_date.",
+                "Error",
+            )
+            break
+
         try:
-            result: bool = process_invoice(invoice_name)
+            result: bool = process_invoice(invoice_name, doctype=doctype)
 
             if result:
                 success_count += 1
@@ -1482,6 +1526,10 @@ def _process_series_invoices(
                 {"error": True, "message": str(e)},
                 "Error",
                 notes=f"Error enviando {invoice_name}: {str(e)}",
+                # Sin esto el log de una nota que falla queda archivado como
+                # "Sales Invoice" (es el default de _log_request), y los reportes
+                # que agrupan por document_type se lo atribuyen a las facturas.
+                doctype=doctype,
             )
             if stop_on_error:
                 _hka_log(
@@ -1751,6 +1799,282 @@ def _get_pending_hka_invoices(
     """, params, as_list=True)
 
     return [r[0] for r in results]
+
+
+def _is_last_day_of_month(ref: str | None = None) -> bool:
+    """True si `ref` (por defecto hoy) es el último día calendario de su mes."""
+    fecha = getdate(ref or today())
+    return fecha == getdate(get_last_day(fecha))
+
+
+def _month_window(ref: str | None = None) -> tuple[str, str]:
+    """Primer y último día del mes de `ref` (por defecto, hoy)."""
+    fecha = getdate(ref or today())
+    return str(getdate(get_first_day(fecha))), str(getdate(get_last_day(fecha)))
+
+
+def _assert_period_matches_today(ref_date: str | None = None) -> tuple[str, str]:
+    """Ventana del mes de `ref_date`, exigiendo que HOY caiga dentro. Si no, lanza.
+
+    El período manda sobre el argumento. Quien fija la fecha del documento no es
+    `ref_date` sino `fecha_hka = today()`, que `_update_fiscal_dates` escribe en
+    `posting_date`/`due_date` y `_sync_gl_entries_date` arrastra a los asientos, al
+    cronograma y al Payment Ledger. Por eso "recuperar julio" corrido en septiembre no
+    emite notas de julio: las emite fechadas en septiembre, con sus asientos — que es
+    exactamente el daño que este cron existe para evitar.
+
+    No alcanzaba con `_is_last_day_of_month(ref_date)`: comparaba `ref_date` contra el
+    último día de SU PROPIO mes, así que cualquier fin de mes daba True cualquier día, y
+    `ref_date='2026-07-31'` arrancaba un 15 de septiembre sin pedir siquiera `force`.
+
+    Esto NO lo levanta `force`. `force` existe para saltar la exigencia del último día
+    (el planificador falló y se corre esa misma noche), no para emitir fuera de período:
+    una nota vieja se emite a mano desde el documento.
+
+    Es un `throw` y no un `return` silencioso a propósito: con `ref_date=None` la
+    condición no puede fallar --la ventana es la de hoy--, así que sólo la ve una persona
+    que pasó un `ref_date` explícito, y necesita enterarse de que no salió nada.
+    """
+    month_start, month_end = _month_window(ref_date)
+    hoy: str = today()
+    if not (month_start <= hoy <= month_end):
+        frappe.throw(
+            _(
+                "No se puede procesar el período {0}..{1} un {2}: HKA fecha el documento "
+                "el día del envío, así que las notas saldrían fechadas hoy y sus asientos "
+                "se moverían de mes. Para emitir una nota de un período anterior, hacerlo "
+                "a mano desde el documento."
+            ).format(month_start, month_end, hoy),
+            title=_("El período no contiene la fecha de envío"),
+        )
+    return month_start, month_end
+
+
+def _get_pending_hka_notes(
+    doctype: str,
+    branches: list[str],
+    cutoff_date: str = "2026-04-01",
+    month_start: str | None = None,
+    month_end: str | None = None,
+) -> list[str]:
+    """Notas de crédito/débito aprobadas y aún no emitidas ante HKA.
+
+    A diferencia de las facturas NO se exige `status = 'Paid'`: una nota no se cobra,
+    basta con que esté aprobada (docstatus = 1).
+
+    **Solo las del mes de la corrida** (`month_start`..`month_end`). Sin esa ventana, la
+    primera pasada barre el rezago histórico y lo re-fecha: `_update_fiscal_dates` mueve
+    el `posting_date` al día del envío y `_sync_gl_entries_date` arrastra los asientos,
+    así que una nota de abril sin emitir se llevaría su efecto contable al mes en curso
+    --medido el 2026-08-31: NC-2026-00008, 8 asientos por Bs 42.496,20 parados en
+    abril--. La ventana es lo que hace que el trabajo sea del mes y de nadie más; una
+    nota vieja se resuelve a mano, con criterio contable, no de arrastre.
+
+    OJO, no es lo mismo que `cutoff_date`, que es el piso global de TFHKA Settings
+    (2026-04-01) y deja pasar todo lo posterior. Ese piso es un interruptor maestro y se
+    conserva; la ventana es la regla de periodo fiscal.
+
+    Se exige que la FACTURA AFECTADA ya tenga número fiscal (`bill_no`): el payload de
+    la nota lleva `NumeroFacturaAfectada`, y sin él `_get_datos_factura_afectada` lanza
+    error. Filtrarlas acá evita que el cron falle y llene el log; entran solas en la
+    corrida siguiente, en cuanto la factura original se emita.
+
+    OJO, es un INNER JOIN: una nota sin `return_against` queda fuera en silencio. Hoy no
+    existe ninguna --77 NC y 1 ND, todas con factura afectada, medido el 2026-08-31 en la
+    copia de producción-- pero si el negocio llegara a admitir una nota autónoma habría
+    que darle otro camino, no ampliarlo a LEFT JOIN: sin factura afectada el payload no
+    se puede armar.
+    """
+    if doctype not in _NOTE_DOCTYPES:
+        frappe.throw(f"DocType de nota no soportado: {doctype}")
+
+    if not branches:
+        return []
+
+    if not month_start or not month_end:
+        month_start, month_end = _month_window()
+
+    placeholders: str = ", ".join(["%s"] * len(branches))
+    params: list = (
+        [doctype] + branches + [cutoff_date, month_start, month_end, _TFHKA_BATCH_SIZE]
+    )
+
+    # La interpolación de `doctype` está acotada por la lista blanca `_NOTE_DOCTYPES` de
+    # arriba, y `placeholders` son marcadores `%s`: los valores viajan como parámetros.
+    # nosemgrep
+    results = frappe.db.sql(f"""
+        SELECT nota.name
+        FROM `tab{doctype}` nota
+        INNER JOIN `tabSales Invoice` si
+            ON si.name = nota.return_against
+            AND IFNULL(si.bill_no, '') != ''
+        LEFT JOIN `tabVE Digital Invoice Log` log
+            ON log.sales_invoice = nota.name
+            AND log.status = 'Success'
+            AND log.document_type = %s
+        WHERE nota.branch IN ({placeholders})
+          AND nota.posting_date >= %s
+          AND nota.posting_date BETWEEN %s AND %s
+          AND nota.docstatus = 1
+          AND (nota.bill_control IS NULL OR nota.bill_control = '')
+          AND log.name IS NULL
+        ORDER BY nota.posting_date, nota.name
+        LIMIT %s
+    """, params, as_list=True)
+
+    return [r[0] for r in results]
+
+
+def _send_pending_notes(tfhka_settings: dict, ref_date: str | None = None) -> None:
+    """Envía las notas de crédito y débito de venta del mes de `ref_date` a HKA.
+
+    Misma mecánica que las facturas (serie -> sucursales -> lote), reutilizando
+    `_process_series_invoices` con el doctype correspondiente. `ref_date` fija el mes
+    que se procesa; por defecto, el de hoy.
+    """
+    cutoff_date: str = tfhka_settings["cutoff_date"]
+    month_start, month_end = _month_window(ref_date)
+    dia_del_lote: str = today()
+    active_series: list[dict] = _get_active_billing_series()
+    if not active_series:
+        return
+
+    for doctype in _NOTE_DOCTYPES:
+        total_success: int = 0
+        total_errors: int = 0
+        success_docs: list[str] = []
+        error_docs: list[str] = []
+
+        for series in active_series:
+            branches: list[str] = series["branches"]
+            if not branches:
+                continue
+
+            pending: list[str] = _get_pending_hka_notes(
+                doctype=doctype,
+                branches=branches,
+                cutoff_date=cutoff_date,
+                month_start=month_start,
+                month_end=month_end,
+            )
+            if not pending:
+                continue
+
+            _hka_log(
+                f"Serie {series['name']} ({series['operation_mode']}): "
+                f"{len(pending)} {doctype} pendientes en {len(branches)} sucursal(es) "
+                f"del periodo {month_start}..{month_end}.",
+                "Success",
+            )
+
+            s, e, ok_list, err_list = _process_series_invoices(
+                series, pending, doctype=doctype, stop_after_day=dia_del_lote
+            )
+            total_success += s
+            total_errors += e
+            success_docs.extend(ok_list)
+            error_docs.extend(err_list)
+
+        if total_success or total_errors:
+            _log_batch_summary(total_success, total_errors, success_docs, error_docs)
+
+
+def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) -> None:
+    """Cron del ÚLTIMO DÍA DEL MES: encola el envío de las NC/ND de venta pendientes.
+
+    Va aparte del cron de facturas (cada 5 min) a propósito. Al certificar, HKA fija la
+    Fecha de Emisión, y del lado de Frappe `_update_fiscal_dates` mueve `posting_date` y
+    `due_date` del documento --y `_sync_gl_entries_date` los asientos, el cronograma y el
+    Payment Ledger-- al día del envío. Con envío continuo, una nota creada a fin de mes
+    se certifica el mes siguiente y se lleva su efecto contable con ella: pasó el
+    2026-08-05 con NC-2026-00036-1, creada el 28-jul y emitida en agosto. Corriendo el
+    último día del mes, la nota se certifica dentro del mes en que se creó.
+
+    Solo salen las notas DEL MES de la corrida (ver `_get_pending_hka_notes`): el rezago
+    histórico no se barre solo, porque re-fecharlo movería su efecto contable de un mes
+    ya cerrado al mes en curso. Una nota vieja se emite a mano, con criterio contable.
+
+    El día lo fija el `L` del cron en hooks.py, pero se re-valida acá: ese cron vive
+    además en una fila editable de `Scheduled Job Type`, y si alguien la cambia el
+    perjuicio es justamente el que este trabajo evita.
+
+    `force=1` salta la exigencia del último día, para el caso de que el planificador
+    estuviera caído **esa misma noche** (todo en un renglón):
+
+        bench --site <site> execute
+        l10n_ve.digital_invoice.tfhka_integration.send_pending_notes_to_hka
+        --kwargs "{'force': 1}"
+
+    Esa misma noche, no al día siguiente: el documento sale fechado con `today()`, así que
+    correrlo el 1° de septiembre "para agosto" emitiría notas fechadas en septiembre. Por
+    eso `_assert_period_matches_today` lanza si el período pedido no contiene a hoy, y
+    `force` NO lo levanta. Una nota de un mes ya cerrado se emite a mano desde el
+    documento, no por acá.
+
+    `ref_date` sólo elige el mes dentro de esa restricción; su uso normal es dejarlo en
+    `None`.
+
+    Respeta `enabled` y `enable_auto_send` de TFHKA Settings, igual que el cron de
+    facturas.
+    """
+    # La fecha se CONGELA acá y viaja con el trabajo. Con `ref_date=None` el worker
+    # recalcula la ventana con SU reloj, y ahí la guarda no puede fallar nunca: la ventana
+    # de hoy siempre se contiene a sí misma. Un lote encolado 15:23 que arranque 00:05
+    # --cola ocupada, worker reiniciado-- buscaría las notas del mes NUEVO, no encontraría
+    # ninguna, y terminaría sin enviar una sola nota del mes que tocaba y sin un solo
+    # error. Congelada, ese mismo caso lanza, que es la respuesta correcta. El `job_id` ya
+    # llevaba el mes decidido; el kwarg no.
+    ref_congelada: str = ref_date or today()
+
+    # Primero el argumento: si el período pedido no contiene a hoy, esto lanza.
+    month_start, _month_end = _assert_period_matches_today(ref_congelada)
+
+    # Y el día se mira en el RELOJ, no en `ref_date`: pasarle un fin de mes cualquiera
+    # no convierte a hoy en fin de mes.
+    if not cint(force) and not _is_last_day_of_month():
+        return
+
+    tfhka_settings: dict | None = _get_tfhka_settings()
+    if not tfhka_settings:
+        return
+
+    if not tfhka_settings.get("enable_auto_send"):
+        return
+
+    # El mes ES la unidad de trabajo, así que va en el id. Con un id fijo, `deduplicate`
+    # --que mira sólo el id, nunca los kwargs-- descartaba en SILENCIO la corrida de
+    # recuperación de otro mes mientras el lote del mes estaba encolado: `enqueue` vuelve
+    # sin encolar, el aviso queda en un log interno y `bench execute` no imprime nada, así
+    # que quien la corrió cree que salió. Con el mes adentro, dos disparos del MISMO mes
+    # siguen colapsando (que es la protección que se quería) y julio ya no pisa a agosto.
+    frappe.enqueue(
+        "l10n_ve.digital_invoice.tfhka_integration.run_pending_notes_batch",
+        queue="long",
+        timeout=_NOTES_BATCH_TIMEOUT,
+        job_id=f"hka-monthly-notes-{month_start}",
+        deduplicate=True,
+        ref_date=ref_congelada,
+    )
+
+
+def run_pending_notes_batch(ref_date: str | None = None) -> None:
+    """Trabajo de fondo del lote mensual de notas (ver `_NOTES_BATCH_TIMEOUT`).
+
+    Vuelve a leer TFHKA Settings y a validar el período porque es un punto de entrada por
+    derecho propio: entre el encolado y la ejecución puede pasar un rato --incluso cruzar
+    la medianoche-- y el trabajo también se puede reencolar a mano desde la lista de RQ
+    Job, salteándose `send_pending_notes_to_hka`.
+    """
+    _assert_period_matches_today(ref_date)
+
+    tfhka_settings: dict | None = _get_tfhka_settings()
+    if not tfhka_settings:
+        return
+
+    if not tfhka_settings.get("enable_auto_send"):
+        return
+
+    _send_pending_notes(tfhka_settings, ref_date=ref_date)
 
 
 @frappe.whitelist()

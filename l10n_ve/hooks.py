@@ -494,6 +494,27 @@ scheduler_events = {
             "l10n_ve.digital_invoice.reconciliation.reconcile_hka_fiscal_fields",
         ],
         "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
+        # Las NC/ND de venta van aparte, el ULTIMO DIA DEL MES (`L`; croniter lo resuelve
+        # y Frappe valida el formato con croniter, asi que resuelve tambien febrero y los
+        # meses de 30). No es una preferencia de cadencia: al certificar, HKA fija la
+        # Fecha de Emision y del lado de Frappe `_update_fiscal_dates` mueve el
+        # posting_date de la nota --y `_sync_gl_entries_date` sus asientos-- al dia del
+        # envio. Con el `*/5` de arriba, una nota creada a fin de mes se certifica el mes
+        # siguiente y cambia de periodo fiscal (paso el 2026-08-05 con NC-2026-00036-1,
+        # creada el 28-jul).
+        #
+        # LA HORA ES LO QUE PROTEGE EL MES. `fecha_hka = today()` se evalua POR DOCUMENTO,
+        # asi que un lote que cruce la medianoche fecha el resto en el mes siguiente. A las
+        # 15:23 quedan mas de 8 h de margen; con el cron a la noche el margen eran 2 h y
+        # media, que alcanzaba en el caso normal pero no dejaba lugar a una cola cargada o
+        # a un reintento largo contra HKA.
+        #
+        # El costo del horario temprano es la contracara: una nota creada DESPUES de las
+        # 15:23 del ultimo dia no entra --y como el lote del mes siguiente solo mira su
+        # propio mes, esa nota ya no la toma ningun cron: se emite a mano desde el
+        # documento--. Se prefiere ese caso, que es visible y acotado, antes que el de
+        # fechar un lote entero en el mes equivocado.
+        "23 15 L * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_notes_to_hka"],
         "*/15 * * * *": ["l10n_ve.tasks.reset_all_prepared_reports"],
         "0 3 1 * *": ["l10n_ve.tasks.purge_old_digital_invoice_success_logs"],
         "0 4 * * *": [
