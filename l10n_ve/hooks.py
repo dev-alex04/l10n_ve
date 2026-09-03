@@ -494,9 +494,16 @@ scheduler_events = {
             "l10n_ve.digital_invoice.reconciliation.reconcile_hka_fiscal_fields",
         ],
         "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
-        # Las NC/ND de venta van aparte, el ULTIMO DIA DEL MES (`L`; croniter lo resuelve
-        # y Frappe valida el formato con croniter, asi que resuelve tambien febrero y los
-        # meses de 30). No es una preferencia de cadencia: al certificar, HKA fija la
+        # Las NC/ND de venta van aparte, el DIA 14 Y EL ULTIMO DIA DEL MES (`14,L`;
+        # croniter lo resuelve en una sola expresion y Frappe valida el formato con
+        # croniter, asi que resuelve tambien febrero y los meses de 30). El 14 se agrego el
+        # 2026-09-01: con una sola pasada, una nota creada el dia 2 esperaba casi un mes
+        # para certificarse. Las dos caen DENTRO del mismo mes, asi que la invariante de
+        # abajo --la nota se certifica en el mes en que se creo-- no cambia.
+        #
+        # OJO: la funcion re-valida el dia por dentro (`_is_notes_send_day`). Cambiar esta
+        # expresion sin tocar esa lista hace que la corrida nueva no envie nada y el cambio
+        # parezca aplicado sin serlo. No es una preferencia de cadencia: al certificar, HKA fija la
         # Fecha de Emision y del lado de Frappe `_update_fiscal_dates` mueve el
         # posting_date de la nota --y `_sync_gl_entries_date` sus asientos-- al dia del
         # envio. Con el `*/5` de arriba, una nota creada a fin de mes se certifica el mes
@@ -514,7 +521,7 @@ scheduler_events = {
         # propio mes, esa nota ya no la toma ningun cron: se emite a mano desde el
         # documento--. Se prefiere ese caso, que es visible y acotado, antes que el de
         # fechar un lote entero en el mes equivocado.
-        "23 15 L * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_notes_to_hka"],
+        "23 15 14,L * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_notes_to_hka"],
         "*/15 * * * *": ["l10n_ve.tasks.reset_all_prepared_reports"],
         "0 3 1 * *": ["l10n_ve.tasks.purge_old_digital_invoice_success_logs"],
         "0 4 * * *": [
