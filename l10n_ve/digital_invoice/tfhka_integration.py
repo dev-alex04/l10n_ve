@@ -1807,6 +1807,28 @@ def _is_last_day_of_month(ref: str | None = None) -> bool:
     return fecha == getdate(get_last_day(fecha))
 
 
+# Días fijos en que sale el lote de notas, además del último del mes. El 14 lo pidió
+# Daniel el 2026-09-01 para partir el período en dos: con una sola pasada, una nota creada
+# el día 2 esperaba casi un mes para certificarse. El último día no es un número, así que
+# se resuelve aparte.
+_NOTES_SEND_DAYS: tuple[int, ...] = (14,)
+
+
+def _is_notes_send_day(ref: str | None = None) -> bool:
+    """True si `ref` (por defecto hoy) es uno de los días en que corre el lote de notas.
+
+    Son el **14 y el último día del mes**, que es lo que declara el cron `23 15 14,L * *`
+    de hooks.py. Se re-valida en código por lo mismo que la versión anterior: esa expresión
+    vive también en una fila editable de `Scheduled Job Type`.
+
+    Las dos pasadas caen DENTRO del mismo mes, así que la invariante que motivó todo esto
+    --la nota se certifica en el mes en que se creó-- se conserva igual; lo único que baja
+    es cuánto espera una nota temprana.
+    """
+    fecha = getdate(ref or today())
+    return fecha.day in _NOTES_SEND_DAYS or _is_last_day_of_month(fecha)
+
+
 def _month_window(ref: str | None = None) -> tuple[str, str]:
     """Primer y último día del mes de `ref` (por defecto, hoy)."""
     fecha = getdate(ref or today())
@@ -1980,15 +2002,18 @@ def _send_pending_notes(tfhka_settings: dict, ref_date: str | None = None) -> No
 
 
 def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) -> None:
-    """Cron del ÚLTIMO DÍA DEL MES: encola el envío de las NC/ND de venta pendientes.
+    """Cron del DÍA 14 Y DEL ÚLTIMO DÍA DEL MES: encola el envío de las NC/ND pendientes.
 
     Va aparte del cron de facturas (cada 5 min) a propósito. Al certificar, HKA fija la
     Fecha de Emisión, y del lado de Frappe `_update_fiscal_dates` mueve `posting_date` y
     `due_date` del documento --y `_sync_gl_entries_date` los asientos, el cronograma y el
     Payment Ledger-- al día del envío. Con envío continuo, una nota creada a fin de mes
     se certifica el mes siguiente y se lleva su efecto contable con ella: pasó el
-    2026-08-05 con NC-2026-00036-1, creada el 28-jul y emitida en agosto. Corriendo el
-    último día del mes, la nota se certifica dentro del mes en que se creó.
+    2026-08-05 con NC-2026-00036-1, creada el 28-jul y emitida en agosto. Corriendo
+    dentro del mes, la nota se certifica en el mes en que se creó.
+
+    Las dos pasadas caen en el mismo mes, así que esa invariante no cambia; lo que baja es
+    la espera. Con una sola pasada, una nota creada el día 2 aguardaba casi un mes.
 
     Solo salen las notas DEL MES de la corrida (ver `_get_pending_hka_notes`): el rezago
     histórico no se barre solo, porque re-fecharlo movería su efecto contable de un mes
@@ -2029,9 +2054,9 @@ def send_pending_notes_to_hka(force: bool = False, ref_date: str | None = None) 
     # Primero el argumento: si el período pedido no contiene a hoy, esto lanza.
     month_start, _month_end = _assert_period_matches_today(ref_congelada)
 
-    # Y el día se mira en el RELOJ, no en `ref_date`: pasarle un fin de mes cualquiera
-    # no convierte a hoy en fin de mes.
-    if not cint(force) and not _is_last_day_of_month():
+    # Y el día se mira en el RELOJ, no en `ref_date`: pasarle un día de corrida cualquiera
+    # no convierte a hoy en día de corrida.
+    if not cint(force) and not _is_notes_send_day():
         return
 
     tfhka_settings: dict | None = _get_tfhka_settings()
