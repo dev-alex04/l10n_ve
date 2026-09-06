@@ -240,8 +240,42 @@ def get_ve_branch_permission_query(user: str, doctype: str = None) -> str:
     conditions: List[str] = []
     for field in branch_fields:
         conditions.append(f"`tab{doctype}`.{field} IN ({escaped_branches})")
-        
-    return " OR ".join(conditions)
+
+    # Un documento SIN sucursal en NINGÚN campo tiene que salir en la lista, porque
+    # `has_ve_branch_permission` ya deja abrirlo: no es de otra sucursal, es de ninguna.
+    # Sin esto los dos ganchos se contradicen y el documento queda accesible por enlace
+    # directo pero invisible en toda vista de lista, buscador y reporte — el síntoma
+    # engaña, porque parece un filtro de la pantalla y es la condición de permisos.
+    #
+    # `IN` nunca casa contra NULL, así que el campo vacío se cae solo de las condiciones
+    # de arriba; hay que nombrarlo aparte.
+    #
+    # Medido en producción el 05-09-2026: 135 Payment Entry emitidos sin sucursal de
+    # 24.754, y 134 de ellos son anticipos SIN asignar por Bs 6.962.044,19 --los que crea
+    # el conector de Bancaribe, que nace sin sucursal a propósito--. Eso es saldo a favor
+    # que los 80 usuarios acotados por sucursal no podían ver en ninguna lista, así que
+    # nadie lo aplicaba.
+    #
+    # El ajuste del sitio manda, igual que en `has_ve_branch_permission`: con
+    # `apply_strict_user_permissions` activo el vacío vuelve a ocultarse, para que los dos
+    # ganchos sigan diciendo lo mismo bajo cualquier configuración.
+    if not cint(frappe.get_system_settings("apply_strict_user_permissions")):
+        vacios = [f"IFNULL(`tab{doctype}`.{field}, '') = ''" for field in branch_fields]
+        conditions.append("(" + " AND ".join(vacios) + ")")
+
+    # El paréntesis externo NO es cosmético: Frappe pega esto con `and` PELADO
+    # (`build_match_conditions`, frappe/model/db_query.py) y en SQL el AND liga más
+    # fuerte que el OR. Sin él, `((User Permissions)) and A OR B` se lee
+    # `((User Permissions) AND A) OR B`, y todo lo que case con B —el documento sin
+    # sucursal— entra SALTÁNDOSE las User Permissions del usuario.
+    #
+    # Medido sobre la copia de producción con un permiso acotado a una sola cuenta
+    # bancaria: 36 filas visibles con paréntesis, 130 sin él. Las 94 de más eran de
+    # cuentas que el permiso del usuario niega.
+    #
+    # Aplica también al caso que ya existía antes de este cambio: un DocType con dos
+    # campos de sucursal ya devolvía dos condiciones unidas por OR.
+    return "(" + " OR ".join(conditions) + ")"
 
 # DocType consolidados a nivel nacional, donde la sucursal no aplica como criterio de
 # acceso. Ver `has_ve_branch_permission`.
