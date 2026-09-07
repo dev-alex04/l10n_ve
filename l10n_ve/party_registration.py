@@ -134,11 +134,30 @@ def classify(raw: str | None, document_type: str | None = None, party_doctype: s
 	proposal = classify_party_by_document(raw, document_type)
 	meta = frappe.get_meta(party_doctype)
 
-	return {
-		field: value
-		for field, value in proposal.items()
-		if value and meta.has_field(field) and value in _allowed(field, party_doctype)
-	}
+	classified: dict[str, str] = {}
+	discarded: dict[str, str] = {}
+
+	for field, value in proposal.items():
+		if not value or not meta.has_field(field):
+			continue
+
+		if value in _allowed(field, party_doctype):
+			classified[field] = value
+		else:
+			discarded[field] = value
+
+	if discarded:
+		# Omitir un Select obligatorio no lo deja vacío: Frappe le pone su PRIMERA
+		# opción --`RIF`, `Juridical`--, que es justo el silencio que este módulo
+		# existe para evitar. No se manda el valor (rompería el alta), pero que el
+		# sitio esté por detrás en fixtures tiene que verse.
+		frappe.log_error(
+			"Clasificación fiscal incompleta",
+			f"{party_doctype} no admite {discarded} en este sitio: el alta va a tomar "
+			"el valor por defecto de cada Select. Sincronizar fixtures.",
+		)
+
+	return classified
 
 
 def letter_choices(party_doctype: str = "Customer") -> list[dict]:

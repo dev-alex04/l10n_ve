@@ -45,6 +45,28 @@ class TestIdentidad(FrappeTestCase):
 		self.assertIn("RIF", por_letra["V"]["document_ranges"])
 		self.assertEqual(por_letra["J"]["customer_type"], "Company")
 
+	def test_un_valor_que_el_sitio_no_admite_deja_rastro(self):
+		"""Omitir un Select obligatorio no lo deja vacío: Frappe le pone su primera opción
+		(`RIF`, `Juridical`). No se manda el valor, pero queda dicho en el Error Log."""
+		from unittest.mock import patch
+
+		from l10n_ve import party_registration as pr
+
+		original = pr._allowed
+
+		def sin_cedula(field, party_doctype="Customer"):
+			opciones = original(field, party_doctype)
+
+			return opciones - {"Cedula"} if field == "type_of_document" else opciones
+
+		antes = frappe.db.count("Error Log", {"method": "Clasificación fiscal incompleta"})
+
+		with patch.object(pr, "_allowed", side_effect=sin_cedula):
+			campos = pr.classify("V12345678", "Cedula")
+
+		self.assertNotIn("type_of_document", campos, "el valor que el sitio no admite no se manda")
+		self.assertEqual(frappe.db.count("Error Log", {"method": "Clasificación fiscal incompleta"}), antes + 1)
+
 	def test_lo_que_falta_se_dice_con_los_nombres_de_aca(self):
 		texto = missing_contact_text({"customer_name": "X", "email_id": "x@y.z"})
 
