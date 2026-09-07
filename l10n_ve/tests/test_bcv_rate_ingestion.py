@@ -22,6 +22,7 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 from bs4 import BeautifulSoup
+from frappe.utils import add_days, getdate
 
 from l10n_ve.tasks import (
     _extract_date_from_html,
@@ -209,7 +210,7 @@ class TestTargetDates(unittest.TestCase):
             sorted(published),
             [date(2026, 9, 5), date(2026, 9, 6), date(2026, 9, 7)],
         )
-        self.assertIsNone(fallback)
+        self.assertEqual(fallback, [])
 
     def test_sunday_covers_sunday_and_monday(self):
         published, fallback = _resolve_target_dates(
@@ -219,7 +220,7 @@ class TestTargetDates(unittest.TestCase):
         self.assertEqual(
             sorted(published), [date(2026, 9, 6), date(2026, 9, 7)]
         )
-        self.assertIsNone(fallback)
+        self.assertEqual(fallback, [])
 
     def test_business_day_gets_the_previous_rate_not_the_next_one(self):
         """Viernes sin tasa tras una caída: el fin de semana toma la del lunes,
@@ -229,7 +230,7 @@ class TestTargetDates(unittest.TestCase):
         )
 
         self.assertNotIn(date(2026, 9, 4), published)
-        self.assertEqual(fallback, date(2026, 9, 4))
+        self.assertEqual(fallback, [date(2026, 9, 4)])
 
     def test_a_weekday_holiday_on_the_first_of_month_is_covered(self):
         """1-ene-2027 es viernes y feriado. Sin esta red se queda sin fila, y
@@ -240,7 +241,7 @@ class TestTargetDates(unittest.TestCase):
         )
 
         self.assertNotIn(date(2027, 1, 1), published)
-        self.assertEqual(fallback, date(2027, 1, 1))
+        self.assertEqual(fallback, [date(2027, 1, 1)])
 
     def test_weekday_preload_leaves_today_as_fallback(self):
         published, fallback = _resolve_target_dates(
@@ -248,12 +249,39 @@ class TestTargetDates(unittest.TestCase):
         )
 
         self.assertEqual(published, [date(2026, 9, 4)])
-        self.assertEqual(fallback, date(2026, 9, 3))
+        self.assertEqual(fallback, [date(2026, 9, 3)])
+
+    def test_intermediate_holidays_are_covered_too(self):
+        """Si la fecha valor apunta más allá de mañana es porque el BCV no va a
+        publicar esos días: son feriados. Dejarlos sin fila es el mismo agujero
+        del 1° de mes —el 1-may-2026 cae viernes— y depender de que ese día el
+        cron corra y el BCV responda."""
+        calendarios = [
+            # (hoy, fecha valor, hábiles intermedios esperados)
+            (date(2026, 2, 13), date(2026, 2, 18),
+             [date(2026, 2, 16), date(2026, 2, 17)]),   # Carnaval
+            (date(2026, 4, 1), date(2026, 4, 6),
+             [date(2026, 4, 2), date(2026, 4, 3)]),     # Semana Santa
+            (date(2026, 4, 30), date(2026, 5, 4),
+             [date(2026, 5, 1)]),                       # 1° de mayo
+        ]
+
+        for today, api_date, expected in calendarios:
+            with self.subTest(today=today):
+                published, fallback = _resolve_target_dates(api_date, today)
+
+                self.assertEqual(sorted(fallback), [today] + expected)
+                # ningún día del tramo queda sin cubrir
+                covered = set(published) | set(fallback)
+                day = today
+                while day < api_date:
+                    self.assertIn(day, covered)
+                    day = getdate(add_days(day, 1))
 
     def test_past_or_current_value_date_registers_only_that_day(self):
         self.assertEqual(
             _resolve_target_dates(date(2026, 9, 6), date(2026, 9, 6)),
-            ([date(2026, 9, 6)], None),
+            ([date(2026, 9, 6)], []),
         )
 
 
@@ -325,6 +353,23 @@ class TestProcessRates(unittest.TestCase):
         written = {call.args[4]: call.args[5] for call in upsert.call_args_list}
         self.assertEqual(written[date(2026, 9, 4)], "807.38620000")
         self.assertEqual(written[date(2026, 9, 7)], "813.73610000")
+
+    def test_every_intermediate_business_day_gets_the_last_known_rate(
+        self, _log, upsert, _cache
+    ):
+        """Miércoles de Semana Santa: jueves y viernes son feriados y el BCV ya
+        los salteó; van con la última conocida, no con la del lunes."""
+        self._run(
+            {"date": "2026-04-06", "rates": {"USD": "813.73610000"}},
+            today="2026-04-01",
+            last_rate="807.38620000",
+        )
+
+        written = {call.args[4]: call.args[5] for call in upsert.call_args_list}
+        for day in (date(2026, 4, 1), date(2026, 4, 2), date(2026, 4, 3)):
+            self.assertEqual(written[day], "807.38620000")
+        for day in (date(2026, 4, 4), date(2026, 4, 5), date(2026, 4, 6)):
+            self.assertEqual(written[day], "813.73610000")
 
     def test_a_past_value_date_never_overwrites_an_existing_row(
         self, _log, upsert, _cache

@@ -455,12 +455,15 @@ def _process_rates(rates_data: dict) -> None:
     ese día empiece y los procesos que corren a medianoche (facturación) no se
     quedan sin tasa.
 
-    Si el día EN CURSO quedó sin fila —un feriado entre semana, o una lectura
-    que falló— se lo cubre con la ÚLTIMA CONOCIDA, nunca con la del próximo día
-    hábil: su tasa se publicó ese mismo día, y suponerle la de mañana sería
-    inventar el número que se declara. Sin esa red, un feriado que cae 1° de mes
-    deja sin fila justo la fecha que ancla a todos los clientes naturales, y
-    `_validate_tasa_coherencia` bloquea la certificación del mes entero.
+    Los días HÁBILES que queden sin fila —el día en curso, y los feriados que
+    el BCV ya salteó al apuntar su fecha valor más allá de mañana— se cubren con
+    la ÚLTIMA CONOCIDA, nunca con la del próximo día hábil: su tasa se publicó
+    ese mismo día, y suponerle la de mañana sería inventar el número que se
+    declara. Sin esa red, un feriado que cae 1° de mes deja sin fila justo la
+    fecha que ancla a todos los clientes naturales, y `_validate_tasa_coherencia`
+    —que busca por fecha exacta y no cae hacia atrás— bloquea la certificación
+    del mes entero. Precargarlos el día anterior es lo que evita depender de que
+    ese día el cron corra y el BCV responda.
 
     Una fila que ya existe no se pisa, salvo la de la propia fecha valor: el
     resto pudo haberla corregido un contador a mano, y el cron corre cada 3 h.
@@ -496,7 +499,7 @@ def _process_rates(rates_data: dict) -> None:
     if not _is_plausible_value_date(api_date, today_date):
         return
 
-    published_dates, fallback_date = _resolve_target_dates(api_date, today_date)
+    published_dates, fallback_dates = _resolve_target_dates(api_date, today_date)
     # Una fecha valor pasada solo rellena huecos; jamás reescribe historia.
     may_overwrite = api_date >= today_date
     derived_written, fallback_written = [], []
@@ -517,22 +520,21 @@ def _process_rates(rates_data: dict) -> None:
             if target_date != api_date:
                 derived_written.append(target_date)
 
-        if not fallback_date or _rate_exists(
-            doctype, from_currency, to_currency, fallback_date
-        ):
-            continue
+        for fallback_date in fallback_dates:
+            if _rate_exists(doctype, from_currency, to_currency, fallback_date):
+                continue
 
-        last_rate = _last_known_rate(
-            doctype, from_currency, to_currency, fallback_date
-        )
-        if not last_rate:
-            continue
+            last_rate = _last_known_rate(
+                doctype, from_currency, to_currency, fallback_date
+            )
+            if not last_rate:
+                continue
 
-        _upsert_exchange_rate(
-            doctype, purpose, from_currency,
-            to_currency, fallback_date, last_rate
-        )
-        fallback_written.append(fallback_date)
+            _upsert_exchange_rate(
+                doctype, purpose, from_currency,
+                to_currency, fallback_date, last_rate
+            )
+            fallback_written.append(fallback_date)
 
     if derived_written or fallback_written:
         detalle = []
@@ -543,8 +545,8 @@ def _process_rates(rates_data: dict) -> None:
             )
         if fallback_written:
             detalle.append(
-                f"{fallback_date} no tenía tasa y se cubrió con la última "
-                "conocida"
+                "días hábiles sin tasa cubiertos con la última conocida: "
+                + ", ".join(sorted({str(d) for d in fallback_written}))
             )
         frappe.log_error(
             "BCV Protection",
@@ -640,7 +642,7 @@ def _is_plausible_value_date(api_date, today_date) -> bool:
     return False
 
 
-def _resolve_target_dates(api_date, today_date) -> tuple[list, object]:
+def _resolve_target_dates(api_date, today_date) -> tuple[list, list]:
     """Decide qué días se registran con la tasa recién leída.
 
     - Fecha valor de hoy o pasada: se registra únicamente ese día.
@@ -652,31 +654,31 @@ def _resolve_target_dates(api_date, today_date) -> tuple[list, object]:
     Que el fin de semana lleve la tasa del lunes es la regla del negocio: el BCV
     no publica sábado ni domingo, y su fecha valor ya apunta al lunes.
 
-    Devuelve ``(fechas que llevan la tasa publicada, día a cubrir con la
+    Devuelve ``(fechas que llevan la tasa publicada, días a cubrir con la
     última conocida)``.
 
     A un día **hábil** no se le pone la tasa del próximo día hábil: la suya se
     publicó ese mismo día y suponerla sería inventar el número que se declara.
-    El día EN CURSO es la excepción, y va aparte: si quedó sin fila —feriado
-    entre semana, o una lectura fallida— se lo cubre con la última tasa
-    conocida, que es hacia atrás y no hacia adelante. Los días hábiles ya
+    Los días hábiles intermedios van aparte: el día EN CURSO y los feriados que
+    el BCV ya salteó al apuntar su fecha valor más allá se cubren con la última
+    tasa conocida, que es hacia atrás y no hacia adelante. Los días hábiles ya
     pasados no se tocan: ese hueco lo cierra un backfill, no el cron.
     """
     if api_date <= today_date:
-        return [api_date], None
+        return [api_date], []
 
     published_dates = [api_date]
-    fallback_date = None
+    fallback_dates = []
 
     day = today_date
     while day < api_date:
         if day.weekday() >= 5:  # 5 = sábado, 6 = domingo
             published_dates.append(day)
-        elif day == today_date:
-            fallback_date = day
+        else:
+            fallback_dates.append(day)
         day = getdate(add_days(day, 1))
 
-    return published_dates, fallback_date
+    return published_dates, fallback_dates
 
 
 def reset_all_prepared_reports() -> None:
