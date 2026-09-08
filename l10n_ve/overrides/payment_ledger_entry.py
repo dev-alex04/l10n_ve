@@ -1,28 +1,65 @@
 import frappe
 from frappe.utils import flt
 
-def on_submit_payment_ledger_entry(doc, method=None):
-    if doc.voucher_type != "Payment Entry" or doc.against_voucher_type != "Sales Invoice":
-        return
+_VE_DEBIT_NOTE_TYPES: frozenset[str] = frozenset({
+    "VE Purchase Debit Note",
+    "VE Sales Debit Note",
+})
 
-    invoice_name = doc.against_voucher_no
 
+def on_submit_payment_ledger_entry(doc, method: str | None = None) -> None:
     # Recalcular campos de IGTF en la Factura de Ventas
-    recalculate_invoice_igtf(invoice_name)
+    if doc.voucher_type == "Payment Entry" and doc.against_voucher_type == "Sales Invoice":
+        recalculate_invoice_igtf(doc.against_voucher_no)
+
+    # Recalcular saldo de Notas de Débito venezolanas
+    if doc.against_voucher_type in _VE_DEBIT_NOTE_TYPES and doc.against_voucher_no:
+        update_ve_debit_note_outstanding(doc.against_voucher_type, doc.against_voucher_no)
 
 
-def on_cancel_payment_ledger_entry(doc, method=None):
-    if doc.voucher_type != "Payment Entry" or doc.against_voucher_type != "Sales Invoice":
-        return
-
-    invoice_name = doc.against_voucher_no
-
+def on_cancel_payment_ledger_entry(doc, method: str | None = None) -> None:
     # Recalcular campos de IGTF en la Factura de Ventas
-    recalculate_invoice_igtf(invoice_name)
+    if doc.voucher_type == "Payment Entry" and doc.against_voucher_type == "Sales Invoice":
+        recalculate_invoice_igtf(doc.against_voucher_no)
+
+    # Recalcular saldo de Notas de Débito venezolanas
+    if doc.against_voucher_type in _VE_DEBIT_NOTE_TYPES and doc.against_voucher_no:
+        update_ve_debit_note_outstanding(doc.against_voucher_type, doc.against_voucher_no)
 
 
-def on_trash_payment_ledger_entry(doc, method=None):
+def on_trash_payment_ledger_entry(doc, method: str | None = None) -> None:
     on_cancel_payment_ledger_entry(doc, method)
+
+
+def update_ve_debit_note_outstanding(voucher_type: str, voucher_no: str) -> None:
+    """
+    Recalcula y actualiza el campo outstanding_amount y el status de una
+    Nota de Débito venezolana según los movimientos en Payment Ledger Entry.
+    """
+    if not frappe.db.exists(voucher_type, voucher_no):
+        return
+
+    from erpnext.accounts.utils import QueryPaymentLedger
+
+    vouchers: list[frappe._dict] = [
+        frappe._dict({"voucher_type": voucher_type, "voucher_no": voucher_no})
+    ]
+    results: list[dict] = QueryPaymentLedger().get_voucher_outstandings(vouchers)
+
+    precision: int = frappe.get_precision(voucher_type, "outstanding_amount") or 2
+    if results:
+        outstanding: float = flt(results[0].get("outstanding_in_account_currency"), precision)
+    else:
+        grand_total: float = flt(
+            frappe.get_cached_value(voucher_type, voucher_no, "rounded_total")
+            or frappe.get_cached_value(voucher_type, voucher_no, "grand_total")
+            or 0.0
+        )
+        outstanding = flt(grand_total, precision)
+
+    frappe.db.set_value(voucher_type, voucher_no, "outstanding_amount", outstanding)
+    ref_doc = frappe.get_doc(voucher_type, voucher_no)
+    ref_doc.set_status(update=True)
 
 
 def recalculate_invoice_igtf(invoice_name):
