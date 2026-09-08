@@ -1,11 +1,21 @@
+import re
+
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 import frappe
 
-from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt, fmt_money, add_years, add_days
+from frappe.utils import getdate, formatdate, get_datetime_str, nowdate, flt, fmt_money, add_years, add_days, date_diff
 
 
 BCV_URL = "https://www.bcv.org.ve/"
+# Ventana admisible entre hoy y la fecha valor del BCV. Hacia adelante el hueco
+# real más largo son los feriados de dos días entre semana: Carnaval (lunes y
+# martes) y Semana Santa (jueves y viernes) dejan un salto de 5 días —viernes
+# a miércoles, miércoles a lunes—, así que 4 rechazaría lecturas legítimas.
+# Hacia atrás la página puede quedar mostrando la fecha valor de un día previo.
+# Fuera de esa ventana se trata como fecha mal leída y no se registra nada.
+BCV_MAX_PRELOAD_DAYS = 6
+BCV_MAX_BACKDATE_DAYS = 3
 BCV_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -372,16 +382,67 @@ def _extract_rates_from_html(soup: BeautifulSoup) -> dict:
 
 
 def _extract_date_from_html(soup: BeautifulSoup) -> str | None:
-    """Extrae la fecha de publicación de las tasas del HTML del BCV."""
-    date_container = soup.find(
-        "div", class_="views-field-field-fecha-del-indicador"
-    )
-    time_tag = date_container.find("time") if date_container else None
+    """Extrae la FECHA VALOR que el BCV publica junto al recuadro de divisas.
 
-    if not (time_tag and time_tag.get("datetime")):
-        return None
+    El BCV la expone como `<span class="date-display-single" content="...">`
+    precedido por el rótulo "Fecha Valor:".
 
-    return time_tag.get("datetime")[:10]
+    Antes venía en un `<time datetime="...">` dentro de
+    `.views-field-field-fecha-del-indicador`. Ese contenedor sigue existiendo,
+    pero hoy trae la fecha de OTRO indicador, así que **no** sirve de respaldo:
+    leerlo estamparía las tasas de hoy con una fecha ajena. Si la fecha valor
+    no aparece, se devuelve None y el llamador descarta la lectura completa.
+    """
+    for label in soup.find_all(string=_is_value_date_label):
+        span = label.find_parent("span", class_="date-display-single")
+
+        if not span:
+            # El span tiene que estar DESPUÉS del rótulo —los indicadores que
+            # van antes son de otra cosa— y dentro de su mismo bloque.
+            # El bloque que enmarca al rótulo. Sirve de límite: sin él, si el
+            # span de la fecha valor desaparece, la búsqueda sigue de largo y
+            # toma la fecha de otro indicador que vive más abajo en la página.
+            container = label.find_parent("div") or label.find_parent()
+            if container is None:
+                continue
+
+            inside = set(id(node) for node in container.find_all(
+                "span", class_="date-display-single"
+            ))
+            span = next(
+                (
+                    node
+                    for node in label.find_all_next(
+                        "span", class_="date-display-single"
+                    )
+                    if id(node) in inside
+                ),
+                None,
+            )
+
+        content = span.get("content") if span else None
+        if content:
+            return content[:10]
+
+    return None
+
+
+def _is_value_date_label(text) -> bool:
+    """Reconoce el rótulo "Fecha Valor" del BCV en un nodo de texto.
+
+    Normaliza mayúsculas y el espacio duro (U+00A0) que el sitio intercala, y
+    descarta comentarios y contenido de <script>, que `find_all(string=...)`
+    también devuelve.
+    """
+    if isinstance(text, Comment):
+        return False
+
+    parent = text.parent
+    if parent is not None and parent.name in ("script", "style"):
+        return False
+
+    # El sitio intercala espacios duros y saltos de línea dentro del rótulo.
+    return "fecha valor" in re.sub(r"\s+", " ", text.replace("\xa0", " ")).lower()
 
 
 def _process_rates(rates_data: dict) -> None:
@@ -389,36 +450,140 @@ def _process_rates(rates_data: dict) -> None:
     Crea/actualiza documentos de Currency Exchange.
 
     Cuando el BCV publica una tasa con FECHA VALOR FUTURA (el próximo día
-    hábil), se registra con esa fecha real además de cubrir hoy. Así la tasa
-    del día siguiente ya existe antes de que ese día empiece y los procesos
-    que corren a medianoche (facturación) no se quedan sin tasa.
+    hábil), se registra con esa fecha real y se cubren con ella los sábados y
+    domingos intermedios. Así la tasa del día siguiente ya existe antes de que
+    ese día empiece y los procesos que corren a medianoche (facturación) no se
+    quedan sin tasa.
+
+    Los días HÁBILES que queden sin fila —el día en curso, y los feriados que
+    el BCV ya salteó al apuntar su fecha valor más allá de mañana— se cubren con
+    la ÚLTIMA CONOCIDA, nunca con la del próximo día hábil: su tasa se publicó
+    ese mismo día, y suponerle la de mañana sería inventar el número que se
+    declara. Sin esa red, un feriado que cae 1° de mes deja sin fila justo la
+    fecha que ancla a todos los clientes naturales, y `_validate_tasa_coherencia`
+    —que busca por fecha exacta y no cae hacia atrás— bloquea la certificación
+    del mes entero. Precargarlos el día anterior es lo que evita depender de que
+    ese día el cron corra y el BCV responda.
+
+    Una fila que ya existe no se pisa, salvo la de la propia fecha valor: el
+    resto pudo haberla corregido un contador a mano, y el cron corre cada 3 h.
     """
     doctype = "Currency Exchange"
     to_currency = "VEF"
     purpose = "Selling-Buying"
 
+    # `"0.00000000"` es una cadena verdadera, así que `if not rate` no alcanza:
+    # los tres fetchers formatean con `"{:.8f}".format(flt(...))` y un campo
+    # nulo o no numérico llega como cero. Escribirlo pondría en un documento
+    # fiscal una tasa que no existe, y por `set_value` ni siquiera pasa por la
+    # validación `exchange_rate > 0` de ERPNext.
+    rates = {
+        currency: rate
+        for currency, rate in (rates_data.get("rates") or {}).items()
+        if flt(rate) > 0
+    }
+
+    if not rates:
+        frappe.log_error(
+            "BCV Error",
+            "La lectura del BCV no trajo ninguna tasa positiva; no se registra "
+            "nada."
+        )
+        return
+
     api_date = getdate(rates_data.get("date"))
     today_date = getdate(nowdate())
 
-    for from_currency, exchange_rate in rates_data.get("rates", {}).items():
-        if not exchange_rate:
-            continue
+    # La cordura de la fecha se valida UNA vez por lectura y no por moneda: es
+    # una propiedad de lo que se leyó del BCV, y repetirla inundaría el log.
+    if not _is_plausible_value_date(api_date, today_date):
+        return
 
-        targets = _resolve_rate_targets(
-            api_date, today_date, from_currency,
-            to_currency, exchange_rate, doctype
-        )
+    published_dates, fallback_dates = _resolve_target_dates(api_date, today_date)
+    # Una fecha valor pasada solo rellena huecos; jamás reescribe historia.
+    may_overwrite = api_date >= today_date
+    derived_written, fallback_written = [], []
 
-        for target_date, target_rate in targets:
+    for from_currency, exchange_rate in rates.items():
+        for target_date in published_dates:
+            is_value_date = target_date == api_date and may_overwrite
+
+            if not is_value_date and _rate_exists(
+                doctype, from_currency, to_currency, target_date
+            ):
+                continue
+
             _upsert_exchange_rate(
                 doctype, purpose, from_currency,
-                to_currency, target_date, target_rate
+                to_currency, target_date, exchange_rate
             )
+            if target_date != api_date:
+                derived_written.append(target_date)
+
+        for fallback_date in fallback_dates:
+            if _rate_exists(doctype, from_currency, to_currency, fallback_date):
+                continue
+
+            last_rate = _last_known_rate(
+                doctype, from_currency, to_currency, fallback_date
+            )
+            if not last_rate:
+                continue
+
+            _upsert_exchange_rate(
+                doctype, purpose, from_currency,
+                to_currency, fallback_date, last_rate
+            )
+            fallback_written.append(fallback_date)
+
+    if derived_written or fallback_written:
+        detalle = []
+        if derived_written:
+            detalle.append(
+                "fin de semana cubierto con la tasa del próximo día hábil: "
+                + ", ".join(sorted({str(d) for d in derived_written}))
+            )
+        if fallback_written:
+            detalle.append(
+                "días hábiles sin tasa cubiertos con la última conocida: "
+                + ", ".join(sorted({str(d) for d in fallback_written}))
+            )
+        frappe.log_error(
+            "BCV Protection",
+            f"Fecha valor {api_date} precargada con su fecha real; "
+            + "; ".join(detalle) + "."
+        )
 
     # frappe.db.set_value no dispara doc_events, así que invalidamos el caché
     # de tasas explícitamente tras la sincronización BCV.
     from l10n_ve.utils.utils import clear_exchange_rate_cache
     clear_exchange_rate_cache()
+
+
+def _rate_exists(doctype, from_currency, to_currency, target_date) -> bool:
+    """¿Ya existe fila de tasa para ese par de monedas en esa fecha?"""
+    return bool(frappe.db.exists(doctype, {
+        "from_currency": from_currency,
+        "to_currency": to_currency,
+        "date": target_date,
+        "for_selling": 1,
+    }))
+
+
+def _last_known_rate(doctype, from_currency, to_currency, before_date):
+    """Última tasa publicada antes de esa fecha, para cubrir un día sin fila."""
+    return frappe.db.get_value(
+        doctype,
+        {
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "date": ["<", before_date],
+            "for_selling": 1,
+        },
+        "exchange_rate",
+        order_by="date desc",
+    )
+
 
 
 def _upsert_exchange_rate(
@@ -451,63 +616,69 @@ def _upsert_exchange_rate(
     doc.insert(ignore_permissions=True)
 
 
-def _resolve_rate_targets(
-    api_date,
-    today_date,
-    from_currency: str,
-    to_currency: str,
-    exchange_rate,
-    doctype: str,
-) -> list[tuple]:
-    """Decide qué pares (fecha, tasa) hay que registrar.
+def _is_plausible_value_date(api_date, today_date) -> bool:
+    """La fecha valor tiene que caer cerca de hoy; si no, se descarta la lectura.
 
-    - Fecha del BCV de hoy o pasada: se registra tal cual.
-    - Fecha del BCV FUTURA (fecha valor del próximo día hábil): se **precarga**
-      con su fecha real —de modo que la tasa de ese día exista antes de que el
-      día empiece— y, además, si hoy todavía no tiene tasa, se cubre hoy con la
-      última conocida (protección original para fines de semana/feriados).
+    Una fecha mal leída no es un dato que falta: escribirla **pisa** una fila de
+    Currency Exchange que ya existe. La del 1° de cada mes es la que ancla la
+    tasa de todos los clientes naturales, así que estamparle el valor de otro
+    mes desalinearía la facturación completa de ese período. Ante la duda no se
+    registra nada, ni hacia adelante ni hacia atrás.
+    """
+    drift = date_diff(api_date, today_date)
 
-    La precarga es la que elimina la carrera de medianoche: sin ella, la tasa
-    del día 1 no existía hasta que el cron corría ya entrado el día, y la
-    facturación de las 00:00 emitía con la tasa del mes anterior.
+    if -BCV_MAX_BACKDATE_DAYS <= drift <= BCV_MAX_PRELOAD_DAYS:
+        return True
+
+    # Título propio: "BCV Error" ya identifica el fallo total de lectura, y las
+    # dos causas piden lo contrario —una que el BCV es inalcanzable, esta que se
+    # leyó el elemento equivocado—.
+    frappe.log_error(
+        "BCV Fecha Valor Implausible",
+        f"Fecha valor {api_date}, a {drift} días de hoy ({today_date}): queda "
+        "fuera de la ventana admisible, se descarta la lectura por fecha mal "
+        "interpretada."
+    )
+    return False
+
+
+def _resolve_target_dates(api_date, today_date) -> tuple[list, list]:
+    """Decide qué días se registran con la tasa recién leída.
+
+    - Fecha valor de hoy o pasada: se registra únicamente ese día.
+    - Fecha valor FUTURA (el próximo día hábil): se **precarga** con su fecha
+      real —para que la tasa exista antes de que el día empiece, que es lo que
+      evita que la facturación de las 00:00 emita con la tasa del mes anterior—
+      y se cubren con ESA MISMA tasa los sábados y domingos intermedios.
+
+    Que el fin de semana lleve la tasa del lunes es la regla del negocio: el BCV
+    no publica sábado ni domingo, y su fecha valor ya apunta al lunes.
+
+    Devuelve ``(fechas que llevan la tasa publicada, días a cubrir con la
+    última conocida)``.
+
+    A un día **hábil** no se le pone la tasa del próximo día hábil: la suya se
+    publicó ese mismo día y suponerla sería inventar el número que se declara.
+    Los días hábiles intermedios van aparte: el día EN CURSO y los feriados que
+    el BCV ya salteó al apuntar su fecha valor más allá se cubren con la última
+    tasa conocida, que es hacia atrás y no hacia adelante. Los días hábiles ya
+    pasados no se tocan: ese hueco lo cierra un backfill, no el cron.
     """
     if api_date <= today_date:
-        return [(api_date, exchange_rate)]
+        return [api_date], []
 
-    # Precarga de la fecha valor real (lo que antes se descartaba).
-    targets: list[tuple] = [(api_date, exchange_rate)]
+    published_dates = [api_date]
+    fallback_dates = []
 
-    today_already_has_rate = frappe.db.exists(doctype, {
-        "from_currency": from_currency,
-        "to_currency": to_currency,
-        "date": today_date,
-    })
+    day = today_date
+    while day < api_date:
+        if day.weekday() >= 5:  # 5 = sábado, 6 = domingo
+            published_dates.append(day)
+        else:
+            fallback_dates.append(day)
+        day = getdate(add_days(day, 1))
 
-    if today_already_has_rate:
-        return targets
-
-    last_rate = frappe.db.get_value(
-        doctype,
-        {
-            "from_currency": from_currency,
-            "to_currency": to_currency,
-            "date": ["<", today_date],
-            "for_selling": 1,
-        },
-        "exchange_rate",
-        order_by="date desc",
-    )
-
-    if not last_rate:
-        return targets
-
-    frappe.log_error(
-        "BCV Protection",
-        f"Fecha futura detectada ({api_date}): se precarga con su fecha valor. "
-        f"Hoy ({today_date}) se cubre con la tasa previa ({last_rate})."
-    )
-    targets.append((today_date, last_rate))
-    return targets
+    return published_dates, fallback_dates
 
 
 def reset_all_prepared_reports() -> None:

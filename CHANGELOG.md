@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.63.0] - 2026-09-07
+
+### ✨ Funcionalidades (Features)
+- Se actualizaron los fixtures de transacciones bancarias para mostrar las etiquetas descriptivas «Crédito» y «Débito» en las operaciones de depósito y retiro. [119c16e5]
+
+---
+
+## [v2.62.3] - 2026-09-07
+
+### 🐛 Correcciones (Fixes)
+- Se ajustó la lógica de asignación en el módulo de cobros para que el centro de costo se determine a partir de la factura y no de la sucursal del cobro. [413c15a5]
+
+---
+
+## [v2.62.2] - 2026-09-07
+
+### 🐛 Correcciones (Fixes)
+- Se mejoró la lógica de obtención de tasas del BCV para cubrir feriados intermedios utilizando el último valor conocido. af6619bc
+- Ajuste en la extracción de la fecha valor desde el componente correcto y soporte para la continuidad de datos durante fines de semana en el módulo BCV. cbb7bfbf
+
+---
+
 ## [v2.62.1] - 2026-09-06
 
 ### 🐛 Correcciones (Fixes)
