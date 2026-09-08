@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.64.0] - 2026-09-08
+
+### ✨ Funcionalidades (Features)
+- Se habilitó la compatibilidad de modos de pago globales para usuarios pertenecientes a sucursales raíz.
+
+### 🐛 Correcciones (Fixes)
+- Implementación de una política de "fail closed" en la función de verificación de usuarios de sucursal raíz cuando no existen sucursales configuradas, reforzando la seguridad del flujo.
+- Optimización del registro de errores (log_error) para sucursales raíz, limitando su ejecución a una única vez por petición para reducir redundancia en los logs.
+
+---
+
 ## [v2.63.0] - 2026-09-08
 
 ### 🐛 Correcciones (Fixes)
