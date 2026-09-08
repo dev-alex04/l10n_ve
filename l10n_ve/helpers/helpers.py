@@ -149,3 +149,49 @@ def _set_cost_center_from_branch(doc: "Document") -> None:
             if not hasattr(item, "cost_center"):
                 continue
             item.cost_center = cost_center
+
+
+def get_root_branches() -> list[str]:
+    """Obtiene dinámicamente las sucursales raíz del árbol (is_group = 1 sin padre)."""
+    return frappe.db.get_all(
+        "VE Branch",
+        filters={"is_group": 1, "parent_ve_branch": ["in", ["", None]]},
+        pluck="name"
+    ) or []
+
+
+def is_root_branch_user(user: str | None = None) -> bool:
+    """Verifica dinámicamente si un usuario pertenece a una sucursal raíz,
+    es Administrator / System Manager / Super Admin, o no tiene restricciones de sucursal.
+    """
+    if not user:
+        user = frappe.session.user
+
+    if user == "Administrator":
+        return True
+
+    roles = frappe.get_roles(user)
+    if "System Manager" in roles or "Super Admin" in roles:
+        return True
+
+    root_branches = get_root_branches()
+    if not root_branches:
+        return True
+
+    # 1. Permiso de usuario sobre alguna sucursal raíz
+    if frappe.db.exists("User Permission", {
+        "user": user,
+        "allow": "VE Branch",
+        "for_value": ["in", root_branches]
+    }):
+        return True
+
+    # 2. Asignado en la tabla de usuarios de alguna sucursal raíz
+    if frappe.db.exists("VE Branch Users", {
+        "user": user,
+        "parent": ["in", root_branches]
+    }):
+        return True
+
+    return False
+

@@ -1265,14 +1265,28 @@ def get_outstanding_reference_documents(args, validate: bool = False) -> list:
 
 @frappe.whitelist()
 def get_branch_payment_mode_account(branch: str, mode_of_payment: str) -> str | None:
-    """Obtiene la cuenta configurada para un modo de pago en una sucursal."""
-    if not branch or not mode_of_payment:
+    """Obtiene la cuenta configurada para un modo de pago en una sucursal, con fallback a la cuenta de la compañía."""
+    if not mode_of_payment:
         return None
 
-    account = frappe.db.get_value("VE Branch Payment Modes", {
-        "parent": branch,
-        "mode_of_payment": mode_of_payment
-    }, "account")
+    account = None
+    if branch:
+        account = frappe.db.get_value("VE Branch Payment Modes", {
+            "parent": branch,
+            "mode_of_payment": mode_of_payment
+        }, "account")
+
+    if not account:
+        company = None
+        if branch:
+            company = frappe.db.get_value("VE Branch", branch, "company")
+        if not company:
+            company = frappe.defaults.get_user_default("company") or frappe.db.get_single_value("Global Defaults", "default_company")
+        if company:
+            account = frappe.db.get_value("Mode of Payment Account", {
+                "parent": mode_of_payment,
+                "company": company
+            }, "default_account")
 
     return account
 
@@ -1285,24 +1299,52 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
     elif not filters:
         filters = {}
 
-    """Obtiene los modos de pago (y si aplican IGTF) configurados para una sucursal."""
     branch = filters.get("branch")
-    if not branch:
-        # Retornar todos los modos de pago si no hay sucursal
-        return frappe.db.sql("""
-            SELECT name, is_igtf_applicable
-            FROM `tabMode of Payment`
-            WHERE name LIKE %(txt)s
-            AND enabled = 1
-            ORDER BY name
-            LIMIT %(start)s, %(page_len)s
-        """, {
+    company = filters.get("company")
+    if not company and branch:
+        company = frappe.db.get_value("VE Branch", branch, "company")
+
+    from l10n_ve.helpers.helpers import is_root_branch_user
+
+    # Si el usuario pertenece a una sucursal raíz (o es Admin/System Manager) o no se especificó sucursal:
+    # permitir seleccionar cualquier modo de pago habilitado para la compañía,
+    # priorizando en la lista los configurados para la sucursal actual si la hay.
+    if not branch or is_root_branch_user(frappe.session.user):
+        params = {
             "txt": "%" + txt + "%",
             "start": int(start),
-            "page_len": int(page_len)
-        })
+            "page_len": int(page_len),
+            "branch": branch or "",
+            "company": company or ""
+        }
 
-    # Obtener modos de pago de la tabla hija de la sucursal
+        return frappe.db.sql("""
+            SELECT
+                mop.name, mop.is_igtf_applicable
+            FROM `tabMode of Payment` mop
+            WHERE mop.name LIKE %(txt)s
+            AND mop.enabled = 1
+            AND (
+                %(company)s = ''
+                OR EXISTS (
+                    SELECT 1 FROM `tabMode of Payment Account` mopa
+                    WHERE mopa.parent = mop.name AND mopa.company = %(company)s
+                )
+                OR NOT EXISTS (
+                    SELECT 1 FROM `tabMode of Payment Account` mopa
+                    WHERE mopa.parent = mop.name
+                )
+            )
+            ORDER BY (
+                CASE WHEN %(branch)s != '' AND EXISTS (
+                    SELECT 1 FROM `tabVE Branch Payment Modes` vbpm
+                    WHERE vbpm.parent = %(branch)s AND vbpm.mode_of_payment = mop.name
+                ) THEN 0 ELSE 1 END
+            ), mop.name
+            LIMIT %(start)s, %(page_len)s
+        """, params)
+
+    # Para operadores restringidos a una sucursal específica
     return frappe.db.sql("""
         SELECT 
             vbpm.mode_of_payment, mop.is_igtf_applicable
@@ -1319,3 +1361,5 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
         "start": int(start),
         "page_len": int(page_len)
     })
+
+
