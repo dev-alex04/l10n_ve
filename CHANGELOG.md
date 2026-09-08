@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.63.0] - 2026-09-08
+
+### 🐛 Correcciones (Fixes)
+- **Seguridad en CI/CD:** Se corrigió una vulnerabilidad potencial de inyección de comandos en el sistema de notificaciones de Telegram y se implementó el principio de privilegios mínimos para los permisos del flujo de trabajo. d042c654
+
+---
+
 ## [v2.63.0] - 2026-09-07
 
 ### ✨ Funcionalidades (Features)
