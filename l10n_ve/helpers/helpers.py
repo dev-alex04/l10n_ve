@@ -149,3 +149,68 @@ def _set_cost_center_from_branch(doc: "Document") -> None:
             if not hasattr(item, "cost_center"):
                 continue
             item.cost_center = cost_center
+
+
+def get_root_branches() -> list[str]:
+    """Obtiene dinámicamente las sucursales raíz del árbol (is_group = 1 sin padre)."""
+    return frappe.db.get_all(
+        "VE Branch",
+        filters={"is_group": 1, "parent_ve_branch": ["in", ["", None]]},
+        pluck="name"
+    ) or []
+
+
+def is_root_branch_user(user: str | None = None) -> bool:
+    """Verifica dinámicamente si un usuario tiene acceso global a modos de pago de la compañía.
+
+    Retorna True si:
+    - Es Administrator o cuenta con roles de administración global (System Manager / Super Admin),
+      incluso si tiene permisos de usuario acotados a sucursales locales.
+    - Tiene permiso de usuario (User Permission) sobre alguna sucursal raíz del árbol VE Branch.
+    - Está asignado en la tabla hija de usuarios (VE Branch Users) de alguna sucursal raíz.
+
+    Retorna False si el usuario es un operador exclusivo de sucursal local o si no existen
+    sucursales raíz configuradas en el sistema (falla cerrado por seguridad).
+    """
+    if not user:
+        user = frappe.session.user
+
+    if user == "Administrator":
+        return True
+
+    roles = frappe.get_roles(user)
+    if "System Manager" in roles or "Super Admin" in roles:
+        return True
+
+    root_branches = get_root_branches()
+    if not root_branches:
+        # Sin raíces la detección no puede decidir: se falla cerrado. Abrir el permiso
+        # a todos cuando falta el dato convierte un error de configuración del árbol en
+        # una ampliación silenciosa de acceso (permiso de ver todo el catálogo).
+        # Una sola vez por petición: como la llama el `search_link` del campo Modo de
+        # Pago, que se dispara en cada pulsación (5 letras = 5 filas idénticas).
+        if not frappe.flags.get("l10n_ve_no_root_branch_logged"):
+            frappe.flags.l10n_ve_no_root_branch_logged = True
+            frappe.log_error(
+                title="is_root_branch_user: no hay sucursales raíz",
+                message="Ningún VE Branch con is_group=1 y sin padre; se deniega el acceso.",
+            )
+        return False
+
+    # 1. Permiso de usuario sobre alguna sucursal raíz
+    if frappe.db.exists("User Permission", {
+        "user": user,
+        "allow": "VE Branch",
+        "for_value": ["in", root_branches]
+    }):
+        return True
+
+    # 2. Asignado en la tabla de usuarios de alguna sucursal raíz
+    if frappe.db.exists("VE Branch Users", {
+        "user": user,
+        "parent": ["in", root_branches]
+    }):
+        return True
+
+    return False
+
