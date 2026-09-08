@@ -11,5 +11,8 @@ on:
 
 jobs:
   call-backmerge-workflow:
+    permissions:
+      contents: write        # el reutilizable hace push del back-merge
+      pull-requests: write   # y abre el PR cuando el ff falla
     uses: Grupo-Altia/shared-actions/.github/workflows/backmerge-reusable.yml@main
     secrets: inherit
