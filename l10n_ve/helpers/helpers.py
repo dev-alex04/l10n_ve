@@ -187,10 +187,14 @@ def is_root_branch_user(user: str | None = None) -> bool:
         # Sin raíces la detección no puede decidir: se falla cerrado. Abrir el permiso
         # a todos cuando falta el dato convierte un error de configuración del árbol en
         # una ampliación silenciosa de acceso (permiso de ver todo el catálogo).
-        frappe.log_error(
-            title="is_root_branch_user: no hay sucursales raíz",
-            message="Ningún VE Branch con is_group=1 y sin padre; se deniega el acceso.",
-        )
+        # Una sola vez por petición: como la llama el `search_link` del campo Modo de
+        # Pago, que se dispara en cada pulsación (5 letras = 5 filas idénticas).
+        if not frappe.flags.get("l10n_ve_no_root_branch_logged"):
+            frappe.flags.l10n_ve_no_root_branch_logged = True
+            frappe.log_error(
+                title="is_root_branch_user: no hay sucursales raíz",
+                message="Ningún VE Branch con is_group=1 y sin padre; se deniega el acceso.",
+            )
         return False
 
     # 1. Permiso de usuario sobre alguna sucursal raíz
