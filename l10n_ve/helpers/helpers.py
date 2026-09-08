@@ -161,8 +161,16 @@ def get_root_branches() -> list[str]:
 
 
 def is_root_branch_user(user: str | None = None) -> bool:
-    """Verifica dinámicamente si un usuario pertenece a una sucursal raíz,
-    es Administrator / System Manager / Super Admin, o no tiene restricciones de sucursal.
+    """Verifica dinámicamente si un usuario tiene acceso global a modos de pago de la compañía.
+
+    Retorna True si:
+    - Es Administrator o cuenta con roles de administración global (System Manager / Super Admin),
+      incluso si tiene permisos de usuario acotados a sucursales locales.
+    - Tiene permiso de usuario (User Permission) sobre alguna sucursal raíz del árbol VE Branch.
+    - Está asignado en la tabla hija de usuarios (VE Branch Users) de alguna sucursal raíz.
+
+    Retorna False si el usuario es un operador exclusivo de sucursal local o si no existen
+    sucursales raíz configuradas en el sistema (falla cerrado por seguridad).
     """
     if not user:
         user = frappe.session.user
@@ -176,7 +184,14 @@ def is_root_branch_user(user: str | None = None) -> bool:
 
     root_branches = get_root_branches()
     if not root_branches:
-        return True
+        # Sin raíces la detección no puede decidir: se falla cerrado. Abrir el permiso
+        # a todos cuando falta el dato convierte un error de configuración del árbol en
+        # una ampliación silenciosa de acceso (permiso de ver todo el catálogo).
+        frappe.log_error(
+            title="is_root_branch_user: no hay sucursales raíz",
+            message="Ningún VE Branch con is_group=1 y sin padre; se deniega el acceso.",
+        )
+        return False
 
     # 1. Permiso de usuario sobre alguna sucursal raíz
     if frappe.db.exists("User Permission", {
