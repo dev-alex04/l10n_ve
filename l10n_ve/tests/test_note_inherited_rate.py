@@ -224,21 +224,26 @@ class TestValidateNoteRate(unittest.TestCase):
 
 class TestSameMonthValidation(unittest.TestCase):
     """
-    Guard intra-mes reparado: consultaba self.doctype (la nota) en vez de
-    la factura original → None → pasaba en silencio; y las notas VE nunca
-    lo invocaban.
+    Guard de coherencia cronológica de notas: permite notas en meses
+    posteriores y bloquea si la fecha de la nota es anterior a la factura original.
     """
 
     @patch("frappe.db.get_value", return_value="2026-07-01")
-    def test_cross_month_note_blocks(self, mock_get_value):
+    def test_cross_month_note_allowed(self, mock_get_value):
         from l10n_ve.utils.utils import validate_return_in_same_month
 
         note = FakeNote(posting_date="2026-08-05")
+        # No debe lanzar ValidationError: notas en meses posteriores son válidas
+        validate_return_in_same_month(note)
+        self.assertEqual(mock_get_value.call_args_list[0][0][0], "Sales Invoice")
+
+    @patch("frappe.db.get_value", return_value="2026-07-01")
+    def test_prior_date_note_blocks(self, _get_value):
+        from l10n_ve.utils.utils import validate_return_in_same_month
+
+        note = FakeNote(posting_date="2026-06-25")
         with self.assertRaises(frappe.ValidationError):
             validate_return_in_same_month(note)
-        # La consulta va contra la factura ORIGINAL, no el doctype de la
-        # nota (primera llamada: frappe.throw dispara otras internas).
-        self.assertEqual(mock_get_value.call_args_list[0][0][0], "Sales Invoice")
 
     @patch("frappe.db.get_value", return_value="2026-07-01")
     def test_same_month_passes(self, _get_value):

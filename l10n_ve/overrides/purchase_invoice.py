@@ -229,8 +229,8 @@ class CustomPurchaseInvoice(TaxesMixin, PurchaseInvoice):
 
     def validate_return_in_same_month(self):
         """
-        Valida que una Nota de Crédito o Débito se cree en el mismo mes
-        que la factura original a la que hace referencia.
+        Valida que una Nota de Crédito o Débito no tenga una fecha de
+        contabilización anterior a la factura original a la que hace referencia.
         Llama a la función centralizada en utils.
         """
         validate_return_in_same_month(self)
