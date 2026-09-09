@@ -270,12 +270,12 @@ def validate_tax_id_format(doc):
 
 def validate_return_in_same_month(self):
     """
-    Valida que una Nota de Crédito o Débito se cree en el mismo mes
-    que la factura original a la que hace referencia.
+    Valida que una Nota de Crédito o Débito no tenga una fecha de
+    contabilización anterior a la factura original a la que hace referencia.
 
-    Además de la regla fiscal, el diseño de tasas depende de este guard:
-    los naturales usan la tasa del 1° del mes, así que intra-mes la tasa
-    propia de la nota coincide con la de la factura afectada.
+    Permite notas en meses posteriores (emisión extemporánea o devoluciones en
+    períodos fiscales siguientes según Ley de IVA Art. 25/44 y Providencia 00071).
+    La tasa en NC se hereda de la factura para cancelar saldos exactos en CxC.
     """
     if not (self.is_return or self.is_debit_note) or not self.return_against:
         return
@@ -297,12 +297,15 @@ def validate_return_in_same_month(self):
 
     origin_posting_date = getdate(origin_invoice_date)
 
-    if (current_posting_date.month == origin_posting_date.month and
-        current_posting_date.year == origin_posting_date.year):
-        return
-
-    document_type = _("Nota de Crédito") if self.is_return else _("Nota de Débito")
-    frappe.throw(_("La {0} debe ser creada en el mismo mes que la factura original.").format(document_type))
+    if current_posting_date < origin_posting_date:
+        document_type = _("Nota de Crédito") if self.is_return else _("Nota de Débito")
+        frappe.throw(
+            _("La fecha de la {0} ({1}) no puede ser anterior a la fecha de la factura original ({2}).").format(
+                document_type,
+                frappe.format(current_posting_date, {"fieldtype": "Date"}),
+                frappe.format(origin_posting_date, {"fieldtype": "Date"}),
+            )
+        )
 
 def check_gl_entries(gl_entries: list=[], do_exit: bool = True) -> None:
     # NO QUITAR PRINT SE USA PARA DEBUGEAR
