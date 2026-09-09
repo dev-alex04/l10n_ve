@@ -1,5 +1,5 @@
 import frappe
-from frappe import _, scrub
+from frappe import _
 from frappe.utils import flt, getdate
 from erpnext.accounts.report.accounts_receivable.accounts_receivable import ReceivablePayableReport
 
@@ -55,6 +55,7 @@ def get_columns(self) -> None:
 
 
 def build_data(self) -> None:
+    from_date, _to_date = _resolve_date_range(self)
     # set outstanding for all the accumulated balances
     # as we can use this to filter out invoices without outstanding
     for _key, row in self.voucher_balance.items():
@@ -80,6 +81,12 @@ def build_data(self) -> None:
                 or (row.voucher_no in self.err_journals)
             ):
                 must_consider = True
+
+        # «Desde» filtra DOCUMENTOS por su fecha de contabilización, no pagos: la fila ya
+        # trae todo el libro hasta «Hasta» y se descarta solo si el documento es anterior.
+        # Vale igual para el anticipo sin aplicar (fila negativa): es un documento más.
+        if must_consider and from_date and getdate(row.posting_date) < from_date:
+            must_consider = False
 
         if must_consider:
             # non-zero oustanding, we must consider this row
@@ -119,59 +126,34 @@ def build_data(self) -> None:
 
 
 def prepare_ple_query(self):
-    """Wrapper sobre el prepare_ple_query estandar: anade ``posting_date >= from_date``.
+    """Wrapper sobre el ``prepare_ple_query`` estándar: el libro de pagos NO se recorta por «Desde».
 
-    ERPNext (>=15.106) refactorizo el reporte AR: el metodo unico de lectura fue
-    reemplazado por ``prepare_ple_query`` (arma el query) + fetch por cursor. El query se
-    arma aca y sigue llamando a ``prepare_conditions``, asi que inyectamos igual."""
-    from_date, _to_date = _resolve_date_range(self)
-    if not from_date:
-        return erpnext_prepare_ple_query(self)
+    Hasta el 9-sep-2026 este wrapper inyectaba ``posting_date >= from_date`` en el libro de
+    pagos, así que un cobro anterior a «Desde» no contaba para la factura que saldaba. Bajo
+    emitir-al-pagar el cobro es casi siempre anterior a la factura, y el reporte de
+    septiembre de 2026 mostraba 615 facturas pagadas (Bs 9,96 M) como impagas y 1.247 con
+    pendiente de más (medido en producción el 9-sep-2026). Caso testigo: ACC-SINV-2026-20416,
+    del 1-sep, pagada con un anticipo del 21-ago y un asiento cambiario del 1-ago, listada
+    con la factura entera pendiente.
 
-    # El estandar reconstruye qb_selection_filter dentro de prepare_conditions.
-    # Parcheamos temporalmente ese metodo para inyectar la condicion extra sin
-    # duplicar la logica original.
-    ple = self.ple
-    original_prepare_conditions = self.prepare_conditions
-
-    def patched_prepare_conditions():
-        original_prepare_conditions()
-        self.qb_selection_filter.append(ple.posting_date.gte(from_date))
-
-    self.prepare_conditions = patched_prepare_conditions
-    try:
-        return erpnext_prepare_ple_query(self)
-    finally:
-        self.prepare_conditions = original_prepare_conditions
+    La regla, fijada por Daniel el 9-sep-2026: «Desde» y «Hasta» eligen los DOCUMENTOS que
+    originan la cuenta por cobrar por su fecha de contabilización; el pendiente de cada uno
+    se calcula con todo lo que lo afecta hasta «Hasta», sea anterior o no a «Desde». El
+    recorte por «Desde» vive en ``build_data``, sobre las filas ya calculadas. Aquí solo se
+    sincroniza ``report_date`` con «Hasta».
+    """
+    _resolve_date_range(self)
+    return erpnext_prepare_ple_query(self)
 
 
 def get_return_entries(self):
-    """Wrapper sobre ``get_return_entries`` estandar que filtra por rango."""
-    from_date, _to_date = _resolve_date_range(self)
-    if not from_date:
-        return erpnext_get_return_entries(self)
+    """Wrapper sobre ``get_return_entries`` estándar: sin recorte por «Desde».
 
-    doctype = "Sales Invoice" if self.account_type == "Receivable" else "Purchase Invoice"
-    filters = [
-        ["posting_date", "<=", self.filters.report_date],
-        ["posting_date", ">=", from_date],
-        ["is_return", "=", 1],
-        ["docstatus", "=", 1],
-        ["company", "=", self.filters.company],
-        ["update_outstanding_for_self", "=", 0],
-    ]
-
-    or_filters = {}
-    if party_type := self.filters.party_type:
-        party_field = scrub(party_type)
-        if parties := self.filters.get("party"):
-            or_filters.update({party_field: ["in", parties]})
-
-    self.return_entries = frappe._dict(
-        frappe.get_all(
-            doctype, filters=filters, or_filters=or_filters, fields=["name", "return_against"], as_list=1
-        )
-    )
+    Una nota de crédito anterior a «Desde» aplicada a una factura del período tiene que
+    clasificarse como nota de crédito y no como pago: misma regla que el libro de pagos.
+    """
+    _resolve_date_range(self)
+    return erpnext_get_return_entries(self)
 
 
 def get_invoice_details(self):
