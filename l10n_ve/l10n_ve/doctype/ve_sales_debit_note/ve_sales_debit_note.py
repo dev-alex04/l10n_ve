@@ -62,8 +62,8 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
         self._inherit_branch_from_si()
         self._enforce_positive_amounts()
         self._validate_unique_note_per_invoice()
-        # Intra-mes obligatorio (regla fiscal; para naturales además ancla
-        # la coincidencia de tasa del 1° del mes con la factura afectada).
+        # No retroactiva: no puede ser anterior a la factura original
+        # (permite emisión en meses posteriores según Ley IVA/Providencia 00071).
         validate_return_in_same_month(self)
         self.set_posting_time = 1
         self._run_super_validate_safely()
