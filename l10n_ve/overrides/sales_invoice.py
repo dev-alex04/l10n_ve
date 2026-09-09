@@ -1046,6 +1046,9 @@ def upload_voucher_data(
         comment.flags.ignore_permissions = True
         comment.insert(ignore_permissions=True)
 
+        invoice_doc.reload()
+        refresh_missing_withholding_voucher(invoice_doc)
+
         return {"status": "success", "msg": "Guardado exitosamente."}
 
     except Exception as e:
@@ -1108,6 +1111,9 @@ def upload_islr_voucher_data(
         })
         comment.flags.ignore_permissions = True
         comment.insert(ignore_permissions=True)
+
+        invoice_doc.reload()
+        refresh_missing_withholding_voucher(invoice_doc)
 
         return {
             "status": "success",
@@ -1174,6 +1180,9 @@ def upload_municipal_voucher_data(
         })
         comment.flags.ignore_permissions = True
         comment.insert(ignore_permissions=True)
+
+        invoice_doc.reload()
+        refresh_missing_withholding_voucher(invoice_doc)
 
         return {
             "status": "success",
