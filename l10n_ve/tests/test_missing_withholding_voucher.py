@@ -65,13 +65,20 @@ class TestMissingWithholdingVoucher(unittest.TestCase):
         if not hasattr(frappe.local, "flags"):
             frappe.local.flags = _dict()
         frappe.local.flags.in_test = True
+        frappe.local.system_settings = _dict(
+            rounding_method="Banker's Rounding (legacy)",
+            time_zone="America/Caracas",
+        )
         self.mock_db = MagicMock()
         frappe.local.db = self.mock_db
         frappe.local.session = _dict(user="Administrator")
+        frappe.local.conf = _dict(host_name="http://localhost:8000")
 
     def tearDown(self):
         import frappe
         frappe.local.db = None
+        frappe.local.system_settings = None
+        frappe.local.conf = None
 
     def test_no_withholding_never_warns(self):
         """Una factura sin retención no reclama ningún comprobante."""
@@ -237,3 +244,47 @@ class TestMissingWithholdingVoucher(unittest.TestCase):
         self.assertEqual(res["status"], "success")
         mock_doc.reload.assert_called_once()
         mock_refresh.assert_called_once_with(mock_doc)
+
+    @patch("l10n_ve.overrides.sales_invoice._", side_effect=lambda x, *a, **kw: x)
+    @patch("l10n_ve.overrides.sales_invoice.refresh_missing_withholding_voucher")
+    @patch("l10n_ve.overrides.sales_invoice._outstanding_in_company_currency", return_value=500.0)
+    @patch("l10n_ve.overrides.sales_invoice.get_account_currency", return_value="VES")
+    @patch("l10n_ve.overrides.sales_invoice.get_company_government_withholding_account", return_value="2105001")
+    @patch("l10n_ve.overrides.sales_invoice._require_withholding_permissions")
+    @patch("frappe.get_cached_value", return_value="VES")
+    @patch("frappe.get_doc")
+    @patch("frappe.new_doc")
+    def test_create_government_withholding_journal_entry_triggers_refresh(
+        self, mock_new_doc, mock_get_doc, mock_cache, mock_perm, mock_acc, mock_curr, mock_out, mock_refresh, mock_tr
+    ):
+        """create_government_withholding_journal_entry debe recargar la factura y refrescar la bandera."""
+        mock_invoice = MagicMock()
+        mock_invoice.docstatus = 1
+        mock_invoice.company = "Test Co"
+        mock_invoice.name = "ACC-SINV-2026-00001"
+        mock_invoice.meta.has_field.return_value = True
+
+        mock_je = MagicMock()
+        mock_je.name = "ACC-JV-2026-00001"
+
+        def _get_doc(doctype, name=None):
+            if doctype == "Sales Invoice":
+                return mock_invoice
+            return MagicMock()
+
+        mock_get_doc.side_effect = _get_doc
+        mock_new_doc.return_value = mock_je
+        self.mock_db.get_value.return_value = 500.0
+
+        from l10n_ve.overrides.sales_invoice import create_government_withholding_journal_entry
+
+        res = create_government_withholding_journal_entry(
+            docname="ACC-SINV-2026-00001",
+            amount=50.0,
+            voucher_number="MUN-12345",
+            voucher_date="2026-09-09",
+            voucher_file="/files/mun.pdf",
+        )
+        self.assertEqual(res["status"], "success")
+        mock_invoice.reload.assert_called_once()
+        mock_refresh.assert_called_once_with(mock_invoice)

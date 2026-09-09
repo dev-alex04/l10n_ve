@@ -2485,6 +2485,9 @@ def create_government_withholding_journal_entry(
         if voucher_file and str(voucher_file).strip() and has_img:
             invoice.db_set("voucher_image_municipal", str(voucher_file).strip(), update_modified=False)
 
+        invoice.reload()
+        refresh_missing_withholding_voucher(invoice)
+
     if voucher_file and str(voucher_file).strip():
         file_url = str(voucher_file).strip()
         try:
