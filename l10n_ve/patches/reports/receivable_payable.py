@@ -1,6 +1,11 @@
 import frappe
 from frappe import _
 from frappe.utils import cint, escape_html
+# Este módulo existe para parchear ReceivablePayableReport (ver el final del archivo), así
+# que la regla de semgrep contra el monkey patching salta por diseño. Su coincidencia va
+# desde este import hasta las asignaciones del final: sin esta marca, cualquier cambio en
+# el archivo vuelve a hacer fallar Semgrep en la CI.
+# nosemgrep: frappe-semgrep-rules.rules.frappe-monkey-patching-not-allowed
 from erpnext.accounts.report.accounts_receivable.accounts_receivable import ReceivablePayableReport
 
 original_run = ReceivablePayableReport.run
