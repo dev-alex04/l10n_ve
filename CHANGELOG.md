@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.64.1] - 2026-09-10
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la actualización de la bandera de comprobante dentro de la función `create_government_withholding_journal_entry` para asegurar la integridad de los asientos contables de retención. ff35c367
+- Se implementó el refresco del indicador de comprobante de retención faltante durante el proceso de carga de recaudos. fe761bb0
+
+---
+
 ## [v2.64.0] - 2026-09-08
 
 ### ✨ Funcionalidades (Features)
