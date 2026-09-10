@@ -1504,6 +1504,8 @@ def create_payment_exchange_difference_entry(docname: str, account: str = None) 
         "party": payment_entry.party,
         "debit_in_account_currency": 0,
         "credit_in_account_currency": unallocated,
+        "reference_type": "Payment Entry",
+        "reference_name": payment_entry.name,
         "cost_center": payment_entry.cost_center,
     })
 
