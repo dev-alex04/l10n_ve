@@ -27,27 +27,59 @@ Suite unittest con dobles: la función sólo lee ``taxes`` y dos campos del docu
 """
 
 import unittest
+from unittest.mock import MagicMock, patch
 
 from frappe import _dict
 
-from l10n_ve.overrides.sales_invoice import missing_withholding_voucher
+from l10n_ve.overrides.sales_invoice import (
+    missing_withholding_voucher,
+    refresh_missing_withholding_voucher,
+)
 
 
 def _tax(charge_type: str, amount: float = 100.0) -> _dict:
     return _dict(charge_type=charge_type, tax_amount=amount)
 
 
-def _invoice(taxes: list, nro_iva: str = "", nro_islr: str = "") -> _dict:
+def _invoice(
+    taxes: list,
+    nro_iva: str = "",
+    nro_islr: str = "",
+    name: str = "ACC-SINV-2026-00001",
+    missing_flag: int = 0,
+) -> _dict:
     doc = _dict(
+        name=name,
         taxes=taxes,
         vat_withholding_voucher_number=nro_iva,
         islr_receipt_number=nro_islr,
+        missing_withholding_voucher=missing_flag,
     )
     # El código usa doc.get(campo); _dict ya lo soporta.
     return doc
 
 
 class TestMissingWithholdingVoucher(unittest.TestCase):
+    def setUp(self):
+        import frappe
+        if not hasattr(frappe.local, "flags"):
+            frappe.local.flags = _dict()
+        frappe.local.flags.in_test = True
+        frappe.local.system_settings = _dict(
+            rounding_method="Banker's Rounding (legacy)",
+            time_zone="America/Caracas",
+        )
+        self.mock_db = MagicMock()
+        frappe.local.db = self.mock_db
+        frappe.local.session = _dict(user="Administrator")
+        frappe.local.conf = _dict(host_name="http://localhost:8000")
+
+    def tearDown(self):
+        import frappe
+        frappe.local.db = None
+        frappe.local.system_settings = None
+        frappe.local.conf = None
+
     def test_no_withholding_never_warns(self):
         """Una factura sin retención no reclama ningún comprobante."""
         doc = _invoice([_tax("On Net Total"), _tax("Actual")])
@@ -106,3 +138,153 @@ class TestMissingWithholdingVoucher(unittest.TestCase):
     def test_an_invoice_without_taxes_does_not_break(self):
         self.assertFalse(missing_withholding_voucher(_invoice([])))
         self.assertFalse(missing_withholding_voucher(_dict(taxes=None)))
+
+    def test_refresh_clears_flag_when_all_vouchers_provided(self):
+        """Al suministrar todos los comprobantes requeridos, la bandera se apaga (0)."""
+        doc = _invoice(
+            [_tax("VAT Withholding"), _tax("ISLR")],
+            nro_iva="20260900031440",
+            nro_islr="0000",
+            name="ACC-SINV-2026-25931",
+            missing_flag=1,
+        )
+        refresh_missing_withholding_voucher(doc)
+        self.assertEqual(doc.missing_withholding_voucher, 0)
+        self.mock_db.set_value.assert_called_once_with(
+            "Sales Invoice",
+            "ACC-SINV-2026-25931",
+            "missing_withholding_voucher",
+            0,
+            update_modified=False,
+        )
+
+    def test_refresh_keeps_flag_when_voucher_still_missing(self):
+        """Si falta al menos un comprobante de las retenciones asentadas, se conserva en 1."""
+        doc = _invoice(
+            [_tax("VAT Withholding"), _tax("ISLR")],
+            nro_iva="20260900031440",
+            nro_islr="",
+            name="ACC-SINV-2026-25931",
+            missing_flag=1,
+        )
+        refresh_missing_withholding_voucher(doc)
+        self.assertEqual(doc.missing_withholding_voucher, 1)
+        self.mock_db.set_value.assert_not_called()
+
+    def test_refresh_sets_flag_when_withholding_without_voucher(self):
+        """Si se agrega una retención sin comprobante, la bandera se enciende (1)."""
+        doc = _invoice(
+            [_tax("VAT Withholding")],
+            nro_iva="",
+            name="ACC-SINV-2026-25931",
+            missing_flag=0,
+        )
+        refresh_missing_withholding_voucher(doc)
+        self.assertEqual(doc.missing_withholding_voucher, 1)
+        self.mock_db.set_value.assert_called_once_with(
+            "Sales Invoice",
+            "ACC-SINV-2026-25931",
+            "missing_withholding_voucher",
+            1,
+            update_modified=False,
+        )
+
+    @patch("l10n_ve.overrides.sales_invoice.refresh_missing_withholding_voucher")
+    @patch("l10n_ve.overrides.sales_invoice.delete_old_attachment")
+    @patch("frappe.get_doc")
+    def test_upload_voucher_data_triggers_refresh(self, mock_get_doc, mock_del, mock_refresh):
+        """upload_voucher_data debe recargar la factura y refrescar la bandera de comprobante."""
+        mock_doc = MagicMock()
+        mock_get_doc.return_value = mock_doc
+        self.mock_db.get_value.return_value = None
+
+        from l10n_ve.overrides.sales_invoice import upload_voucher_data
+
+        res = upload_voucher_data(
+            "INV-001", "20260900031440", "2026-09-04", "/files/comprob.pdf", registration_date="2026-09-04"
+        )
+        self.assertEqual(res["status"], "success")
+        mock_doc.reload.assert_called_once()
+        mock_refresh.assert_called_once_with(mock_doc)
+
+    @patch("l10n_ve.overrides.sales_invoice.has_accounting_permission", return_value=True)
+    @patch("l10n_ve.overrides.sales_invoice.refresh_missing_withholding_voucher")
+    @patch("l10n_ve.overrides.sales_invoice.delete_old_attachment")
+    @patch("frappe.get_doc")
+    def test_upload_islr_voucher_data_triggers_refresh(self, mock_get_doc, mock_del, mock_refresh, mock_perm):
+        """upload_islr_voucher_data debe recargar la factura y refrescar la bandera de comprobante."""
+        mock_doc = MagicMock()
+        mock_get_doc.return_value = mock_doc
+        self.mock_db.get_value.return_value = None
+
+        from l10n_ve.overrides.sales_invoice import upload_islr_voucher_data
+
+        res = upload_islr_voucher_data(
+            "INV-001", "2026-09-02", "0000", "/files/islr.pdf", registration_date="2026-09-02"
+        )
+        self.assertEqual(res["status"], "success")
+        mock_doc.reload.assert_called_once()
+        mock_refresh.assert_called_once_with(mock_doc)
+
+    @patch("l10n_ve.overrides.sales_invoice.has_accounting_permission", return_value=True)
+    @patch("l10n_ve.overrides.sales_invoice.refresh_missing_withholding_voucher")
+    @patch("l10n_ve.overrides.sales_invoice.delete_old_attachment")
+    @patch("frappe.get_doc")
+    def test_upload_municipal_voucher_data_triggers_refresh(self, mock_get_doc, mock_del, mock_refresh, mock_perm):
+        """upload_municipal_voucher_data debe recargar la factura y refrescar la bandera de comprobante."""
+        mock_doc = MagicMock()
+        mock_get_doc.return_value = mock_doc
+        self.mock_db.get_value.return_value = None
+
+        from l10n_ve.overrides.sales_invoice import upload_municipal_voucher_data
+
+        res = upload_municipal_voucher_data(
+            "INV-001", "2026-09-02", "MUN-001", "/files/mun.pdf", registration_date="2026-09-02"
+        )
+        self.assertEqual(res["status"], "success")
+        mock_doc.reload.assert_called_once()
+        mock_refresh.assert_called_once_with(mock_doc)
+
+    @patch("l10n_ve.overrides.sales_invoice._", side_effect=lambda x, *a, **kw: x)
+    @patch("l10n_ve.overrides.sales_invoice.refresh_missing_withholding_voucher")
+    @patch("l10n_ve.overrides.sales_invoice._outstanding_in_company_currency", return_value=500.0)
+    @patch("l10n_ve.overrides.sales_invoice.get_account_currency", return_value="VES")
+    @patch("l10n_ve.overrides.sales_invoice.get_company_government_withholding_account", return_value="2105001")
+    @patch("l10n_ve.overrides.sales_invoice._require_withholding_permissions")
+    @patch("frappe.get_cached_value", return_value="VES")
+    @patch("frappe.get_doc")
+    @patch("frappe.new_doc")
+    def test_create_government_withholding_journal_entry_triggers_refresh(
+        self, mock_new_doc, mock_get_doc, mock_cache, mock_perm, mock_acc, mock_curr, mock_out, mock_refresh, mock_tr
+    ):
+        """create_government_withholding_journal_entry debe recargar la factura y refrescar la bandera."""
+        mock_invoice = MagicMock()
+        mock_invoice.docstatus = 1
+        mock_invoice.company = "Test Co"
+        mock_invoice.name = "ACC-SINV-2026-00001"
+        mock_invoice.meta.has_field.return_value = True
+
+        mock_je = MagicMock()
+        mock_je.name = "ACC-JV-2026-00001"
+
+        def _get_doc(doctype, name=None):
+            if doctype == "Sales Invoice":
+                return mock_invoice
+            return MagicMock()
+
+        mock_get_doc.side_effect = _get_doc
+        mock_new_doc.return_value = mock_je
+        self.mock_db.get_value.return_value = 500.0
+
+        from l10n_ve.overrides.sales_invoice import create_government_withholding_journal_entry
+
+        res = create_government_withholding_journal_entry(
+            docname="ACC-SINV-2026-00001",
+            amount=50.0,
+            voucher_number="MUN-12345",
+            voucher_date="2026-09-09",
+            voucher_file="/files/mun.pdf",
+        )
+        self.assertEqual(res["status"], "success")
+        mock_invoice.reload.assert_called_once()
+        mock_refresh.assert_called_once_with(mock_invoice)
