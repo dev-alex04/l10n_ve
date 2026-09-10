@@ -1038,15 +1038,15 @@ function setup_payment_exchange_difference_button(frm) {
     frm.doc.party_type === "Supplier" &&
     flt(frm.doc.unallocated_amount) > 0
   ) {
-    const currency =
-      frm.doc.paid_to_account_currency ||
-      frm.doc.party_account_currency ||
-      frm.doc.currency;
-    const monto = format_currency(flt(frm.doc.unallocated_amount), currency);
-
     frm.add_custom_button(
       __("Generar Diferencial Cambiario"),
       function () {
+        const currency =
+          frm.doc.paid_to_account_currency ||
+          frm.doc.party_account_currency ||
+          frm.doc.currency;
+        const monto = format_currency(flt(frm.doc.unallocated_amount), currency);
+
         frappe.confirm(
           `¿Desea registrar el monto sin asignar (<b>Pérdida</b>) por <b>${monto}</b>?<br><br>` +
             `Se creará y enviará un Asiento Contable que extinguirá el remanente del proveedor.`,
@@ -1071,9 +1071,9 @@ function setup_payment_exchange_difference_button(frm) {
             });
           }
         );
-      },
-      __("Acciones")
+      }
     );
   }
 }
+
 
