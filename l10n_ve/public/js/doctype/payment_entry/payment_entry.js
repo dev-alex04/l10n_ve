@@ -475,8 +475,8 @@ function get_included_taxes(frm) {
 }
 
 function set_payment_entry_buttons(frm) {
-  frm.page.remove_custom_button(__("Agregar concepto de ISLR"));
-  frm.page.remove_custom_button(__("Intentar conciliar"));
+  frm.remove_custom_button(__("Agregar concepto de ISLR"));
+  frm.remove_custom_button(__("Intentar conciliar"));
 
   if (
     frm.doc.docstatus == 0 &&
