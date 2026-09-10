@@ -126,6 +126,8 @@ frappe.ui.form.on("Payment Entry", {
     if (frm.doc.docstatus === 1) {
       frm.events.set_reconciliation_indicator(frm);
     }
+
+    setup_payment_exchange_difference_button(frm);
   },
 
   mode_of_payment: function (frm) {
@@ -1010,3 +1012,68 @@ function get_total_withholdings_base(frm) {
   }
   return withholding_amount;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Diferencial Cambiario (Pérdida) en Pago a Proveedor
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Muestra el botón "Generar Diferencial Cambiario" (Pérdida) en el menú Acciones.
+ *
+ * Condiciones estrictas para que aparezca:
+ *   1. Documento enviado (docstatus === 1).
+ *   2. Tipo de pago: exclusivamente Pay (NO Receive — nunca en cobros a clientes).
+ *   3. Tipo de tercero: exclusivamente Supplier.
+ *   4. Monto sin asignar positivo (unallocated_amount > 0).
+ *
+ * Al confirmar, llama al backend para crear el Journal Entry y cruzarlo
+ * automáticamente con el pago, dejando unallocated_amount en 0.
+ *
+ * @param {object} frm - Instancia del formulario Payment Entry
+ */
+function setup_payment_exchange_difference_button(frm) {
+  if (
+    frm.doc.docstatus === 1 &&
+    frm.doc.payment_type === "Pay" &&
+    frm.doc.party_type === "Supplier" &&
+    flt(frm.doc.unallocated_amount) > 0
+  ) {
+    const currency =
+      frm.doc.paid_to_account_currency ||
+      frm.doc.party_account_currency ||
+      frm.doc.currency;
+    const monto = format_currency(flt(frm.doc.unallocated_amount), currency);
+
+    frm.add_custom_button(
+      __("Generar Diferencial Cambiario"),
+      function () {
+        frappe.confirm(
+          `¿Desea registrar el monto sin asignar (<b>Pérdida</b>) por <b>${monto}</b>?<br><br>` +
+            `Se creará y enviará un Asiento Contable que extinguirá el remanente del proveedor.`,
+          () => {
+            frappe.call({
+              method:
+                "l10n_ve.overrides.payment_entry.create_payment_exchange_difference_entry",
+              args: { docname: frm.doc.name },
+              freeze: true,
+              freeze_message: __("Registrando diferencial cambiario (Pérdida)..."),
+              callback: function (r) {
+                if (r.message && r.message.status === "success") {
+                  frappe.show_alert({
+                    message: __(
+                      `Diferencial cambiario registrado: ${r.message.journal_entry}`
+                    ),
+                    indicator: "green",
+                  });
+                  frm.reload_doc();
+                }
+              },
+            });
+          }
+        );
+      },
+      __("Acciones")
+    );
+  }
+}
+
