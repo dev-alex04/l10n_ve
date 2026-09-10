@@ -1508,6 +1508,9 @@ def create_payment_exchange_difference_entry(docname: str, account: str = None) 
     journal_entry.remark = (
         f"Diferencial cambiario (Pérdida) por pago a proveedor {payment_entry.name}"
     )
+    journal_entry.user_remark = (
+        f"Diferencial cambiario (Pérdida) por pago a proveedor {payment_entry.name}"
+    )
     journal_entry.insert(ignore_permissions=True)
     journal_entry.submit()
 
@@ -1541,6 +1544,19 @@ def create_payment_exchange_difference_entry(docname: str, account: str = None) 
             reconciliation_args[dim.fieldname] = payment_entry.get(dim.fieldname)
 
     reconcile_against_document([reconciliation_args])
+
+    # Trazabilidad bidireccional con enlaces en la línea de tiempo de ambos documentos
+    payment_link = f"<a href='/app/payment-entry/{payment_entry.name}'>{payment_entry.name}</a>"
+    journal_link = f"<a href='/app/journal-entry/{journal_entry.name}'>{journal_entry.name}</a>"
+
+    journal_entry.add_comment(
+        "Comment",
+        text=f"Asiento generado automáticamente por Diferencial Cambiario (Pérdida) desde el pago {payment_link}.",
+    )
+    payment_entry.add_comment(
+        "Comment",
+        text=f"Diferencial cambiario registrado como Pérdida mediante el asiento contable {journal_link}.",
+    )
 
     return {
         "status": "success",
