@@ -1483,7 +1483,7 @@ def create_payment_exchange_difference_entry(docname: str, account: str = None) 
 
     # ── Construcción del Journal Entry ──────────────────────────────────────
     journal_entry = frappe.new_doc("Journal Entry")
-    journal_entry.voucher_type = "Journal Entry"
+    journal_entry.voucher_type = "Exchange Gain Or Loss"
     journal_entry.posting_date = payment_entry.posting_date
     journal_entry.company = payment_entry.company
 
