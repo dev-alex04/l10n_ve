@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.65.0] - 2026-09-10
+
+### ✨ Funcionalidades (Features)
+- Se implementaron filtros de fecha "Desde" y "Hasta" en el reporte de Cuentas por Pagar para mejorar la segmentación y consulta de información financiera. [97a33637]
+
+---
+
 ## [v2.64.1] - 2026-09-10
 
 ### 🐛 Correcciones (Fixes)
