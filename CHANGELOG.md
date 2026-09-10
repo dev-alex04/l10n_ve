@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.66.0] - 2026-09-10
+
+### ✨ Funcionalidades (Features)
+- Se integró la funcionalidad para generar Diferencial Cambiario (incluyendo escenarios de pérdida) en pagos a proveedores, añadiendo accesos rápidos tanto en la barra superior como en el menú de acciones. 326cdf11, 6180df7c, 60f7bc95
+- Mejora en la visibilidad de documentos relacionados mediante la incorporación de Journal Entry en el dashboard de Conexiones de Payment Entry. c486f282
+- Optimización de la integridad de datos al poblar automáticamente los campos `reference_type` y `reference_name` en las filas de proveedores del Journal Entry. 7e64a59e
+- Implementación de referencia directa registrando el identificador del pago en el campo `cheque_no` del Journal Entry para facilitar la conciliación. ff6cfd25
+- Se agregó trazabilidad bidireccional entre documentos mediante el uso de comentarios automáticos y el campo `user_remark`. 4a2aaf32
+
+### 🐛 Correcciones (Fixes)
+- Corrección en la tipificación contable para asegurar que los asientos generados utilicen el tipo "Exchange Gain Or Loss". 243ff37a
+- Solución de un error técnico en `frm.page.remove_custom_button` que interrumpía la ejecución del script de `refresh` en la interfaz de usuario. 898ebdd9
+
+---
+
 ## [v2.65.0] - 2026-09-10
 
 ### ✨ Funcionalidades (Features)
