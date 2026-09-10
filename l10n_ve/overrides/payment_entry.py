@@ -1486,6 +1486,8 @@ def create_payment_exchange_difference_entry(docname: str, account: str = None) 
     journal_entry.voucher_type = "Exchange Gain Or Loss"
     journal_entry.posting_date = payment_entry.posting_date
     journal_entry.company = payment_entry.company
+    journal_entry.cheque_no = payment_entry.name
+    journal_entry.cheque_date = payment_entry.posting_date
 
     # Débito en la cuenta de pérdida cambiaria
     journal_entry.append("accounts", {
