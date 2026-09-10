@@ -1032,6 +1032,8 @@ function get_total_withholdings_base(frm) {
  * @param {object} frm - Instancia del formulario Payment Entry
  */
 function setup_payment_exchange_difference_button(frm) {
+  frm.remove_custom_button(__("Generar Diferencial Cambiario"), __("Actions"));
+
   if (
     frm.doc.docstatus === 1 &&
     frm.doc.payment_type === "Pay" &&
@@ -1071,9 +1073,11 @@ function setup_payment_exchange_difference_button(frm) {
             });
           }
         );
-      }
+      },
+      __("Actions")
     );
   }
 }
+
 
 
