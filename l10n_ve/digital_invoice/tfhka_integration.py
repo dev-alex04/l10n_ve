@@ -14,7 +14,12 @@ from l10n_ve.digital_invoice.emission_rerate import (
     rerate_to_emission_rate,
     validate_note_rate,
 )
-from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder, resolve_zone_from_address
+from l10n_ve.digital_invoice.payload_builder import (
+    TFHKAPayloadBuilder,
+    resolve_zone_from_address,
+    service_period,
+    service_period_label,
+)
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
 from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
 
@@ -1220,20 +1225,14 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
     ) or ""
     nodo: str = ""
 
-    months = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
-              "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
-    posting_date = getdate(doc.posting_date)
     notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
 
-    # Espeja el payload real (dict_pdf en payload_builder):
-    period_default: str = f"{months[posting_date.month]} {posting_date.year}"
+    # Espeja el payload real (dict_pdf en payload_builder): el período es el del servicio
+    # que se cobra, no el mes de emisión.
+    period_start, period_end = service_period(doc)
+    period_default: str = service_period_label(period_start, period_end)
     note: str = notes or period_default
-
-    from calendar import monthrange
-    last_day = monthrange(posting_date.year, posting_date.month)[1]
-    start_date_str = posting_date.replace(day=1).strftime("%d/%m/%Y")
-    end_date_str = posting_date.replace(day=last_day).strftime("%d/%m/%Y")
-    period: str = f"Desde {start_date_str} hasta {end_date_str}"
+    period: str = f"Desde {period_start:%d/%m/%Y} hasta {period_end:%d/%m/%Y}"
 
     iva_rate: float = 16.0
     has_iva: bool = flt(doc.base_total_taxes_and_charges) > 0

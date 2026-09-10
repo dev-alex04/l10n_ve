@@ -1,6 +1,8 @@
 import re
 import json
 import unicodedata
+from calendar import monthrange
+from datetime import date
 from typing import Optional
 
 import frappe
@@ -158,6 +160,47 @@ def resolve_zone_from_address(customer_name: str, customer_address: Optional[str
 
 _CURRENCY_WORDS = {"BSD": "bolívares", "VES": "bolívares", "VEF": "bolívares",
                    "USD": "dólares", "EUR": "euros"}
+
+
+#: Meses en mayúsculas, como los imprime la plantilla de HKA.
+MONTHS_ES: tuple[str, ...] = (
+    "", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO",
+    "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE",
+)
+
+
+def service_period(doc) -> tuple[date, date]:
+    """Período de servicio que cobra el documento: el suyo, no el de su emisión.
+
+    Bajo emitir-al-pagar la factura se contabiliza el día que se cobra, así que un
+    borrador de agosto cobrado en septiembre llega a HKA con ``posting_date`` de
+    septiembre. Esa fecha es la de emisión y tiene que coincidir con la de HKA, pero no
+    dice qué mes se cobra: eso lo guarda la propia factura en ``from_date``/``to_date``,
+    fijados al crearla. Antes de #537 el período se leía de la Subscription en vivo, que
+    avanza sola y a veces mostraba el mes anterior; #537 lo pasó a ``posting_date`` y
+    desde entonces cada factura de un mes anterior sale con el mes de emisión. En
+    producción, al 10-sep-2026: 747 facturas de julio y agosto emitidas en septiembre
+    decían «SEPTIEMBRE 2026».
+
+    Sin período propio completo (una factura manual), se usa el mes de ``posting_date``,
+    como hasta ahora.
+    """
+    start = getdate(doc.get("from_date")) if doc.get("from_date") else None
+    end = getdate(doc.get("to_date")) if doc.get("to_date") else None
+    if start and end and start <= end:
+        return start, end
+    posting_date = getdate(doc.posting_date)
+    last_day = monthrange(posting_date.year, posting_date.month)[1]
+    return posting_date.replace(day=1), posting_date.replace(day=last_day)
+
+
+def service_period_label(start: date, end: date) -> str:
+    """El mes o los meses del período, como van en la «Nota»: «AGOSTO 2026», «AGOSTO - SEPTIEMBRE 2026»."""
+    if (start.year, start.month) == (end.year, end.month):
+        return f"{MONTHS_ES[start.month]} {start.year}"
+    if start.year == end.year:
+        return f"{MONTHS_ES[start.month]} - {MONTHS_ES[end.month]} {end.year}"
+    return f"{MONTHS_ES[start.month]} {start.year} - {MONTHS_ES[end.month]} {end.year}"
 
 
 class TFHKAPayloadBuilder:
@@ -903,19 +946,14 @@ class TFHKAPayloadBuilder:
                 f"por 1,00 USD de fecha valor {fecha_valor_str}."
             )
 
-        # Generar periodo en "Nota" basado en posting_date
-        months = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
-        posting_date = getdate(doc.posting_date)
+        # «Periodo» y «Nota» dicen qué mes se cobra, no cuándo se emite: ver service_period.
+        period_start, period_end = service_period(doc)
 
         notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
-        period_default = f"{months[posting_date.month]} {posting_date.year}"
+        period_default = service_period_label(period_start, period_end)
         nota_periodo = notes or period_default
 
-        from calendar import monthrange
-        last_day = monthrange(posting_date.year, posting_date.month)[1]
-        month_start = posting_date.replace(day=1).strftime("%d/%m/%Y")
-        month_end = posting_date.replace(day=last_day).strftime("%d/%m/%Y")
-        periodo: str = f"Desde el {month_start} hasta el {month_end}"
+        periodo: str = f"Desde el {period_start:%d/%m/%Y} hasta el {period_end:%d/%m/%Y}"
 
         coletilla_a: str = (
             "En los casos en que la base imponible de la venta o prestacion de servicio "
