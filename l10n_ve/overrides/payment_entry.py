@@ -1567,3 +1567,23 @@ def create_payment_exchange_difference_entry(docname: str, account: str = None) 
         "journal_entry": journal_entry.name,
         "amount": unallocated,
     }
+
+
+def get_payment_entry_dashboard_data(data: dict = None) -> dict:
+    """Extiende la sección Conexiones de Payment Entry para incluir Asiento Contable (Journal Entry)."""
+    data = frappe._dict(data or {})
+
+    transactions = data.setdefault("transactions", [])
+    for group in transactions:
+        if "Journal Entry" in group.get("items", []):
+            break
+    else:
+        transactions.append({
+            "label": _("Accounting"),
+            "items": ["Journal Entry"],
+        })
+
+    non_standard_fieldnames = data.setdefault("non_standard_fieldnames", {})
+    non_standard_fieldnames["Journal Entry"] = "cheque_no"
+
+    return data
