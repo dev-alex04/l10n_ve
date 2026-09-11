@@ -585,3 +585,69 @@ class TestCalculateTotalExempt(FrappeTestCase):
 
         self.assertAlmostEqual(doc.base_total_exempt, 2000.00, places=2)
         self.assertAlmostEqual(flt(doc.base_net_total) - doc.base_total_exempt, 4000.00, places=2)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# get_current_tax_and_net_amount() — ERPNext v15.121+ compat
+# ═══════════════════════════════════════════════════════════════════
+
+class TestGetCurrentTaxAndNetAmount(FrappeTestCase):
+    """Tests para get_current_tax_and_net_amount() (compatibilidad ERPNext v15.121+)."""
+
+    def _calc(self, doc, item, tax) -> tuple[float, float]:
+        calc = make_taxes_and_totals(doc)
+        calc._get_tax_rate = MagicMock(return_value=flt(tax.rate))
+        return calc.get_current_tax_and_net_amount(item, tax, {})
+
+    def test_vat_taxable_item(self) -> None:
+        """item gravable: net_amount=100, IVA 16% -> (100.0, 16.0)."""
+        item = make_mock_item(net_amount=100)
+        tax = make_mock_tax(charge_type="VAT", rate=16)
+        doc = make_mock_doc(items=[item], taxes=[tax])
+
+        net, amount = self._calc(doc, item, tax)
+
+        self.assertAlmostEqual(net, 100.0, places=2)
+        self.assertAlmostEqual(amount, 16.0, places=2)
+
+    def test_vat_exempt_item(self) -> None:
+        """item exento: net_amount=100, vat_exempt=True -> (0.0, 0.0)."""
+        item = make_mock_item(net_amount=100, vat_exempt=True)
+        tax = make_mock_tax(charge_type="VAT", rate=16)
+        doc = make_mock_doc(items=[item], taxes=[tax])
+
+        net, amount = self._calc(doc, item, tax)
+
+        self.assertEqual(net, 0.0)
+        self.assertEqual(amount, 0.0)
+
+    def test_vat_withholding_taxable_item(self) -> None:
+        """item gravable: net_amount=100, IVA 16%, WHT 75% -> (16.0, 12.0)."""
+        vat_tax = make_mock_tax(charge_type="VAT", rate=16)
+        wht_tax = make_mock_tax(
+            charge_type="VAT Withholding", rate=75,
+            is_tax_withholding_account=True,
+        )
+        item = make_mock_item(net_amount=100)
+        doc = make_mock_doc(items=[item], taxes=[vat_tax, wht_tax])
+
+        net, amount = self._calc(doc, item, wht_tax)
+
+        self.assertAlmostEqual(net, 16.0, places=2)
+        self.assertAlmostEqual(amount, 12.0, places=2)
+
+    def test_vat_withholding_exempt_item(self) -> None:
+        """item exento: vat_exempt=True -> (0.0, 0.0)."""
+        vat_tax = make_mock_tax(charge_type="VAT", rate=16)
+        wht_tax = make_mock_tax(
+            charge_type="VAT Withholding", rate=75,
+            is_tax_withholding_account=True,
+        )
+        item = make_mock_item(net_amount=100, vat_exempt=True)
+        doc = make_mock_doc(items=[item], taxes=[vat_tax, wht_tax])
+
+        net, amount = self._calc(doc, item, wht_tax)
+
+        self.assertEqual(net, 0.0)
+        self.assertEqual(amount, 0.0)
+

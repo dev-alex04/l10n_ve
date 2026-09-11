@@ -103,15 +103,50 @@ erpnext.taxes_and_totals.prototype.get_current_tax_amount = function (
     this.set_item_wise_tax(item, tax, tax_rate, current_tax_amount);
   }
 
-  // ERPNext v15 destructures this as an Array `[current_tax_amount, item_tax_amount]`
+  var current_net_amount = 0.0;
+  if (!item.vat_exempt) {
+    if (tax.charge_type === "VAT Withholding") {
+      let vat_rate = 0.0;
+      for (let tr of this.frm.doc.taxes || []) {
+        if (tr.charge_type === "VAT") {
+          vat_rate = flt(tr.rate);
+          break;
+        }
+      }
+      current_net_amount = (flt(item.net_amount) * vat_rate) / 100.0;
+    } else if (
+      ["On Previous Row Amount", "On Previous Row Total"].includes(tax.charge_type)
+    ) {
+      let prev_idx = cint(tax.row_id) - 1;
+      let taxes = this.frm.doc.taxes || [];
+      if (prev_idx >= 0 && prev_idx < taxes.length) {
+        current_net_amount =
+          tax.charge_type === "On Previous Row Amount"
+            ? flt(taxes[prev_idx].tax_amount_for_current_item)
+            : flt(taxes[prev_idx].grand_total_for_current_item);
+      }
+    } else if (tax.charge_type === "On Item Quantity") {
+      current_net_amount = 0.0;
+    } else {
+      current_net_amount = flt(item.net_amount);
+    }
+  }
+
+  // Soporta tanto llamadas numéricas directas (v15.99) como desestructuración [net, tax] (v15.121+)
   let res = new Number(current_tax_amount);
   res[Symbol.iterator] = function* () {
+    yield current_net_amount;
     yield current_tax_amount;
-    yield current_tax_amount; // item_tax_amount
   };
 
   return res;
 };
+
+// ERPNext v15.121+ compat
+if (erpnext.taxes_and_totals.prototype.get_current_tax_and_net_amount) {
+  erpnext.taxes_and_totals.prototype.get_current_tax_and_net_amount =
+    erpnext.taxes_and_totals.prototype.get_current_tax_amount;
+}
 
 // ------------------------------------------------------------------ //
 // set_cumulative_total — Override existente (retenciones VE)

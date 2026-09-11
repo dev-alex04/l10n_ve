@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.66.4] - 2026-09-11
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la compatibilidad en el cálculo de impuestos y retenciones para versiones de ERPNext v15.121 y posteriores. (753774f8)
+
+---
+
+## [v2.66.3] - 2026-09-11
+
+### 🐛 Correcciones (Fixes)
+- Se implementó el versionamiento de las URLs para los activos globales (JS y CSS), garantizando que el navegador cargue las versiones más recientes y evitando problemas de persistencia de caché tras nuevos despliegues. 24ac06f0
+
+---
+
+## [v2.66.2] - 2026-09-11
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el reporte de **Retención de Clientes**, el cual mostraba incorrectamente la misma información que el Libro de Ventas. [29fa0d46]
+- Se optimizó la seguridad en la consulta de Retención de Clientes al eliminar la interpolación directa de variables del request, fortaleciendo la integridad de la base de datos. [f59f65c6]
+
+---
+
 ## [v2.66.1] - 2026-09-11
 
 ### 🐛 Correcciones (Fixes)
