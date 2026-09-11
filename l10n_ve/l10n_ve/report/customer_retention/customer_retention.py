@@ -5,6 +5,14 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+# El filtro de sucursal y el corte fiscal son los del Libro de Ventas: este reporte es el
+# detalle de lo que el libro declara, y dos definiciones de «sucursal» o dos relojes para
+# el corte son la forma más rápida de que no digan lo mismo.
+from l10n_ve.l10n_ve.report.sales_book.sales_book import (
+	_FISCAL_CUTOFF_DATE,
+	branch_scope_condition,
+)
+
 
 def execute(filters=None):
 	if not filters:
@@ -15,7 +23,8 @@ def execute(filters=None):
 
 	columns = get_columns()
 	data = get_data(filters)
-	return columns, data, None, None, get_report_summary(data)
+	currency = frappe.get_cached_value("Company", filters.get("company"), "default_currency")
+	return columns, data, None, None, get_report_summary(data, currency)
 
 
 def get_columns():
@@ -41,7 +50,18 @@ def get_columns():
 def get_data(filters):
 	"""
 	Obtiene las retenciones consolidando Facturas, Notas de Crédito y Débito.
-	Alineado con la lógica del Libro de Ventas legal.
+
+	Es el detalle de las tarjetas «Retención IVA» y «Retención ISLR» del panel, que salen
+	del Libro de Ventas, así que usa sus MISMAS dos reglas:
+
+	- Sucursal: el subárbol entero (`branch_scope_condition`). Con igualdad simple, una
+	  sucursal de grupo --MIR-01, sin facturas a su nombre-- daba el reporte vacío mientras
+	  la tarjeta decía Bs 252.690,50 (agosto-2026).
+	- Período: la retención cuenta en el mes de su COMPROBANTE, como el `iva_retained` del
+	  libro. Una factura del mes con comprobante fechado en otro no se cuenta aquí: el libro
+	  la declara en ese otro mes, como ajuste. Sin esta regla el reporte daba Bs 39.513,43
+	  de IVA y Bs 7.270,37 de ISLR de más en agosto-2026: seis y cuatro retenciones de
+	  facturas de agosto con comprobante de septiembre.
 	"""
 	# Función auxiliar para construir condiciones con alias específicos
 	def get_conditions(alias):
@@ -52,8 +72,7 @@ def get_data(filters):
 			conds += f" AND {alias}.posting_date <= %(to_date)s"
 		if filters.get("customer"):
 			conds += f" AND {alias}.customer = %(customer)s"
-		if filters.get("branch"):
-			conds += f" AND {alias}.branch = %(branch)s"
+		conds += branch_scope_condition(filters.get("branch"), f"{alias}.branch")[0]
 		return conds
 
 	# Tipos de retención a consultar
@@ -70,11 +89,17 @@ def get_data(filters):
 	charge_types_str = ", ".join(charge_types)
 
 	company_currency = frappe.get_cached_value("Company", filters.get("company"), "default_currency")
-	fiscal_cutoff = '2026-04-15'
+	fiscal_cutoff = _FISCAL_CUTOFF_DATE
 	filters["company_currency"] = company_currency
 	filters["fiscal_cutoff"] = fiscal_cutoff
+	filters.setdefault("from_date", None)
+	filters.setdefault("to_date", None)
+	filters.update(branch_scope_condition(filters.get("branch"), "branch")[1])
 
-	# Query unificado para todas las fuentes
+	# Query unificado para todas las fuentes. Lo que se interpola en el f-string no viene
+	# del request: alias fijos, los tipos de retención de una lista cerrada y la condición
+	# de sucursal de `branch_scope_condition`, que viaja con sus propios parámetros.
+	# nosemgrep: frappe-semgrep-rules.rules.security.frappe-sql-format-injection
 	query = f"""
 		SELECT * FROM (
 			-- FUENTE A: Sales Invoices
@@ -89,6 +114,11 @@ def get_data(filters):
 						CASE 
 							WHEN stc.charge_type = 'VAT Withholding' AND (si.vat_withholding_voucher_number IS NULL OR si.vat_withholding_voucher_number = '') THEN 0
 							WHEN stc.charge_type = 'ISLR' AND (si.islr_receipt_number IS NULL OR si.islr_receipt_number = '') THEN 0
+							-- Comprobante fechado en OTRO período: se declara allá, como en el libro.
+							WHEN stc.charge_type = 'VAT Withholding' AND si.withholding_date IS NOT NULL
+							     AND si.withholding_date NOT BETWEEN %(from_date)s AND %(to_date)s THEN 0
+							WHEN stc.charge_type = 'ISLR' AND si.islr_date IS NOT NULL
+							     AND si.islr_date NOT BETWEEN %(from_date)s AND %(to_date)s THEN 0
 							ELSE ABS(stc.base_tax_amount) 
 						END
 				END AS withholding_amount,
@@ -118,6 +148,11 @@ def get_data(filters):
 						CASE 
 							WHEN stc.charge_type = 'VAT Withholding' AND (nc.vat_withholding_voucher_number IS NULL OR nc.vat_withholding_voucher_number = '') THEN 0
 							WHEN stc.charge_type = 'ISLR' AND (nc.islr_receipt_number IS NULL OR nc.islr_receipt_number = '') THEN 0
+							-- Comprobante fechado en OTRO período: se declara allá, como en el libro.
+							WHEN stc.charge_type = 'VAT Withholding' AND nc.withholding_date IS NOT NULL
+							     AND nc.withholding_date NOT BETWEEN %(from_date)s AND %(to_date)s THEN 0
+							WHEN stc.charge_type = 'ISLR' AND nc.islr_date IS NOT NULL
+							     AND nc.islr_date NOT BETWEEN %(from_date)s AND %(to_date)s THEN 0
 							ELSE ABS(stc.base_tax_amount) 
 						END
 				END AS withholding_amount,
@@ -195,7 +230,9 @@ def get_data(filters):
 	return processed_data
 
 
-def get_report_summary(data):
+def get_report_summary(data, currency=None):
+	"""Totales en la moneda de la empresa: sin `currency`, Frappe los rotula con la moneda
+	por defecto del sistema y el reporte decía «REF.» sobre montos en bolívares."""
 	if not data:
 		return []
 
@@ -204,7 +241,7 @@ def get_report_summary(data):
 	total_withheld = sum(flt(d.get("withholding_amount", 0)) for d in data)
 
 	return [
-		{"value": total_base, "label": _("Total Base Imponible"), "datatype": "Currency"},
-		{"value": total_invoiced, "label": _("Total Facturado"), "datatype": "Currency"},
-		{"value": total_withheld, "label": _("Total Retenido"), "datatype": "Currency", "indicator": "Red"},
+		{"value": total_base, "label": _("Total Base Imponible"), "datatype": "Currency", "currency": currency},
+		{"value": total_invoiced, "label": _("Total Facturado"), "datatype": "Currency", "currency": currency},
+		{"value": total_withheld, "label": _("Total Retenido"), "datatype": "Currency", "currency": currency, "indicator": "Red"},
 	]
