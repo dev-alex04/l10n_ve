@@ -96,7 +96,10 @@ def get_data(filters):
 	filters.setdefault("to_date", None)
 	filters.update(branch_scope_condition(filters.get("branch"), "branch")[1])
 
-	# Query unificado para todas las fuentes
+	# Query unificado para todas las fuentes. Lo que se interpola en el f-string no viene
+	# del request: alias fijos, los tipos de retención de una lista cerrada y la condición
+	# de sucursal de `branch_scope_condition`, que viaja con sus propios parámetros.
+	# nosemgrep: frappe-semgrep-rules.rules.security.frappe-sql-format-injection
 	query = f"""
 		SELECT * FROM (
 			-- FUENTE A: Sales Invoices
