@@ -7,19 +7,23 @@ Tests unitarios para el campo notes de Sales Invoice en HKA.
 Cubre payload real (_build_info_adicional) y vista previa
 (get_invoice_preview_data), verificando que ambos coinciden:
 - La nota del usuario reemplaza solo "Nota"; "Periodo" conserva el
-  rango de la suscripción (no se pierde en la factura legal).
-- Fallback sin nota: "Nota" = mes/año del posting_date.
+  período de servicio (no se pierde en la factura legal).
+- "Periodo" y "Nota" salen del período de servicio de la factura
+  (from_date/to_date), no del mes de emisión; sin período propio, del mes
+  de posting_date.
+- Fallback sin nota: "Nota" = mes/año del período.
 - Sanitización idéntica en payload y preview (comillas dobles fuera,
   saltos de línea y espacios múltiples colapsados).
 """
 
 import ast
+from datetime import date
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
 from unittest.mock import MagicMock, patch
 
-from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder
+from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder, service_period_label
 from l10n_ve.digital_invoice.tfhka_integration import get_invoice_preview_data
 
 
@@ -113,6 +117,65 @@ class TestInvoiceNotesPayload(FrappeTestCase):
         pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
 
         self.assertEqual(pdf["Nota"], "Ajuste especial con saltos y espacios")
+
+
+class TestServicePeriodPayload(FrappeTestCase):
+    """«Periodo» y «Nota» dicen qué mes se cobra, no cuándo se emite.
+
+    Reportado por Galanet el 10-sep-2026: un borrador de agosto cobrado en septiembre se
+    contabiliza en septiembre, y el PDF de HKA decía «SEPTIEMBRE 2026».
+    """
+
+    def test_old_month_invoice_emitted_later_keeps_its_service_month(self) -> None:
+        """Borrador de agosto cobrado en septiembre: la emisión es de septiembre, el período de agosto."""
+        doc = _make_invoice(posting_date="2026-09-08", from_date="2026-08-01", to_date="2026-08-31")
+        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
+
+        self.assertEqual(pdf["Nota"], "AGOSTO 2026")
+        self.assertEqual(pdf["Periodo"], "Desde el 01/08/2026 hasta el 31/08/2026")
+
+    def test_notes_replace_nota_but_not_the_service_period(self) -> None:
+        doc = _make_invoice(
+            posting_date="2026-09-08", from_date="2026-08-01", to_date="2026-08-31", notes="Pago atrasado",
+        )
+        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
+
+        self.assertEqual(pdf["Nota"], "Pago atrasado")
+        self.assertEqual(pdf["Periodo"], "Desde el 01/08/2026 hasta el 31/08/2026")
+
+    def test_period_across_two_months_prints_its_exact_dates(self) -> None:
+        doc = _make_invoice(posting_date="2026-09-20", from_date="2026-08-15", to_date="2026-09-14")
+        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
+
+        self.assertEqual(pdf["Nota"], "AGOSTO - SEPTIEMBRE 2026")
+        self.assertEqual(pdf["Periodo"], "Desde el 15/08/2026 hasta el 14/09/2026")
+
+    def test_manual_invoice_without_period_uses_the_posting_month(self) -> None:
+        """Una factura manual sin Desde/Hasta sigue con el mes de posting_date, como antes."""
+        doc = _make_invoice(posting_date="2026-09-08")
+        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
+
+        self.assertEqual(pdf["Nota"], "SEPTIEMBRE 2026")
+        self.assertEqual(pdf["Periodo"], "Desde el 01/09/2026 hasta el 30/09/2026")
+
+    def test_incomplete_or_inverted_period_falls_back_to_the_posting_month(self) -> None:
+        for from_date, to_date in (("2026-08-01", None), (None, "2026-08-31"), ("2026-08-31", "2026-08-01")):
+            with self.subTest(from_date=from_date, to_date=to_date):
+                doc = _make_invoice(posting_date="2026-09-08", from_date=from_date, to_date=to_date)
+                pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
+
+                self.assertEqual(pdf["Periodo"], "Desde el 01/09/2026 hasta el 30/09/2026")
+
+
+class TestServicePeriodLabel(FrappeTestCase):
+    def test_one_month(self) -> None:
+        self.assertEqual(service_period_label(date(2026, 8, 1), date(2026, 8, 31)), "AGOSTO 2026")
+
+    def test_two_months_of_the_same_year(self) -> None:
+        self.assertEqual(service_period_label(date(2026, 8, 15), date(2026, 9, 14)), "AGOSTO - SEPTIEMBRE 2026")
+
+    def test_two_months_across_years(self) -> None:
+        self.assertEqual(service_period_label(date(2026, 12, 15), date(2027, 1, 14)), "DICIEMBRE 2026 - ENERO 2027")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -243,3 +306,12 @@ class TestInvoiceNotesPreview(FrappeTestCase):
         ))
 
         self.assertEqual(data["nota"], "Ajuste especial con saltos y espacios")
+
+    def test_preview_uses_the_service_period_like_the_payload(self) -> None:
+        """Borrador de agosto cobrado en septiembre: la vista previa dice agosto, como el PDF."""
+        data = _run_preview(_make_preview_invoice(
+            posting_date="2026-09-08", from_date="2026-08-01", to_date="2026-08-31",
+        ))
+
+        self.assertEqual(data["nota"], "AGOSTO 2026")
+        self.assertEqual(data["periodo"], "Desde 01/08/2026 hasta 31/08/2026")
