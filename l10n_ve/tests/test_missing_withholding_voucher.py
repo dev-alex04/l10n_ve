@@ -62,6 +62,10 @@ def _invoice(
 class TestMissingWithholdingVoucher(unittest.TestCase):
     def setUp(self):
         import frappe
+        self._orig_db = frappe.local.db
+        self._orig_system_settings = getattr(frappe.local, "system_settings", None)
+        self._orig_conf = frappe.local.conf
+        self._orig_session = getattr(frappe.local, "session", None)
         if not hasattr(frappe.local, "flags"):
             frappe.local.flags = _dict()
         frappe.local.flags.in_test = True
@@ -76,9 +80,10 @@ class TestMissingWithholdingVoucher(unittest.TestCase):
 
     def tearDown(self):
         import frappe
-        frappe.local.db = None
-        frappe.local.system_settings = None
-        frappe.local.conf = None
+        frappe.local.db = self._orig_db
+        frappe.local.system_settings = self._orig_system_settings
+        frappe.local.conf = self._orig_conf
+        frappe.local.session = self._orig_session
 
     def test_no_withholding_never_warns(self):
         """Una factura sin retención no reclama ningún comprobante."""
