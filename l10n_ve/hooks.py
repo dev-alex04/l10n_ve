@@ -208,11 +208,8 @@ doctype_list_js = {
     "Currency Exchange": "public/js/doctype/currency_exchange/currency_exchange_list.js",
 }
 
-query_report_js = {
-    "General Ledger": "public/js/report/general_ledger.js",
-    "Accounts Receivable": "public/js/report/accounts_receivable.js",
-    "Accounts Payable": "public/js/report/accounts_payable.js",
-}
+# Frappe no tiene hook de JS por reporte (un `query_report_js` no lo lee nadie): los
+# JS de General Ledger y Cuentas por Cobrar/Pagar se cargan desde app_include_js.
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 doctype_calendar_js = {"Project": "public/js/doctype/project/project_calendar.js"}
