@@ -1,3 +1,5 @@
+from l10n_ve import __version__
+
 app_name = "l10n_ve"
 app_title = "L10N Ve"
 app_publisher = "DominaERP"
@@ -63,6 +65,16 @@ app_include_js = [
 app_include_css = [
     "/assets/l10n_ve/css/digital_invoice_preview.css",
 ]
+
+# Versión en la URL de los JS y CSS globales. nginx sirve /assets/* con un año de caché
+# y Frappe solo versiona la URL de los *.bundle.*: con una ruta fija, quien ya abrió el
+# Desk sigue con el archivo viejo después de un deploy hasta que haga Ctrl+Shift+R (pasó
+# con los filtros Desde/Hasta de Cuentas por Pagar, #714). La versión sube en cada
+# release, así que la URL cambia y el navegador pide el archivo nuevo; nginx ignora el
+# query string al servirlo. Con guion bajo, Frappe no toma la constante como hook.
+_ASSET_VERSION = __version__.lstrip("v")
+app_include_js = [f"{path}?v={_ASSET_VERSION}" for path in app_include_js]
+app_include_css = [f"{path}?v={_ASSET_VERSION}" for path in app_include_css]
 
 # page_js = {
 #     "dashboard-view": "public/js/widgets/number_card_widget.js"
@@ -196,11 +208,8 @@ doctype_list_js = {
     "Currency Exchange": "public/js/doctype/currency_exchange/currency_exchange_list.js",
 }
 
-query_report_js = {
-    "General Ledger": "public/js/report/general_ledger.js",
-    "Accounts Receivable": "public/js/report/accounts_receivable.js",
-    "Accounts Payable": "public/js/report/accounts_payable.js",
-}
+# Frappe no tiene hook de JS por reporte (un `query_report_js` no lo lee nadie): los
+# JS de General Ledger y Cuentas por Cobrar/Pagar se cargan desde app_include_js.
 
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 doctype_calendar_js = {"Project": "public/js/doctype/project/project_calendar.js"}
