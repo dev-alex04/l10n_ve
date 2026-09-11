@@ -1062,9 +1062,9 @@ function setup_payment_exchange_difference_button(frm) {
               callback: function (r) {
                 if (r.message && r.message.status === "success") {
                   frappe.show_alert({
-                    message: __(
-                      `Diferencial cambiario registrado: ${r.message.journal_entry}`
-                    ),
+                    message: __("Diferencial cambiario registrado: {0}", [
+                      r.message.journal_entry,
+                    ]),
                     indicator: "green",
                   });
                   frm.reload_doc();
