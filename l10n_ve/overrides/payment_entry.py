@@ -1265,14 +1265,28 @@ def get_outstanding_reference_documents(args, validate: bool = False) -> list:
 
 @frappe.whitelist()
 def get_branch_payment_mode_account(branch: str, mode_of_payment: str) -> str | None:
-    """Obtiene la cuenta configurada para un modo de pago en una sucursal."""
-    if not branch or not mode_of_payment:
+    """Obtiene la cuenta configurada para un modo de pago en una sucursal, con fallback a la cuenta de la compañía."""
+    if not mode_of_payment:
         return None
 
-    account = frappe.db.get_value("VE Branch Payment Modes", {
-        "parent": branch,
-        "mode_of_payment": mode_of_payment
-    }, "account")
+    account = None
+    if branch:
+        account = frappe.db.get_value("VE Branch Payment Modes", {
+            "parent": branch,
+            "mode_of_payment": mode_of_payment
+        }, "account")
+
+    if not account:
+        company = None
+        if branch:
+            company = frappe.db.get_value("VE Branch", branch, "company")
+        if not company:
+            company = frappe.defaults.get_user_default("company") or frappe.db.get_single_value("Global Defaults", "default_company")
+        if company:
+            account = frappe.db.get_value("Mode of Payment Account", {
+                "parent": mode_of_payment,
+                "company": company
+            }, "default_account")
 
     return account
 
@@ -1285,24 +1299,52 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
     elif not filters:
         filters = {}
 
-    """Obtiene los modos de pago (y si aplican IGTF) configurados para una sucursal."""
     branch = filters.get("branch")
-    if not branch:
-        # Retornar todos los modos de pago si no hay sucursal
-        return frappe.db.sql("""
-            SELECT name, is_igtf_applicable
-            FROM `tabMode of Payment`
-            WHERE name LIKE %(txt)s
-            AND enabled = 1
-            ORDER BY name
-            LIMIT %(start)s, %(page_len)s
-        """, {
+    company = filters.get("company")
+    if not company and branch:
+        company = frappe.db.get_value("VE Branch", branch, "company")
+
+    from l10n_ve.helpers.helpers import is_root_branch_user
+
+    # Si el usuario pertenece a una sucursal raíz (o es Admin/System Manager) o no se especificó sucursal:
+    # permitir seleccionar cualquier modo de pago habilitado para la compañía,
+    # priorizando en la lista los configurados para la sucursal actual si la hay.
+    if not branch or is_root_branch_user(frappe.session.user):
+        params = {
             "txt": "%" + txt + "%",
             "start": int(start),
-            "page_len": int(page_len)
-        })
+            "page_len": int(page_len),
+            "branch": branch or "",
+            "company": company or ""
+        }
 
-    # Obtener modos de pago de la tabla hija de la sucursal
+        return frappe.db.sql("""
+            SELECT
+                mop.name, mop.is_igtf_applicable
+            FROM `tabMode of Payment` mop
+            WHERE mop.name LIKE %(txt)s
+            AND mop.enabled = 1
+            AND (
+                %(company)s = ''
+                OR EXISTS (
+                    SELECT 1 FROM `tabMode of Payment Account` mopa
+                    WHERE mopa.parent = mop.name AND mopa.company = %(company)s
+                )
+                OR NOT EXISTS (
+                    SELECT 1 FROM `tabMode of Payment Account` mopa
+                    WHERE mopa.parent = mop.name
+                )
+            )
+            ORDER BY (
+                CASE WHEN %(branch)s != '' AND EXISTS (
+                    SELECT 1 FROM `tabVE Branch Payment Modes` vbpm
+                    WHERE vbpm.parent = %(branch)s AND vbpm.mode_of_payment = mop.name
+                ) THEN 0 ELSE 1 END
+            ), mop.name
+            LIMIT %(start)s, %(page_len)s
+        """, params)
+
+    # Para operadores restringidos a una sucursal específica
     return frappe.db.sql("""
         SELECT 
             vbpm.mode_of_payment, mop.is_igtf_applicable
@@ -1319,3 +1361,229 @@ def get_branch_payment_modes(doctype, txt, searchfield, start, page_len, filters
         "start": int(start),
         "page_len": int(page_len)
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Diferencial Cambiario (Pérdida) en Pago a Proveedor
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _resolve_exchange_loss_account(payment_entry: object, account: str | None) -> str:
+    """Devuelve la cuenta de pérdida cambiaria a usar en el asiento del diferencial.
+
+    Si el llamador suministró una cuenta, se valida que pertenezca a la compañía
+    del pago, no sea de grupo y sea de tipo Expense o Income (cuenta de resultado).
+    En caso contrario se lee directamente de la Compañía del pago.
+    """
+    if account:
+        account_data = frappe.db.get_value(
+            "Account",
+            account,
+            ["company", "is_group", "root_type"],
+            as_dict=True,
+        )
+
+        if not account_data:
+            frappe.throw(_("La cuenta {0} no existe").format(account))
+
+        if account_data.company != payment_entry.company:
+            frappe.throw(
+                _("La cuenta {0} no pertenece a la compañía {1}").format(
+                    account, payment_entry.company
+                )
+            )
+
+        if account_data.is_group:
+            frappe.throw(_("La cuenta {0} es de grupo y no admite movimientos").format(account))
+
+        if account_data.root_type not in ("Income", "Expense"):
+            frappe.throw(
+                _(
+                    "La cuenta {0} no es de resultado. El diferencial cambiario "
+                    "solo puede registrarse contra una cuenta de ingreso o gasto."
+                ).format(account)
+            )
+
+        return account
+
+    accounts = frappe.get_cached_value(
+        "Company",
+        payment_entry.company,
+        [
+            "exchange_gain_loss_account",
+            "unrealized_exchange_gain_loss_account",
+        ],
+        as_dict=True,
+    )
+    resolved = (
+        accounts.exchange_gain_loss_account
+        or accounts.unrealized_exchange_gain_loss_account
+    )
+
+    if not resolved:
+        frappe.throw(
+            _(
+                "Configure la cuenta de Diferencial Cambiario "
+                "en la Compañía {0}"
+            ).format(payment_entry.company)
+        )
+
+    return resolved
+
+
+@frappe.whitelist()
+def create_payment_exchange_difference_entry(docname: str, account: str = None) -> dict:
+    """Registra como Pérdida el monto no asignado de un pago a proveedor.
+
+    Caso de uso: se emitió un pago a un proveedor y quedó un remanente sin asignar
+    a ninguna factura (unallocated_amount > 0). El proveedor retiene ese dinero y la
+    empresa no recuperará ese monto, por lo que debe contabilizarse como Pérdida.
+
+    Solo aplica a pagos tipo 'Pay' a proveedores ('Supplier').
+    NUNCA debe usarse en cobros ('Receive') a clientes.
+
+    Asiento generado:
+        Débito  → cuenta de pérdida / diferencial cambiario (Gasto)
+        Crédito → cuenta por pagar del proveedor (party_account)
+
+    Tras crear el asiento, se ejecuta la conciliación nativa de ERPNext para que el
+    Journal Entry quede referenciado en el Payment Entry y el unallocated_amount baje a 0.
+    """
+    from erpnext.accounts.utils import reconcile_against_document
+    from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import get_dimensions
+
+    payment_entry = frappe.get_doc("Payment Entry", docname)
+
+    frappe.has_permission("Payment Entry", ptype="write", doc=payment_entry, throw=True)
+    frappe.has_permission("Journal Entry", ptype="submit", throw=True)
+
+    if payment_entry.docstatus != 1:
+        frappe.throw(_("El pago debe estar enviado para registrar diferencial cambiario"))
+
+    if payment_entry.payment_type != "Pay":
+        frappe.throw(
+            _(
+                "El diferencial cambiario por pérdida solo aplica a pagos emitidos (tipo 'Pay'), "
+                "no a cobros."
+            )
+        )
+
+    if payment_entry.party_type != "Supplier":
+        frappe.throw(
+            _(
+                "El diferencial cambiario por pérdida solo aplica a pagos a proveedores."
+            )
+        )
+
+    unallocated: float = flt(payment_entry.unallocated_amount, 2)
+
+    if unallocated <= 0:
+        frappe.throw(_("El pago no tiene monto sin asignar pendiente"))
+
+    exchange_loss_account: str = _resolve_exchange_loss_account(payment_entry, account)
+
+    # ── Construcción del Journal Entry ──────────────────────────────────────
+    journal_entry = frappe.new_doc("Journal Entry")
+    journal_entry.voucher_type = "Exchange Gain Or Loss"
+    journal_entry.posting_date = payment_entry.posting_date
+    journal_entry.company = payment_entry.company
+    journal_entry.cheque_no = payment_entry.name
+    journal_entry.cheque_date = payment_entry.posting_date
+
+    # Débito en la cuenta de pérdida cambiaria
+    journal_entry.append("accounts", {
+        "account": exchange_loss_account,
+        "debit_in_account_currency": unallocated,
+        "credit_in_account_currency": 0,
+        "cost_center": payment_entry.cost_center,
+    })
+
+    # Crédito en la cuenta por pagar del proveedor — cancela el anticipo abierto
+    journal_entry.append("accounts", {
+        "account": payment_entry.party_account,
+        "party_type": "Supplier",
+        "party": payment_entry.party,
+        "debit_in_account_currency": 0,
+        "credit_in_account_currency": unallocated,
+        "reference_type": "Payment Entry",
+        "reference_name": payment_entry.name,
+        "cost_center": payment_entry.cost_center,
+    })
+
+    journal_entry.remark = (
+        f"Diferencial cambiario (Pérdida) por pago a proveedor {payment_entry.name}"
+    )
+    journal_entry.user_remark = (
+        f"Diferencial cambiario (Pérdida) por pago a proveedor {payment_entry.name}"
+    )
+    journal_entry.insert(ignore_permissions=True)
+    journal_entry.submit()
+
+    # ── Conciliación: cruzar el JE con el Payment Entry ─────────────────────
+    # Determinar el dr_or_cr correcto para un pago tipo Pay a proveedor:
+    # la cuenta del proveedor lleva debit_in_account_currency en pagos.
+    dr_or_cr = "debit_in_account_currency"
+
+    reconciliation_args = frappe._dict({
+        "voucher_type": "Payment Entry",
+        "voucher_no": payment_entry.name,
+        "voucher_detail_no": None,
+        "against_voucher_type": "Journal Entry",
+        "against_voucher": journal_entry.name,
+        "account": payment_entry.party_account,
+        "party_type": "Supplier",
+        "party": payment_entry.party,
+        "is_advance": "No",
+        "dr_or_cr": dr_or_cr,
+        "unadjusted_amount": unallocated,
+        "unreconciled_amount": unallocated,
+        "allocated_amount": unallocated,
+        "difference_amount": 0,
+        "difference_account": None,
+    })
+
+    # Incluir dimensiones contables activas si las hubiera
+    active_dimensions = get_dimensions()[0]
+    for dim in active_dimensions:
+        if payment_entry.get(dim.fieldname):
+            reconciliation_args[dim.fieldname] = payment_entry.get(dim.fieldname)
+
+    reconcile_against_document([reconciliation_args])
+
+    # Trazabilidad bidireccional con enlaces en la línea de tiempo de ambos documentos
+    payment_link = f"<a href='/app/payment-entry/{payment_entry.name}'>{payment_entry.name}</a>"
+    journal_link = f"<a href='/app/journal-entry/{journal_entry.name}'>{journal_entry.name}</a>"
+
+    journal_entry.add_comment(
+        "Comment",
+        text=f"Asiento generado automáticamente por Diferencial Cambiario (Pérdida) desde el pago {payment_link}.",
+    )
+    payment_entry.add_comment(
+        "Comment",
+        text=f"Diferencial cambiario registrado como Pérdida mediante el asiento contable {journal_link}.",
+    )
+
+    return {
+        "status": "success",
+        "journal_entry": journal_entry.name,
+        "amount": unallocated,
+    }
+
+
+def get_payment_entry_dashboard_data(data: dict = None) -> dict:
+    """Extiende la sección Conexiones de Payment Entry para incluir Asiento Contable (Journal Entry)."""
+    data = frappe._dict(data or {})
+
+    transactions = data.setdefault("transactions", [])
+    for group in transactions:
+        if "Journal Entry" in group.get("items", []):
+            break
+    else:
+        transactions.append({
+            "label": _("Accounting"),
+            "items": ["Journal Entry"],
+        })
+
+    non_standard_fieldnames = data.setdefault("non_standard_fieldnames", {})
+    non_standard_fieldnames["Journal Entry"] = "cheque_no"
+
+    return data

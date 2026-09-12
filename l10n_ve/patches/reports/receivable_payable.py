@@ -1,6 +1,11 @@
 import frappe
 from frappe import _
 from frappe.utils import cint, escape_html
+# Este módulo existe para parchear ReceivablePayableReport (ver el final del archivo), así
+# que la regla de semgrep contra el monkey patching salta por diseño. Su coincidencia va
+# desde este import hasta las asignaciones del final: sin esta marca, cualquier cambio en
+# el archivo vuelve a hacer fallar Semgrep en la CI.
+# nosemgrep: frappe-semgrep-rules.rules.frappe-monkey-patching-not-allowed
 from erpnext.accounts.report.accounts_receivable.accounts_receivable import ReceivablePayableReport
 
 original_run = ReceivablePayableReport.run
@@ -472,52 +477,72 @@ def custom_fetch_ple_in_unbuffered_cursor(self):
     delattr(self, "ple_entries")
 
 
-def filter_ple_by_ve_branch(ple_entries, selected_branch):
+def filter_ple_by_ve_branch(ple_entries: list[dict], selected_branch: str) -> list[dict]:
+    """Deja solo los movimientos cuyo documento de ORIGEN es de la sucursal elegida.
+
+    Una fila de Cuentas por Cobrar (o por Pagar) es el documento que origina la cuenta:
+    la factura, la nota o el anticipo sin aplicar. ERPNext suma cada movimiento del libro
+    de pagos a la fila del documento al que apunta (``against_voucher_no``), así que la
+    sucursal que decide es la de ese documento, no la del movimiento. Si el documento no
+    tiene movimientos propios en el libro, como la Orden de Venta de un anticipo, ERPNext
+    imputa el movimiento a sí mismo (``get_voucher_balance``) y entonces decide la
+    sucursal del propio movimiento. Aquí se replica esa misma regla.
+
+    Hasta el 10-sep-2026 el filtro miraba la sucursal del movimiento y buscaba la de la
+    factura en ``against_voucher``, clave que la consulta de ERPNext no devuelve. Como
+    ``Journal Entry`` no tiene sucursal en la cabecera, se caían todos los asientos y una
+    factura saldada por un asiento de diferencial cambiario salía con pendiente. Caso
+    testigo: ACC-SINV-2026-32308 (SOFTELINET, DC-01), saldada por ACC-JV-2026-32916, salía
+    debiendo los Bs 45 del asiento al filtrar por DC-01 y no salía sin filtro. Además, un
+    cobro de la sucursal aplicado a una factura de otra entraba sin su factura, y ERPNext
+    lo imputaba al propio cobro: salía como anticipo negativo. En una copia de producción
+    del 9-sep, ventana de septiembre, DC-01 listaba 204 filas donde corresponden 69, y en
+    todas las sucursales había 921 facturas saldadas con pendiente.
+
+    Un documento de origen sin sucursal (el anticipo de Bancaribe, un asiento de apertura)
+    no es de ninguna sucursal: solo sale sin filtro.
+    """
     if not ple_entries:
         return []
-        
-    vouchers_by_type = {}
-    for ple in ple_entries:
-        vt = ple.get("voucher_type")
-        vn = ple.get("voucher_no")
-        if vt and vn:
-            vouchers_by_type.setdefault(vt, set()).add(vn)
-            
-        avt = ple.get("against_voucher_type")
-        avn = ple.get("against_voucher")
-        if avt and avn:
-            vouchers_by_type.setdefault(avt, set()).add(avn)
 
-    branch_map = {}
-    for vt, names in vouchers_by_type.items():
-        try:
-            if not frappe.get_meta(vt).has_field("branch"):
-                continue
-            names_list = list(names)
-            for chunk_start in range(0, len(names_list), 500):
-                chunk = names_list[chunk_start:chunk_start + 500]
-                docs = frappe.get_all(vt, filters={"name": ("in", chunk)}, fields=["name", "branch"])
-                for d in docs:
-                    d_name = d.get("name") if isinstance(d, dict) else getattr(d, "name", None)
-                    if d_name:
-                        branch_map[(vt, d_name)] = d.get("branch") or ""
-        except Exception:
-            pass
-
-    filtered = []
+    own_documents = {(ple.get("voucher_type"), ple.get("voucher_no")) for ple in ple_entries}
+    owners = []
     for ple in ple_entries:
-        vt = ple.get("voucher_type")
-        vn = ple.get("voucher_no")
-        branch = branch_map.get((vt, vn), "")
-        
-        avt = ple.get("against_voucher_type")
-        avn = ple.get("against_voucher")
-        against_branch = branch_map.get((avt, avn), "") if avt and avn else ""
-        
-        if branch == selected_branch or against_branch == selected_branch:
-            filtered.append(ple)
-            
-    return filtered
+        target = (ple.get("against_voucher_type"), ple.get("against_voucher_no"))
+        owners.append(target if target in own_documents else (ple.get("voucher_type"), ple.get("voucher_no")))
+
+    names_by_doctype: dict[str, set[str]] = {}
+    for doctype, name in owners:
+        if doctype and name:
+            names_by_doctype.setdefault(doctype, set()).add(name)
+
+    branch_by_owner: dict[tuple[str, str], str] = {}
+    for doctype, names in names_by_doctype.items():
+        if not _has_branch_field(doctype):
+            continue
+        names_list = list(names)
+        for start in range(0, len(names_list), 500):
+            for row in frappe.get_all(
+                doctype,
+                filters={"name": ("in", names_list[start:start + 500])},
+                fields=["name", "branch"],
+            ):
+                branch_by_owner[(doctype, row.name)] = row.branch or ""
+
+    return [ple for ple, owner in zip(ple_entries, owners) if branch_by_owner.get(owner, "") == selected_branch]
+
+
+def _has_branch_field(doctype: str) -> bool:
+    """¿El DocType tiene campo de sucursal en la cabecera?
+
+    El libro de pagos puede apuntar a un DocType que ya no existe en el sitio, y ese no
+    tiene sucursal. Cualquier otro error se deja subir: antes se tragaba, y el filtro
+    descartaba filas en silencio, con un pendiente equivocado y cara de correcto.
+    """
+    try:
+        return frappe.get_meta(doctype).has_field("branch")
+    except frappe.DoesNotExistError:
+        return False
 
 
 ReceivablePayableReport.run = custom_run

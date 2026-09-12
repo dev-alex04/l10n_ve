@@ -207,8 +207,8 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
     def validate_return_in_same_month(self) -> None:
         """
-        Valida que una Nota de Crédito o Débito se cree en el mismo mes
-        que la factura original a la que hace referencia.
+        Valida que una Nota de Crédito o Débito no tenga una fecha de
+        contabilización anterior a la factura original a la que hace referencia.
         Llama a la función centralizada en utils.
         """
         validate_return_in_same_month(self)
@@ -1046,6 +1046,9 @@ def upload_voucher_data(
         comment.flags.ignore_permissions = True
         comment.insert(ignore_permissions=True)
 
+        invoice_doc.reload()
+        refresh_missing_withholding_voucher(invoice_doc)
+
         return {"status": "success", "msg": "Guardado exitosamente."}
 
     except Exception as e:
@@ -1108,6 +1111,9 @@ def upload_islr_voucher_data(
         })
         comment.flags.ignore_permissions = True
         comment.insert(ignore_permissions=True)
+
+        invoice_doc.reload()
+        refresh_missing_withholding_voucher(invoice_doc)
 
         return {
             "status": "success",
@@ -1174,6 +1180,9 @@ def upload_municipal_voucher_data(
         })
         comment.flags.ignore_permissions = True
         comment.insert(ignore_permissions=True)
+
+        invoice_doc.reload()
+        refresh_missing_withholding_voucher(invoice_doc)
 
         return {
             "status": "success",
@@ -2475,6 +2484,9 @@ def create_government_withholding_journal_entry(
 
         if voucher_file and str(voucher_file).strip() and has_img:
             invoice.db_set("voucher_image_municipal", str(voucher_file).strip(), update_modified=False)
+
+        invoice.reload()
+        refresh_missing_withholding_voucher(invoice)
 
     if voucher_file and str(voucher_file).strip():
         file_url = str(voucher_file).strip()

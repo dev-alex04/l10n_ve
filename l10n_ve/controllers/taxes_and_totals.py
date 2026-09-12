@@ -374,6 +374,44 @@ class TaxesAndTotals(calculate_taxes_and_totals):
 
         return IterableFloat(current_tax_amount)
 
+    def get_current_tax_and_net_amount(
+        self, item: object, tax: object, item_tax_map: dict
+    ) -> tuple[float, float]:
+        """
+        Calcula y retorna (current_net_amount, current_tax_amount).
+        Requerido por ERPNext v15.121+ para evitar que charge_types personalizados
+        (como 'VAT Withholding') caigan en el fallback nativo que aplica la tasa
+        sobre el monto neto total ignorando la exención de IVA y la base correcta.
+        """
+        current_tax_amount: float = float(self.get_current_tax_amount(item, tax, item_tax_map))
+        current_net_amount: float = 0.0
+
+        if not item.get("vat_exempt"):
+            if tax.charge_type == "VAT Withholding":
+                vat_rate: float = 0.0
+                for tax_row in self.doc.get("taxes") or []:
+                    if tax_row.charge_type == "VAT":
+                        vat_rate = flt(tax_row.rate)
+                        break
+                current_net_amount = (flt(item.net_amount) * vat_rate) / 100.0
+            elif tax.charge_type in ("On Previous Row Amount", "On Previous Row Total"):
+                prev_idx: int = cint(tax.row_id) - 1
+                taxes: list = self.doc.get("taxes") or []
+                if 0 <= prev_idx < len(taxes):
+                    current_net_amount = (
+                        flt(taxes[prev_idx].tax_amount_for_current_item)
+                        if tax.charge_type == "On Previous Row Amount"
+                        else flt(taxes[prev_idx].grand_total_for_current_item)
+                    )
+                else:
+                    current_net_amount = 0.0
+            elif tax.charge_type == "On Item Quantity":
+                current_net_amount = 0.0
+            else:
+                current_net_amount = flt(item.net_amount)
+
+        return current_net_amount, current_tax_amount
+
     # ------------------------------------------------------------------ #
     # Recálculo de montos base (VEF) — Metodología fiscal venezolana
     # ------------------------------------------------------------------ #

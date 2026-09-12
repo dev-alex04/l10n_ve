@@ -5,6 +5,119 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.66.4] - 2026-09-11
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la compatibilidad en el cálculo de impuestos y retenciones para versiones de ERPNext v15.121 y posteriores. (753774f8)
+
+---
+
+## [v2.66.3] - 2026-09-11
+
+### 🐛 Correcciones (Fixes)
+- Se implementó el versionamiento de las URLs para los activos globales (JS y CSS), garantizando que el navegador cargue las versiones más recientes y evitando problemas de persistencia de caché tras nuevos despliegues. 24ac06f0
+
+---
+
+## [v2.66.2] - 2026-09-11
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el reporte de **Retención de Clientes**, el cual mostraba incorrectamente la misma información que el Libro de Ventas. [29fa0d46]
+- Se optimizó la seguridad en la consulta de Retención de Clientes al eliminar la interpolación directa de variables del request, fortaleciendo la integridad de la base de datos. [f59f65c6]
+
+---
+
+## [v2.66.1] - 2026-09-11
+
+### 🐛 Correcciones (Fixes)
+- Corregido el error en la integración con HKA que causaba que el Periodo y la Nota del PDF mostraran el mes de servicio en lugar del mes de emisión. [20d13812]
+
+---
+
+## [v2.66.0] - 2026-09-10
+
+### ✨ Funcionalidades (Features)
+- Se integró la funcionalidad para generar Diferencial Cambiario (incluyendo escenarios de pérdida) en pagos a proveedores, añadiendo accesos rápidos tanto en la barra superior como en el menú de acciones. 326cdf11, 6180df7c, 60f7bc95
+- Mejora en la visibilidad de documentos relacionados mediante la incorporación de Journal Entry en el dashboard de Conexiones de Payment Entry. c486f282
+- Optimización de la integridad de datos al poblar automáticamente los campos `reference_type` y `reference_name` en las filas de proveedores del Journal Entry. 7e64a59e
+- Implementación de referencia directa registrando el identificador del pago en el campo `cheque_no` del Journal Entry para facilitar la conciliación. ff6cfd25
+- Se agregó trazabilidad bidireccional entre documentos mediante el uso de comentarios automáticos y el campo `user_remark`. 4a2aaf32
+
+### 🐛 Correcciones (Fixes)
+- Corrección en la tipificación contable para asegurar que los asientos generados utilicen el tipo "Exchange Gain Or Loss". 243ff37a
+- Solución de un error técnico en `frm.page.remove_custom_button` que interrumpía la ejecución del script de `refresh` en la interfaz de usuario. 898ebdd9
+
+---
+
+## [v2.65.0] - 2026-09-10
+
+### ✨ Funcionalidades (Features)
+- Se implementaron filtros de fecha "Desde" y "Hasta" en el reporte de Cuentas por Pagar para mejorar la segmentación y consulta de información financiera. [97a33637]
+
+---
+
+## [v2.64.1] - 2026-09-10
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la actualización de la bandera de comprobante dentro de la función `create_government_withholding_journal_entry` para asegurar la integridad de los asientos contables de retención. ff35c367
+- Se implementó el refresco del indicador de comprobante de retención faltante durante el proceso de carga de recaudos. fe761bb0
+
+---
+
+## [v2.64.0] - 2026-09-08
+
+### ✨ Funcionalidades (Features)
+- Se habilitó la compatibilidad de modos de pago globales para usuarios pertenecientes a sucursales raíz.
+
+### 🐛 Correcciones (Fixes)
+- Implementación de una política de "fail closed" en la función de verificación de usuarios de sucursal raíz cuando no existen sucursales configuradas, reforzando la seguridad del flujo.
+- Optimización del registro de errores (log_error) para sucursales raíz, limitando su ejecución a una única vez por petición para reducir redundancia en los logs.
+
+---
+
+## [v2.63.0] - 2026-09-08
+
+### 🐛 Correcciones (Fixes)
+- **Seguridad en CI/CD:** Se corrigió una vulnerabilidad potencial de inyección de comandos en el sistema de notificaciones de Telegram y se implementó el principio de privilegios mínimos para los permisos del flujo de trabajo. d042c654
+
+---
+
+## [v2.63.0] - 2026-09-07
+
+### ✨ Funcionalidades (Features)
+- Se actualizaron los fixtures de transacciones bancarias para mostrar las etiquetas descriptivas «Crédito» y «Débito» en las operaciones de depósito y retiro. [119c16e5]
+
+---
+
+## [v2.62.3] - 2026-09-07
+
+### 🐛 Correcciones (Fixes)
+- Se ajustó la lógica de asignación en el módulo de cobros para que el centro de costo se determine a partir de la factura y no de la sucursal del cobro. [413c15a5]
+
+---
+
+## [v2.62.2] - 2026-09-07
+
+### 🐛 Correcciones (Fixes)
+- Se mejoró la lógica de obtención de tasas del BCV para cubrir feriados intermedios utilizando el último valor conocido. af6619bc
+- Ajuste en la extracción de la fecha valor desde el componente correcto y soporte para la continuidad de datos durante fines de semana en el módulo BCV. cbb7bfbf
+
+---
+
+## [v2.62.1] - 2026-09-06
+
+### 🐛 Correcciones (Fixes)
+- **Permisos:** Se corrigió un error en la visualización de la lista donde se mostraban documentos sin sucursal asociada, validando correctamente el acceso a través del enlace. (#697) [31997d4e]
+
+---
+
+## [v2.62.0] - 2026-09-03
+
+### ✨ Funcionalidades (Features)
+- Se actualizó la lógica de ejecución del lote de notas (HKA), permitiendo que el proceso se realice también los días 14 de cada mes, adicionalmente a la ejecución de fin de mes. [d53cde4a]
+
+---
+
 ## [v2.61.3] - 2026-09-02
 
 ### 🐛 Correcciones (Fixes)

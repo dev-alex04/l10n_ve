@@ -14,6 +14,7 @@ on:
   pull_request:
     branches:
       - main
+      - development   # en development corre SOLO el job del runner propio (ver `if` de cada job)
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
@@ -27,6 +28,10 @@ concurrency:
 
 jobs:
   tests:
+    permissions:
+      contents: read
+    # GitHub-hosted: PR a main, cron nocturno y manual. Los PR a development van al runner propio.
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -128,6 +133,11 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          ACTOR_LOGIN: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
             echo "⏭️  Secrets de Telegram no configurados, omitiendo notificación."
@@ -135,10 +145,10 @@ jobs:
           fi
 
           APP_NAME="l10n_ve"
-          BRANCH="${{ github.head_ref || github.ref_name }}"
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          ACTOR="${{ github.actor }}"
+          BRANCH="${HEAD_REF:-$REF_NAME}"
+          PR_NUMBER="$PR_NUM"
+          RUN_URL="$RUN_URL"
+          ACTOR="$ACTOR_LOGIN"
 
           # Extraer últimas 40 líneas del output de tests (errores + resumen)
           if [ -f /tmp/test_output.txt ]; then
@@ -173,3 +183,46 @@ jobs:
               -H "Content-Type: application/json" \
               -d "$PAYLOAD_PLAIN"
           fi
+
+  tests-self-hosted:
+    permissions:
+      contents: read
+    # Runner propio (Domina Testing 2, contenedor domina-ci): bench ya construido, por corrida solo
+    # restaura la base `ve`, copia este checkout, migrate y run-tests. Sin gastar minutos de
+    # Actions, por eso SÍ corre en cada PR a development.
+    # Solo ramas del propio repo: un runner propio ejecutando PRs de forks es un agujero de seguridad.
+    if: github.event_name == 'pull_request' && github.base_ref == 'development' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, domina-ci]
+    name: Server (runner propio)
+    timeout-minutes: 30
+    steps:
+      - name: Clone
+        uses: actions/checkout@v7
+      - name: Suite en bench caliente
+        id: tests
+        run: |
+          set -o pipefail
+          /home/runner/ci-run.sh l10n_ve ve "$GITHUB_WORKSPACE" 2>&1 | tee /tmp/test_output.txt
+        env:
+          TYPE: server
+      - name: Notify Telegram on Test Failure
+        if: failure() && steps.tests.outcome == 'failure'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          ACTOR_LOGIN: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Secrets de Telegram no configurados, omitiendo notificación."
+            exit 0
+          fi
+          RUN_URL="$RUN_URL"
+          TEST_OUTPUT=$(tail -40 /tmp/test_output.txt 2>/dev/null | head -c 2000)
+          MESSAGE=$(printf "🔴 Tests FALLIDOS (runner propio) — l10n_ve\n👤 %s\n🌿 %s\n🔗 PR #%s\n\n%s\n\n%s" \
+            "$ACTOR_LOGIN" "$HEAD_REF" "$PR_NUM" "$TEST_OUTPUT" "$RUN_URL")
+          PAYLOAD=$(jq -n --arg chat_id "$TELEGRAM_CHAT_ID" --arg text "$MESSAGE" '{chat_id: $chat_id, text: $text, disable_web_page_preview: true}')
+          curl -s -o /dev/null -w "Telegram HTTP: %{http_code}\n" -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -H "Content-Type: application/json" -d "$PAYLOAD"
