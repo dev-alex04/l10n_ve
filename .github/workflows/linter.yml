@@ -14,7 +14,8 @@ concurrency:
 jobs:
   semgrep:
     name: Semgrep
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, domina-ci-light]
     steps:
       - uses: actions/checkout@v7
         with:
