@@ -450,20 +450,19 @@ def _process_rates(rates_data: dict) -> None:
     Crea/actualiza documentos de Currency Exchange.
 
     Cuando el BCV publica una tasa con FECHA VALOR FUTURA (el próximo día
-    hábil), se registra con esa fecha real y se cubren con ella los sábados y
-    domingos intermedios. Así la tasa del día siguiente ya existe antes de que
-    ese día empiece y los procesos que corren a medianoche (facturación) no se
-    quedan sin tasa.
+    hábil), se registra con esa fecha real y se cubren con ella todos los días
+    intermedios en que el BCV no publica: los sábados y domingos, y los feriados
+    que salteó al apuntar su fecha valor más allá de mañana (la regla vive en
+    `_resolve_target_dates`). Así la tasa del día siguiente ya existe antes de
+    que ese día empiece y los procesos que corren a medianoche (facturación) no
+    se quedan sin tasa. Precargar los feriados es además lo que evita que uno
+    que cae 1° de mes deje sin fila justo la fecha que ancla a todos los clientes
+    naturales: `_validate_tasa_coherencia` busca por fecha exacta, no cae hacia
+    atrás, y bloquearía la certificación del mes entero.
 
-    Los días HÁBILES que queden sin fila —el día en curso, y los feriados que
-    el BCV ya salteó al apuntar su fecha valor más allá de mañana— se cubren con
-    la ÚLTIMA CONOCIDA, nunca con la del próximo día hábil: su tasa se publicó
-    ese mismo día, y suponerle la de mañana sería inventar el número que se
-    declara. Sin esa red, un feriado que cae 1° de mes deja sin fila justo la
-    fecha que ancla a todos los clientes naturales, y `_validate_tasa_coherencia`
-    —que busca por fecha exacta y no cae hacia atrás— bloquea la certificación
-    del mes entero. Precargarlos el día anterior es lo que evita depender de que
-    ese día el cron corra y el BCV responda.
+    Solo el día EN CURSO, si es hábil y quedó sin fila, se cubre con la ÚLTIMA
+    CONOCIDA. Esa búsqueda mira fechas anteriores a hoy, así que no puede
+    encontrar las filas que esta misma lectura acaba de escribir.
 
     Una fila que ya existe no se pisa, salvo la de la propia fecha valor: el
     resto pudo haberla corregido un contador a mano, y el cron corre cada 3 h.
@@ -540,12 +539,13 @@ def _process_rates(rates_data: dict) -> None:
         detalle = []
         if derived_written:
             detalle.append(
-                "fin de semana cubierto con la tasa del próximo día hábil: "
+                "días sin publicación del BCV (fin de semana o feriado) "
+                "cubiertos con la tasa del próximo día hábil: "
                 + ", ".join(sorted({str(d) for d in derived_written}))
             )
         if fallback_written:
             detalle.append(
-                "días hábiles sin tasa cubiertos con la última conocida: "
+                "día en curso sin tasa, cubierto con la última conocida: "
                 + ", ".join(sorted({str(d) for d in fallback_written}))
             )
         frappe.log_error(
@@ -649,19 +649,24 @@ def _resolve_target_dates(api_date, today_date) -> tuple[list, list]:
     - Fecha valor FUTURA (el próximo día hábil): se **precarga** con su fecha
       real —para que la tasa exista antes de que el día empiece, que es lo que
       evita que la facturación de las 00:00 emita con la tasa del mes anterior—
-      y se cubren con ESA MISMA tasa los sábados y domingos intermedios.
+      y se cubren con ESA MISMA tasa todos los días intermedios.
 
-    Que el fin de semana lleve la tasa del lunes es la regla del negocio: el BCV
-    no publica sábado ni domingo, y su fecha valor ya apunta al lunes.
+    La regla del negocio: un día en que el BCV no publica lleva la tasa del
+    siguiente día hábil que el BCV publicó. Vale igual para el sábado y el
+    domingo que para un feriado bancario, porque en los dos casos el BCV no
+    publica y su fecha valor ya apunta más allá: si el lunes es feriado, el fin
+    de semana y el lunes llevan la del martes.
+
+    Caso que lo fijó: el viernes 11-sep-2026 el BCV publicó con fecha valor
+    martes 15 (el lunes 14 no fue bancario). El lunes iba aparte, a «la última
+    conocida», pero esa búsqueda corría después de escribir el fin de semana y
+    encontraba la fila del domingo recién escrita: quedó con la tasa del martes
+    por accidente, y el log decía que la había cubierto con la última conocida.
 
     Devuelve ``(fechas que llevan la tasa publicada, días a cubrir con la
-    última conocida)``.
-
-    A un día **hábil** no se le pone la tasa del próximo día hábil: la suya se
-    publicó ese mismo día y suponerla sería inventar el número que se declara.
-    Los días hábiles intermedios van aparte: el día EN CURSO y los feriados que
-    el BCV ya salteó al apuntar su fecha valor más allá se cubren con la última
-    tasa conocida, que es hacia atrás y no hacia adelante. Los días hábiles ya
+    última conocida)``. El segundo solo puede traer el día EN CURSO, y solo si
+    es hábil: si le falta la fila, desde acá no se distingue un feriado de un
+    día cuya tasa no se pudo leer, y se cubre hacia atrás. Los días hábiles ya
     pasados no se tocan: ese hueco lo cierra un backfill, no el cron.
     """
     if api_date <= today_date:
@@ -670,12 +675,15 @@ def _resolve_target_dates(api_date, today_date) -> tuple[list, list]:
     published_dates = [api_date]
     fallback_dates = []
 
-    day = today_date
+    if today_date.weekday() >= 5:  # 5 = sábado, 6 = domingo
+        published_dates.append(today_date)
+    else:
+        fallback_dates.append(today_date)
+
+    # Entre hoy y la fecha valor el BCV no publica: fin de semana o feriado.
+    day = getdate(add_days(today_date, 1))
     while day < api_date:
-        if day.weekday() >= 5:  # 5 = sábado, 6 = domingo
-            published_dates.append(day)
-        else:
-            fallback_dates.append(day)
+        published_dates.append(day)
         day = getdate(add_days(day, 1))
 
     return published_dates, fallback_dates
