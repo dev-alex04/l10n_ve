@@ -54,6 +54,41 @@ frappe.listview_settings["Sales Invoice"] = {
   right_column: "grand_total",
 
   onload: function (listview) {
+    if (!listview._branch_filter_patched) {
+      listview._branch_filter_patched = true;
+
+      const original_get_filters_for_args = listview.get_filters_for_args;
+      listview.get_filters_for_args = function () {
+        const filters = original_get_filters_for_args.call(this);
+
+        if (filters && filters.length) {
+          filters.forEach((f) => {
+            if (Array.isArray(f)) {
+              let fieldname, operator_idx, value_idx;
+
+              if (f.length >= 4) {
+                fieldname = f[1];
+                operator_idx = 2;
+                value_idx = 3;
+              } else if (f.length >= 3) {
+                fieldname = f[0];
+                operator_idx = 1;
+                value_idx = 2;
+              }
+
+              if ((fieldname === "branch" || fieldname === "ve_branch") && f[value_idx]) {
+                if (["=", "in", "like", "equals"].includes(f[operator_idx])) {
+                  f[operator_idx] = "descendants of (inclusive)";
+                }
+              }
+            }
+          });
+        }
+
+        return filters;
+      };
+    }
+
     if (frappe.model.can_create("Delivery Note")) {
       listview.page.add_action_item(__("Delivery Note"), () => {
         erpnext.bulk_transaction_processing.create(
