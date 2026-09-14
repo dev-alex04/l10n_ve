@@ -10,6 +10,7 @@
  "field_order": [
   "gesti\u00f3n_tab",
   "is_group",
+  "is_main",
   "is_expenses_branch",
   "lft",
   "rgt",
@@ -68,6 +69,13 @@
    "fieldname": "is_group",
    "fieldtype": "Check",
    "label": "Is Group"
+  },
+  {
+   "default": "0",
+   "description": "La que el formulario propone en los documentos nuevos de quien no tiene sucursal asignada. Una por compa\u00f1\u00eda, y no puede ser de agrupaci\u00f3n.",
+   "fieldname": "is_main",
+   "fieldtype": "Check",
+   "label": "Sucursal principal"
   },
   {
    "fieldname": "old_parent",
@@ -248,7 +256,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-08-07 13:41:46.575452",
+ "modified": "2026-09-14 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Branch",

@@ -13,6 +13,7 @@ from l10n_ve.setup import (
     set_reference_currency,
     create_municipality_taxes_for_municipality,
 )
+from l10n_ve.l10n_ve.doctype.ve_branch.ve_branch import ensure_main_branch
 from l10n_ve.whitelisted.account.chart_of_accounts import get_app_charts_path
 from l10n_ve.utils.utils import validate_tax_id_format, validate_taxpayer_and_person_type_consistency
 
@@ -79,6 +80,12 @@ class CustomCompany(Company):
                 set_mode_of_payments(company_name=self.name)
                 set_reference_currency(company_name=self.name)
                 frappe.msgprint(_("Plan de cuentas Venezolano cargado. Por favor refrescar la vista."))
+
+            # La compañía nace con su sucursal principal. Va después de los modos de pago,
+            # que VE Branch exige: con un plan aliado puede no haberlos, y entonces no se crea.
+            created, branch = ensure_main_branch(self.name)
+            if created:
+                frappe.msgprint(_("Se creó la sucursal principal {0}.").format(frappe.bold(branch)))
 
         if self.municipality:
             create_municipality_taxes_for_municipality(self.municipality)
