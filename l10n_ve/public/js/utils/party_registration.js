@@ -48,6 +48,11 @@ frappe.provide("l10n_ve.party_registration");
 	// `address_line2` lo que no entre-- antes de guardarla.
 	const FORCED_FIELDTYPE = { address_line1: "Small Text" };
 
+	// La dirección que se registra acá es la principal y la de envío, siempre (Daniel,
+	// 12-sep-2026): marcadas y de solo lectura. El servidor lo vuelve a imponer, porque el
+	// endpoint se puede llamar sin el diálogo.
+	const ALWAYS_CHECKED = ["is_primary_address", "is_shipping_address"];
+
 	// Cómo se reparten en filas. Apilados no entran en pantalla junto a lo demás.
 	const ADDRESS_ROWS = [
 		["address_line1"],
@@ -174,6 +179,11 @@ frappe.provide("l10n_ve.party_registration");
 					label: __(ns.ADDRESS_FIELD_LABELS[fieldname] || fieldname),
 					default: defaults[fieldname],
 				};
+
+				if (ALWAYS_CHECKED.includes(fieldname)) {
+					control.default = 1;
+					control.read_only = 1;
+				}
 
 				if (of_the_party) {
 					// Lo exige la parte, no el Address: se pide siempre, haya dirección o no.
@@ -349,8 +359,10 @@ frappe.provide("l10n_ve.party_registration");
 		repaint_document_types();
 		tell_the_classification();
 
+		// El aviso llega armado del servidor (`missing_contact_text`), con el verbo que
+		// concuerda con lo que falta.
 		if (data.missing) {
-			ns.show_notice(dialog, __("Falta {0} para poder registrarlo.", [data.missing]));
+			ns.show_notice(dialog, data.missing);
 		}
 	};
 

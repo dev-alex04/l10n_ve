@@ -75,6 +75,28 @@ class TestIdentidad(FrappeTestCase):
 		self.assertNotIn("correo", texto)
 		self.assertEqual(missing_contact_text({"customer_name": "X", "tax_id": "V1", "mobile_no": "0", "email_id": "a@b.c"}), "")
 
+	def test_el_aviso_concuerda_con_cuantas_cosas_faltan(self):
+		"""«Falta el RIF» o «Faltan el RIF y el correo», nunca «Falta el RIF ni el correo»."""
+		from unittest.mock import patch
+
+		from l10n_ve import party_registration as pr
+
+		exige = {"tax_id": True, "mobile_no": True, "email_id": True, "customer_name": False}
+
+		with patch.object(pr, "required_contact_fields", return_value=exige):
+			self.assertEqual(
+				missing_contact_text({"mobile_no": "0", "email_id": "a@b.c"}),
+				"Falta el RIF para poder registrarlo.",
+			)
+			self.assertEqual(
+				missing_contact_text({"mobile_no": "0"}),
+				"Faltan el RIF y el correo para poder registrarlo.",
+			)
+			self.assertEqual(
+				missing_contact_text({}),
+				"Faltan el RIF, el teléfono y el correo para poder registrarlo.",
+			)
+
 
 class TestDireccion(FrappeTestCase):
 	def setUp(self):
@@ -148,3 +170,37 @@ class TestDireccion(FrappeTestCase):
 	def test_sin_direccion_no_se_crea_nada(self):
 		self.assertIsNone(build_party_address("Lead", self.lead.name, self.lead.lead_name, {"address_line1": "  "}))
 		self.assertIsNone(party_address("Lead", self.lead.name))
+
+	def test_la_direccion_es_siempre_la_principal_y_la_de_envio(self):
+		"""Aunque lleguen desmarcadas: el diálogo ya no deja desmarcarlas, y el endpoint se
+		puede llamar sin él (Daniel, 12-sep-2026)."""
+		nombre = build_party_address(
+			"Lead",
+			self.lead.name,
+			self.lead.lead_name,
+			self._direccion(is_primary_address=0, is_shipping_address=0),
+		)
+
+		self.assertEqual(
+			frappe.db.get_value("Address", nombre, ["is_primary_address", "is_shipping_address"]),
+			(1, 1),
+		)
+
+	def test_al_actualizarla_tambien_queda_principal_y_de_envio(self):
+		"""La segunda vez que se registra la parte, la dirección que ya tenía se actualiza y
+		también queda marcada, aunque alguien la haya desmarcado a mano en el medio."""
+		nombre = build_party_address("Lead", self.lead.name, self.lead.lead_name, self._direccion())
+		frappe.db.set_value("Address", nombre, {"is_primary_address": 0, "is_shipping_address": 0})
+
+		otra_vez = build_party_address(
+			"Lead",
+			self.lead.name,
+			self.lead.lead_name,
+			self._direccion(is_primary_address=0, is_shipping_address=0),
+		)
+
+		self.assertEqual(otra_vez, nombre, "se actualiza la misma dirección, no se crea otra")
+		self.assertEqual(
+			frappe.db.get_value("Address", nombre, ["is_primary_address", "is_shipping_address"]),
+			(1, 1),
+		)

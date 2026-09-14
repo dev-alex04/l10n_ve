@@ -72,6 +72,11 @@ ADDRESS_FIELDS = (
 	"is_shipping_address",
 )
 
+# La dirección que se registra con este flujo es la principal y la de envío de la parte,
+# siempre (Daniel, 12-sep-2026). El diálogo las muestra marcadas y de solo lectura; acá se
+# imponen, porque el endpoint se puede llamar sin el diálogo.
+ALWAYS_SET_ADDRESS_FLAGS = {"is_primary_address": 1, "is_shipping_address": 1}
+
 # `address_line1` es un Data, y un Data en Frappe son 140 caracteres. La dirección que
 # llega de un formulario es texto libre y puede pasarse: lo que sobra va a la segunda
 # línea, que para eso está, en vez de reventar el alta con un error sobre longitudes.
@@ -214,7 +219,12 @@ def required_contact_fields(party_doctype: str = "Customer") -> dict[str, bool]:
 
 
 def missing_contact_text(values: dict | None, party_doctype: str = "Customer") -> str:
-	"""«el RIF ni el teléfono», o cadena vacía: lo que ese doctype exige y `values` no trae.
+	"""El aviso de lo que ese doctype exige y `values` no trae, o cadena vacía si no falta nada.
+
+	«Falta el RIF para poder registrarlo.», «Faltan el RIF y el correo para poder
+	registrarlo.»: el verbo concuerda con cuántas cosas faltan y se enumera con «y». Antes
+	devolvía la lista unida con «ni» y el diálogo le anteponía «Falta»: salía «Falta el RIF
+	ni el correo» (Daniel, 12-sep-2026).
 
 	Se pregunta por la **meta**, no por una lista fija: cada sitio decide qué exige. Y no
 	se parsea el mensaje de Frappe, que cambia entre versiones y viene traducido a medias.
@@ -226,7 +236,13 @@ def missing_contact_text(values: dict | None, party_doctype: str = "Customer") -
 		if required.get(field) and not (values or {}).get(field)
 	]
 
-	return " ni ".join(missing)
+	if not missing:
+		return ""
+
+	if len(missing) == 1:
+		return f"Falta {missing[0]} para poder registrarlo."
+
+	return f"Faltan {', '.join(missing[:-1])} y {missing[-1]} para poder registrarlo."
 
 
 # =============================================================================
@@ -392,6 +408,7 @@ def build_party_address(party_doctype: str, party_name: str, party_title: str | 
 			if field["fieldname"] != "address_line1" and values.get(field["fieldname"]) is not None
 		},
 	}
+	fields.update(ALWAYS_SET_ADDRESS_FLAGS)
 
 	existing = party_address(party_doctype, party_name)
 
