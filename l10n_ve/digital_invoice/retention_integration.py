@@ -209,21 +209,17 @@ def process_retention_voucher(
     """
     doc = frappe.get_doc("VAT Withholding Voucher", voucher_name)
 
-    # "No aplica" es UNA sola causa: la facturación digital está apagada en el sitio.
-    #
-    # Antes acá se preguntaba `has_active_digital_series`, que devuelve False por tres
-    # motivos distintos --TFHKA apagado, documento sin sucursal, y sucursal sin serie
-    # activa-- y los tres terminaban marcados "Not Applicable" con retorno True, o sea
-    # ÉXITO. Los dos últimos son configuración rota: la retención no se emitía nunca,
-    # el estado mentía y no quedaba nada que reintentar. Antes de ese cambio quedaban
-    # en Error, visibles.
-    #
-    # Ahora sólo se saltea el caso legítimo. Lo demás cae en la validación de
-    # integridad de abajo, que ya incluye el chequeo de serie y deja estado Error + log.
-    if not cint(frappe.db.get_single_value("TFHKA Settings", "enabled")):
-        if doc.digital_invoice_status != "Not Applicable":
-            doc.db_set("digital_invoice_status", "Not Applicable")
+    # Guarda condicional: si la integración con HK no está configurada o no está habilitada
+    # para la empresa, omitir el envío a HK silenciosamente sin arrojar error.
+    from l10n_ve.digital_invoice.tfhka_integration import is_hk_enabled_for_company
+    if not is_hk_enabled_for_company(doc.empresa, doc.get("branch")):
+        if doc.digital_invoice_status:
+            doc.db_set("digital_invoice_status", None)
+        frappe.logger("tfhka").info(
+            f"Omite envío a HKA/HK para comprobante IVA {voucher_name}: la integración con HKA no está habilitada o configurada para la empresa '{doc.empresa}'."
+        )
         return True
+
 
     # Validar integridad antes de enviar
     validation_errors: list[str] = _validate_retention_integrity(doc)
