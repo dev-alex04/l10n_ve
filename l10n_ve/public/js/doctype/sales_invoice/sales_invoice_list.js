@@ -76,10 +76,16 @@ frappe.listview_settings["Sales Invoice"] = {
                 value_idx = 2;
               }
 
-              if ((fieldname === "branch" || fieldname === "ve_branch") && f[value_idx]) {
-                if (["=", "in", "like", "equals"].includes(f[operator_idx])) {
-                  f[operator_idx] = "descendants of (inclusive)";
-                }
+              const val = f[value_idx];
+              const op = f[operator_idx];
+
+              if (
+                (fieldname === "branch" || fieldname === "ve_branch") &&
+                typeof val === "string" &&
+                val.trim() &&
+                ["=", "equals"].includes(op)
+              ) {
+                f[operator_idx] = "descendants of (inclusive)";
               }
             }
           });
