@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.68.0] - 2026-09-15
+
+### ✨ Funcionalidades (Features)
+- Se implementó la omisión condicional del envío de retenciones al proveedor fiscal TFHKA. Ahora el sistema valida dinámicamente si la empresa cuenta con la habilitación correspondiente antes de procesar el envío. [b2bdbe28]
+
+---
+
 ## [v2.67.0] - 2026-09-15
 
 ### ✨ Funcionalidades (Features)
