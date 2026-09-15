@@ -1,0 +1,192 @@
+# Copyright (c) 2026, DominaERP and Contributors
+# See license.txt
+
+"""Botón «Reembolsar»: el reembolso de un anticipo queda aplicado al anticipo.
+
+Caso que lo motivó (producción, 07-09-2026): GRUPO VITALIS pagó en el portal la factura de
+septiembre con 62.898,04 de saldo a favor que ya se le habían devuelto por transferencia.
+El reembolso se había registrado como un «Pago» suelto a la cuenta de anticipos, y la
+Conciliación de Pagos no ofrece ese pago para emparejarlo con el cobro cuando el anticipo
+vive en una cuenta sin tipo: el cobro siguió ofreciendo el anticipo como disponible.
+
+Los tests de las filas no tocan la base. Los de punta a punta corren contra el sitio, sobre
+un cobro y un pago reales con saldo sin aplicar, dentro de una transacción que se revierte;
+se saltan si el sitio no tiene uno.
+"""
+
+import unittest
+from unittest.mock import patch
+
+import frappe
+from frappe.utils import flt, getdate, nowdate
+
+from l10n_ve.overrides.advance_refund import (
+    REFUND_DIRECTION,
+    build_refund_rows,
+    create_advance_refund,
+)
+
+
+class TestLasFilasDelAsiento(unittest.TestCase):
+    def test_al_cliente_el_dinero_sale_del_banco(self):
+        party, bank = build_refund_rows("out", 100.0, "Customer", "C1", "CXC", "BANCO")
+        self.assertEqual(party["debit_in_account_currency"], 100.0)
+        self.assertNotIn("credit_in_account_currency", party)
+        self.assertEqual(bank["credit_in_account_currency"], 100.0)
+        self.assertNotIn("debit_in_account_currency", bank)
+        self.assertEqual(
+            (party["account"], party["party_type"], party["party"]),
+            ("CXC", "Customer", "C1"),
+        )
+        self.assertNotIn("party", bank)
+
+    def test_del_proveedor_el_dinero_entra_al_banco(self):
+        party, bank = build_refund_rows("in", 100.0, "Supplier", "P1", "CXP", "BANCO")
+        self.assertEqual(party["credit_in_account_currency"], 100.0)
+        self.assertNotIn("debit_in_account_currency", party)
+        self.assertEqual(bank["debit_in_account_currency"], 100.0)
+        self.assertNotIn("credit_in_account_currency", bank)
+        self.assertEqual(
+            (party["account"], party["party_type"], party["party"]),
+            ("CXP", "Supplier", "P1"),
+        )
+
+    def test_la_fila_del_tercero_no_lleva_referencia(self):
+        """Con referencia al pago, el saldo del asiento quedaría contra ese pago y la
+        conciliación no ofrecería el asiento como documento."""
+        for direction in ("in", "out"):
+            for row in build_refund_rows(direction, 1.0, "Customer", "C1", "A", "B"):
+                self.assertNotIn("reference_type", row)
+                self.assertNotIn("reference_name", row)
+
+    def test_la_sucursal_y_el_centro_de_costo_van_en_las_dos_filas(self):
+        rows = build_refund_rows(
+            "out",
+            1.0,
+            "Customer",
+            "C1",
+            "A",
+            "B",
+            {"cost_center": "DC-01", "branch": "DC-01"},
+        )
+        for row in rows:
+            self.assertEqual((row["cost_center"], row["branch"]), ("DC-01", "DC-01"))
+
+    def test_un_sentido_desconocido_no_arma_filas(self):
+        with self.assertRaises(ValueError):
+            build_refund_rows("otro", 1.0, "Customer", "C1", "A", "B")
+
+    def test_solo_cobros_a_clientes_y_pagos_a_proveedores(self):
+        self.assertEqual(
+            REFUND_DIRECTION,
+            {("Customer", "Receive"): "out", ("Supplier", "Pay"): "in"},
+        )
+
+
+class _ContraLaBase:
+    """Corre contra el sitio y revierte todo al terminar cada test."""
+
+    party_type: str
+    payment_type: str
+
+    def setUp(self):
+        self.pe = self._find_advance()
+        if not self.pe:
+            self.skipTest(
+                f"el sitio no tiene un {self.payment_type} de {self.party_type} con saldo sin aplicar"
+            )
+        patcher = patch.object(frappe.local.db, "commit")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(frappe.db.rollback)
+
+    def _find_advance(self):
+        cash_field = "paid_to" if self.payment_type == "Receive" else "paid_from"
+        # `party_account_currency` no es columna: ERPNext la calcula al cargar el pago.
+        currency_field = (
+            "paid_from_account_currency"
+            if self.payment_type == "Receive"
+            else "paid_to_account_currency"
+        )
+        rows = frappe.db.sql(
+            f"""SELECT pe.name
+            FROM `tabPayment Entry` pe
+            JOIN `tabAccount` a ON a.name = pe.{cash_field}
+            JOIN `tabCompany` c ON c.name = pe.company
+            WHERE pe.docstatus = 1 AND pe.party_type = %s AND pe.payment_type = %s
+              AND pe.unallocated_amount >= 2
+              AND a.account_type IN ('Bank', 'Cash')
+              AND a.account_currency = pe.{currency_field}
+              AND pe.{currency_field} = c.default_currency
+            ORDER BY pe.posting_date DESC
+            LIMIT 1""",
+            (self.party_type, self.payment_type),
+        )
+        return frappe.get_doc("Payment Entry", rows[0][0]) if rows else None
+
+    def _cash_account(self) -> str:
+        return self.pe.paid_to if self.payment_type == "Receive" else self.pe.paid_from
+
+    def _refund(self, amount: float, account: str | None = None) -> dict:
+        posting_date = max(getdate(nowdate()), getdate(self.pe.posting_date))
+        return create_advance_refund(
+            self.pe.name,
+            amount,
+            account or self._cash_account(),
+            str(posting_date),
+            reference_no="PRUEBA1234",
+        )
+
+    def _party_balance(self) -> float:
+        return flt(
+            frappe.db.sql(
+                """SELECT SUM(debit) - SUM(credit) FROM `tabGL Entry`
+                WHERE party_type = %s AND party = %s AND is_cancelled = 0""",
+                (self.pe.party_type, self.pe.party),
+            )[0][0],
+            2,
+        )
+
+    def test_el_anticipo_baja_en_lo_reembolsado(self):
+        before = flt(self.pe.unallocated_amount, 2)
+        result = self._refund(1.0)
+        after = flt(
+            frappe.db.get_value("Payment Entry", self.pe.name, "unallocated_amount"), 2
+        )
+        self.assertEqual(after, flt(before - 1.0, 2))
+        self.assertEqual(
+            frappe.db.get_value("Journal Entry", result["journal_entry"], "docstatus"),
+            1,
+        )
+
+    def test_el_asiento_queda_aplicado_y_el_saldo_cambia_en_lo_devuelto(self):
+        """El asiento no queda con saldo propio, y el saldo del tercero cambia exactamente en lo
+        que se devolvió: al cliente le baja el saldo a favor; al proveedor, el anticipo."""
+        before = self._party_balance()
+        result = self._refund(1.0)
+        outstanding = frappe.db.sql(
+            """SELECT SUM(amount) FROM `tabPayment Ledger Entry`
+            WHERE against_voucher_no = %s AND delinked = 0""",
+            result["journal_entry"],
+        )[0][0]
+        self.assertEqual(flt(outstanding, 2), 0.0)
+        change = 1.0 if self.party_type == "Customer" else -1.0
+        self.assertEqual(self._party_balance(), flt(before + change, 2))
+
+    def test_no_deja_reembolsar_mas_de_lo_sin_aplicar(self):
+        with self.assertRaises(frappe.ValidationError):
+            self._refund(flt(self.pe.unallocated_amount) + 1)
+
+    def test_la_cuenta_tiene_que_ser_de_banco_o_caja(self):
+        with self.assertRaises(frappe.ValidationError):
+            self._refund(1.0, account=self.pe.party_account)
+
+
+class TestReembolsoAUnCliente(_ContraLaBase, unittest.TestCase):
+    party_type = "Customer"
+    payment_type = "Receive"
+
+
+class TestReembolsoDeUnProveedor(_ContraLaBase, unittest.TestCase):
+    party_type = "Supplier"
+    payment_type = "Pay"

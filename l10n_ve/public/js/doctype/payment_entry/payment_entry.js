@@ -128,6 +128,7 @@ frappe.ui.form.on("Payment Entry", {
     }
 
     setup_payment_exchange_difference_button(frm);
+    setup_advance_refund_button(frm);
   },
 
   mode_of_payment: function (frm) {
@@ -1079,5 +1080,154 @@ function setup_payment_exchange_difference_button(frm) {
   }
 }
 
+/**
+ * Botón «Reembolsar» del anticipo que quedó sin aplicar.
+ *
+ * Cobro a un cliente: le devuelve el dinero. Pago a un proveedor: registra lo que el
+ * proveedor devuelve. El servidor crea el asiento del reembolso (banco o caja contra la
+ * cuenta del tercero) y le aplica el anticipo con la conciliación de ERPNext, así el saldo
+ * a favor baja y no queda disponible para usarse otra vez.
+ *
+ * @param {object} frm - Instancia del formulario Payment Entry
+ */
+function setup_advance_refund_button(frm) {
+  const to_customer_label = __("Reembolsar al cliente");
+  const from_supplier_label = __("Registrar reembolso del proveedor");
+  frm.remove_custom_button(to_customer_label, __("Actions"));
+  frm.remove_custom_button(from_supplier_label, __("Actions"));
 
+  const to_customer =
+    frm.doc.party_type === "Customer" && frm.doc.payment_type === "Receive";
+  const from_supplier =
+    frm.doc.party_type === "Supplier" && frm.doc.payment_type === "Pay";
 
+  if (
+    frm.doc.docstatus !== 1 ||
+    flt(frm.doc.unallocated_amount) <= 0 ||
+    !(to_customer || from_supplier)
+  ) {
+    return;
+  }
+
+  frm.add_custom_button(
+    to_customer ? to_customer_label : from_supplier_label,
+    () => open_advance_refund_dialog(frm, to_customer),
+    __("Actions")
+  );
+}
+
+/**
+ * Diálogo del reembolso: monto (por defecto, todo lo sin aplicar), cuenta de banco o caja
+ * (por defecto, la del propio pago), fecha y referencia de la transferencia.
+ *
+ * @param {object} frm - Instancia del formulario Payment Entry
+ * @param {boolean} to_customer - true si se le devuelve a un cliente; false si devuelve un proveedor
+ */
+function open_advance_refund_dialog(frm, to_customer) {
+  // La moneda del anticipo es la de la cuenta del tercero: en un cobro, `paid_from`; en un
+  // pago, `paid_to`. `party_account_currency` no llega al formulario.
+  const currency =
+    frm.doc.payment_type === "Receive"
+      ? frm.doc.paid_from_account_currency
+      : frm.doc.paid_to_account_currency;
+  const available = flt(frm.doc.unallocated_amount);
+
+  const dialog = new frappe.ui.Dialog({
+    title: to_customer
+      ? __("Reembolsar anticipo al cliente")
+      : __("Registrar reembolso del proveedor"),
+    fields: [
+      {
+        fieldname: "currency",
+        fieldtype: "Link",
+        options: "Currency",
+        default: currency,
+        hidden: 1,
+      },
+      {
+        fieldname: "amount",
+        fieldtype: "Currency",
+        options: "currency",
+        label: __("Monto a reembolsar"),
+        default: available,
+        reqd: 1,
+        description: __("Sin aplicar en este pago: {0}", [
+          format_currency(available, currency),
+        ]),
+      },
+      {
+        fieldname: "account",
+        fieldtype: "Link",
+        options: "Account",
+        label: to_customer ? __("Sale de la cuenta") : __("Entra a la cuenta"),
+        default: to_customer ? frm.doc.paid_to : frm.doc.paid_from,
+        reqd: 1,
+        get_query: () => ({
+          filters: {
+            company: frm.doc.company,
+            is_group: 0,
+            disabled: 0,
+            account_type: ["in", ["Bank", "Cash"]],
+            account_currency: currency,
+          },
+        }),
+      },
+      {
+        fieldname: "posting_date",
+        fieldtype: "Date",
+        label: __("Fecha del reembolso"),
+        default: frappe.datetime.get_today(),
+        reqd: 1,
+      },
+      {
+        fieldname: "reference_no",
+        fieldtype: "Data",
+        label: __("Número de referencia"),
+        description: __(
+          "El de la transferencia en el banco. Obligatorio si la cuenta es de banco."
+        ),
+      },
+      {
+        fieldname: "is_batch_payment",
+        fieldtype: "Check",
+        label: __("Salió en un pago por lote"),
+        hidden: to_customer ? 0 : 1,
+        description: __(
+          "Márquelo si el banco lo muestra dentro de un solo movimiento junto con otros pagos."
+        ),
+      },
+    ],
+    primary_action_label: to_customer
+      ? __("Reembolsar")
+      : __("Registrar reembolso"),
+    primary_action(values) {
+      frappe.call({
+        method: "l10n_ve.overrides.advance_refund.create_advance_refund",
+        args: {
+          payment_entry: frm.doc.name,
+          amount: values.amount,
+          account: values.account,
+          posting_date: values.posting_date,
+          reference_no: values.reference_no,
+          is_batch_payment: values.is_batch_payment ? 1 : 0,
+        },
+        freeze: true,
+        freeze_message: __("Registrando el reembolso..."),
+        callback(r) {
+          if (!r.message) {
+            return;
+          }
+          dialog.hide();
+          frappe.show_alert({
+            message: __("Reembolso registrado en el asiento {0}", [
+              r.message.journal_entry,
+            ]),
+            indicator: "green",
+          });
+          frm.reload_doc();
+        },
+      });
+    },
+  });
+  dialog.show();
+}
