@@ -57,16 +57,26 @@ frappe.ui.form.on("Journal Entry Account", {
     reference_name: function(frm, cdt, cdn) {
         var d = locals[cdt][cdn];
         // Si el usuario ya había colocado un monto en el Débito (ajuste de reapertura),
-        // evitamos que get_outstanding de ERPNext lo sobrescriba con 0 al seleccionar una factura saldada
+        // evitamos que get_outstanding de ERPNext lo sobrescriba con 0 al seleccionar una factura saldada.
+        // get_outstanding es un frappe.call sin duración garantizada: en vez de una sola
+        // comprobación a los 600ms (pierde la carrera si el servidor tarda más), reintenta
+        // cada 200ms hasta 3s o hasta que el valor deje de estar en cero.
         if (flt(d.debit_in_account_currency) > 0 || flt(d.debit) > 0) {
             var prev_debit = flt(d.debit_in_account_currency) || flt(d.debit);
-            setTimeout(function() {
+            var attempts = 0;
+            var restore_if_cleared = function() {
                 var current = locals[cdt] && locals[cdt][cdn];
-                if (current && (!flt(current.debit_in_account_currency) && !flt(current.debit))) {
+                if (!current) return;
+                if (!flt(current.debit_in_account_currency) && !flt(current.debit)) {
                     frappe.model.set_value(cdt, cdn, "debit_in_account_currency", prev_debit);
                     frappe.model.set_value(cdt, cdn, "debit", prev_debit);
                 }
-            }, 600);
+                attempts += 1;
+                if (attempts < 15) {
+                    setTimeout(restore_if_cleared, 200);
+                }
+            };
+            setTimeout(restore_if_cleared, 200);
         }
     },
     debit_in_account_currency: function(frm, cdt, cdn) {
