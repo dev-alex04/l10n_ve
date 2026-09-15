@@ -19,6 +19,7 @@ from l10n_ve.digital_invoice.retention_integration import (
     _validate_digital_series,
 )
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
+from l10n_ve.digital_invoice.tfhka_integration import is_hk_enabled_for_company
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +107,16 @@ def process_islr_voucher(
         True si la emisión fue exitosa.
     """
     doc = frappe.get_doc(_ISLR_DOCTYPE, voucher_name)
+
+    # Guarda condicional: si la integración con HK no está configurada o no está habilitada
+    # para la empresa, omitir el envío a HK silenciosamente sin arrojar error.
+    if not is_hk_enabled_for_company(doc.empresa, doc.get("branch")):
+        if doc.digital_invoice_status:
+            doc.db_set("digital_invoice_status", None)
+        frappe.logger("tfhka").info(
+            f"Omite envío a HKA/HK para comprobante ISLR {voucher_name}: la integración con HKA no está habilitada o configurada para la empresa '{doc.empresa}'."
+        )
+        return True
 
     # Validar integridad
     validation_errors: list[str] = _validate_islr_integrity(doc)

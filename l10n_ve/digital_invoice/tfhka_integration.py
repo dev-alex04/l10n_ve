@@ -119,6 +119,45 @@ def has_active_digital_series(company: str, branch: str | None) -> bool:
     return bool(row)
 
 
+def is_hk_enabled_for_company(company: str | None = None, branch: str | None = None) -> bool:
+    """Verifica si la integración con The Factory HKA (TFHKA / HK) está habilitada y configurada.
+
+    Args:
+        company: Nombre de la empresa a consultar.
+        branch: Nombre de la sucursal (opcional).
+
+    Returns:
+        False si:
+        - TFHKA Settings.enabled está deshabilitado (0) o no existe.
+        - Se especifica empresa y no posee ninguna Serie de Facturación Digital activa.
+        - Se especifica sucursal (distinta de N/A) y no tiene serie activa asignada.
+    """
+    try:
+        enabled = cint(frappe.db.get_single_value("TFHKA Settings", "enabled"))
+    except Exception:
+        return False
+
+    if not enabled:
+        return False
+
+    if company:
+        has_company_series = bool(
+            frappe.db.exists(
+                "VE Digital Billing Series",
+                {"company": company, "status": "Active"},
+            )
+        )
+        if not has_company_series:
+            return False
+
+        if branch and branch.upper() != "N/A":
+            if not has_active_digital_series(company, branch):
+                return False
+
+    return True
+
+
+
 def _set_hka_status(doctype: str, name: str, status: str, serie: str | None = None) -> None:
     """Persiste el estado fiscal HKA del documento (y la serie si se provee).
 
