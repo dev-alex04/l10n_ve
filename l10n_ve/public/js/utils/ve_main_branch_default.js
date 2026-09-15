@@ -39,10 +39,14 @@
 		onload: propose_main_branch,
 		company: function (frm) {
 			if (!frm.is_new() || !has_branch_field(frm)) return;
+			var branches = main_branches();
+			var proposed = Object.values(branches);
+			// Sin sucursales principales, que es lo habitual, no se toca el campo.
+			if (!proposed.length) return;
 			// Solo se reemplaza una sucursal propuesta por este archivo: la elegida a mano se respeta.
-			var proposed = Object.values(main_branches());
 			if (frm.doc.branch && proposed.indexOf(frm.doc.branch) === -1) return;
-			frm.set_value("branch", main_branches()[frm.doc.company] || "");
+			var next = branches[frm.doc.company] || "";
+			if ((frm.doc.branch || "") !== next) frm.set_value("branch", next);
 		},
 	};
 
