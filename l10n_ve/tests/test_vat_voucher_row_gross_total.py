@@ -34,6 +34,8 @@ def _invoice(**overrides) -> frappe._dict:
         "currency": "VEF",
         "conversion_rate": 1,
         "base_total": _BASE,
+        # El campo «Total Base + IVA (Bs)» del documento, que es el que la línea transporta.
+        "base_total_with_vat": _BASE + _IVA,
         # Neto de las DOS retenciones, que es como lo guarda Purchase Invoice.
         "base_grand_total": _BASE + _IVA - _RETENCION_IVA - _ISLR,
         "total_exempt": 0.0,
@@ -101,3 +103,24 @@ class TestVatVoucherRowGrossTotal(FrappeTestCase):
         self.assertAlmostEqual(row["total_exempt"], 8000.0, places=2)
         self.assertAlmostEqual(row["grand_total"], _BASE + _IVA, places=2)
         self.assertAlmostEqual(row["total"], _BASE - 8000.0, places=2)
+
+    def test_el_total_se_transporta_del_documento_no_se_recalcula(self) -> None:
+        """Si el documento dice otro monto, la línea lleva ESE, no una cuenta propia.
+
+        Es la garantía de que el comprobante no tiene aritmética paralela: el único
+        lugar donde se calculan impuestos es controllers/taxes_and_totals.py.
+        """
+        inv = _invoice(base_total_with_vat=999999.99)
+        vat_map, wh_map = _maps(inv.name)
+
+        row = _build_invoice_row(inv, vat_map, wh_map, "VEF")
+
+        self.assertAlmostEqual(row["grand_total"], 999999.99, places=2)
+
+    def test_documento_sin_total_base_mas_iva_no_arma_comprobante(self) -> None:
+        """Falta el monto que va impreso: se corta, no se inventa."""
+        inv = _invoice(base_total_with_vat=0)
+        vat_map, wh_map = _maps(inv.name)
+
+        with self.assertRaises(frappe.ValidationError):
+            _build_invoice_row(inv, vat_map, wh_map, "VEF")

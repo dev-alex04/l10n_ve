@@ -18,20 +18,20 @@ _PURCHASE_PARENTTYPES: list[str] = WithholdingVoucher.PURCHASE_PARENTTYPES
 _DOC_FIELDS: dict[str, list[str]] = {
     "Purchase Invoice": [
         "name", "bill_no", "bill_control", "posting_date", "bill_date",
-        "base_grand_total", "base_total", "total_exempt",
+        "base_grand_total", "base_total", "base_total_with_vat", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "is_return", "is_debit_note",
         "credit_note_no", "debit_note_no", "affected_invoice_number", "branch",
     ],
     "VE Purchase Credit Note": [
         "name", "bill_no", "bill_control", "posting_date", "bill_date",
-        "base_grand_total", "base_total", "total_exempt",
+        "base_grand_total", "base_total", "base_total_with_vat", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "affected_invoice_number", "branch",
     ],
     "VE Purchase Debit Note": [
         "name", "bill_no", "bill_control", "posting_date", "bill_date",
-        "base_grand_total", "base_total", "total_exempt",
+        "base_grand_total", "base_total", "base_total_with_vat", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "affected_invoice_number", "branch",
     ],
@@ -463,15 +463,23 @@ def _build_invoice_row(
     is_nc: bool = doc_type == "VE Purchase Credit Note"
     is_nd: bool = doc_type == "VE Purchase Debit Note"
 
-    # El total de la línea es el BRUTO de la factura: base + IVA. No se deriva de
-    # base_grand_total, que en una factura de compra ya viene neto de TODAS las retenciones
-    # (ver overrides/purchase_invoice.py::_grand_total_includes_withholding). Restituirle solo
-    # la de IVA dejaba el total corto exactamente en el ISLR: el comprobante impreso mostraba
-    # 13.144.929,48 donde el detalle decía 13.375.542,28 (caso VNET, 16-sep-2026). El detalle
-    # del payload de HKA ya suma base + exento + IVA, así que esta es la misma cuenta y las
-    # dos filas cierran entre sí.
+    # El total de la línea es el BRUTO del documento --base + IVA-- y se TRAE de él, no se
+    # recompone acá: `base_total_with_vat` es el campo «Total Base + IVA (Bs)» que el
+    # documento ya muestra, calculado por controllers/taxes_and_totals.py, que es el único
+    # lugar donde se calculan impuestos. Ojo con `base_grand_total`: en una factura de compra
+    # viene neto de TODAS las retenciones (ver
+    # overrides/purchase_invoice.py::_grand_total_includes_withholding), y restituirle solo la
+    # de IVA dejaba el total corto exactamente en el ISLR (caso VNET, 16-sep-2026).
+    if not inv.get("base_total_with_vat"):
+        frappe.throw(
+            _("El documento {0} no tiene «Total Base + IVA». Sin ese monto no se puede armar "
+              "el comprobante de retención: corrija el documento antes de emitirlo.").format(
+                  frappe.bold(inv.name)
+            ),
+            title=_("Total de la Compra Faltante"),
+        )
+
     taxable_base = abs((inv.base_total or 0) - total_exempt)
-    gross_total = abs(inv.base_total or 0) + abs(vat_details.get("base_tax_amount", 0))
 
     return {
         "purchase_invoice_type": doc_type,
@@ -479,7 +487,7 @@ def _build_invoice_row(
         "bill_no": inv.bill_no,
         "bill_control": inv.bill_control,
         "posting_date": inv.bill_date or inv.posting_date,
-        "grand_total": gross_total,
+        "grand_total": abs(inv.base_total_with_vat),
         "total": taxable_base,
         "total_exempt": abs(total_exempt),
         "taxes_and_charges_added": abs(vat_details.get("base_tax_amount", 0)),

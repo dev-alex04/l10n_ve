@@ -57,10 +57,11 @@ class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):
     def _calculate_total_retenido(self) -> float:
         """Calcula el total retenido sumando cada línea con su signo según tipo de documento.
 
-        Garantiza consistencia matemática exacta con los montos 'Retenido' del detalle.
+        Suma el mismo campo que manda el detalle (`tax_amount_vat`), así el total del
+        comprobante es exactamente la suma de sus líneas.
         """
         return sum(
-            (abs(flt(item.taxes_and_charges_added)) * flt(item.withholding_rate) / 100)
+            abs(flt(item.tax_amount_vat))
             * (-1 if self._get_document_type_code_base(item) in ("02", "03") else 1)
             for item in self.doc.get(self.CHILD_TABLE_FIELD, [])
         )
@@ -93,8 +94,14 @@ class TFHKARetentionPayloadBuilder(BaseRetentionPayloadBuilder):
         iva_percentage: str = "{:.2f}".format(flt(item.rate) / 100)
         withholding_percentage: str = "{:.2f}".format(flt(item.withholding_rate) / 100)
 
-        monto_total: float = abs(flt(item.total)) + abs(flt(item.total_exempt)) + abs(flt(item.taxes_and_charges_added))
-        retenido: float = abs(flt(item.taxes_and_charges_added)) * flt(item.withholding_rate) / 100
+        # El payload TRANSPORTA, no recalcula: los dos montos ya están en el renglón del
+        # comprobante, que a su vez los trajo de la factura. Recalcular el retenido como
+        # IVA x % daba un céntimo de diferencia contra lo que la factura retuvo y asentó,
+        # en 59 de las 372 facturas de 2026: la factura acumula la retención renglón por
+        # renglón y acá se multiplicaba una sola vez sobre el IVA total. Es el mismo
+        # criterio que ya usa el builder de ISLR.
+        monto_total: float = abs(flt(item.grand_total))
+        retenido: float = abs(flt(item.tax_amount_vat))
 
         bill_no: str = (item.bill_no or "").strip()
         serie_doc, num_doc = self._extract_series_and_number(bill_no)
