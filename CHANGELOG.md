@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.69.2] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió el cálculo del total en los comprobantes de retención de IVA; ahora se utiliza el monto bruto de la factura sin aplicar la deducción del ISLR. [c444df4f]
+
+---
+
 ## [v2.69.1] - 2026-09-16
 
 ### 🐛 Correcciones (Fixes)
