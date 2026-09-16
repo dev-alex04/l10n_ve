@@ -161,6 +161,7 @@ class TestValidateISLRIntegrity(FrappeTestCase):
 class TestProcessISLRVoucher(FrappeTestCase):
     """Tests para process_islr_voucher(): flujo completo de envío."""
 
+    @patch("l10n_ve.digital_invoice.tfhka_integration.company_uses_hk", return_value=True)
     @patch("l10n_ve.digital_invoice.islr_withholding_integration._handle_retention_response", return_value=True)
     @patch("l10n_ve.digital_invoice.islr_withholding_integration.TFHKAClient")
     @patch("l10n_ve.digital_invoice.islr_withholding_integration.TFHKAISLRPayloadBuilder")
@@ -173,6 +174,7 @@ class TestProcessISLRVoucher(FrappeTestCase):
         mock_builder_cls: MagicMock,
         mock_client_cls: MagicMock,
         mock_handle: MagicMock,
+        _mock_uses_hk: MagicMock,
     ) -> None:
         """Envío exitoso → retorna True."""
         mock_get_doc.return_value = _make_islr_doc()
