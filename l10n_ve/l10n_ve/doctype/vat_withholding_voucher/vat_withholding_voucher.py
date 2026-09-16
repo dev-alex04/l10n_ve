@@ -472,9 +472,11 @@ def _build_invoice_row(
     # de IVA dejaba el total corto exactamente en el ISLR (caso VNET, 16-sep-2026).
     if not inv.get("base_total_with_vat"):
         frappe.throw(
-            f"El documento {inv.name} no tiene «Total Base + IVA». Sin ese monto no se puede "
-            "armar el comprobante de retención: corrija el documento antes de emitirlo.",
-            title="Total de la Compra Faltante",
+            _("El documento {0} no tiene «Total Base + IVA». Sin ese monto no se puede armar "
+              "el comprobante de retención: corrija el documento antes de emitirlo.").format(
+                  frappe.bold(inv.name)
+            ),
+            title=_("Total de la Compra Faltante"),
         )
 
     taxable_base = abs((inv.base_total or 0) - total_exempt)
