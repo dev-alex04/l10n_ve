@@ -19,7 +19,6 @@ from l10n_ve.digital_invoice.retention_integration import (
     _validate_digital_series,
 )
 from l10n_ve.digital_invoice.tfhka_client import TFHKAClient
-from l10n_ve.digital_invoice.tfhka_integration import company_uses_hk
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +111,8 @@ def process_islr_voucher(
     # empresa no tiene ninguna serie digital activa-- se omite el envío sin error. Mira la
     # EMPRESA, no la sucursal: una sucursal sin serie es configuración rota y tiene que caer
     # en la validación de integridad de abajo, que deja estado Error y log.
+    from l10n_ve.digital_invoice.tfhka_integration import company_uses_hk
+
     if not company_uses_hk(doc.empresa):
         if doc.digital_invoice_status != "Not Applicable":
             doc.db_set("digital_invoice_status", "Not Applicable")
