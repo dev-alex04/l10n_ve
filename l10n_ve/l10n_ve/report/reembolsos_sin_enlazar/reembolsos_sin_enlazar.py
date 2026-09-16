@@ -79,6 +79,7 @@ def _row(case: dict) -> dict:
 
     return {
         "party": case["party"],
+        "party_name": case["party_name"],
         "offered": case["offered"],
         "ledger": case["ledger"],
         "difference": case["difference"],

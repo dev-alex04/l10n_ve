@@ -168,6 +168,8 @@ def _build_case(key: tuple, available: float, balance: float) -> dict:
     case = frappe._dict(
         company=company,
         party=party,
+        # El nombre visible: `party` es el identificador de la base y no le dice nada a nadie.
+        party_name=frappe.db.get_value("Customer", party, "customer_name") or party,
         advance_account=account,
         offered=available,
         ledger=balance,

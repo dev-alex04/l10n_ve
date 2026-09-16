@@ -22,6 +22,12 @@ frappe.query_reports["Reembolsos sin enlazar"] = {
   ],
 
   formatter(value, row, column, data, default_formatter) {
+    // La columna del cliente muestra el nombre, no el identificador de la base.
+    if (column.fieldname === "party" && data && data.party_name) {
+      return `<a href="/app/customer/${encodeURIComponent(data.party)}">${frappe.utils.escape_html(
+        data.party_name
+      )}</a>`;
+    }
     if (column.fieldname === "action" && data && data.party) {
       if (data.can_fix) {
         return `<button class="btn btn-xs btn-primary"
@@ -62,7 +68,7 @@ l10n_ve.reembolsos.corregir = function (datos) {
         return;
       }
       frappe.confirm(
-        `<p>${__("Sobre la cuenta de {0}:", [frappe.utils.escape_html(fila.party)])}</p>
+        `<p>${__("Sobre la cuenta de {0}:", [frappe.utils.escape_html(fila.party_name || fila.party)])}</p>
          <ul><li>${plan.lines.map(frappe.utils.escape_html).join("</li><li>")}</li></ul>`,
         () => {
           frappe.call({
