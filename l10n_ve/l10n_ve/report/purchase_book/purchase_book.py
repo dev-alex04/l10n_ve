@@ -156,7 +156,7 @@ def get_query(filters: dict) -> str:
                 tPI.total_igtf,
                 tPI.bill_date,
                 tPI.is_debit_note,
-                tPI.base_grand_total,
+                tPI.base_total_with_vat,
                 tPI.base_total,
                 tPI.total_exempt,
                 (CASE WHEN tPI.currency != %(company_currency)s
@@ -181,7 +181,7 @@ def get_query(filters: dict) -> str:
                 nc.total_igtf,
                 nc.bill_date,
                 0 AS is_debit_note,
-                nc.base_grand_total,
+                nc.base_total_with_vat,
                 nc.base_total,
                 nc.total_exempt,
                 (CASE WHEN nc.currency != %(company_currency)s
@@ -218,7 +218,7 @@ def get_query(filters: dict) -> str:
                 nd.total_igtf,
                 nd.bill_date,
                 1 AS is_debit_note,
-                nd.base_grand_total,
+                nd.base_total_with_vat,
                 nd.base_total,
                 nd.total_exempt,
                 (CASE WHEN nd.currency != %(company_currency)s
@@ -246,10 +246,17 @@ def get_query(filters: dict) -> str:
             inv.is_return AS tipo,
             inv.bill_no,
             inv.bill_control,
-            (inv.base_grand_total + ABS(COALESCE(
-                (SELECT SUM(base_tax_amount) FROM `tabPurchase Taxes and Charges` 
-                 WHERE parent = inv.name AND add_deduct_tax = 'Deduct'), 0))
-            ) AS grand_total,
+            -- Total de la compra: se TRAE del documento («Total Base + IVA»), no se
+            -- reconstruye. Antes se partía de base_grand_total --neto de retenciones-- y se
+            -- le devolvían TODAS las filas Deduct, lo que da el bruto solo si la retención
+            -- se aplicó antes de validar. Cuando se aplica después, el ISLR se contabiliza
+            -- en un asiento de diario y NUNCA se restó del total de la factura: devolverlo
+            -- lo sumaba dos veces (ACC-PINV-2026-00322, Bs 581.893,55 de más en el panel de
+            -- septiembre de 2026). Traerlo del documento además deja de depender del
+            -- significado de `base_grand_total`, que no es el mismo en los tres DocTypes:
+            -- en la factura viene neto y en las NC/ND viene bruto (ver
+            -- overrides/purchase_invoice.py::_grand_total_includes_withholding).
+            inv.base_total_with_vat AS grand_total,
             inv.total_exempt * inv.conversion_rate AS total_exempt,
             inv.credit_note_no,
             inv.debit_note_no,
