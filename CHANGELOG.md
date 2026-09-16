@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.69.0] - 2026-09-16
+
+### ✨ Funcionalidades (Features)
+- Ahora cada compañía se crea automáticamente con una sucursal principal vinculada, la cual es sugerida por defecto en los formularios del sistema. acb36977
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el formulario de sucursales que permitía interacciones inválidas cuando no existía una sucursal principal definida. bf1dfd23
+
+---
+
 ## [v2.68.0] - 2026-09-15
 
 ### ✨ Funcionalidades (Features)
