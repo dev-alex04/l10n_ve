@@ -1672,3 +1672,214 @@ def apply_retroactive_purchase_withholding(
         "journal_entry": je.name,
         "msg": f"Retención de {_purchase_withholding_label(withholding_type)} aplicada. Asiento {je.name} creado y sometido.",
     }
+
+
+# ── Quitar una retención de una factura aprobada ─────────────────────── #
+
+#: Comprobante que respalda cada retención. Mientras uno siga vivo, la retención no se toca.
+_PURCHASE_WITHHOLDING_VOUCHER: dict[str, str] = {
+    "VAT": "VAT Withholding Voucher",
+    "ISLR": "ISLR Withholding Voucher",
+}
+
+
+def _validate_no_live_withholding_voucher(invoice_name: str, withholding_type: str) -> None:
+    """Corta si un comprobante vivo respalda la retención que se quiere quitar.
+
+    Un comprobante emitido declara un monto ante el SENIAT. Si se le vacía la retención por
+    debajo, queda declarando algo que la factura ya no dice. Primero se anula en HKA y se
+    cancela; recién entonces la retención se puede tocar.
+    """
+    doctype: str = _PURCHASE_WITHHOLDING_VOUCHER[withholding_type]
+    vivos: list[dict] = frappe.db.sql(
+        f"""
+        SELECT item.parent AS voucher, padre.docstatus
+        FROM `tab{doctype} Item` AS item
+        INNER JOIN `tab{doctype}` AS padre ON padre.name = item.parent
+        WHERE item.purchase_invoice = %s AND padre.docstatus < 2
+        """,
+        invoice_name,
+        as_dict=True,
+    )
+    if vivos:
+        frappe.throw(
+            _("La factura {0} tiene el comprobante de retención {1} sin cancelar. "
+              "Anúlelo en la imprenta fiscal y cancélelo antes de quitar la retención.").format(
+                  frappe.bold(invoice_name), frappe.bold(vivos[0]["voucher"])
+            ),
+            title=_("Comprobante Vivo"),
+        )
+
+
+def _create_purchase_withholding_reversal_journal_entry(
+    invoice: object,
+    withholding_type: str,
+    tax_account: str,
+    base_amount: float,
+    conversion_rate: float,
+    company_currency: str,
+    invoice_currency: str,
+) -> object:
+    """Asiento que deshace una retención de compra. Es el espejo del que la registra.
+
+    DÉBITO  → cuenta de retención (se vacía el pasivo con el SENIAT)
+    CRÉDITO → credit_to (vuelve a deberse al proveedor) referenciando la factura
+
+    Se asienta el reverso en vez de cancelar el asiento original: sirve igual para la
+    retención que entró en borrador --cuyo movimiento vive dentro del asiento de la propia
+    factura y no se puede cancelar por separado-- y deja el rastro completo.
+    """
+    tax_account_currency: str = (
+        frappe.db.get_value("Account", tax_account, "account_currency") or company_currency
+    )
+    payable_account_currency: str = (
+        frappe.db.get_value("Account", invoice.credit_to, "account_currency") or company_currency
+    )
+    cost_center = invoice.cost_center or frappe.get_cached_value(
+        "Company", invoice.company, "cost_center"
+    )
+
+    je = frappe.new_doc("Journal Entry")
+    je.company = invoice.company
+    je.posting_date = frappe.utils.today()
+    je.user_remark = (
+        f"Reverso de la retención de {_purchase_withholding_label(withholding_type)} "
+        f"de la factura de compra {invoice.name}."
+    )
+    je.multi_currency = (
+        1
+        if (
+            invoice_currency != company_currency
+            or tax_account_currency != company_currency
+            or payable_account_currency != company_currency
+        )
+        else 0
+    )
+
+    fiscal_metadata: dict = {
+        "bill_no": invoice.bill_no or invoice.name,
+        "bill_control": invoice.get("bill_control"),
+        "branch": invoice.get("branch"),
+    }
+
+    # --- DÉBITO: cuenta de retención ---
+    tax_row: dict = {"account": tax_account, "cost_center": cost_center, **fiscal_metadata}
+    if tax_account_currency != company_currency:
+        tax_exchange_rate = conversion_rate if tax_account_currency == invoice_currency else 1.0
+        tax_row.update({
+            "account_currency": tax_account_currency,
+            "exchange_rate": tax_exchange_rate,
+            "debit_in_account_currency": flt(base_amount / tax_exchange_rate, 2)
+            if tax_exchange_rate else base_amount,
+            "debit": base_amount,
+        })
+    else:
+        tax_row.update({
+            "debit_in_account_currency": base_amount,
+            "debit": base_amount,
+            "exchange_rate": 1.0,
+        })
+    je.append("accounts", tax_row)
+
+    # --- CRÉDITO: Cuentas por Pagar del proveedor ---
+    pay_exchange_rate = (
+        conversion_rate
+        if (payable_account_currency != company_currency
+            and payable_account_currency == invoice_currency)
+        else 1.0
+    )
+    pay_row: dict = {
+        "account": invoice.credit_to,
+        "party_type": "Supplier",
+        "party": invoice.supplier,
+        "reference_type": "Purchase Invoice",
+        "reference_name": invoice.name,
+        "cost_center": cost_center,
+        **fiscal_metadata,
+    }
+    if payable_account_currency != company_currency:
+        pay_row.update({
+            "account_currency": payable_account_currency,
+            "exchange_rate": pay_exchange_rate,
+            "credit_in_account_currency": flt(base_amount / pay_exchange_rate, 2)
+            if pay_exchange_rate else base_amount,
+            "credit": base_amount,
+        })
+    else:
+        pay_row.update({
+            "credit_in_account_currency": base_amount,
+            "credit": base_amount,
+            "exchange_rate": 1.0,
+        })
+    je.append("accounts", pay_row)
+
+    je.flags.ignore_permissions = True
+    je.insert()
+    je.submit()
+    return je
+
+
+@frappe.whitelist()
+def remove_retroactive_purchase_withholding(
+    invoice_name: str,
+    withholding_type: str,
+    company: str,
+) -> dict:
+    """Quita una retención (IVA o ISLR) de una Factura de Compra aprobada.
+
+    Es el espejo de `apply_retroactive_purchase_withholding`, y existe porque una retención
+    cargada con el concepto o el monto equivocado no tenía forma de corregirse: en la factura
+    aprobada solo había camino para AGREGAR. Quitar y volver a aplicar es esa corrección.
+
+    Flujo:
+    1. Valida el tipo, que la factura esté aprobada y que el usuario pueda escribirla.
+    2. Corta si un comprobante de retención vivo respalda lo que se va a quitar.
+    3. Asienta el reverso contable.
+    4. Retira la fila de la tabla de impuestos.
+
+    La otra retención de la factura no se toca en ningún caso.
+    """
+    if withholding_type not in ("VAT", "ISLR"):
+        frappe.throw(_("Tipo de retención inválido: {0}. Use 'VAT' o 'ISLR'.").format(withholding_type))
+
+    if not frappe.db.exists(
+        "Purchase Invoice", {"name": invoice_name, "company": company, "docstatus": 1}
+    ):
+        frappe.throw(
+            _("No se encontró ninguna Factura de Compra aprobada con el identificador '{0}' "
+              "para la empresa {1}.").format(invoice_name, company)
+        )
+
+    invoice = frappe.get_doc("Purchase Invoice", invoice_name)
+    frappe.has_permission("Purchase Invoice", ptype="write", doc=invoice, throw=True)
+
+    charge_type: str = "VAT Withholding" if withholding_type == "VAT" else "ISLR"
+    filas: list = [t for t in invoice.taxes if t.charge_type == charge_type and flt(t.base_tax_amount)]
+    if not filas:
+        frappe.throw(
+            _("La factura {0} no tiene una retención de {1} que quitar.").format(
+                frappe.bold(invoice_name), _purchase_withholding_label(withholding_type)
+            )
+        )
+
+    _validate_no_live_withholding_voucher(invoice_name, withholding_type)
+
+    company_currency: str = frappe.get_cached_value("Company", invoice.company, "default_currency")
+    invoice_currency: str = invoice.currency or company_currency
+    conversion_rate: float = flt(invoice.conversion_rate) or 1.0
+
+    asientos: list[str] = []
+    for fila in filas:
+        je = _create_purchase_withholding_reversal_journal_entry(
+            invoice, withholding_type, fila.account_head, flt(fila.base_tax_amount),
+            conversion_rate, company_currency, invoice_currency,
+        )
+        asientos.append(je.name)
+        frappe.db.delete("Purchase Taxes and Charges", {"name": fila.name})
+
+    etiqueta: str = _purchase_withholding_label(withholding_type)
+    return {
+        "status": "success",
+        "journal_entries": asientos,
+        "msg": f"Retención de {etiqueta} retirada. Asiento(s) de reverso: {', '.join(asientos)}.",
+    }
