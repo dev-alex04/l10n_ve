@@ -211,13 +211,6 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     is_nc: bool = doc.doctype == "VE Sales Credit Note"
     is_nd: bool = doc.doctype == "VE Sales Debit Note"
 
-    if is_nc:
-        correlative_field: str = "credit_note_number_correlative"
-    elif is_nd:
-        correlative_field: str = "debit_note_number_correlative"
-    else:
-        correlative_field: str = "invoice_number_correlative"
-
     target_field: str = "bill_no"
 
     if getattr(series, "operation_mode", "Internal") == "Third Party":
@@ -226,38 +219,28 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
         frappe.logger("l10n_ve").info(f"{doc.doctype} {doc.name}: Esperando asignación de HKA (Modo Tercero).")
         return
 
-    # Incremento atómico para evitar condición de carrera en multiusuario.
+    # Interno: el número sale del correlativo de la serie con el mismo mecanismo que usa la
+    # empresa (`l10n_ve.numbering`): bloquea la fila, se salta los números ya tomados y
+    # avanza el correlativo dentro de la misma transacción. Antes acá se incrementaba en
+    # SQL y se releía restando uno, sin formato y sin comprobar duplicados.
+    serie = series
+    if not hasattr(serie, "take_invoice_number"):
+        serie = frappe.get_doc("VE Digital Billing Series", series.name)
+
+    validador = getattr(doc, "_validate_bill_no", None)
+
     if is_nc:
-        frappe.db.sql("""
-            UPDATE `tabVE Digital Billing Series`
-            SET credit_note_number_correlative = credit_note_number_correlative + 1
-            WHERE name = %s
-        """, (series.name,))
+        doc_number_str: str = serie.take_credit_note_number()
     elif is_nd:
-        frappe.db.sql("""
-            UPDATE `tabVE Digital Billing Series`
-            SET debit_note_number_correlative = debit_note_number_correlative + 1
-            WHERE name = %s
-        """, (series.name,))
+        doc_number_str = serie.take_debit_note_number()
     else:
-        frappe.db.sql("""
-            UPDATE `tabVE Digital Billing Series`
-            SET invoice_number_correlative = invoice_number_correlative + 1
-            WHERE name = %s
-        """, (series.name,))
-
-    current_correlative: int = frappe.db.get_value(
-        "VE Digital Billing Series", series.name, correlative_field
-    ) or 2
-
-    doc_number: int = current_correlative - 1
-    doc_number_str: str = str(doc_number)
+        doc_number_str = serie.take_invoice_number(
+            is_free=(lambda numero: validador(numero, raise_throw=False)) if validador else None
+        )
 
     frappe.db.set_value(doc.doctype, doc.name, "bill_control", "", update_modified=True)
-
     frappe.db.set_value(doc.doctype, doc.name, target_field, doc_number_str, update_modified=True)
 
-    frappe.clear_document_cache("VE Digital Billing Series", series.name)
     frappe.logger("l10n_ve").info(
         f"{doc.doctype} {doc.name}: {target_field}='{doc_number_str}' asignado desde serie '{series.name}'."
     )
