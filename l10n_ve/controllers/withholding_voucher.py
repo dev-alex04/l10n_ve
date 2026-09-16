@@ -60,7 +60,7 @@ class WithholdingVoucher():
         return True
 
     @frappe.whitelist()
-    def get_withholding_correlative(self, company_name, voucher_type) -> dict:
+    def get_withholding_correlative(self, company_name: str, voucher_type: str) -> dict:
         """Vista previa del próximo número de comprobante. MIRA, no toma.
 
         El número de verdad lo toma `l10n_ve.numbering.take_withholding_number` al insertar

@@ -28,6 +28,7 @@ from l10n_ve.numbering import (
 )
 
 PREFIJO = "ZZTEST-NUM"
+EMPRESA_DE_PRUEBA = "ZZTEST-EMPRESA-NUMERACION"
 DOCTYPE_ORIGEN = "VE Digital Billing Series"
 
 
@@ -36,10 +37,15 @@ def _crear_serie(nombre: str, correlativo: int = 1) -> str:
 
     Se usa la serie y no una Company porque crear una empresa arrastra el plan de cuentas
     entero; el mecanismo que se prueba es el mismo, el origen da igual.
+
+    Se inserta con `db_insert`, saltando la validación del DocType, porque el sitio base de
+    la CI no tiene ninguna empresa y `company` es obligatorio. Lo que se prueba acá es el
+    contador, no el alta de la serie.
     """
     doc = frappe.get_doc({
         "doctype": DOCTYPE_ORIGEN,
-        "company": frappe.db.get_value("Company", {}, "name"),
+        "name": nombre,
+        "company": EMPRESA_DE_PRUEBA,
         "operation_mode": "Internal",
         "status": "Active",
         "prefix": "00",
@@ -50,9 +56,12 @@ def _crear_serie(nombre: str, correlativo: int = 1) -> str:
         "debit_note_number_correlative": correlativo,
         "start_operations": "2026-01-01",
     })
-    doc.flags.ignore_permissions = True
-    doc.insert(ignore_permissions=True)
+    doc.db_insert()
     return doc.name
+
+
+def _borrar_serie(nombre: str) -> None:
+    frappe.db.delete(DOCTYPE_ORIGEN, {"name": nombre})
 
 
 class TestFormatos(unittest.TestCase):
@@ -87,9 +96,7 @@ class TestTomarNumero(FrappeTestCase):
     def setUp(self):
         self.addCleanup(frappe.db.rollback)
         self.serie = _crear_serie(f"{PREFIJO}-1")
-        self.addCleanup(lambda: frappe.delete_doc(
-            DOCTYPE_ORIGEN, self.serie, force=True, ignore_permissions=True
-        ))
+        self.addCleanup(lambda: _borrar_serie(self.serie))
 
     def _correlativo(self) -> int:
         return frappe.db.get_value(DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative")
@@ -151,7 +158,7 @@ class TestConcurrencia(FrappeTestCase):
         frappe.db.commit()  # los otros hilos tienen que verla
 
     def tearDown(self):
-        frappe.delete_doc(DOCTYPE_ORIGEN, self.serie, force=True, ignore_permissions=True)
+        _borrar_serie(self.serie)
         frappe.db.commit()
 
     def test_ningun_numero_se_repite_ni_se_salta(self):
