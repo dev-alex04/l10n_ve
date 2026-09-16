@@ -209,14 +209,20 @@ def process_retention_voucher(
     """
     doc = frappe.get_doc("VAT Withholding Voucher", voucher_name)
 
-    # Guarda condicional: si la integración con HK no está configurada o no está habilitada
-    # para la empresa, omitir el envío a HK silenciosamente sin arrojar error.
-    from l10n_ve.digital_invoice.tfhka_integration import is_hk_enabled_for_company
-    if not is_hk_enabled_for_company(doc.empresa, doc.get("branch")):
-        if doc.digital_invoice_status:
-            doc.db_set("digital_invoice_status", None)
+    # Guarda condicional: si la empresa no emite con HKA --el sitio lo tiene apagado, o la
+    # empresa no tiene ninguna serie digital activa-- se omite el envío sin error.
+    #
+    # Mira la EMPRESA, no la sucursal. Una sucursal sin serie es configuración rota: por acá
+    # volvería a marcarse éxito sin haber emitido, que es el incidente que cerró el
+    # fail-closed. Ese caso sigue cayendo en la validación de integridad de abajo, que deja
+    # estado Error y log.
+    from l10n_ve.digital_invoice.tfhka_integration import company_uses_hk
+
+    if not company_uses_hk(doc.empresa):
+        if doc.digital_invoice_status != "Not Applicable":
+            doc.db_set("digital_invoice_status", "Not Applicable")
         frappe.logger("tfhka").info(
-            f"Omite envío a HKA/HK para comprobante IVA {voucher_name}: la integración con HKA no está habilitada o configurada para la empresa '{doc.empresa}'."
+            f"Omite envío a HKA/HK para comprobante IVA {voucher_name}: la empresa '{doc.empresa}' no emite con HKA."
         )
         return True
 
