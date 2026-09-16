@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.69.4] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- Se implementó la traducción de los mensajes de validación (guards) en el módulo de retención de IVA (1972d923).
+- Se ajustó el flujo de datos en los comprobantes de retención de IVA para asegurar que los montos se transporten íntegramente desde el origen en lugar de recalcularse, garantizando la consistencia contable (a208873a).
+
+---
+
 ## [v2.69.3] - 2026-09-16
 
 ### 🐛 Correcciones (Fixes)
