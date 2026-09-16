@@ -16,12 +16,15 @@ aparecen también los reembolsos asentados a mano, que el backfill de domina_gal
 
 La corrección hace lo mismo que se hace a mano, en una sola transacción:
 
-1. Deshace la aplicación del cobro devuelto a la factura que pagó con esa plata.
-2. Le aplica a esa factura el pago real del cliente, si tiene uno sin aplicar que la cubra.
-3. Crea el asiento que enlaza el reembolso con el cobro, y le aplica el anticipo.
+1. Deshace la aplicación del cobro a la factura que se pagó con la plata devuelta.
+2. Crea el asiento que enlaza el reembolso con el cobro, y le aplica el anticipo.
+3. Si al deshacer se soltó de más -- lo habitual, porque lo devuelto se mezcla con plata buena
+   en el mismo cruce --, le devuelve ese sobrante a la misma factura.
 
 Al terminar comprueba que los documentos digan lo mismo que el mayor. Si no, no deja nada.
 """
+
+from itertools import combinations
 
 import frappe
 from erpnext.accounts.party import get_party_account
@@ -101,10 +104,9 @@ def _offered_by_party(
         "pe.docstatus = 1",
         "pe.payment_type = 'Receive'",
         "pe.party_type = 'Customer'",
+        "pe.paid_from IN %s",
     ]
-    values: list = []
-    conditions.append("pe.paid_from IN %s")
-    values.append(tuple(accounts))
+    values: list = [tuple(accounts)]
     if company:
         conditions.append("pe.company = %s")
         values.append(company)
@@ -172,7 +174,6 @@ def _build_case(key: tuple, available: float, balance: float) -> dict:
         difference=flt(available - balance, 2),
         refunds=[],
         undo=None,
-        payment_for_invoice=None,
         problem=None,
     )
     case.refunds = _refunds(company, party, account)
@@ -201,11 +202,10 @@ def _build_case(key: tuple, available: float, balance: float) -> dict:
         case.undo = _allocation_to_undo(case)
         if not case.undo:
             case.problem = _(
-                "Ninguna aplicación de un cobro a una factura suma exactamente lo que falta: el saldo "
-                "devuelto se repartió entre varias facturas y hay que decidir de cuál se saca."
+                "No hay ninguna aplicación de un cobro a una factura que alcance para liberar lo que "
+                "falta: el saldo devuelto se repartió entre varias facturas y hay que decidir de cuál "
+                "se saca."
             )
-            return case
-        case.payment_for_invoice = _payment_for_invoice(case)
     return case
 
 
@@ -280,20 +280,73 @@ def _not_a_refund(name: str, movements: list[dict]) -> str | None:
         ).format(name)
     if not any(flt(m.withdrawal) > 0 for m in movements):
         return _(
-            "{0} está conciliado con un DEPÓSITO del banco ({1}): parece un cobro registrado como pago, "
-            "y hay que anularlo y registrarlo como cobro."
+            "{0} está conciliado con un DEPÓSITO del banco ({1}): parece un cobro registrado como "
+            "pago, y hay que anularlo y registrarlo como cobro."
         ).format(name, ", ".join(m.name for m in movements))
     return None
 
 
 def _allocation_to_undo(case: dict) -> dict | None:
-    """La aplicación de un cobro a una factura que usó el saldo ya devuelto.
+    """Qué aplicaciones hay que deshacer para que la factura vuelva a mostrar la deuda.
 
-    «Desconciliar pago» deshace la aplicación entera de ese cobro a esa factura, así que sirve
-    solo si ese total es exactamente lo que falta. Se mira primero el cobro que tiene el mismo
-    monto que un reembolso y después las aplicaciones más recientes.
+    «Desconciliar pago» deshace la aplicación entera de un cobro a una factura, así que casi
+    nunca coincide con lo que falta. Se busca, en este orden: una aplicación por el monto justo;
+    una combinación de aplicaciones a la MISMA factura que sume justo; o la aplicación más chica
+    que alcance, deshaciendo de más y devolviéndole el sobrante a esa factura al final.
+
+    Ese último caso es el que importa: sin él, cinco de cada seis casos de Galanet quedaban para
+    revisar a mano, porque lo devuelto se había mezclado con plata buena dentro del mismo cruce.
     """
     missing: float = flt(case.difference - case.offered, 2)
+    candidates: list[dict] = _applications_after_refund(case)
+    if not candidates:
+        return None
+
+    exact = next((c for c in candidates if flt(c.amount, 2) == missing), None)
+    if exact:
+        return {
+            "applications": [exact],
+            "invoice": exact.sales_invoice,
+            "undone": missing,
+            "surplus": 0.0,
+        }
+
+    by_invoice: dict = {}
+    for row in candidates:
+        by_invoice.setdefault(row.sales_invoice, []).append(row)
+    for invoice, rows in by_invoice.items():
+        for size in (2, 3):
+            for combo in combinations(rows, size):
+                if flt(sum(flt(r.amount) for r in combo), 2) == missing:
+                    return {
+                        "applications": list(combo),
+                        "invoice": invoice,
+                        "undone": missing,
+                        "surplus": 0.0,
+                    }
+
+    bigger = sorted(
+        (c for c in candidates if flt(c.amount, 2) > missing),
+        key=lambda c: flt(c.amount, 2),
+    )
+    if bigger:
+        chosen = bigger[0]
+        return {
+            "applications": [chosen],
+            "invoice": chosen.sales_invoice,
+            "undone": flt(chosen.amount, 2),
+            "surplus": flt(chosen.amount - missing, 2),
+        }
+    return None
+
+
+def _applications_after_refund(case: dict) -> list[dict]:
+    """Aplicaciones de cobros a facturas que pudieron usar el saldo devuelto.
+
+    Primero las del cobro que tiene el mismo monto que un reembolso -- es el que devolvieron, y
+    si ya había pagado una factura, esa es la aplicación -- y después las hechas desde que se
+    registró el reembolso, de la más reciente a la más vieja.
+    """
     amounts: tuple = tuple({flt(r.amount, 2) for r in case.refunds})
     twins: list[str] = frappe.db.sql(
         """SELECT name FROM `tabPayment Entry`
@@ -303,9 +356,9 @@ def _allocation_to_undo(case: dict) -> dict | None:
         pluck=True,
     )
 
-    candidates: list[dict] = []
+    rows: list[dict] = []
     if twins:
-        candidates += frappe.db.sql(
+        rows += frappe.db.sql(
             """SELECT voucher_no AS payment_entry, against_voucher_no AS sales_invoice,
                 ROUND(-SUM(amount), 2) AS amount, MAX(creation) AS applied_on
             FROM `tabPayment Ledger Entry`
@@ -317,7 +370,7 @@ def _allocation_to_undo(case: dict) -> dict | None:
             (case.party, case.company, tuple(twins)),
             as_dict=True,
         )
-    candidates += frappe.db.sql(
+    rows += frappe.db.sql(
         """SELECT voucher_no AS payment_entry, against_voucher_no AS sales_invoice,
             ROUND(-SUM(amount), 2) AS amount, MAX(creation) AS applied_on
         FROM `tabPayment Ledger Entry`
@@ -331,41 +384,13 @@ def _allocation_to_undo(case: dict) -> dict | None:
     )
 
     seen: set = set()
-    for row in candidates:
+    unique: list[dict] = []
+    for row in rows:
         key = (row.payment_entry, row.sales_invoice)
-        if key in seen:
-            continue
-        seen.add(key)
-        if flt(row.amount, 2) == missing:
-            return row
-    return None
-
-
-def _payment_for_invoice(case: dict) -> dict | None:
-    """Un cobro real del cliente, sin aplicar, que pueda pagar la factura que queda libre.
-
-    Es el paso que salva al cliente que ya volvió a pagar: sin él, su pago queda flotando como
-    anticipo y la factura, pendiente. Solo se propone cuando hay un único candidato que la cubre.
-    """
-    if not case.undo:
-        return None
-    candidates: list[dict] = frappe.db.sql(
-        """SELECT name, posting_date, ROUND(unallocated_amount, 2) AS amount
-        FROM `tabPayment Entry`
-        WHERE docstatus = 1 AND payment_type = 'Receive' AND party_type = 'Customer' AND party = %s
-          AND company = %s AND paid_from = %s AND unallocated_amount > 0
-          AND name <> %s AND ROUND(unallocated_amount, 2) >= %s
-        ORDER BY posting_date, creation""",
-        (
-            case.party,
-            case.company,
-            case.advance_account,
-            case.undo.payment_entry,
-            flt(case.undo.amount, 2),
-        ),
-        as_dict=True,
-    )
-    return candidates[0] if len(candidates) == 1 else None
+        if key not in seen:
+            seen.add(key)
+            unique.append(row)
+    return unique
 
 
 def _money(amount: float, company: str) -> str:
@@ -382,28 +407,27 @@ def describe(company: str, party: str, advance_account: str) -> dict:
     """Lo que la corrección va a hacer con ese cliente, en el idioma de quien la aprueba."""
     frappe.has_permission("Payment Entry", throw=True)
     case = _single_case(company, party, advance_account)
-    lines: list[str] = []
     if case.get("problem"):
         return {"can_fix": False, "problem": case["problem"], "lines": []}
 
-    if case["undo"]:
+    lines: list[str] = []
+    undo = case["undo"]
+    if undo:
         lines.append(
             _(
-                "Se le quita a la factura {0} los {1} que pagó con dinero devuelto."
+                "Se le quita a la factura {0} los {1} que tenía aplicados de {2}."
             ).format(
-                case["undo"]["sales_invoice"], _money(case["undo"]["amount"], company)
+                undo["invoice"],
+                _money(undo["undone"], company),
+                ", ".join(a["payment_entry"] for a in undo["applications"]),
             )
         )
-    if case["payment_for_invoice"]:
-        lines.append(
-            _("Se le aplica a esa factura el cobro {0} del {1}, por {2}.").format(
-                case["payment_for_invoice"]["name"],
-                frappe.format(
-                    case["payment_for_invoice"]["posting_date"], {"fieldtype": "Date"}
-                ),
-                _money(case["payment_for_invoice"]["amount"], company),
+        if flt(undo["surplus"], 2) > 0:
+            lines.append(
+                _(
+                    "De eso, {0} vuelven a esa misma factura: es plata buena que se soltó de más."
+                ).format(_money(undo["surplus"], company))
             )
-        )
     for refund in case["refunds"]:
         lines.append(
             _(
@@ -413,11 +437,21 @@ def describe(company: str, party: str, advance_account: str) -> dict:
                 frappe.format(refund["posting_date"], {"fieldtype": "Date"}),
             )
         )
-    lines.append(
-        _(
-            "Al terminar, lo que los cobros ofrecen tiene que ser {0}, igual que el mayor."
-        ).format(_money(case["ledger"], company))
-    )
+    if undo:
+        lines.append(
+            _(
+                "La factura {0} va a quedar pendiente por {1}, que es lo que se le devolvió."
+            ).format(
+                undo["invoice"],
+                _money(flt(case["difference"] - case["offered"], 2), company),
+            )
+        )
+    else:
+        lines.append(
+            _("Al terminar, sus cobros van a ofrecer {0}, igual que el mayor.").format(
+                _money(case["ledger"], company)
+            )
+        )
     return {"can_fix": True, "problem": None, "lines": lines}
 
 
@@ -443,11 +477,12 @@ def fix(
     frappe.db.savepoint(savepoint)
     try:
         if case["undo"]:
-            created.append(_unreconcile(case))
-            if case["payment_for_invoice"]:
-                _apply_payment_to_invoice(case)
+            for application in case["undo"]["applications"]:
+                created.append(_unreconcile(case, application))
         for refund in case["refunds"]:
             created.append(_link_refund(case, refund, posting))
+        if case["undo"] and flt(case["undo"]["surplus"], 2) > 0:
+            _return_surplus(case)
         _verify(company, party, advance_account)
     except Exception:
         frappe.db.rollback(save_point=savepoint)
@@ -456,29 +491,28 @@ def fix(
 
 
 def _single_case(company: str, party: str, advance_account: str) -> dict:
-    casos = [
+    cases = [
         c
         for c in scan(company=company, party=party)
         if c["advance_account"] == advance_account
     ]
-    if not casos:
+    if not cases:
         frappe.throw(
             _("{0} ya no tiene reembolsos sin enlazar en {1}.").format(
                 party, advance_account
             )
         )
-    return casos[0]
+    return cases[0]
 
 
-def _unreconcile(case: dict) -> str:
-    """Deshace la aplicación del cobro devuelto a la factura, con «Desconciliar pago»."""
-    undo = case["undo"]
+def _unreconcile(case: dict, application: dict) -> str:
+    """Deshace una aplicación de un cobro a una factura, con «Desconciliar pago»."""
     account: str = frappe.db.get_value(
         "Payment Entry Reference",
         {
-            "parent": undo["payment_entry"],
+            "parent": application["payment_entry"],
             "reference_doctype": "Sales Invoice",
-            "reference_name": undo["sales_invoice"],
+            "reference_name": application["sales_invoice"],
         },
         "account",
     ) or get_party_account("Customer", case["party"], case["company"])
@@ -486,13 +520,13 @@ def _unreconcile(case: dict) -> str:
     doc = frappe.new_doc("Unreconcile Payment")
     doc.company = case["company"]
     doc.voucher_type = "Payment Entry"
-    doc.voucher_no = undo["payment_entry"]
+    doc.voucher_no = application["payment_entry"]
     doc.append(
         "allocations",
         {
             "reference_doctype": "Sales Invoice",
-            "reference_name": undo["sales_invoice"],
-            "allocated_amount": undo["amount"],
+            "reference_name": application["sales_invoice"],
+            "allocated_amount": flt(application["amount"], 2),
             "account": account,
             "party_type": "Customer",
             "party": case["party"],
@@ -506,16 +540,22 @@ def _unreconcile(case: dict) -> str:
     return doc.name
 
 
-def _apply_payment_to_invoice(case: dict) -> None:
-    """Le aplica a la factura liberada el cobro real del cliente que estaba sin aplicar."""
-    payment = case["payment_for_invoice"]
+def _return_surplus(case: dict) -> None:
+    """Le devuelve a la factura el sobrante que se soltó de más al desconciliar.
+
+    Cuando la aplicación que hay que deshacer es más grande que lo devuelto -- lo habitual,
+    porque la plata devuelta se mezcla con plata buena en el mismo cruce --, la factura queda
+    debiendo de más y el cliente con anticipo de sobra. Esto lo vuelve a cruzar, así la factura
+    termina debiendo exactamente lo que se le devolvió al cliente y ni un bolívar más.
+    """
     _reconcile(
         case["company"],
         case["party"],
         case["advance_account"],
-        invoice=case["undo"]["sales_invoice"],
-        payment=payment["name"],
-        expected=flt(case["undo"]["amount"], 2),
+        invoice=case["undo"]["invoice"],
+        payment=None,
+        expected=flt(case["undo"]["surplus"], 2),
+        cap=True,
     )
 
 
@@ -600,12 +640,14 @@ def _reconcile(
     invoice: str,
     payment: str | None,
     expected: float,
+    cap: bool = False,
 ) -> None:
     """Aplica el anticipo del cliente a ese documento con la Conciliación de Pagos de ERPNext.
 
     Se le pasan solo las partidas que corresponden -- el documento destino y, cuando se indica,
-    un cobro concreto -- para que no se lleve por delante otra factura del mismo cliente. Antes
-    de conciliar se comprueba que vaya a aplicar exactamente lo esperado.
+    un cobro concreto -- para que no se lleve por delante otra factura del mismo cliente. Con
+    `cap`, recorta lo que se va a aplicar hasta `expected`, que es como vuelve el sobrante a su
+    factura; sin él, exige que la conciliación aplique exactamente eso.
     """
     receivable: str = get_party_account("Customer", party, company)
     reconciliation = frappe.new_doc("Payment Reconciliation")
@@ -647,6 +689,9 @@ def _reconcile(
             invoices=[target.as_dict()], payments=[p.as_dict() for p in payments]
         )
     )
+    if cap:
+        _cap_allocation(reconciliation, flt(expected, 2))
+
     allocated: float = flt(
         sum(flt(row.allocated_amount) for row in reconciliation.allocation), 2
     )
@@ -665,6 +710,21 @@ def _reconcile(
         frappe.flags.mute_messages = muted
 
 
+def _cap_allocation(reconciliation, limit: float) -> None:
+    """Recorta las asignaciones para que sumen exactamente `limit`."""
+    remaining: float = flt(limit, 2)
+    kept: list = []
+    for row in reconciliation.allocation:
+        if remaining <= 0:
+            break
+        row.allocated_amount = min(flt(row.allocated_amount, 2), remaining)
+        remaining = flt(remaining - row.allocated_amount, 2)
+        kept.append(row)
+    reconciliation.allocation = kept
+    for index, row in enumerate(reconciliation.allocation, start=1):
+        row.idx = index
+
+
 def _verify(company: str, party: str, advance_account: str) -> None:
     """Después de corregir, los documentos tienen que decir lo mismo que el mayor."""
     offered = _offered_by_party([advance_account], company, party).get(
@@ -676,6 +736,7 @@ def _verify(company: str, party: str, advance_account: str) -> None:
     if flt(offered, 2) != flt(balance, 2):
         frappe.throw(
             _(
-                "Después de corregir, los cobros de {0} ofrecen {1} y el mayor dice {2}. No se registró nada."
+                "Después de corregir, los cobros de {0} ofrecen {1} y el mayor dice {2}. No se "
+                "registró nada."
             ).format(party, _money(offered, company), _money(balance, company))
         )

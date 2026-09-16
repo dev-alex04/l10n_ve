@@ -316,6 +316,8 @@ function render_custom_account_summary(frm) {
         } else {
           frm.dashboard.add_section($section);
         }
+
+        render_refund_audit_banner(frm, $section);
       }
     }
   });
@@ -610,4 +612,61 @@ function show_refund_audit_dialog(frm, caso) {
         }
       );
     });
+}
+
+/**
+ * Barra dentro del resumen de cuenta: avisa cuando los cobros del cliente ofrecen un anticipo
+ * que ya se le devolvió, y trae el botón para corregirlo ahí mismo. Solo aparece cuando hay
+ * algo que corregir, así que en un cliente sano no se ve nada.
+ *
+ * @param {object} frm - Instancia del formulario Customer
+ * @param {object} $section - La sección del resumen, ya insertada
+ */
+function render_refund_audit_banner(frm, $section) {
+  const roles = ["Accounts Manager", "Accounts User", "ISP Finance Pro", "System Manager"];
+  if (!roles.some((rol) => frappe.user_roles.includes(rol))) {
+    return;
+  }
+
+  frappe.call({
+    method: "l10n_ve.overrides.advance_refund_audit.scan",
+    args: {
+      company: frm.doc.represents_company || frappe.defaults.get_user_default("Company"),
+      party: frm.doc.name,
+    },
+    callback(r) {
+      const caso = (r.message || [])[0];
+      if (!caso) {
+        return;
+      }
+
+      const resumen = __("Sus cobros ofrecen {0} y el mayor dice {1}.", [
+        format_currency(caso.offered),
+        format_currency(caso.ledger),
+      ]);
+      const detalle = caso.problem
+        ? `<div style="margin-top: 4px; color: #8d99a6;">${frappe.utils.escape_html(caso.problem)}</div>`
+        : "";
+      const boton = caso.problem
+        ? ""
+        : `<button class="btn btn-sm btn-primary refund-audit-fix" style="white-space: nowrap;">${__(
+            "Corregir"
+          )}</button>`;
+
+      const $aviso = $(`
+        <div style="display: flex; gap: 12px; align-items: center; justify-content: space-between;
+          font-size: 11px; color: #6f7c87; background: #fdf2e9; padding: 8px 12px; border-radius: 4px;
+          border: 1px solid #f5cba7; border-left: 3px solid #e67e22; margin-bottom: 15px;">
+          <div>
+            <i class="fa fa-exclamation-circle" style="color: #e67e22; margin-right: 5px;"></i>
+            <strong>${__("Reembolso sin enlazar")}:</strong> ${resumen}
+            ${detalle}
+          </div>
+          ${boton}
+        </div>
+      `);
+      $aviso.find(".refund-audit-fix").on("click", () => show_refund_audit_dialog(frm, caso));
+      $section.find("h5").after($aviso);
+    },
+  });
 }

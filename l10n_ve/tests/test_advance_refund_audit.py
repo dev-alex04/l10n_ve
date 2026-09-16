@@ -43,7 +43,7 @@ class TestLaClasificacionDelCaso(unittest.TestCase):
 
     clave = ("Empresa", "CLIENTE", "2104001 - Anticipo")
 
-    def _caso(self, refunds, ofrecen, mayor, undo=None, pago=None):
+    def _caso(self, refunds, ofrecen, mayor, undo=None):
         with (
             patch(
                 "l10n_ve.overrides.advance_refund_audit._refunds", return_value=refunds
@@ -51,10 +51,6 @@ class TestLaClasificacionDelCaso(unittest.TestCase):
             patch(
                 "l10n_ve.overrides.advance_refund_audit._allocation_to_undo",
                 return_value=undo,
-            ),
-            patch(
-                "l10n_ve.overrides.advance_refund_audit._payment_for_invoice",
-                return_value=pago,
             ),
         ):
             return _build_case(self.clave, ofrecen, mayor)
@@ -80,9 +76,18 @@ class TestLaClasificacionDelCaso(unittest.TestCase):
         self.assertEqual(flt(caso.difference, 2), 100.0)
 
     def test_la_deuda_escondida_necesita_deshacer_una_aplicacion(self):
-        undo = frappe._dict(
-            payment_entry="ACC-PAY-1", sales_invoice="ACC-SINV-1", amount=60.0
-        )
+        undo = {
+            "applications": [
+                {
+                    "payment_entry": "ACC-PAY-1",
+                    "sales_invoice": "ACC-SINV-1",
+                    "amount": 60.0,
+                }
+            ],
+            "invoice": "ACC-SINV-1",
+            "undone": 60.0,
+            "surplus": 0.0,
+        }
         caso = self._caso(
             [frappe._dict(name="JV-1", amount=100.0, problem=None)],
             40.0,
@@ -92,14 +97,14 @@ class TestLaClasificacionDelCaso(unittest.TestCase):
         self.assertIsNone(caso.problem)
         self.assertEqual(caso.undo, undo)
 
-    def test_si_no_hay_una_aplicacion_exacta_se_revisa(self):
+    def test_si_ninguna_aplicacion_alcanza_se_revisa(self):
         caso = self._caso(
             [frappe._dict(name="JV-1", amount=100.0, problem=None)],
             40.0,
             -60.0,
             undo=None,
         )
-        self.assertIn("Ninguna aplicación", caso.problem)
+        self.assertIn("que alcance", caso.problem)
 
     def test_el_problema_del_reembolso_manda(self):
         """Si el «Pago» está contra un depósito, no se corrige aunque las cuentas cuadren."""
