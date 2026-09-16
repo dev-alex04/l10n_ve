@@ -119,6 +119,33 @@ def has_active_digital_series(company: str, branch: str | None) -> bool:
     return bool(row)
 
 
+def company_uses_hk(company: str | None = None) -> bool:
+    """¿Esta empresa emite con The Factory HKA (TFHKA / HK)?
+
+    Solo hay dos causas legítimas de "no": la facturación digital está apagada en el sitio,
+    o la empresa no tiene ninguna Serie de Facturación Digital activa.
+
+    A propósito NO mira la sucursal. Una sucursal sin serie es configuración rota, no una
+    empresa que no usa HKA: si entrara por acá, el comprobante quedaría marcado como éxito
+    sin haberse emitido nunca. Ese caso tiene que seguir cayendo en la validación de
+    integridad, que deja estado Error y log.
+    """
+    try:
+        enabled = cint(frappe.db.get_single_value("TFHKA Settings", "enabled"))
+    except Exception:
+        return False
+
+    if not enabled:
+        return False
+
+    if company and not frappe.db.exists(
+        "VE Digital Billing Series", {"company": company, "status": "Active"}
+    ):
+        return False
+
+    return True
+
+
 def is_hk_enabled_for_company(company: str | None = None, branch: str | None = None) -> bool:
     """Verifica si la integración con The Factory HKA (TFHKA / HK) está habilitada y configurada.
 

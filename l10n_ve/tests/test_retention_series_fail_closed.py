@@ -252,8 +252,13 @@ class TestProcessRetentionVoucherGate(FrappeTestCase):
         # TFHKA prendido, explícito: apagado hay un early-return legítimo que marca
         # "Not Applicable" y ni llega a validar. Leerlo del sitio ata el test a la
         # configuración --en un sitio nuevo viene en 0 y el gate no se ejercita.
+        # La empresa emite con HKA, explícito: el guard consulta series en la base y acá la
+        # empresa es un MagicMock. El import dentro de process_retention_voucher es diferido,
+        # así que se parchea en el módulo de origen.
         with patch("frappe.get_doc", return_value=fake_doc), \
              patch.object(frappe.db, "get_single_value", return_value=1), \
+             patch("l10n_ve.digital_invoice.tfhka_integration.company_uses_hk",
+                   return_value=True), \
              patch(f"{self._MOD}._validate_retention_integrity",
                    return_value=[_NO_SERIES_MSG]) as mock_validate, \
              patch(f"{self._MOD}._log_retention_request") as mock_log, \
