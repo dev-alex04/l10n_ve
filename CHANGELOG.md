@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.69.1] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la lógica del guard de HKA para que valide la configuración a nivel de empresa en lugar de sucursal. [93a7e9cc](93a7e9cc)
+- Se ajustó la importación del guard dentro de la función de retenciones ISLR para asegurar su correcta disponibilidad en tiempo de ejecución. [70704bc1](70704bc1)
+
+---
+
 ## [v2.69.0] - 2026-09-16
 
 ### ✨ Funcionalidades (Features)
