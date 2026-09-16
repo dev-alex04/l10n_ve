@@ -41,6 +41,7 @@ app_include_js = [
     "/assets/l10n_ve/js/report/accounts_payable.js",
     "/assets/l10n_ve/js/utils/timestamp_formatter.js",
     "/assets/l10n_ve/js/utils/brand_logo.js",
+    "/assets/l10n_ve/js/utils/ve_main_branch_default.js",
 ]
 
 # Apps

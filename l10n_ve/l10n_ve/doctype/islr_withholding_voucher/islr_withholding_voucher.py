@@ -515,15 +515,20 @@ def make_islr_withholding_voucher(source_name: str, source_doctype: str = "Purch
               "(botón 'Agregar ISLR' en la factura antes de validarla).")
         )
 
-    # Fail-closed TEMPRANO: sin serie digital activa para la sucursal se aborta
-    # ANTES de crear el comprobante — no consumir correlativo de la Company ni
-    # dejar un comprobante aprobado atascado en Error reintentándose en el cron.
-    from l10n_ve.digital_invoice.retention_integration import _validate_digital_series
-    series_errors = _validate_digital_series(
-        frappe._dict(empresa=invoice.company, branch=invoice.get("branch") or "")
-    )
-    if series_errors:
-        frappe.throw(series_errors[0], title=_("Serie de Facturación No Encontrada"))
+    # Fail-closed TEMPRANO: si HKA está habilitado globalmente, sin serie digital activa
+    # para la sucursal se aborta ANTES de crear el comprobante — no consumir correlativo
+    # de la Company ni dejar un comprobante aprobado atascado en Error reintentándose en
+    # el cron. No usar `is_hk_enabled_for_company`: ya exige que la sucursal tenga serie
+    # activa, así que envolver la validación en ese chequeo la vuelve inalcanzable justo
+    # para la sucursal sin serie, que es el caso que debe abortar.
+    from frappe.utils import cint
+    if cint(frappe.db.get_single_value("TFHKA Settings", "enabled")):
+        from l10n_ve.digital_invoice.retention_integration import _validate_digital_series
+        series_errors = _validate_digital_series(
+            frappe._dict(empresa=invoice.company, branch=invoice.get("branch") or "")
+        )
+        if series_errors:
+            frappe.throw(series_errors[0], title=_("Serie de Facturación No Encontrada"))
 
     doc = frappe.new_doc("ISLR Withholding Voucher")
     doc.empresa = invoice.company

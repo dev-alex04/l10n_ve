@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.69.2] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió el cálculo del total en los comprobantes de retención de IVA; ahora se utiliza el monto bruto de la factura sin aplicar la deducción del ISLR. [c444df4f]
+
+---
+
+## [v2.69.1] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la lógica del guard de HKA para que valide la configuración a nivel de empresa en lugar de sucursal. [93a7e9cc](93a7e9cc)
+- Se ajustó la importación del guard dentro de la función de retenciones ISLR para asegurar su correcta disponibilidad en tiempo de ejecución. [70704bc1](70704bc1)
+
+---
+
+## [v2.69.0] - 2026-09-16
+
+### ✨ Funcionalidades (Features)
+- Ahora cada compañía se crea automáticamente con una sucursal principal vinculada, la cual es sugerida por defecto en los formularios del sistema. acb36977
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el formulario de sucursales que permitía interacciones inválidas cuando no existía una sucursal principal definida. bf1dfd23
+
+---
+
+## [v2.68.0] - 2026-09-15
+
+### ✨ Funcionalidades (Features)
+- Se implementó la omisión condicional del envío de retenciones al proveedor fiscal TFHKA. Ahora el sistema valida dinámicamente si la empresa cuenta con la habilitación correspondiente antes de procesar el envío. [b2bdbe28]
+
+---
+
+## [v2.67.0] - 2026-09-15
+
+### ✨ Funcionalidades (Features)
+- Implementación de filtrado jerárquico para sucursales: ahora el sistema permite obtener resultados consolidados de sucursales hijas de forma automática al seleccionar una sucursal de nivel superior (padre). (a0487bc4)
+
+### 🐛 Correcciones (Fixes)
+- Refactorización de la lógica de consultas para eliminar el uso de operadores `IN` y `LIKE`, ajustando la precisión del filtrado según los requerimientos técnicos. (b34162ab)
+
+---
+
 ## [v2.66.5] - 2026-09-13
 
 ### 🐛 Correcciones (Fixes)

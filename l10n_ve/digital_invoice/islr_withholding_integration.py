@@ -107,6 +107,20 @@ def process_islr_voucher(
     """
     doc = frappe.get_doc(_ISLR_DOCTYPE, voucher_name)
 
+    # Guarda condicional: si la empresa no emite con HKA --el sitio lo tiene apagado, o la
+    # empresa no tiene ninguna serie digital activa-- se omite el envío sin error. Mira la
+    # EMPRESA, no la sucursal: una sucursal sin serie es configuración rota y tiene que caer
+    # en la validación de integridad de abajo, que deja estado Error y log.
+    from l10n_ve.digital_invoice.tfhka_integration import company_uses_hk
+
+    if not company_uses_hk(doc.empresa):
+        if doc.digital_invoice_status != "Not Applicable":
+            doc.db_set("digital_invoice_status", "Not Applicable")
+        frappe.logger("tfhka").info(
+            f"Omite envío a HKA/HK para comprobante ISLR {voucher_name}: la empresa '{doc.empresa}' no emite con HKA."
+        )
+        return True
+
     # Validar integridad
     validation_errors: list[str] = _validate_islr_integrity(doc)
     if validation_errors:

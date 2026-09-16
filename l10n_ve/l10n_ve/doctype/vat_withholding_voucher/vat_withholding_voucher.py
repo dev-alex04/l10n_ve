@@ -463,6 +463,13 @@ def _build_invoice_row(
     is_nc: bool = doc_type == "VE Purchase Credit Note"
     is_nd: bool = doc_type == "VE Purchase Debit Note"
 
+    # El total de la línea es el BRUTO de la factura: base + IVA. No se deriva de
+    # base_grand_total, que en una factura de compra ya viene neto de TODAS las retenciones
+    # (ver overrides/purchase_invoice.py::_grand_total_includes_withholding). Restituirle solo
+    # la de IVA dejaba el total corto exactamente en el ISLR: el comprobante impreso mostraba
+    # 13.144.929,48 donde el detalle decía 13.375.542,28 (caso VNET, 16-sep-2026). El detalle
+    # del payload de HKA ya suma base + exento + IVA, así que esta es la misma cuenta y las
+    # dos filas cierran entre sí.
     taxable_base = abs((inv.base_total or 0) - total_exempt)
     gross_total = abs(inv.base_total or 0) + abs(vat_details.get("base_tax_amount", 0))
 
@@ -472,8 +479,8 @@ def _build_invoice_row(
         "bill_no": inv.bill_no,
         "bill_control": inv.bill_control,
         "posting_date": inv.bill_date or inv.posting_date,
-        "grand_total": abs(inv.base_grand_total or 0) + abs(wh_details.get("base_tax_amount", 0)),
-        "total": abs((inv.base_total or 0) - total_exempt),
+        "grand_total": gross_total,
+        "total": taxable_base,
         "total_exempt": abs(total_exempt),
         "taxes_and_charges_added": abs(vat_details.get("base_tax_amount", 0)),
         # NC: credit_note_no = bill_no para diferenciación en totales y reporte
@@ -574,15 +581,20 @@ def make_vat_withholding_voucher(source_name: str, source_doctype: str = "Purcha
               "(fila 'VAT Withholding' en la tabla de impuestos).")
         )
 
-    # Fail-closed TEMPRANO: sin serie digital activa para la sucursal se aborta
-    # ANTES de crear el comprobante — no consumir correlativo de la Company ni
-    # dejar un comprobante aprobado atascado en Error reintentándose en el cron.
-    from l10n_ve.digital_invoice.retention_integration import _validate_digital_series
-    series_errors = _validate_digital_series(
-        frappe._dict(empresa=invoice.company, branch=invoice.get("branch") or "")
-    )
-    if series_errors:
-        frappe.throw(series_errors[0], title=_("Serie de Facturación No Encontrada"))
+    # Fail-closed TEMPRANO: si HKA está habilitado globalmente, sin serie digital activa
+    # para la sucursal se aborta ANTES de crear el comprobante — no consumir correlativo
+    # de la Company ni dejar un comprobante aprobado atascado en Error reintentándose en
+    # el cron. No usar `is_hk_enabled_for_company`: ya exige que la sucursal tenga serie
+    # activa, así que envolver la validación en ese chequeo la vuelve inalcanzable justo
+    # para la sucursal sin serie, que es el caso que debe abortar.
+    from frappe.utils import cint
+    if cint(frappe.db.get_single_value("TFHKA Settings", "enabled")):
+        from l10n_ve.digital_invoice.retention_integration import _validate_digital_series
+        series_errors = _validate_digital_series(
+            frappe._dict(empresa=invoice.company, branch=invoice.get("branch") or "")
+        )
+        if series_errors:
+            frappe.throw(series_errors[0], title=_("Serie de Facturación No Encontrada"))
 
     doc = frappe.new_doc("VAT Withholding Voucher")
     doc.empresa = invoice.company

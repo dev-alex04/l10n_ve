@@ -181,7 +181,10 @@ class TestMakeVatWithholdingVoucher(FrappeTestCase):
         aprobado y atascado en Error). El guard real lanza sin tocar la BD."""
         invoice = _fake_purchase_invoice(branch=None)
         inserted: dict = {}
+        # TFHKA prendido, explícito: el pre-check solo corre si la facturación digital está
+        # encendida en el sitio. Leerlo del sitio ata el test a la configuración.
         with _patch_get_doc(invoice), _patch_insert(inserted), \
+             patch.object(frappe.db, "get_single_value", return_value=1), \
              patch(f"{_VAT_MOD}._find_voucher_containing_invoice", return_value=None), \
              patch(f"{_VAT_MOD}.get_valid_invoices", return_value=[_vat_row()]):
             with self.assertRaises(frappe.ValidationError) as ctx:
