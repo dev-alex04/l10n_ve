@@ -18,10 +18,11 @@ import unittest
 from unittest.mock import patch
 
 import frappe
-from frappe.utils import flt, getdate, nowdate
+from frappe.utils import add_days, flt, getdate, nowdate
 
 from l10n_ve.overrides.advance_refund import (
     REFUND_DIRECTION,
+    _refund_dimensions,
     build_refund_rows,
     create_advance_refund,
 )
@@ -81,6 +82,57 @@ class TestLasFilasDelAsiento(unittest.TestCase):
             REFUND_DIRECTION,
             {("Customer", "Receive"): "out", ("Supplier", "Pay"): "in"},
         )
+
+
+class TestLasDimensionesDelAsiento(unittest.TestCase):
+    """De dónde salen la sucursal y el centro de costo de las filas del asiento."""
+
+    def test_los_toma_del_pago_cuando_los_trae(self):
+        pe = frappe._dict(branch="MIR-04", cost_center="MIR-04", references=[])
+        with (
+            patch.object(frappe.local.db, "has_column", return_value=True),
+            patch.object(frappe.local.db, "get_value") as get_value,
+        ):
+            self.assertEqual(
+                _refund_dimensions(pe), {"cost_center": "MIR-04", "branch": "MIR-04"}
+            )
+            get_value.assert_not_called()
+
+    def test_sin_sucursal_la_busca_en_la_factura_que_salda(self):
+        """En Galanet hay 96 cobros y pagos validados sin sucursal ni centro de costo."""
+        pe = frappe._dict(
+            branch=None,
+            cost_center=None,
+            references=[
+                frappe._dict(reference_doctype="Journal Entry", reference_name="JV-1"),
+                frappe._dict(reference_doctype="Sales Invoice", reference_name="SI-1"),
+            ],
+        )
+        valores = {
+            ("Sales Invoice", "SI-1", "branch"): "DC-01",
+            ("VE Branch", "DC-01", "cost_center"): "DC-01",
+        }
+        with (
+            patch.object(frappe.local.db, "has_column", return_value=True),
+            patch.object(
+                frappe.local.db,
+                "get_value",
+                side_effect=lambda doctype, name, campo: valores[
+                    (doctype, name, campo)
+                ],
+            ),
+        ):
+            self.assertEqual(
+                _refund_dimensions(pe), {"cost_center": "DC-01", "branch": "DC-01"}
+            )
+
+    def test_si_no_hay_de_donde_sacarlas_no_las_inventa(self):
+        pe = frappe._dict(branch=None, cost_center=None, references=[])
+        with (
+            patch.object(frappe.local.db, "has_column", return_value=True),
+            patch.object(frappe.local.db, "get_value", return_value=None),
+        ):
+            self.assertEqual(_refund_dimensions(pe), {})
 
 
 class _ContraLaBase:
@@ -176,6 +228,19 @@ class _ContraLaBase:
     def test_no_deja_reembolsar_mas_de_lo_sin_aplicar(self):
         with self.assertRaises(frappe.ValidationError):
             self._refund(flt(self.pe.unallocated_amount) + 1)
+
+    def test_no_deja_reembolsar_con_fecha_futura(self):
+        """El techo es hoy o la fecha del pago, lo que sea mayor: hay pagos cargados con
+        fecha futura por error y su reembolso tiene que poder registrarse igual."""
+        techo = max(getdate(nowdate()), getdate(self.pe.posting_date))
+        with self.assertRaises(frappe.ValidationError):
+            create_advance_refund(
+                self.pe.name,
+                1.0,
+                self._cash_account(),
+                str(add_days(techo, 1)),
+                reference_no="PRUEBA1234",
+            )
 
     def test_la_cuenta_tiene_que_ser_de_banco_o_caja(self):
         with self.assertRaises(frappe.ValidationError):

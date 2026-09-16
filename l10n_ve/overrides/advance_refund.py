@@ -28,7 +28,7 @@ from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 )
 from erpnext.accounts.party import get_party_account
 from frappe import _
-from frappe.utils import cint, flt, fmt_money, get_link_to_form, getdate
+from frappe.utils import cint, flt, fmt_money, get_link_to_form, getdate, nowdate
 
 # (tipo de tercero, tipo de pago) -> sentido del dinero en el reembolso
 REFUND_DIRECTION: dict[tuple[str, str], str] = {
@@ -108,6 +108,15 @@ def create_advance_refund(
         frappe.throw(
             _("El reembolso no puede ser anterior al pago ({0}).").format(
                 frappe.format(pe.posting_date, {"fieldtype": "Date"})
+            )
+        )
+    # El techo es hoy, salvo que el propio pago esté fechado más adelante: hay pagos
+    # cargados con fecha futura por error y su reembolso no puede ser anterior a ellos.
+    latest = max(getdate(nowdate()), getdate(pe.posting_date))
+    if posting_date > latest:
+        frappe.throw(
+            _("El reembolso no puede ser posterior a {0}.").format(
+                frappe.format(latest, {"fieldtype": "Date"})
             )
         )
 
@@ -250,6 +259,42 @@ def _party_accounts(pe) -> tuple[str, str | None]:
     return party_account, advance_account
 
 
+def _branch_from_invoices(pe) -> str | None:
+    """Sucursal de la primera factura de venta que salda el pago.
+
+    Es la misma regla que aplica ``set_ve_branch`` cuando el cobro llega sin sucursal.
+    """
+    for reference in pe.get("references") or []:
+        if reference.reference_doctype == "Sales Invoice" and reference.reference_name:
+            branch = frappe.db.get_value(
+                "Sales Invoice", reference.reference_name, "branch"
+            )
+            if branch:
+                return branch
+    return None
+
+
+def _refund_dimensions(pe) -> dict:
+    """Sucursal y centro de costo para las filas del asiento del reembolso.
+
+    Salen del pago. Cuando el pago no los trae -- en Galanet hay 96 cobros y pagos validados
+    sin ninguno de los dos --, la sucursal se busca en la factura que ese pago salda y el
+    centro de costo se deriva de esa sucursal. La cuenta del banco no sirve para esto: no
+    guarda a qué sucursal pertenece.
+    """
+    branch: str | None = pe.get("branch") or _branch_from_invoices(pe)
+    cost_center: str | None = pe.cost_center
+    if not cost_center and branch:
+        cost_center = frappe.db.get_value("VE Branch", branch, "cost_center")
+
+    dimensions: dict = {}
+    if cost_center:
+        dimensions["cost_center"] = cost_center
+    if branch and frappe.db.has_column("Journal Entry Account", "branch"):
+        dimensions["branch"] = branch
+    return dimensions
+
+
 def _make_refund_entry(
     pe,
     direction: str,
@@ -261,10 +306,8 @@ def _make_refund_entry(
     reference_no: str,
     is_batch_payment: int,
 ):
-    """Crea y envía el asiento del reembolso, con la sucursal y el centro de costo del pago."""
-    dimensions: dict = {"cost_center": pe.cost_center}
-    if pe.get("branch") and frappe.db.has_column("Journal Entry Account", "branch"):
-        dimensions["branch"] = pe.branch
+    """Crea y envía el asiento del reembolso, con su sucursal y su centro de costo."""
+    dimensions: dict = _refund_dimensions(pe)
     for dimension in get_dimensions()[0]:
         if pe.get(dimension.fieldname):
             dimensions[dimension.fieldname] = pe.get(dimension.fieldname)

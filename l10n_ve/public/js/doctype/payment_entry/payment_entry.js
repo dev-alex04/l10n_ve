@@ -1171,6 +1171,7 @@ function open_advance_refund_dialog(frm, to_customer) {
             account_currency: currency,
           },
         }),
+        onchange: () => refresh_reference_requirement(dialog),
       },
       {
         fieldname: "posting_date",
@@ -1201,6 +1202,47 @@ function open_advance_refund_dialog(frm, to_customer) {
       ? __("Reembolsar")
       : __("Registrar reembolso"),
     primary_action(values) {
+      const problems = [];
+      const amount = flt(values.amount);
+      if (amount <= 0) {
+        problems.push(__("El monto debe ser mayor que cero."));
+      } else if (amount - available > 0.005) {
+        problems.push(
+          __("El monto no puede superar lo que este pago tiene sin aplicar: {0}.", [
+            format_currency(available, currency),
+          ])
+        );
+      }
+      if (values.posting_date < frm.doc.posting_date) {
+        problems.push(
+          __("La fecha no puede ser anterior a la del pago ({0}).", [
+            frappe.datetime.str_to_user(frm.doc.posting_date),
+          ])
+        );
+      }
+      const latest =
+        frm.doc.posting_date > frappe.datetime.get_today()
+          ? frm.doc.posting_date
+          : frappe.datetime.get_today();
+      if (values.posting_date > latest) {
+        problems.push(
+          __("La fecha no puede ser posterior a {0}.", [
+            frappe.datetime.str_to_user(latest),
+          ])
+        );
+      }
+      if (dialog.account_type === "Bank" && !(values.reference_no || "").trim()) {
+        problems.push(__("Indique el número de referencia de la transferencia."));
+      }
+      if (problems.length) {
+        frappe.msgprint({
+          title: __("Revise el reembolso"),
+          message: problems.join("<br>"),
+          indicator: "red",
+        });
+        return;
+      }
+
       frappe.call({
         method: "l10n_ve.overrides.advance_refund.create_advance_refund",
         args: {
@@ -1229,5 +1271,30 @@ function open_advance_refund_dialog(frm, to_customer) {
       });
     },
   });
+  refresh_reference_requirement(dialog);
   dialog.show();
+}
+
+/**
+ * Recuerda el tipo de la cuenta elegida y marca la referencia como obligatoria cuando es de
+ * banco. Así el diálogo avisa antes de llamar al servidor, que igual lo vuelve a validar.
+ *
+ * @param {object} dialog - Diálogo del reembolso
+ */
+function refresh_reference_requirement(dialog) {
+  const account = dialog.get_value("account");
+  if (!account) {
+    dialog.account_type = null;
+    dialog.set_df_property("reference_no", "reqd", 0);
+    return;
+  }
+
+  frappe.db.get_value("Account", account, "account_type").then((r) => {
+    dialog.account_type = (r.message || {}).account_type || null;
+    dialog.set_df_property(
+      "reference_no",
+      "reqd",
+      dialog.account_type === "Bank" ? 1 : 0
+    );
+  });
 }
