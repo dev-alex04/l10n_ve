@@ -183,6 +183,7 @@ class TestProcessISLRVoucher(FrappeTestCase):
 
         self.assertTrue(result)
 
+    @patch("l10n_ve.digital_invoice.islr_withholding_integration.company_uses_hk", return_value=True)
     @patch("l10n_ve.digital_invoice.islr_withholding_integration._log_retention_request")
     @patch("l10n_ve.digital_invoice.islr_withholding_integration._validate_islr_integrity")
     @patch("frappe.get_doc")
@@ -193,6 +194,7 @@ class TestProcessISLRVoucher(FrappeTestCase):
         mock_get_doc: MagicMock,
         mock_validate: MagicMock,
         mock_log: MagicMock,
+        _mock_uses_hk: MagicMock,
     ) -> None:
         """Validación pre-envío falla → retorna False + status Error."""
         mock_doc = _make_islr_doc()
@@ -205,6 +207,7 @@ class TestProcessISLRVoucher(FrappeTestCase):
         self.assertFalse(result)
         mock_doc.db_set.assert_called_with("digital_invoice_status", "Error")
 
+    @patch("l10n_ve.digital_invoice.islr_withholding_integration.company_uses_hk", return_value=True)
     @patch("l10n_ve.digital_invoice.islr_withholding_integration._log_retention_request")
     @patch("l10n_ve.digital_invoice.islr_withholding_integration.TFHKAClient")
     @patch("l10n_ve.digital_invoice.islr_withholding_integration.TFHKAISLRPayloadBuilder")
@@ -219,6 +222,7 @@ class TestProcessISLRVoucher(FrappeTestCase):
         mock_builder_cls: MagicMock,
         mock_client_cls: MagicMock,
         mock_log: MagicMock,
+        _mock_uses_hk: MagicMock,
     ) -> None:
         """Error de conexión con TFHKA → retorna False + status Error."""
         mock_doc = _make_islr_doc()
