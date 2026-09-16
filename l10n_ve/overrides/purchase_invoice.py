@@ -1691,21 +1691,25 @@ def _validate_no_live_withholding_voucher(invoice_name: str, withholding_type: s
     cancela; recién entonces la retención se puede tocar.
     """
     doctype: str = _PURCHASE_WITHHOLDING_VOUCHER[withholding_type]
-    vivos: list[dict] = frappe.db.sql(
-        f"""
-        SELECT item.parent AS voucher, padre.docstatus
-        FROM `tab{doctype} Item` AS item
-        INNER JOIN `tab{doctype}` AS padre ON padre.name = item.parent
-        WHERE item.purchase_invoice = %s AND padre.docstatus < 2
-        """,
-        invoice_name,
-        as_dict=True,
+
+    candidatos: list[str] = frappe.get_all(
+        f"{doctype} Item",
+        filters={"purchase_invoice": invoice_name},
+        pluck="parent",
+    )
+    if not candidatos:
+        return
+
+    vivos: list[str] = frappe.get_all(
+        doctype,
+        filters={"name": ["in", candidatos], "docstatus": ["<", 2]},
+        pluck="name",
     )
     if vivos:
         frappe.throw(
             _("La factura {0} tiene el comprobante de retención {1} sin cancelar. "
               "Anúlelo en la imprenta fiscal y cancélelo antes de quitar la retención.").format(
-                  frappe.bold(invoice_name), frappe.bold(vivos[0]["voucher"])
+                  frappe.bold(invoice_name), frappe.bold(vivos[0])
             ),
             title=_("Comprobante Vivo"),
         )
@@ -1866,7 +1870,17 @@ def remove_retroactive_purchase_withholding(
 
     company_currency: str = frappe.get_cached_value("Company", invoice.company, "default_currency")
     invoice_currency: str = invoice.currency or company_currency
-    conversion_rate: float = flt(invoice.conversion_rate) or 1.0
+
+    # La tasa NO lleva default: un `or 1` afirma que dos monedas valen igual sobre un monto
+    # que se declara. Si la factura está en divisa y no la trae, se corta (ver AGENTS.md).
+    conversion_rate: float = 1.0
+    if invoice_currency != company_currency:
+        conversion_rate = flt(invoice.conversion_rate)
+        if not conversion_rate:
+            frappe.throw(
+                _("La factura {0} está en moneda extranjera ({1}) pero no tiene una "
+                  "tasa de conversión válida.").format(invoice.name, invoice_currency)
+            )
 
     asientos: list[str] = []
     for fila in filas:

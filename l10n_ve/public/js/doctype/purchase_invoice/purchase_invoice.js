@@ -940,12 +940,11 @@ function remove_purchase_withholding(frm, withholding_type) {
     .reduce((acc, t) => acc + flt(t.tax_amount), 0);
 
   frappe.confirm(
-    __(
-      "Se va a quitar la retención de {0} por {1} de la factura {2}.<br><br>" +
-        "Se asienta el reverso y ese monto vuelve a deberse al proveedor. " +
-        "La otra retención no se toca.<br><br>¿Continuar?",
-      [etiqueta, format_currency(monto, frm.doc.currency), frm.doc.name],
-    ),
+    __("Se va a quitar la retención de {0} por {1} de la factura {2}. Se asienta el reverso y ese monto vuelve a deberse al proveedor. La otra retención no se toca. ¿Continuar?", [
+      etiqueta,
+      format_currency(monto, frm.doc.currency),
+      frm.doc.name,
+    ]),
     () => {
       frappe.dom.freeze(__("Quitando la retención y asentando el reverso..."));
       frappe.call({

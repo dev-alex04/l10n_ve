@@ -26,36 +26,47 @@ from l10n_ve.overrides.purchase_invoice import (
 )
 
 _FACTURA = "ACC-PINV-2026-99999"
-_SQL = "frappe.db.sql"
+_GET_ALL = "frappe.get_all"
+_COMPROBANTE = "COMP-RET-IVA-2026-00380"
 
 
 class TestGuardaComprobanteVivo(FrappeTestCase):
+    """La guarda consulta dos veces: los comprobantes que citan la factura, y cuáles siguen vivos."""
 
     def test_corta_si_el_comprobante_sigue_vivo(self) -> None:
-        vivo = [{"voucher": "COMP-RET-IVA-2026-00380", "docstatus": 1}]
-        with patch(_SQL, return_value=vivo), self.assertRaises(frappe.ValidationError) as ctx:
+        consultas = [[_COMPROBANTE], [_COMPROBANTE]]
+        with patch(_GET_ALL, side_effect=consultas), \
+                self.assertRaises(frappe.ValidationError) as ctx:
             _validate_no_live_withholding_voucher(_FACTURA, "VAT")
 
-        self.assertIn("COMP-RET-IVA-2026-00380", str(ctx.exception))
+        self.assertIn(_COMPROBANTE, str(ctx.exception))
 
-    def test_pasa_si_no_queda_ningun_comprobante_vivo(self) -> None:
-        """Un comprobante cancelado (docstatus 2) no bloquea: la consulta no lo devuelve."""
-        with patch(_SQL, return_value=[]):
+    def test_pasa_si_el_comprobante_esta_cancelado(self) -> None:
+        """Lo cita un comprobante, pero está cancelado: la segunda consulta vuelve vacía."""
+        with patch(_GET_ALL, side_effect=[[_COMPROBANTE], []]):
             _validate_no_live_withholding_voucher(_FACTURA, "ISLR")
+
+    def test_pasa_si_ningun_comprobante_la_cita(self) -> None:
+        """Sin comprobantes no hay segunda consulta: sale de una."""
+        with patch(_GET_ALL, side_effect=[[]]) as mock_get_all:
+            _validate_no_live_withholding_voucher(_FACTURA, "ISLR")
+
+        self.assertEqual(mock_get_all.call_count, 1)
 
     def test_cada_retencion_mira_su_propio_comprobante(self) -> None:
         """El IVA no se bloquea por un comprobante de ISLR ni al revés."""
         self.assertEqual(_PURCHASE_WITHHOLDING_VOUCHER["VAT"], "VAT Withholding Voucher")
         self.assertEqual(_PURCHASE_WITHHOLDING_VOUCHER["ISLR"], "ISLR Withholding Voucher")
 
-    def test_la_consulta_solo_trae_comprobantes_sin_cancelar(self) -> None:
-        """La condición docstatus < 2 vive en el SQL: si se cae, la guarda deja de servir."""
-        with patch(_SQL, return_value=[]) as mock_sql:
+    def test_solo_cuentan_los_comprobantes_sin_cancelar(self) -> None:
+        """El filtro docstatus < 2 es la guarda: si se cae, un comprobante vivo pasaría."""
+        with patch(_GET_ALL, side_effect=[[_COMPROBANTE], []]) as mock_get_all:
             _validate_no_live_withholding_voucher(_FACTURA, "ISLR")
 
-        consulta = mock_sql.call_args[0][0]
-        self.assertIn("docstatus < 2", consulta)
-        self.assertIn("ISLR Withholding Voucher", consulta)
+        doctype = mock_get_all.call_args_list[1][0][0]
+        filtros = mock_get_all.call_args_list[1][1]["filters"]
+        self.assertEqual(doctype, "ISLR Withholding Voucher")
+        self.assertEqual(filtros["docstatus"], ["<", 2])
 
 
 class TestValidacionesDeEntrada(FrappeTestCase):
