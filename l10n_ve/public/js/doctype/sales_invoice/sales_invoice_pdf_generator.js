@@ -1,5 +1,15 @@
 // Funciones de ayuda
-function format_currency(value, currency) {
+//
+// OJO con el nombre: mientras esta función se llamó `format_currency` a secas, tapaba a la de
+// Frappe en TODO el formulario de la Factura de Venta --los dos archivos comparten el ámbito
+// global-- y no devuelve lo mismo: `frappe.format` con fieldtype Currency devuelve HTML
+// (`<div style="text-align: right">`), que dentro del PDF es justo lo que se quiere y dentro de
+// un `frappe.confirm` parte el mensaje en dos y manda el monto solo, alineado a la derecha.
+// Así se veían el diálogo de «Quitar Retención» y el de «Exceso de Monto» (17-sep-2026).
+//
+// El sufijo `_html` es el recordatorio de qué devuelve: para un mensaje, `format_currency` de
+// Frappe, que da texto plano.
+function format_currency_html(value, currency) {
   return frappe.format(value, { fieldtype: "Currency", currency: currency });
 }
 
@@ -162,15 +172,15 @@ async function generate_custom_invoice_preview(frm) {
                 <td>${index + 1}</td>
                 <td class="item-description">${item.item_name}</td>
                 <td class="text-right item-qty">${item.qty}</td>
-                <td class="text-right item-price">${format_currency(
+                <td class="text-right item-price">${format_currency_html(
                   unit_price,
                   display_currency
                 )}</td>
-                <td class="text-right item-discount">${format_currency(
+                <td class="text-right item-discount">${format_currency_html(
                   total_line_discount,
                   display_currency
                 )}</td>
-                <td class="text-right item-total">${format_currency(
+                <td class="text-right item-total">${format_currency_html(
                   amount,
                   display_currency
                 )}</td>
@@ -192,7 +202,7 @@ async function generate_custom_invoice_preview(frm) {
                     <td class="label">${
                       __(tax.charge_type) || tax.account_head
                     } ${parseInt(tax.rate)}%:</td>
-                    <td class="value">${format_currency(
+                    <td class="value">${format_currency_html(
                       tax_amount,
                       display_currency
                     )}</td>
@@ -219,7 +229,7 @@ async function generate_custom_invoice_preview(frm) {
 
         let affected_cells = `<td><span class="label">${__("Factura Afectada:")}</span><span class="value">${affected_invoice_number}</span></td>` +
                            `<td><span class="label">${__("Fecha de Factura Afectada:")}</span><span class="value">${formatDate(affected_posting_date)}</span></td>` +
-                           `<td><span class="label" style="text-align: right;">${__("Monto Afectado:")}</span><span class="value">${format_currency(affected_base_grand_total, display_currency)}</span></td>`;
+                           `<td><span class="label" style="text-align: right;">${__("Monto Afectado:")}</span><span class="value">${format_currency_html(affected_base_grand_total, display_currency)}</span></td>`;
 
         affected_invoice_section_html = `<div class="affected-invoice-wrapper">
                                             <table class="affected-invoice-section">
@@ -239,14 +249,14 @@ async function generate_custom_invoice_preview(frm) {
       igtf_html = `
         <tr>
             <td class="label">${__("Base IGTF")}:</td>
-            <td class="value">${format_currency(
+            <td class="value">${format_currency_html(
               base_igtf,
               display_currency
             )}</td>
         </tr>
         <tr>
             <td class="label">${__("IGTF")}:</td>
-            <td class="value">${format_currency(
+            <td class="value">${format_currency_html(
               total_igtf,
               display_currency
             )}</td>
@@ -288,16 +298,16 @@ async function generate_custom_invoice_preview(frm) {
       customer_tax_id: customer_data.tax_id || "RIF no disponible",
       customer_address,
       items_html,
-      total: format_currency(
+      total: format_currency_html(
         is_foreign_currency ? frm.doc.base_total : frm.doc.total,
         display_currency
       ),
-      total_discount: format_currency(total_discount_amount, display_currency),
-      total_exempt: format_currency(total_exempt_amount, display_currency),
+      total_discount: format_currency_html(total_discount_amount, display_currency),
+      total_exempt: format_currency_html(total_exempt_amount, display_currency),
       taxes_html,
       affected_invoice_section_html,
       igtf_html,
-      grand_total: format_currency(
+      grand_total: format_currency_html(
         is_foreign_currency ? frm.doc.base_grand_total : frm.doc.grand_total,
         display_currency
       ),
