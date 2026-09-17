@@ -42,12 +42,14 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self.is_return = 1
         self.naming_series = "NC-.YYYY.-"
         self.update_outstanding_for_self = 0
+        self.outstanding_amount = 0
         self._init_si_defaults()
         self._inherit_branch_from_si()
 
     def validate(self) -> None:
         self.is_return = 1
         self.update_outstanding_for_self = 0
+        self.outstanding_amount = 0
         self._init_si_defaults()
         self._inherit_branch_from_si()
         self._enforce_positive_amounts()
@@ -59,6 +61,7 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self.set_posting_time = 1
         self._run_super_validate_safely()
         self._set_base_total_with_vat()
+        self.outstanding_amount = 0
 
     def on_submit(self) -> None:
         """
@@ -363,6 +366,7 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         taxes_and_totals = TaxesAndTotals(self)
         taxes_and_totals.calculate_total_exempt()
         self.calculate_total_withholding()
+        self.outstanding_amount = 0
 
     def set_taxes_and_charges(self) -> None:
         """

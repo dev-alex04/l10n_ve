@@ -33,12 +33,14 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         self.is_return = 1
         self.naming_series = "NC-COMP-.YYYY.-"
         self.update_outstanding_for_self = 0
+        self.outstanding_amount = 0
         self._init_pi_defaults()
         self._inherit_data_from_pi()
 
     def validate(self) -> None:
         self.is_return = 1
         self.update_outstanding_for_self = 0
+        self.outstanding_amount = 0
         self._init_pi_defaults()
         self._inherit_data_from_pi()
         self._enforce_positive_amounts()
@@ -49,6 +51,7 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         self._validate_bill_date()
         self._run_super_validate_safely()
         self._set_base_total_with_vat()
+        self.outstanding_amount = 0
 
     def on_submit(self) -> None:
         """
@@ -327,6 +330,7 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         taxes_and_totals = TaxesAndTotals(self)
         taxes_and_totals.calculate_total_exempt()
         self.calculate_total_withholding()
+        self.outstanding_amount = 0
 
     def set_taxes_and_charges(self) -> None:
         """
