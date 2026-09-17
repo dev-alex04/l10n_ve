@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.73.1] - 2026-09-17
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió una discrepancia visual en el módulo de retenciones, donde el campo «Total Retenido» mostraba la etiqueta de bolívares erróneamente sobre montos expresados en divisas. (9bcd5e09)
+
+---
+
 ## [v2.73.0] - 2026-09-17
 
 ### ✨ Funcionalidades (Features)
