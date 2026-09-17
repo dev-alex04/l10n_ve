@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.72.0] - 2026-09-17
+
+### ✨ Funcionalidades (Features)
+- **Gestión de reembolsos:** Se implementó una nueva funcionalidad para detectar y corregir automáticamente los reembolsos que no se encuentran enlazados. 21dc7862
+- **Mejora en resolución de excedentes:** El sistema ahora permite gestionar y visualizar en el resumen los casos donde se procesaron montos superiores a los esperados. 25a47dae
+- **Control de acceso y visibilidad:** Se habilitó el reporte de anticipos en el workspace de Ventas y para el equipo de Finanzas, restringiendo la acción de corregir únicamente a usuarios con permisos específicos. 634261a9, 514505b7
+- **Estandarización técnica:** Refactorización de identificadores internos al idioma inglés para mantener la consistencia con el estándar de la arquitectura global. aff08e42
+
+### 🐛 Correcciones (Fixes)
+- **Lógica de asignación de deuda:** Se corrigió el error que seleccionaba facturas de forma aleatoria cuando existía un empate en los montos de deuda. 99eb9577
+- **Recibos de reembolso:** Se eliminó un error de cálculo que mostraba saldos a favor inexistentes en los comprobantes. 7c1b6f03
+- **Visualización de reportes:** Se ajustó el reporte para que muestre el nombre comercial del cliente en lugar del nombre técnico de la base de datos. bf86e777
+
+---
+
 ## [v2.71.0] - 2026-09-17
 
 ### ✨ Funcionalidades (Features)
