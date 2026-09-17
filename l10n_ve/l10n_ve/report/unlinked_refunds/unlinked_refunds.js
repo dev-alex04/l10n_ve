@@ -1,9 +1,9 @@
 // Copyright (c) 2026, DominaERP and Contributors
 // For license information, please see license.txt
 
-frappe.provide("l10n_ve.reembolsos");
+frappe.provide("l10n_ve.unlinked_refunds");
 
-frappe.query_reports["Reembolsos sin enlazar"] = {
+frappe.query_reports["Unlinked Refunds"] = {
   filters: [
     {
       fieldname: "company",
@@ -31,7 +31,7 @@ frappe.query_reports["Reembolsos sin enlazar"] = {
     if (column.fieldname === "action" && data && data.party) {
       if (data.can_fix) {
         return `<button class="btn btn-xs btn-primary"
-          onclick="l10n_ve.reembolsos.corregir(${escape(JSON.stringify(data))})">${__("Corregir")}</button>`;
+          onclick="l10n_ve.unlinked_refunds.fix(${escape(JSON.stringify(data))})">${__("Corregir")}</button>`;
       }
       return `<span class="text-muted" title="${frappe.utils.escape_html(data.problem || "")}">${__(
         "Necesita revisión"
@@ -50,12 +50,12 @@ frappe.query_reports["Reembolsos sin enlazar"] = {
  *
  * @param {string} datos - La fila del reporte, serializada por el formatter
  */
-l10n_ve.reembolsos.corregir = function (datos) {
-  const fila = JSON.parse(unescape(datos));
+l10n_ve.unlinked_refunds.fix = function (data) {
+  const row = JSON.parse(unescape(data));
   frappe
     .call({
       method: "l10n_ve.overrides.advance_refund_audit.describe",
-      args: { company: fila.company, party: fila.party, advance_account: fila.advance_account },
+      args: { company: row.company, party: row.party, advance_account: row.advance_account },
     })
     .then((r) => {
       const plan = r.message || {};
@@ -68,12 +68,12 @@ l10n_ve.reembolsos.corregir = function (datos) {
         return;
       }
       frappe.confirm(
-        `<p>${__("Sobre la cuenta de {0}:", [frappe.utils.escape_html(fila.party_name || fila.party)])}</p>
+        `<p>${__("Sobre la cuenta de {0}:", [frappe.utils.escape_html(row.party_name || row.party)])}</p>
          <ul><li>${plan.lines.map(frappe.utils.escape_html).join("</li><li>")}</li></ul>`,
         () => {
           frappe.call({
             method: "l10n_ve.overrides.advance_refund_audit.fix",
-            args: { company: fila.company, party: fila.party, advance_account: fila.advance_account },
+            args: { company: row.company, party: row.party, advance_account: row.advance_account },
             freeze: true,
             freeze_message: __("Corrigiendo..."),
             callback(res) {

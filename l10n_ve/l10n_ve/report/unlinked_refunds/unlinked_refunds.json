@@ -13,11 +13,11 @@
  "modified": "2026-09-16 12:30:17.264704",
  "modified_by": "Administrator",
  "module": "L10N Ve",
- "name": "Reembolsos sin enlazar",
+ "name": "Unlinked Refunds",
  "owner": "Administrator",
  "prepared_report": 0,
  "ref_doctype": "Payment Entry",
- "report_name": "Reembolsos sin enlazar",
+ "report_name": "Unlinked Refunds",
  "report_type": "Script Report",
  "roles": [
   {
