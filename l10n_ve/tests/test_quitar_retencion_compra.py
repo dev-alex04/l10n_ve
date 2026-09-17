@@ -26,30 +26,52 @@ from l10n_ve.overrides.purchase_invoice import (
 )
 
 _FACTURA = "ACC-PINV-2026-99999"
+_NRO_FACTURA = "000298"
 _GET_ALL = "frappe.get_all"
 _COMPROBANTE = "COMP-RET-IVA-2026-00380"
+_NRO_COMPROBANTE = "20260900001368"
+
+
+def _invoice() -> frappe._dict:
+    return frappe._dict({"name": _FACTURA, "bill_no": _NRO_FACTURA})
+
+
+def _vivo() -> list[dict]:
+    return [{"name": _COMPROBANTE, "voucher_number": _NRO_COMPROBANTE}]
 
 
 class TestGuardaComprobanteVivo(FrappeTestCase):
     """La guarda consulta dos veces: los comprobantes que citan la factura, y cuáles siguen vivos."""
 
     def test_corta_si_el_comprobante_sigue_vivo(self) -> None:
-        consultas = [[_COMPROBANTE], [_COMPROBANTE]]
-        with patch(_GET_ALL, side_effect=consultas), \
+        with patch(_GET_ALL, side_effect=[[_COMPROBANTE], _vivo()]), \
                 self.assertRaises(frappe.ValidationError) as ctx:
-            _validate_no_live_withholding_voucher(_FACTURA, "VAT")
+            _validate_no_live_withholding_voucher(_invoice(), "VAT")
 
-        self.assertIn(_COMPROBANTE, str(ctx.exception))
+        self.assertIn(_NRO_COMPROBANTE, str(ctx.exception))
+
+    def test_el_mensaje_nombra_los_documentos_por_su_numero_fiscal(self) -> None:
+        """El usuario tiene en la mano el número de la factura y el del comprobante, no el id."""
+        with patch(_GET_ALL, side_effect=[[_COMPROBANTE], _vivo()]), \
+                self.assertRaises(frappe.ValidationError) as ctx:
+            _validate_no_live_withholding_voucher(_invoice(), "VAT")
+
+        mensaje = str(ctx.exception)
+        self.assertIn(f"<strong>{_NRO_FACTURA}</strong>", mensaje)
+        self.assertIn(f"<strong>{_NRO_COMPROBANTE}</strong>", mensaje)
+        # El identificador interno no se muestra, pero el enlace sí lleva al documento.
+        self.assertNotIn(f">{_FACTURA}<", mensaje)
+        self.assertIn(_COMPROBANTE, mensaje)
 
     def test_pasa_si_el_comprobante_esta_cancelado(self) -> None:
         """Lo cita un comprobante, pero está cancelado: la segunda consulta vuelve vacía."""
         with patch(_GET_ALL, side_effect=[[_COMPROBANTE], []]):
-            _validate_no_live_withholding_voucher(_FACTURA, "ISLR")
+            _validate_no_live_withholding_voucher(_invoice(), "ISLR")
 
     def test_pasa_si_ningun_comprobante_la_cita(self) -> None:
         """Sin comprobantes no hay segunda consulta: sale de una."""
         with patch(_GET_ALL, side_effect=[[]]) as mock_get_all:
-            _validate_no_live_withholding_voucher(_FACTURA, "ISLR")
+            _validate_no_live_withholding_voucher(_invoice(), "ISLR")
 
         self.assertEqual(mock_get_all.call_count, 1)
 
@@ -61,7 +83,7 @@ class TestGuardaComprobanteVivo(FrappeTestCase):
     def test_solo_cuentan_los_comprobantes_sin_cancelar(self) -> None:
         """El filtro docstatus < 2 es la guarda: si se cae, un comprobante vivo pasaría."""
         with patch(_GET_ALL, side_effect=[[_COMPROBANTE], []]) as mock_get_all:
-            _validate_no_live_withholding_voucher(_FACTURA, "ISLR")
+            _validate_no_live_withholding_voucher(_invoice(), "ISLR")
 
         doctype = mock_get_all.call_args_list[1][0][0]
         filtros = mock_get_all.call_args_list[1][1]["filters"]
