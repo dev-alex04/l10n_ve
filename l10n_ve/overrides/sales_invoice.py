@@ -2573,6 +2573,9 @@ def remove_retroactive_sales_withholding(
                 ).format(invoice.name, invoice_currency)
             )
 
+    for fila in rows:
+        _validate_not_already_reversed(invoice, fila.account_head, withholding_type)
+
     entries: list[str] = []
     for fila in rows:
         entrada = _create_sales_withholding_reversal_journal_entry(
@@ -2598,6 +2601,60 @@ def remove_retroactive_sales_withholding(
             etiqueta, ", ".join(entries)
         ),
     }
+
+
+def _validate_not_already_reversed(
+    invoice: "SalesInvoice",
+    tax_account: str,
+    withholding_type: str,
+) -> None:
+    """Corta si el reverso de esa retención ya está asentado a mano.
+
+    Administración viene corrigiendo estos casos con un asiento propio. Si además se aprieta
+    el botón, la contabilidad se revierte dos veces y el cliente termina debiendo el doble de
+    lo que se le retuvo, sin que nada lo avise: los dos asientos son válidos por separado.
+
+    El caso que lo destapó es GRUPO DROSS (17-sep-2026): su ISLR ya lo había reversado
+    `ACC-JV-2026-35202-1` y su retención de IVA no. Medido ese día sobre producción, de 106
+    retenciones cargadas a clientes que no son contribuyentes especiales, una sola tenía el
+    reverso hecho -- pero basta una para descuadrar a un cliente.
+
+    El asiento se reconoce por lo que HACE, no por lo que dice: uno emitido que referencia
+    esta factura y le acredita la cuenta de la retención. Un asiento anulado no cuenta, que
+    es la diferencia entre `ACC-JV-2026-35202` y su reemplazo.
+    """
+    reversals: list[dict] = frappe.db.sql(
+        """SELECT DISTINCT je.name, jea.credit
+        FROM `tabJournal Entry` je
+        JOIN `tabJournal Entry Account` jea ON jea.parent = je.name
+        WHERE je.docstatus = 1 AND jea.account = %(account)s AND jea.credit > 0
+            AND EXISTS (
+                SELECT 1 FROM `tabJournal Entry Account` ref
+                WHERE ref.parent = je.name AND ref.reference_name = %(invoice)s
+            )""",
+        {"account": tax_account, "invoice": invoice.name},
+        as_dict=True,
+    )
+    if not reversals:
+        return
+
+    # El enlace se arma con el helper de Frappe y no con el de l10n_ve: ese etiqueta con el
+    # `title_field` del doctype, y el del Asiento de Diario es el nombre del tercero, así que
+    # el mensaje diría «ya tiene su reverso asentado en GRUPO DROSS» en vez del identificador
+    # del asiento, que es el dato que el usuario necesita para ir a buscarlo.
+    from frappe.utils import get_link_to_form as link_by_name
+
+    enlaces: str = ", ".join(
+        frappe.bold(link_by_name("Journal Entry", fila["name"])) for fila in reversals
+    )
+    frappe.throw(
+        _(
+            "La retención de {0} de esta factura ya tiene su reverso asentado en {1}, así que "
+            "quitarla desde acá la reversaría por segunda vez y el cliente quedaría debiendo el "
+            "doble.<br><br>Si quiere además sacar la fila de la factura, anule ese asiento y "
+            "vuelva a quitar la retención desde este botón: el reverso queda asentado una sola vez."
+        ).format(withholding_label(withholding_type), enlaces)
+    )
 
 
 def _clear_withholding_voucher_metadata(invoice_name: str, charge_type: str) -> None:

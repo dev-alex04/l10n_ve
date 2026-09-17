@@ -25,6 +25,7 @@ from l10n_ve.overrides.sales_invoice import (
     _clear_withholding_voucher_metadata,
     _create_sales_withholding_reversal_journal_entry,
     _refresh_sales_totals_after_withholding_change,
+    _validate_not_already_reversed,
     remove_retroactive_sales_withholding,
 )
 
@@ -122,6 +123,7 @@ class TestWhatItRemoves(FrappeTestCase):
                 return_value=frappe._dict(name="ACC-JV-2026-99999"),
             ) as entry,
             patch("frappe.db.delete") as deleted,
+            patch(f"{_MOD}._validate_not_already_reversed"),
             patch(f"{_MOD}._refresh_sales_totals_after_withholding_change"),
             patch(f"{_MOD}._clear_withholding_voucher_metadata") as cleared,
         ):
@@ -252,3 +254,54 @@ class TestTheMissingVoucherWarning(FrappeTestCase):
         cache.assert_called_once_with("Sales Invoice", _INVOICE)
         leido.assert_called_once_with("Sales Invoice", _INVOICE)
         recalculado.assert_called_once_with(invoice)
+
+
+class TestTheAlreadyReversedGuard(FrappeTestCase):
+    """Si el reverso ya está asentado a mano, el botón no lo asienta otra vez.
+
+    Administración viene corrigiendo estos casos con un asiento propio. Los dos asientos son
+    válidos por separado, así que nada avisaría del doble: el cliente terminaría debiendo dos
+    veces lo que se le retuvo. Lo levantó Daniel el 17-sep-2026 mirando GRUPO DROSS, cuyo ISLR
+    ya estaba reversado por ACC-JV-2026-35202-1 y cuya retención de IVA no.
+    """
+
+    def _booked(self) -> list[dict]:
+        """El asiento con el que administración ya reversó el ISLR de DROSS."""
+        return [{"name": "ACC-JV-2026-35202-1", "credit": 856.28}]
+
+    def test_it_refuses_when_the_reversal_is_already_booked(self) -> None:
+        with (
+            patch("frappe.db.sql", return_value=self._booked()),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            _validate_not_already_reversed(
+                _invoice(), "1110002 - Retenciones ISLR Clientes - Galanet", "ISLR"
+            )
+
+    def test_the_message_names_the_entry_that_already_did_it(self) -> None:
+        """Sin el identificador, el usuario no sabe cuál asiento anular."""
+        with (
+            patch("frappe.db.sql", return_value=self._booked()),
+            self.assertRaises(frappe.ValidationError) as capturado,
+        ):
+            _validate_not_already_reversed(
+                _invoice(), "1110002 - Retenciones ISLR Clientes - Galanet", "ISLR"
+            )
+        self.assertIn("ACC-JV-2026-35202-1", str(capturado.exception))
+
+    def test_it_passes_when_nothing_reversed_it(self) -> None:
+        """El caso de la retención de IVA de esa misma factura: nadie la tocó."""
+        with patch("frappe.db.sql", return_value=[]):
+            _validate_not_already_reversed(
+                _invoice(), "1110003 - Retencion de IVA Clientes - Galanet", "VAT"
+            )
+
+    def test_each_withholding_looks_at_its_own_account(self) -> None:
+        """Quitar el IVA no se puede frenar por un asiento que reversó el ISLR."""
+        with patch("frappe.db.sql", return_value=[]) as consulta:
+            _validate_not_already_reversed(
+                _invoice(), "1110003 - Retencion de IVA Clientes - Galanet", "VAT"
+            )
+        parametros = consulta.call_args[0][1]
+        self.assertEqual(parametros["account"], "1110003 - Retencion de IVA Clientes - Galanet")
+        self.assertEqual(parametros["invoice"], _INVOICE)
