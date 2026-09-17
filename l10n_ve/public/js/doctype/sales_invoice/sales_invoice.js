@@ -2279,16 +2279,16 @@ function setup_remove_withholding_buttons(frm) {
 function remove_sales_withholding(frm, withholding_type) {
   const charge_type = withholding_type === "VAT" ? "VAT Withholding" : "ISLR";
   const etiqueta = withholding_type === "VAT" ? __("IVA") : __("ISLR");
-  const monto = (frm.doc.taxes || [])
-    .filter((fila) => fila.charge_type === charge_type)
-    .reduce((acumulado, fila) => acumulado + flt(fila.tax_amount), 0);
+  const filas = (frm.doc.taxes || []).filter((fila) => fila.charge_type === charge_type);
+  const monto = filas.reduce((acumulado, fila) => acumulado + flt(fila.tax_amount), 0);
+  const monto_base = filas.reduce((acumulado, fila) => acumulado + flt(fila.base_tax_amount), 0);
 
   frappe.confirm(
     __(
       "Se va a quitar la retención de {0} por {1} de la factura {2}. Se asienta el reverso y ese monto vuelve a deberlo el cliente. La otra retención no se toca. ¿Continuar?",
       [
         etiqueta,
-        format_currency(monto, frm.doc.currency),
+        l10n_ve.money.in_both_currencies(frm, monto, monto_base),
         // El número fiscal, que es el que el usuario tiene en la mano.
         frm.doc.bill_no || frm.doc.name,
       ]
