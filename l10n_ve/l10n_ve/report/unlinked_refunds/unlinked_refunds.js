@@ -30,8 +30,18 @@ frappe.query_reports["Unlinked Refunds"] = {
     }
     if (column.fieldname === "action" && data && data.party) {
       if (data.can_fix && data.may_fix) {
-        return `<button class="btn btn-xs btn-primary"
-          onclick="l10n_ve.unlinked_refunds.fix(${escape(JSON.stringify(data))})">${__("Corregir")}</button>`;
+        // Los cuatro datos van como argumentos entrecomillados, uno por uno. La versión
+        // anterior serializaba la fila entera y la insertaba SIN comillas, así que el
+        // `onclick` quedaba `fix(%7B%22party%22...)` y el navegador ni siquiera lo parseaba:
+        // SyntaxError, el botón no hacía nada y no se veía ningún error en pantalla.
+        // `encodeURIComponent` NO codifica la comilla simple, y el atributo la usa para
+        // delimitar: sin este reemplazo, un cliente como O'BRIEN C.A. vuelve a romper el
+        // botón exactamente igual que antes.
+        const arg = (v) =>
+          encodeURIComponent(v == null ? "" : String(v)).replace(/'/g, "%27");
+        return `<button class="btn btn-xs btn-primary" onclick="l10n_ve.unlinked_refunds.fix(
+          '${arg(data.company)}', '${arg(data.party)}', '${arg(data.advance_account)}',
+          '${arg(data.party_name)}')">${__("Corregir")}</button>`;
       }
       if (!data.can_fix) {
         return `<span class="text-muted" title="${frappe.utils.escape_html(data.problem || "")}">${__(
@@ -51,10 +61,21 @@ frappe.query_reports["Unlinked Refunds"] = {
 /**
  * Muestra lo que la corrección va a hacer y, si lo aprueban, la ejecuta.
  *
- * @param {string} datos - La fila del reporte, serializada por el formatter
+ * Recibe los datos sueltos y ya codificados por el formatter, no la fila serializada: así el
+ * `onclick` es JavaScript válido aunque el nombre del cliente traiga comillas o acentos.
+ *
+ * @param {string} company - Empresa, codificada con encodeURIComponent
+ * @param {string} party - Identificador del cliente, codificado
+ * @param {string} advanceAccount - Cuenta de anticipos, codificada
+ * @param {string} partyName - Nombre visible del cliente, codificado
  */
-l10n_ve.unlinked_refunds.fix = function (data) {
-  const row = JSON.parse(unescape(data));
+l10n_ve.unlinked_refunds.fix = function (company, party, advanceAccount, partyName) {
+  const row = {
+    company: decodeURIComponent(company),
+    party: decodeURIComponent(party),
+    advance_account: decodeURIComponent(advanceAccount),
+    party_name: decodeURIComponent(partyName || ""),
+  };
   frappe
     .call({
       method: "l10n_ve.overrides.advance_refund_audit.describe",
