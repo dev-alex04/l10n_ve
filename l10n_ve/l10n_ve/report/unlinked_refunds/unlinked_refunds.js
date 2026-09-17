@@ -103,6 +103,10 @@ l10n_ve.unlinked_refunds.fix = function (data) {
     .call({
       method: "l10n_ve.overrides.advance_refund_audit.describe",
       args: { company: row.company, party: row.party, advance_account: row.advance_account },
+      // El plan se calcula en el servidor y tarda: sin congelar la pantalla, el usuario no
+      // ve que pasó nada y vuelve a apretar «Corregir» hasta que aparece el diálogo.
+      freeze: true,
+      freeze_message: __("Revisando la cuenta del cliente..."),
     })
     .then((r) => {
       const plan = r.message || {};
