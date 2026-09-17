@@ -15,6 +15,7 @@ import frappe
 from frappe.utils import flt
 
 from l10n_ve.overrides.advance_refund_audit import (
+    _allocation_to_undo,
     _build_case,
     _close_refund_receipt,
     _not_a_refund,
@@ -235,3 +236,105 @@ class TestElReciboDelReembolso(unittest.TestCase):
         )
         self.assertIsNone(escrita)
         self.assertIsNone(campos)
+
+
+class TestElEmpateEntreAplicaciones(unittest.TestCase):
+    """Cuando dos aplicaciones encajan igual de bien, no se elige al azar.
+
+    Quedarse con la primera es elegir a suertes de qué factura se saca la deuda, y nada lo
+    atraparía: `_verify` compara el agregado del cliente contra el mayor, no la factura que se
+    tocó. Elegir mal deja la factura buena mostrando deuda y la que sí se pagó con la plata
+    devuelta marcada «Pagada»: el mismo problema que esto viene a resolver.
+    """
+
+    def _aplicacion(self, factura: str, monto: float, cobro: str = "ACC-PAY-1") -> dict:
+        return frappe._dict(payment_entry=cobro, sales_invoice=factura, amount=monto)
+
+    def _elegir(self, aplicaciones: list, falta: float = 100.0) -> tuple:
+        caso = frappe._dict(difference=falta, offered=0.0, tied_invoices=None)
+        with patch(
+            "l10n_ve.overrides.advance_refund_audit._applications_after_refund",
+            return_value=aplicaciones,
+        ):
+            return _allocation_to_undo(caso), caso
+
+    def test_dos_aplicaciones_exactas_en_facturas_distintas_van_a_revision(self):
+        elegido, caso = self._elegir(
+            [
+                self._aplicacion("ACC-SINV-A", 100.0),
+                self._aplicacion("ACC-SINV-B", 100.0),
+            ]
+        )
+        self.assertIsNone(elegido)
+        self.assertEqual(caso.tied_invoices, ["ACC-SINV-A", "ACC-SINV-B"])
+
+    def test_el_empate_dentro_de_la_misma_factura_no_es_ambiguo(self):
+        """Da igual cuál se deshaga: el resultado en esa factura es el mismo."""
+        elegido, caso = self._elegir(
+            [
+                self._aplicacion("ACC-SINV-A", 100.0, "ACC-PAY-1"),
+                self._aplicacion("ACC-SINV-A", 100.0, "ACC-PAY-2"),
+            ]
+        )
+        self.assertEqual(elegido["invoice"], "ACC-SINV-A")
+        self.assertIsNone(caso.tied_invoices)
+
+    def test_dos_combinaciones_sobre_facturas_distintas_van_a_revision(self):
+        elegido, caso = self._elegir(
+            [
+                self._aplicacion("ACC-SINV-A", 60.0),
+                self._aplicacion("ACC-SINV-A", 40.0),
+                self._aplicacion("ACC-SINV-B", 70.0),
+                self._aplicacion("ACC-SINV-B", 30.0),
+            ]
+        )
+        self.assertIsNone(elegido)
+        self.assertEqual(caso.tied_invoices, ["ACC-SINV-A", "ACC-SINV-B"])
+
+    def test_el_empate_en_la_aplicacion_mas_grande_tambien_va_a_revision(self):
+        elegido, caso = self._elegir(
+            [
+                self._aplicacion("ACC-SINV-A", 150.0),
+                self._aplicacion("ACC-SINV-B", 150.0),
+            ]
+        )
+        self.assertIsNone(elegido)
+        self.assertEqual(caso.tied_invoices, ["ACC-SINV-A", "ACC-SINV-B"])
+
+    def test_sin_empate_se_sigue_eligiendo_como_antes(self):
+        """Lo que ya se corregía no cambia: los 19 casos de Galanet no tienen empates."""
+        elegido, caso = self._elegir(
+            [
+                self._aplicacion("ACC-SINV-A", 150.0),
+                self._aplicacion("ACC-SINV-B", 260.0),
+            ]
+        )
+        self.assertEqual(elegido["invoice"], "ACC-SINV-A")
+        self.assertEqual(flt(elegido["undone"], 2), 150.0)
+        self.assertEqual(flt(elegido["surplus"], 2), 50.0)
+        self.assertIsNone(caso.tied_invoices)
+
+    def test_el_caso_ambiguo_dice_por_que_hay_que_mirarlo(self):
+        """El motivo no puede ser «no hay ninguna que alcance»: hay dos, y ese es el problema."""
+        with (
+            patch(
+                "l10n_ve.overrides.advance_refund_audit._refunds",
+                return_value=[
+                    frappe._dict(name="ACC-PAY-1", amount=100.0, problem=None)
+                ],
+            ),
+            patch(
+                "l10n_ve.overrides.advance_refund_audit._applications_after_refund",
+                return_value=[
+                    self._aplicacion("ACC-SINV-A", 60.0),
+                    self._aplicacion("ACC-SINV-B", 60.0),
+                ],
+            ),
+        ):
+            caso = _build_case(
+                ("Empresa", "CLIENTE", "2104001 - Anticipo"), 40.0, -60.0
+            )
+        self.assertIsNone(caso.undo)
+        self.assertIn("facturas distintas", caso.problem)
+        self.assertIn("ACC-SINV-A", caso.problem)
+        self.assertIn("ACC-SINV-B", caso.problem)

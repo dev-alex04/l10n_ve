@@ -177,6 +177,7 @@ def _build_case(key: tuple, available: float, balance: float) -> dict:
         difference=flt(available - balance, 2),
         refunds=[],
         undo=None,
+        tied_invoices=None,
         problem=None,
     )
     case.refunds = _refunds(company, party, account)
@@ -203,6 +204,12 @@ def _build_case(key: tuple, available: float, balance: float) -> dict:
     if case.offered < case.difference:
         # La plata devuelta ya pagó facturas: hay que soltar esa aplicación antes de enlazar.
         case.undo = _allocation_to_undo(case)
+        if not case.undo and case.tied_invoices:
+            case.problem = _(
+                "Más de una aplicación encaja igual de bien, y sobre facturas distintas ({0}): "
+                "hay que decidir de cuál factura se saca la deuda."
+            ).format(", ".join(case.tied_invoices))
+            return case
         if not case.undo:
             case.problem = _(
                 "No hay ninguna aplicación de un cobro a una factura que alcance para liberar lo que "
@@ -299,48 +306,90 @@ def _allocation_to_undo(case: dict) -> dict | None:
 
     Ese último caso es el que importa: sin él, cinco de cada seis casos de Galanet quedaban para
     revisar a mano, porque lo devuelto se había mezclado con plata buena dentro del mismo cruce.
+
+    En cada nivel se junta a TODOS los que encajan, no al primero: ver :func:`_single_invoice`.
     """
     missing: float = flt(case.difference - case.offered, 2)
     candidates: list[dict] = _applications_after_refund(case)
     if not candidates:
         return None
 
-    exact = next((c for c in candidates if flt(c.amount, 2) == missing), None)
-    if exact:
-        return {
-            "applications": [exact],
-            "invoice": exact.sales_invoice,
+    exact: list[dict] = [
+        {
+            "applications": [row],
+            "invoice": row.sales_invoice,
             "undone": missing,
             "surplus": 0.0,
         }
+        for row in candidates
+        if flt(row.amount, 2) == missing
+    ]
+    if exact:
+        return _single_invoice(case, exact)
 
     by_invoice: dict = {}
     for row in candidates:
         by_invoice.setdefault(row.sales_invoice, []).append(row)
-    for invoice, rows in by_invoice.items():
-        for size in (2, 3):
-            for combo in combinations(rows, size):
-                if flt(sum(flt(r.amount) for r in combo), 2) == missing:
-                    return {
-                        "applications": list(combo),
-                        "invoice": invoice,
-                        "undone": missing,
-                        "surplus": 0.0,
-                    }
-
-    bigger = sorted(
-        (c for c in candidates if flt(c.amount, 2) > missing),
-        key=lambda c: flt(c.amount, 2),
-    )
-    if bigger:
-        chosen = bigger[0]
-        return {
-            "applications": [chosen],
-            "invoice": chosen.sales_invoice,
-            "undone": flt(chosen.amount, 2),
-            "surplus": flt(chosen.amount - missing, 2),
+    combos: list[dict] = [
+        {
+            "applications": list(combo),
+            "invoice": invoice,
+            "undone": missing,
+            "surplus": 0.0,
         }
-    return None
+        for invoice, rows in by_invoice.items()
+        for size in (2, 3)
+        for combo in combinations(rows, size)
+        if flt(sum(flt(row.amount) for row in combo), 2) == missing
+    ]
+    if combos:
+        return _single_invoice(case, combos)
+
+    bigger: list[dict] = sorted(
+        (row for row in candidates if flt(row.amount, 2) > missing),
+        key=lambda row: flt(row.amount, 2),
+    )
+    if not bigger:
+        return None
+    smallest: float = flt(bigger[0].amount, 2)
+    return _single_invoice(
+        case,
+        [
+            {
+                "applications": [row],
+                "invoice": row.sales_invoice,
+                "undone": smallest,
+                "surplus": flt(smallest - missing, 2),
+            }
+            for row in bigger
+            if flt(row.amount, 2) == smallest
+        ],
+    )
+
+
+def _single_invoice(case: dict, options: list[dict]) -> dict | None:
+    """La opción elegida, siempre que las que empatan sean todas de la MISMA factura.
+
+    Cuando dos aplicaciones encajan igual de bien, quedarse con la primera es elegir al azar de
+    qué factura se saca la deuda, y nada lo atraparía después: :func:`_verify` solo compara el
+    agregado del cliente contra el mayor, no la factura que se tocó. Elegir mal deja la factura
+    buena mostrando deuda y la que sí se pagó con la plata devuelta intacta y marcada «Pagada»
+    -- el mismo problema que esto viene a resolver, pero causado por la corrección.
+
+    Si el empate es dentro de una misma factura da igual cuál se deshaga: el resultado en esa
+    factura es el mismo. Si son facturas distintas, el caso se manda a revisar a mano.
+
+    Hoy ninguno de los 19 casos de Galanet empata, así que esto no cambia lo que ya se corrige;
+    es para lo que viene: la base tiene 603 grupos de aplicaciones del mismo cliente por el
+    mismo monto, que es lo normal en facturación mensual.
+    """
+    if not options:
+        return None
+    invoices: set = {option["invoice"] for option in options}
+    if len(invoices) > 1:
+        case.tied_invoices = sorted(invoices)
+        return None
+    return options[0]
 
 
 def _applications_after_refund(case: dict) -> list[dict]:
