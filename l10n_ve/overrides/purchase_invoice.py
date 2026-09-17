@@ -1310,6 +1310,30 @@ def _create_purchase_taxes_row(
         tax_row.tabulator_islr = tab_doc.name
         tax_row.code = tab_doc.codigo
 
+        # El sustraendo y el porcentaje de base viajan de esta fila al comprobante y de ahí al
+        # payload de HKA. Sin ellos la imprenta rechaza con
+        # «[1060] El monto retenido declarado no coincide con lo calculado en el item»: recalcula
+        # base x alícuota y le da el monto SIN restar el sustraendo. Medido el 16-sep-2026 con el
+        # comprobante 20260900000461 (concepto 002, sustraendo 107,50): ninguna retención de ISLR
+        # aplicada por este camino se podía certificar. El camino de borrador sí los guarda
+        # (controllers/taxes_mixin.py).
+        type_of_person: str = frappe.db.get_value("Supplier", invoice.supplier, "type_of_person") or ""
+        aliquot_row = next(
+            (
+                row
+                for row in tab_doc.aliquot
+                if row.types_of_person == type_of_person and flt(row.aliquot) > 0
+            ),
+            None,
+        )
+        if aliquot_row:
+            tax_row.percentage_base = flt(aliquot_row.percentage_base)
+            tax_row.subtracting = flt(aliquot_row.subtracting)
+
+    # La fila de un documento aprobado va aprobada: db_insert escribe lo que traiga el objeto y
+    # sin esto quedaba en borrador dentro de una factura ya emitida.
+    tax_row.docstatus = invoice.docstatus
+
     tax_row.db_insert()
     return tax_row
 
@@ -1759,10 +1783,24 @@ def _refresh_purchase_totals_after_withholding_change(invoice_name: str) -> None
     # con lo cual el total dejaría de coincidir con la tabla que el usuario ve.
     total: float = 0.0
     base_total: float = 0.0
+    sumados: float = 0.0
+    base_sumados: float = 0.0
+    deducidos: float = 0.0
+    base_deducidos: float = 0.0
+    retenido: float = 0.0
     for fila in doc.taxes:
-        signo: int = -1 if fila.add_deduct_tax == "Deduct" else 1
-        total += signo * flt(fila.tax_amount)
-        base_total += signo * flt(fila.base_tax_amount)
+        if fila.add_deduct_tax == "Deduct":
+            total -= flt(fila.tax_amount)
+            base_total -= flt(fila.base_tax_amount)
+            deducidos += flt(fila.tax_amount)
+            base_deducidos += flt(fila.base_tax_amount)
+        else:
+            total += flt(fila.tax_amount)
+            base_total += flt(fila.base_tax_amount)
+            sumados += flt(fila.tax_amount)
+            base_sumados += flt(fila.base_tax_amount)
+        if fila.is_tax_withholding_account:
+            retenido += flt(fila.tax_amount)
 
     grand_total: float = flt(doc.net_total) + total
     base_grand_total: float = flt(doc.base_net_total) + base_total
@@ -1770,6 +1808,12 @@ def _refresh_purchase_totals_after_withholding_change(invoice_name: str) -> None
     valores: dict = {
         "total_taxes_and_charges": total,
         "base_total_taxes_and_charges": base_total,
+        "taxes_and_charges_added": sumados,
+        "base_taxes_and_charges_added": base_sumados,
+        "taxes_and_charges_deducted": deducidos,
+        "base_taxes_and_charges_deducted": base_deducidos,
+        # «Total Retenido»: mismo criterio que calculate_total_withholding del mixin.
+        "total_withholding": retenido,
         "grand_total": grand_total,
         "base_grand_total": base_grand_total,
         "in_words": money_in_words(grand_total, doc.currency),

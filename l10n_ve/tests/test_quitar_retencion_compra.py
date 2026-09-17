@@ -105,3 +105,56 @@ class TestValidacionesDeEntrada(FrappeTestCase):
             remove_retroactive_purchase_withholding(_FACTURA, "ISLR", "Galanet Solution C.A.")
 
         self.assertIn(_FACTURA, str(ctx.exception))
+
+
+class TestFilaRetroactivaDeIslr(FrappeTestCase):
+    """La fila que inserta el camino retroactivo tiene que servir para certificar.
+
+    Sin el sustraendo, HKA rechaza el comprobante con «[1060] El monto retenido declarado no
+    coincide con lo calculado en el item»: recalcula base x alícuota y no le da el monto, que
+    lleva el sustraendo restado. Pasó el 16-sep-2026 con el comprobante 20260900000461.
+    """
+
+    def _construir_fila(self) -> dict:
+        from l10n_ve.overrides.purchase_invoice import _create_purchase_taxes_row
+
+        tabulador = frappe._dict({
+            "name": "79",
+            "codigo": "002",
+            "descripcion": "HONORARIOS PROFESIONALES",
+            "aliquot": [frappe._dict({
+                "types_of_person": "Natural person domiciled",
+                "aliquot": 3.0,
+                "percentage_base": 100.0,
+                "subtracting": 107.5,
+            })],
+        })
+        factura = frappe._dict({
+            "name": _FACTURA, "taxes": [], "cost_center": "DC-01",
+            "company": "Galanet Solution C.A.", "supplier": "PROVEEDOR", "docstatus": 1,
+        })
+
+        insertada: dict = {}
+
+        class _Fila(frappe._dict):
+            def db_insert(self):
+                insertada.update(self)
+
+        with patch("frappe.new_doc", return_value=_Fila()), \
+                patch("frappe.get_cached_doc", return_value=tabulador), \
+                patch("frappe.db.get_value", return_value="Natural person domiciled"):
+            _create_purchase_taxes_row(
+                factura, "ISLR", "2105003 - Retenciones ISLR", "ISLR",
+                4536.23, 4536.23, 3.0, "79",
+            )
+        return insertada
+
+    def test_lleva_el_sustraendo_del_tabulador(self) -> None:
+        self.assertEqual(self._construir_fila()["subtracting"], 107.5)
+
+    def test_lleva_el_porcentaje_de_base(self) -> None:
+        self.assertEqual(self._construir_fila()["percentage_base"], 100.0)
+
+    def test_la_fila_queda_aprobada_como_su_factura(self) -> None:
+        """Una fila en borrador dentro de una factura emitida es un estado que no existe."""
+        self.assertEqual(self._construir_fila()["docstatus"], 1)
