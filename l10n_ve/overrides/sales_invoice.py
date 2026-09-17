@@ -2500,3 +2500,316 @@ def create_government_withholding_journal_entry(
             get_link_to_form("Journal Entry", je.name)
         ),
     }
+
+
+@frappe.whitelist()
+def remove_retroactive_sales_withholding(
+    invoice_name: str,
+    withholding_type: str,
+    company: str,
+) -> dict:
+    """Quita una retención (IVA o ISLR) de una Factura de Venta aprobada.
+
+    Es el espejo de `fix_missing_withholding` y el hermano del botón que ya existe en la
+    Factura de Compra: una retención cargada por error no tenía cómo deshacerse, sólo había
+    camino para agregarla.
+
+    El caso que lo pidió lo reportó administración el 16-sep-2026: clientes con el check de
+    contribuyente especial marcado por error a los que se les descontó el 75% del IVA sin ser
+    agentes de retención --GRUPO DROSS entre ellos--. Medido en producción ese día: 26
+    facturas de 14 clientes por Bs 187.670,20 con retención de IVA sobre clientes que no son
+    especiales. La retención de ISLR no entra en esa cuenta: la retiene cualquier persona
+    jurídica, no sólo las especiales.
+
+    Deja la factura como si esa retención nunca se hubiera cargado:
+
+    1. Asienta el reverso, que le devuelve a la factura lo que la retención le había bajado.
+    2. Retira la fila de la tabla de impuestos.
+    3. Borra el número y la fecha del comprobante de ESE tipo, si estaban cargados.
+    4. Recalcula el aviso «Falta comprobante de retención». Sin esto el aviso se queda
+       encendido para siempre, que es justo lo que quedó pasando con las facturas ya
+       corregidas a mano: el aviso sólo se recalcula al guardar, y una factura aprobada no
+       se vuelve a guardar.
+
+    La otra retención de la factura no se toca en ningún caso.
+    """
+    _require_withholding_permissions()
+
+    if withholding_type not in ("VAT", "ISLR"):
+        frappe.throw(
+            _("Tipo de retención inválido: {0}. Use 'VAT' o 'ISLR'.").format(withholding_type)
+        )
+
+    invoice = get_verified_invoice(invoice_name, company)
+    frappe.has_permission("Sales Invoice", ptype="write", doc=invoice, throw=True)
+
+    charge_type: str = "VAT Withholding" if withholding_type == "VAT" else "ISLR"
+    rows: list = [
+        fila
+        for fila in invoice.taxes
+        if fila.charge_type == charge_type and flt(fila.base_tax_amount)
+    ]
+    if not rows:
+        frappe.throw(
+            _("La factura {0} no tiene una retención de {1} que quitar.").format(
+                frappe.bold(invoice.bill_no or invoice.name),
+                withholding_label(withholding_type),
+            )
+        )
+
+    company_currency: str = frappe.get_cached_value("Company", invoice.company, "default_currency")
+    invoice_currency: str = invoice.currency or company_currency
+
+    # La tasa no lleva un `or 1` de respaldo: sobre una factura en divisa eso afirmaría que
+    # el dólar vale un bolívar y el reverso saldría por un monto inventado.
+    conversion_rate: float = 1.0
+    if invoice_currency != company_currency:
+        conversion_rate = flt(invoice.conversion_rate)
+        if not conversion_rate:
+            frappe.throw(
+                _(
+                    "La factura {0} está en moneda extranjera ({1}) pero no tiene una tasa "
+                    "de conversión válida."
+                ).format(invoice.name, invoice_currency)
+            )
+
+    for fila in rows:
+        _validate_not_already_reversed(invoice, fila.account_head, withholding_type)
+
+    entries: list[str] = []
+    for fila in rows:
+        entrada = _create_sales_withholding_reversal_journal_entry(
+            invoice,
+            withholding_type,
+            fila.account_head,
+            flt(fila.base_tax_amount),
+            conversion_rate,
+            company_currency,
+            invoice_currency,
+        )
+        entries.append(entrada.name)
+        frappe.db.delete("Sales Taxes and Charges", {"name": fila.name})
+
+    _refresh_sales_totals_after_withholding_change(invoice_name)
+    _clear_withholding_voucher_metadata(invoice_name, charge_type)
+
+    etiqueta: str = withholding_label(withholding_type)
+    return {
+        "status": "success",
+        "journal_entries": entries,
+        "msg": _("Retención de {0} retirada. Asiento(s) de reverso: {1}.").format(
+            etiqueta, ", ".join(entries)
+        ),
+    }
+
+
+def _validate_not_already_reversed(
+    invoice: "SalesInvoice",
+    tax_account: str,
+    withholding_type: str,
+) -> None:
+    """Corta si el reverso de esa retención ya está asentado a mano.
+
+    Administración viene corrigiendo estos casos con un asiento propio. Si además se aprieta
+    el botón, la contabilidad se revierte dos veces y el cliente termina debiendo el doble de
+    lo que se le retuvo, sin que nada lo avise: los dos asientos son válidos por separado.
+
+    El caso que lo destapó es GRUPO DROSS (17-sep-2026): su ISLR ya lo había reversado
+    `ACC-JV-2026-35202-1` y su retención de IVA no. Medido ese día sobre producción, de 106
+    retenciones cargadas a clientes que no son contribuyentes especiales, una sola tenía el
+    reverso hecho -- pero basta una para descuadrar a un cliente.
+
+    El asiento se reconoce por lo que HACE, no por lo que dice: uno emitido que referencia
+    esta factura y le acredita la cuenta de la retención. Un asiento anulado no cuenta, que
+    es la diferencia entre `ACC-JV-2026-35202` y su reemplazo.
+    """
+    reversals: list[dict] = frappe.db.sql(
+        """SELECT DISTINCT je.name, jea.credit
+        FROM `tabJournal Entry` je
+        JOIN `tabJournal Entry Account` jea ON jea.parent = je.name
+        WHERE je.docstatus = 1 AND jea.account = %(account)s AND jea.credit > 0
+            AND EXISTS (
+                SELECT 1 FROM `tabJournal Entry Account` ref
+                WHERE ref.parent = je.name AND ref.reference_name = %(invoice)s
+            )""",
+        {"account": tax_account, "invoice": invoice.name},
+        as_dict=True,
+    )
+    if not reversals:
+        return
+
+    # El enlace se arma con el helper de Frappe y no con el de l10n_ve: ese etiqueta con el
+    # `title_field` del doctype, y el del Asiento de Diario es el nombre del tercero, así que
+    # el mensaje diría «ya tiene su reverso asentado en GRUPO DROSS» en vez del identificador
+    # del asiento, que es el dato que el usuario necesita para ir a buscarlo.
+    from frappe.utils import get_link_to_form as link_by_name
+
+    enlaces: str = ", ".join(
+        frappe.bold(link_by_name("Journal Entry", fila["name"])) for fila in reversals
+    )
+    frappe.throw(
+        _(
+            "La retención de {0} de esta factura ya tiene su reverso asentado en {1}, así que "
+            "quitarla desde acá la reversaría por segunda vez y el cliente quedaría debiendo el "
+            "doble.<br><br>Si quiere además sacar la fila de la factura, anule ese asiento y "
+            "vuelva a quitar la retención desde este botón: el reverso queda asentado una sola vez."
+        ).format(withholding_label(withholding_type), enlaces)
+    )
+
+
+def _clear_withholding_voucher_metadata(invoice_name: str, charge_type: str) -> None:
+    """Borra el número del comprobante del tipo que se quitó y apaga el aviso si corresponde.
+
+    El número que quedaba era el de un comprobante que ya no respalda nada: la retención no
+    está más en la factura. Y el aviso se recalcula acá porque la factura aprobada no vuelve
+    a pasar por `validate`, que es donde el hook lo pone al día.
+    """
+    campo: str = WITHHOLDING_VOUCHER_FIELD.get(charge_type)
+    if campo:
+        frappe.db.set_value("Sales Invoice", invoice_name, campo, None, update_modified=False)
+
+    frappe.clear_document_cache("Sales Invoice", invoice_name)
+    refresh_missing_withholding_voucher(frappe.get_doc("Sales Invoice", invoice_name))
+
+
+def _refresh_sales_totals_after_withholding_change(invoice_name: str) -> None:
+    """Deja los totales guardados de acuerdo con las filas de impuesto que quedaron.
+
+    Sin esto el documento se contradice a sí mismo: las filas dicen un total, el campo
+    guardado dice otro, y el pendiente --que ERPNext sí recalcula desde el mayor cuando se
+    somete el asiento-- dice un tercero.
+
+    Se SUMAN las filas tal como están guardadas en vez de mandar a recalcular: el calculador
+    vuelve a derivar cada fila y pondría en cero la retención que insertó el camino
+    retroactivo, con lo que el total dejaría de coincidir con la tabla que el usuario ve.
+    """
+    from frappe.utils import money_in_words
+    from frappe.utils.data import round_based_on_smallest_currency_fraction
+
+    # La caché del documento no se entera de las filas borradas con db.delete.
+    frappe.clear_document_cache("Sales Invoice", invoice_name)
+    doc = frappe.get_doc("Sales Invoice", invoice_name)
+
+    total: float = 0.0
+    base_total: float = 0.0
+    retenido: float = 0.0
+    for fila in doc.taxes:
+        signo: int = -1 if fila.add_deduct_tax == "Deduct" else 1
+        total += signo * flt(fila.tax_amount)
+        base_total += signo * flt(fila.base_tax_amount)
+        if fila.is_tax_withholding_account:
+            retenido += flt(fila.tax_amount)
+
+    grand_total: float = flt(doc.net_total) + total
+    base_grand_total: float = flt(doc.base_net_total) + base_total
+
+    valores: dict = {
+        "total_taxes_and_charges": total,
+        "base_total_taxes_and_charges": base_total,
+        # «Total Retenido»: mismo criterio que el cálculo del mixin.
+        "total_withholding": retenido,
+        "grand_total": grand_total,
+        "base_grand_total": base_grand_total,
+        "in_words": money_in_words(grand_total, doc.currency),
+        "base_in_words": money_in_words(
+            base_grand_total,
+            frappe.get_cached_value("Company", doc.company, "default_currency"),
+        ),
+    }
+    if not cint(doc.disable_rounded_total):
+        valores["rounded_total"] = round_based_on_smallest_currency_fraction(
+            grand_total, doc.currency, doc.precision("rounded_total")
+        )
+        valores["base_rounded_total"] = round_based_on_smallest_currency_fraction(
+            base_grand_total,
+            frappe.get_cached_value("Company", doc.company, "default_currency"),
+            doc.precision("base_rounded_total"),
+        )
+
+    frappe.db.set_value("Sales Invoice", invoice_name, valores, update_modified=False)
+
+
+def _create_sales_withholding_reversal_journal_entry(
+    invoice: "SalesInvoice",
+    withholding_type: str,
+    tax_account: str,
+    base_amount: float,
+    conversion_rate: float,
+    company_currency: str,
+    invoice_currency: str,
+) -> "JournalEntry":
+    """Asiento que deshace una retención de venta. Es el espejo del que la registra.
+
+    DÉBITO  → `debit_to` (vuelve a deberlo el cliente) referenciando la factura
+    CRÉDITO → cuenta de retención (se vacía el crédito fiscal que nunca existió)
+
+    La referencia a la factura es la que hace que ERPNext le suba el pendiente: es el mismo
+    mecanismo por el que la retención se lo había bajado, al revés.
+
+    Se asienta el reverso en vez de cancelar el asiento original porque el original puede no
+    existir como documento propio --si la retención venía desde el borrador, su movimiento
+    vive dentro del asiento de la factura-- y porque así queda el rastro completo.
+    """
+    tax_account_currency: str = (
+        frappe.db.get_value("Account", tax_account, "account_currency") or company_currency
+    )
+    receivable_currency: str = (
+        frappe.db.get_value("Account", invoice.debit_to, "account_currency") or company_currency
+    )
+
+    entrada = frappe.new_doc("Journal Entry")
+    entrada.company = invoice.company
+    entrada.posting_date = nowdate()
+    entrada.user_remark = _(
+        "Reverso de la retención de {0} de la factura {1}: el cliente no era agente de retención."
+    ).format(withholding_label(withholding_type), invoice.name)
+    entrada.multi_currency = (
+        1
+        if company_currency in (invoice_currency, tax_account_currency, receivable_currency)
+        and {invoice_currency, tax_account_currency, receivable_currency} != {company_currency}
+        else 0
+    )
+
+    fila_cliente: dict = {
+        "account": invoice.debit_to,
+        "party_type": "Customer",
+        "party": invoice.customer,
+        "reference_type": "Sales Invoice",
+        "reference_name": invoice.name,
+        "cost_center": invoice.cost_center,
+        "debit": base_amount,
+    }
+    if receivable_currency != company_currency:
+        tasa: float = conversion_rate if receivable_currency == invoice_currency else 1.0
+        fila_cliente.update(
+            {
+                "account_currency": receivable_currency,
+                "exchange_rate": tasa,
+                "debit_in_account_currency": flt(base_amount / tasa, 2) if tasa else 0.0,
+            }
+        )
+    else:
+        fila_cliente.update({"debit_in_account_currency": base_amount, "exchange_rate": 1.0})
+    entrada.append("accounts", fila_cliente)
+
+    fila_impuesto: dict = {
+        "account": tax_account,
+        "cost_center": invoice.cost_center,
+        "credit": base_amount,
+    }
+    if tax_account_currency != company_currency:
+        tasa = conversion_rate if tax_account_currency == invoice_currency else 1.0
+        fila_impuesto.update(
+            {
+                "account_currency": tax_account_currency,
+                "exchange_rate": tasa,
+                "credit_in_account_currency": flt(base_amount / tasa, 2) if tasa else 0.0,
+            }
+        )
+    else:
+        fila_impuesto.update({"credit_in_account_currency": base_amount, "exchange_rate": 1.0})
+    entrada.append("accounts", fila_impuesto)
+
+    entrada.insert(ignore_permissions=True)
+    entrada.submit()
+    return entrada

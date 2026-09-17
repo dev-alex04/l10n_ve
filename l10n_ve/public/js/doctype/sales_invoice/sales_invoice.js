@@ -100,6 +100,7 @@ frappe.ui.form.on("Sales Invoice", {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     setup_voucher_buttons(frm);
+    setup_remove_withholding_buttons(frm);
 
     setup_exchange_difference_button(frm);
     setup_government_withholding_button(frm);
@@ -2232,4 +2233,86 @@ function open_government_withholding_dialog(frm, ctx) {
   });
 
   dialog.show();
+}
+
+/**
+ * Menú «Quitar Retención» en la factura aprobada, uno por tipo que tenga cargado.
+ *
+ * Existe por el caso que reportó administración el 16-sep-2026: clientes con el check de
+ * contribuyente especial marcado por error a los que se les descontó el 75% del IVA sin ser
+ * agentes de retención. Hasta ahora sólo había camino para AGREGAR una retención; quitarla
+ * había que hacerlo a mano, asiento por asiento.
+ *
+ * Es el mismo botón que ya tiene la Factura de Compra, del otro lado del mostrador.
+ *
+ * @param {object} frm - Instancia del formulario
+ */
+function setup_remove_withholding_buttons(frm) {
+  if (frm.doc.docstatus !== 1) {
+    return;
+  }
+
+  const tipos = [
+    { type: "VAT", charge_type: "VAT Withholding", label: __("Retención de IVA") },
+    { type: "ISLR", charge_type: "ISLR", label: __("Retención de ISLR") },
+  ];
+
+  tipos.forEach((tipo) => {
+    const tiene = (frm.doc.taxes || []).some(
+      (fila) => fila.charge_type === tipo.charge_type && flt(fila.tax_amount)
+    );
+    if (tiene) {
+      frm.add_custom_button(tipo.label, () => remove_sales_withholding(frm, tipo.type), __("Quitar Retención"));
+    }
+  });
+}
+
+/**
+ * Quita una retención de la factura aprobada, tras confirmar.
+ *
+ * El monto vuelve a deberlo el cliente: se dice en el diálogo, porque es lo que el usuario
+ * necesita saber antes de aceptar.
+ *
+ * @param {object} frm              - Instancia del formulario
+ * @param {string} withholding_type - "VAT" o "ISLR"
+ */
+function remove_sales_withholding(frm, withholding_type) {
+  const charge_type = withholding_type === "VAT" ? "VAT Withholding" : "ISLR";
+  const etiqueta = withholding_type === "VAT" ? __("IVA") : __("ISLR");
+  const filas = (frm.doc.taxes || []).filter((fila) => fila.charge_type === charge_type);
+  const monto = filas.reduce((acumulado, fila) => acumulado + flt(fila.tax_amount), 0);
+  const monto_base = filas.reduce((acumulado, fila) => acumulado + flt(fila.base_tax_amount), 0);
+
+  frappe.confirm(
+    __(
+      "Se va a quitar la retención de {0} por {1} de la factura {2}. Se asienta el reverso y ese monto vuelve a deberlo el cliente. La otra retención no se toca. ¿Continuar?",
+      [
+        etiqueta,
+        l10n_ve.money.in_both_currencies(frm, monto, monto_base),
+        // El número fiscal, que es el que el usuario tiene en la mano.
+        frm.doc.bill_no || frm.doc.name,
+      ]
+    ),
+    () => {
+      frappe.dom.freeze(__("Quitando la retención y asentando el reverso..."));
+      frappe.call({
+        method: "l10n_ve.overrides.sales_invoice.remove_retroactive_sales_withholding",
+        args: {
+          invoice_name: frm.doc.name,
+          withholding_type: withholding_type,
+          company: frm.doc.company,
+        },
+        callback(r) {
+          frappe.dom.unfreeze();
+          if (r.message && r.message.status === "success") {
+            frappe.show_alert({ message: r.message.msg, indicator: "green" });
+            frm.reload_doc();
+          }
+        },
+        error() {
+          frappe.dom.unfreeze();
+        },
+      });
+    }
+  );
 }

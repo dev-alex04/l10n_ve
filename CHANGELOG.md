@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.74.1] - 2026-09-17
+
+### 🐛 Correcciones (Fixes)
+- **Reembolsos:** Implementación de bloqueo de interfaz (loading state) durante la generación del plan de corrección para evitar interacciones concurrentes y asegurar la integridad del proceso. [7c73db95]
+- **Reembolsos:** Se corrigió un error visual en las tablas donde el número de fila aparecía truncado al alcanzar cifras de dos dígitos (caso 10 en adelante). [9ceadd80]
+- **Reembolsos:** Ajuste en el cálculo de espaciado y alineación de los indicadores de fila respecto a la columna de acciones para mejorar la consistencia visual. [ac4308c4]
+
+---
+
+## [v2.74.0] - 2026-09-17
+
+### ✨ Funcionalidades (Features)
+- Se habilitó la posibilidad de eliminar una retención asociada a una factura de venta que ya ha sido aprobada. e5ede087
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el generador de PDF donde la función de formato de moneda causaba un descuadre visual en los diálogos del módulo de ventas. 3075f1dc
+- Se ajustó la lógica del módulo de retenciones para prevenir la duplicidad en reversiones manuales. 295f82b4
+- Se estabilizaron las pruebas automatizadas del módulo de retenciones eliminando la dependencia técnica de la caché caliente. 993fbd0f
+
+---
+
+## [v2.73.1] - 2026-09-17
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió una discrepancia visual en el módulo de retenciones, donde el campo «Total Retenido» mostraba la etiqueta de bolívares erróneamente sobre montos expresados en divisas. (9bcd5e09)
+
+---
+
 ## [v2.73.0] - 2026-09-17
 
 ### ✨ Funcionalidades (Features)

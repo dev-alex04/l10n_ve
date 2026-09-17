@@ -6,6 +6,35 @@ const RIF_NATURAL_NATURES = ["Venezuelan", "Extranjero", "Passport"];
  * @param {string} nature
  * @returns {number|Array<number>}
  */
+frappe.provide("l10n_ve.money");
+
+/**
+ * Un monto escrito como lo lee administración: en bolívares, y entre paréntesis en la moneda
+ * del documento cuando no son la misma.
+ *
+ * Nace de un diálogo que decía «Bs. 1,03»: el símbolo de bolívares pegado al monto en dólares.
+ * En estas facturas conviven las dos monedas --el documento va en divisa y el comprobante de
+ * retención que el cliente entrega está en bolívares-- así que el número solo, sin decir de qué
+ * moneda es, no alcanza para decidir.
+ *
+ * Devuelve TEXTO PLANO a propósito. Lo que rompió aquel diálogo fue formatear con
+ * `frappe.format({fieldtype: "Currency"})`, que devuelve HTML alineado a la derecha: dentro de
+ * un PDF es lo que se busca, dentro de un mensaje parte la frase y manda el monto solo.
+ *
+ * @param {object} frm         - Instancia del formulario
+ * @param {number} doc_amount  - El monto en la moneda del documento
+ * @param {number} base_amount - El mismo monto en la moneda de la empresa
+ * @returns {string} El monto listo para un mensaje
+ */
+l10n_ve.money.in_both_currencies = function (frm, doc_amount, base_amount) {
+  const company_currency = erpnext.get_currency(frm.doc.company);
+  const in_company_currency = format_currency(flt(base_amount), company_currency);
+  if (!frm.doc.currency || frm.doc.currency === company_currency) {
+    return in_company_currency;
+  }
+  return `${in_company_currency} (${format_currency(flt(doc_amount), frm.doc.currency)})`;
+};
+
 function get_tax_id_config(document_type, nature) {
   const config = {
     RIF: { default: 9 },
