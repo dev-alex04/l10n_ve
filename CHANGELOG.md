@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.74.0] - 2026-09-17
+
+### ✨ Funcionalidades (Features)
+- Se habilitó la posibilidad de eliminar una retención asociada a una factura de venta que ya ha sido aprobada. e5ede087
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el generador de PDF donde la función de formato de moneda causaba un descuadre visual en los diálogos del módulo de ventas. 3075f1dc
+- Se ajustó la lógica del módulo de retenciones para prevenir la duplicidad en reversiones manuales. 295f82b4
+- Se estabilizaron las pruebas automatizadas del módulo de retenciones eliminando la dependencia técnica de la caché caliente. 993fbd0f
+
+---
+
 ## [v2.73.1] - 2026-09-17
 
 ### 🐛 Correcciones (Fixes)
