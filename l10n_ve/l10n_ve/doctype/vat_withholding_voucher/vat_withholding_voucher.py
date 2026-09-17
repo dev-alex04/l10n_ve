@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, nowdate, getdate, get_link_to_form
+from l10n_ve.numbering import take_withholding_number
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 
 
@@ -180,29 +181,9 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
             )
 
     def before_insert(self) -> None:
-        # Row lock atómico para prevenir race conditions en correlativos
-        company_row: dict = frappe.db.sql(
-            "SELECT vat_withholding_correlative, vat_withholding_format "
-            "FROM `tabCompany` WHERE name = %s FOR UPDATE",
-            self.empresa, as_dict=True
-        )
-        if not company_row:
-            frappe.throw(_("Empresa no encontrada: {0}").format(self.empresa))
-
-        company_data: dict = company_row[0]
-        correlative_format: str = company_data.vat_withholding_format
-
-        final_voucher_number, final_next_correlative_number, year, month = \
-            self._get_and_format_correlatives(correlative_format, company_data.vat_withholding_correlative)
-
-        self.voucher_number = final_voucher_number
-        self.fiscal_period = f"{month}/{year}"
-
-        # Incremento atómico: gap aceptable si insert() falla después
-        frappe.db.sql(
-            "UPDATE `tabCompany` SET vat_withholding_correlative = %s WHERE name = %s",
-            (final_next_correlative_number, self.empresa)
-        )
+        # El número y el período salen de `l10n_ve.numbering`, el mismo mecanismo que usan
+        # la empresa y la serie digital: bloqueo de fila y avance en la misma transacción.
+        self.voucher_number, self.fiscal_period = take_withholding_number(self.empresa, "vat")
 
     def on_trash(self) -> None:
         if self.docstatus == 2:

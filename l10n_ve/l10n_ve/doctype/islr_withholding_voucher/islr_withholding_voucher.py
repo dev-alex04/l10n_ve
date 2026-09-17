@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, nowdate, getdate, get_link_to_form
+from l10n_ve.numbering import take_withholding_number
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 from l10n_ve.utils.utils import format_amounts
 
@@ -178,31 +179,9 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
         format_amounts(self, main_fields, child_fields, child_table_field="islr_withholding_voucher_item")
 
     def before_insert(self) -> None:
-        # Row lock atómico para prevenir race conditions en correlativos
-        company_row: dict = frappe.db.sql(
-            "SELECT islr_withholding_correlative, islr_withholding_format "
-            "FROM `tabCompany` WHERE name = %s FOR UPDATE",
-            self.empresa, as_dict=True
-        )
-        if not company_row:
-            frappe.throw(_("Empresa no encontrada: {0}").format(self.empresa))
-
-        company_data: dict = company_row[0]
-        correlative_format: str = company_data.islr_withholding_format
-
-        (final_voucher_number, final_next_correlative_number,
-         current_year, current_month) = self._get_and_format_correlatives(
-            correlative_format, company_data.islr_withholding_correlative
-        )
-
-        self.voucher_number = final_voucher_number
+        # Mismo mecanismo que IVA, la empresa y la serie digital (`l10n_ve.numbering`).
+        self.voucher_number, _period = take_withholding_number(self.empresa, "islr")
         self.posting_date = nowdate()
-
-        # Incremento atómico: gap aceptable si insert() falla después
-        frappe.db.sql(
-            "UPDATE `tabCompany` SET islr_withholding_correlative = %s WHERE name = %s",
-            (final_next_correlative_number, self.empresa)
-        )
 
     def on_trash(self) -> None:
         if self.docstatus == 2:

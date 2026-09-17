@@ -5,14 +5,20 @@
 Resolución de la alícuota al retener sobre una factura de compra ya aprobada.
 
 Lo que se protege: que la alícuota salga del tabulador **para el tipo de persona del
-proveedor** y de ningún otro. Hubo una versión que, si no encontraba fila para ese tipo,
-tomaba "la primera con alícuota > 0". Eso no es un respaldo: es aplicar la alícuota de
-otro tipo de persona a un monto que se declara.
+proveedor** siempre que ese tipo esté en el concepto, y que cuando no está NO se tome
+"la primera con alícuota > 0" si el concepto ofrece varias. Esa "primera" sería la fila
+de otro tipo de persona sobre un monto que se declara ante el SENIAT.
 
-Medido en el sitio cuando se revisó: 82 tabuladores, y sólo 1 con más de un tipo de
-persona --el `9`, que va de 1 % con sustraendo Bs 35,83 (natural domiciliado) a 5 % sin
-sustraendo (jurídico)--. En los otros 81 esa "primera" es siempre la fila del tipo
-equivocado.
+Lo que sí se permite, desde 16-sep-2026: si el concepto ofrece **una sola** alícuota, se
+aplica aunque no sea la del tipo del proveedor. Es el caso de las sociedades de personas
+--firmas civiles de abogados o contadores, con RIF jurídico, que por el Decreto 1808
+(artículo 9, parágrafo cuarto) se retienen con las tasas de las naturales--, acordado con
+el equipo contable el 31-jul-2026. Ahí no hay nada que adivinar: el concepto ofrece una
+tarifa y es la que el contador eligió.
+
+Medido en el sitio el 16-sep-2026: 66 conceptos con alícuota > 0, de los cuales 65 tienen
+exactamente una fila. El único con dos tipos es el `077`, que va de 1 % con sustraendo
+Bs 35,83 (natural domiciliado) a 5 % sin sustraendo (jurídico), y ninguna línea viva lo usa.
 """
 
 import unittest
@@ -67,16 +73,35 @@ class TestISLRRateResolution(unittest.TestCase):
         with self.assertRaises(frappe.ValidationError):
             self._base(filas, "Natural person domiciled")
 
-    def test_without_a_row_for_that_type_it_blocks(self):
-        """No se toma "la primera disponible": sería la alícuota de otro tipo."""
+    def test_a_single_rate_concept_applies_to_any_person_type(self):
+        """Concepto de una sola alícuota: se aplica aunque sea de otro tipo.
+
+        Sociedades de personas. El concepto ofrece una tarifa, el contador la
+        eligió, y no hay ninguna otra fila entre la cual equivocarse.
+        1000 × 5 % − 0 = 50.
+        """
         filas = [{"types_of_person": "Domiciled legal entity", "aliquot": 5.0,
                   "subtracting": 0.0, "percentage_base": 100.0}]
+        self.assertEqual(self._base(filas, "Natural person domiciled"), 50.0)
+
+    def test_with_several_rates_and_none_of_that_type_it_blocks(self):
+        """Varias alícuotas y ninguna del proveedor: falla, no elige por orden."""
+        filas = [
+            {"types_of_person": "Natural person domiciled", "aliquot": 1.0,
+             "subtracting": 35.83, "percentage_base": 100.0},
+            {"types_of_person": "Domiciled legal entity", "aliquot": 5.0,
+             "subtracting": 0.0, "percentage_base": 100.0},
+        ]
         with self.assertRaises(frappe.ValidationError) as ctx:
-            self._base(filas, "Natural person domiciled")
-        self.assertIn("alícuota válida", str(ctx.exception))
+            self._base(filas, "Non-domiciled natural person")
+        self.assertIn("ofrece más de una", str(ctx.exception))
 
     def test_a_supplier_without_person_type_also_blocks(self):
-        """El caso que más se dio: `type_of_person` vacío se llevaba la primera fila."""
+        """Sin tipo de persona no se retiene, igual que en borrador.
+
+        Es configuración faltante del proveedor, no una alícuota que se pueda
+        resolver, así que se corta antes de mirar el concepto.
+        """
         filas = [{"types_of_person": "Domiciled legal entity", "aliquot": 5.0,
                   "subtracting": 0.0, "percentage_base": 100.0}]
         with self.assertRaises(frappe.ValidationError):

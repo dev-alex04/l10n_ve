@@ -116,7 +116,7 @@ class TestFilaRetroactivaDeIslr(FrappeTestCase):
     lleva el sustraendo restado. Pasó el 16-sep-2026 con el comprobante 20260900000461.
     """
 
-    def _construir_fila(self) -> dict:
+    def _construir_fila(self, tipo_persona: str = "Natural person domiciled") -> dict:
         from l10n_ve.overrides.purchase_invoice import _create_purchase_taxes_row
 
         tabulador = frappe._dict({
@@ -143,7 +143,7 @@ class TestFilaRetroactivaDeIslr(FrappeTestCase):
 
         with patch("frappe.new_doc", return_value=_Fila()), \
                 patch("frappe.get_cached_doc", return_value=tabulador), \
-                patch("frappe.db.get_value", return_value="Natural person domiciled"):
+                patch("frappe.db.get_value", return_value=tipo_persona):
             _create_purchase_taxes_row(
                 factura, "ISLR", "2105003 - Retenciones ISLR", "ISLR",
                 4536.23, 4536.23, 3.0, "79",
@@ -159,6 +159,27 @@ class TestFilaRetroactivaDeIslr(FrappeTestCase):
     def test_la_fila_queda_aprobada_como_su_factura(self) -> None:
         """Una fila en borrador dentro de una factura emitida es un estado que no existe."""
         self.assertEqual(self._construir_fila()["docstatus"], 1)
+
+    def test_el_proveedor_juridico_con_concepto_de_natural_igual_lleva_sustraendo(self) -> None:
+        """El caso cruzado es el que más necesita el sustraendo, y el que casi se pierde.
+
+        Las sociedades de personas tienen RIF jurídico y se retienen como naturales, así que
+        el concepto 002 no tiene fila de su tipo. Resolver la alícuota con una coincidencia
+        exacta por tipo de persona devolvía None y dejaba la fila sin sustraendo: de vuelta al
+        rechazo [1060] de HKA. La alícuota sale del resolvedor compartido, no de una búsqueda
+        exacta.
+        """
+        fila: dict = self._construir_fila(tipo_persona="Domiciled legal entity")
+
+        self.assertEqual(fila["subtracting"], 107.5)
+        self.assertEqual(fila["percentage_base"], 100.0)
+
+    def test_la_fila_cruzada_dice_que_la_alicuota_es_de_otro_tipo(self) -> None:
+        """Quien audite el Libro de Compras ve un jurídico al 3% y necesita el porqué."""
+        fila: dict = self._construir_fila(tipo_persona="Domiciled legal entity")
+
+        self.assertIn("ISLR 002", fila["description"])
+        self.assertIn("aplicada a un proveedor", fila["description"])
 
 
 class TestRecalculoDeTotales(FrappeTestCase):
