@@ -28,8 +28,8 @@ from l10n_ve.overrides.advance_refund import (
 )
 
 
-class TestLasFilasDelAsiento(unittest.TestCase):
-    def test_al_cliente_el_dinero_sale_del_banco(self):
+class TestRefundJournalRows(unittest.TestCase):
+    def test_a_customer_refund_takes_money_out_of_the_bank(self):
         party, bank = build_refund_rows("out", 100.0, "Customer", "C1", "CXC", "BANCO")
         self.assertEqual(party["debit_in_account_currency"], 100.0)
         self.assertNotIn("credit_in_account_currency", party)
@@ -41,7 +41,7 @@ class TestLasFilasDelAsiento(unittest.TestCase):
         )
         self.assertNotIn("party", bank)
 
-    def test_del_proveedor_el_dinero_entra_al_banco(self):
+    def test_a_supplier_refund_brings_money_into_the_bank(self):
         party, bank = build_refund_rows("in", 100.0, "Supplier", "P1", "CXP", "BANCO")
         self.assertEqual(party["credit_in_account_currency"], 100.0)
         self.assertNotIn("debit_in_account_currency", party)
@@ -52,7 +52,7 @@ class TestLasFilasDelAsiento(unittest.TestCase):
             ("CXP", "Supplier", "P1"),
         )
 
-    def test_la_fila_del_tercero_no_lleva_referencia(self):
+    def test_the_party_row_carries_no_reference(self):
         """Con referencia al pago, el saldo del asiento quedaría contra ese pago y la
         conciliación no ofrecería el asiento como documento."""
         for direction in ("in", "out"):
@@ -60,7 +60,7 @@ class TestLasFilasDelAsiento(unittest.TestCase):
                 self.assertNotIn("reference_type", row)
                 self.assertNotIn("reference_name", row)
 
-    def test_la_sucursal_y_el_centro_de_costo_van_en_las_dos_filas(self):
+    def test_branch_and_cost_center_go_in_both_rows(self):
         rows = build_refund_rows(
             "out",
             1.0,
@@ -73,21 +73,21 @@ class TestLasFilasDelAsiento(unittest.TestCase):
         for row in rows:
             self.assertEqual((row["cost_center"], row["branch"]), ("DC-01", "DC-01"))
 
-    def test_un_sentido_desconocido_no_arma_filas(self):
+    def test_an_unknown_direction_builds_no_rows(self):
         with self.assertRaises(ValueError):
             build_refund_rows("otro", 1.0, "Customer", "C1", "A", "B")
 
-    def test_solo_cobros_a_clientes_y_pagos_a_proveedores(self):
+    def test_only_customer_receipts_and_supplier_payments(self):
         self.assertEqual(
             REFUND_DIRECTION,
             {("Customer", "Receive"): "out", ("Supplier", "Pay"): "in"},
         )
 
 
-class TestLasDimensionesDelAsiento(unittest.TestCase):
+class TestRefundDimensions(unittest.TestCase):
     """De dónde salen la sucursal y el centro de costo de las filas del asiento."""
 
-    def test_los_toma_del_pago_cuando_los_trae(self):
+    def test_dimensions_come_from_the_payment_when_it_has_them(self):
         pe = frappe._dict(branch="MIR-04", cost_center="MIR-04", references=[])
         with (
             patch.object(frappe.local.db, "has_column", return_value=True),
@@ -98,7 +98,7 @@ class TestLasDimensionesDelAsiento(unittest.TestCase):
             )
             get_value.assert_not_called()
 
-    def test_sin_sucursal_la_busca_en_la_factura_que_salda(self):
+    def test_without_a_branch_it_looks_in_the_invoice_it_settles(self):
         """En Galanet hay 96 cobros y pagos validados sin sucursal ni centro de costo."""
         pe = frappe._dict(
             branch=None,
@@ -126,7 +126,7 @@ class TestLasDimensionesDelAsiento(unittest.TestCase):
                 _refund_dimensions(pe), {"cost_center": "DC-01", "branch": "DC-01"}
             )
 
-    def test_si_no_hay_de_donde_sacarlas_no_las_inventa(self):
+    def test_it_does_not_invent_dimensions_it_cannot_find(self):
         pe = frappe._dict(branch=None, cost_center=None, references=[])
         with (
             patch.object(frappe.local.db, "has_column", return_value=True),
@@ -135,7 +135,7 @@ class TestLasDimensionesDelAsiento(unittest.TestCase):
             self.assertEqual(_refund_dimensions(pe), {})
 
 
-class _ContraLaBase:
+class _AgainstTheSite:
     """Corre contra el sitio y revierte todo al terminar cada test."""
 
     party_type: str
@@ -199,7 +199,7 @@ class _ContraLaBase:
             2,
         )
 
-    def test_el_anticipo_baja_en_lo_reembolsado(self):
+    def test_the_advance_drops_by_the_refunded_amount(self):
         before = flt(self.pe.unallocated_amount, 2)
         result = self._refund(1.0)
         after = flt(
@@ -211,7 +211,7 @@ class _ContraLaBase:
             1,
         )
 
-    def test_el_asiento_queda_aplicado_y_el_saldo_cambia_en_lo_devuelto(self):
+    def test_the_entry_is_applied_and_the_balance_moves_by_the_refund(self):
         """El asiento no queda con saldo propio, y el saldo del tercero cambia exactamente en lo
         que se devolvió: al cliente le baja el saldo a favor; al proveedor, el anticipo."""
         before = self._party_balance()
@@ -225,11 +225,11 @@ class _ContraLaBase:
         change = 1.0 if self.party_type == "Customer" else -1.0
         self.assertEqual(self._party_balance(), flt(before + change, 2))
 
-    def test_no_deja_reembolsar_mas_de_lo_sin_aplicar(self):
+    def test_it_refuses_to_refund_more_than_the_unapplied_amount(self):
         with self.assertRaises(frappe.ValidationError):
             self._refund(flt(self.pe.unallocated_amount) + 1)
 
-    def test_no_deja_reembolsar_con_fecha_futura(self):
+    def test_it_refuses_a_future_posting_date(self):
         """El techo es hoy o la fecha del pago, lo que sea mayor: hay pagos cargados con
         fecha futura por error y su reembolso tiene que poder registrarse igual."""
         techo = max(getdate(nowdate()), getdate(self.pe.posting_date))
@@ -242,16 +242,16 @@ class _ContraLaBase:
                 reference_no="PRUEBA1234",
             )
 
-    def test_la_cuenta_tiene_que_ser_de_banco_o_caja(self):
+    def test_the_account_must_be_bank_or_cash(self):
         with self.assertRaises(frappe.ValidationError):
             self._refund(1.0, account=self.pe.party_account)
 
 
-class TestReembolsoAUnCliente(_ContraLaBase, unittest.TestCase):
+class TestCustomerRefund(_AgainstTheSite, unittest.TestCase):
     party_type = "Customer"
     payment_type = "Receive"
 
 
-class TestReembolsoDeUnProveedor(_ContraLaBase, unittest.TestCase):
+class TestSupplierRefund(_AgainstTheSite, unittest.TestCase):
     party_type = "Supplier"
     payment_type = "Pay"

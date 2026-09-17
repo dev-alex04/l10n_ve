@@ -29,6 +29,7 @@ frappe.ui.form.on("Customer", {
 
     handle_customer_field_change(frm, null);
     handle_field_change(frm, null);
+    setup_refund_audit_button(frm);
 
     // Ocultar campos
     frm.toggle_display("account_manager", false);
@@ -315,6 +316,8 @@ function render_custom_account_summary(frm) {
         } else {
           frm.dashboard.add_section($section);
         }
+
+        render_refund_audit_banner(frm, $section);
       }
     }
   });
@@ -522,6 +525,148 @@ function open_municipal_tax_dialog(frm) {
       };
 
       dialog.show();
+    },
+  });
+}
+
+/**
+ * Botón «Revisar reembolsos»: avisa si los cobros del cliente ofrecen un anticipo que ya se le
+ * devolvió, y ofrece corregirlo. El mismo diagnóstico del reporte Unlinked Refunds («Reembolsos sin enlazar»),
+ * para cuando alguien llega por la ficha del cliente y no por la lista.
+ *
+ * @param {object} frm - Instancia del formulario Customer
+ */
+function setup_refund_audit_button(frm) {
+  const roles = ["Accounts Manager", "Accounts User", "ISP Finance Pro", "System Manager"];
+  if (frm.is_new() || !roles.some((role) => frappe.user_roles.includes(role))) {
+    return;
+  }
+
+  frm.add_custom_button(__("Revisar reembolsos"), () => {
+    frappe
+      .call({
+        method: "l10n_ve.overrides.advance_refund_audit.scan",
+        args: { company: frappe.defaults.get_user_default("Company"), party: frm.doc.name },
+        freeze: true,
+        freeze_message: __("Revisando..."),
+      })
+      .then((r) => {
+        const cases = r.message || [];
+        if (!cases.length) {
+          frappe.show_alert({
+            message: __("Este cliente no tiene reembolsos sin enlazar."),
+            indicator: "green",
+          });
+          return;
+        }
+        show_refund_audit_dialog(frm, cases[0]);
+      });
+  }, __("Acciones"));
+}
+
+/**
+ * Muestra qué se le haría a la cuenta del cliente y, si lo aprueban, lo hace.
+ *
+ * @param {object} frm - Instancia del formulario Customer
+ * @param {object} caso - Caso devuelto por el diagnóstico
+ */
+function show_refund_audit_dialog(frm, refund_case) {
+  frappe
+    .call({
+      method: "l10n_ve.overrides.advance_refund_audit.describe",
+      args: { company: refund_case.company, party: refund_case.party, advance_account: refund_case.advance_account },
+    })
+    .then((r) => {
+      const plan = r.message || {};
+      const summary = __("Sus cobros ofrecen {0} y el mayor dice {1}.", [
+        format_currency(refund_case.offered),
+        format_currency(refund_case.ledger),
+      ]);
+
+      if (!plan.can_fix) {
+        frappe.msgprint({
+          title: __("Hay que revisarlo a mano"),
+          message: `<p>${summary}</p><p>${frappe.utils.escape_html(plan.problem || "")}</p>`,
+          indicator: "orange",
+        });
+        return;
+      }
+
+      frappe.confirm(
+        `<p>${summary}</p><ul><li>${plan.lines.map(frappe.utils.escape_html).join("</li><li>")}</li></ul>`,
+        () => {
+          frappe.call({
+            method: "l10n_ve.overrides.advance_refund_audit.fix",
+            args: { company: refund_case.company, party: refund_case.party, advance_account: refund_case.advance_account },
+            freeze: true,
+            freeze_message: __("Corrigiendo..."),
+            callback(res) {
+              if (!res.message) return;
+              frappe.show_alert({
+                message: __("Listo. Documentos creados: {0}", [res.message.documents.join(", ")]),
+                indicator: "green",
+              });
+              frm.reload_doc();
+            },
+          });
+        }
+      );
+    });
+}
+
+/**
+ * Barra dentro del resumen de cuenta: avisa cuando los cobros del cliente ofrecen un anticipo
+ * que ya se le devolvió, y trae el botón para corregirlo ahí mismo. Solo aparece cuando hay
+ * algo que corregir, así que en un cliente sano no se ve nada.
+ *
+ * @param {object} frm - Instancia del formulario Customer
+ * @param {object} $section - La sección del resumen, ya insertada
+ */
+function render_refund_audit_banner(frm, $section) {
+  const roles = ["Accounts Manager", "Accounts User", "ISP Finance Pro", "System Manager"];
+  if (!roles.some((role) => frappe.user_roles.includes(role))) {
+    return;
+  }
+
+  frappe.call({
+    method: "l10n_ve.overrides.advance_refund_audit.scan",
+    args: {
+      company: frm.doc.represents_company || frappe.defaults.get_user_default("Company"),
+      party: frm.doc.name,
+    },
+    callback(r) {
+      const refund_case = (r.message || [])[0];
+      if (!refund_case) {
+        return;
+      }
+
+      const summary = __("Sus cobros ofrecen {0} y el mayor dice {1}.", [
+        format_currency(refund_case.offered),
+        format_currency(refund_case.ledger),
+      ]);
+      const detail = refund_case.problem
+        ? `<div style="margin-top: 4px; color: #8d99a6;">${frappe.utils.escape_html(refund_case.problem)}</div>`
+        : "";
+      const button = refund_case.problem
+        ? ""
+        : `<button class="btn btn-sm btn-primary refund-audit-fix" style="white-space: nowrap;">${__(
+            "Corregir"
+          )}</button>`;
+
+      const $banner = $(`
+        <div style="display: flex; gap: 12px; align-items: center; justify-content: space-between;
+          font-size: 11px; color: #6f7c87; background: #fdf2e9; padding: 8px 12px; border-radius: 4px;
+          border: 1px solid #f5cba7; border-left: 3px solid #e67e22; margin-bottom: 15px;">
+          <div>
+            <i class="fa fa-exclamation-circle" style="color: #e67e22; margin-right: 5px;"></i>
+            <strong>${__("Reembolso sin enlazar")}:</strong> ${summary}
+            ${detail}
+          </div>
+          ${button}
+        </div>
+      `);
+      $banner.find(".refund-audit-fix").on("click", () => show_refund_audit_dialog(frm, refund_case));
+      $section.find("h5").after($banner);
     },
   });
 }

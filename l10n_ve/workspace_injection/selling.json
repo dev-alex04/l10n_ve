@@ -9,6 +9,20 @@
 				{ "label": "Nota de Crédito de Venta", "link_to": "VE Sales Credit Note", "link_type": "DocType" },
 				{ "label": "Nota de Débito de Venta", "link_to": "VE Sales Debit Note", "link_type": "DocType" }
 			]
+		},
+		{
+			"label": "Other Reports",
+			"owned": false,
+			"insert": { "after_link": "Customer Credit Balance" },
+			"links": [
+				{
+					"label": "Reembolsos sin enlazar",
+					"link_to": "Unlinked Refunds",
+					"link_type": "Report",
+					"is_query_report": 1,
+					"dependencies": "Payment Entry"
+				}
+			]
 		}
 	],
 	"shortcuts": [
