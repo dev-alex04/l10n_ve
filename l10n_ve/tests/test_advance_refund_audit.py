@@ -9,12 +9,17 @@ corra y que solo informe la dirección que importa (los cobros ofreciendo de má
 """
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import frappe
 from frappe.utils import flt
 
-from l10n_ve.overrides.advance_refund_audit import _build_case, _not_a_refund, scan
+from l10n_ve.overrides.advance_refund_audit import (
+    _build_case,
+    _close_refund_receipt,
+    _not_a_refund,
+    scan,
+)
 
 
 class TestSiEsUnReembolsoDeVerdad(unittest.TestCase):
@@ -138,3 +143,95 @@ class TestElDiagnosticoContraElSitio(unittest.TestCase):
         amplio = scan(company=self.company, tolerance=0.01)
         acotado = scan(company=self.company, tolerance=1000.0)
         self.assertLessEqual(len(acotado), len(amplio))
+
+
+class TestElReciboDelReembolso(unittest.TestCase):
+    """Que el recibo del reembolso deje de mostrar su monto como saldo a favor.
+
+    Aurelys lo reportó el 16-sep-2026, con ZAPATERIA GASOLINA EXTRA ya corregido: «el cliente
+    está saldado pero el recibo sigue saliendo con el monto». La contabilidad estaba bien; lo
+    que no se enteraba era el documento.
+    """
+
+    def _cerrar(self, refund: dict, receipt: dict, ya_enlazado: bool = False):
+        """Corre el cierre con la base simulada y devuelve (fila escrita, campos del recibo)."""
+        fila = MagicMock()
+        with (
+            patch.object(frappe.db, "get_value", return_value=frappe._dict(receipt)),
+            patch.object(frappe.db, "exists", return_value=ya_enlazado),
+            patch.object(frappe.db, "count", return_value=0),
+            patch.object(frappe, "new_doc", return_value=fila),
+            patch.object(frappe.db, "set_value") as set_value,
+        ):
+            _close_refund_receipt(refund, "ACC-JV-2026-35430", 232565.54)
+        escrita = fila.update.call_args[0][0] if fila.update.call_args else None
+        campos = set_value.call_args[0][2] if set_value.call_args else None
+        return escrita, campos
+
+    def test_el_recibo_queda_enlazado_y_sin_monto_a_favor(self):
+        escrita, campos = self._cerrar(
+            {"doctype": "Payment Entry", "name": "ACC-PAY-2026-21786-1"},
+            {
+                "unallocated_amount": 232565.54,
+                "total_allocated_amount": 0.0,
+                "base_total_allocated_amount": 0.0,
+                "target_exchange_rate": 1.0,
+            },
+        )
+        self.assertEqual(escrita["reference_doctype"], "Journal Entry")
+        self.assertEqual(escrita["reference_name"], "ACC-JV-2026-35430")
+        self.assertEqual(escrita["allocated_amount"], 232565.54)
+        self.assertEqual(campos["unallocated_amount"], 0.0)
+        self.assertEqual(campos["total_allocated_amount"], 232565.54)
+
+    def test_nunca_asigna_mas_de_lo_que_quedaba_sin_asignar(self):
+        """Si el recibo ya tenía parte aplicada, solo se cierra lo que quedaba libre."""
+        escrita, campos = self._cerrar(
+            {"doctype": "Payment Entry", "name": "ACC-PAY-2026-21786-1"},
+            {
+                "unallocated_amount": 100.0,
+                "total_allocated_amount": 50.0,
+                "base_total_allocated_amount": 50.0,
+                "target_exchange_rate": 1.0,
+            },
+        )
+        self.assertEqual(escrita["allocated_amount"], 100.0)
+        self.assertEqual(campos["total_allocated_amount"], 150.0)
+        self.assertEqual(campos["unallocated_amount"], 0.0)
+
+    def test_el_reembolso_asentado_en_diario_no_tiene_recibo_que_cerrar(self):
+        with patch.object(frappe.db, "get_value") as consulta:
+            _close_refund_receipt(
+                {"doctype": "Journal Entry", "name": "ACC-JV-2026-30001"},
+                "ACC-JV-2026-35430",
+                100.0,
+            )
+        consulta.assert_not_called()
+
+    def test_si_ya_estaba_enlazado_no_lo_escribe_dos_veces(self):
+        """El script se puede volver a correr sin duplicar la fila."""
+        escrita, campos = self._cerrar(
+            {"doctype": "Payment Entry", "name": "ACC-PAY-2026-21786-1"},
+            {
+                "unallocated_amount": 232565.54,
+                "total_allocated_amount": 0.0,
+                "base_total_allocated_amount": 0.0,
+                "target_exchange_rate": 1.0,
+            },
+            ya_enlazado=True,
+        )
+        self.assertIsNone(escrita)
+        self.assertIsNone(campos)
+
+    def test_un_recibo_sin_nada_libre_se_deja_como_esta(self):
+        escrita, campos = self._cerrar(
+            {"doctype": "Payment Entry", "name": "ACC-PAY-2026-21786-1"},
+            {
+                "unallocated_amount": 0.0,
+                "total_allocated_amount": 232565.54,
+                "base_total_allocated_amount": 232565.54,
+                "target_exchange_rate": 1.0,
+            },
+        )
+        self.assertIsNone(escrita)
+        self.assertIsNone(campos)

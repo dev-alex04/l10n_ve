@@ -29,7 +29,8 @@ from itertools import combinations
 import frappe
 from erpnext.accounts.party import get_party_account
 from frappe import _
-from frappe.utils import flt, fmt_money, get_link_to_form, getdate, nowdate
+from frappe.utils import cint, flt, fmt_money, get_link_to_form, getdate, nowdate
+
 from l10n_ve.overrides.advance_refund import _refund_dimensions
 
 FIX_ROLES: tuple[str, ...] = (
@@ -613,6 +614,7 @@ def _link_refund(case: dict, refund: dict, posting_date) -> str:
         payment=None,
         expected=amount,
     )
+    _close_refund_receipt(refund, journal_entry.name, amount)
     origin.add_comment(
         "Comment",
         text=_("Enlazado con el anticipo que devolvió mediante el asiento {0}.").format(
@@ -620,6 +622,121 @@ def _link_refund(case: dict, refund: dict, posting_date) -> str:
         ),
     )
     return journal_entry.name
+
+
+def close_refund_receipts(company: str, execute: int | bool = False) -> list[dict]:
+    r"""Cierra los recibos de los reembolsos que se enlazaron antes de que esto existiera.
+
+    Los enlaces hechos hasta el 16-sep-2026 --los once clientes de la primera corrida-- dejaron
+    el recibo del reembolso mostrando todo su monto como no asignado, que es lo que
+    administración lee como saldo a favor. El enlace contable está bien; lo que falta es que el
+    documento lo diga. De acá en adelante lo hace :func:`_link_refund` sola.
+
+    Sin ``execute`` solo informa. Se corre a mano::
+
+        bench --site <sitio> execute l10n_ve.overrides.advance_refund_audit.close_refund_receipts \
+            --kwargs "{'company': 'Galanet Solution C.A.', 'execute': 1}"
+    """
+    pending: list[dict] = frappe.db.sql(
+        """SELECT pe.name AS receipt, pe.party, ROUND(pe.paid_amount, 2) AS paid,
+            ROUND(pe.unallocated_amount, 2) AS unallocated,
+            jea.parent AS journal_entry, ROUND(jea.credit, 2) AS linked
+        FROM `tabPayment Entry` pe
+        JOIN `tabJournal Entry Account` jea
+            ON jea.reference_type = 'Payment Entry' AND jea.reference_name = pe.name
+        JOIN `tabJournal Entry` je ON je.name = jea.parent AND je.docstatus = 1
+        WHERE pe.docstatus = 1 AND pe.payment_type = 'Pay' AND pe.party_type = 'Customer'
+            AND pe.company = %s AND ROUND(pe.unallocated_amount, 2) > 0
+        ORDER BY pe.posting_date""",
+        company,
+        as_dict=True,
+    )
+    if not cint(execute):
+        return pending
+
+    for row in pending:
+        _close_refund_receipt(
+            {"doctype": "Payment Entry", "name": row["receipt"]},
+            row["journal_entry"],
+            flt(row["linked"], 2),
+        )
+    frappe.db.commit()
+    return pending
+
+
+def _close_refund_receipt(refund: dict, journal_entry: str, amount: float) -> None:
+    """Deja el recibo del reembolso diciendo a qué se aplicó.
+
+    Un recibo de salida sin referencias muestra todo su monto como «no asignado», y
+    administración lo lee como saldo a favor del cliente: es lo que reportó Aurelys el
+    16-sep-2026 --«el cliente está saldado pero el recibo sigue saliendo con el monto»--
+    después de corregir a ZAPATERIA GASOLINA EXTRA, y con razón. La plata ya estaba aplicada,
+    pero el recibo no se enteraba: ERPNext solo recalcula esos campos cuando el documento se
+    guarda, y un documento emitido no se vuelve a guardar.
+
+    Por eso se escriben a mano la fila de referencia y los totales del documento. No se toca ni
+    el libro mayor ni el libro de pagos, que es donde vive la verdad contable y donde ya estaba
+    todo cuadrado; esto es lo que se ve en pantalla.
+
+    Los reembolsos asentados como asiento de diario no pasan por acá: no tienen dónde mostrar
+    un monto sin asignar.
+    """
+    if refund["doctype"] != "Payment Entry":
+        return
+
+    if frappe.db.exists(
+        "Payment Entry Reference",
+        {"parent": refund["name"], "reference_name": journal_entry},
+    ):
+        return
+
+    receipt = frappe.db.get_value(
+        "Payment Entry",
+        refund["name"],
+        [
+            "unallocated_amount",
+            "total_allocated_amount",
+            "base_total_allocated_amount",
+            "target_exchange_rate",
+        ],
+        as_dict=True,
+    )
+    allocated: float = min(flt(receipt.unallocated_amount, 2), flt(amount, 2))
+    if allocated <= 0:
+        return
+
+    rate: float = flt(receipt.target_exchange_rate) or 1.0
+    row = frappe.new_doc("Payment Entry Reference")
+    row.update(
+        {
+            "parent": refund["name"],
+            "parenttype": "Payment Entry",
+            "parentfield": "references",
+            "idx": frappe.db.count(
+                "Payment Entry Reference", {"parent": refund["name"]}
+            )
+            + 1,
+            "docstatus": 1,
+            "reference_doctype": "Journal Entry",
+            "reference_name": journal_entry,
+            "total_amount": allocated,
+            "outstanding_amount": 0,
+            "allocated_amount": allocated,
+            "exchange_rate": rate,
+        }
+    )
+    row.db_insert()
+    frappe.db.set_value(
+        "Payment Entry",
+        refund["name"],
+        {
+            "total_allocated_amount": flt(receipt.total_allocated_amount) + allocated,
+            "base_total_allocated_amount": flt(receipt.base_total_allocated_amount)
+            + allocated * rate,
+            "unallocated_amount": flt(receipt.unallocated_amount, 2) - allocated,
+        },
+        update_modified=False,
+    )
 
 
 def _je_dimensions(journal_entry) -> dict:
