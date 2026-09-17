@@ -73,15 +73,27 @@ def _columns() -> list[dict]:
     ]
 
 
+#: Clave estable de cada situación. El JS pinta y explica a partir de esto, NO del texto
+#: traducido: comparar contra `__("Deuda escondida")` ata el color a que la traducción
+#: coincida carácter por carácter.
+SITUATION_MANUAL: str = "manual"
+SITUATION_HIDDEN_DEBT: str = "hidden_debt"
+SITUATION_PHANTOM_CREDIT: str = "phantom_credit"
+
+
 def _row(case: dict, may_fix: bool) -> dict:
     if case["problem"]:
+        situation_key = SITUATION_MANUAL
         situation = _("Revisar a mano")
     elif case["undo"]:
+        situation_key = SITUATION_HIDDEN_DEBT
         situation = _("Deuda escondida")
     else:
+        situation_key = SITUATION_PHANTOM_CREDIT
         situation = _("Crédito fantasma")
 
     return {
+        "situation_key": situation_key,
         "party": case["party"],
         "party_name": case["party_name"],
         "offered": case["offered"],

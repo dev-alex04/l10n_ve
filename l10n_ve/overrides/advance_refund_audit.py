@@ -22,6 +22,25 @@ La corrección hace lo mismo que se hace a mano, en una sola transacción:
    en el mismo cruce --, le devuelve ese sobrante a la misma factura.
 
 Al terminar comprueba que los documentos digan lo mismo que el mayor. Si no, no deja nada.
+
+**Hasta dónde llega esta corrección.** Enlaza el reembolso con el anticipo que devolvió y,
+cuando hace falta, suelta antes la aplicación del cobro. Lo que NO hace es aplicar un saldo a
+favor que entró por un asiento de diario contra la cuenta de anticipos: la Conciliación de Pagos
+trabaja dentro de UNA cuenta, así que ve las deudas en Cuentas por Cobrar sin crédito con qué
+pagarlas, y la plata en Anticipos sin deuda a la cual aplicarla. El cliente queda cuadrado en el
+neto y descuadrado documento por documento, y el reporte lo muestra como corregido porque para
+él lo está.
+
+Medido el 17-sep-2026 en NICOLA IGNACIO GARCIA IAFIGLIOLA: neto -0,54, con la factura
+ACC-SINV-2026-17968 (44.926,64) y el propio asiento de enlace ACC-JV-2026-35585 (35.237,57)
+abiertos en 1105001, contra 80.164,75 de anticipos que habían entrado por el asiento
+ACC-JV-2026-35597 («PAGO MOVIL RECIBIDO») en 2104001. YOLEIDY DAGMARY MEZA está en la misma
+situación.
+
+Cerrarlo pide una de dos: un asiento que cruce el saldo de Anticipos a Cuentas por Cobrar
+referenciando los documentos abiertos, o registrar ese pago como Recibo de Pago en vez de
+asiento -- que además evita que vuelva a pasar, porque un Recibo de Pago sí se puede aplicar a
+una factura.
 """
 
 from itertools import combinations
@@ -151,16 +170,57 @@ def _ledger_by_party(
         conditions.append("gl.party = %s")
         values.append(party)
 
+    # MariaDB elige `party_type_party_index` y recorre 267.377 de las 301.313 filas, porque
+    # `party_type = 'Customer'` no descarta nada: casi todo el mayor con tercero es de
+    # clientes. Con el índice de `account` son 66.914. Medido el 17-sep-2026 sobre copia de
+    # produccion: 8,35 s -> 2,91 s, resultado identico al bolivar. Era el 85 % de los 12 s
+    # que tardaba el reporte en abrir.
+    #
+    # ...pero SOLO cuando se barre la cuenta entera. Filtrando por UN cliente --que es lo que
+    # hace el botón «Corregir» al armar su plan-- forzar `account` obliga a recorrer toda la
+    # cuenta y aplicar el cliente como filtro, en vez de entrar por el índice de tercero, que
+    # ahí es muchísimo más selectivo. Medido el 17-09-2026 sobre copia de producción, misma
+    # consulta y mismo resultado:
+    #
+    #     filtrando por un cliente:  con hint 2.597 ms  |  sin hint     1 ms   (2.759x peor)
+    #     sin filtro de cliente:     con hint 2.984 ms  |  sin hint 6.652 ms   (2,2x mejor)
+    #
+    # O sea que el mismo hint que arregla el reporte arruina el botón. Va condicionado.
+    #
+    # Y solo si el índice existe: forzar uno ausente rompe la consulta, y este reporte tiene
+    # que abrir aunque el esquema no sea el esperado.
+    hint: str = (
+        "FORCE INDEX (account)"
+        if not party and _has_index("tabGL Entry", "account")
+        else ""
+    )
+
+    # La cadena sólo interpola literales de este módulo: las condiciones se arman acá con
+    # placeholders `%s` y el hint es una de dos constantes. Ningún dato de entrada llega al
+    # SQL; los valores van como bind params en `values`.
+    # nosemgrep
     rows = frappe.db.sql(
         f"""SELECT gl.company, gl.party, gl.account,
             ROUND(SUM(gl.credit) - SUM(gl.debit), 2) AS balance
-        FROM `tabGL Entry` gl
+        FROM `tabGL Entry` gl {hint}
         WHERE {" AND ".join(conditions)}
         GROUP BY gl.company, gl.party, gl.account""",
         values,
         as_dict=True,
     )
     return {(r.company, r.party, r.account): flt(r.balance, 2) for r in rows}
+
+
+def _has_index(table: str, index: str) -> bool:
+    """Existe ese indice? Se cachea: es una consulta al esquema, no al dato."""
+    def _buscar() -> int:
+        return frappe.db.sql(
+            """SELECT COUNT(*) FROM information_schema.statistics
+            WHERE table_schema = DATABASE() AND table_name = %s AND index_name = %s""",
+            (table, index),
+        )[0][0]
+
+    return bool(frappe.cache().get_value(f"l10n_ve:index:{table}:{index}", _buscar))
 
 
 def _build_case(key: tuple, available: float, balance: float) -> dict:
