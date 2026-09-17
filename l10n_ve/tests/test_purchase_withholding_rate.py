@@ -73,7 +73,7 @@ class TestISLRRateResolution(unittest.TestCase):
                   "subtracting": 0.0, "percentage_base": 100.0}]
         with self.assertRaises(frappe.ValidationError) as ctx:
             self._base(filas, "Natural person domiciled")
-        self.assertIn("alícuota válida", str(ctx.exception))
+        self.assertIn("no tiene alícuota", str(ctx.exception))
 
     def test_a_supplier_without_person_type_also_blocks(self):
         """El caso que más se dio: `type_of_person` vacío se llevaba la primera fila."""
