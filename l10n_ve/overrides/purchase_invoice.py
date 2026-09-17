@@ -1236,11 +1236,16 @@ def _calculate_purchase_withholding_base_amount(
             )
 
         if not target_row:
+            # El concepto se nombra por su código y descripción, no por el identificador del
+            # tabulador, y el tipo de persona se traduce: los dos los lee un usuario.
             frappe.throw(
                 _(
-                    "No se encontró alícuota válida en el tabulador '{0}' "
-                    "para el tipo de persona '{1}'."
-                ).format(tabulator_name, type_of_person or _("No configurado"))
+                    "El concepto {0} no tiene alícuota para {1}. "
+                    "Elija un concepto que aplique a este proveedor."
+                ).format(
+                    frappe.bold(f"{tab_doc.codigo} {tab_doc.descripcion}"),
+                    frappe.bold(_(type_of_person) if type_of_person else _("tipo de persona no configurado")),
+                )
             )
 
         subtrahend = flt(target_row.subtracting)
@@ -1756,7 +1761,7 @@ def _validate_no_live_withholding_voucher(invoice: object, withholding_type: str
                                    label=frappe.bold(comprobante["voucher_number"]
                                                      or comprobante["name"])),
             ),
-            title=_("Comprobante Vivo"),
+            title=_("Comprobante Activo"),
         )
 
 
