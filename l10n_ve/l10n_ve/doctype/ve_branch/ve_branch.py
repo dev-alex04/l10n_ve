@@ -19,6 +19,7 @@ class VEBranch(NestedSet):
         self.validate_unique_users()
         self.validate_payment_modes()
         self.validate_unique_expense_branch()
+        self.validate_main_branch()
 
     def on_update(self) -> None:
         super().on_update()
@@ -281,6 +282,148 @@ class VEBranch(NestedSet):
                 _("Ya existe la sucursal <b>{0}</b> marcada para gastos. Desmárcala antes de activar esta.").format(existing),
                 title=_("Sucursal Única de Gastos")
             )
+
+    def validate_main_branch(self) -> None:
+        """Una sucursal principal por compañía, operativa y con compañía.
+
+        La principal es la que el formulario propone en un documento nuevo cuando quien lo
+        crea no tiene sucursal asignada (ver `get_main_branches_for_user`). Tiene que poder
+        ir en un documento, así que no puede ser de agrupación, y es única por compañía:
+        con dos, el formulario no sabría cuál proponer.
+        """
+        if not self.get("is_main"):
+            return
+
+        if self.get("is_group"):
+            frappe.throw(
+                _("La sucursal <b>{0}</b> es de agrupación y no puede ser la principal: "
+                  "la principal es la que llevan los documentos.").format(self.name),
+                title=_("Sucursal de Agrupación")
+            )
+
+        if not self.get("company"):
+            frappe.throw(
+                _("Indique la compañía de la sucursal <b>{0}</b>: hay una sucursal principal "
+                  "por compañía.").format(self.name),
+                title=_("Sucursal Principal sin Compañía")
+            )
+
+        existing = frappe.db.exists(
+            self.doctype, {"is_main": 1, "company": self.company, "name": ["!=", self.name]}
+        )
+        if existing:
+            frappe.throw(
+                _("La compañía {0} ya tiene como principal la sucursal <b>{1}</b>. "
+                  "Desmárquela antes de marcar esta.").format(self.company, existing),
+                title=_("Sucursal Principal Única")
+            )
+
+
+def get_main_branches_for_user(user: str) -> dict[str, str]:
+    """{compañía: sucursal principal} para proponer la sucursal de un documento nuevo.
+
+    Solo aplica a quien no tiene ninguna sucursal asignada en `VE Branch Users`, que en la
+    práctica es Administrator o un System Manager: el usuario acotado sin sucursal no ve
+    documentos con sucursal, y el que tiene una sola la recibe de `set_ve_branch` al
+    emitir. Es un valor que el formulario propone y el usuario puede cambiar; el servidor no
+    lo aplica, así que lo que crean las integraciones sigue naciendo sin sucursal.
+    """
+    if frappe.db.exists("VE Branch Users", {"user": user, "parenttype": "VE Branch"}):
+        return {}
+
+    rows = frappe.get_all(
+        "VE Branch",
+        filters={"is_main": 1, "is_group": 0},
+        fields=["name", "company"],
+    )
+    return {row.company: row.name for row in rows if row.company}
+
+
+def ensure_main_branch(company: str, dry_run: bool = False) -> tuple[bool, str]:
+    """Crea la sucursal principal de una compañía que todavía no tiene ninguna.
+
+    Así una instalación de una sola empresa nace con una sucursal: la serie de facturación
+    digital se mapea por sucursal, y sin una no hay a qué asociarla. Se crean dos nodos, como
+    en cualquier árbol de VE Branch: la raíz con el nombre de la compañía y, dentro, la
+    sucursal operativa `Principal - <abreviatura>`, marcada como principal. Sin una raíz
+    (`is_group` sin padre), `is_root_branch_user` falla cerrado para todos y cada búsqueda de
+    modo de pago deja un Error Log.
+
+    No hace nada si la compañía ya tiene sucursales, ni si le falta el centro de costos
+    predeterminado o un modo de pago con cuenta, que VE Branch exige. Un fallo al crearla
+    vuelve al savepoint y queda en el Error Log: la compañía se crea igual.
+
+    Devuelve (creada, detalle): el nombre de la sucursal creada, o por qué no se creó.
+    """
+    if frappe.db.exists("VE Branch", {"company": company}):
+        return False, "ya tiene sucursales"
+
+    values = frappe.db.get_value("Company", company, ["cost_center", "abbr"], as_dict=True)
+    if not values or not values.cost_center:
+        return False, "no tiene centro de costos predeterminado"
+
+    payment_modes = _company_payment_modes(company)
+    if not payment_modes:
+        return False, "no tiene modos de pago con cuenta"
+
+    root_name, main_name = company, f"Principal - {values.abbr}"
+    taken = [name for name in (root_name, main_name) if frappe.db.exists("VE Branch", name)]
+    if taken:
+        return False, f"ya existe una sucursal llamada {', '.join(taken)}"
+
+    if dry_run:
+        return False, f"crearía {root_name} → {main_name}"
+
+    savepoint = "ve_main_branch"
+    frappe.db.savepoint(savepoint)
+    try:
+        for branch_name, parent, is_group in ((root_name, None, 1), (main_name, root_name, 0)):
+            frappe.get_doc({
+                "doctype": "VE Branch",
+                "branch_name": branch_name,
+                "parent_ve_branch": parent,
+                "is_group": is_group,
+                "is_main": 0 if is_group else 1,
+                "company": company,
+                "cost_center": values.cost_center,
+                # Filas propias por nodo: frappe.get_doc modifica los dicts que recibe.
+                "mode_of_payments": [dict(row) for row in payment_modes],
+            }).insert(ignore_permissions=True)
+    except Exception as error:  # noqa: BLE001 - no puede frenar la creación de la compañía
+        frappe.db.rollback(save_point=savepoint)
+        frappe.log_error(
+            title=f"No se pudo crear la sucursal principal de {company}",
+            message=frappe.get_traceback(),
+        )
+        return False, f"falló: {error}"
+
+    return True, main_name
+
+
+def _company_payment_modes(company: str) -> list[dict]:
+    """Filas de modos de pago para la sucursal principal: todos los de la compañía.
+
+    Una sucursal acota los modos de pago que ven sus usuarios, y en una empresa de una sola
+    sucursal esa sucursal es toda la empresa. Queda como predeterminado Efectivo si existe;
+    si no, el primero por nombre.
+    """
+    rows = frappe.db.sql("""
+        SELECT mopa.parent AS mode_of_payment, mopa.default_account AS account
+        FROM `tabMode of Payment Account` mopa
+        INNER JOIN `tabMode of Payment` mop ON mop.name = mopa.parent
+        WHERE mopa.company = %(company)s
+          AND IFNULL(mopa.default_account, '') != ''
+          AND mop.enabled = 1
+        ORDER BY mopa.parent
+    """, {"company": company}, as_dict=True)
+    if not rows:
+        return []
+
+    default = next((row for row in rows if row.mode_of_payment == "Efectivo"), rows[0])
+    return [
+        {"mode_of_payment": row.mode_of_payment, "account": row.account, "is_default": int(row is default)}
+        for row in rows
+    ]
 
 
 @frappe.whitelist()

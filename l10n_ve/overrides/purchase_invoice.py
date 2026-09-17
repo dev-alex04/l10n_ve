@@ -2,7 +2,15 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, fmt_money, get_link_to_form, getdate
+from frappe.utils import (
+    cint,
+    flt,
+    fmt_money,
+    get_link_to_form,
+    getdate,
+    money_in_words,
+    round_based_on_smallest_currency_fraction,
+)
 
 import erpnext
 from erpnext.stock import get_warehouse_account_map
@@ -15,6 +23,10 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import (
 )
 
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
+from l10n_ve.utils.islr import (
+    describe_purchase_islr_row,
+    resolve_purchase_islr_aliquot,
+)
 from l10n_ve.utils.utils import validate_return_in_same_month
 
 
@@ -1214,35 +1226,40 @@ def _calculate_purchase_withholding_base_amount(
             frappe.throw(_("Debe especificar el concepto de ISLR (Tabulador)."))
 
         type_of_person = frappe.db.get_value("Supplier", invoice.supplier, "type_of_person") or ""
+        # Mismo prerrequisito que en borrador (_validate_islr_prerequisites): sin
+        # tipo de persona no se retiene. Es configuración faltante del proveedor,
+        # no una alícuota que se pueda resolver.
+        if not type_of_person:
+            frappe.throw(
+                _("El proveedor {0} no tiene configurado el Tipo de Persona, "
+                  "que es lo que determina la alícuota de ISLR a aplicar.").format(
+                    invoice.supplier
+                )
+            )
+
         tab_doc = frappe.get_doc("Tabulator ISLR", tabulator_name)
         if not tab_doc.aliquot:
             frappe.throw(
                 _("El tabulador '{0}' no tiene alícuotas configuradas.").format(tabulator_name)
             )
 
-        target_row = None
-        if type_of_person:
-            target_row = next(
-                (r for r in tab_doc.aliquot if r.types_of_person == type_of_person and flt(r.aliquot) > 0),
-                None,
-            )
-
-        if not target_row:
-            frappe.throw(
-                _(
-                    "No se encontró alícuota válida en el tabulador '{0}' "
-                    "para el tipo de persona '{1}'."
-                ).format(tabulator_name, type_of_person or _("No configurado"))
-            )
+        # Misma resolución que en borrador (l10n_ve/utils/islr.py): si el concepto
+        # ofrece una sola alícuota se aplica esa aunque no sea la del tipo de
+        # persona del proveedor. Es el caso de las sociedades de personas, que
+        # tienen RIF jurídico y se retienen como naturales.
+        target_row = resolve_purchase_islr_aliquot(tab_doc, type_of_person)
 
         subtrahend = flt(target_row.subtracting)
         percentage_base = flt(target_row.percentage_base)
         if percentage_base <= 0:
             # Un 0 configurado pasaba a 100 %: 100x de diferencia en la base.
+            # El tipo se toma de la fila aplicada, no del proveedor: pueden
+            # diferir cuando el concepto ofrece una sola alícuota.
             frappe.throw(
                 _("El tabulador '{0}' tiene el porcentaje de base en 0 para el tipo "
                   "de persona '{1}'. Corrija el tabulador antes de retener.").format(
-                      tabulator_name, type_of_person or _("No configurado"))
+                      tabulator_name,
+                      _(target_row.types_of_person) or _("No configurado"))
             )
         islr_rate = flt(target_row.aliquot)
         net_total_bs = flt(invoice.base_net_total)
@@ -1301,6 +1318,36 @@ def _create_purchase_taxes_row(
         tab_doc = frappe.get_cached_doc("Tabulator ISLR", tabulator_name)
         tax_row.tabulator_islr = tab_doc.name
         tax_row.code = tab_doc.codigo
+
+        # El sustraendo y el porcentaje de base viajan de esta fila al comprobante y de ahí al
+        # payload de HKA. Sin ellos la imprenta rechaza con
+        # «[1060] El monto retenido declarado no coincide con lo calculado en el item»: recalcula
+        # base x alícuota y le da el monto SIN restar el sustraendo. Medido el 16-sep-2026 con el
+        # comprobante 20260900000461 (concepto 002, sustraendo 107,50): ninguna retención de ISLR
+        # aplicada por este camino se podía certificar. El camino de borrador sí los guarda
+        # (controllers/taxes_mixin.py).
+        #
+        # La alícuota sale del resolvedor compartido (utils/islr.py) y NO de una coincidencia
+        # exacta por tipo de persona: con la coincidencia exacta, un concepto de una sola
+        # alícuota --las sociedades de personas, que tienen RIF jurídico y se retienen como
+        # naturales-- no encontraba fila, y la retención volvía a quedar sin sustraendo. O sea,
+        # de vuelta al rechazo [1060] que este bloque existe para evitar.
+        type_of_person: str = frappe.db.get_value("Supplier", invoice.supplier, "type_of_person") or ""
+        aliquot_row = resolve_purchase_islr_aliquot(tab_doc, type_of_person)
+        tax_row.percentage_base = flt(aliquot_row.percentage_base)
+        tax_row.subtracting = flt(aliquot_row.subtracting)
+
+        # La descripción nombra el concepto y, si la alícuota no es la del tipo de persona del
+        # proveedor, lo deja dicho. Antes decía sólo "(Ajuste)", que no le sirve a quien audite
+        # el Libro de Compras meses después.
+        concept_detail: str = describe_purchase_islr_row(
+            tab_doc, aliquot_row, type_of_person
+        )
+        tax_row.description = f"{concept_detail} ({_('Ajuste')})"
+
+    # La fila de un documento aprobado va aprobada: db_insert escribe lo que traiga el objeto y
+    # sin esto quedaba en borrador dentro de una factura ya emitida.
+    tax_row.docstatus = invoice.docstatus
 
     tax_row.db_insert()
     return tax_row
@@ -1667,8 +1714,325 @@ def apply_retroactive_purchase_withholding(
         f"Retención de {_purchase_withholding_label(withholding_type)} (Ajuste) - Asiento: {je.name}",
     )
 
+    # La fila entró con db_insert y los totales del padre no se enteraron: quedaban diciendo
+    # un número distinto del de sus propias filas. Se ponen al día acá.
+    _refresh_purchase_totals_after_withholding_change(invoice_name)
+
     return {
         "status": "success",
         "journal_entry": je.name,
         "msg": f"Retención de {_purchase_withholding_label(withholding_type)} aplicada. Asiento {je.name} creado y sometido.",
+    }
+
+
+# ── Quitar una retención de una factura aprobada ─────────────────────── #
+
+#: Comprobante que respalda cada retención. Mientras uno siga vivo, la retención no se toca.
+_PURCHASE_WITHHOLDING_VOUCHER: dict[str, str] = {
+    "VAT": "VAT Withholding Voucher",
+    "ISLR": "ISLR Withholding Voucher",
+}
+
+
+def _validate_no_live_withholding_voucher(invoice: object, withholding_type: str) -> None:
+    """Corta si un comprobante vivo respalda la retención que se quiere quitar.
+
+    Un comprobante emitido declara un monto ante el SENIAT. Si se le vacía la retención por
+    debajo, queda declarando algo que la factura ya no dice. Primero se anula en HKA y se
+    cancela; recién entonces la retención se puede tocar.
+
+    El mensaje nombra los documentos por su número fiscal --el de la factura del proveedor y
+    el del comprobante--, no por el identificador interno: son los que el usuario tiene en la
+    mano. El enlace igual lleva al documento.
+    """
+    doctype: str = _PURCHASE_WITHHOLDING_VOUCHER[withholding_type]
+
+    candidatos: list[str] = frappe.get_all(
+        f"{doctype} Item",
+        filters={"purchase_invoice": invoice.name},
+        pluck="parent",
+    )
+    if not candidatos:
+        return
+
+    vivos: list[dict] = frappe.get_all(
+        doctype,
+        filters={"name": ["in", candidatos], "docstatus": ["<", 2]},
+        fields=["name", "voucher_number"],
+    )
+    if vivos:
+        comprobante: dict = vivos[0]
+        frappe.throw(
+            _("La factura {0} tiene el comprobante de retención {1} sin cancelar. "
+              "Anúlelo en la imprenta fiscal y cancélelo antes de quitar la retención.").format(
+                  get_link_to_form("Purchase Invoice", invoice.name,
+                                   label=frappe.bold(invoice.bill_no or invoice.name)),
+                  get_link_to_form(doctype, comprobante["name"],
+                                   label=frappe.bold(comprobante["voucher_number"]
+                                                     or comprobante["name"])),
+            ),
+            title=_("Comprobante Activo"),
+        )
+
+
+def _refresh_purchase_totals_after_withholding_change(invoice_name: str) -> None:
+    """Deja los totales guardados de acuerdo con las filas de impuesto que quedaron.
+
+    Sin esto el documento se contradice a sí mismo: las filas dicen un total, el campo
+    guardado dice otro y el pendiente --que ERPNext sí recalcula desde el mayor al someter el
+    asiento-- dice un tercero. Medido el 16-sep-2026 en ACC-PINV-2026-00369: al quitar el ISLR
+    el pendiente pasaba a 154.791,10 y el total seguía en 153.279,02.
+
+    Los números los pone el propio calculador del documento, que es donde vive el cálculo de
+    impuestos (ver AGENTS.md): acá solo se persiste lo que él deja, incluidos el redondeo y el
+    monto en letras, que también salen impresos.
+    """
+    # La caché del documento no se entera de las filas escritas con db_insert/db_delete: sin
+    # este limpiado se sumarían las filas viejas.
+    frappe.clear_document_cache("Purchase Invoice", invoice_name)
+    doc = frappe.get_doc("Purchase Invoice", invoice_name)
+
+    # Se SUMAN las filas tal como están guardadas, no se las manda a recalcular:
+    # `calculate_taxes_and_totals` vuelve a derivar cada fila y pone en cero la retención de
+    # ISLR que insertó el camino retroactivo (le falta el dato del que depende esa derivación),
+    # con lo cual el total dejaría de coincidir con la tabla que el usuario ve.
+    total: float = 0.0
+    base_total: float = 0.0
+    sumados: float = 0.0
+    base_sumados: float = 0.0
+    deducidos: float = 0.0
+    base_deducidos: float = 0.0
+    retenido: float = 0.0
+    for fila in doc.taxes:
+        if fila.add_deduct_tax == "Deduct":
+            total -= flt(fila.tax_amount)
+            base_total -= flt(fila.base_tax_amount)
+            deducidos += flt(fila.tax_amount)
+            base_deducidos += flt(fila.base_tax_amount)
+        else:
+            total += flt(fila.tax_amount)
+            base_total += flt(fila.base_tax_amount)
+            sumados += flt(fila.tax_amount)
+            base_sumados += flt(fila.base_tax_amount)
+        if fila.is_tax_withholding_account:
+            retenido += flt(fila.tax_amount)
+
+    grand_total: float = flt(doc.net_total) + total
+    base_grand_total: float = flt(doc.base_net_total) + base_total
+
+    valores: dict = {
+        "total_taxes_and_charges": total,
+        "base_total_taxes_and_charges": base_total,
+        "taxes_and_charges_added": sumados,
+        "base_taxes_and_charges_added": base_sumados,
+        "taxes_and_charges_deducted": deducidos,
+        "base_taxes_and_charges_deducted": base_deducidos,
+        # «Total Retenido»: mismo criterio que calculate_total_withholding del mixin.
+        "total_withholding": retenido,
+        "grand_total": grand_total,
+        "base_grand_total": base_grand_total,
+        "in_words": money_in_words(grand_total, doc.currency),
+        "base_in_words": money_in_words(
+            base_grand_total,
+            frappe.get_cached_value("Company", doc.company, "default_currency"),
+        ),
+    }
+    # El total redondeado solo se toca si la factura lo usa: 18 de las 424 emitidas lo tienen.
+    if not cint(doc.disable_rounded_total):
+        valores["rounded_total"] = round_based_on_smallest_currency_fraction(
+            grand_total, doc.currency, doc.precision("rounded_total")
+        )
+        valores["base_rounded_total"] = round_based_on_smallest_currency_fraction(
+            base_grand_total,
+            frappe.get_cached_value("Company", doc.company, "default_currency"),
+            doc.precision("base_rounded_total"),
+        )
+
+    frappe.db.set_value("Purchase Invoice", invoice_name, valores, update_modified=False)
+
+
+def _create_purchase_withholding_reversal_journal_entry(
+    invoice: object,
+    withholding_type: str,
+    tax_account: str,
+    base_amount: float,
+    conversion_rate: float,
+    company_currency: str,
+    invoice_currency: str,
+) -> object:
+    """Asiento que deshace una retención de compra. Es el espejo del que la registra.
+
+    DÉBITO  → cuenta de retención (se vacía el pasivo con el SENIAT)
+    CRÉDITO → credit_to (vuelve a deberse al proveedor) referenciando la factura
+
+    Se asienta el reverso en vez de cancelar el asiento original: sirve igual para la
+    retención que entró en borrador --cuyo movimiento vive dentro del asiento de la propia
+    factura y no se puede cancelar por separado-- y deja el rastro completo.
+    """
+    tax_account_currency: str = (
+        frappe.db.get_value("Account", tax_account, "account_currency") or company_currency
+    )
+    payable_account_currency: str = (
+        frappe.db.get_value("Account", invoice.credit_to, "account_currency") or company_currency
+    )
+    cost_center = invoice.cost_center or frappe.get_cached_value(
+        "Company", invoice.company, "cost_center"
+    )
+
+    je = frappe.new_doc("Journal Entry")
+    je.company = invoice.company
+    je.posting_date = frappe.utils.today()
+    je.user_remark = (
+        f"Reverso de la retención de {_purchase_withholding_label(withholding_type)} "
+        f"de la factura de compra {invoice.name}."
+    )
+    je.multi_currency = (
+        1
+        if (
+            invoice_currency != company_currency
+            or tax_account_currency != company_currency
+            or payable_account_currency != company_currency
+        )
+        else 0
+    )
+
+    fiscal_metadata: dict = {
+        "bill_no": invoice.bill_no or invoice.name,
+        "bill_control": invoice.get("bill_control"),
+        "branch": invoice.get("branch"),
+    }
+
+    # --- DÉBITO: cuenta de retención ---
+    tax_row: dict = {"account": tax_account, "cost_center": cost_center, **fiscal_metadata}
+    if tax_account_currency != company_currency:
+        tax_exchange_rate = conversion_rate if tax_account_currency == invoice_currency else 1.0
+        tax_row.update({
+            "account_currency": tax_account_currency,
+            "exchange_rate": tax_exchange_rate,
+            "debit_in_account_currency": flt(base_amount / tax_exchange_rate, 2)
+            if tax_exchange_rate else base_amount,
+            "debit": base_amount,
+        })
+    else:
+        tax_row.update({
+            "debit_in_account_currency": base_amount,
+            "debit": base_amount,
+            "exchange_rate": 1.0,
+        })
+    je.append("accounts", tax_row)
+
+    # --- CRÉDITO: Cuentas por Pagar del proveedor ---
+    pay_exchange_rate = (
+        conversion_rate
+        if (payable_account_currency != company_currency
+            and payable_account_currency == invoice_currency)
+        else 1.0
+    )
+    pay_row: dict = {
+        "account": invoice.credit_to,
+        "party_type": "Supplier",
+        "party": invoice.supplier,
+        "reference_type": "Purchase Invoice",
+        "reference_name": invoice.name,
+        "cost_center": cost_center,
+        **fiscal_metadata,
+    }
+    if payable_account_currency != company_currency:
+        pay_row.update({
+            "account_currency": payable_account_currency,
+            "exchange_rate": pay_exchange_rate,
+            "credit_in_account_currency": flt(base_amount / pay_exchange_rate, 2)
+            if pay_exchange_rate else base_amount,
+            "credit": base_amount,
+        })
+    else:
+        pay_row.update({
+            "credit_in_account_currency": base_amount,
+            "credit": base_amount,
+            "exchange_rate": 1.0,
+        })
+    je.append("accounts", pay_row)
+
+    je.flags.ignore_permissions = True
+    je.insert()
+    je.submit()
+    return je
+
+
+@frappe.whitelist()
+def remove_retroactive_purchase_withholding(
+    invoice_name: str,
+    withholding_type: str,
+    company: str,
+) -> dict:
+    """Quita una retención (IVA o ISLR) de una Factura de Compra aprobada.
+
+    Es el espejo de `apply_retroactive_purchase_withholding`, y existe porque una retención
+    cargada con el concepto o el monto equivocado no tenía forma de corregirse: en la factura
+    aprobada solo había camino para AGREGAR. Quitar y volver a aplicar es esa corrección.
+
+    Flujo:
+    1. Valida el tipo, que la factura esté aprobada y que el usuario pueda escribirla.
+    2. Corta si un comprobante de retención vivo respalda lo que se va a quitar.
+    3. Asienta el reverso contable.
+    4. Retira la fila de la tabla de impuestos.
+
+    La otra retención de la factura no se toca en ningún caso.
+    """
+    if withholding_type not in ("VAT", "ISLR"):
+        frappe.throw(_("Tipo de retención inválido: {0}. Use 'VAT' o 'ISLR'.").format(withholding_type))
+
+    if not frappe.db.exists(
+        "Purchase Invoice", {"name": invoice_name, "company": company, "docstatus": 1}
+    ):
+        frappe.throw(
+            _("No se encontró ninguna Factura de Compra aprobada con el identificador '{0}' "
+              "para la empresa {1}.").format(invoice_name, company)
+        )
+
+    invoice = frappe.get_doc("Purchase Invoice", invoice_name)
+    frappe.has_permission("Purchase Invoice", ptype="write", doc=invoice, throw=True)
+
+    charge_type: str = "VAT Withholding" if withholding_type == "VAT" else "ISLR"
+    filas: list = [t for t in invoice.taxes if t.charge_type == charge_type and flt(t.base_tax_amount)]
+    if not filas:
+        frappe.throw(
+            _("La factura {0} no tiene una retención de {1} que quitar.").format(
+                frappe.bold(invoice.bill_no or invoice_name),
+                _purchase_withholding_label(withholding_type),
+            )
+        )
+
+    _validate_no_live_withholding_voucher(invoice, withholding_type)
+
+    company_currency: str = frappe.get_cached_value("Company", invoice.company, "default_currency")
+    invoice_currency: str = invoice.currency or company_currency
+
+    # La tasa NO lleva default: un `or 1` afirma que dos monedas valen igual sobre un monto
+    # que se declara. Si la factura está en divisa y no la trae, se corta (ver AGENTS.md).
+    conversion_rate: float = 1.0
+    if invoice_currency != company_currency:
+        conversion_rate = flt(invoice.conversion_rate)
+        if not conversion_rate:
+            frappe.throw(
+                _("La factura {0} está en moneda extranjera ({1}) pero no tiene una "
+                  "tasa de conversión válida.").format(invoice.name, invoice_currency)
+            )
+
+    asientos: list[str] = []
+    for fila in filas:
+        je = _create_purchase_withholding_reversal_journal_entry(
+            invoice, withholding_type, fila.account_head, flt(fila.base_tax_amount),
+            conversion_rate, company_currency, invoice_currency,
+        )
+        asientos.append(je.name)
+        frappe.db.delete("Purchase Taxes and Charges", {"name": fila.name})
+
+    _refresh_purchase_totals_after_withholding_change(invoice_name)
+
+    etiqueta: str = _purchase_withholding_label(withholding_type)
+    return {
+        "status": "success",
+        "journal_entries": asientos,
+        "msg": f"Retención de {etiqueta} retirada. Asiento(s) de reverso: {', '.join(asientos)}.",
     }

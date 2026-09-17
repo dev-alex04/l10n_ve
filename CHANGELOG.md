@@ -5,6 +5,117 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.73.0] - 2026-09-17
+
+### ✨ Funcionalidades (Features)
+* Implementación de botón para eliminar retenciones asociadas a facturas de compra que ya han sido aprobadas. 923b98eb
+
+### 🐛 Correcciones (Fixes)
+* Se habilitó la certificación de retenciones aplicadas a facturas en estado aprobado. f0cd12be
+* El diálogo de ISLR ahora filtra y ofrece únicamente los conceptos de retención que aplican al proveedor seleccionado. 07c71b56
+* Mejora en la interfaz de usuario: el diálogo de confirmación ahora especifica el nombre de la factura del proveedor para mayor claridad. 71a42909
+* Corrección en el cálculo de totales de facturas para asegurar la sincronización con sus filas y estandarización del uso del número fiscal en los mensajes del sistema. 8e9dec18
+* Resolución de vulnerabilidades y hallazgos de calidad de código (Semgrep) en el componente de eliminación de retenciones. 4c6ce128
+* El buscador de conceptos de retención vuelve a listar la totalidad de las opciones disponibles tras un ajuste en la lógica de filtrado. 1b69221e
+
+---
+
+## [v2.72.0] - 2026-09-17
+
+### ✨ Funcionalidades (Features)
+- **Gestión de reembolsos:** Se implementó una nueva funcionalidad para detectar y corregir automáticamente los reembolsos que no se encuentran enlazados. 21dc7862
+- **Mejora en resolución de excedentes:** El sistema ahora permite gestionar y visualizar en el resumen los casos donde se procesaron montos superiores a los esperados. 25a47dae
+- **Control de acceso y visibilidad:** Se habilitó el reporte de anticipos en el workspace de Ventas y para el equipo de Finanzas, restringiendo la acción de corregir únicamente a usuarios con permisos específicos. 634261a9, 514505b7
+- **Estandarización técnica:** Refactorización de identificadores internos al idioma inglés para mantener la consistencia con el estándar de la arquitectura global. aff08e42
+
+### 🐛 Correcciones (Fixes)
+- **Lógica de asignación de deuda:** Se corrigió el error que seleccionaba facturas de forma aleatoria cuando existía un empate en los montos de deuda. 99eb9577
+- **Recibos de reembolso:** Se eliminó un error de cálculo que mostraba saldos a favor inexistentes en los comprobantes. 7c1b6f03
+- **Visualización de reportes:** Se ajustó el reporte para que muestre el nombre comercial del cliente en lugar del nombre técnico de la base de datos. bf86e777
+
+---
+
+## [v2.71.0] - 2026-09-17
+
+### ✨ Funcionalidades (Features)
+- Implementación del botón «Reembolsar» para permitir la devolución de anticipos sin aplicar dentro del flujo de pagos. [b43bcf83]
+- Mejora en el proceso de reembolso con validaciones integradas en el diálogo y resolución automática de la sucursal cuando la información no está presente. [41e501e4]
+
+---
+
+## [v2.70.1] - 2026-09-17
+
+### 🐛 Correcciones (Fixes)
+- Se ajustó la lógica de ISLR para permitir que los conceptos de alícuota única se apliquen correctamente a cualquier tipo de persona e3dd3811.
+- Actualización de la documentación técnica sobre las excepciones de sociedades de personas dentro de las reglas de alícuotas f1ab6dc5.
+
+---
+
+## [v2.70.0] - 2026-09-17
+
+### ✨ Funcionalidades (Features)
+- Centralización de la lógica de obtención del siguiente número fiscal en un componente único, optimizando la arquitectura de numeración. [d8534c55]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la gestión de correlativos de series internas para prevenir el consumo de números en intentos fallidos y mejora en la detección de divergencias con el proveedor HKA. [71683a73]
+- Corrección en las pruebas unitarias de numeración para eliminar la dependencia de datos externos y adición de tipado para mejorar el análisis estático con Semgrep. [9e6aee33]
+
+---
+
+## [v2.69.5] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- **Asientos:** Ahora es posible referenciar facturas saldadas durante el proceso de diferencia de cambio, asegurando una trazabilidad completa en los registros contables. [56de0773]
+
+---
+
+## [v2.69.4] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- Se implementó la traducción de los mensajes de validación (guards) en el módulo de retención de IVA (1972d923).
+- Se ajustó el flujo de datos en los comprobantes de retención de IVA para asegurar que los montos se transporten íntegramente desde el origen en lugar de recalcularse, garantizando la consistencia contable (a208873a).
+
+---
+
+## [v2.69.3] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- **libro-compras:** Se corrigió la lógica de obtención del total de la compra para que se extraiga directamente del documento original en lugar de ser reconstruido, asegurando la consistencia de los montos reportados. [930ef8aa]
+
+---
+
+## [v2.69.2] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió el cálculo del total en los comprobantes de retención de IVA; ahora se utiliza el monto bruto de la factura sin aplicar la deducción del ISLR. [c444df4f]
+
+---
+
+## [v2.69.1] - 2026-09-16
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió la lógica del guard de HKA para que valide la configuración a nivel de empresa en lugar de sucursal. [93a7e9cc](93a7e9cc)
+- Se ajustó la importación del guard dentro de la función de retenciones ISLR para asegurar su correcta disponibilidad en tiempo de ejecución. [70704bc1](70704bc1)
+
+---
+
+## [v2.69.0] - 2026-09-16
+
+### ✨ Funcionalidades (Features)
+- Ahora cada compañía se crea automáticamente con una sucursal principal vinculada, la cual es sugerida por defecto en los formularios del sistema. acb36977
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error en el formulario de sucursales que permitía interacciones inválidas cuando no existía una sucursal principal definida. bf1dfd23
+
+---
+
+## [v2.68.0] - 2026-09-15
+
+### ✨ Funcionalidades (Features)
+- Se implementó la omisión condicional del envío de retenciones al proveedor fiscal TFHKA. Ahora el sistema valida dinámicamente si la empresa cuenta con la habilitación correspondiente antes de procesar el envío. [b2bdbe28]
+
+---
+
 ## [v2.67.0] - 2026-09-15
 
 ### ✨ Funcionalidades (Features)

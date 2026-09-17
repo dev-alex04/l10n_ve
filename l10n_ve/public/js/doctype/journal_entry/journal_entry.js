@@ -141,7 +141,11 @@ function set_reference_name_query(frm) {
                 is_payment = flt(jvd.debit) > 0 || flt(jvd.debit_in_account_currency) > 0;
             }
 
-            if (is_payment) {
+            // En un asiento de diferencia en cambio el ajuste cae sobre facturas ya saldadas: su saldo
+            // no dice si el ajuste corresponde, así que ahí tampoco se exige.
+            var is_exchange_adjustment = doc && doc.voucher_type === "Exchange Gain Or Loss";
+
+            if (is_payment && !is_exchange_adjustment) {
                 out.filters.push([jvd.reference_type, "outstanding_amount", "!=", 0]);
             }
 

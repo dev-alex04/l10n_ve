@@ -7,6 +7,7 @@ frappe.listview_settings["ISLR Withholding Voucher"] = {
     "voucher_number",
     "supplier",
     "supplier_name",
+    "branch",
     "digital_invoice_status",
     "bill_control",
     "is_declared",
@@ -65,6 +66,13 @@ frappe.listview_settings["ISLR Withholding Voucher"] = {
         },
       },
       { type: "Status" },
+      {
+        type: "Field",
+        df: get_df("branch") || {
+          label: __("Sucursal"),
+          fieldname: "branch",
+        },
+      },
       {
         type: "Field",
         df: get_df("supplier_name") || {
