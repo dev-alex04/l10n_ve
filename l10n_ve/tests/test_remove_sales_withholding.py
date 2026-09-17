@@ -161,9 +161,14 @@ class TestTheReversalEntry(FrappeTestCase):
         entry = MagicMock()
         entry.accounts = []
         entry.append = lambda campo, fila: entry.accounts.append(fila)
+        # `nowdate` se parchea aunque el asiento no dependa de la fecha: mientras
+        # `frappe.db.get_value` está mockeada, cualquier llamada interna que pase por ahí
+        # recibe "VEF" en vez de lo suyo. La real la hace `nowdate()` al resolver la zona
+        # horaria, y solo se nota con la caché fría --o sea, en la CI y no acá--.
         with (
             patch("frappe.new_doc", return_value=entry),
             patch("frappe.db.get_value", return_value="VEF"),
+            patch(f"{_MOD}.nowdate", return_value="2026-09-17"),
         ):
             _create_sales_withholding_reversal_journal_entry(
                 _invoice(currency, 827.0), "VAT", "1110003 - Retencion de IVA Clientes - Galanet",
@@ -269,9 +274,27 @@ class TestTheAlreadyReversedGuard(FrappeTestCase):
         """El asiento con el que administración ya reversó el ISLR de DROSS."""
         return [{"name": "ACC-JV-2026-35202-1", "credit": 856.28}]
 
+    def _answering_only_the_guard(self, rows: list[dict]):
+        """Mock de `frappe.db.sql` que solo contesta la consulta de la guarda.
+
+        Mockearla entera no es inocuo: el `_()` del mensaje de error regenera las
+        traducciones cuando la caché está fría y esa regeneración también pasa por
+        `frappe.db.sql`, así que se llevaba estas filas creyendo que eran suyas
+        (`AttributeError: 'dict' object has no attribute 'defkey'`). Acá no se nota porque
+        la caché llega caliente; en la CI, que arranca en frío, sí.
+        """
+        real_sql = frappe.db.sql
+
+        def sql(query, *args, **kwargs):
+            if "tabJournal Entry Account" in str(query):
+                return rows
+            return real_sql(query, *args, **kwargs)
+
+        return patch("frappe.db.sql", side_effect=sql)
+
     def test_it_refuses_when_the_reversal_is_already_booked(self) -> None:
         with (
-            patch("frappe.db.sql", return_value=self._booked()),
+            self._answering_only_the_guard(self._booked()),
             self.assertRaises(frappe.ValidationError),
         ):
             _validate_not_already_reversed(
@@ -281,7 +304,7 @@ class TestTheAlreadyReversedGuard(FrappeTestCase):
     def test_the_message_names_the_entry_that_already_did_it(self) -> None:
         """Sin el identificador, el usuario no sabe cuál asiento anular."""
         with (
-            patch("frappe.db.sql", return_value=self._booked()),
+            self._answering_only_the_guard(self._booked()),
             self.assertRaises(frappe.ValidationError) as capturado,
         ):
             _validate_not_already_reversed(
@@ -291,14 +314,14 @@ class TestTheAlreadyReversedGuard(FrappeTestCase):
 
     def test_it_passes_when_nothing_reversed_it(self) -> None:
         """El caso de la retención de IVA de esa misma factura: nadie la tocó."""
-        with patch("frappe.db.sql", return_value=[]):
+        with self._answering_only_the_guard([]):
             _validate_not_already_reversed(
                 _invoice(), "1110003 - Retencion de IVA Clientes - Galanet", "VAT"
             )
 
     def test_each_withholding_looks_at_its_own_account(self) -> None:
         """Quitar el IVA no se puede frenar por un asiento que reversó el ISLR."""
-        with patch("frappe.db.sql", return_value=[]) as consulta:
+        with self._answering_only_the_guard([]) as consulta:
             _validate_not_already_reversed(
                 _invoice(), "1110003 - Retencion de IVA Clientes - Galanet", "VAT"
             )
