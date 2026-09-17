@@ -176,9 +176,24 @@ def _ledger_by_party(
     # produccion: 8,35 s -> 2,91 s, resultado identico al bolivar. Era el 85 % de los 12 s
     # que tardaba el reporte en abrir.
     #
-    # El hint va solo si el indice existe: forzar uno ausente rompe la consulta, y este
-    # reporte tiene que abrir aunque el esquema no sea el esperado.
-    hint: str = "FORCE INDEX (account)" if _has_index("tabGL Entry", "account") else ""
+    # ...pero SOLO cuando se barre la cuenta entera. Filtrando por UN cliente --que es lo que
+    # hace el botón «Corregir» al armar su plan-- forzar `account` obliga a recorrer toda la
+    # cuenta y aplicar el cliente como filtro, en vez de entrar por el índice de tercero, que
+    # ahí es muchísimo más selectivo. Medido el 17-09-2026 sobre copia de producción, misma
+    # consulta y mismo resultado:
+    #
+    #     filtrando por un cliente:  con hint 2.597 ms  |  sin hint     1 ms   (2.759x peor)
+    #     sin filtro de cliente:     con hint 2.984 ms  |  sin hint 6.652 ms   (2,2x mejor)
+    #
+    # O sea que el mismo hint que arregla el reporte arruina el botón. Va condicionado.
+    #
+    # Y solo si el índice existe: forzar uno ausente rompe la consulta, y este reporte tiene
+    # que abrir aunque el esquema no sea el esperado.
+    hint: str = (
+        "FORCE INDEX (account)"
+        if not party and _has_index("tabGL Entry", "account")
+        else ""
+    )
 
     # La cadena sólo interpola literales de este módulo: las condiciones se arman acá con
     # placeholders `%s` y el hint es una de dos constantes. Ningún dato de entrada llega al
