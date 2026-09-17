@@ -15,6 +15,10 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import (
 )
 
 from l10n_ve.controllers.taxes_mixin import TaxesMixin
+from l10n_ve.utils.islr import (
+    describe_purchase_islr_row,
+    resolve_purchase_islr_aliquot,
+)
 from l10n_ve.utils.utils import validate_return_in_same_month
 
 
@@ -1214,35 +1218,40 @@ def _calculate_purchase_withholding_base_amount(
             frappe.throw(_("Debe especificar el concepto de ISLR (Tabulador)."))
 
         type_of_person = frappe.db.get_value("Supplier", invoice.supplier, "type_of_person") or ""
+        # Mismo prerrequisito que en borrador (_validate_islr_prerequisites): sin
+        # tipo de persona no se retiene. Es configuración faltante del proveedor,
+        # no una alícuota que se pueda resolver.
+        if not type_of_person:
+            frappe.throw(
+                _("El proveedor {0} no tiene configurado el Tipo de Persona, "
+                  "que es lo que determina la alícuota de ISLR a aplicar.").format(
+                    invoice.supplier
+                )
+            )
+
         tab_doc = frappe.get_doc("Tabulator ISLR", tabulator_name)
         if not tab_doc.aliquot:
             frappe.throw(
                 _("El tabulador '{0}' no tiene alícuotas configuradas.").format(tabulator_name)
             )
 
-        target_row = None
-        if type_of_person:
-            target_row = next(
-                (r for r in tab_doc.aliquot if r.types_of_person == type_of_person and flt(r.aliquot) > 0),
-                None,
-            )
-
-        if not target_row:
-            frappe.throw(
-                _(
-                    "No se encontró alícuota válida en el tabulador '{0}' "
-                    "para el tipo de persona '{1}'."
-                ).format(tabulator_name, type_of_person or _("No configurado"))
-            )
+        # Misma resolución que en borrador (l10n_ve/utils/islr.py): si el concepto
+        # ofrece una sola alícuota se aplica esa aunque no sea la del tipo de
+        # persona del proveedor. Es el caso de las sociedades de personas, que
+        # tienen RIF jurídico y se retienen como naturales.
+        target_row = resolve_purchase_islr_aliquot(tab_doc, type_of_person)
 
         subtrahend = flt(target_row.subtracting)
         percentage_base = flt(target_row.percentage_base)
         if percentage_base <= 0:
             # Un 0 configurado pasaba a 100 %: 100x de diferencia en la base.
+            # El tipo se toma de la fila aplicada, no del proveedor: pueden
+            # diferir cuando el concepto ofrece una sola alícuota.
             frappe.throw(
                 _("El tabulador '{0}' tiene el porcentaje de base en 0 para el tipo "
                   "de persona '{1}'. Corrija el tabulador antes de retener.").format(
-                      tabulator_name, type_of_person or _("No configurado"))
+                      tabulator_name,
+                      _(target_row.types_of_person) or _("No configurado"))
             )
         islr_rate = flt(target_row.aliquot)
         net_total_bs = flt(invoice.base_net_total)
@@ -1301,6 +1310,18 @@ def _create_purchase_taxes_row(
         tab_doc = frappe.get_cached_doc("Tabulator ISLR", tabulator_name)
         tax_row.tabulator_islr = tab_doc.name
         tax_row.code = tab_doc.codigo
+
+        # La descripción nombra el concepto y, si la alícuota no es la del tipo
+        # de persona del proveedor, lo deja dicho. Antes decía sólo "(Ajuste)",
+        # que no le sirve a quien audite el Libro de Compras meses después.
+        type_of_person = frappe.get_cached_value(
+            "Supplier", invoice.supplier, "type_of_person"
+        ) or ""
+        aliquot_row = resolve_purchase_islr_aliquot(tab_doc, type_of_person)
+        concept_detail: str = describe_purchase_islr_row(
+            tab_doc, aliquot_row, type_of_person
+        )
+        tax_row.description = f"{concept_detail} ({_('Ajuste')})"
 
     tax_row.db_insert()
     return tax_row
