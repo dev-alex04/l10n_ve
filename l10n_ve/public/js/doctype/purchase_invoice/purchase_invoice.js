@@ -235,10 +235,9 @@ async function show_islr_dialog(frm) {
           return {
             query: "l10n_ve.overrides.purchase_invoice.get_tabulators_by_person_type",
             filters: {
-              // El buscador sabe filtrar por tipo de persona, pero acá no se le pasaba: la
-              // lista ofrecía conceptos que no aplican al proveedor y el error recién salía
-              // al aplicar la retención.
-              type_of_person: type_of_person,
+              // A propósito NO se filtra por tipo de persona: se decidió hace meses que el
+              // buscador ofrezca cualquier concepto. La defensa fiscal es la validación al
+              // aplicar, que corta si el concepto no tiene alícuota para ese proveedor.
               existing_codes: existing_codes,
             },
           };
