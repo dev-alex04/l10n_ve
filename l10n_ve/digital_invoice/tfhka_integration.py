@@ -219,6 +219,22 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
         frappe.logger("l10n_ve").info(f"{doc.doctype} {doc.name}: Esperando asignación de HKA (Modo Tercero).")
         return
 
+    # Idempotente: un reintento de un envío que falló reutiliza el número que ya tiene, en
+    # vez de tomar otro y dejar quemado el anterior. El comentario del mutex de más abajo lo
+    # decía: «consume un correlativo fiscal nuevo en cada intento».
+    #
+    # Solo aplica cuando el intento anterior fue de ESTE flujo y falló (`hka_status` en
+    # Error). Un número que viene del flujo legacy --la factura nunca pasó por HKA, su
+    # estado es Pendiente-- se sigue sobreescribiendo con el correlativo de la serie, que es
+    # lo que este camino hacía a propósito.
+    previous_number: str = str(doc.get(target_field) or "").strip()
+    if previous_number and doc.get("hka_status") == "Error":
+        frappe.logger("l10n_ve").info(
+            f"{doc.doctype} {doc.name}: se reutiliza {target_field}='{previous_number}' de un "
+            f"intento anterior; no se toma otro correlativo de la serie '{series.name}'."
+        )
+        return
+
     # Interno: el número sale del correlativo de la serie con el mismo mecanismo que usa la
     # empresa (`l10n_ve.numbering`): bloquea la fila, se salta los números ya tomados y
     # avanza el correlativo dentro de la misma transacción. Antes acá se incrementaba en
@@ -732,12 +748,22 @@ def _handle_hka_response(
                 control, update_modified=True
             )
 
-        # Auditoría: verificar si HKA confirmó un número distinto al asignado localmente
+        # Auditoría: si HKA confirmó un número distinto al asignado localmente, el documento
+        # se queda con el suyo y el asiento se sincroniza con ese, así que la divergencia
+        # tiene que verse. Un warning en el log de la aplicación no lo mira nadie: va al
+        # registro de facturación digital, que es donde se revisan estas cosas.
         local_number = frappe.db.get_value(doc.doctype, doc.name, target_field)
         if numero_documento and numero_documento != local_number:
-            frappe.logger("l10n_ve").warning(
-                f"{doc.doctype} {doc.name}: HKA confirmó numeroDocumento='{numero_documento}' "
-                f"distinto al {target_field} asignado localmente ('{local_number}')."
+            notice: str = (
+                f"HKA confirmó numeroDocumento='{numero_documento}', distinto al "
+                f"{target_field} asignado localmente ('{local_number}'). El documento y el "
+                f"asiento conservan el local: hay que decidir cuál vale."
+            )
+            frappe.logger("l10n_ve").warning(f"{doc.doctype} {doc.name}: {notice}")
+            _log_request(
+                "Numero divergente HKA", doc.name, {"local": local_number},
+                {"numeroDocumento": numero_documento}, "Error",
+                notes=notice, doctype=doc.doctype,
             )
 
         fecha_hka: str = today()
@@ -764,8 +790,17 @@ def _handle_hka_response(
             as_dict=True,
         ) or {}
         post_fixes: dict = {}
-        if not saved_fields.get("bill_no") and numero_documento:
+        # El número de HKA solo se adopta en modo Tercero. En Interno el número es nuestro:
+        # si quedó vacío es que la asignación falló, y escribir el de HKA convierte la serie
+        # en Tercero sin avisar y descuadra el correlativo contra lo emitido.
+        is_third_party: bool = getattr(series_doc, "operation_mode", "Internal") == "Third Party"
+        if not saved_fields.get("bill_no") and numero_documento and is_third_party:
             post_fixes["bill_no"] = numero_documento
+        elif not saved_fields.get("bill_no") and numero_documento:
+            frappe.logger("l10n_ve").warning(
+                f"{doc.doctype} {doc.name}: quedó sin {target_field} en modo Interno; NO se "
+                f"adopta el numeroDocumento de HKA ('{numero_documento}'). Revisar la serie."
+            )
         if not saved_fields.get("bill_control") and control:
             post_fixes["bill_control"] = control
         if post_fixes:
@@ -957,14 +992,17 @@ def process_invoice(
             company=doc.company, branch=branch
         )
 
-        _ensure_bill_no(doc, series_doc)
+        # La integridad de la factura se valida ANTES de tomar el número: un documento que
+        # no se va a enviar no tiene por qué quemar un correlativo fiscal. Lo que necesita
+        # el payload --y por lo tanto el número-- se valida después, con el payload armado.
+        all_errors: list[str] = _validate_invoice_integrity(doc)
 
-        payload, builder = _build_invoice_payload(doc, series_doc, branch_code, tasa_fecha)
-
-        # --- VALIDACIÓN PRE-ENVÍO: integridad factura + payload vs factura ---
-        all_errors: list[str] = []
-        all_errors.extend(_validate_invoice_integrity(doc))
-        all_errors.extend(_validate_payload_vs_invoice(payload, doc))
+        if not all_errors:
+            _ensure_bill_no(doc, series_doc)
+            payload, builder = _build_invoice_payload(doc, series_doc, branch_code, tasa_fecha)
+            all_errors.extend(_validate_payload_vs_invoice(payload, doc))
+        else:
+            payload, builder = {}, None
 
         if all_errors:
             msg: str = (
