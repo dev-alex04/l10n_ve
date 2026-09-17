@@ -21,6 +21,30 @@ frappe.query_reports["Unlinked Refunds"] = {
     },
   ],
 
+  /**
+   * Ensancha la columna del número de fila.
+   *
+   * La crea el escritorio, sin ancho declarado y sin poder arrastrarla mientras haya menos de
+   * 1.000 filas. Con los anchos de este reporte le quedan 34 px, y desde el décimo caso el
+   * número sale cortado («1…»). 60 px aguantan tres dígitos.
+   *
+   * Va por el gestor de columnas y no por CSS a propósito: una regla sobre la celda ensancha
+   * el cuerpo pero no el encabezado y los desalinea --medido, 8 px--, mientras que esta vía
+   * escribe el mismo ancho en los dos. Y va en `after_datatable_render` porque cada dibujado
+   * rehace la tabla y la columna vuelve a sus 34 px.
+   *
+   * @param {object} datatable - La tabla ya dibujada
+   */
+  after_datatable_render(datatable) {
+    const columns = datatable.columnmanager || datatable.columnManager;
+    if (!columns) {
+      return;
+    }
+    datatable.getColumn(0).width = 60;
+    columns.setColumnWidth(0);
+    columns.setColumnHeaderWidth(0);
+  },
+
   formatter(value, row, column, data, default_formatter) {
     // La columna del cliente muestra el nombre, no el identificador de la base.
     if (column.fieldname === "party" && data && data.party_name) {
