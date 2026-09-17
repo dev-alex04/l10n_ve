@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.73.0] - 2026-09-17
+
+### ✨ Funcionalidades (Features)
+* Implementación de botón para eliminar retenciones asociadas a facturas de compra que ya han sido aprobadas. 923b98eb
+
+### 🐛 Correcciones (Fixes)
+* Se habilitó la certificación de retenciones aplicadas a facturas en estado aprobado. f0cd12be
+* El diálogo de ISLR ahora filtra y ofrece únicamente los conceptos de retención que aplican al proveedor seleccionado. 07c71b56
+* Mejora en la interfaz de usuario: el diálogo de confirmación ahora especifica el nombre de la factura del proveedor para mayor claridad. 71a42909
+* Corrección en el cálculo de totales de facturas para asegurar la sincronización con sus filas y estandarización del uso del número fiscal en los mensajes del sistema. 8e9dec18
+* Resolución de vulnerabilidades y hallazgos de calidad de código (Semgrep) en el componente de eliminación de retenciones. 4c6ce128
+* El buscador de conceptos de retención vuelve a listar la totalidad de las opciones disponibles tras un ajuste en la lógica de filtrado. 1b69221e
+
+---
+
 ## [v2.72.0] - 2026-09-17
 
 ### ✨ Funcionalidades (Features)
