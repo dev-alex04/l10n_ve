@@ -306,48 +306,38 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         return None
 
     def set_invoice_number(self, company: CustomCompany) -> None:
+        """Toma el número del correlativo de la empresa (camino legacy, sin HKA).
+
+        `take_*` bloquea la fila de la empresa, se salta los números ya tomados y avanza
+        el correlativo en la misma transacción. Antes esto era un `while True` que miraba
+        el correlativo en memoria y lo incrementaba aparte: dos facturas validadas a la
+        vez se llevaban el mismo número, y con un correlativo desalineado el bucle no
+        terminaba nunca.
+        """
 
         if self.bill_no or self.credit_note_no or self.debit_note_no:
             return
 
         if self.is_return:
-            while True:
-                credit_note_no = company.get_credit_note_number()
-                if self._validate_credit_note_no(credit_note_no, raise_throw=False):
-                    self.credit_note_no = credit_note_no
-                    self.bill_no = None
-                    self.debit_note_no = None
-                    company.increment_credit_note_number()
-                    break
-                company.increment_credit_note_number()
-                company.sales_credit_note_number_correlative = \
-                    (company.sales_credit_note_number_correlative or 1) + 1
+            self.credit_note_no = company.take_credit_note_number(
+                is_free=lambda number: self._validate_credit_note_no(number, raise_throw=False)
+            )
+            self.bill_no = None
+            self.debit_note_no = None
 
         elif self.is_debit_note:
-            while True:
-                debit_note_no = company.get_debit_note_number()
-                if self._validate_debit_note_no(debit_note_no, raise_throw=False):
-                    self.debit_note_no = debit_note_no
-                    self.bill_no = None
-                    self.credit_note_no = None
-                    company.increment_debit_note_number()
-                    break
-                company.increment_debit_note_number()
-                company.sales_debit_note_number_correlative = \
-                    (company.sales_debit_note_number_correlative or 1) + 1
+            self.debit_note_no = company.take_debit_note_number(
+                is_free=lambda number: self._validate_debit_note_no(number, raise_throw=False)
+            )
+            self.bill_no = None
+            self.credit_note_no = None
 
         else:
-            while True:
-                bill_no = company.get_invoice_number()
-                if self._validate_bill_no(bill_no, raise_throw=False):
-                    self.bill_no = bill_no
-                    self.credit_note_no = None
-                    self.debit_note_no = None
-                    company.increment_invoice_number()
-                    break
-                company.increment_invoice_number()
-                company.sales_invoice_number_correlative = \
-                    (company.sales_invoice_number_correlative or 1) + 1
+            self.bill_no = company.take_invoice_number(
+                is_free=lambda number: self._validate_bill_no(number, raise_throw=False)
+            )
+            self.credit_note_no = None
+            self.debit_note_no = None
 
     def set_control_number(self, company: CustomCompany) -> None:
         """No asigna número de control si TFHKA está activo (lo gestiona HKA)."""
@@ -355,15 +345,9 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
         if self.bill_control:
             return
 
-        while True:
-            bill_control = company.get_control_number()
-            if self._validate_bill_control(bill_control, raise_throw=False):
-                self.bill_control = bill_control
-                company.increment_control_number()
-                break
-            company.increment_control_number()
-            company.sales_invoice_control_number_correlative = \
-                (company.sales_invoice_control_number_correlative or 1) + 1
+        self.bill_control = company.take_control_number(
+            is_free=lambda number: self._validate_bill_control(number, raise_throw=False)
+        )
 
     def set_affected_invoice_number(self) -> None:
         # Esta función se ejecutará solo para notas de crédito o débito

@@ -1,21 +1,24 @@
-import os
 import json
-import re
-import frappe
-from frappe import _
+import os
 
+import frappe
 from erpnext.setup.doctype.company.company import Company
+from frappe import _
+from l10n_ve import numbering
+from l10n_ve.l10n_ve.doctype.ve_branch.ve_branch import ensure_main_branch
 from l10n_ve.setup import (
-    set_chart_of_accounts,
-    create_vat_withholding,
+    create_municipality_taxes_for_municipality,
     create_sales_taxes_and_charges_template,
+    create_vat_withholding,
+    set_chart_of_accounts,
     set_mode_of_payments,
     set_reference_currency,
-    create_municipality_taxes_for_municipality,
 )
-from l10n_ve.l10n_ve.doctype.ve_branch.ve_branch import ensure_main_branch
+from l10n_ve.utils.utils import (
+    validate_tax_id_format,
+    validate_taxpayer_and_person_type_consistency,
+)
 from l10n_ve.whitelisted.account.chart_of_accounts import get_app_charts_path
-from l10n_ve.utils.utils import validate_tax_id_format, validate_taxpayer_and_person_type_consistency
 
 _allied_charts_cache = None
 
@@ -90,103 +93,64 @@ class CustomCompany(Company):
         if self.municipality:
             create_municipality_taxes_for_municipality(self.municipality)
 
+    # --- Numeración ------------------------------------------------------------
+    # `get_*` MIRA: formatea el correlativo que hoy tiene el documento en memoria, sin
+    # tocar la base. Sirve para vistas previas y se puede llamar sobre una Company sin
+    # guardar.
+    #
+    # `take_*` TOMA: bloquea la fila, formatea, comprueba que el número esté libre y
+    # avanza el correlativo, todo en la misma transacción. Reemplaza al par
+    # `get_* + increment_*`, que leía en memoria y escribía sin bloqueo: dos facturas
+    # validadas a la vez sacaban el mismo número. La lógica vive en `l10n_ve.numbering`,
+    # compartida con la serie digital y con los comprobantes de retención.
+
     def get_invoice_number(self) -> str:
-        invoice_format = self.sales_invoice_number_format or "#####"
+        invoice_format = self.sales_invoice_number_format or numbering.DEFAULT_FORMAT
         next_invoice_num = self.sales_invoice_number_correlative or 1
         return self.format_number(invoice_format, next_invoice_num)
 
     def get_credit_note_number(self) -> str:
-        credit_note_format = self.sales_credit_note_number_format or "#####"
+        credit_note_format = self.sales_credit_note_number_format or numbering.DEFAULT_FORMAT
         next_credit_note_num = self.sales_credit_note_number_correlative or 1
         return self.format_number(credit_note_format, next_credit_note_num)
 
     def get_debit_note_number(self) -> str:
-        debit_note_format = self.sales_debit_note_number_format or "#####"
+        debit_note_format = self.sales_debit_note_number_format or numbering.DEFAULT_FORMAT
         next_debit_note_num = self.sales_debit_note_number_correlative or 1
         return self.format_number(debit_note_format, next_debit_note_num)
 
     def get_control_number(self) -> str:
-        control_format = self.sales_invoice_control_number_format or "#####"
+        control_format = self.sales_invoice_control_number_format or numbering.DEFAULT_FORMAT
         next_control_num = self.sales_invoice_control_number_correlative or 1
         return self.format_number(control_format, next_control_num)
 
+    def take_invoice_number(self, is_free=None) -> str:
+        return numbering.take_next_number(
+            "Company", self.name, "sales_invoice_number_correlative",
+            format_field="sales_invoice_number_format", is_free=is_free,
+        )
 
-    def increment_invoice_number(self):
-        next_invoice = (self.sales_invoice_number_correlative or 1) + 1
-        frappe.db.set_value("Company",
-                            self.name,
-                            "sales_invoice_number_correlative",
-                            next_invoice)
+    def take_credit_note_number(self, is_free=None) -> str:
+        return numbering.take_next_number(
+            "Company", self.name, "sales_credit_note_number_correlative",
+            format_field="sales_credit_note_number_format", is_free=is_free,
+        )
 
-    def increment_credit_note_number(self):
-        next_credit_note = (self.sales_credit_note_number_correlative or 1) + 1
-        frappe.db.set_value("Company",
-                            self.name,
-                            "sales_credit_note_number_correlative",
-                            next_credit_note)
+    def take_debit_note_number(self, is_free=None) -> str:
+        return numbering.take_next_number(
+            "Company", self.name, "sales_debit_note_number_correlative",
+            format_field="sales_debit_note_number_format", is_free=is_free,
+        )
 
-    def increment_debit_note_number(self):
-        next_debit_note = (self.sales_debit_note_number_correlative or 1) + 1
-        frappe.db.set_value("Company",
-                            self.name,
-                            "sales_debit_note_number_correlative",
-                            next_debit_note)
-
-    def increment_control_number(self):
-        next_control = (self.sales_invoice_control_number_correlative or 1) + 1
-        frappe.db.set_value("Company",
-                            self.name,
-                            "sales_invoice_control_number_correlative",
-                            next_control)
-        frappe.db.commit()
+    def take_control_number(self, is_free=None) -> str:
+        return numbering.take_next_number(
+            "Company", self.name, "sales_invoice_control_number_correlative",
+            format_field="sales_invoice_control_number_format", is_free=is_free,
+        )
 
     def format_number(self, number_format: str | None, number: int) -> str:
-        """
-        Función de utilidad para aplicar el formato al número.
-
-        Los `#` no siempre vienen en un solo bloque: el número de control venezolano
-        se escribe `##-########` --así lo valida `HKA_CONTROL_RE` y así está impreso
-        en producción, `00-00220248`--, o sea **un solo número repartido entre los
-        grupos**, no un número por grupo. Por eso se rellena a lo ancho de todos los
-        `#` juntos y después se consumen los dígitos de izquierda a derecha.
-
-        El `replace('#' * total, ...)` anterior buscaba los `#` seguidos: con un solo
-        grupo acertaba, pero con `##-######` buscaba ocho consecutivos que ahí no
-        existen y devolvía **el patrón sin sustituir**.
-
-        Cuando el número ya no entra a lo ancho del formato, el excedente se lo lleva
-        el primer grupo, para que el tramo de la derecha conserve el ancho que la
-        imprenta espera.
-        """
-        # Asegura que number_format no sea None
-        number_format = number_format or ""
-
-        if '#' not in number_format:
-            return f"{number_format}{number}"
-
-        num_placeholders = number_format.count('#')
-        formatted_number = str(number).zfill(num_placeholders)
-
-        # `zfill` no recorta: si el número es más largo que el formato, sobran dígitos.
-        leftover = len(formatted_number) - num_placeholders
-        parts: list[str] = []
-        pos = 0
-
-        # El patrón parte el formato en tramos alternados de `#` y de literales, sin
-        # dejar huecos: todo carácter cae en uno o en otro.
-        for chunk in re.finditer(r'#+|[^#]+', number_format):
-            text = chunk.group()
-
-            if not text.startswith('#'):
-                parts.append(text)
-                continue
-
-            width = len(text) + leftover
-            leftover = 0
-            parts.append(formatted_number[pos:pos + width])
-            pos += width
-
-        return ''.join(parts)
+        """Formatea el número. La implementación vive en `l10n_ve.numbering`."""
+        return numbering.format_number(number_format, number)
 
     def before_save(self):
 

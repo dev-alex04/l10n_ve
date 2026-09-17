@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
-from frappe.utils import nowdate, getdate
+from frappe.utils import getdate, nowdate
+from l10n_ve import numbering
 from l10n_ve.utils.utils import get_company_address, get_supplier_address
 
 
@@ -59,65 +60,27 @@ class WithholdingVoucher():
         return True
 
     @frappe.whitelist()
-    def get_withholding_correlative(self, company_name, voucher_type) -> dict:
+    def get_withholding_correlative(self, company_name: str, voucher_type: str) -> dict:
+        """Vista previa del próximo número de comprobante. MIRA, no toma.
 
+        El número de verdad lo toma `l10n_ve.numbering.take_withholding_number` al insertar
+        el comprobante, con la fila de la empresa bloqueada. Acá solo se formatea lo que hay
+        para enseñarlo en el formulario.
+        """
         if not company_name:
             return {}
 
         company_doc = frappe.get_cached_doc("Company", company_name)
 
-        format_field = f"{voucher_type}_withholding_format"
-        correlative_field = f"{voucher_type}_withholding_correlative"
+        correlative_format = company_doc.get(f"{voucher_type}_withholding_format")
+        current_correlative = company_doc.get(f"{voucher_type}_withholding_correlative")
 
-        correlative_format = company_doc.get(format_field)
-        current_correlative = company_doc.get(correlative_field)
-
-        final_voucher_number, _, year, month = (
-            self._get_and_format_correlatives(
-                correlative_format,
-                current_correlative))
+        correlative: int = numbering.parse_withholding_counter(current_correlative, correlative_format)
+        today = getdate(nowdate())
 
         return {
-            "voucher_number": final_voucher_number,
-            "year": year,
-            "month": month
+            "voucher_number": numbering.format_withholding_number(correlative_format, correlative),
+            "year": str(today.year),
+            "month": f"{today.month:02d}",
         }
-
-    def _get_and_format_correlatives(self,
-                                     correlative_format: str,
-                                     current_correlative_value):
-
-        today = getdate(nowdate())
-        current_year = str(today.year)
-        current_month = f"{today.month:02d}"
-
-        template = correlative_format or '##############'
-        num_digits = len(template) - 6
-
-        voucher_correlative_num = 1
-        if current_correlative_value:
-            curr_str = str(current_correlative_value).strip()
-            try:
-                # Siempre intentar parsear como número simple.
-                # Si el valor almacenado es un voucher_number completo (≥14 dígitos),
-                # se extrae solo la parte secuencial (últimos num_digits dígitos).
-                parsed = int(curr_str)
-                if parsed > 10 ** num_digits:
-                    # Valor heredado: tomar solo los últimos num_digits dígitos
-                    voucher_correlative_num = parsed % (10 ** num_digits)
-                    if voucher_correlative_num == 0:
-                        voucher_correlative_num = 1
-                else:
-                    voucher_correlative_num = parsed
-            except ValueError:
-                voucher_correlative_num = 1
-
-        next_correlative_num = voucher_correlative_num + 1
-
-        formatted_voucher = str(voucher_correlative_num).zfill(num_digits)
-
-        final_voucher_number = f"{current_year}{current_month}{formatted_voucher}"
-        final_next_correlative_number = str(next_correlative_num)
-
-        return final_voucher_number, final_next_correlative_number, current_year, current_month
 
