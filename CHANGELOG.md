@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.70.0] - 2026-09-17
+
+### ✨ Funcionalidades (Features)
+- Centralización de la lógica de obtención del siguiente número fiscal en un componente único, optimizando la arquitectura de numeración. [d8534c55]
+
+### 🐛 Correcciones (Fixes)
+- Ajuste en la gestión de correlativos de series internas para prevenir el consumo de números en intentos fallidos y mejora en la detección de divergencias con el proveedor HKA. [71683a73]
+- Corrección en las pruebas unitarias de numeración para eliminar la dependencia de datos externos y adición de tipado para mejorar el análisis estático con Semgrep. [9e6aee33]
+
+---
+
 ## [v2.69.5] - 2026-09-16
 
 ### 🐛 Correcciones (Fixes)
