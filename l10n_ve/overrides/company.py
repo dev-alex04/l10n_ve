@@ -105,22 +105,22 @@ class CustomCompany(Company):
     # compartida con la serie digital y con los comprobantes de retención.
 
     def get_invoice_number(self) -> str:
-        invoice_format = self.sales_invoice_number_format or numbering.FORMATO_POR_DEFECTO
+        invoice_format = self.sales_invoice_number_format or numbering.DEFAULT_FORMAT
         next_invoice_num = self.sales_invoice_number_correlative or 1
         return self.format_number(invoice_format, next_invoice_num)
 
     def get_credit_note_number(self) -> str:
-        credit_note_format = self.sales_credit_note_number_format or numbering.FORMATO_POR_DEFECTO
+        credit_note_format = self.sales_credit_note_number_format or numbering.DEFAULT_FORMAT
         next_credit_note_num = self.sales_credit_note_number_correlative or 1
         return self.format_number(credit_note_format, next_credit_note_num)
 
     def get_debit_note_number(self) -> str:
-        debit_note_format = self.sales_debit_note_number_format or numbering.FORMATO_POR_DEFECTO
+        debit_note_format = self.sales_debit_note_number_format or numbering.DEFAULT_FORMAT
         next_debit_note_num = self.sales_debit_note_number_correlative or 1
         return self.format_number(debit_note_format, next_debit_note_num)
 
     def get_control_number(self) -> str:
-        control_format = self.sales_invoice_control_number_format or numbering.FORMATO_POR_DEFECTO
+        control_format = self.sales_invoice_control_number_format or numbering.DEFAULT_FORMAT
         next_control_num = self.sales_invoice_control_number_correlative or 1
         return self.format_number(control_format, next_control_num)
 

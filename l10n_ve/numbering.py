@@ -44,16 +44,16 @@ from frappe import _
 from frappe.utils import getdate, nowdate
 
 #: Formato que se asume cuando la empresa no tiene uno configurado.
-FORMATO_POR_DEFECTO: str = "#####"
+DEFAULT_FORMAT: str = "#####"
 
 #: Cuántos números se saltan buscando uno libre antes de rendirse. El bucle anterior era
 #: `while True`: con un correlativo desalineado consumía correlativos sin fin y colgaba el
 #: submit sin decir por qué.
-INTENTOS_MAXIMOS: int = 50
+MAX_TRIES: int = 50
 
 #: Los nombres de tabla y columna se interpolan en el SQL (no admiten parámetros), así que
 #: se exige que vengan de nuestro propio código y no de un dato del usuario.
-_IDENTIFICADOR = re.compile(r"^[A-Za-z0-9_ ]+$")
+_IDENTIFIER = re.compile(r"^[A-Za-z0-9_ ]+$")
 
 
 def format_number(number_format: str | None, number: int) -> str:
@@ -104,33 +104,33 @@ def format_withholding_number(number_format: str | None, number: int) -> str:
     El formato de la empresa (`##############`, 14 por defecto) da el ancho total; los
     seis primeros son el año y el mes, y el resto el correlativo.
     """
-    hoy = getdate(nowdate())
-    digitos: int = _digitos_de_retencion(number_format)
-    return f"{hoy.year}{hoy.month:02d}{str(number).zfill(digitos)}"
+    today = getdate(nowdate())
+    digits: int = _withholding_digits(number_format)
+    return f"{today.year}{today.month:02d}{str(number).zfill(digits)}"
 
 
-def parse_withholding_counter(valor, number_format: str | None) -> int:
+def parse_withholding_counter(value, number_format: str | None) -> int:
     """Lee el contador de retenciones, que se guarda como texto.
 
     Acepta dos formas porque en la base conviven las dos: el correlativo a secas y, de
     instalaciones viejas, el `voucher_number` completo con el año y el mes pegados
     adelante. En ese caso se queda con la cola.
     """
-    digitos: int = _digitos_de_retencion(number_format)
+    digits: int = _withholding_digits(number_format)
 
-    if not valor:
+    if not value:
         return 1
 
     try:
-        entero: int = int(str(valor).strip())
+        counter: int = int(str(value).strip())
     except (TypeError, ValueError):
         return 1
 
-    if entero > 10**digitos:
-        cola: int = entero % (10**digitos)
-        return cola or 1
+    if counter > 10**digits:
+        tail: int = counter % (10**digits)
+        return tail or 1
 
-    return entero or 1
+    return counter or 1
 
 
 def take_next_number(
@@ -142,7 +142,7 @@ def take_next_number(
     formatter: Callable[[str | None, int], str] = format_number,
     parser: Callable[[object, str | None], int] | None = None,
     is_free: Callable[[str], bool] | None = None,
-    max_tries: int = INTENTOS_MAXIMOS,
+    max_tries: int = MAX_TRIES,
     store_as_text: bool = False,
 ) -> str:
     """Toma el siguiente número del contador de `origin_name` y lo avanza.
@@ -165,13 +165,13 @@ def take_next_number(
         frappe.ValidationError: si el origen no existe o si tras `max_tries` no apareció
         ninguno libre --antes eso era un bucle infinito--.
     """
-    if not (_IDENTIFICADOR.match(origin_doctype) and _IDENTIFICADOR.match(counter_field)):
+    if not (_IDENTIFIER.match(origin_doctype) and _IDENTIFIER.match(counter_field)):
         frappe.throw(_("Origen de numeración inválido: {0}.{1}").format(origin_doctype, counter_field))
-    if format_field and not _IDENTIFICADOR.match(format_field):
+    if format_field and not _IDENTIFIER.match(format_field):
         frappe.throw(_("Campo de formato inválido: {0}").format(format_field))
 
     try:
-        numero = _tomar(
+        number = _take(
             frappe.db, origin_doctype, origin_name, counter_field, format_field,
             formatter, parser, is_free, max_tries, store_as_text,
         )
@@ -183,16 +183,16 @@ def take_next_number(
             f"Numeración de {origin_doctype} «{origin_name}»: la transacción tenía una "
             f"lectura previa de la fila; se toma el número en una conexión aparte."
         )
-        numero = _tomar_en_conexion_aparte(
+        number = _take_in_separate_connection(
             origin_doctype, origin_name, counter_field, format_field,
             formatter, parser, is_free, max_tries, store_as_text,
         )
 
     frappe.clear_document_cache(origin_doctype, origin_name)
-    return numero
+    return number
 
 
-def _tomar(
+def _take(
     db,
     origin_doctype: str,
     origin_name: str,
@@ -205,49 +205,49 @@ def _tomar(
     store_as_text: bool,
 ) -> str:
     """La toma en sí, contra la conexión que se le pase."""
-    columnas: str = f"`{counter_field}`"
+    columns: str = f"`{counter_field}`"
     if format_field:
-        columnas += f", `{format_field}`"
+        columns += f", `{format_field}`"
 
     # FOR UPDATE: el que llega segundo espera acá, no se lleva el mismo número. Es el
     # patrón que ya usaban los comprobantes de retención.
-    fila: list[dict] = db.sql(
-        f"SELECT {columnas} FROM `tab{origin_doctype}` WHERE name = %s FOR UPDATE",  # nosemgrep
+    rows: list[dict] = db.sql(
+        f"SELECT {columns} FROM `tab{origin_doctype}` WHERE name = %s FOR UPDATE",  # nosemgrep
         origin_name,
         as_dict=True,
     )
-    if not fila:
+    if not rows:
         frappe.throw(
             _("No se encontró {0} «{1}» para tomar el número.").format(origin_doctype, origin_name)
         )
 
-    datos: dict = fila[0]
-    formato: str | None = datos.get(format_field) if format_field else None
-    bruto = datos.get(counter_field)
-    actual: int = parser(bruto, formato) if parser else _a_entero(bruto)
+    row: dict = rows[0]
+    number_format: str | None = row.get(format_field) if format_field else None
+    raw = row.get(counter_field)
+    current: int = parser(raw, number_format) if parser else _to_int(raw)
 
-    numero: str = ""
-    for _intento in range(max_tries):
-        numero = formatter(formato, actual)
-        if is_free is None or is_free(numero):
+    number: str = ""
+    for _attempt in range(max_tries):
+        number = formatter(number_format, current)
+        if is_free is None or is_free(number):
             break
-        actual += 1
+        current += 1
     else:
         frappe.throw(
             _(
                 "No se encontró un número libre para {0} «{1}» después de {2} intentos "
                 "(último probado: {3}). Revise el correlativo y el formato."
-            ).format(origin_doctype, origin_name, max_tries, numero)
+            ).format(origin_doctype, origin_name, max_tries, number)
         )
 
     db.sql(
         f"UPDATE `tab{origin_doctype}` SET `{counter_field}` = %s WHERE name = %s",  # nosemgrep
-        (str(actual + 1) if store_as_text else actual + 1, origin_name),
+        (str(current + 1) if store_as_text else current + 1, origin_name),
     )
-    return numero
+    return number
 
 
-def _tomar_en_conexion_aparte(
+def _take_in_separate_connection(
     origin_doctype: str,
     origin_name: str,
     counter_field: str,
@@ -272,12 +272,12 @@ def _tomar_en_conexion_aparte(
     )
     try:
         db.begin()
-        numero: str = _tomar(
+        number: str = _take(
             db, origin_doctype, origin_name, counter_field, format_field,
             formatter, parser, is_free, max_tries, store_as_text,
         )
         db.commit()
-        return numero
+        return number
     except Exception:
         db.rollback()
         raise
@@ -286,7 +286,7 @@ def _tomar_en_conexion_aparte(
 
 
 #: Campos de la empresa por tipo de retención.
-CAMPOS_DE_RETENCION: dict[str, tuple[str, str]] = {
+WITHHOLDING_FIELDS: dict[str, tuple[str, str]] = {
     "vat": ("vat_withholding_correlative", "vat_withholding_format"),
     "islr": ("islr_withholding_correlative", "islr_withholding_format"),
 }
@@ -298,11 +298,11 @@ def take_withholding_number(company: str, kind: str) -> tuple[str, str]:
     Returns:
         (`voucher_number`, `MM/AAAA`).
     """
-    if kind not in CAMPOS_DE_RETENCION:
+    if kind not in WITHHOLDING_FIELDS:
         frappe.throw(_("Tipo de retención desconocido: {0}").format(kind))
 
-    counter_field, format_field = CAMPOS_DE_RETENCION[kind]
-    numero: str = take_next_number(
+    counter_field, format_field = WITHHOLDING_FIELDS[kind]
+    number: str = take_next_number(
         "Company",
         company,
         counter_field,
@@ -312,20 +312,20 @@ def take_withholding_number(company: str, kind: str) -> tuple[str, str]:
         store_as_text=True,
     )
 
-    hoy = getdate(nowdate())
-    return numero, f"{hoy.month:02d}/{hoy.year}"
+    today = getdate(nowdate())
+    return number, f"{today.month:02d}/{today.year}"
 
 
-def _digitos_de_retencion(number_format: str | None) -> int:
+def _withholding_digits(number_format: str | None) -> int:
     """Cuántos dígitos lleva el correlativo: el ancho del formato menos el `AAAAMM`."""
-    plantilla: str = number_format or "##############"
-    return max(len(plantilla) - 6, 1)
+    template: str = number_format or "##############"
+    return max(len(template) - 6, 1)
 
 
-def _a_entero(valor) -> int:
+def _to_int(value) -> int:
     """El contador como entero; un campo vacío o en cero arranca en 1."""
     try:
-        entero: int = int(valor or 0)
+        counter: int = int(value or 0)
     except (TypeError, ValueError):
-        entero = 0
-    return entero if entero > 0 else 1
+        counter = 0
+    return counter if counter > 0 else 1

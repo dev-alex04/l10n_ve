@@ -227,10 +227,10 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     # Error). Un número que viene del flujo legacy --la factura nunca pasó por HKA, su
     # estado es Pendiente-- se sigue sobreescribiendo con el correlativo de la serie, que es
     # lo que este camino hacía a propósito.
-    numero_previo: str = str(doc.get(target_field) or "").strip()
-    if numero_previo and doc.get("hka_status") == "Error":
+    previous_number: str = str(doc.get(target_field) or "").strip()
+    if previous_number and doc.get("hka_status") == "Error":
         frappe.logger("l10n_ve").info(
-            f"{doc.doctype} {doc.name}: se reutiliza {target_field}='{numero_previo}' de un "
+            f"{doc.doctype} {doc.name}: se reutiliza {target_field}='{previous_number}' de un "
             f"intento anterior; no se toma otro correlativo de la serie '{series.name}'."
         )
         return
@@ -239,19 +239,19 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     # empresa (`l10n_ve.numbering`): bloquea la fila, se salta los números ya tomados y
     # avanza el correlativo dentro de la misma transacción. Antes acá se incrementaba en
     # SQL y se releía restando uno, sin formato y sin comprobar duplicados.
-    serie = series
-    if not hasattr(serie, "take_invoice_number"):
-        serie = frappe.get_doc("VE Digital Billing Series", series.name)
+    series_doc = series
+    if not hasattr(series_doc, "take_invoice_number"):
+        series_doc = frappe.get_doc("VE Digital Billing Series", series.name)
 
-    validador = getattr(doc, "_validate_bill_no", None)
+    validator = getattr(doc, "_validate_bill_no", None)
 
     if is_nc:
-        doc_number_str: str = serie.take_credit_note_number()
+        doc_number_str: str = series_doc.take_credit_note_number()
     elif is_nd:
-        doc_number_str = serie.take_debit_note_number()
+        doc_number_str = series_doc.take_debit_note_number()
     else:
-        doc_number_str = serie.take_invoice_number(
-            is_free=(lambda numero: validador(numero, raise_throw=False)) if validador else None
+        doc_number_str = series_doc.take_invoice_number(
+            is_free=(lambda number: validator(number, raise_throw=False)) if validator else None
         )
 
     frappe.db.set_value(doc.doctype, doc.name, "bill_control", "", update_modified=True)
@@ -754,16 +754,16 @@ def _handle_hka_response(
         # registro de facturación digital, que es donde se revisan estas cosas.
         local_number = frappe.db.get_value(doc.doctype, doc.name, target_field)
         if numero_documento and numero_documento != local_number:
-            aviso: str = (
+            notice: str = (
                 f"HKA confirmó numeroDocumento='{numero_documento}', distinto al "
                 f"{target_field} asignado localmente ('{local_number}'). El documento y el "
                 f"asiento conservan el local: hay que decidir cuál vale."
             )
-            frappe.logger("l10n_ve").warning(f"{doc.doctype} {doc.name}: {aviso}")
+            frappe.logger("l10n_ve").warning(f"{doc.doctype} {doc.name}: {notice}")
             _log_request(
                 "Numero divergente HKA", doc.name, {"local": local_number},
                 {"numeroDocumento": numero_documento}, "Error",
-                notes=aviso, doctype=doc.doctype,
+                notes=notice, doctype=doc.doctype,
             )
 
         fecha_hka: str = today()
@@ -793,8 +793,8 @@ def _handle_hka_response(
         # El número de HKA solo se adopta en modo Tercero. En Interno el número es nuestro:
         # si quedó vacío es que la asignación falló, y escribir el de HKA convierte la serie
         # en Tercero sin avisar y descuadra el correlativo contra lo emitido.
-        es_tercero: bool = getattr(series_doc, "operation_mode", "Internal") == "Third Party"
-        if not saved_fields.get("bill_no") and numero_documento and es_tercero:
+        is_third_party: bool = getattr(series_doc, "operation_mode", "Internal") == "Third Party"
+        if not saved_fields.get("bill_no") and numero_documento and is_third_party:
             post_fixes["bill_no"] = numero_documento
         elif not saved_fields.get("bill_no") and numero_documento:
             frappe.logger("l10n_ve").warning(

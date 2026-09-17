@@ -180,7 +180,7 @@ class ISLRWithholdingVoucher(Document, WithholdingVoucher):
 
     def before_insert(self) -> None:
         # Mismo mecanismo que IVA, la empresa y la serie digital (`l10n_ve.numbering`).
-        self.voucher_number, _periodo = take_withholding_number(self.empresa, "islr")
+        self.voucher_number, _period = take_withholding_number(self.empresa, "islr")
         self.posting_date = nowdate()
 
     def on_trash(self) -> None:

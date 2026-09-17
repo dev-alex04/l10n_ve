@@ -320,21 +320,21 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
 
         if self.is_return:
             self.credit_note_no = company.take_credit_note_number(
-                is_free=lambda numero: self._validate_credit_note_no(numero, raise_throw=False)
+                is_free=lambda number: self._validate_credit_note_no(number, raise_throw=False)
             )
             self.bill_no = None
             self.debit_note_no = None
 
         elif self.is_debit_note:
             self.debit_note_no = company.take_debit_note_number(
-                is_free=lambda numero: self._validate_debit_note_no(numero, raise_throw=False)
+                is_free=lambda number: self._validate_debit_note_no(number, raise_throw=False)
             )
             self.bill_no = None
             self.credit_note_no = None
 
         else:
             self.bill_no = company.take_invoice_number(
-                is_free=lambda numero: self._validate_bill_no(numero, raise_throw=False)
+                is_free=lambda number: self._validate_bill_no(number, raise_throw=False)
             )
             self.credit_note_no = None
             self.debit_note_no = None
@@ -346,7 +346,7 @@ class VESalesInvoice(TaxesMixin, SalesInvoice):
             return
 
         self.bill_control = company.take_control_number(
-            is_free=lambda numero: self._validate_bill_control(numero, raise_throw=False)
+            is_free=lambda number: self._validate_bill_control(number, raise_throw=False)
         )
 
     def set_affected_invoice_number(self) -> None:
