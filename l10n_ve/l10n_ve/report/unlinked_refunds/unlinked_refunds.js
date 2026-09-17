@@ -29,13 +29,16 @@ frappe.query_reports["Unlinked Refunds"] = {
       )}</a>`;
     }
     if (column.fieldname === "action" && data && data.party) {
-      if (data.can_fix) {
+      if (data.can_fix && data.may_fix) {
         return `<button class="btn btn-xs btn-primary"
           onclick="l10n_ve.unlinked_refunds.fix(${escape(JSON.stringify(data))})">${__("Corregir")}</button>`;
       }
-      return `<span class="text-muted" title="${frappe.utils.escape_html(data.problem || "")}">${__(
-        "Necesita revisión"
-      )}</span>`;
+      if (!data.can_fix) {
+        return `<span class="text-muted" title="${frappe.utils.escape_html(data.problem || "")}">${__(
+          "Necesita revisión"
+        )}</span>`;
+      }
+      return `<span class="text-muted">${__("Lo corrige contabilidad")}</span>`;
     }
     if (column.fieldname === "situation" && data) {
       const color = data.can_fix ? (data.situation === __("Deuda escondida") ? "orange" : "blue") : "gray";

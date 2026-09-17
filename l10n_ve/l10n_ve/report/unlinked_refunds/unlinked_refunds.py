@@ -10,7 +10,7 @@ revisar a mano. El diagnóstico vive en `l10n_ve.overrides.advance_refund_audit`
 import frappe
 from frappe import _
 
-from l10n_ve.overrides.advance_refund_audit import scan
+from l10n_ve.overrides.advance_refund_audit import FIX_ROLES, scan
 
 
 def execute(filters: dict | None = None) -> tuple[list[dict], list[dict]]:
@@ -18,7 +18,11 @@ def execute(filters: dict | None = None) -> tuple[list[dict], list[dict]]:
     cases: list[dict] = scan(
         company=filters.get("company"), party=filters.get("customer")
     )
-    return _columns(), [_row(case) for case in cases]
+    # Quién mira no es siempre quién corrige: desde que el reporte se abrió a los roles de
+    # finanzas, hay gente que lo consulta sin estar en FIX_ROLES. A esa no se le ofrece el
+    # botón, que le daría un error de permiso al apretarlo.
+    may_fix: bool = bool(set(frappe.get_roles()) & set(FIX_ROLES))
+    return _columns(), [_row(case, may_fix) for case in cases]
 
 
 def _columns() -> list[dict]:
@@ -69,7 +73,7 @@ def _columns() -> list[dict]:
     ]
 
 
-def _row(case: dict) -> dict:
+def _row(case: dict, may_fix: bool) -> dict:
     if case["problem"]:
         situation = _("Revisar a mano")
     elif case["undo"]:
@@ -91,5 +95,6 @@ def _row(case: dict) -> dict:
         "company": case["company"],
         "advance_account": case["advance_account"],
         "can_fix": 0 if case["problem"] else 1,
+        "may_fix": 1 if may_fix else 0,
         "problem": case["problem"] or "",
     }
