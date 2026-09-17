@@ -151,16 +151,38 @@ def _ledger_by_party(
         conditions.append("gl.party = %s")
         values.append(party)
 
+    # MariaDB elige `party_type_party_index` y recorre 267.377 de las 301.313 filas, porque
+    # `party_type = 'Customer'` no descarta nada: casi todo el mayor con tercero es de
+    # clientes. Con el índice de `account` son 66.914. Medido el 17-sep-2026 sobre copia de
+    # produccion: 8,35 s -> 2,91 s, resultado identico al bolivar. Era el 85 % de los 12 s
+    # que tardaba el reporte en abrir.
+    #
+    # El hint va solo si el indice existe: forzar uno ausente rompe la consulta, y este
+    # reporte tiene que abrir aunque el esquema no sea el esperado.
+    hint: str = "FORCE INDEX (account)" if _has_index("tabGL Entry", "account") else ""
+
     rows = frappe.db.sql(
         f"""SELECT gl.company, gl.party, gl.account,
             ROUND(SUM(gl.credit) - SUM(gl.debit), 2) AS balance
-        FROM `tabGL Entry` gl
+        FROM `tabGL Entry` gl {hint}
         WHERE {" AND ".join(conditions)}
         GROUP BY gl.company, gl.party, gl.account""",
         values,
         as_dict=True,
     )
     return {(r.company, r.party, r.account): flt(r.balance, 2) for r in rows}
+
+
+def _has_index(table: str, index: str) -> bool:
+    """Existe ese indice? Se cachea: es una consulta al esquema, no al dato."""
+    def _buscar() -> int:
+        return frappe.db.sql(
+            """SELECT COUNT(*) FROM information_schema.statistics
+            WHERE table_schema = DATABASE() AND table_name = %s AND index_name = %s""",
+            (table, index),
+        )[0][0]
+
+    return bool(frappe.cache().get_value(f"l10n_ve:index:{table}:{index}", _buscar))
 
 
 def _build_case(key: tuple, available: float, balance: float) -> dict:
