@@ -75,12 +75,12 @@ class WithholdingVoucher():
         correlative_format = company_doc.get(f"{voucher_type}_withholding_format")
         current_correlative = company_doc.get(f"{voucher_type}_withholding_correlative")
 
-        correlativo: int = numbering.parse_withholding_counter(current_correlative, correlative_format)
-        hoy = getdate(nowdate())
+        correlative: int = numbering.parse_withholding_counter(current_correlative, correlative_format)
+        today = getdate(nowdate())
 
         return {
-            "voucher_number": numbering.format_withholding_number(correlative_format, correlativo),
-            "year": str(hoy.year),
-            "month": f"{hoy.month:02d}",
+            "voucher_number": numbering.format_withholding_number(correlative_format, correlative),
+            "year": str(today.year),
+            "month": f"{today.month:02d}",
         }
 

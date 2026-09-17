@@ -223,19 +223,19 @@ def assign_bill_no_from_digital_series(doc: object, series: object) -> None:
     # empresa (`l10n_ve.numbering`): bloquea la fila, se salta los números ya tomados y
     # avanza el correlativo dentro de la misma transacción. Antes acá se incrementaba en
     # SQL y se releía restando uno, sin formato y sin comprobar duplicados.
-    serie = series
-    if not hasattr(serie, "take_invoice_number"):
-        serie = frappe.get_doc("VE Digital Billing Series", series.name)
+    series_doc = series
+    if not hasattr(series_doc, "take_invoice_number"):
+        series_doc = frappe.get_doc("VE Digital Billing Series", series.name)
 
-    validador = getattr(doc, "_validate_bill_no", None)
+    validator = getattr(doc, "_validate_bill_no", None)
 
     if is_nc:
-        doc_number_str: str = serie.take_credit_note_number()
+        doc_number_str: str = series_doc.take_credit_note_number()
     elif is_nd:
-        doc_number_str = serie.take_debit_note_number()
+        doc_number_str = series_doc.take_debit_note_number()
     else:
-        doc_number_str = serie.take_invoice_number(
-            is_free=(lambda numero: validador(numero, raise_throw=False)) if validador else None
+        doc_number_str = series_doc.take_invoice_number(
+            is_free=(lambda number: validator(number, raise_throw=False)) if validator else None
         )
 
     frappe.db.set_value(doc.doctype, doc.name, "bill_control", "", update_modified=True)

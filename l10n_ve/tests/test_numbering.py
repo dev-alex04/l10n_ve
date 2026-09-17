@@ -6,7 +6,7 @@ Los tres males que había, cada uno en una implementación distinta:
 
 - Company leía el correlativo en memoria y lo incrementaba aparte, sin bloqueo: dos
   facturas validadas a la vez se llevaban el mismo número. Eso es lo que fija
-  `TestConcurrencia`, con hilos y conexiones de verdad.
+  `TestConcurrency`, con hilos y conexiones de verdad.
 - El bucle que buscaba un número libre era `while True`: con el correlativo desalineado
   no terminaba nunca. Ahora se rinde y lo dice.
 - La serie digital releía el contador restando uno, sin formato ni comprobación.
@@ -27,12 +27,12 @@ from l10n_ve.numbering import (
     take_next_number,
 )
 
-PREFIJO = "ZZTEST-NUM"
-EMPRESA_DE_PRUEBA = "ZZTEST-EMPRESA-NUMERACION"
-DOCTYPE_ORIGEN = "VE Digital Billing Series"
+PREFIX = "ZZTEST-NUM"
+TEST_COMPANY = "ZZTEST-EMPRESA-NUMERACION"
+ORIGIN_DOCTYPE = "VE Digital Billing Series"
 
 
-def _crear_serie(nombre: str, correlativo: int = 1) -> str:
+def _create_series(name: str, counter: int = 1) -> str:
     """Una serie de prueba como origen barato del contador.
 
     Se usa la serie y no una Company porque crear una empresa arrastra el plan de cuentas
@@ -43,46 +43,46 @@ def _crear_serie(nombre: str, correlativo: int = 1) -> str:
     contador, no el alta de la serie.
     """
     doc = frappe.get_doc({
-        "doctype": DOCTYPE_ORIGEN,
-        "name": nombre,
-        "company": EMPRESA_DE_PRUEBA,
+        "doctype": ORIGIN_DOCTYPE,
+        "name": name,
+        "company": TEST_COMPANY,
         "operation_mode": "Internal",
         "status": "Active",
         "prefix": "00",
         "range_from": 1,
         "range_to": 999999,
-        "invoice_number_correlative": correlativo,
-        "credit_note_number_correlative": correlativo,
-        "debit_note_number_correlative": correlativo,
+        "invoice_number_correlative": counter,
+        "credit_note_number_correlative": counter,
+        "debit_note_number_correlative": counter,
         "start_operations": "2026-01-01",
     })
     doc.db_insert()
     return doc.name
 
 
-def _borrar_serie(nombre: str) -> None:
-    frappe.db.delete(DOCTYPE_ORIGEN, {"name": nombre})
+def _delete_series(name: str) -> None:
+    frappe.db.delete(ORIGIN_DOCTYPE, {"name": name})
 
 
-class TestFormatos(unittest.TestCase):
+class TestFormats(unittest.TestCase):
     """El formateo, que antes vivía en Company y ahora comparten los tres."""
 
-    def test_el_numero_se_reparte_entre_los_grupos(self):
+    def test_number_is_split_across_all_groups(self):
         self.assertEqual(format_number("##-########", 220248), "00-00220248")
 
-    def test_sin_formato_sale_pelado(self):
+    def test_without_format_the_number_comes_out_plain(self):
         # Es lo que usa la serie digital, que no tiene campo de formato.
         self.assertEqual(format_number(None, 7), "7")
         self.assertEqual(format_number("", 7), "7")
 
-    def test_retencion_lleva_ano_y_mes_adelante(self):
-        numero = format_withholding_number("##############", 455)
-        hoy = frappe.utils.getdate(frappe.utils.nowdate())
-        self.assertEqual(numero[:6], f"{hoy.year}{hoy.month:02d}")
-        self.assertEqual(numero[6:], "00000455")
-        self.assertEqual(len(numero), 14)
+    def test_withholding_number_carries_year_and_month(self):
+        number = format_withholding_number("##############", 455)
+        today = frappe.utils.getdate(frappe.utils.nowdate())
+        self.assertEqual(number[:6], f"{today.year}{today.month:02d}")
+        self.assertEqual(number[6:], "00000455")
+        self.assertEqual(len(number), 14)
 
-    def test_el_contador_heredado_se_lee_por_la_cola(self):
+    def test_legacy_counter_is_read_from_its_tail(self):
         """En la base conviven el correlativo a secas y el voucher_number completo."""
         self.assertEqual(parse_withholding_counter("455", "##############"), 455)
         self.assertEqual(parse_withholding_counter("20260400000455", "##############"), 455)
@@ -90,59 +90,59 @@ class TestFormatos(unittest.TestCase):
         self.assertEqual(parse_withholding_counter("no es un número", "##############"), 1)
 
 
-class TestTomarNumero(FrappeTestCase):
+class TestTakeNumber(FrappeTestCase):
     """`take_next_number` contra la base."""
 
     def setUp(self):
         self.addCleanup(frappe.db.rollback)
-        self.serie = _crear_serie(f"{PREFIJO}-1")
-        self.addCleanup(lambda: _borrar_serie(self.serie))
+        self.series = _create_series(f"{PREFIX}-1")
+        self.addCleanup(lambda: _delete_series(self.series))
 
-    def _correlativo(self) -> int:
-        return frappe.db.get_value(DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative")
+    def _counter(self) -> int:
+        return frappe.db.get_value(ORIGIN_DOCTYPE, self.series, "invoice_number_correlative")
 
-    def test_devuelve_el_actual_y_avanza_uno(self):
-        self.assertEqual(take_next_number(DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative"), "1")
-        self.assertEqual(self._correlativo(), 2)
-        self.assertEqual(take_next_number(DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative"), "2")
-        self.assertEqual(self._correlativo(), 3)
+    def test_returns_the_current_one_and_advances(self):
+        self.assertEqual(take_next_number(ORIGIN_DOCTYPE, self.series, "invoice_number_correlative"), "1")
+        self.assertEqual(self._counter(), 2)
+        self.assertEqual(take_next_number(ORIGIN_DOCTYPE, self.series, "invoice_number_correlative"), "2")
+        self.assertEqual(self._counter(), 3)
 
-    def test_el_contador_en_cero_arranca_en_uno(self):
-        frappe.db.set_value(DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative", 0)
-        self.assertEqual(take_next_number(DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative"), "1")
+    def test_zero_counter_starts_at_one(self):
+        frappe.db.set_value(ORIGIN_DOCTYPE, self.series, "invoice_number_correlative", 0)
+        self.assertEqual(take_next_number(ORIGIN_DOCTYPE, self.series, "invoice_number_correlative"), "1")
 
-    def test_se_salta_los_numeros_ya_tomados(self):
-        tomados = {"1", "2", "3"}
-        numero = take_next_number(
-            DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative",
-            is_free=lambda n: n not in tomados,
+    def test_skips_numbers_already_taken(self):
+        taken = {"1", "2", "3"}
+        number = take_next_number(
+            ORIGIN_DOCTYPE, self.series, "invoice_number_correlative",
+            is_free=lambda n: n not in taken,
         )
-        self.assertEqual(numero, "4")
+        self.assertEqual(number, "4")
         # El contador queda detrás del que se entregó, listo para el siguiente.
-        self.assertEqual(self._correlativo(), 5)
+        self.assertEqual(self._counter(), 5)
 
-    def test_se_rinde_en_vez_de_girar_para_siempre(self):
+    def test_gives_up_instead_of_spinning_forever(self):
         """El `while True` anterior consumía correlativos sin fin y colgaba el submit."""
         with self.assertRaises(frappe.ValidationError):
             take_next_number(
-                DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative",
+                ORIGIN_DOCTYPE, self.series, "invoice_number_correlative",
                 is_free=lambda n: False, max_tries=5,
             )
 
-    def test_el_origen_inexistente_avisa(self):
+    def test_missing_origin_raises(self):
         with self.assertRaises(frappe.ValidationError):
-            take_next_number(DOCTYPE_ORIGEN, "NO-EXISTE-ESTA-SERIE", "invoice_number_correlative")
+            take_next_number(ORIGIN_DOCTYPE, "NO-EXISTE-ESTA-SERIE", "invoice_number_correlative")
 
-    def test_no_commitea_asi_que_no_deja_hueco(self):
+    def test_does_not_commit_so_it_leaves_no_gap(self):
         """Si el documento no llega a guardarse, el número vuelve a estar disponible."""
-        self.assertEqual(take_next_number(DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative"), "1")
+        self.assertEqual(take_next_number(ORIGIN_DOCTYPE, self.series, "invoice_number_correlative"), "1")
         frappe.db.rollback()
         # La serie se fue con el rollback; se rehace y el contador arranca donde debía.
-        self.serie = _crear_serie(f"{PREFIJO}-1b")
-        self.assertEqual(take_next_number(DOCTYPE_ORIGEN, self.serie, "invoice_number_correlative"), "1")
+        self.series = _create_series(f"{PREFIX}-1b")
+        self.assertEqual(take_next_number(ORIGIN_DOCTYPE, self.series, "invoice_number_correlative"), "1")
 
 
-class TestConcurrencia(FrappeTestCase):
+class TestConcurrency(FrappeTestCase):
     """Lo adversarial: muchos documentos a la vez sobre el mismo contador.
 
     Cada hilo abre su propia conexión, como haría un worker distinto. Con el mecanismo
@@ -150,59 +150,59 @@ class TestConcurrencia(FrappeTestCase):
     número; con `FOR UPDATE` el segundo espera.
     """
 
-    HILOS = 8
-    POR_HILO = 5
+    THREADS = 8
+    PER_THREAD = 5
 
     def setUp(self):
-        self.serie = _crear_serie(f"{PREFIJO}-CONC")
+        self.series = _create_series(f"{PREFIX}-CONC")
         frappe.db.commit()  # los otros hilos tienen que verla
 
     def tearDown(self):
-        _borrar_serie(self.serie)
+        _delete_series(self.series)
         frappe.db.commit()
 
-    def test_ningun_numero_se_repite_ni_se_salta(self):
-        sitio = frappe.local.site
-        serie = self.serie
-        numeros: list[str] = []
-        errores: list[str] = []
-        candado = threading.Lock()
+    def test_no_number_is_repeated_or_skipped(self):
+        site = frappe.local.site
+        series = self.series
+        numbers: list[str] = []
+        errors: list[str] = []
+        lock = threading.Lock()
 
-        def trabajador():
-            frappe.init(site=sitio)
+        def worker():
+            frappe.init(site=site)
             frappe.connect()
             try:
-                for _ in range(self.POR_HILO):
-                    numero = take_next_number(DOCTYPE_ORIGEN, serie, "invoice_number_correlative")
+                for _ in range(self.PER_THREAD):
+                    number = take_next_number(ORIGIN_DOCTYPE, series, "invoice_number_correlative")
                     frappe.db.commit()
-                    with candado:
-                        numeros.append(numero)
+                    with lock:
+                        numbers.append(number)
             except Exception as e:  # noqa: BLE001
-                with candado:
-                    errores.append(repr(e))
+                with lock:
+                    errors.append(repr(e))
             finally:
                 frappe.destroy()
 
-        hilos = [threading.Thread(target=trabajador) for _ in range(self.HILOS)]
-        for h in hilos:
+        threads = [threading.Thread(target=worker) for _ in range(self.THREADS)]
+        for h in threads:
             h.start()
-        for h in hilos:
+        for h in threads:
             h.join(timeout=120)
 
-        total = self.HILOS * self.POR_HILO
-        self.assertEqual(errores, [], f"hilos con error: {errores}")
-        self.assertEqual(len(numeros), total, "algún hilo no terminó")
+        total = self.THREADS * self.PER_THREAD
+        self.assertEqual(errors, [], f"hilos con error: {errors}")
+        self.assertEqual(len(numbers), total, "algún hilo no terminó")
         self.assertEqual(
-            len(set(numeros)), total,
-            f"se repitieron números: {sorted(n for n in numeros if numeros.count(n) > 1)}",
+            len(set(numbers)), total,
+            f"se repitieron números: {sorted(n for n in numbers if numbers.count(n) > 1)}",
         )
-        enteros = sorted(int(n) for n in numeros)
-        self.assertEqual(enteros, list(range(1, total + 1)), "la numeración quedó con huecos")
+        ints = sorted(int(n) for n in numbers)
+        self.assertEqual(ints, list(range(1, total + 1)), "la numeración quedó con huecos")
         self.assertEqual(
-            frappe.db.get_value(DOCTYPE_ORIGEN, serie, "invoice_number_correlative"), total + 1
+            frappe.db.get_value(ORIGIN_DOCTYPE, series, "invoice_number_correlative"), total + 1
         )
 
-    def test_aguanta_aunque_la_transaccion_ya_haya_leido_la_fila(self):
+    def test_survives_a_transaction_that_already_read_the_row(self):
         """El caso real: el llamador carga el documento del origen y después toma el número.
 
         Con REPEATABLE READ, el `SELECT ... FOR UPDATE` sobre una fila que la transacción ya
@@ -210,35 +210,35 @@ class TestConcurrencia(FrappeTestCase):
         cuanto otro la mueve. En un submit de factura la empresa se lee varias veces, así que
         este es el patrón que importa. `take_next_number` lo reintenta en una conexión aparte.
         """
-        sitio = frappe.local.site
-        serie = self.serie
-        numeros: list[str] = []
-        errores: list[str] = []
-        candado = threading.Lock()
+        site = frappe.local.site
+        series = self.series
+        numbers: list[str] = []
+        errors: list[str] = []
+        lock = threading.Lock()
 
-        def trabajador():
-            frappe.init(site=sitio)
+        def worker():
+            frappe.init(site=site)
             frappe.connect()
             try:
-                for _ in range(self.POR_HILO):
-                    frappe.get_doc(DOCTYPE_ORIGEN, serie)  # envenena la instantánea
-                    numero = take_next_number(DOCTYPE_ORIGEN, serie, "invoice_number_correlative")
+                for _ in range(self.PER_THREAD):
+                    frappe.get_doc(ORIGIN_DOCTYPE, series)  # envenena la instantánea
+                    number = take_next_number(ORIGIN_DOCTYPE, series, "invoice_number_correlative")
                     frappe.db.commit()
-                    with candado:
-                        numeros.append(numero)
+                    with lock:
+                        numbers.append(number)
             except Exception as e:  # noqa: BLE001
-                with candado:
-                    errores.append(repr(e))
+                with lock:
+                    errors.append(repr(e))
             finally:
                 frappe.destroy()
 
-        hilos = [threading.Thread(target=trabajador) for _ in range(self.HILOS)]
-        for h in hilos:
+        threads = [threading.Thread(target=worker) for _ in range(self.THREADS)]
+        for h in threads:
             h.start()
-        for h in hilos:
+        for h in threads:
             h.join(timeout=120)
 
-        total = self.HILOS * self.POR_HILO
-        self.assertEqual(errores, [], f"hilos con error: {errores[:2]}")
-        self.assertEqual(len(set(numeros)), total, "se repitió algún número")
-        self.assertEqual(sorted(int(n) for n in numeros), list(range(1, total + 1)), "quedaron huecos")
+        total = self.THREADS * self.PER_THREAD
+        self.assertEqual(errors, [], f"hilos con error: {errors[:2]}")
+        self.assertEqual(len(set(numbers)), total, "se repitió algún número")
+        self.assertEqual(sorted(int(n) for n in numbers), list(range(1, total + 1)), "quedaron huecos")
