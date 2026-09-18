@@ -27,16 +27,6 @@ website_context = {
 }
 
 extend_bootinfo = "l10n_ve.boot.get_boot_info"
-def _asset_stamp(relative_path):
-    """La fecha de modificación del archivo, para versionar su URL."""
-    import os
-
-    try:
-        return str(int(os.path.getmtime(os.path.join(os.path.dirname(__file__), "public", relative_path))))
-    except OSError:
-        return "0"
-
-
 app_include_js = [
     "/assets/l10n_ve/js/item_logic/item_logic.js",
     "/assets/l10n_ve/js/utils/report_view_patch.js",
@@ -53,11 +43,9 @@ app_include_js = [
     "/assets/l10n_ve/js/utils/brand_logo.js",
     # El diálogo de registrar a una parte (documento + dirección), compartido por
     # domina_isp y domina_isp_contractor. Global porque lo abren formularios de dos apps
-    # distintas que no pueden incluirse JS entre sí. Con sello de versión: un JS suelto
-    # de esta lista se sirve sin hash --los bundles sí lo llevan-- y el navegador lo
-    # cachea (12 h en desarrollo, más detrás de nginx), así que un cambio no llegaba
-    # hasta una recarga forzada. El sello cambia con el archivo y la URL con él.
-    "/assets/l10n_ve/js/utils/party_registration.js?v=" + _asset_stamp("js/utils/party_registration.js"),
+    # distintas que no pueden incluirse JS entre sí. El sello contra el caché del
+    # navegador se lo pone el paso de abajo, que versiona toda la lista.
+    "/assets/l10n_ve/js/utils/party_registration.js",
     "/assets/l10n_ve/js/utils/ve_main_branch_default.js",
 ]
 
