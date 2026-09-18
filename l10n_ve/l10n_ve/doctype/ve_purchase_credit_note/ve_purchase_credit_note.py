@@ -33,14 +33,12 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         self.is_return = 1
         self.naming_series = "NC-COMP-.YYYY.-"
         self.update_outstanding_for_self = 0
-        self.outstanding_amount = 0
         self._init_pi_defaults()
         self._inherit_data_from_pi()
 
     def validate(self) -> None:
         self.is_return = 1
         self.update_outstanding_for_self = 0
-        self.outstanding_amount = 0
         self._init_pi_defaults()
         self._inherit_data_from_pi()
         self._enforce_positive_amounts()
@@ -51,6 +49,11 @@ class VEPurchaseCreditNote(TaxesMixin, PurchaseInvoice):
         self._validate_bill_date()
         self._run_super_validate_safely()
         self._set_base_total_with_vat()
+        # Acá y no antes: el super recalcula los totales y pisa cualquier cero previo. Una
+        # nota de crédito es un crédito, no una deuda, así que no puede quedar con saldo por
+        # cobrar. ERPNext lo hace solo en `calculate_outstanding_amount`, pero la NC reemplaza
+        # `calculate_taxes_and_totals` por el calculador venezolano y por ese camino esa rama
+        # no corre. Pinneado en test_..._credit_note.py::TestDondeSeFijaElCero.
         self.outstanding_amount = 0
 
     def on_submit(self) -> None:
