@@ -68,12 +68,27 @@ class TestIdentidad(FrappeTestCase):
 		self.assertEqual(frappe.db.count("Error Log", {"method": "Clasificación fiscal incompleta"}), antes + 1)
 
 	def test_lo_que_falta_se_dice_con_los_nombres_de_aca(self):
-		texto = missing_contact_text({"customer_name": "X", "email_id": "x@y.z"})
+		"""Lo que se prueba son los nombres en español, no qué exige el sitio.
 
-		self.assertIn("el RIF", texto)
-		self.assertIn("el teléfono", texto)
-		self.assertNotIn("correo", texto)
-		self.assertEqual(missing_contact_text({"customer_name": "X", "tax_id": "V1", "mobile_no": "0", "email_id": "a@b.c"}), "")
+		Qué campos son obligatorios sale de la meta del `Customer` de cada sitio: en local el
+		teléfono lo es y en el sitio base de la CI no, y el test fallaba sólo allá. Se fija,
+		como en el test de la concordancia de abajo.
+		"""
+		from unittest.mock import patch
+
+		from l10n_ve import party_registration as pr
+
+		exige = {"tax_id": True, "mobile_no": True, "email_id": False, "customer_name": False}
+
+		with patch.object(pr, "required_contact_fields", return_value=exige):
+			texto = missing_contact_text({"customer_name": "X", "email_id": "x@y.z"})
+
+			self.assertIn("el RIF", texto)
+			self.assertIn("el teléfono", texto)
+			self.assertNotIn("correo", texto)
+			self.assertEqual(
+				missing_contact_text({"customer_name": "X", "tax_id": "V1", "mobile_no": "0", "email_id": "a@b.c"}), ""
+			)
 
 	def test_el_aviso_concuerda_con_cuantas_cosas_faltan(self):
 		"""«Falta el RIF» o «Faltan el RIF y el correo», nunca «Falta el RIF ni el correo»."""
@@ -125,6 +140,21 @@ class TestDireccion(FrappeTestCase):
 
 			frappe.delete_doc("Lead", lead, force=True, ignore_permissions=True)
 
+	def _pais(self):
+		"""El país de la dirección, obligatorio en `Address`.
+
+		No vale `frappe.db.get_default("country")` a secas: ese valor lo deja el asistente de
+		instalación, y el sitio de la CI no pasa por él --ahí el alta reventaba con
+		`MandatoryError: [Address]: country`--. Se toma del catálogo, como el estado y la ciudad.
+		"""
+		return (
+			frappe.db.get_default("country")
+			# Por el código y no por el nombre: en el catálogo de Frappe el registro se llama
+			# "Venezuela, Bolivarian Republic of".
+			or frappe.db.get_value("Country", {"code": "ve"}, "name")
+			or frappe.get_all("Country", pluck="name", limit=1)[0]
+		)
+
 	def _direccion(self, **extra):
 		# Con `l10n_ve`, estado, ciudad y municipio son enlaces obligatorios: se toman del
 		# catálogo del sitio, no se inventan.
@@ -132,7 +162,7 @@ class TestDireccion(FrappeTestCase):
 		valores = {
 			"address_line1": "Calle 1, casa 2",
 			"address_type": "Billing",
-			"country": frappe.db.get_default("country"),
+			"country": self._pais(),
 			"state": estado,
 			"city": frappe.get_value("VE City", {"state": estado}, "name"),
 			"county": frappe.get_value("VE Municipality", {"state": estado}, "name"),
