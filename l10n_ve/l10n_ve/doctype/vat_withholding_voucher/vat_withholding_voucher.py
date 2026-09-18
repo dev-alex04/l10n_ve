@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, nowdate, getdate, get_link_to_form
+from l10n_ve.numbering import take_withholding_number
 from l10n_ve.controllers.withholding_voucher import WithholdingVoucher
 
 
@@ -18,20 +19,20 @@ _PURCHASE_PARENTTYPES: list[str] = WithholdingVoucher.PURCHASE_PARENTTYPES
 _DOC_FIELDS: dict[str, list[str]] = {
     "Purchase Invoice": [
         "name", "bill_no", "bill_control", "posting_date", "bill_date",
-        "base_grand_total", "base_total", "total_exempt",
+        "base_grand_total", "base_total", "base_total_with_vat", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "is_return", "is_debit_note",
         "credit_note_no", "debit_note_no", "affected_invoice_number", "branch",
     ],
     "VE Purchase Credit Note": [
         "name", "bill_no", "bill_control", "posting_date", "bill_date",
-        "base_grand_total", "base_total", "total_exempt",
+        "base_grand_total", "base_total", "base_total_with_vat", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "affected_invoice_number", "branch",
     ],
     "VE Purchase Debit Note": [
         "name", "bill_no", "bill_control", "posting_date", "bill_date",
-        "base_grand_total", "base_total", "total_exempt",
+        "base_grand_total", "base_total", "base_total_with_vat", "total_exempt",
         "base_taxes_and_charges_added", "conversion_rate", "currency",
         "affected_invoice_number", "branch",
     ],
@@ -180,29 +181,9 @@ class VATWithholdingVoucher(Document, WithholdingVoucher):
             )
 
     def before_insert(self) -> None:
-        # Row lock atómico para prevenir race conditions en correlativos
-        company_row: dict = frappe.db.sql(
-            "SELECT vat_withholding_correlative, vat_withholding_format "
-            "FROM `tabCompany` WHERE name = %s FOR UPDATE",
-            self.empresa, as_dict=True
-        )
-        if not company_row:
-            frappe.throw(_("Empresa no encontrada: {0}").format(self.empresa))
-
-        company_data: dict = company_row[0]
-        correlative_format: str = company_data.vat_withholding_format
-
-        final_voucher_number, final_next_correlative_number, year, month = \
-            self._get_and_format_correlatives(correlative_format, company_data.vat_withholding_correlative)
-
-        self.voucher_number = final_voucher_number
-        self.fiscal_period = f"{month}/{year}"
-
-        # Incremento atómico: gap aceptable si insert() falla después
-        frappe.db.sql(
-            "UPDATE `tabCompany` SET vat_withholding_correlative = %s WHERE name = %s",
-            (final_next_correlative_number, self.empresa)
-        )
+        # El número y el período salen de `l10n_ve.numbering`, el mismo mecanismo que usan
+        # la empresa y la serie digital: bloqueo de fila y avance en la misma transacción.
+        self.voucher_number, self.fiscal_period = take_withholding_number(self.empresa, "vat")
 
     def on_trash(self) -> None:
         if self.docstatus == 2:
@@ -463,8 +444,23 @@ def _build_invoice_row(
     is_nc: bool = doc_type == "VE Purchase Credit Note"
     is_nd: bool = doc_type == "VE Purchase Debit Note"
 
+    # El total de la línea es el BRUTO del documento --base + IVA-- y se TRAE de él, no se
+    # recompone acá: `base_total_with_vat` es el campo «Total Base + IVA (Bs)» que el
+    # documento ya muestra, calculado por controllers/taxes_and_totals.py, que es el único
+    # lugar donde se calculan impuestos. Ojo con `base_grand_total`: en una factura de compra
+    # viene neto de TODAS las retenciones (ver
+    # overrides/purchase_invoice.py::_grand_total_includes_withholding), y restituirle solo la
+    # de IVA dejaba el total corto exactamente en el ISLR (caso VNET, 16-sep-2026).
+    if not inv.get("base_total_with_vat"):
+        frappe.throw(
+            _("El documento {0} no tiene «Total Base + IVA». Sin ese monto no se puede armar "
+              "el comprobante de retención: corrija el documento antes de emitirlo.").format(
+                  frappe.bold(inv.name)
+            ),
+            title=_("Total de la Compra Faltante"),
+        )
+
     taxable_base = abs((inv.base_total or 0) - total_exempt)
-    gross_total = abs(inv.base_total or 0) + abs(vat_details.get("base_tax_amount", 0))
 
     return {
         "purchase_invoice_type": doc_type,
@@ -472,8 +468,8 @@ def _build_invoice_row(
         "bill_no": inv.bill_no,
         "bill_control": inv.bill_control,
         "posting_date": inv.bill_date or inv.posting_date,
-        "grand_total": abs(inv.base_grand_total or 0) + abs(wh_details.get("base_tax_amount", 0)),
-        "total": abs((inv.base_total or 0) - total_exempt),
+        "grand_total": abs(inv.base_total_with_vat),
+        "total": taxable_base,
         "total_exempt": abs(total_exempt),
         "taxes_and_charges_added": abs(vat_details.get("base_tax_amount", 0)),
         # NC: credit_note_no = bill_no para diferenciación en totales y reporte
@@ -574,15 +570,20 @@ def make_vat_withholding_voucher(source_name: str, source_doctype: str = "Purcha
               "(fila 'VAT Withholding' en la tabla de impuestos).")
         )
 
-    # Fail-closed TEMPRANO: sin serie digital activa para la sucursal se aborta
-    # ANTES de crear el comprobante — no consumir correlativo de la Company ni
-    # dejar un comprobante aprobado atascado en Error reintentándose en el cron.
-    from l10n_ve.digital_invoice.retention_integration import _validate_digital_series
-    series_errors = _validate_digital_series(
-        frappe._dict(empresa=invoice.company, branch=invoice.get("branch") or "")
-    )
-    if series_errors:
-        frappe.throw(series_errors[0], title=_("Serie de Facturación No Encontrada"))
+    # Fail-closed TEMPRANO: si HKA está habilitado globalmente, sin serie digital activa
+    # para la sucursal se aborta ANTES de crear el comprobante — no consumir correlativo
+    # de la Company ni dejar un comprobante aprobado atascado en Error reintentándose en
+    # el cron. No usar `is_hk_enabled_for_company`: ya exige que la sucursal tenga serie
+    # activa, así que envolver la validación en ese chequeo la vuelve inalcanzable justo
+    # para la sucursal sin serie, que es el caso que debe abortar.
+    from frappe.utils import cint
+    if cint(frappe.db.get_single_value("TFHKA Settings", "enabled")):
+        from l10n_ve.digital_invoice.retention_integration import _validate_digital_series
+        series_errors = _validate_digital_series(
+            frappe._dict(empresa=invoice.company, branch=invoice.get("branch") or "")
+        )
+        if series_errors:
+            frappe.throw(series_errors[0], title=_("Serie de Facturación No Encontrada"))
 
     doc = frappe.new_doc("VAT Withholding Voucher")
     doc.empresa = invoice.company

@@ -4,11 +4,35 @@
 import frappe
 from frappe.model.document import Document
 
+from l10n_ve.numbering import take_next_number
+
 
 class VEDigitalBillingSeries(Document):
 
     def validate(self) -> None:
         self._validate_no_duplicate_branches_in_active_series()
+
+    # --- Numeración --------------------------------------------------------------
+    # Misma lógica que la empresa (`l10n_ve.numbering`): lo único que cambia es de dónde
+    # sale el contador. La serie no tiene campo de formato, así que el número se imprime
+    # pelado, como hasta ahora; el día que haga falta, se agrega el campo y se pasa acá.
+    #
+    # Solo se usan en modo de operación Interno: en Tercero el número lo asigna HKA.
+
+    def take_invoice_number(self, is_free=None) -> str:
+        return take_next_number(
+            "VE Digital Billing Series", self.name, "invoice_number_correlative", is_free=is_free
+        )
+
+    def take_credit_note_number(self, is_free=None) -> str:
+        return take_next_number(
+            "VE Digital Billing Series", self.name, "credit_note_number_correlative", is_free=is_free
+        )
+
+    def take_debit_note_number(self, is_free=None) -> str:
+        return take_next_number(
+            "VE Digital Billing Series", self.name, "debit_note_number_correlative", is_free=is_free
+        )
 
     def _validate_no_duplicate_branches_in_active_series(self) -> None:
         """Valida que ninguna sucursal esté asignada a otra serie activa."""

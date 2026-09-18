@@ -58,6 +58,7 @@ app_include_js = [
     # cachea (12 h en desarrollo, más detrás de nginx), así que un cambio no llegaba
     # hasta una recarga forzada. El sello cambia con el archivo y la URL con él.
     "/assets/l10n_ve/js/utils/party_registration.js?v=" + _asset_stamp("js/utils/party_registration.js"),
+    "/assets/l10n_ve/js/utils/ve_main_branch_default.js",
 ]
 
 # Apps

@@ -45,16 +45,34 @@ se activó. **Cerrado en el PR #591**, en tres puntos:
 `test_retention_series_fail_closed` pinnea los tres. Si alguno se pone en rojo, no se ajusta
 el test: se revisa qué lo puso en rojo.
 
-**Tomar "el primero disponible" cuando no hay coincidencia.** Se propuso que, si el tabulador
-de ISLR no tiene alícuota para el tipo de persona del proveedor, se usara la primera con
-`aliquot > 0`. Eso no es un respaldo: es aplicar la alícuota de **otro tipo de persona**. En
-el site hay **65 de 66 tabuladores con un solo tipo**, así que esa "primera" es casi siempre
-la del tipo equivocado; el único con dos, el `077`, va de **1%** (natural domiciliado) a
-**5%** (jurídico domiciliado). Revertido en el PR #546.
+**Tomar "el primero disponible" cuando el concepto ofrece varias.** Se propuso que, si el
+tabulador de ISLR no tiene alícuota para el tipo de persona del proveedor, se usara la
+primera con `aliquot > 0`. Cuando el concepto ofrece **más de una**, eso no es un respaldo:
+es elegir por orden de fila la alícuota de otro tipo de persona. El único concepto así es el
+`077`, que va de **1%** (natural domiciliado) a **5%** (jurídico domiciliado); ahí se corta y
+se nombran las opciones. Revertido en el PR #546.
+
+**La excepción es fiscal, no técnica: un concepto con UNA sola alícuota se aplica** aunque no
+sea la del tipo del proveedor. Las sociedades de personas —firmas civiles de abogados o
+contadores— tienen RIF jurídico, pero por el Decreto 1808 (artículo 9, parágrafo cuarto) se
+les retiene con las tasas de las personas naturales; lo confirmó el equipo contable el
+31-jul-2026, y es la razón de que el buscador de conceptos no filtre. De los **66 conceptos
+con alícuota, 65 tienen una sola fila**, así que ahí no hay nada entre lo cual equivocarse:
+el contador eligió el concepto y el concepto ofrece una tarifa. La fila queda con la
+constancia de que la alícuota es de otro tipo, para que el Libro de Compras se explique solo.
+
+Eso vive en `l10n_ve/utils/islr.py::resolve_purchase_islr_aliquot`, de donde lo toman los
+**dos** caminos —factura en borrador y factura aprobada—. Tenerlo duplicado fue el problema
+anterior: el borrador aceptaba el concepto cruzado y el retroactivo lo rechazaba, así que
+contabilidad terminó duplicando documentos para esquivar el bloqueo, y esas filas nacían sin
+pasar por ninguna validación.
 
 Corolario, porque es lo que hace segura la búsqueda amplia: **filtrar en el buscador no es
 validar**. Si se relaja el filtro de la UI para que muestre más opciones, la validación al
-aplicar pasa a ser la única defensa y hay que reforzarla, no quitarla.
+aplicar pasa a ser la única defensa y hay que reforzarla, no quitarla. Pero reforzarla
+significa rechazar lo que es **ambiguo**, no lo que es distinto: bloquear un caso fiscal
+legítimo tampoco es gratis —se paga en documentos duplicados, que es peor que el error que
+se quería evitar—.
 
 **Rellenar con un neutro que no es neutro.** `flt(self.doc.conversion_rate) or 1.0` parece
 inofensivo, pero el sustraendo del tabulador está en bolívares —su campo hermano se llama

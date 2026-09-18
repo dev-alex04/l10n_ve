@@ -1,6 +1,8 @@
 import frappe
 from frappe.utils import flt, getdate, nowdate
 
+from l10n_ve.l10n_ve.doctype.ve_branch.ve_branch import get_main_branches_for_user
+
 
 def get_boot_info(bootinfo: dict) -> None:
     """
@@ -33,6 +35,15 @@ def get_boot_info(bootinfo: dict) -> None:
         bootinfo.card_usd_refs = _calculate_card_usd_references()
     except Exception:
         bootinfo.card_usd_refs = {}
+
+    # Sucursal principal por compañía, para proponerla en los documentos nuevos
+    # (public/js/utils/ve_main_branch_default.js). Vacío si el usuario tiene sucursal.
+    # El boot no puede romper el inicio de sesión: entre el deploy y el migrate, por
+    # ejemplo, la columna is_main todavía no existe.
+    try:
+        bootinfo.ve_main_branches = get_main_branches_for_user(frappe.session.user)
+    except Exception:  # noqa: BLE001
+        bootinfo.ve_main_branches = {}
 
 
 def _calculate_card_usd_references() -> dict:

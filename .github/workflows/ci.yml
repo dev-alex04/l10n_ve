@@ -2,21 +2,14 @@
 name: CI
 
 on:
-  # La suite pesada levanta un bench entero con MariaDB, Redis y cinco apps.
-  # Ya no corre en cada push a development: eso, multiplicado por todos los
-  # repos, daba 2.394 corridas al mes y agotó el presupuesto de Actions.
-  #
-  # Ahora corre donde importa —el release— y una vez por noche sobre
-  # development, para que una regresión aparezca al día siguiente con los
-  # commits de esa jornada y no en el release con treinta.
-  #
-  # Los PR hacia development los cubre el workflow de chequeos rápidos.
+  # Todo corre en el runner propio de Domina Testing 2 (ver domina-deploy/ci/README.md): los PR
+  # hacia development y main, la nocturna y la manual. Ninguna prueba corre en máquinas de GitHub.
   pull_request:
     branches:
       - main
-      - development   # en development corre SOLO el job del runner propio (ver `if` de cada job)
+      - development
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '30 7 * * *'   # 03:30 Caracas: después del refresco de las bases (02:15)
   workflow_dispatch:
 
 concurrency:
@@ -30,174 +23,18 @@ jobs:
   tests:
     permissions:
       contents: read
-    # GitHub-hosted: PR a main, cron nocturno y manual. Los PR a development van al runner propio.
-    if: github.event_name != 'pull_request' || github.base_ref == 'main'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-    name: Server
-
-    services:
-      redis-cache:
-        image: redis:alpine
-        ports:
-          - 13000:6379
-      redis-queue:
-        image: redis:alpine
-        ports:
-          - 11000:6379
-      mariadb:
-        image: mariadb:10.6
-        env:
-          MYSQL_ROOT_PASSWORD: root
-        ports:
-          - 3306:3306
-        options: --health-cmd="mariadb-admin ping" --health-interval=5s --health-timeout=2s --health-retries=3
-
-    steps:
-      - name: Clone
-        uses: actions/checkout@v7
-
-      - name: Find tests
-        run: |
-          echo "Finding tests"
-          grep -rn "def test" > /dev/null
-
-      - name: Setup Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 20
-          check-latest: true
-
-      - name: Cache pip
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml', '**/setup.py', '**/setup.cfg') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-            ${{ runner.os }}-
-
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: 'echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT'
-
-      - uses: actions/cache@v6
-        id: yarn-cache
-        with:
-          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
-
-      - name: Install MariaDB Client
-        run: sudo apt-get install -y mariadb-client
-
-      - name: Setup
-        run: |
-          pip install frappe-bench
-          bench init --skip-redis-config-generation --skip-assets --frappe-branch version-15 --python "$(which python)" ~/frappe-bench
-          mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4'"
-          mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci'"
-
-      - name: Install
-        working-directory: /home/runner/frappe-bench
-        run: |
-          bench get-app erpnext --branch version-15
-          bench get-app l10n_ve $GITHUB_WORKSPACE
-          bench setup requirements --dev
-          bench new-site --db-root-password root --admin-password admin test_site
-          bench --site test_site install-app erpnext
-          bench --site test_site install-app l10n_ve
-          bench build
-        env:
-          CI: 'Yes'
-
-      - name: Run Tests
-        id: tests
-        working-directory: /home/runner/frappe-bench
-        run: |
-          set -o pipefail
-          bench --site test_site set-config allow_tests true
-          bench --site test_site run-tests --app l10n_ve --skip-test-records 2>&1 | tee /tmp/test_output.txt
-        env:
-          TYPE: server
-
-      - name: Notify Telegram on Test Failure
-        if: failure() && steps.tests.outcome == 'failure'
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          HEAD_REF: ${{ github.head_ref }}
-          REF_NAME: ${{ github.ref_name }}
-          PR_NUM: ${{ github.event.pull_request.number }}
-          ACTOR_LOGIN: ${{ github.actor }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "⏭️  Secrets de Telegram no configurados, omitiendo notificación."
-            exit 0
-          fi
-
-          APP_NAME="l10n_ve"
-          BRANCH="${HEAD_REF:-$REF_NAME}"
-          PR_NUMBER="$PR_NUM"
-          RUN_URL="$RUN_URL"
-          ACTOR="$ACTOR_LOGIN"
-
-          # Extraer últimas 40 líneas del output de tests (errores + resumen)
-          if [ -f /tmp/test_output.txt ]; then
-            TEST_OUTPUT=$(tail -40 /tmp/test_output.txt | head -c 2000)
-          else
-            TEST_OUTPUT="No se pudo capturar el output de los tests."
-          fi
-
-          MESSAGE=$(printf "🔴 Tests FALLIDOS — %s\n👤 %s\n🌿 Branch: %s\n🔗 PR: #%s\n\n📋 Output:\n\`\`\`\n%s\n\`\`\`\n\n🔍 %s" \
-            "$APP_NAME" "$ACTOR" "$BRANCH" "$PR_NUMBER" "$TEST_OUTPUT" "$RUN_URL")
-
-          PAYLOAD=$(jq -n \
-            --arg chat_id "$TELEGRAM_CHAT_ID" \
-            --arg text "$MESSAGE" \
-            --arg parse_mode "Markdown" \
-            '{chat_id: $chat_id, text: $text, parse_mode: $parse_mode, disable_web_page_preview: true}')
-
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
-
-          echo "Telegram HTTP: ${HTTP_CODE}"
-          if [ "$HTTP_CODE" != "200" ]; then
-            # Reintentar sin Markdown si falla el parseo
-            PAYLOAD_PLAIN=$(jq -n \
-              --arg chat_id "$TELEGRAM_CHAT_ID" \
-              --arg text "$MESSAGE" \
-              '{chat_id: $chat_id, text: $text, disable_web_page_preview: true}')
-            curl -s -o /dev/null \
-              -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-              -H "Content-Type: application/json" \
-              -d "$PAYLOAD_PLAIN"
-          fi
-
-  tests-self-hosted:
-    permissions:
-      contents: read
-    # Runner propio (Domina Testing 2, contenedor domina-ci): bench ya construido, por corrida solo
-    # restaura la base `ve`, copia este checkout, migrate y run-tests. Sin gastar minutos de
-    # Actions, por eso SÍ corre en cada PR a development.
+    # Runner propio de Domina Testing 2 (etiqueta domina-ci): bench caliente con frappe y erpnext
+    # fijos; por corrida restaura la base `ve`, copia este checkout y corre la suite. Ninguna
+    # prueba corre en máquinas de GitHub (decisión del 12-sep-2026; ver domina-deploy/ci/README.md).
     # Solo ramas del propio repo: un runner propio ejecutando PRs de forks es un agujero de seguridad.
-    if: github.event_name == 'pull_request' && github.base_ref == 'development' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, domina-ci]
-    name: Server (runner propio)
-    timeout-minutes: 30
+    name: Server
+    timeout-minutes: 90
     steps:
       - name: Clone
         uses: actions/checkout@v7
+
       - name: Suite en bench caliente
         id: tests
         run: |
@@ -205,6 +42,7 @@ jobs:
           /home/runner/ci-run.sh l10n_ve ve "$GITHUB_WORKSPACE" 2>&1 | tee /tmp/test_output.txt
         env:
           TYPE: server
+
       - name: Notify Telegram on Test Failure
         if: failure() && steps.tests.outcome == 'failure'
         env:
@@ -220,9 +58,9 @@ jobs:
             echo "Secrets de Telegram no configurados, omitiendo notificación."
             exit 0
           fi
-          RUN_URL="$RUN_URL"
+          BRANCH="${HEAD_REF:-$REF_NAME}"
           TEST_OUTPUT=$(tail -40 /tmp/test_output.txt 2>/dev/null | head -c 2000)
-          MESSAGE=$(printf "🔴 Tests FALLIDOS (runner propio) — l10n_ve\n👤 %s\n🌿 %s\n🔗 PR #%s\n\n%s\n\n%s" \
-            "$ACTOR_LOGIN" "$HEAD_REF" "$PR_NUM" "$TEST_OUTPUT" "$RUN_URL")
+          MESSAGE=$(printf "🔴 Tests FALLIDOS — l10n_ve\n👤 %s\n🌿 %s\n🔗 PR #%s\n\n%s\n\n%s" \
+            "$ACTOR_LOGIN" "$BRANCH" "$PR_NUM" "$TEST_OUTPUT" "$RUN_URL")
           PAYLOAD=$(jq -n --arg chat_id "$TELEGRAM_CHAT_ID" --arg text "$MESSAGE" '{chat_id: $chat_id, text: $text, disable_web_page_preview: true}')
           curl -s -o /dev/null -w "Telegram HTTP: %{http_code}\n" -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -H "Content-Type: application/json" -d "$PAYLOAD"

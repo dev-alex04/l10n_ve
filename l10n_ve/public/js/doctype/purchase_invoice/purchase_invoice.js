@@ -235,6 +235,9 @@ async function show_islr_dialog(frm) {
           return {
             query: "l10n_ve.overrides.purchase_invoice.get_tabulators_by_person_type",
             filters: {
+              // A propósito NO se filtra por tipo de persona: se decidió hace meses que el
+              // buscador ofrezca cualquier concepto. La defensa fiscal es la validación al
+              // aplicar, que corta si el concepto no tiene alícuota para ese proveedor.
               existing_codes: existing_codes,
             },
           };
@@ -846,10 +849,12 @@ function open_government_withholding_dialog(frm) {
 // ------------------------------------------------------------------ //
 
 /**
- * Agrega el menú "Aplicar Retención" con las opciones de IVA e ISLR
- * para facturas de compra en estado Aprobado (docstatus == 1).
- * Solo muestra cada botón si la retención correspondiente aún no existe
- * en la tabla de impuestos.
+ * Menús "Aplicar Retención" y "Quitar Retención" para facturas de compra aprobadas.
+ *
+ * Cada retención aparece en uno de los dos menús según esté aplicada o no. Quitar existe
+ * porque una retención cargada con el concepto o el monto equivocado no tenía cómo
+ * corregirse: en la factura aprobada solo había camino para agregar, y el formulario no deja
+ * editar la tabla de impuestos después de aprobar. Corregir es quitar y volver a aplicar.
  *
  * @param {object} frm - La instancia del formulario
  */
@@ -871,7 +876,22 @@ function setup_retroactive_withholding_buttons(frm) {
     (t) => t.charge_type === "ISLR" && flt(t.tax_amount),
   );
 
-  // Ambas retenciones ya aplicadas: no hay nada que agregar
+  if (has_vat_withholding) {
+    frm.add_custom_button(
+      __("Retención de IVA"),
+      () => remove_purchase_withholding(frm, "VAT"),
+      __("Quitar Retención"),
+    );
+  }
+
+  if (has_islr_withholding) {
+    frm.add_custom_button(
+      __("Retención de ISLR"),
+      () => remove_purchase_withholding(frm, "ISLR"),
+      __("Quitar Retención"),
+    );
+  }
+
   if (has_vat_withholding && has_islr_withholding) {
     return;
   }
@@ -896,13 +916,6 @@ function setup_retroactive_withholding_buttons(frm) {
 
       // Retención de ISLR: siempre disponible si aún no está aplicada,
       // ya que el concepto se selecciona en el diálogo.
-      // if (!has_islr_withholding) {
-      //   frm.add_custom_button(
-      //     __("Retención de ISLR"),
-      //     () => apply_purchase_islr_withholding_dialog(frm, supplier_data),
-      //     __("Aplicar Retención"),
-      //   );
-      // }
       if (!has_islr_withholding) {
         frm.add_custom_button(
           __("Retención de ISLR"),
@@ -911,6 +924,54 @@ function setup_retroactive_withholding_buttons(frm) {
         );
       }
     });
+}
+
+/**
+ * Quita una retención de una factura aprobada, tras confirmar.
+ *
+ * El monto vuelve a deberse al proveedor: se dice en el diálogo, porque es lo que el usuario
+ * necesita saber antes de aceptar.
+ *
+ * @param {object} frm              - Instancia del formulario
+ * @param {string} withholding_type - "VAT" o "ISLR"
+ */
+function remove_purchase_withholding(frm, withholding_type) {
+  const charge_type = withholding_type === "VAT" ? "VAT Withholding" : "ISLR";
+  const etiqueta = withholding_type === "VAT" ? __("IVA") : __("ISLR");
+  const monto = (frm.doc.taxes || [])
+    .filter((t) => t.charge_type === charge_type)
+    .reduce((acc, t) => acc + flt(t.tax_amount), 0);
+
+  frappe.confirm(
+    __("Se va a quitar la retención de {0} por {1} de la factura {2}. Se asienta el reverso y ese monto vuelve a deberse al proveedor. La otra retención no se toca. ¿Continuar?", [
+      etiqueta,
+      format_currency(monto, frm.doc.currency),
+      // El número de la factura del proveedor, que es el que el usuario tiene en la mano.
+      frm.doc.bill_no || frm.doc.name,
+    ]),
+    () => {
+      frappe.dom.freeze(__("Quitando la retención y asentando el reverso..."));
+      frappe.call({
+        method:
+          "l10n_ve.overrides.purchase_invoice.remove_retroactive_purchase_withholding",
+        args: {
+          invoice_name: frm.doc.name,
+          withholding_type: withholding_type,
+          company: frm.doc.company,
+        },
+        callback(r) {
+          frappe.dom.unfreeze();
+          if (r.message && r.message.status === "success") {
+            frappe.show_alert({ message: r.message.msg, indicator: "green" });
+            frm.reload_doc();
+          }
+        },
+        error() {
+          frappe.dom.unfreeze();
+        },
+      });
+    },
+  );
 }
 
 /**

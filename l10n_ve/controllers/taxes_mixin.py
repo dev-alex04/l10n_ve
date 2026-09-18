@@ -505,7 +505,7 @@ class TaxesMixin:
             return
 
         tax_row: dict = self._build_purchase_islr_tax_row(
-            tabulator, aliquot_info, islr_amount, islr_account
+            tabulator, aliquot_info, islr_amount, islr_account, type_of_person
         )
         self.append("taxes", tax_row)
 
@@ -596,46 +596,14 @@ class TaxesMixin:
                 )
             )
 
-        # La alícuota se busca SIEMPRE por el tipo de persona del proveedor, y si no
-        # hay, se falla. No se toma "la primera disponible": 65 de los 66 tabuladores
-        # del site tienen UN SOLO tipo de persona, así que esa primera sería la de OTRO
-        # tipo. El tabulador 077 va de 1% (natural) a 5% (jurídico) —cinco veces— y el
-        # resultado termina en un comprobante ante el SENIAT. Un error visible acá es
-        # barato; una alícuota equivocada declarada en silencio, no.
-        #
-        # Esto es lo que hace segura la búsqueda libre de tabuladores: el buscador
-        # muestra todos, y la validación al aplicar es la que impide elegir uno que no
-        # corresponde.
-        aliquot_info = next(
-            (
-                aq for aq in tabulator.aliquot
-                if aq.types_of_person == type_of_person and flt(aq.aliquot) > 0
-            ),
-            None
-        )
+        # La resolución vive en utils/islr.py porque la comparte con el camino
+        # retroactivo de overrides/purchase_invoice.py. Tenerla dos veces fue
+        # justamente el problema: el borrador aceptaba el concepto cruzado y la
+        # factura aprobada lo rechazaba, así que contabilidad terminaba
+        # duplicando documentos para esquivar el bloqueo.
+        from l10n_ve.utils.islr import resolve_purchase_islr_aliquot
 
-        if not aliquot_info:
-            # Fallback local: si el tabulador no tiene alícuota del tipo de persona, tomar la primera válida
-            aliquot_info = next(
-                (
-                    aq for aq in tabulator.aliquot
-                    if flt(aq.aliquot) > 0
-                ),
-                None
-            )
-
-        if not aliquot_info:
-            disponibles: str = ", ".join(sorted({
-                str(aq.types_of_person) for aq in tabulator.aliquot if flt(aq.aliquot) > 0
-            })) or _("ninguno")
-            frappe.throw(
-                _("El tabulador '{0}' no tiene alícuota para el tipo de persona '{1}' "
-                  "del proveedor. Tipos disponibles en este tabulador: {2}.").format(
-                    tabulator_name, type_of_person, disponibles
-                )
-            )
-
-        return tabulator, aliquot_info
+        return tabulator, resolve_purchase_islr_aliquot(tabulator, type_of_person)
 
     def _calculate_islr_amount(self, aliquot_info) -> float:
         """Calcula el monto de retención ISLR sobre la base imponible.
@@ -650,12 +618,14 @@ class TaxesMixin:
         )
 
     def _build_purchase_islr_tax_row(
-        self, tabulator, aliquot_info, islr_amount: float, islr_account: str
+        self, tabulator, aliquot_info, islr_amount: float, islr_account: str,
+        type_of_person: str = ""
     ) -> dict:
         """Construye el diccionario para la fila ISLR en Purchase Taxes and Charges."""
-        description: str = (
-            f"ISLR {tabulator.codigo} {tabulator.descripcion}"
-            f" ({flt(aliquot_info.aliquot)}%)"
+        from l10n_ve.utils.islr import describe_purchase_islr_row
+
+        description: str = describe_purchase_islr_row(
+            tabulator, aliquot_info, type_of_person
         )
 
         return {
