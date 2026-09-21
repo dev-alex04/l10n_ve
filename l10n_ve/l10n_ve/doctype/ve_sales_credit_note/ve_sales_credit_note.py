@@ -59,6 +59,12 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         self.set_posting_time = 1
         self._run_super_validate_safely()
         self._set_base_total_with_vat()
+        # Acá y no antes: el super recalcula los totales y pisa cualquier cero previo. Una
+        # nota de crédito es un crédito, no una deuda, así que no puede quedar con saldo por
+        # cobrar. ERPNext lo hace solo en `calculate_outstanding_amount`, pero la NC reemplaza
+        # `calculate_taxes_and_totals` por el calculador venezolano y por ese camino esa rama
+        # no corre. Pinneado en test_..._credit_note.py::TestDondeSeFijaElCero.
+        self.outstanding_amount = 0
 
     def on_submit(self) -> None:
         """
@@ -363,6 +369,7 @@ class VESalesCreditNote(TaxesMixin, SalesInvoice):
         taxes_and_totals = TaxesAndTotals(self)
         taxes_and_totals.calculate_total_exempt()
         self.calculate_total_withholding()
+        self.outstanding_amount = 0
 
     def set_taxes_and_charges(self) -> None:
         """
