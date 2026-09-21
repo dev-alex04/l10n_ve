@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.75.0] - 2026-09-21
+
+### ✨ Funcionalidades (Features)
+- **i18n:** Se actualizó la traducción del campo "Grand Total (Company Currency)" a "Total a Aplicar" para mejorar la precisión terminológica en la interfaz. 2b619812
+
+### 🐛 Correcciones (Fixes)
+- **Notas de Crédito:** Se implementó una lógica para forzar el saldo pendiente en cero en las notas de crédito, aplicando tanto para el flujo de ventas como para el de compras. 4e5aa559
+- **Etiquetado:** Ajuste en las etiquetas específicas de notas de crédito y corrección en la fuente de datos para valores en cero en el módulo de compras. f89bf1f5
+
+---
+
 ## [v2.74.1] - 2026-09-17
 
 ### 🐛 Correcciones (Fixes)
