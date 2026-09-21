@@ -964,12 +964,7 @@ function setup_credit_note_button(frm) {
   frm.add_custom_button(
     __("Nota de Crédito"),
     function () {
-      frappe.route_options = {
-        return_against: frm.doc.name,
-        company: frm.doc.company,
-        customer: frm.doc.customer,
-      };
-      frappe.new_doc("VE Sales Credit Note");
+      open_note_against_invoice(frm, "VE Sales Credit Note");
     },
     __("Create"),
   );
@@ -995,14 +990,35 @@ function setup_debit_note_button(frm) {
   frm.add_custom_button(
     __("Nota de Débito"),
     function () {
-      frappe.route_options = {
-        return_against: frm.doc.name,
-        company: frm.doc.company,
-        customer: frm.doc.customer,
-      };
-      frappe.new_doc("VE Sales Debit Note");
+      open_note_against_invoice(frm, "VE Sales Debit Note");
     },
     __("Create"),
+  );
+}
+
+/**
+ * Abre una nota nueva de `doctype` contra esta factura de venta.
+ *
+ * En la nota de débito `return_against` es no_copy --así «Duplicar» no deja la
+ * copia apuntando a la misma factura-- y Frappe descarta de `route_options`
+ * los campos no_copy (`frappe/model/create_new.js`): pasado por ahí, la nota
+ * abría con el cliente pero sin la factura ni los ítems. Se asigna en el
+ * documento nuevo antes de que se pinte el formulario: al cargarlo, Frappe
+ * corre el evento de los Link que ya traen valor (`trigger_link_fields`) y la
+ * nota trae el cliente, los ítems y los impuestos, igual que si el usuario
+ * eligiera la factura. La nota de crédito no lo tiene no_copy, pero abre por
+ * el mismo camino.
+ * @param {object} frm
+ * @param {string} doctype - "VE Sales Credit Note" o "VE Sales Debit Note"
+ */
+function open_note_against_invoice(frm, doctype) {
+  const invoice = frm.doc.name;
+  frappe.new_doc(
+    doctype,
+    { company: frm.doc.company, customer: frm.doc.customer },
+    function (note) {
+      note.return_against = invoice;
+    },
   );
 }
 
