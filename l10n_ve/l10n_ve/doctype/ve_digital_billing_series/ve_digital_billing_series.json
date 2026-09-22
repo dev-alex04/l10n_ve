@@ -18,6 +18,7 @@
   "invoice_number_correlative",
   "credit_note_number_correlative",
   "debit_note_number_correlative",
+  "dispatch_note_number_correlative",
   "section_break_range",
   "serie",
   "prefix",
@@ -168,13 +169,21 @@
    "reqd": 1
   },
   {
+   "default": "1",
+   "description": "Documento fiscal 04 (Orden de Entrega o Gu\u00eda de Despacho). Solo en modo Interno: en Tercero el n\u00famero lo asigna HKA.",
+   "fieldname": "dispatch_note_number_correlative",
+   "fieldtype": "Int",
+   "label": "Correlativo de Orden de Entrega / Gu\u00eda de Despacho",
+   "reqd": 1
+  },
+  {
    "fieldname": "branches",
    "fieldtype": "Table",
    "options": "VE Digital Billing Series Branch"
   }
  ],
  "links": [],
- "modified": "2026-04-11 09:53:19.751354",
+ "modified": "2026-09-21 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Digital Billing Series",

@@ -34,6 +34,12 @@ class VEDigitalBillingSeries(Document):
             "VE Digital Billing Series", self.name, "debit_note_number_correlative", is_free=is_free
         )
 
+    def take_dispatch_note_number(self, is_free=None) -> str:
+        """Número del documento 04: la orden de entrega y la guía de despacho comparten correlativo."""
+        return take_next_number(
+            "VE Digital Billing Series", self.name, "dispatch_note_number_correlative", is_free=is_free
+        )
+
     def _validate_no_duplicate_branches_in_active_series(self) -> None:
         """Valida que ninguna sucursal esté asignada a otra serie activa."""
         if self.status != "Active":

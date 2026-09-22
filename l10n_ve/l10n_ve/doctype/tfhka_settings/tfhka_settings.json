@@ -7,6 +7,7 @@
  "field_order": [
   "enabled",
   "enable_auto_send",
+  "enable_dispatch_notes",
   "column_break_1",
   "environment",
   "section_break_billing",
@@ -28,6 +29,14 @@
    "fieldname": "enable_auto_send",
    "fieldtype": "Check",
    "label": "Envío automático activo"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.enabled",
+   "description": "Emite ante HKA el documento fiscal 04: la Orden de Entrega de cada nota de entrega y la Guía de Despacho de los traslados de material que lo pidan. Apagado, ninguno de los dos se envía.",
+   "fieldname": "enable_dispatch_notes",
+   "fieldtype": "Check",
+   "label": "Emitir órdenes de entrega y guías de despacho"
   },
   {
    "fieldname": "column_break_1",
@@ -72,7 +81,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-04-12 01:56:00.000000",
+ "modified": "2026-09-21 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "TFHKA Settings",
