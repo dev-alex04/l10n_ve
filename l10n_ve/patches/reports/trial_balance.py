@@ -67,7 +67,7 @@ def custom_prepare_data(accounts, filters, parent_children_map, company_currency
 
     total_row = tb.calculate_total_row(accounts, company_currency)
 
-    if not filters.get("show_group_accounts"):
+    if "show_group_accounts" in filters and not filters.get("show_group_accounts"):
         data = hide_group_accounts(data)
 
     data.extend([{}, total_row])
