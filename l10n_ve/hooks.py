@@ -165,7 +165,12 @@ doctype_js = {
         "public/js/doctype/purchase_taxes_and_charges/purchase_taxes_and_charges.js",
     ],
     "Stock Entry": [
+        "public/js/doctype/dispatch_note/dispatch_note.js",
         "public/js/doctype/stock_entry/stock_entry.js",
+    ],
+    "Delivery Note": [
+        "public/js/doctype/dispatch_note/dispatch_note.js",
+        "public/js/doctype/delivery_note/delivery_note.js",
     ],
     "Project": [
         "public/js/doctype/project/project.js"
@@ -207,6 +212,9 @@ doctype_list_js = {
     "Journal Entry": "public/js/doctype/journal_entry/journal_entry_list.js",
     "Purchase Invoice": "public/js/doctype/purchase_invoice/purchase_invoice_list.js",
     "Currency Exchange": "public/js/doctype/currency_exchange/currency_exchange_list.js",
+    # Documento fiscal 04: el tipo y el estado junto al título de cada fila.
+    "Delivery Note": "public/js/doctype/dispatch_note/dispatch_note_list.js",
+    "Stock Entry": "public/js/doctype/dispatch_note/dispatch_note_list.js",
 }
 
 # Frappe no tiene hook de JS por reporte (un `query_report_js` no lo lee nadie): los
@@ -419,7 +427,20 @@ doc_events = {
     },
     # "Bank Transaction": conciliación (validate dup + reconcile drafts) migrada a mint/hooks.py.
     "Delivery Note": {
-        "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
+        # Documento fiscal 04 (Orden de Entrega). Cada hook sale en seco si el sitio no lo
+        # emite (`TFHKA Settings.enable_dispatch_notes`).
+        "before_validate": "l10n_ve.digital_invoice.dispatch_note_integration.rerate_delivery_note_on_submit",
+        "before_submit": [
+            "l10n_ve.helpers.helpers.set_ve_branch",
+            "l10n_ve.digital_invoice.dispatch_note_integration.prepare_dispatch_note_on_submit",
+        ],
+        "before_cancel": "l10n_ve.digital_invoice.dispatch_note_integration.block_cancel_if_emitted",
+    },
+    "Stock Entry": {
+        # Documento fiscal 04 (Guía de Despacho) de los traslados de material. Sin
+        # `set_ve_branch`: además de la sucursal reescribe los centros de costo del traslado.
+        "before_submit": "l10n_ve.digital_invoice.dispatch_note_integration.prepare_dispatch_note_on_submit",
+        "before_cancel": "l10n_ve.digital_invoice.dispatch_note_integration.block_cancel_if_emitted",
     },
     "Purchase Receipt": {
         "before_submit": "l10n_ve.helpers.helpers.set_ve_branch",
