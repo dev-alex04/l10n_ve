@@ -54,11 +54,16 @@
             if (!has_bill_filter) {
                 const company_idx = report.filters.findIndex(f => f.fieldname === "company");
                 const insert_idx = company_idx !== -1 ? company_idx + 1 : report.filters.length;
+                // Marcada por defecto (pedido de Daniel, 23-sep-2026): contabilidad analiza el
+                // Débito Fiscal y los Ingresos desde este reporte, y ahí sólo cuentan los documentos
+                // fiscales emitidos. Sin la casilla aparecen facturas aprobadas que todavía no tienen
+                // número ni control y el mayor no cuadra con el Libro de Ventas. Se puede desmarcar
+                // para ver el mayor completo; el servidor, si no se le manda, devuelve todo.
                 report.filters.splice(insert_idx, 0, {
                     fieldname: "only_invoices_with_bill_no_control",
                     label: __("Solo facturas con N° de control y factura"),
                     fieldtype: "Check",
-                    default: 0,
+                    default: 1,
                 });
             }
         }
