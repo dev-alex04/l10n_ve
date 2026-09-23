@@ -525,6 +525,12 @@ scheduler_events = {
             # que cambia es que ya no compite con los otros 14 crons de la hora en punto.
             "l10n_ve.digital_invoice.reconciliation.reconcile_hka_fiscal_fields",
         ],
+        "47 2 * * *": [
+            # Red nocturna: copia al mayor el numero de factura y de control que le falten.
+            # Es el complemento de la de arriba: aquella rellena el documento desde HKA,
+            # esta rellena el mayor desde el documento.
+            "l10n_ve.digital_invoice.reconciliation.fill_missing_gl_bill_fields",
+        ],
         "*/5 * * * *": ["l10n_ve.digital_invoice.tfhka_integration.send_pending_documents_to_hka"],
         # Las NC/ND de venta van aparte, el DIA 14 Y EL ULTIMO DIA DEL MES (`14,L`;
         # croniter lo resuelve en una sola expresion y Frappe valida el formato con
