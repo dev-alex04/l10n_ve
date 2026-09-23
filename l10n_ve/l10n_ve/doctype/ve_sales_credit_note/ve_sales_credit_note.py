@@ -867,10 +867,10 @@ def apply_credit_note_withholding(
     charge_type = "VAT Withholding" if is_vat else "ISLR"
     label = "IVA" if is_vat else "ISLR"
 
-    duplicate = any(t.charge_type == charge_type and t.account_head == tax_account for t in (credit_note.taxes or []))
+    duplicate = any(t.charge_type == charge_type for t in (credit_note.taxes or []))
     if duplicate:
-        frappe.throw(_("La Nota de Crédito {0} ya tiene una retención de tipo {1} con la cuenta {2}.").format(
-            credit_note.name, charge_type, tax_account
+        frappe.throw(_("La Nota de Crédito {0} ya tiene una retención de tipo {1}.").format(
+            credit_note.name, charge_type
         ))
 
     if is_vat and voucher_number:
@@ -882,9 +882,15 @@ def apply_credit_note_withholding(
         from l10n_ve.utils.utils import validate_portal_upload
         validate_portal_upload(file_url, 5)
 
-    company_currency = frappe.get_cached_value("Company", credit_note.company, "default_currency") or "VEF"
-    credit_note_currency = credit_note.currency or "USD"
-    conversion_rate = flt(credit_note.conversion_rate) or flt(credit_note.plc_conversion_rate) or 1.0
+    company_currency = frappe.get_cached_value("Company", credit_note.company, "default_currency")
+    credit_note_currency = credit_note.currency or company_currency
+    conversion_rate = flt(credit_note.conversion_rate) or flt(credit_note.plc_conversion_rate)
+    if not company_currency or not conversion_rate:
+        frappe.throw(
+            _("No se puede calcular la retención: falta la moneda de la empresa {0} o la tasa de cambio de la Nota de Crédito {1}.").format(
+                credit_note.company, credit_note.name
+            )
+        )
 
     if is_vat:
         vat_base_bs = sum(flt(t.base_tax_amount) for t in (credit_note.taxes or []) if t.charge_type == "VAT")
@@ -898,7 +904,7 @@ def apply_credit_note_withholding(
         if not withholding_rate:
             from l10n_ve.overrides.sales_invoice import get_vat_category_rate
             cat_name = frappe.db.get_value("Customer", credit_note.customer, "tax_withholding_category")
-            withholding_rate = get_vat_category_rate(cat_name, credit_note.company) if cat_name else 75.0
+            withholding_rate = get_vat_category_rate(cat_name, credit_note.company)
 
         base_amount_bs = flt(vat_base_bs * (withholding_rate / 100.0), 2)
     else:
@@ -975,7 +981,8 @@ def apply_credit_note_withholding(
     }
     je.append("accounts", tax_row_je)
 
-    je.save()
+    je.flags.ignore_permissions = True
+    je.insert(ignore_permissions=True)
     je.submit()
 
     idx = len(credit_note.taxes or []) + 1
@@ -1041,6 +1048,7 @@ def apply_credit_note_withholding(
 
     return {
         "status": "success",
+        "journal_entry": je.name,
         "msg": _("Retención de {0} aplicada y Asiento {1} creado con éxito.").format(label, je.name)
     }
 
@@ -1071,6 +1079,7 @@ def remove_credit_note_withholding(
         frappe.throw(_("Tipo de retención inválido: {0}. Use 'VAT' o 'ISLR'.").format(withholding_type))
 
     credit_note: "VESalesCreditNote" = frappe.get_doc("VE Sales Credit Note", credit_note_name)
+    frappe.has_permission("VE Sales Credit Note", ptype="write", doc=credit_note, throw=True)
     if credit_note.docstatus != 1:
         frappe.throw(_("Solo se pueden retirar retenciones de notas de crédito validadas."))
 
@@ -1095,7 +1104,13 @@ def remove_credit_note_withholding(
 
     company_currency: str = frappe.get_cached_value("Company", credit_note.company, "default_currency")
     credit_note_currency: str = credit_note.currency or company_currency
-    conversion_rate: float = flt(credit_note.conversion_rate) or 1.0
+    conversion_rate: float = flt(credit_note.conversion_rate)
+    if not company_currency or not conversion_rate:
+        frappe.throw(
+            _("No se puede revertir la retención: falta la moneda de la empresa {0} o la tasa de cambio de la Nota de Crédito {1}.").format(
+                credit_note.company, credit_note.name
+            )
+        )
 
     reversal_entries: list[str] = []
 
@@ -1156,7 +1171,8 @@ def remove_credit_note_withholding(
             "exchange_rate": rec_exchange_rate,
         })
 
-        reversal_je.save()
+        reversal_je.flags.ignore_permissions = True
+        reversal_je.insert(ignore_permissions=True)
         reversal_je.submit()
         reversal_entries.append(reversal_je.name)
 
