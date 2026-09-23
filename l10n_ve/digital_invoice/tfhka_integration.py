@@ -1449,11 +1449,12 @@ def _hka_log(description: str, status: str = "Info") -> None:
 
 
 def send_pending_documents_to_hka() -> None:
-    """Cron unificado: envía facturas de venta + retenciones IVA + retenciones ISLR.
+    """Cron unificado: envía facturas de venta + retenciones IVA + retenciones ISLR + 04.
 
     Paso 1: Facturas de venta pendientes (lógica existente).
     Paso 2: Comprobantes de retención IVA pendientes.
     Paso 3: Comprobantes de retención ISLR pendientes.
+    Paso 4: Órdenes de entrega y guías de despacho (documento 04), si el sitio las emite.
 
     Respeta el flag 'enabled', 'enable_auto_send' y 'cutoff_date' de TFHKA Settings.
     """
@@ -1474,6 +1475,10 @@ def send_pending_documents_to_hka() -> None:
     # Paso 3: Retenciones de ISLR
     from l10n_ve.digital_invoice.islr_withholding_integration import send_pending_islr_vouchers
     send_pending_islr_vouchers(tfhka_settings)
+
+    # Paso 4: Órdenes de entrega y guías de despacho (sale en seco con el interruptor apagado)
+    from l10n_ve.digital_invoice.dispatch_note_integration import send_pending_dispatch_notes
+    send_pending_dispatch_notes(tfhka_settings)
 
 
 # Alias de compatibilidad para evitar romper referencias externas

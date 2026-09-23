@@ -193,6 +193,7 @@ def get_unsent_documents(
     rows.extend(_collect_sales_invoices(desde, hasta, deadline, cutoff_date))
     rows.extend(_collect_sales_notes(desde, hasta, cutoff_date))
     rows.extend(_collect_vouchers(desde, hasta, deadline, cutoff_date))
+    rows.extend(_collect_dispatch_notes(desde, hasta, deadline, cutoff_date))
 
     rows.sort(key=lambda r: (r["date"], r["doctype"], r["name"]))
 
@@ -333,6 +334,65 @@ def _collect_vouchers(desde, hasta, deadline, cutoff_date) -> list[dict]:
 
         logs = _last_logs(doctype, [d.name for d in docs])
 
+        for d in docs:
+            if cutoff_date and getdate(d.date) < getdate(cutoff_date):
+                continue
+            log = logs.get(d.name)
+            if log and log.status == "Success":
+                continue
+            if log:
+                code = _classify_log_notes(log.notes)
+                out.append(_row(doctype, d, code, _safe_detail(log.notes, code)))
+            elif _is_stalled(d, log, deadline):
+                out.append(_row(doctype, d, "stalled", ""))
+
+    return out
+
+
+#: Órdenes de entrega y guías de despacho (documento 04). Una consulta por doctype, sin
+#: interpolar: el receptor y el monto salen de columnas distintas en cada uno.
+_DISPATCH_QUERIES: dict[str, str] = {
+    "Delivery Note": """
+        SELECT d.name, d.posting_date AS date, d.customer_name AS party,
+               d.grand_total AS amount, d.currency, d.branch, d.modified
+        FROM `tabDelivery Note` d
+        WHERE d.docstatus = 1
+          AND d.posting_date BETWEEN %(desde)s AND %(hasta)s
+          AND d.hka_status IN ('Pendiente', 'Error')
+          AND (d.bill_control IS NULL OR d.bill_control = '')
+    """,
+    "Stock Entry": """
+        SELECT d.name, d.posting_date AS date, d.to_warehouse AS party,
+               d.total_outgoing_value AS amount, '' AS currency, d.branch, d.modified
+        FROM `tabStock Entry` d
+        WHERE d.docstatus = 1
+          AND d.posting_date BETWEEN %(desde)s AND %(hasta)s
+          AND d.hka_status IN ('Pendiente', 'Error')
+          AND (d.bill_control IS NULL OR d.bill_control = '')
+    """,
+}
+
+
+def _collect_dispatch_notes(desde, hasta, deadline, cutoff_date) -> list[dict]:
+    """Documentos 04: tienen cron, así que el mismo criterio que los comprobantes.
+
+    Sale en seco si el sitio no los emite, y también si la columna todavía no existe: entre el
+    despliegue del código y el migrate, el aviso no puede romperse por un campo nuevo.
+    """
+    from l10n_ve.digital_invoice.dispatch_note_integration import dispatch_notes_enabled
+
+    if not dispatch_notes_enabled():
+        return []
+
+    out: list[dict] = []
+    for doctype, query in _DISPATCH_QUERIES.items():
+        if not frappe.db.has_column(doctype, "hka_status"):
+            continue
+        docs = frappe.db.sql(query, {"desde": desde, "hasta": hasta}, as_dict=True)
+        if not docs:
+            continue
+
+        logs = _last_logs(doctype, [d.name for d in docs])
         for d in docs:
             if cutoff_date and getdate(d.date) < getdate(cutoff_date):
                 continue

@@ -865,7 +865,7 @@
    "fieldtype": "Currency",
    "hide_days": 1,
    "hide_seconds": 1,
-   "label": "Grand Total (Company Currency)",
+   "label": "Amount to Apply",
    "oldfieldname": "grand_total",
    "oldfieldtype": "Currency",
    "options": "Company:company:default_currency",

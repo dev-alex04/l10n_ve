@@ -16,6 +16,18 @@ def get_boot_info(bootinfo: dict) -> None:
     except Exception:
         bootinfo.tfhka_enabled = False
 
+    # Empresas que emiten el documento 04. En la nota de entrega y el traslado, solo en ellas
+    # aparecen el bloque del 04 (tipo, motivo, vehículo), la propuesta de tipo y «Enviar a
+    # HKA»; y sin ninguna, la lista no muestra sus filtros. Anular uno ya emitido no depende
+    # de esto: el documento existe en HKA.
+    try:
+        from l10n_ve.digital_invoice.dispatch_note_integration import (
+            dispatch_note_companies,
+        )
+        bootinfo.dispatch_note_companies = dispatch_note_companies()
+    except Exception:  # noqa: BLE001 - el boot no puede romper el inicio de sesión
+        bootinfo.dispatch_note_companies = []
+
     try:
         bootinfo.tax_calculation_method = frappe.get_cached_value(
             "Venezuela Account Settings", "Venezuela Account Settings",
