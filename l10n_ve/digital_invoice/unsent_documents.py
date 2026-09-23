@@ -252,8 +252,6 @@ def _collect_sales_invoices(desde, hasta, deadline, cutoff_date) -> list[dict]:
         # Sin intento previo: solo interesa si YA debía haber salido.
         if cutoff_date and getdate(d.date) < getdate(cutoff_date):
             continue
-        if d.status != "Paid":
-            continue  # esperando cobro: es el diseño emitir-al-pagar, no una falla
         if not d.branch:
             out.append(_row("Sales Invoice", d, "no_branch", ""))
             continue

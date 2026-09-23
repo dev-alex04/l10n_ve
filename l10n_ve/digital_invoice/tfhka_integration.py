@@ -1414,6 +1414,12 @@ def get_invoice_preview_data(invoice_name: str) -> dict:
 _TFHKA_BATCH_SIZE: int = 100
 _TFHKA_DELAY_BETWEEN_CALLS: float = 0.5
 
+#: Minutos que espera una factura aprobada SIN pagar antes de que el cron la envíe: le
+#: da tiempo a quien la aprobó de enviarla a mano. Tres vueltas del cron, y la mitad de
+#: la gracia del aviso de documentos sin enviar, para que el cron la intente antes de
+#: que el aviso la dé por trabada. Una pagada sale en la vuelta siguiente, como siempre.
+_UNPAID_SEND_GRACE_MINUTES: int = 15
+
 # Doctypes de nota que el cron de fin de mes envía. Es tupla literal a propósito: el
 # nombre se interpola en el `FROM` de `_get_pending_hka_notes`, así que la lista blanca
 # es lo que hace segura esa interpolación.
@@ -1486,9 +1492,11 @@ send_pending_invoices_to_hka = send_pending_documents_to_hka
 
 
 def _send_pending_invoices(tfhka_settings: dict) -> None:
-    """Envía facturas de venta pagadas pendientes a HKA.
+    """Envía a HKA las facturas de venta aprobadas que todavía no tienen número de control.
 
-    Recorre cada serie de facturación digital activa y procesa por sucursal.
+    Recorre cada serie de facturación digital activa y procesa por sucursal. Ver
+    `_get_pending_hka_invoices` para qué factura entra y por qué ya no hace falta que
+    esté pagada.
 
     Comportamiento según modo de operación:
       - Internal:    STOP on error (proteger correlativo local de saltos).
@@ -1863,13 +1871,33 @@ def _get_pending_hka_invoices(
     branches: list[str],
     cutoff_date: str = "2026-04-01",
 ) -> list[str]:
-    """Obtiene facturas pagadas pendientes de envío a HKA para sucursales específicas."""
+    """Facturas aprobadas de esas sucursales que todavía no salieron a HKA.
+
+    Antes tomaba solo las «Pagadas», por el diseño emitir-al-pagar: la factura del ISP es
+    borrador hasta que se cobra y se aprueba al cobrarse. Pero aprobada no siempre es
+    pagada, y una aprobada ya escribió el mayor (Débito Fiscal, Ingresos) aunque no tenga
+    número fiscal. Caso real (correo de Lilibeth Marcano, 23-sep-2026): seis facturas de
+    Chejende se aprobaron al registrar, en septiembre, pagos hechos en agosto; tomaron la
+    tasa del día de la aprobación, el pago de agosto no alcanzó en bolívares, quedaron
+    «Parcialmente pagadas» y nunca salieron, mientras seguían sumando en el mayor de agosto.
+
+    Ahora entra toda factura aprobada. La que no está pagada espera
+    `_UNPAID_SEND_GRACE_MINUTES` desde su último cambio, para no adelantarse a quien la
+    aprobó y la va a enviar a mano con el botón. La hora de corte se calcula acá y no con
+    NOW() de MariaDB, que corre con otro huso que el del sitio.
+    """
     if not branches:
         return []
 
+    grace_cutoff = frappe.utils.add_to_date(
+        frappe.utils.now_datetime(), minutes=-_UNPAID_SEND_GRACE_MINUTES
+    )
     placeholders: str = ", ".join(["%s"] * len(branches))
-    params: list = branches + [cutoff_date, _TFHKA_BATCH_SIZE]
+    params: list = branches + [cutoff_date, grace_cutoff, _TFHKA_BATCH_SIZE]
 
+    # El f-string sólo interpola `placeholders`, una fila de %s armada con la cantidad de
+    # sucursales: los valores viajan como parámetros.
+    # nosemgrep: frappe-sql-format-injection
     results = frappe.db.sql(f"""
         SELECT si.name
         FROM `tabSales Invoice` si
@@ -1880,7 +1908,7 @@ def _get_pending_hka_invoices(
         WHERE si.branch IN ({placeholders})
           AND si.posting_date >= %s
           AND si.docstatus = 1
-          AND si.status = 'Paid'
+          AND (si.status = 'Paid' OR si.modified <= %s)
           AND si.is_return = 0
           AND si.is_debit_note = 0
           AND (si.bill_control IS NULL OR si.bill_control = '')
