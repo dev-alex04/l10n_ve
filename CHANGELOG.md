@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.79.0] - 2026-09-23
+
+### ✨ Funcionalidades (Features)
+- Se actualizó el criterio de envío automático en la integración con HKA; ahora el sistema procesa todas las facturas en estado aprobado, eliminando la restricción previa que solo permitía el envío de facturas pagadas (274f61c8).
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error de persistencia en el módulo de Libro Mayor, donde el filtro «Solo facturas con N° de control y factura» vuelve a su estado desmarcado correctamente (f113cbc6).
+
+---
+
 ## [v2.78.0] - 2026-09-23
 
 ### ✨ Funcionalidades (Features)
