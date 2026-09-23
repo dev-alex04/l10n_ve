@@ -1,7 +1,10 @@
 # Copyright (c) 2026, DominaERP and Contributors
 # See license.txt
 
-"""Tests del filtro opt-in "Solo facturas con N° de control y factura" del Libro Mayor.
+"""Tests del filtro "Solo facturas con N° de control y factura" del Libro Mayor.
+
+En la pantalla viene marcado por defecto desde el 23-sep-2026; el servidor, si la petición
+no lo trae, sigue devolviendo todo (así lo llaman otros reportes y exportaciones).
 
 Suite 100% unittest + mocks (sin BD ni FrappeTestCase): `frappe.db` se sustituye por
 un MagicMock durante cada caso, así que la suite corre con
@@ -71,6 +74,20 @@ class TestGlEntriesBillFilter(unittest.TestCase):
         debit = sum(e["debit"] for e in entries)
         credit = sum(e["credit"] for e in entries)
         self.assertEqual(debit, credit, "el filtro dejó el Mayor descuadrado")
+
+    def test_report_screen_checks_the_box_by_default(self):
+        """Contabilidad analiza el Débito Fiscal desde este reporte: sin la casilla, el mayor
+        muestra facturas aprobadas sin número ni control y no cuadra con el Libro de Ventas."""
+        import pathlib
+        import re
+
+        js = (pathlib.Path(gl_patch.__file__).parents[2] / "public" / "js" / "report"
+              / "general_ledger.js").read_text(encoding="utf-8")
+        bloque = re.search(
+            r'fieldname:\s*"only_invoices_with_bill_no_control".*?\}', js, re.DOTALL
+        )
+        self.assertIsNotNone(bloque, "la casilla no está definida en general_ledger.js")
+        self.assertRegex(bloque.group(0), r"default:\s*1\b")
 
     def test_filter_off_returns_all_entries_by_default(self):
         """Con la casilla apagada (default 0) no se descarta ningún asiento."""

@@ -11,7 +11,7 @@ from erpnext.accounts.report.utils import convert_to_presentation_currency, get_
 
 original_execute = general_ledger_report.execute
 
-# Comprobantes que el filtro opt-in "Solo facturas con N° de control y factura"
+# Comprobantes que el filtro "Solo facturas con N° de control y factura"
 # evalúa. El resto (Payment Entry, Journal Entry…) nunca se toca.
 INVOICE_VOUCHER_TYPES = frozenset({
     "Sales Invoice",
