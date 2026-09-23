@@ -175,6 +175,8 @@ def _vouchers_missing_gl_bill_fields(doctype: str) -> list[str]:
     entero del tipo, y hacerla dentro del UPDATE bloquearía esas filas mientras dura
     --unos segundos-- frente a los documentos que se estén aprobando a esa hora.
     """
+    # El tipo sale de _GL_BILL_SOURCES, no de un dato del usuario.
+    # nosemgrep
     return frappe.db.sql(
         f"""
         SELECT DISTINCT gle.voucher_no
@@ -188,7 +190,7 @@ def _vouchers_missing_gl_bill_fields(doctype: str) -> list[str]:
              OR (COALESCE(doc.bill_control, '') != '' AND COALESCE(gle.bill_control, '') = '')
           )
         ORDER BY gle.voucher_no
-        """,  # nosemgrep: el tipo sale de _GL_BILL_SOURCES, no de un dato del usuario
+        """,
         {"doctype": doctype},
         pluck=True,
     )
@@ -196,6 +198,8 @@ def _vouchers_missing_gl_bill_fields(doctype: str) -> list[str]:
 
 def _copy_bill_fields_to_gl(doctype: str, vouchers: list[str]) -> None:
     """Copia número y control del documento a sus líneas del mayor, solo donde falten."""
+    # El tipo sale de _GL_BILL_SOURCES, no de un dato del usuario.
+    # nosemgrep
     frappe.db.sql(
         f"""
         UPDATE `tabGL Entry` gle
@@ -207,6 +211,6 @@ def _copy_bill_fields_to_gl(doctype: str, vouchers: list[str]) -> None:
         WHERE gle.voucher_type = %(doctype)s
           AND gle.voucher_no IN %(vouchers)s
           AND gle.is_cancelled = 0
-        """,  # nosemgrep: el tipo sale de _GL_BILL_SOURCES, no de un dato del usuario
+        """,
         {"doctype": doctype, "vouchers": tuple(vouchers)},
     )
