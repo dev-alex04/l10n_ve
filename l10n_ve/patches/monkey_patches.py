@@ -82,6 +82,11 @@ def apply_post_db_patches() -> None:
         log_patch_error('l10n_ve.patches.reports.trial_balance_for_party', e)
 
     try:
+        import l10n_ve.patches.reports.trial_balance
+    except Exception as e:
+        log_patch_error('l10n_ve.patches.reports.trial_balance', e)
+
+    try:
         import l10n_ve.patches.reports.gross_profit
     except Exception as e:
         log_patch_error('l10n_ve.patches.reports.gross_profit', e)

@@ -390,7 +390,13 @@ class TFHKAClient:
 ALLOWED_DOCTYPES: list[str] = [
     "Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note",
     "VAT Withholding Voucher", "ISLR Withholding Voucher",
+    "Delivery Note", "Stock Entry",
 ]
+
+# Documentos que guardan la respuesta de HKA en `hka_response`; los demás, en `remarks`.
+HKA_RESPONSE_FIELD_DOCTYPES: tuple[str, ...] = (
+    "VAT Withholding Voucher", "ISLR Withholding Voucher", "Delivery Note", "Stock Entry",
+)
 
 # Prefijo con el que se guarda el PDF fiscal bajado de HKA (ver save_file al final de
 # get_fiscal_invoice_pdf). Al documento se le adjuntan además los comprobantes de retención
@@ -403,14 +409,18 @@ FISCAL_PDF_PREFIX = "Factura_"
 # de frappe.get_all, devuelve cero filas en silencio.
 FISCAL_PDF_LIKE_PATTERN = f"{FISCAL_PDF_PREFIX}%.pdf"
 
+# El PDF del documento 04 no es una factura: se adjunta con su propio prefijo para que en
+# la nota de entrega o el traslado no aparezca un «Factura_…».
+DISPATCH_PDF_PREFIX = "Despacho_"
+
 
 @frappe.whitelist()
 def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") -> dict:
     """
     Descarga el PDF de la factura fiscal desde TFHKA
     y retorna el base64 para renderizar en el frontend.
-    Soporta Sales Invoice, VE Sales Credit Note, VE Sales Debit Note
-    y VAT Withholding Voucher.
+    Soporta Sales Invoice, VE Sales Credit Note, VE Sales Debit Note, los comprobantes de
+    retención y el documento 04 (Delivery Note y Stock Entry).
     """
     if doctype not in ALLOWED_DOCTYPES:
         return {"base64": None, "error": f"DocType '{doctype}' no soportado."}
@@ -418,8 +428,7 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     doc = frappe.get_cached_doc(doctype, invoice_name)
     frappe.has_permission(doctype, "read", doc=doc, throw=True)
 
-    # VAT/ISLR Withholding Voucher guarda la respuesta HKA en hka_response
-    if doctype in ("VAT Withholding Voucher", "ISLR Withholding Voucher"):
+    if doctype in HKA_RESPONSE_FIELD_DOCTYPES:
         raw_hka = doc.hka_response or ""
     else:
         raw_hka = doc.remarks or ""
@@ -438,11 +447,14 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     if not numero_documento:
         return {"base64": None, "error": "No se encontró el número de documento en los datos HKA."}
 
-    # Catálogo SENIAT: 01=Factura, 02=NC, 03=ND, 05=Retención IVA, 06=Retención ISLR
+    # Catálogo SENIAT: 01=Factura, 02=NC, 03=ND, 04=Orden de Entrega o Guía de Despacho,
+    # 05=Retención IVA, 06=Retención ISLR
     document_map = {
         "Sales Invoice": "01",
         "VE Sales Credit Note": "02",
         "VE Sales Debit Note": "03",
+        "Delivery Note": "04",
+        "Stock Entry": "04",
         "VAT Withholding Voucher": "05",
         "ISLR Withholding Voucher": "06",
     }
@@ -453,6 +465,8 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
 
     import base64
 
+    pdf_prefix: str = DISPATCH_PDF_PREFIX if tipo_documento == "04" else FISCAL_PDF_PREFIX
+
     # 1. Buscar si ya existe el PDF fiscal adjunto al documento en el Doctype File.
     # Se filtra por el prefijo que usa este mismo código al guardarlo: cualquier otro PDF
     # adjunto (comprobantes de retención de IVA/ISLR, soportes de pago) no es la factura.
@@ -461,7 +475,7 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
         filters={
             "attached_to_doctype": doctype,
             "attached_to_name": invoice_name,
-            "file_name": ["like", FISCAL_PDF_LIKE_PATTERN],
+            "file_name": ["like", f"{pdf_prefix}%.pdf"],
         },
         fields=["name", "file_name"],
         # El PDF de la última emisión es el vigente: al reemitir (p. ej. tras un
@@ -511,7 +525,7 @@ def get_fiscal_invoice_pdf(invoice_name: str, doctype: str = "Sales Invoice") ->
     try:
         from frappe.utils.file_manager import save_file
         pdf_bytes = base64.b64decode(archivo_base64)
-        filename = f"{FISCAL_PDF_PREFIX}{invoice_name}_{numero_documento}.pdf"
+        filename = f"{pdf_prefix}{invoice_name}_{numero_documento}.pdf"
         
         save_file(
             fname=filename,

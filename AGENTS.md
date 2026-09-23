@@ -132,7 +132,23 @@ y la vista previa en `public/js/`.
 ### Qué se envía y cuándo
 
 Solo documentos **emitidos por la empresa**: `01` factura, `02` nota de crédito, `03` nota de
-débito. Las facturas de **compra nunca** van a HKA.
+débito, `04` orden de entrega o guía de despacho. Las facturas de **compra nunca** van a HKA.
+
+### El 04 no es una factura con otro código
+
+La Orden de Entrega y la Guía de Despacho son UN documento (`04`); `esGuiaDespacho` solo cambia
+el título. Sale de `Delivery Note` y de `Stock Entry` *Material Transfer*, detrás del interruptor
+`TFHKA Settings.enable_dispatch_notes` (`digital_invoice/dispatch_note_integration.py`). Tres
+cosas de la factura que ahí **no** se copian:
+
+- **No se mueve el `posting_date`.** La factura lo lleva a la fecha de emisión y resincroniza el
+  mayor; en una nota de entrega o un traslado esa fecha ordena el libro de inventario. La fecha de
+  emisión va solo en el payload.
+- **No entra en `reconciliation.py`.** Esa conciliación busca la respuesta de HKA en `remarks`: el
+  Delivery Note no tiene esa columna (el cron horario reventaría) y el Stock Entry la usa para el
+  texto del usuario. El 04 escribe número, control y estado en un solo UPDATE.
+- **El Stock Entry no pasa por `set_ve_branch`.** Además de la sucursal reescribe el centro de
+  costo de la cabecera y de cada ítem, o sea los asientos del traslado.
 
 El cron `send_pending_documents_to_hka` manda únicamente `status='Paid'`. Eso es **emitir-al-pagar,
 por diseño** — no es un bug que haya que "arreglar". Lo que sí es un hueco real: las facturas que

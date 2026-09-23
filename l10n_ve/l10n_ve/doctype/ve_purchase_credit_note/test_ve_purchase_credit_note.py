@@ -165,3 +165,52 @@ class TestValidateUniqueNotePerInvoice(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSaldoPendienteSiempreCero(unittest.TestCase):
+    """Una nota de crédito no debe quedar con saldo por cobrar: es un crédito, no una deuda.
+
+    El cero lo pone ERPNext solo --`calculate_outstanding_amount` corta en seco cuando el
+    documento es devolución, tiene factura de origen y `update_outstanding_for_self` está
+    apagado--, pero la NC reemplaza `calculate_taxes_and_totals` por el calculador venezolano
+    y en ese camino esa rama no corre. De ahí que el cero haya que ponerlo acá.
+
+    La NC de venta ya tenía este test; la de compra no, y lleva el mismo cambio.
+    """
+
+    def _nota(self, pendiente: float = 15000.0) -> VEPurchaseCreditNote:
+        nota = VEPurchaseCreditNote.__new__(VEPurchaseCreditNote)
+        nota.outstanding_amount = pendiente
+        nota.taxes = []
+        nota.items = []
+        nota.company = "Test Co"
+        nota.supplier = "Test Prov"
+        return nota
+
+    def _calcular(self, nota) -> None:
+        with patch(f"{_PCN}.TaxesAndTotals"), \
+                patch.object(VEPurchaseCreditNote, "calculate_total_withholding"):
+            nota.calculate_taxes_and_totals()
+
+    def test_el_calculo_deja_el_pendiente_en_cero(self) -> None:
+        nota = self._nota(15000.0)
+
+        self._calcular(nota)
+
+        self.assertEqual(nota.outstanding_amount, 0)
+
+    def test_tambien_cuando_ya_venia_en_cero(self) -> None:
+        """Idempotente: recalcular no lo mueve."""
+        nota = self._nota(0.0)
+
+        self._calcular(nota)
+
+        self.assertEqual(nota.outstanding_amount, 0)
+
+    def test_tambien_con_un_pendiente_negativo(self) -> None:
+        """Un negativo es tan incorrecto como un positivo: la NC no tiene saldo propio."""
+        nota = self._nota(-8420.55)
+
+        self._calcular(nota)
+
+        self.assertEqual(nota.outstanding_amount, 0)

@@ -23,7 +23,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Tipo de Documento",
-   "options": "Sales Invoice\nVE Sales Credit Note\nVE Sales Debit Note\nVAT Withholding Voucher\nISLR Withholding Voucher"
+   "options": "Sales Invoice\nVE Sales Credit Note\nVE Sales Debit Note\nVAT Withholding Voucher\nISLR Withholding Voucher\nDelivery Note\nStock Entry"
   },
   {
    "fieldname": "sales_invoice",
@@ -86,7 +86,7 @@
  "in_create": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-08 08:22:31.978954",
+ "modified": "2026-09-21 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "L10N Ve",
  "name": "VE Digital Invoice Log",

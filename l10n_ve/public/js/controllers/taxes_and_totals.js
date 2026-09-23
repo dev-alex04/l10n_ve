@@ -471,10 +471,17 @@ const _original_calculate_outstanding_amount =
 erpnext.taxes_and_totals.prototype.calculate_outstanding_amount = function (
   update_paid_amount,
 ) {
+  // Las Notas de Credito no generan cuenta por cobrar/pagar: su saldo pendiente es siempre cero.
+  if (
+    this.frm.doc.doctype === "VE Sales Credit Note" ||
+    this.frm.doc.doctype === "VE Purchase Credit Note"
+  ) {
+    this.frm.doc.outstanding_amount = 0;
+    return;
+  }
+
   const ve_invoice_doctypes = [
-    "VE Sales Credit Note",
     "VE Sales Debit Note",
-    "VE Purchase Credit Note",
     "VE Purchase Debit Note",
   ];
 
