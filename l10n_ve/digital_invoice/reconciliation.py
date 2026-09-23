@@ -176,7 +176,7 @@ def _vouchers_missing_gl_bill_fields(doctype: str) -> list[str]:
     --unos segundos-- frente a los documentos que se estén aprobando a esa hora.
     """
     # El tipo sale de _GL_BILL_SOURCES, no de un dato del usuario.
-    # nosemgrep
+    # nosemgrep: frappe-sql-format-injection
     return frappe.db.sql(
         f"""
         SELECT DISTINCT gle.voucher_no
@@ -199,7 +199,7 @@ def _vouchers_missing_gl_bill_fields(doctype: str) -> list[str]:
 def _copy_bill_fields_to_gl(doctype: str, vouchers: list[str]) -> None:
     """Copia número y control del documento a sus líneas del mayor, solo donde falten."""
     # El tipo sale de _GL_BILL_SOURCES, no de un dato del usuario.
-    # nosemgrep
+    # nosemgrep: frappe-sql-format-injection
     frappe.db.sql(
         f"""
         UPDATE `tabGL Entry` gle
