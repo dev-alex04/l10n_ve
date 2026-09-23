@@ -206,12 +206,14 @@
   "retenciones_ve_tab",
   "section_iva_withholding",
   "withholding_date",
+  "vat_registration_date",
   "column_break_owws",
   "vat_withholding_voucher_number",
   "column_break_drqh",
   "voucher_image",
   "section_islr_withholding",
   "islr_date",
+  "islr_registration_date",
   "column_break_iiwy",
   "islr_receipt_number",
   "column_break_irqm",
@@ -2038,6 +2040,11 @@
    "label": "Fecha de Retención"
   },
   {
+   "fieldname": "vat_registration_date",
+   "fieldtype": "Date",
+   "label": "Fecha de Comprobante"
+  },
+  {
    "fieldname": "voucher_image",
    "fieldtype": "Attach",
    "label": "Comprobante de Retención IVA (Archivo)"
@@ -2056,6 +2063,11 @@
    "fieldname": "islr_date",
    "fieldtype": "Date",
    "label": "Fecha ISLR"
+  },
+  {
+   "fieldname": "islr_registration_date",
+   "fieldtype": "Date",
+   "label": "Fecha de Comprobante ISLR"
   },
   {
    "fieldname": "voucher_image_islr",
