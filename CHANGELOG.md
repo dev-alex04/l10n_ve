@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.77.0] - 2026-09-23
+
+### ✨ Funcionalidades (Features)
+- Implementación de un proceso nocturno (red nocturna) diseñado para sincronizar y completar los números fiscales faltantes en el módulo de Mayor.
+
+### 🐛 Correcciones (Fixes)
+- Ajustes técnicos en las directivas de supresión de Semgrep (`nosemgrep`), asegurando que incluyan el nombre de la regla específica y se ubiquen correctamente sobre la sentencia afectada para mejorar la mantenibilidad del código.
+
+---
+
 ## [v2.76.0] - 2026-09-22
 
 ### ✨ Funcionalidades (Features)
