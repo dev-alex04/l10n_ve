@@ -54,16 +54,18 @@
             if (!has_bill_filter) {
                 const company_idx = report.filters.findIndex(f => f.fieldname === "company");
                 const insert_idx = company_idx !== -1 ? company_idx + 1 : report.filters.length;
-                // Marcada por defecto (pedido de Daniel, 23-sep-2026): contabilidad analiza el
-                // Débito Fiscal y los Ingresos desde este reporte, y ahí sólo cuentan los documentos
-                // fiscales emitidos. Sin la casilla aparecen facturas aprobadas que todavía no tienen
-                // número ni control y el mayor no cuadra con el Libro de Ventas. Se puede desmarcar
-                // para ver el mayor completo; el servidor, si no se le manda, devuelve todo.
+                // Desmarcada por defecto: es la vista fiscal, para cuadrar el Débito Fiscal y los
+                // Ingresos contra el Libro de Ventas, y se marca a mano. Estuvo marcada unas horas
+                // (#761, 23-sep-2026) y se volvió atrás porque oculta la factura ENTERA: el botón
+                // «Libro mayor» de una factura sin emitir abría el reporte vacío, el del cliente la
+                // sacaba de su estado de cuenta (ambos heredan este valor), y Cuentas por Cobrar
+                // dejaba de cuadrar con el Balance. Desde que el envío automático toma toda factura
+                // aprobada (#762), casi no quedan facturas aprobadas sin número que ocultar.
                 report.filters.splice(insert_idx, 0, {
                     fieldname: "only_invoices_with_bill_no_control",
                     label: __("Solo facturas con N° de control y factura"),
                     fieldtype: "Check",
-                    default: 1,
+                    default: 0,
                 });
             }
         }
