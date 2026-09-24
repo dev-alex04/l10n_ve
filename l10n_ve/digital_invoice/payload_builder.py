@@ -230,9 +230,13 @@ class TFHKAPayloadBuilder:
         self.tasa_fecha: Optional[str] = tasa_fecha
         # TFHKA solo acepta 'BSD' para el Bolívar venezolano. 'VEF' es el
         # código histórico que no existe en el catálogo de The Factory HKA.
-        self.company_currency: str = hka_currency_code(
-            frappe.get_cached_value("Company", doc.company, "default_currency") or "VEF"
-        )
+        company_currency = frappe.get_cached_value("Company", doc.company, "default_currency")
+        if not company_currency:
+            frappe.throw(
+                f"La empresa {doc.company} no tiene moneda predeterminada: sin ella no se puede "
+                "armar el documento fiscal."
+            )
+        self.company_currency: str = hka_currency_code(company_currency)
         self._ensure_billing_address()
 
     def _ensure_billing_address(self) -> None:
