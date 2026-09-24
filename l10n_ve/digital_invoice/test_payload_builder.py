@@ -357,6 +357,32 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
         self.assertEqual(otra_moneda["moneda"], "USD")
         self.assertEqual(otra_moneda["subtotal"], "100.00")
 
+    def test_factura_en_bolivares_moneda_bsd(self):
+        """Una factura en VEF declara "BSD": HKA no tiene "VEF" en su catálogo y la rechaza
+        con [1000] y todos los totales en cascada."""
+        with self._COMMON_PATCHES["get_cached_doc"], \
+             patch("l10n_ve.digital_invoice.payload_builder.frappe.get_cached_value",
+                   return_value="VEF"), \
+             self._COMMON_PATCHES["zona_nodo"], \
+             self._COMMON_PATCHES["tfhka_code"]:
+            payload = self._build(currency="VEF")
+
+        encabezado = payload["documentoElectronico"]["encabezado"]
+        self.assertEqual(encabezado["identificacionDocumento"]["moneda"], "BSD")
+        self.assertIsNone(encabezado.get("totalesOtraMoneda"))
+
+    def test_factura_en_divisa_conserva_su_moneda(self):
+        """Una factura en USD sigue declarando "USD" en el encabezado."""
+        with self._COMMON_PATCHES["get_cached_doc"], \
+             patch("l10n_ve.digital_invoice.payload_builder.frappe.get_cached_value",
+                   return_value="VEF"), \
+             self._COMMON_PATCHES["zona_nodo"], \
+             self._COMMON_PATCHES["tfhka_code"]:
+            payload = self._build(conversion_rate=36.5)
+
+        id_doc = payload["documentoElectronico"]["encabezado"]["identificacionDocumento"]
+        self.assertEqual(id_doc["moneda"], "USD")
+
     # ── Formas de pago ────────────────────────────────────────────
 
     def test_formas_pago_credito(self):

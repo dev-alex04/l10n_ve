@@ -41,6 +41,7 @@ from l10n_ve.digital_invoice.payload_builder import (
     build_transaction_id,
     clean_address,
     clean_payload,
+    hka_currency_code,
     strip_html,
 )
 from l10n_ve.utils.utils import resolve_exchange_rate_date
@@ -53,11 +54,6 @@ DISPATCH_GUIDE: str = "Guía de Despacho"
 
 #: Motivos del catálogo 13 que exigen describir el servicio o la causa.
 REASONS_NEEDING_DESCRIPTION: tuple[str, ...] = ("Reparación o perfeccionamiento", "Otras causas")
-
-#: HKA no conoce los códigos de Frappe para el bolívar: con "VEF" rechaza el documento con
-#: [1000] y todos los totales en cascada. El código que sí tiene es "BSD", el mismo que el
-#: builder de la factura ya usa en las formas de pago.
-_HKA_CURRENCY: dict[str, str] = {"VEF": "BSD", "VES": "BSD"}
 
 #: Actividad económica que declara la factura en cada ítem (`TFHKAPayloadBuilder._build_items`).
 #: El emisor es el mismo, así que el traslado declara la misma.
@@ -82,11 +78,6 @@ TRANSPORT_FIELDS: dict[str, dict[str, str]] = {
         "vehicle_type": "ve_vehicle_type",
     },
 }
-
-
-def hka_currency_code(currency: str) -> str:
-    """Código de moneda que HKA reconoce para `currency`."""
-    return _HKA_CURRENCY.get(currency or "", currency or "")
 
 
 def compact_tax_id(tax_id: str) -> str:
