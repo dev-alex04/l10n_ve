@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.81.0] - 2026-09-24
+
+### ✨ Funcionalidades (Features)
+- Se implementó el soporte para retenciones de IVA e ISLR en notas de crédito y notas de débito de venta.
+
+### 🐛 Correcciones (Fixes)
+- Ajustes y resolución de observaciones técnicas en el módulo de retenciones vinculadas al PR #760.
+
+---
+
 ## [v2.80.0] - 2026-09-23
 
 ### ✨ Funcionalidades (Features)
