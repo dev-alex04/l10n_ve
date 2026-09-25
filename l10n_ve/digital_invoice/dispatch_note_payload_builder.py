@@ -42,6 +42,7 @@ from l10n_ve.digital_invoice.payload_builder import (
     clean_address,
     clean_payload,
     hka_currency_code,
+    hka_series_fields,
     strip_html,
 )
 from l10n_ve.utils.utils import resolve_exchange_rate_date
@@ -324,15 +325,7 @@ class DispatchNodesMixin:
     def _info_adicional_pdf(self, extra: dict) -> list:
         """El nodo que lee la plantilla de impresión de HKA, con la misma codificación que
         la factura: un solo campo «PDF» con un dict en comillas simples."""
-        serie: str = getattr(self.series_doc, "serie", "") or ""
-        if not serie:
-            frappe.throw(
-                _(
-                    "La serie de facturación no tiene el campo 'Serie' configurado. "
-                    "Es obligatorio para la facturación electrónica."
-                ),
-                title=_("Serie Requerida"),
-            )
+        serie, _sucursal = hka_series_fields(self.series_doc, "")
         dict_pdf: dict = {"Serie": serie, "Documento": self.doc.get("ve_dispatch_document_kind") or ""}
         dict_pdf.update({key: value for key, value in extra.items() if value})
         sanitized: dict = {
@@ -459,11 +452,12 @@ class StockEntryDispatchPayloadBuilder(DispatchNodesMixin):
         return clean_payload(payload)
 
     def _build_identificacion_documento(self) -> dict:
+        serie, sucursal = hka_series_fields(self.series_doc, self.branch_code)
         identification: dict = {
             "NumeroDocumento": "" if self._is_third_party() else (self.doc.get("bill_no") or ""),
             "Anulado": False,
-            "Serie": getattr(self.series_doc, "serie", "") or "",
-            "Sucursal": str(self.branch_code)[:6] if self.branch_code else "",
+            "Serie": serie,
+            "Sucursal": sucursal,
             "TipoDeVenta": "Interna",
             "TransaccionId": (
                 build_transaction_id("".join(ch for ch in self.doc.name if ch.isalnum()), self.doc)

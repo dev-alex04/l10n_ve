@@ -17,6 +17,7 @@ from l10n_ve.digital_invoice.payload_builder import (
     build_transaction_id,
     clean_address,
     clean_payload,
+    hka_series_fields,
 )
 
 
@@ -31,6 +32,7 @@ class BaseRetentionPayloadBuilder:
     def __init__(self, doc) -> None:
         self.doc = doc
         self.company_currency: str = "BSD"
+        self._series_doc = None
         self._serie: str = ""
         self._branch_code: str = ""
         self._load_series()
@@ -44,6 +46,7 @@ class BaseRetentionPayloadBuilder:
         try:
             from l10n_ve.digital_invoice.tfhka_integration import get_active_billing_series
             series_doc, branch_code = get_active_billing_series(company=company, branch=branch)
+            self._series_doc = series_doc
             self._serie = getattr(series_doc, "serie", "") or ""
             self._branch_code = branch_code or ""
         except Exception as e:
@@ -73,13 +76,17 @@ class BaseRetentionPayloadBuilder:
         # y deja `_serie` vacío. Si esa validación previa se saltea o falla, esto es lo
         # último que queda entre un dato faltante y una emisión que no se puede
         # deshacer. No sale gratis omitirlo: por eso se corta acá y no se envía.
-        if not (self._serie or "").strip():
+        #
+        # «No resolvió la serie» y «la serie no usa series» dejan los dos `_serie`
+        # vacío, pero sólo el segundo es legítimo: se distinguen por `_series_doc`.
+        if self._series_doc is None:
             frappe.throw(
                 f"El comprobante {self.doc.get('name') or ''} no resolvió su serie de "
                 "facturación digital y quedó con la serie vacía. No se envía a HKA: "
                 "la emisión es irreversible. Revise la serie de la sucursal.",
                 title="Serie de Facturación No Encontrada",
             )
+        self._serie, self._branch_code = hka_series_fields(self._series_doc, self._branch_code)
 
         items: list = self.doc.get(self.CHILD_TABLE_FIELD, [])
 
