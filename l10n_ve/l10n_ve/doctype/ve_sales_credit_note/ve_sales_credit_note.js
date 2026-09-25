@@ -48,26 +48,22 @@ frappe.ui.form.on("VE Sales Credit Note", {
 
     // Banner azul: enlace a la SI original (pendiente de emisión HKA)
     if (frm.doc.return_against && !frm.doc.bill_no) {
-      frm.set_intro(
-        __("Nota de Crédito aplicada a la factura: {0}", [
-          `<a href="/app/sales-invoice/${frm.doc.return_against}">${frm.doc.return_against}</a>`,
-        ]),
-        "blue",
-      );
+      original_invoice_link("Sales Invoice", frm.doc.return_against).then((link) => {
+        frm.set_intro(__("Nota de Crédito aplicada a la factura: {0}", [link]), "blue");
+      });
     }
 
     // Banner verde: NC emitida en HKA (solo documentos activos/submit)
     if (frm.doc.bill_no && frm.doc.docstatus === 1) {
-      frm.set_intro(
-        __(
-          "✅ Emitida ante HKA con número: <b>{0}</b> | Factura original: {1}",
-          [
-            frm.doc.bill_no,
-            `<a href="/app/sales-invoice/${frm.doc.return_against}">${frm.doc.return_against}</a>`,
-          ],
-        ),
-        "green",
-      );
+      original_invoice_link("Sales Invoice", frm.doc.return_against).then((link) => {
+        frm.set_intro(
+          __("✅ Emitida ante HKA con número: <b>{0}</b> | Factura original: {1}", [
+            frappe.utils.escape_html(frm.doc.bill_no),
+            link,
+          ]),
+          "green",
+        );
+      });
     }
 
     // Banner rojo: NC anulada en HKA — bloquear Amend

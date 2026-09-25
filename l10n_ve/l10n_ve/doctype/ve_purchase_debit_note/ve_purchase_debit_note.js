@@ -48,26 +48,22 @@ frappe.ui.form.on("VE Purchase Debit Note", {
 
     // Banner azul: enlace a la PI original (pendiente)
     if (frm.doc.return_against && frm.doc.docstatus === 0) {
-      frm.set_intro(
-        __("Nota de Débito aplicada a la factura: {0}", [
-          `<a href="/app/purchase-invoice/${frm.doc.return_against}">${frm.doc.return_against}</a>`,
-        ]),
-        "blue",
-      );
+      original_invoice_link("Purchase Invoice", frm.doc.return_against).then((link) => {
+        frm.set_intro(__("Nota de Débito aplicada a la factura: {0}", [link]), "blue");
+      });
     }
 
     // Banner verde: ND aprobada con datos fiscales
     if (frm.doc.bill_no && frm.doc.docstatus === 1) {
-      frm.set_intro(
-        __(
-          "✅ Nota de Débito Nro. <b>{0}</b> | Factura original: {1}",
-          [
-            frm.doc.bill_no,
-            `<a href="/app/purchase-invoice/${frm.doc.return_against}">${frm.doc.return_against}</a>`,
-          ],
-        ),
-        "green",
-      );
+      original_invoice_link("Purchase Invoice", frm.doc.return_against).then((link) => {
+        frm.set_intro(
+          __("✅ Nota de Débito Nro. <b>{0}</b> | Factura original: {1}", [
+            frappe.utils.escape_html(frm.doc.bill_no),
+            link,
+          ]),
+          "green",
+        );
+      });
     }
 
     // Botón rápido: ir a la factura original (solo documentos guardados)
