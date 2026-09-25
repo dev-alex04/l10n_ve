@@ -10,7 +10,23 @@ from l10n_ve.numbering import take_next_number
 class VEDigitalBillingSeries(Document):
 
     def validate(self) -> None:
+        self._validate_branch_codes()
         self._validate_no_duplicate_branches_in_active_series()
+
+    def _validate_branch_codes(self) -> None:
+        """Con serie, cada sucursal declara su código a HKA; sin serie, se envía vacío."""
+        if not self.uses_series:
+            return
+        missing: list[str] = [
+            row.branch for row in (self.get("branches") or [])
+            if row.branch and not (row.branch_code or "").strip()
+        ]
+        if missing:
+            frappe.throw(
+                "Estas sucursales no tienen código de sucursal, obligatorio cuando la serie "
+                f"usa serie: {', '.join(missing)}.",
+                title="Código de Sucursal Requerido",
+            )
 
     # --- Numeración --------------------------------------------------------------
     # Misma lógica que la empresa (`l10n_ve.numbering`): lo único que cambia es de dónde

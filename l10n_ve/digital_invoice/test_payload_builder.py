@@ -6,6 +6,7 @@ from frappe.utils import flt
 from l10n_ve.digital_invoice.payload_builder import (
     TFHKAPayloadBuilder,
     build_transaction_id,
+    hka_series_fields,
     resolve_zone_from_address,
 )
 from l10n_ve.tests.helpers import MockDoc
@@ -371,6 +372,13 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
         self.assertEqual(encabezado["identificacionDocumento"]["moneda"], "BSD")
         self.assertIsNone(encabezado.get("totalesOtraMoneda"))
 
+    def test_codigo_plu_es_el_del_articulo(self):
+        """Sin plan de suscripción de por medio: el PLU es el código del artículo (≤ 20)."""
+        builder = TFHKAPayloadBuilder.__new__(TFHKAPayloadBuilder)
+        self.assertEqual(builder._resolve_tfhka_code("INT001"), "INT001")
+        self.assertEqual(builder._resolve_tfhka_code("X" * 25), "X" * 20)
+        self.assertEqual(builder._resolve_tfhka_code(None), "")
+
     def test_factura_en_divisa_conserva_su_moneda(self):
         """Una factura en USD sigue declarando "USD" en el encabezado."""
         with self._COMMON_PATCHES["get_cached_doc"], \
@@ -441,17 +449,12 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
         self.assertEqual(zone, "Libertador")
         m_fallback.assert_called_once()
 
-    def test_empty_zone_without_municipality_raises(self):
-        """Sin territory ni municipio, la validación lanza el throw de Zona (genera el log de error)."""
-        with self._COMMON_PATCHES["get_cached_value"]:
-            builder = TFHKAPayloadBuilder(
-                _make_base_doc(conversion_rate=0, subscription=None),
-                series_doc=_make_series_doc(),
-            )
-        builder.zona = None
-        builder.nodo = "NODO-01"
-        with self.assertRaisesRegex(frappe.ValidationError, "Zona"):
-            builder._build_info_adicional()
+    def test_generic_company_sends_no_info_adicional(self):
+        """InfoAdicional es de la plantilla de cada cliente: l10n_ve no manda ninguna.
+
+        La de Galanet (y su corte por zona vacía) la arma domina_isp."""
+        builder = TFHKAPayloadBuilder.__new__(TFHKAPayloadBuilder)
+        self.assertIsNone(TFHKAPayloadBuilder.__dict__["_build_info_adicional"](builder))
 
     # ── Parse Tax ID (estáticos, sin patches) ─────────────────────
 
@@ -554,6 +557,78 @@ class TestResolveZoneFromAddress(unittest.TestCase):
         self.assertEqual(zone, "Colonia Tovar")
 
 
+class TestHkaSeriesFields(unittest.TestCase):
+    """Serie y sucursal que se declaran a HKA según `uses_series`."""
+
+    def test_uses_series_returns_serie_and_branch_code(self):
+        series = MockDoc(serie="MAR-05", uses_series=1)
+        self.assertEqual(hka_series_fields(series, "LAR-10"), ("MAR-05", "LAR-10"))
+
+    def test_without_series_sends_both_empty(self):
+        """Numeración centralizada: serie y sucursal vacías aunque haya valores cargados."""
+        series = MockDoc(serie="VIEJA", uses_series=0)
+        self.assertEqual(hka_series_fields(series, "01"), ("", ""))
+
+    def test_uses_series_with_empty_serie_fails_closed(self):
+        series = MockDoc(serie="", uses_series=1)
+        with self.assertRaises(frappe.ValidationError):
+            hka_series_fields(series, "01")
+
+    def test_missing_flag_counts_as_uses_series(self):
+        """Una serie leída antes del migrate no tiene el campo: nunca se manda vacía."""
+        with self.assertRaises(frappe.ValidationError):
+            hka_series_fields(MockDoc(serie=""), "01")
+        self.assertEqual(hka_series_fields(MockDoc(serie="DC-01"), "DC-01"), ("DC-01", "DC-01"))
+
+    def test_unresolved_series_fails_closed(self):
+        with self.assertRaises(frappe.ValidationError):
+            hka_series_fields(None, "")
+
+    def test_invoice_header_without_series(self):
+        """El encabezado de la factura sale con serie y sucursal vacías."""
+        doc = _make_base_doc()
+        with TestTFHKAPayloadBuilder._COMMON_PATCHES["get_cached_doc"], \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["get_cached_value"], \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["zona_nodo"], \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["tfhka_code"]:
+            builder = TFHKAPayloadBuilder(
+                doc, series_doc=MockDoc(serie="", uses_series=0, operation_mode="Third Party"),
+                branch_code="01",
+            )
+            payload = builder.build_payload()
+
+        id_doc = payload["documentoElectronico"]["encabezado"]["identificacionDocumento"]
+        self.assertEqual(id_doc.get("serie", ""), "")
+        self.assertEqual(id_doc.get("sucursal", ""), "")
+
+
+class TestSerieFacturaAfectada(unittest.TestCase):
+    """Serie de la factura original que declara una NC/ND."""
+
+    def _serie(self, log_response, remarks=None):
+        builder = TFHKAPayloadBuilder.__new__(TFHKAPayloadBuilder)
+        builder.doc = MockDoc(return_against="ACC-SINV-0001")
+
+        def get_value(doctype, _filters, field, **_kwargs):
+            return log_response if doctype == "VE Digital Invoice Log" else remarks
+
+        with patch(f"{_PB}.frappe.db.get_value", side_effect=get_value):
+            return builder._get_serie_factura_afectada()
+
+    def test_emitted_with_series(self):
+        resp = '{"codigo": "200", "resultado": {"serie": "MAR-05", "numeroControl": "00-1"}}'
+        self.assertEqual(self._serie(resp), "MAR-05")
+
+    def test_emitted_without_series_is_legitimate(self):
+        """Empresa sin series: HKA confirmó la emisión con serie vacía."""
+        resp = '{"codigo": "200", "resultado": {"serie": "", "numeroControl": "00-00000002"}}'
+        self.assertEqual(self._serie(resp), "")
+
+    def test_not_emitted_fails_closed(self):
+        with self.assertRaises(frappe.ValidationError):
+            self._serie(None, remarks="nota libre del usuario")
+
+
 class TestBuildTransactionId(unittest.TestCase):
     """build_transaction_id: TransaccionId único para HKA aunque el name se recicle.
 
@@ -590,3 +665,30 @@ class TestBuildTransactionId(unittest.TestCase):
         """Sin creation (doc en memoria, sin insertar) → devuelve solo la base sin romper."""
         doc = frappe._dict({"name": "ND-2026-00001"})
         self.assertEqual(build_transaction_id("ND202600001", doc), "ND202600001")
+
+
+class TestCompanyCiiuCode(unittest.TestCase):
+    """El código CIIU de cada ítem sale de la empresa."""
+
+    def _build_with_ciiu(self, ciiu):
+        values = {"default_currency": "VEF", "ciiu_code": ciiu}
+
+        def cached_value(_doctype, _name, field, *args, **kwargs):
+            return values.get(field)
+
+        with TestTFHKAPayloadBuilder._COMMON_PATCHES["get_cached_doc"], \
+             patch("l10n_ve.digital_invoice.payload_builder.frappe.get_cached_value",
+                   side_effect=cached_value), \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["zona_nodo"], \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["tfhka_code"]:
+            return TestTFHKAPayloadBuilder._build(self, currency="VEF")
+
+    def test_ciiu_de_la_empresa_en_cada_item(self):
+        """El código CIIU sale de la empresa, no de un literal."""
+        items = self._build_with_ciiu("4321")["documentoElectronico"]["detallesItems"]
+        self.assertEqual([item["codigoCIIU"] for item in items], ["4321"])
+
+    def test_sin_ciiu_no_se_envia(self):
+        """Sin CIIU en la empresa el campo no viaja: HKA lo trata como opcional."""
+        items = self._build_with_ciiu(None)["documentoElectronico"]["detallesItems"]
+        self.assertNotIn("codigoCIIU", items[0])
