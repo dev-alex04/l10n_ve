@@ -97,7 +97,7 @@ def get_data(filters):
 
 		if branches:
 			if exclude_branches:
-				conds += f" AND {alias}.branch NOT IN %(branch_scope)s"
+				conds += f" AND IFNULL({alias}.branch, '') NOT IN %(branch_scope)s"
 			else:
 				conds += f" AND {alias}.branch IN %(branch_scope)s"
 		else:
@@ -114,7 +114,7 @@ def get_data(filters):
 
 	include_standard = bool(charge_types)
 	include_gov = (not ret_type_filter or ret_type_filter == "Gubernamental")
-	include_nc = bool(filters.get("include_credit_notes", 1))
+	include_nc = bool(filters.get("include_credit_notes", 0))
 
 	if not include_standard and not include_gov:
 		return []
@@ -268,7 +268,7 @@ def get_data(filters):
 
 			if branches:
 				if exclude_branches:
-					je_conditions += " AND si.branch NOT IN %(branch_scope)s"
+					je_conditions += " AND IFNULL(si.branch, '') NOT IN %(branch_scope)s"
 				else:
 					je_conditions += " AND si.branch IN %(branch_scope)s"
 			else:
@@ -308,6 +308,9 @@ def get_data(filters):
 	if not queries:
 		return []
 
+	# Lo único que se interpola son las fuentes ya armadas (alias fijos, tipos de retención de una
+	# lista cerrada y las condiciones de sucursal): todo dato del request viaja en `filters`.
+	# nosemgrep: frappe-semgrep-rules.rules.security.frappe-sql-format-injection
 	query = f"""
 		SELECT * FROM (
 			{" UNION ALL ".join(queries)}

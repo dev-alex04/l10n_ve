@@ -90,7 +90,7 @@ def get_customer_retention_excel(filters=None):
 			if col_def.get("fieldtype") in ["Currency", "Float"]:
 				cell.number_format = '#,##0.00'
 			elif col_def.get("fieldtype") == "Percent":
-				cell.number_format = '0.00%'
+				cell.number_format = '0.00"%"'
 			if cell_value:
 				col_widths[col_idx-1] = max(col_widths[col_idx-1], len(str(cell_value)))
 

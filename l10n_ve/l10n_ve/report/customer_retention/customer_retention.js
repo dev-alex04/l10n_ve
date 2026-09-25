@@ -68,7 +68,7 @@ frappe.query_reports["Customer Retention"] = {
 			"fieldname": "include_credit_notes",
 			"label": __("Incluir Notas de Crédito"),
 			"fieldtype": "Check",
-			"default": 1
+			"default": 0
 		}
 	],
 	"onload": function(report) {
