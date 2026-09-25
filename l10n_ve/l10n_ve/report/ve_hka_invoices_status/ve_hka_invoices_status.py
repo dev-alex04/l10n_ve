@@ -43,6 +43,8 @@ def execute(filters=None):
 		# En «Todos» un doctype sin permiso de lectura se omite en vez de cortar el reporte:
 		# quien ve facturas no necesariamente ve comprobantes de retención o inventario.
 		allowed_doctypes = [dt for dt in allowed_doctypes if frappe.has_permission(dt, "read")]
+		if not allowed_doctypes:
+			frappe.throw(_("No tiene permiso para ver ninguno de los documentos de este reporte."), frappe.PermissionError)
 		filters["_allowed_doctypes"] = allowed_doctypes
 	else:
 		for dt in allowed_doctypes:
@@ -186,7 +188,10 @@ def get_data(filters):
 	cond_str = " AND ".join(conditions)
 
 	query_parts = []
-	allowed_doctypes = filters.get("_allowed_doctypes") or get_allowed_doctypes(filters)
+	# Explícito, no `or`: una lista vacía de permitidos no puede volver a significar «todos».
+	allowed_doctypes = (
+		filters["_allowed_doctypes"] if "_allowed_doctypes" in filters else get_allowed_doctypes(filters)
+	)
 
 	# 1. Sales Invoice
 	if "Sales Invoice" in allowed_doctypes:
