@@ -114,7 +114,7 @@ def get_data(filters):
 
 	include_standard = bool(charge_types)
 	include_gov = (not ret_type_filter or ret_type_filter == "Gubernamental")
-	include_nc = bool(filters.get("include_credit_notes", 0))
+	include_nc = bool(filters.get("include_credit_notes", 1))
 
 	if not include_standard and not include_gov:
 		return []
@@ -183,7 +183,7 @@ def get_data(filters):
 			  {get_conditions('si')}
 		""")
 
-		# FUENTE B: Credit Notes (Notas de Crédito no exigen comprobante para calcular su retención)
+		# FUENTE B: Credit Notes (antes del corte fiscal cuentan siempre; después, solo con comprobante, como el libro)
 		if include_nc:
 			queries.append(f"""
 				SELECT 
@@ -195,6 +195,8 @@ def get_data(filters):
 						WHEN nc.posting_date <= %(fiscal_cutoff)s THEN ABS(stc.tax_amount) * (CASE WHEN nc.currency != %(company_currency)s THEN nc.conversion_rate ELSE 1 END) 
 						ELSE 
 							CASE 
+								WHEN stc.charge_type = 'VAT Withholding' AND (nc.vat_withholding_voucher_number IS NULL OR nc.vat_withholding_voucher_number = '') THEN 0
+								WHEN stc.charge_type = 'ISLR' AND (nc.islr_receipt_number IS NULL OR nc.islr_receipt_number = '') THEN 0
 								WHEN stc.charge_type = 'VAT Withholding' AND nc.withholding_date IS NOT NULL
 								     AND nc.withholding_date NOT BETWEEN %(from_date)s AND %(to_date)s THEN 0
 								WHEN stc.charge_type = 'ISLR' AND nc.islr_date IS NOT NULL

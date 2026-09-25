@@ -56,7 +56,7 @@ class TestCustomerRetentionImprovements(unittest.TestCase):
 		self.assertEqual(len(res_dc) + len(res_exclude), len(res_all))
 
 	def test_credit_notes_treatment_and_toggle(self):
-		"""Prueba que las NC no exijan comprobante y se puedan incluir/excluir."""
+		"""Prueba que las NC se puedan incluir/excluir con el filtro include_credit_notes."""
 		# Con NC habilitadas
 		res_with_nc = report.get_data({**self.filters, "include_credit_notes": 1})
 		ncs = [r for r in res_with_nc if r.get("doc_type") == "NC"]
