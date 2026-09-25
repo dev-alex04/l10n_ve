@@ -171,6 +171,40 @@ def hka_currency_code(currency: str) -> str:
     return _HKA_CURRENCY.get(currency or "", currency or "")
 
 
+def hka_series_fields(series_doc, branch_code: str) -> tuple:
+    """(Serie, Sucursal) que se declaran a HKA para un documento de `series_doc`.
+
+    Una empresa sin series (`uses_series` desmarcado) manda las dos vacías: HKA lo admite
+    para la numeración centralizada en un solo punto de facturación (Referencia Técnica
+    API, mayo 2026, p. 9). Con series, una serie vacía es configuración faltante y se
+    corta: HKA aceptaría el documento y la emisión no se puede deshacer.
+
+    Un `uses_series` sin valor (una serie leída antes del migrate) cuenta como que usa
+    serie, para que nunca se mande vacía por descuido.
+    """
+    if series_doc is None:
+        frappe.throw(
+            "El documento no resolvió su serie de facturación digital. No se envía a HKA: "
+            "la emisión es irreversible. Revise la serie de la sucursal.",
+            title="Serie Requerida",
+        )
+
+    uses_series = getattr(series_doc, "uses_series", None)
+    if uses_series is not None and not cint(uses_series):
+        return "", ""
+
+    serie: str = (getattr(series_doc, "serie", "") or "").strip()
+    if not serie:
+        frappe.throw(
+            "La serie de facturación no tiene el campo 'Serie' configurado. Es obligatorio "
+            "cuando la serie usa serie; si la empresa no trabaja con series, desmarque "
+            "«Usa serie».",
+            title="Serie Requerida",
+        )
+    # El código de sucursal lo exige la propia serie al guardarse (`_validate_branch_codes`).
+    return serie, str(branch_code or "").strip()[:6]
+
+
 #: Meses en mayúsculas, como los imprime la plantilla de HKA.
 MONTHS_ES: tuple[str, ...] = (
     "", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO",
@@ -420,6 +454,7 @@ class TFHKAPayloadBuilder:
             getattr(self.series_doc, "operation_mode", "Internal") == "Third Party"
         )
 
+        serie, sucursal = hka_series_fields(self.series_doc, self.branch_code)
         posting_date: str = getdate(self.doc.posting_date).strftime("%d/%m/%Y")
         numero_documento: str = "" if is_third_party else (self.doc.bill_no or "")
 
@@ -451,8 +486,8 @@ class TFHKAPayloadBuilder:
             "HoraEmision": self._format_posting_time(),
             "Anulado": False,
             "TipoDePago": "Contado" if self.doc.get("is_pos") else "Credito",
-            "Serie": getattr(self.series_doc, "serie", "") or "",
-            "Sucursal": self._resolve_branch_code(),
+            "Serie": serie,
+            "Sucursal": sucursal,
             "TipoDeVenta": "Interna",
             "Moneda": hka_currency_code(self.doc.currency),
             "TransaccionId": (
@@ -461,10 +496,6 @@ class TFHKAPayloadBuilder:
             ),
         }
 
-
-    def _resolve_branch_code(self) -> str:
-        """Retorna el branch_code ya resuelto desde la tabla hija (máximo 6 car.)"""
-        return str(self.branch_code)[:6] if self.branch_code else ""
 
     def _build_comprador(self) -> dict:
         customer = frappe.get_cached_doc("Customer", self.doc.customer)
@@ -986,13 +1017,7 @@ class TFHKAPayloadBuilder:
         if not self.zona:
             frappe.throw("El cliente no tiene asignada una 'Zona', campo requerido para HKA.")
 
-        serie: str = getattr(self.series_doc, "serie", "") or ""
-        if not serie:
-            frappe.throw(
-                "La serie de facturación no tiene el campo 'Serie' configurado. "
-                "Es obligatorio para la facturación electrónica.",
-                title="Serie Requerida"
-            )
+        serie, _sucursal = hka_series_fields(self.series_doc, "")
 
         # Construir y retornar el string de diccionario único (modo "PDF")
         # ya que la plantilla de impresión de TFHKA evalúa este string internamente.

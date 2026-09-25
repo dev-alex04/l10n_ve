@@ -6,6 +6,7 @@ from frappe.utils import flt
 from l10n_ve.digital_invoice.payload_builder import (
     TFHKAPayloadBuilder,
     build_transaction_id,
+    hka_series_fields,
     resolve_zone_from_address,
 )
 from l10n_ve.tests.helpers import MockDoc
@@ -552,6 +553,51 @@ class TestResolveZoneFromAddress(unittest.TestCase):
                    side_effect=[None, None, "VE-CITY-hash", "Colonia Tovar"]):
             zone = resolve_zone_from_address("Customer A", "ADDR-001")
         self.assertEqual(zone, "Colonia Tovar")
+
+
+class TestHkaSeriesFields(unittest.TestCase):
+    """Serie y sucursal que se declaran a HKA según `uses_series`."""
+
+    def test_uses_series_returns_serie_and_branch_code(self):
+        series = MockDoc(serie="MAR-05", uses_series=1)
+        self.assertEqual(hka_series_fields(series, "LAR-10"), ("MAR-05", "LAR-10"))
+
+    def test_without_series_sends_both_empty(self):
+        """Numeración centralizada: serie y sucursal vacías aunque haya valores cargados."""
+        series = MockDoc(serie="VIEJA", uses_series=0)
+        self.assertEqual(hka_series_fields(series, "01"), ("", ""))
+
+    def test_uses_series_with_empty_serie_fails_closed(self):
+        series = MockDoc(serie="", uses_series=1)
+        with self.assertRaises(frappe.ValidationError):
+            hka_series_fields(series, "01")
+
+    def test_missing_flag_counts_as_uses_series(self):
+        """Una serie leída antes del migrate no tiene el campo: nunca se manda vacía."""
+        with self.assertRaises(frappe.ValidationError):
+            hka_series_fields(MockDoc(serie=""), "01")
+        self.assertEqual(hka_series_fields(MockDoc(serie="DC-01"), "DC-01"), ("DC-01", "DC-01"))
+
+    def test_unresolved_series_fails_closed(self):
+        with self.assertRaises(frappe.ValidationError):
+            hka_series_fields(None, "")
+
+    def test_invoice_header_without_series(self):
+        """El encabezado de la factura sale con serie y sucursal vacías."""
+        doc = _make_base_doc()
+        with TestTFHKAPayloadBuilder._COMMON_PATCHES["get_cached_doc"], \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["get_cached_value"], \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["zona_nodo"], \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["tfhka_code"]:
+            builder = TFHKAPayloadBuilder(
+                doc, series_doc=MockDoc(serie="", uses_series=0, operation_mode="Third Party"),
+                branch_code="01",
+            )
+            payload = builder.build_payload()
+
+        id_doc = payload["documentoElectronico"]["encabezado"]["identificacionDocumento"]
+        self.assertEqual(id_doc.get("serie", ""), "")
+        self.assertEqual(id_doc.get("sucursal", ""), "")
 
 
 class TestBuildTransactionId(unittest.TestCase):
