@@ -663,3 +663,30 @@ class TestBuildTransactionId(unittest.TestCase):
         """Sin creation (doc en memoria, sin insertar) → devuelve solo la base sin romper."""
         doc = frappe._dict({"name": "ND-2026-00001"})
         self.assertEqual(build_transaction_id("ND202600001", doc), "ND202600001")
+
+
+class TestCompanyCiiuCode(unittest.TestCase):
+    """El código CIIU de cada ítem sale de la empresa."""
+
+    def _build_with_ciiu(self, ciiu):
+        values = {"default_currency": "VEF", "ciiu_code": ciiu}
+
+        def cached_value(_doctype, _name, field, *args, **kwargs):
+            return values.get(field)
+
+        with TestTFHKAPayloadBuilder._COMMON_PATCHES["get_cached_doc"], \
+             patch("l10n_ve.digital_invoice.payload_builder.frappe.get_cached_value",
+                   side_effect=cached_value), \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["zona_nodo"], \
+             TestTFHKAPayloadBuilder._COMMON_PATCHES["tfhka_code"]:
+            return TestTFHKAPayloadBuilder._build(self, currency="VEF")
+
+    def test_ciiu_de_la_empresa_en_cada_item(self):
+        """El código CIIU sale de la empresa, no de un literal."""
+        items = self._build_with_ciiu("4321")["documentoElectronico"]["detallesItems"]
+        self.assertEqual([item["codigoCIIU"] for item in items], ["4321"])
+
+    def test_sin_ciiu_no_se_envia(self):
+        """Sin CIIU en la empresa el campo no viaja: HKA lo trata como opcional."""
+        items = self._build_with_ciiu(None)["documentoElectronico"]["detallesItems"]
+        self.assertNotIn("codigoCIIU", items[0])

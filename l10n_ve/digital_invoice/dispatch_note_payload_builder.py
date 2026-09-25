@@ -41,6 +41,7 @@ from l10n_ve.digital_invoice.payload_builder import (
     build_transaction_id,
     clean_address,
     clean_payload,
+    company_ciiu_code,
     hka_currency_code,
     hka_series_fields,
     strip_html,
@@ -55,10 +56,6 @@ DISPATCH_GUIDE: str = "Guía de Despacho"
 
 #: Motivos del catálogo 13 que exigen describir el servicio o la causa.
 REASONS_NEEDING_DESCRIPTION: tuple[str, ...] = ("Reparación o perfeccionamiento", "Otras causas")
-
-#: Actividad económica que declara la factura en cada ítem (`TFHKAPayloadBuilder._build_items`).
-#: El emisor es el mismo, así que el traslado declara la misma.
-_CIIU_CODE: str = "0198"
 
 #: Unidad de medida del catálogo 11 que manda la factura para todos sus ítems.
 _UNIT_OF_MEASURE: str = "94"
@@ -511,6 +508,8 @@ class StockEntryDispatchPayloadBuilder(DispatchNodesMixin):
             return f"{flt(value):.2f}"
 
         lines: list = []
+        # La misma actividad que declara la factura: el emisor es el mismo.
+        ciiu_code = company_ciiu_code(self.doc.company)
         for idx, item in enumerate(self.doc.items, start=1):
             quantity: float = flt(item.transfer_qty) or flt(item.qty)
             unit_price: float = flt(item.basic_rate, 2)
@@ -518,7 +517,7 @@ class StockEntryDispatchPayloadBuilder(DispatchNodesMixin):
             description: str = re.sub(r"(?i)\btotal\b", "", item.item_name or item.item_code or "").strip()
             lines.append({
                 "NumeroLinea": str(idx),
-                "CodigoCIIU": _CIIU_CODE,
+                "CodigoCIIU": ciiu_code,
                 "CodigoPLU": (item.item_code or "")[:20],
                 "IndicadorBienoServicio": "1",
                 "Descripcion": description[:250],

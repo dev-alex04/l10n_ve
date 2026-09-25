@@ -246,6 +246,17 @@ def service_period_label(start: date, end: date) -> str:
     return f"{MONTHS_ES[start.month]} {start.year} - {MONTHS_ES[end.month]} {end.year}"
 
 
+def company_ciiu_code(company: str) -> Optional[str]:
+    """Código CIIU (actividad económica del SENIAT) que la empresa declara en cada ítem.
+
+    HKA lo trata como opcional: si la empresa no lo tiene cargado no se envía (`None`
+    desaparece en `clean_payload`). Nunca se completa con un código ajeno: declarar la
+    actividad de otra empresa es peor que no declarar ninguna.
+    """
+    code: str = (frappe.get_cached_value("Company", company, "ciiu_code") or "").strip()
+    return code or None
+
+
 class TFHKAPayloadBuilder:
     def __init__(self, doc, series_doc=None, branch_code: str = "", tasa_fecha: Optional[str] = None) -> None:
         """
@@ -868,6 +879,7 @@ class TFHKAPayloadBuilder:
         def fmt(val): return "{:.2f}".format(flt(val))
         detalles = []
         iva_rate = self._get_iva_rate()
+        ciiu_code: Optional[str] = company_ciiu_code(self.doc.company)
 
         has_vat_charge = any(
             tax.get("charge_type") == "VAT"
@@ -898,7 +910,7 @@ class TFHKAPayloadBuilder:
 
             detalles.append({
                 "NumeroLinea": str(idx),
-                "CodigoCIIU": "0198",
+                "CodigoCIIU": ciiu_code,
                 "CodigoPLU": self._resolve_tfhka_code(item.item_code),
                 "IndicadorBienoServicio": "2" if "servicio" in str(item.item_group).lower() else "1",
                 "Descripcion": descripcion_item[:250],
