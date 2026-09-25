@@ -322,6 +322,10 @@ def _handle_retention_response(
             update_values["bill_control"] = hka_control
 
         doc.db_set(update_values)
+        # Los números que devolvió HKA ya son un hecho fiscal: se confirman antes del log, para
+        # que un log que falla no los revierta (mismo hueco que el de la factura y el 04).
+        if not frappe.flags.in_test:
+            frappe.db.commit()  # nosemgrep
 
         _log_retention_request(
             endpoint="Emision",
