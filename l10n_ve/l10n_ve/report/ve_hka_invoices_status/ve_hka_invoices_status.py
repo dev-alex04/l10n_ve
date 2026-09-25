@@ -4,6 +4,32 @@
 import frappe
 from frappe import _
 
+#: Opción del filtro «Tipo de Documento» → doctypes que incluye.
+DOCUMENT_TYPE_FILTERS: dict[str, list[str]] = {
+	"Factura de Venta": ["Sales Invoice"],
+	"Sales Invoice": ["Sales Invoice"],
+	"Nota de Crédito": ["VE Sales Credit Note"],
+	"Nota de Crédito de Venta": ["VE Sales Credit Note"],
+	"VE Sales Credit Note": ["VE Sales Credit Note"],
+	"Nota de Débito": ["VE Sales Debit Note"],
+	"Nota de Débito de Venta": ["VE Sales Debit Note"],
+	"VE Sales Debit Note": ["VE Sales Debit Note"],
+	"Retención de IVA": ["VAT Withholding Voucher"],
+	"Retención de ISLR": ["ISLR Withholding Voucher"],
+	"Documento de Despacho (04)": ["Delivery Note", "Stock Entry"],
+}
+
+#: Todos los documentos que la empresa emite ante HKA.
+ALL_DOCTYPES: list[str] = [
+	"Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note",
+	"VAT Withholding Voucher", "ISLR Withholding Voucher",
+	"Delivery Note", "Stock Entry",
+]
+
+
+def get_allowed_doctypes(filters) -> list[str]:
+	return DOCUMENT_TYPE_FILTERS.get(filters.get("document_type") or "Todos", ALL_DOCTYPES)
+
 
 def execute(filters=None):
 	filters = filters or {}
@@ -12,18 +38,15 @@ def execute(filters=None):
 
 	frappe.has_permission("Company", "read", doc=filters.get("company"), throw=True)
 
-	dt_filter = filters.get("document_type") or "Todos"
-	if dt_filter in ("Factura de Venta", "Sales Invoice"):
-		allowed_doctypes = ["Sales Invoice"]
-	elif dt_filter in ("Nota de Crédito", "Nota de Crédito de Venta", "VE Sales Credit Note"):
-		allowed_doctypes = ["VE Sales Credit Note"]
-	elif dt_filter in ("Nota de Débito", "Nota de Débito de Venta", "VE Sales Debit Note"):
-		allowed_doctypes = ["VE Sales Debit Note"]
+	allowed_doctypes = get_allowed_doctypes(filters)
+	if (filters.get("document_type") or "Todos") in ("Todos", "All"):
+		# En «Todos» un doctype sin permiso de lectura se omite en vez de cortar el reporte:
+		# quien ve facturas no necesariamente ve comprobantes de retención o inventario.
+		allowed_doctypes = [dt for dt in allowed_doctypes if frappe.has_permission(dt, "read")]
+		filters["_allowed_doctypes"] = allowed_doctypes
 	else:
-		allowed_doctypes = ["Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note"]
-
-	for dt in allowed_doctypes:
-		frappe.has_permission(dt, "read", throw=True)
+		for dt in allowed_doctypes:
+			frappe.has_permission(dt, "read", throw=True)
 
 	columns = get_columns()
 	data = get_data(filters)
@@ -163,16 +186,7 @@ def get_data(filters):
 	cond_str = " AND ".join(conditions)
 
 	query_parts = []
-	target_doctype = filters.get("document_type") or "Todos"
-
-	if target_doctype in ("Factura de Venta", "Sales Invoice"):
-		allowed_doctypes = ["Sales Invoice"]
-	elif target_doctype in ("Nota de Crédito", "Nota de Crédito de Venta", "VE Sales Credit Note"):
-		allowed_doctypes = ["VE Sales Credit Note"]
-	elif target_doctype in ("Nota de Débito", "Nota de Débito de Venta", "VE Sales Debit Note"):
-		allowed_doctypes = ["VE Sales Debit Note"]
-	else:
-		allowed_doctypes = ["Sales Invoice", "VE Sales Credit Note", "VE Sales Debit Note"]
+	allowed_doctypes = filters.get("_allowed_doctypes") or get_allowed_doctypes(filters)
 
 	# 1. Sales Invoice
 	if "Sales Invoice" in allowed_doctypes:
@@ -202,7 +216,8 @@ def get_data(filters):
 				doc.hka_status,
 				log.status AS log_status,
 				log.notes AS log_notes,
-				log.creation AS log_creation
+				log.creation AS log_creation,
+				NULL AS dispatch_kind
 			FROM `tabSales Invoice` doc
 			LEFT JOIN `tabCustomer` tc ON tc.name = doc.customer
 			LEFT JOIN (
@@ -247,7 +262,8 @@ def get_data(filters):
 				doc.hka_status,
 				log.status AS log_status,
 				log.notes AS log_notes,
-				log.creation AS log_creation
+				log.creation AS log_creation,
+				NULL AS dispatch_kind
 			FROM `tabVE Sales Credit Note` doc
 			LEFT JOIN `tabCustomer` tc ON tc.name = doc.customer
 			LEFT JOIN (
@@ -292,7 +308,8 @@ def get_data(filters):
 				doc.hka_status,
 				log.status AS log_status,
 				log.notes AS log_notes,
-				log.creation AS log_creation
+				log.creation AS log_creation,
+				NULL AS dispatch_kind
 			FROM `tabVE Sales Debit Note` doc
 			LEFT JOIN `tabCustomer` tc ON tc.name = doc.customer
 			LEFT JOIN (
@@ -309,6 +326,12 @@ def get_data(filters):
 			WHERE (doc.docstatus = 1 OR doc.is_void = 1) AND doc.status != 'Draft' AND {cond_str}
 		""")
 
+	query_parts.extend(_withholding_queries(allowed_doctypes, filters, values))
+	query_parts.extend(_dispatch_queries(allowed_doctypes, filters, values))
+
+	if not query_parts:
+		return []
+
 	full_query = " UNION ALL ".join(query_parts) + " ORDER BY posting_date DESC, name DESC"
 	raw_data = frappe.db.sql(full_query, values, as_dict=1)
 
@@ -322,6 +345,8 @@ def get_data(filters):
 		"Sales Invoice": _("Factura de Venta"),
 		"VE Sales Credit Note": _("Nota de Crédito"),
 		"VE Sales Debit Note": _("Nota de Débito"),
+		"VAT Withholding Voucher": _("Retención de IVA"),
+		"ISLR Withholding Voucher": _("Retención de ISLR"),
 	}
 
 	processed_data = []
@@ -331,7 +356,8 @@ def get_data(filters):
 			continue
 
 		raw_dt = row.get("doctype") or row.get("document_type")
-		row["document_type"] = doc_type_map.get(raw_dt, raw_dt)
+		# El 04 se muestra con su nombre fiscal: «Orden de Entrega» o «Guía de Despacho».
+		row["document_type"] = row.get("dispatch_kind") or doc_type_map.get(raw_dt, raw_dt)
 
 		# Estado a mostrar: el campo persistido salvo que la evidencia lo contradiga.
 		# La regla vive en hka_status.py, junto al resto de la semántica, para que el
@@ -349,4 +375,155 @@ def get_data(filters):
 		processed_data.append(row)
 
 	return processed_data
+
+
+def _conditions(filters, company_field: str, date_field: str) -> str:
+	"""Empresa y rango de fechas con los nombres de campo de cada doctype."""
+	conditions = [f"doc.{company_field} = %(company)s"]
+	if filters.get("from_date"):
+		conditions.append(f"doc.{date_field} >= %(from_date)s")
+	if filters.get("to_date"):
+		conditions.append(f"doc.{date_field} <= %(to_date)s")
+	return " AND ".join(conditions)
+
+
+def _last_log_join(doctype: str) -> str:
+	return f"""
+		LEFT JOIN (
+			SELECT
+				sales_invoice,
+				document_type,
+				status,
+				notes,
+				creation,
+				ROW_NUMBER() OVER (PARTITION BY sales_invoice, document_type ORDER BY creation DESC) as rn
+			FROM `tabVE Digital Invoice Log`
+			WHERE document_type = '{doctype}'
+		) log ON log.sales_invoice = doc.name AND log.rn = 1
+	"""
+
+
+def _withholding_queries(allowed_doctypes, filters, values) -> list[str]:
+	"""Comprobantes de retención de IVA (05) e ISLR (06), emitidos por la empresa como agente.
+
+	Guardan su estado en `digital_invoice_status`; se traduce al vocabulario del reporte.
+	Los «Not Applicable» (facturación digital apagada) no se muestran, como las facturas que
+	no aplican. El monto no se muestra: las columnas de total son de venta.
+	"""
+	parts: list[str] = []
+	for doctype, date_field in (
+		("VAT Withholding Voucher", "issue_date"),
+		("ISLR Withholding Voucher", "posting_date"),
+	):
+		if doctype not in allowed_doctypes:
+			continue
+		parts.append(f"""
+			SELECT
+				'{doctype}' AS doctype,
+				'{doctype}' AS document_type,
+				doc.name,
+				doc.{date_field} AS posting_date,
+				doc.supplier AS customer,
+				doc.supplier_name AS customer_name,
+				ts.tax_id AS customer_tax_id,
+				NULL AS currency,
+				NULL AS grand_total,
+				NULL AS outstanding_amount,
+				doc.voucher_number AS bill_no,
+				doc.bill_control,
+				doc.docstatus,
+				NULL AS raw_doc_status,
+				IF(doc.digital_invoice_status = 'Voided', 1, 0) AS is_void,
+				NULL AS remarks,
+				CASE doc.digital_invoice_status
+					WHEN 'Sent' THEN 'Emitida'
+					WHEN 'Error' THEN 'Error'
+					WHEN 'Pending' THEN 'Pendiente'
+					WHEN 'Voided' THEN 'Anulada'
+					ELSE NULL
+				END AS hka_status,
+				log.status AS log_status,
+				log.notes AS log_notes,
+				log.creation AS log_creation,
+				NULL AS dispatch_kind
+			FROM `tab{doctype}` doc
+			LEFT JOIN `tabSupplier` ts ON ts.name = doc.supplier
+			{_last_log_join(doctype)}
+			WHERE (doc.docstatus = 1 OR doc.digital_invoice_status = 'Voided')
+				AND IFNULL(doc.digital_invoice_status, '') != 'Not Applicable'
+				AND {_conditions(filters, "empresa", date_field)}
+		""")
+	return parts
+
+
+def _dispatch_queries(allowed_doctypes, filters, values) -> list[str]:
+	"""Documento 04: Orden de Entrega y Guía de Despacho.
+
+	Solo los que entraron al flujo del 04 (`hka_status` con valor): el resto de las notas
+	de entrega y traslados de inventario no son documentos fiscales. Sin las columnas del
+	04 (sitio sin migrar) la parte se omite.
+	"""
+	parts: list[str] = []
+	if "Delivery Note" in allowed_doctypes and frappe.db.has_column("Delivery Note", "hka_status"):
+		parts.append(f"""
+			SELECT
+				'Delivery Note' AS doctype,
+				'Delivery Note' AS document_type,
+				doc.name,
+				doc.posting_date,
+				doc.customer,
+				doc.customer_name,
+				tc.tax_id AS customer_tax_id,
+				doc.currency,
+				doc.grand_total,
+				NULL AS outstanding_amount,
+				doc.bill_no,
+				doc.bill_control,
+				doc.docstatus,
+				doc.status AS raw_doc_status,
+				IF(doc.hka_status = 'Anulada', 1, 0) AS is_void,
+				NULL AS remarks,
+				doc.hka_status,
+				log.status AS log_status,
+				log.notes AS log_notes,
+				log.creation AS log_creation,
+				doc.ve_dispatch_document_kind AS dispatch_kind
+			FROM `tabDelivery Note` doc
+			LEFT JOIN `tabCustomer` tc ON tc.name = doc.customer
+			{_last_log_join("Delivery Note")}
+			WHERE (doc.docstatus = 1 OR doc.hka_status = 'Anulada')
+				AND IFNULL(doc.hka_status, '') != ''
+				AND {_conditions(filters, "company", "posting_date")}
+		""")
+	if "Stock Entry" in allowed_doctypes and frappe.db.has_column("Stock Entry", "hka_status"):
+		parts.append(f"""
+			SELECT
+				'Stock Entry' AS doctype,
+				'Stock Entry' AS document_type,
+				doc.name,
+				doc.posting_date,
+				NULL AS customer,
+				doc.to_warehouse AS customer_name,
+				NULL AS customer_tax_id,
+				NULL AS currency,
+				doc.total_outgoing_value AS grand_total,
+				NULL AS outstanding_amount,
+				doc.bill_no,
+				doc.bill_control,
+				doc.docstatus,
+				NULL AS raw_doc_status,
+				IF(doc.hka_status = 'Anulada', 1, 0) AS is_void,
+				NULL AS remarks,
+				doc.hka_status,
+				log.status AS log_status,
+				log.notes AS log_notes,
+				log.creation AS log_creation,
+				doc.ve_dispatch_document_kind AS dispatch_kind
+			FROM `tabStock Entry` doc
+			{_last_log_join("Stock Entry")}
+			WHERE (doc.docstatus = 1 OR doc.hka_status = 'Anulada')
+				AND IFNULL(doc.hka_status, '') != ''
+				AND {_conditions(filters, "company", "posting_date")}
+		""")
+	return parts
 

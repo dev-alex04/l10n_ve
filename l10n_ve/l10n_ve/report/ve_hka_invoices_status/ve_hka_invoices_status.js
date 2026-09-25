@@ -29,7 +29,7 @@ frappe.query_reports["VE HKA Invoices Status"] = {
 			"fieldname": "document_type",
 			"label": __("Tipo de Documento"),
 			"fieldtype": "Select",
-			"options": "Todos\nFactura de Venta\nNota de Crédito\nNota de Débito",
+			"options": "Todos\nFactura de Venta\nNota de Crédito\nNota de Débito\nRetención de IVA\nRetención de ISLR\nDocumento de Despacho (04)",
 			"default": "Todos",
 			"reqd": 0
 		},
