@@ -171,17 +171,6 @@ def hka_currency_code(currency: str) -> str:
     return _HKA_CURRENCY.get(currency or "", currency or "")
 
 
-def company_ciiu_code(company: str) -> Optional[str]:
-    """Código CIIU (actividad económica del SENIAT) que la empresa declara en cada ítem.
-
-    HKA lo trata como opcional: si la empresa no lo tiene cargado no se envía (`None`
-    desaparece en `clean_payload`). Nunca se completa con un código ajeno: declarar la
-    actividad de otra empresa es peor que no declarar ninguna.
-    """
-    code: str = (frappe.get_cached_value("Company", company, "ciiu_code") or "").strip()
-    return code or None
-
-
 #: Meses en mayúsculas, como los imprime la plantilla de HKA.
 MONTHS_ES: tuple[str, ...] = (
     "", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO",
@@ -221,6 +210,17 @@ def service_period_label(start: date, end: date) -> str:
     if start.year == end.year:
         return f"{MONTHS_ES[start.month]} - {MONTHS_ES[end.month]} {end.year}"
     return f"{MONTHS_ES[start.month]} {start.year} - {MONTHS_ES[end.month]} {end.year}"
+
+
+def company_ciiu_code(company: str) -> Optional[str]:
+    """Código CIIU (actividad económica del SENIAT) que la empresa declara en cada ítem.
+
+    HKA lo trata como opcional: si la empresa no lo tiene cargado no se envía (`None`
+    desaparece en `clean_payload`). Nunca se completa con un código ajeno: declarar la
+    actividad de otra empresa es peor que no declarar ninguna.
+    """
+    code: str = (frappe.get_cached_value("Company", company, "ciiu_code") or "").strip()
+    return code or None
 
 
 class TFHKAPayloadBuilder:
