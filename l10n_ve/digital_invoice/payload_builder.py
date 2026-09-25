@@ -161,6 +161,15 @@ def resolve_zone_from_address(customer_name: str, customer_address: Optional[str
 _CURRENCY_WORDS = {"BSD": "bolívares", "VES": "bolívares", "VEF": "bolívares",
                    "USD": "dólares", "EUR": "euros"}
 
+#: HKA no conoce los códigos de Frappe para el bolívar: con "VEF" rechaza el documento con
+#: [1000] y todos los totales en cascada. El código que sí tiene es "BSD".
+_HKA_CURRENCY: dict = {"VEF": "BSD", "VES": "BSD"}
+
+
+def hka_currency_code(currency: str) -> str:
+    """Código de moneda que HKA reconoce para `currency`."""
+    return _HKA_CURRENCY.get(currency or "", currency or "")
+
 
 #: Meses en mayúsculas, como los imprime la plantilla de HKA.
 MONTHS_ES: tuple[str, ...] = (
@@ -219,15 +228,15 @@ class TFHKAPayloadBuilder:
         self.series_doc = series_doc
         self.branch_code = branch_code
         self.tasa_fecha: Optional[str] = tasa_fecha
-        self.company_currency: str = frappe.get_cached_value(
-            "Company", doc.company, "default_currency"
-        ) or "VEF"
         # TFHKA solo acepta 'BSD' para el Bolívar venezolano. 'VEF' es el
         # código histórico que no existe en el catálogo de The Factory HKA.
-        _TFHKA_CURRENCY_MAP = {"VEF": "BSD", "VES": "BSD"}
-        self.company_currency = _TFHKA_CURRENCY_MAP.get(
-            self.company_currency, self.company_currency
-        )
+        company_currency = frappe.get_cached_value("Company", doc.company, "default_currency")
+        if not company_currency:
+            frappe.throw(
+                f"La empresa {doc.company} no tiene moneda predeterminada: sin ella no se puede "
+                "armar el documento fiscal."
+            )
+        self.company_currency: str = hka_currency_code(company_currency)
         self._ensure_billing_address()
 
     def _ensure_billing_address(self) -> None:
@@ -445,7 +454,7 @@ class TFHKAPayloadBuilder:
             "Serie": getattr(self.series_doc, "serie", "") or "",
             "Sucursal": self._resolve_branch_code(),
             "TipoDeVenta": "Interna",
-            "Moneda": self.doc.currency,
+            "Moneda": hka_currency_code(self.doc.currency),
             "TransaccionId": (
                 build_transaction_id("".join(filter(str.isalnum, self.doc.name)), self.doc)
                 if is_third_party else None
