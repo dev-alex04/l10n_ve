@@ -398,10 +398,25 @@ class TFHKAPayloadBuilder:
         """
         Consulta el log de facturación digital de la factura original
         para obtener la serie confirmada por TFHKA.
-        Lanza error si no se encuentra o si no existe log exitoso.
+        Lanza error si la factura original no tiene una respuesta de emisión de HKA.
+
+        «No se emitió» y «se emitió sin serie» dejan los dos la serie vacía, pero sólo el
+        segundo es legítimo (empresa sin series, `uses_series` desmarcado): se distinguen
+        porque en el segundo HKA respondió con su `resultado`.
         """
         ref = self.doc.return_against
         serie: str = ""
+        emitted: bool = False
+
+        def _resultado(raw) -> Optional[dict]:
+            try:
+                parsed = json.loads(raw) if raw else None
+            except Exception:
+                return None
+            if isinstance(parsed, dict) and isinstance(parsed.get("resultado"), dict):
+                return parsed["resultado"]
+            return None
+
         try:
             log_raw = frappe.db.get_value(
                 "VE Digital Invoice Log",
@@ -409,33 +424,22 @@ class TFHKAPayloadBuilder:
                 "response_received",
                 order_by="creation desc",
             )
-            if log_raw:
-                try:
-                    parsed = json.loads(log_raw)
-                    if isinstance(parsed, dict):
-                        resultado = parsed.get("resultado") or {}
-                        serie = resultado.get("serie") or ""
-                except Exception:
-                    pass
+            resultado = _resultado(log_raw)
 
             # Fallback: check if the Sales Invoice remarks contain the HKA response json
-            if not serie:
-                inv_remarks = frappe.db.get_value("Sales Invoice", ref, "remarks")
-                if inv_remarks:
-                    try:
-                        parsed = json.loads(inv_remarks)
-                        if isinstance(parsed, dict):
-                            resultado = parsed.get("resultado") or {}
-                            serie = resultado.get("serie") or ""
-                    except Exception:
-                        pass
+            if resultado is None:
+                resultado = _resultado(frappe.db.get_value("Sales Invoice", ref, "remarks"))
+
+            if resultado is not None:
+                emitted = True
+                serie = resultado.get("serie") or ""
         except Exception as e:
             frappe.throw(
                 f"Error al consultar el log de facturación digital "
                 f"para <b>{ref}</b>: {e}"
             )
 
-        if not serie:
+        if not emitted:
             frappe.throw(
                 f"No se puede determinar la <b>Serie</b> de la factura original "
                 f"<b>{ref}</b>. La factura debe haber sido emitida electrónicamente "

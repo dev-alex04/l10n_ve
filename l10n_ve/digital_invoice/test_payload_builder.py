@@ -600,6 +600,33 @@ class TestHkaSeriesFields(unittest.TestCase):
         self.assertEqual(id_doc.get("sucursal", ""), "")
 
 
+class TestSerieFacturaAfectada(unittest.TestCase):
+    """Serie de la factura original que declara una NC/ND."""
+
+    def _serie(self, log_response, remarks=None):
+        builder = TFHKAPayloadBuilder.__new__(TFHKAPayloadBuilder)
+        builder.doc = MockDoc(return_against="ACC-SINV-0001")
+
+        def get_value(doctype, _filters, field, **_kwargs):
+            return log_response if doctype == "VE Digital Invoice Log" else remarks
+
+        with patch(f"{_PB}.frappe.db.get_value", side_effect=get_value):
+            return builder._get_serie_factura_afectada()
+
+    def test_emitted_with_series(self):
+        resp = '{"codigo": "200", "resultado": {"serie": "MAR-05", "numeroControl": "00-1"}}'
+        self.assertEqual(self._serie(resp), "MAR-05")
+
+    def test_emitted_without_series_is_legitimate(self):
+        """Empresa sin series: HKA confirmó la emisión con serie vacía."""
+        resp = '{"codigo": "200", "resultado": {"serie": "", "numeroControl": "00-00000002"}}'
+        self.assertEqual(self._serie(resp), "")
+
+    def test_not_emitted_fails_closed(self):
+        with self.assertRaises(frappe.ValidationError):
+            self._serie(None, remarks="nota libre del usuario")
+
+
 class TestBuildTransactionId(unittest.TestCase):
     """build_transaction_id: TransaccionId único para HKA aunque el name se recicle.
 
