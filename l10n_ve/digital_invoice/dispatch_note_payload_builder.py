@@ -379,9 +379,9 @@ class DeliveryNotePayloadBuilder(DispatchNodesMixin, TFHKAPayloadBuilder):
         return
 
     def _resolve_tfhka_code(self, item_code: str) -> str:
-        """El código PLU es opcional y admite hasta 20 caracteres. En la factura sale del
-        plan de suscripción porque vende un servicio; lo que se entrega es un artículo, y
-        su código es el propio."""
+        """El código PLU es opcional y admite hasta 20 caracteres. Lo que se entrega es un
+        artículo y su código es el propio: se fija acá para que el reemplazo del ISP (el
+        código del plan de suscripción, que vende un servicio) no alcance a la entrega."""
         return (item_code or "")[:20]
 
     def _build_info_adicional(self) -> list:

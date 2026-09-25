@@ -861,19 +861,14 @@ class TFHKAPayloadBuilder:
         }
 
     def _resolve_tfhka_code(self, item_code: str) -> str:
-        """Busca el codigo TFHKA del Subscription Plan asociado al item.
+        """Código PLU del ítem: el código del producto o servicio.
 
-        Lanza frappe.throw si no existe el código asignado.
+        HKA lo trata como opcional, hasta 20 caracteres (Referencia Técnica API, mayo
+        2026). No es un monto fiscal ni un catálogo de HKA, así que el código del artículo
+        basta. domina_isp lo reemplaza por el código del plan de suscripción, que es un
+        campo suyo.
         """
-        code: Optional[str] = frappe.get_cached_value(
-            "Subscription Plan", {"item": item_code}, "code"
-        )
-        if not code:
-            frappe.throw(
-                f"El artículo '{item_code}' no tiene un código TFHKA asignado en su Plan de Suscripción. "
-                "Asigne el código antes de enviar la factura a la imprenta digital."
-            )
-        return code[:20]
+        return (item_code or "")[:20]
 
     def _build_items(self) -> list:
         def fmt(val): return "{:.2f}".format(flt(val))
