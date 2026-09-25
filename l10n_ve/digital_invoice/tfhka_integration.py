@@ -748,6 +748,12 @@ def _handle_hka_response(
                 control, update_modified=True
             )
 
+        # Los números que devolvió HKA ya son un hecho fiscal: se confirman antes de seguir. Si
+        # después falla el asiento o el log, el rollback no debe deshacerlos (mismo hueco que
+        # el del 04 en dispatch_note_integration).
+        if not frappe.flags.in_test:
+            frappe.db.commit()  # nosemgrep
+
         # Auditoría: si HKA confirmó un número distinto al asignado localmente, el documento
         # se queda con el suyo y el asiento se sincroniza con ese, así que la divergencia
         # tiene que verse. Un warning en el log de la aplicación no lo mira nadie: va al
