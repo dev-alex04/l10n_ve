@@ -449,17 +449,12 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
         self.assertEqual(zone, "Libertador")
         m_fallback.assert_called_once()
 
-    def test_empty_zone_without_municipality_raises(self):
-        """Sin territory ni municipio, la validación lanza el throw de Zona (genera el log de error)."""
-        with self._COMMON_PATCHES["get_cached_value"]:
-            builder = TFHKAPayloadBuilder(
-                _make_base_doc(conversion_rate=0, subscription=None),
-                series_doc=_make_series_doc(),
-            )
-        builder.zona = None
-        builder.nodo = "NODO-01"
-        with self.assertRaisesRegex(frappe.ValidationError, "Zona"):
-            builder._build_info_adicional()
+    def test_generic_company_sends_no_info_adicional(self):
+        """InfoAdicional es de la plantilla de cada cliente: l10n_ve no manda ninguna.
+
+        La de Galanet (y su corte por zona vacía) la arma domina_isp."""
+        builder = TFHKAPayloadBuilder.__new__(TFHKAPayloadBuilder)
+        self.assertIsNone(TFHKAPayloadBuilder.__dict__["_build_info_adicional"](builder))
 
     # ── Parse Tax ID (estáticos, sin patches) ─────────────────────
 
