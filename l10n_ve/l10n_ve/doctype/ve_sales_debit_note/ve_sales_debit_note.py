@@ -536,6 +536,28 @@ class VESalesDebitNote(TaxesMixin, SalesInvoice):
 
         return gl_entries
 
+    def make_precision_loss_gl_entry(self, gl_entries: list) -> None:
+        """Misma regla que VESalesInvoice.make_precision_loss_gl_entry.
+
+        Con el método «Desde el total de la factura», en una nota en divisa el ancla separa
+        a propósito base_net_total de net_total × tasa, y el asiento de «pérdida de
+        precisión» que ERPNext agrega por esa brecha descuadra la nota: una ND de 1,75 USD
+        quedaba con Bs 1,07 de diferencia y no se podía aprobar («Debit and Credit not
+        equal»). Con el ancla, la diferencia ya está absorbida en base_grand_total.
+        """
+        from l10n_ve.controllers.taxes_and_totals import TAX_FROM_TOTAL
+
+        company_currency = frappe.get_cached_value("Company", self.company, "default_currency")
+        if company_currency and self.currency != company_currency:
+            method = frappe.get_cached_value(
+                "Venezuela Account Settings", "Venezuela Account Settings",
+                "tax_calculation_method",
+            ) or ""
+            if method == TAX_FROM_TOTAL:
+                return
+
+        super().make_precision_loss_gl_entry(gl_entries)
+
     def make_customer_gl_entry(self, gl_entries: list) -> None:
         """
         Delega a VESalesInvoice para incluir total_withholding en el AR.
