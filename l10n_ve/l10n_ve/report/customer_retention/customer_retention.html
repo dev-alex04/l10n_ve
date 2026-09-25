@@ -2,7 +2,7 @@
     @media print {
         @page {
             size: letter landscape;
-            margin: 12mm 15mm 12mm 15mm;
+            margin: 10mm 12mm 10mm 12mm;
         }
         .report-container {
             padding: 0 !important;
@@ -15,15 +15,15 @@
     @media screen {
         body {
             background-color: #f1f5f9;
-            padding: 30px 15px;
+            padding: 20px 10px;
         }
         .report-container {
-            max-width: 10.5in;
+            max-width: 11in;
             margin: 0 auto 30px auto;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
             border-radius: 8px;
             border: 1px solid #e2e8f0;
-            padding: 40px !important;
+            padding: 30px !important;
             background-color: #fff;
         }
     }
@@ -31,11 +31,11 @@
     body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         color: #1e293b;
-        font-size: 8px;
+        font-size: 7.5px;
         background-color: #fff;
         margin: 0;
         padding: 0;
-        line-height: 1.4;
+        line-height: 1.35;
     }
     
     .report-header {
@@ -55,23 +55,23 @@
         border: 1px solid #e2e8f0;
         border-left: 4px solid #84cc16; /* Galanet Green */
         border-radius: 0 4px 4px 0;
-        padding: 10px 14px;
+        padding: 8px 12px;
         text-align: left;
-        margin: 15px 0 20px 0;
+        margin: 10px 0 15px 0;
     }
     
     .title-badge h1 {
         margin: 0;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: 1.2px;
+        letter-spacing: 1.1px;
         color: #0f172a;
     }
     
     .title-badge p {
-        margin: 4px 0 0 0;
-        font-size: 7.5px;
+        margin: 3px 0 0 0;
+        font-size: 7px;
         font-weight: 600;
         color: #64748b;
         text-transform: uppercase;
@@ -81,7 +81,7 @@
     .ledger-table {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 15px;
+        margin-top: 10px;
     }
     
     thead {
@@ -93,23 +93,23 @@
     }
     
     .ledger-table th {
-        font-size: 7.5px;
+        font-size: 6.5px;
         font-weight: 700;
         color: #1e293b;
         background-color: #f8fafc;
         border-top: 2px solid #1e293b;
         border-bottom: 2px solid #84cc16;
-        padding: 6px 4px;
+        padding: 5px 3px;
         text-align: left;
         text-transform: uppercase;
-        letter-spacing: 0.3px;
+        letter-spacing: 0.2px;
     }
     
     .ledger-table td {
-        padding: 6px 4px;
+        padding: 4px 3px;
         vertical-align: middle;
         border-bottom: 1px solid #f1f5f9 !important;
-        line-height: 1.35;
+        line-height: 1.3;
         color: #334155;
     }
     
@@ -136,8 +136,8 @@
         border-top: 1.5px solid #84cc16;
         border-bottom: 1.5px solid #cbd5e1;
         color: #0f172a;
-        padding: 7px 4px;
-        font-size: 8px;
+        padding: 6px 3px;
+        font-size: 7.5px;
     }
     
     .negative-val {
@@ -176,38 +176,42 @@
     <table class="report-header" style="width: 100%; border-collapse: collapse; margin-bottom: 5px;">
         <tr>
             <td style="width: 45%; vertical-align: middle; border: none; padding: 0;">
-                <img src="{%= company_logo %}" style="max-height: 40px; display: block;" alt="Logo">
+                <img src="{%= company_logo %}" style="max-height: 35px; display: block;" alt="Logo">
             </td>
             <td style="width: 55%; text-align: right; vertical-align: middle; border: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #334155; line-height: 1.35;">
-                <div style="font-size: 11px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">{%= company_name %}</div>
-                <div style="font-size: 8px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: {%= company_rif %}</div>
-                <div style="font-size: 8px; color: #64748b; margin-top: 2px;">{%= new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %}</div>
+                <div style="font-size: 10px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">{%= company_name %}</div>
+                <div style="font-size: 7.5px; font-weight: 600; color: #475569; margin-top: 1px;">R.I.F.: {%= company_rif %}</div>
+                <div style="font-size: 7.5px; color: #64748b; margin-top: 1px;">{%= new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %}</div>
             </td>
         </tr>
     </table>
-    <div style="width: 100%; height: 3px; background: linear-gradient(90deg, #84cc16 0%, #1e293b 100%); margin-top: 5px; margin-bottom: 10px;"></div>
+    <div style="width: 100%; height: 2px; background: linear-gradient(90deg, #84cc16 0%, #1e293b 100%); margin-top: 4px; margin-bottom: 8px;"></div>
     
     <div class="title-badge">
-        <h1>Retenciones de IVA Recibidas (Clientes)</h1>
-        <p>Período: {%= (filters && filters.from_date) ? filters.from_date.split("-").reverse().join("/") : "" %} al {%= (filters && filters.to_date) ? filters.to_date.split("-").reverse().join("/") : "" %} &nbsp;|&nbsp; Expresado en Bolívares (VEF)</p>
+        <h1>Retenciones Recibidas de Clientes</h1>
+        <p>Período: {%= (filters && filters.from_date) ? filters.from_date.split("-").reverse().join("/") : "" %} al {%= (filters && filters.to_date) ? filters.to_date.split("-").reverse().join("/") : "" %}</p>
     </div>
 
     <table class="ledger-table">
         <thead>
             <tr>
-                <th class="text-center" style="width: 70px;">Fecha Doc.</th>
+                <th class="text-center" style="width: 55px;">Fecha Doc.</th>
                 <th>Sucursal</th>
-                <th style="width: 40px;">Tipo</th>
-                <th style="width: 80px;">Nro. Factura</th>
-                <th style="width: 80px;">Nro. Control</th>
+                <th style="width: 30px;">Tipo</th>
+                <th style="width: 65px;">Nro. Doc.</th>
+                <th style="width: 65px;">Nro. Control</th>
                 <th>Cliente</th>
-                <th style="width: 90px;">RIF/CI</th>
-                <th class="text-right" style="width: 100px;">Base Imponible</th>
-                <th class="text-right" style="width: 100px;">Monto Factura</th>
-                <th class="text-right" style="width: 100px;">Monto Retenido</th>
-                <th style="width: 110px;">Nro. Comprobante</th>
-                <th class="text-center" style="width: 70px;">Fecha Retención</th>
-                <th class="text-right" style="width: 50px;">% Ret.</th>
+                <th style="width: 75px;">RIF/CI</th>
+                <th class="text-right" style="width: 75px;">Base Imponible</th>
+                <th class="text-right" style="width: 75px;">Monto Factura</th>
+                <th style="width: 50px;">Tipo Ret.</th>
+                <th class="text-right" style="width: 80px;">Ret. (Bs.)</th>
+                <th class="text-right" style="width: 70px;">Ret. (USD)</th>
+                <th style="width: 85px;">Nro. Comprobante</th>
+                <th class="text-center" style="width: 55px;">Fecha Reg.</th>
+                <th class="text-center" style="width: 55px;">Fecha Comp.</th>
+                <th class="text-right" style="width: 50px;">Tasa BCV</th>
+                <th class="text-right" style="width: 40px;">% Ret.</th>
             </tr>
         </thead>
         <tbody>
@@ -215,6 +219,7 @@
                 var sum_base = 0.0;
                 var sum_grand = 0.0;
                 var sum_withholding = 0.0;
+                var sum_withholding_usd = 0.0;
 
                 for (var i=0, l=data.length; i<l; i++) {
                     var row = data[i]; 
@@ -222,6 +227,7 @@
                     sum_base += (row.base_total || 0.0);
                     sum_grand += (row.grand_total || 0.0);
                     sum_withholding += (row.withholding_amount || 0.0);
+                    sum_withholding_usd += (row.withholding_amount_usd || 0.0);
             %}
             <tr class="leaf-row">
                 <td class="text-center">{%= format_date(row.posting_date) %}</td>
@@ -233,9 +239,13 @@
                 <td>{%= row.tax_id || "" %}</td>
                 <td class="text-right">{%= format_val(row.base_total) %}</td>
                 <td class="text-right">{%= format_val(row.grand_total) %}</td>
+                <td class="text-center">{%= row.retention_type || "" %}</td>
                 <td class="text-right">{%= format_val(row.withholding_amount) %}</td>
+                <td class="text-right">{%= format_val(row.withholding_amount_usd) %}</td>
                 <td>{%= row.voucher_number || "" %}</td>
-                <td class="text-center">{%= format_date(row.withholding_date) %}</td>
+                <td class="text-center">{%= format_date(row.registration_date) %}</td>
+                <td class="text-center">{%= format_date(row.voucher_date) %}</td>
+                <td class="text-right">{%= row.bcv_rate ? flt(row.bcv_rate, 2) : "" %}</td>
                 <td class="text-right">{%= row.retention_percentage ? (row.retention_percentage + "%") : "" %}</td>
             </tr>
             {% } %}
@@ -243,8 +253,10 @@
                 <td colspan="7">TOTALES GENERALES</td>
                 <td class="text-right">{%= format_val(sum_base) %}</td>
                 <td class="text-right">{%= format_val(sum_grand) %}</td>
+                <td></td>
                 <td class="text-right">{%= format_val(sum_withholding) %}</td>
-                <td colspan="3"></td>
+                <td class="text-right">{%= format_val(sum_withholding_usd) %}</td>
+                <td colspan="5"></td>
             </tr>
         </tbody>
     </table>
