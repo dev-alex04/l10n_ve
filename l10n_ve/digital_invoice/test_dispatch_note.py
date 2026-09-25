@@ -567,6 +567,26 @@ class TestHandleResponse(unittest.TestCase):
         integration._handle_dispatch_response(_delivery_note(bill_no="5"), {}, self.ok_response(), _series("Internal"))
         self.assertNotIn("bill_no", self.set_value.call_args.args[2])
 
+    def test_200_sobrevive_a_un_log_que_falla(self):
+        """El log roto (esquema sin migrar) no deshace la emisión: los números ya se guardaron."""
+        integration._log_request.side_effect = frappe.ValidationError("Tipo de Documento cannot be")
+        with patch("frappe.log_error") as log_error:
+            self.assertTrue(
+                integration._handle_dispatch_response(_delivery_note(), {}, self.ok_response(), _series())
+            )
+        self.assertEqual(self.set_value.call_args.args[2]["bill_control"], "00-00066608")
+        log_error.assert_called_once()
+
+    def test_200_confirma_los_numeros_antes_del_log(self):
+        """Fuera de tests hay commit entre guardar los números y escribir el log."""
+        order: list[str] = []
+        self.set_value.side_effect = lambda *a, **k: order.append("set_value")
+        integration._log_request.side_effect = lambda *a, **k: order.append("log")
+        with patch("frappe.db.commit", side_effect=lambda: order.append("commit")), \
+             patch.dict(frappe.flags, {"in_test": False}):
+            integration._handle_dispatch_response(_delivery_note(), {}, self.ok_response(), _series())
+        self.assertEqual(order, ["set_value", "commit", "log"])
+
     def test_201_es_sospecha_de_duplicado(self):
         response = {"codigo": "201", "resultado": {"numeroDocumento": "9", "numeroControl": "00-1"}}
         self.assertFalse(integration._handle_dispatch_response(_delivery_note(), {}, response, _series()))

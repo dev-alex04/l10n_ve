@@ -13,9 +13,10 @@ sentido donde hay cron**:
 - Facturas de venta y comprobantes de retención: el cron los intenta cada 5 minutos,
   así que un documento enviable que sigue sin salir después de ``grace_minutes``
   perdió seis ciclos y eso es una señal. Los que fallaron se reportan siempre.
-- Notas de crédito y débito: **no tienen envío automático** (existió y se revirtió,
-  PR #494 → #495), así que no existe el estado "en vuelo": cualquiera sin emitir
-  espera a que alguien la mande a mano, sin importar la hora.
+- Notas de crédito y débito: no tienen el cron de 5 minutos sino un lote propio, los días
+  14 y último del mes a las 15:23 (`send_pending_notes_to_hka`). Una sin emitir espera ese
+  lote; solo pide acción a mano si el envío automático está apagado o si ya pasó el lote
+  del último día (después, ningún cron la toma).
 
 El reloj entra por parámetro (``reference_datetime``) y no se lee acá adentro: así
 los tests fijan la hora y el resultado es reproducible.
@@ -26,7 +27,7 @@ from __future__ import annotations
 import datetime
 
 import frappe
-from frappe.utils import get_first_day, getdate
+from frappe.utils import cint, get_first_day, get_last_day, getdate
 
 from l10n_ve.digital_invoice.tfhka_integration import _RANGE_EXHAUSTED_KEYWORDS
 
@@ -68,8 +69,18 @@ REASONS: dict[str, tuple[str, str]] = {
         "Enviable y sin salir",
         "El cron tuvo varias oportunidades y no lo envió. Revise el log del documento.",
     ),
+    "notes_batch_pending": (
+        "Espera el lote de notas",
+        "Sale sola en el lote del día 14 o del último día del mes, a las 15:23. No la "
+        "emita a mano: la nota se certificaría fuera del día previsto.",
+    ),
+    "notes_batch_missed": (
+        "Sin emitir: ya pasó el lote de notas del mes",
+        "Ningún lote la va a tomar. Emítala a mano desde el propio documento, con criterio "
+        "contable: HKA la fecha el día en que se envía.",
+    ),
     "manual_pending": (
-        "Sin emitir (no hay envío automático)",
+        "Sin emitir (el envío automático está apagado)",
         "Las notas se emiten a mano desde el propio documento.",
     ),
 }
@@ -191,7 +202,9 @@ def get_unsent_documents(
 
     rows: list[dict] = []
     rows.extend(_collect_sales_invoices(desde, hasta, deadline, cutoff_date))
-    rows.extend(_collect_sales_notes(desde, hasta, cutoff_date))
+    rows.extend(_collect_sales_notes(
+        desde, hasta, cutoff_date, reference_datetime, bool(cint(settings.get("enable_auto_send")))
+    ))
     rows.extend(_collect_vouchers(desde, hasta, deadline, cutoff_date))
     rows.extend(_collect_dispatch_notes(desde, hasta, deadline, cutoff_date))
 
@@ -200,7 +213,7 @@ def get_unsent_documents(
     return {
         "rows": rows,
         "period": {"from": desde, "to": hasta, "as_of": reference_datetime},
-        "auto_send_enabled": bool(settings.get("enable_auto_send")),
+        "auto_send_enabled": bool(cint(settings.get("enable_auto_send"))),
     }
 
 
@@ -252,8 +265,6 @@ def _collect_sales_invoices(desde, hasta, deadline, cutoff_date) -> list[dict]:
         # Sin intento previo: solo interesa si YA debía haber salido.
         if cutoff_date and getdate(d.date) < getdate(cutoff_date):
             continue
-        if d.status != "Paid":
-            continue  # esperando cobro: es el diseño emitir-al-pagar, no una falla
         if not d.branch:
             out.append(_row("Sales Invoice", d, "no_branch", ""))
             continue
@@ -269,9 +280,47 @@ def _collect_sales_invoices(desde, hasta, deadline, cutoff_date) -> list[dict]:
     return out
 
 
-def _collect_sales_notes(desde, hasta, cutoff_date) -> list[dict]:
-    """Notas de crédito y débito: sin cron, así que no hay plazo que esperar."""
+#: Hora del lote de notas (cron `23 15 14,L * *` en hooks.py).
+NOTES_BATCH_TIME = datetime.time(15, 23)
+
+
+def next_notes_batch(reference_datetime: datetime.datetime) -> datetime.datetime | None:
+    """Próxima corrida del lote de notas DEL MISMO MES, o None si ya pasó la del último día.
+
+    El lote solo toma notas de su propio mes (ver `send_pending_notes_to_hka`), así que
+    después de la corrida del último día una nota del mes ya no la toma ningún cron.
+    """
+    from l10n_ve.digital_invoice.tfhka_integration import _NOTES_SEND_DAYS
+
+    day = reference_datetime.date()
+    last_day = get_last_day(day)
+    run_days = sorted({*(day.replace(day=d) for d in _NOTES_SEND_DAYS if d <= last_day.day), last_day})
+    for run_day in run_days:
+        run_at = datetime.datetime.combine(run_day, NOTES_BATCH_TIME)
+        if run_at > reference_datetime:
+            return run_at
+    return None
+
+
+def _notes_pending_reason(reference_datetime, auto_send_enabled: bool) -> tuple[str, str]:
+    """Motivo de una NC/ND sin emitir y sin error: depende del lote de notas."""
+    if not auto_send_enabled:
+        return "manual_pending", ""
+    next_run = next_notes_batch(reference_datetime)
+    if next_run is None:
+        return "notes_batch_missed", ""
+    return "notes_batch_pending", f"Próximo lote: {next_run:%d-%m-%Y %H:%M}."
+
+
+def _collect_sales_notes(desde, hasta, cutoff_date, reference_datetime, auto_send_enabled) -> list[dict]:
+    """Notas de crédito y débito: van por su propio lote, los días 14 y último del mes.
+
+    No tienen el cron de 5 minutos, así que no hay «trabado» por tiempo: una nota sin
+    emitir espera el lote de su mes. Solo pide acción a mano si el envío automático está
+    apagado o si ya pasó el lote del último día.
+    """
     out: list[dict] = []
+    pending_code, pending_detail = _notes_pending_reason(reference_datetime, auto_send_enabled)
 
     for doctype in ("VE Sales Credit Note", "VE Sales Debit Note"):
         docs = frappe.db.sql(
@@ -301,7 +350,7 @@ def _collect_sales_notes(desde, hasta, cutoff_date) -> list[dict]:
                 code = _classify_log_notes(log.notes)
                 out.append(_row(doctype, d, code, _safe_detail(log.notes, code)))
             else:
-                out.append(_row(doctype, d, "manual_pending", ""))
+                out.append(_row(doctype, d, pending_code, pending_detail))
 
     return out
 

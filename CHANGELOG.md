@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.81.0] - 2026-09-24
+
+### ✨ Funcionalidades (Features)
+- Se implementó el soporte para retenciones de IVA e ISLR en notas de crédito y notas de débito de venta.
+
+### 🐛 Correcciones (Fixes)
+- Ajustes y resolución de observaciones técnicas en el módulo de retenciones vinculadas al PR #760.
+
+---
+
+## [v2.80.0] - 2026-09-23
+
+### ✨ Funcionalidades (Features)
+- Se ha actualizado el módulo de gastos para permitir que la sucursal sea opcional al realizar registros en empresas de sede única. 5694d3a5
+
+---
+
+## [v2.79.0] - 2026-09-23
+
+### ✨ Funcionalidades (Features)
+- Se actualizó el criterio de envío automático en la integración con HKA; ahora el sistema procesa todas las facturas en estado aprobado, eliminando la restricción previa que solo permitía el envío de facturas pagadas (274f61c8).
+
+### 🐛 Correcciones (Fixes)
+- Se corrigió un error de persistencia en el módulo de Libro Mayor, donde el filtro «Solo facturas con N° de control y factura» vuelve a su estado desmarcado correctamente (f113cbc6).
+
+---
+
+## [v2.78.0] - 2026-09-23
+
+### ✨ Funcionalidades (Features)
+- **Libro Mayor:** Se ha establecido como predeterminada la opción «Solo facturas con N° de control y factura» para optimizar la generación de reportes contables. [f502a099]
+
+---
+
 ## [v2.77.0] - 2026-09-23
 
 ### ✨ Funcionalidades (Features)

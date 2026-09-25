@@ -375,6 +375,13 @@ def _handle_dispatch_response(doc, payload: dict, response: dict, series_doc) ->
         if is_third_party and number:
             updates["bill_no"] = number
         frappe.db.set_value(doc.doctype, doc.name, updates, update_modified=False)
+        # Los números que devolvió HKA ya son un hecho fiscal: se confirman ANTES de escribir
+        # el log. Si el log fallaba (p. ej. entre el deploy y el migrate, cuando el Select de
+        # `VE Digital Invoice Log` todavía no tiene «Stock Entry»), la excepción revertía
+        # también estos números: el documento quedaba emitido en HKA y sin control en el
+        # ERP, y el reintento recibía el 201 de duplicado. Medido en HKA demo el 24-sep.
+        if not frappe.flags.in_test:
+            frappe.db.commit()  # nosemgrep
 
         notes: str = f"Documento 04 emitido. N° {number or doc.get('bill_no')}, control {control or '—'}."
         if not is_third_party and number and number != doc.get("bill_no"):
@@ -384,7 +391,14 @@ def _handle_dispatch_response(doc, payload: dict, response: dict, series_doc) ->
             )
         if not control:
             notes += " HKA no devolvió número de control."
-        _log_request("Emision", doc.name, payload, response, "Success", notes=notes, doctype=doc.doctype)
+        try:
+            _log_request("Emision", doc.name, payload, response, "Success", notes=notes, doctype=doc.doctype)
+        except Exception:
+            # La emisión ya quedó guardada; que falte el log no la deshace, pero se deja rastro.
+            frappe.log_error(
+                title=f"04 {doc.name} emitido (control {control or '—'}) pero sin log de HKA",
+                message=frappe.get_traceback(),
+            )
         return True
 
     if not response:

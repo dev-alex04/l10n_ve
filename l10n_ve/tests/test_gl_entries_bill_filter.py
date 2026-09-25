@@ -1,7 +1,11 @@
 # Copyright (c) 2026, DominaERP and Contributors
 # See license.txt
 
-"""Tests del filtro opt-in "Solo facturas con N° de control y factura" del Libro Mayor.
+"""Tests del filtro "Solo facturas con N° de control y factura" del Libro Mayor.
+
+En la pantalla viene desmarcado: es la vista fiscal y se marca a mano. El servidor, si la
+petición no lo trae, devuelve todo (así lo llaman otros reportes, exportaciones y los botones
+«Libro mayor» de la factura y del cliente).
 
 Suite 100% unittest + mocks (sin BD ni FrappeTestCase): `frappe.db` se sustituye por
 un MagicMock durante cada caso, así que la suite corre con
@@ -71,6 +75,22 @@ class TestGlEntriesBillFilter(unittest.TestCase):
         debit = sum(e["debit"] for e in entries)
         credit = sum(e["credit"] for e in entries)
         self.assertEqual(debit, credit, "el filtro dejó el Mayor descuadrado")
+
+    def test_report_screen_leaves_the_box_unchecked_by_default(self):
+        """Marcada por defecto oculta la factura ENTERA en todo lo que abre el mayor sin mandar
+        la casilla: el botón «Libro mayor» de una factura sin emitir abría el reporte vacío y el
+        del cliente la sacaba de su estado de cuenta (medido el 23-sep-2026 sobre
+        ACC-SINV-2026-22532: 3 filas → 0, y 4 → 3). Va desmarcada; la vista fiscal se pide."""
+        import pathlib
+        import re
+
+        js = (pathlib.Path(gl_patch.__file__).parents[2] / "public" / "js" / "report"
+              / "general_ledger.js").read_text(encoding="utf-8")
+        bloque = re.search(
+            r'fieldname:\s*"only_invoices_with_bill_no_control".*?\}', js, re.DOTALL
+        )
+        self.assertIsNotNone(bloque, "la casilla no está definida en general_ledger.js")
+        self.assertRegex(bloque.group(0), r"default:\s*0\b")
 
     def test_filter_off_returns_all_entries_by_default(self):
         """Con la casilla apagada (default 0) no se descarta ningún asiento."""

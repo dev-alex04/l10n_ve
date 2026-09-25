@@ -761,3 +761,485 @@ def void_credit_note(
         "message": _("Nota de Crédito anulada correctamente en HKA y en el sistema."),
     }
 
+
+@frappe.whitelist()
+def upload_credit_note_voucher_data(
+    docname: str,
+    withholding_type: str,
+    voucher_number: str | None = None,
+    withholding_date: str | None = None,
+    file_url: str | None = None,
+    registration_date: str | None = None,
+) -> dict:
+    """Actualiza los metadatos del comprobante de retención en una Nota de Crédito."""
+    if not docname:
+        frappe.throw(_("Debe especificar la Nota de Crédito."))
+
+    credit_note = frappe.get_doc("VE Sales Credit Note", docname)
+    frappe.has_permission("VE Sales Credit Note", ptype="write", doc=credit_note, throw=True)
+
+    if not withholding_date or not file_url:
+        frappe.throw(_("Faltan datos obligatorios (Fecha y Archivo de Comprobante)."))
+
+    from l10n_ve.utils.utils import validate_portal_upload, delete_old_attachment
+
+    validate_portal_upload(file_url, 5)
+
+    is_vat = withholding_type == "VAT"
+    if is_vat and voucher_number:
+        import re
+        if not re.match(r"^\d{14}$", voucher_number):
+            frappe.throw(_("El Número de Comprobante de IVA debe tener exactamente 14 caracteres numéricos."))
+
+    field_file = "voucher_image" if is_vat else "voucher_image_islr"
+    delete_old_attachment(credit_note, field_file, file_url)
+
+    file_doc_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+    if file_doc_name:
+        frappe.db.set_value("File", file_doc_name, {
+            "attached_to_doctype": "VE Sales Credit Note",
+            "attached_to_name": docname
+        })
+
+    reg_date = registration_date or withholding_date or frappe.utils.nowdate()
+    update_dict = {}
+    if is_vat:
+        update_dict = {
+            "vat_withholding_voucher_number": voucher_number,
+            "withholding_date": withholding_date,
+            "vat_registration_date": reg_date,
+            "voucher_image": file_url,
+        }
+    else:
+        update_dict = {
+            "islr_receipt_number": voucher_number,
+            "islr_date": withholding_date,
+            "islr_registration_date": reg_date,
+            "voucher_image_islr": file_url,
+        }
+
+    frappe.db.set_value("VE Sales Credit Note", docname, update_dict, update_modified=True)
+
+    label = "IVA" if is_vat else "ISLR"
+    comment = frappe.get_doc({
+        "doctype": "Comment",
+        "comment_type": "Comment",
+        "reference_doctype": "VE Sales Credit Note",
+        "reference_name": docname,
+        "content": f"Comprobante de Retención de {label} cargado. Número: {voucher_number or 'S/N'}. Fecha: {withholding_date}",
+        "comment_email": frappe.session.user
+    })
+    comment.flags.ignore_permissions = True
+    comment.insert(ignore_permissions=True)
+
+    return {
+        "status": "success",
+        "msg": _("Comprobante de {0} cargado exitosamente.").format(label),
+    }
+
+
+@frappe.whitelist()
+def apply_credit_note_withholding(
+    credit_note_name: str,
+    withholding_type: str,
+    tax_account: str,
+    voucher_number: str | None = None,
+    withholding_date: str | None = None,
+    file_url: str | None = None,
+    rate: float = 0.0,
+    registration_date: str | None = None,
+) -> dict:
+    """Aplica la retención de IVA o ISLR a una Nota de Crédito aprobada (docstatus=1),
+    inyecta la fila en Sales Taxes and Charges y genera el Asiento Contable compensatorio.
+    """
+    if not credit_note_name:
+        frappe.throw(_("Debe especificar la Nota de Crédito."))
+
+    credit_note = frappe.get_doc("VE Sales Credit Note", credit_note_name)
+    frappe.has_permission("VE Sales Credit Note", ptype="write", doc=credit_note, throw=True)
+
+    if credit_note.docstatus != 1:
+        frappe.throw(_("Solo se puede aplicar retención retroactiva a Notas de Crédito aprobadas."))
+
+    if not credit_note.return_against:
+        frappe.throw(_("La Nota de Crédito {0} no tiene una Factura Afectada vinculada.").format(credit_note.name))
+
+    if not frappe.db.exists("Sales Invoice", credit_note.return_against):
+        frappe.throw(_("La factura afectada {0} no existe.").format(credit_note.return_against))
+
+    if not tax_account:
+        frappe.throw(_("Debe seleccionar una Cuenta de Retención."))
+
+    is_vat = withholding_type == "VAT"
+    charge_type = "VAT Withholding" if is_vat else "ISLR"
+    label = "IVA" if is_vat else "ISLR"
+
+    duplicate = any(t.charge_type == charge_type for t in (credit_note.taxes or []))
+    if duplicate:
+        frappe.throw(_("La Nota de Crédito {0} ya tiene una retención de tipo {1}.").format(
+            credit_note.name, charge_type
+        ))
+
+    if is_vat and voucher_number:
+        import re
+        if not re.match(r"^\d{14}$", voucher_number):
+            frappe.throw(_("El Número de Comprobante de IVA debe tener exactamente 14 caracteres numéricos."))
+
+    if file_url:
+        from l10n_ve.utils.utils import validate_portal_upload
+        validate_portal_upload(file_url, 5)
+
+    company_currency = frappe.get_cached_value("Company", credit_note.company, "default_currency")
+    credit_note_currency = credit_note.currency or company_currency
+    conversion_rate = flt(credit_note.conversion_rate) or flt(credit_note.plc_conversion_rate)
+    if not company_currency or not conversion_rate:
+        frappe.throw(
+            _("No se puede calcular la retención: falta la moneda de la empresa {0} o la tasa de cambio de la Nota de Crédito {1}.").format(
+                credit_note.company, credit_note.name
+            )
+        )
+
+    if is_vat:
+        vat_base_bs = sum(flt(t.base_tax_amount) for t in (credit_note.taxes or []) if t.charge_type == "VAT")
+        if not vat_base_bs:
+            vat_base_bs = sum(flt(t.tax_amount) for t in (credit_note.taxes or []) if t.charge_type == "VAT") * conversion_rate
+
+        if vat_base_bs <= 0:
+            frappe.throw(_("La Nota de Crédito no tiene impuestos de IVA calculados."))
+
+        withholding_rate = flt(rate)
+        if not withholding_rate:
+            from l10n_ve.overrides.sales_invoice import get_vat_category_rate
+            cat_name = frappe.db.get_value("Customer", credit_note.customer, "tax_withholding_category")
+            withholding_rate = get_vat_category_rate(cat_name, credit_note.company)
+
+        base_amount_bs = flt(vat_base_bs * (withholding_rate / 100.0), 2)
+    else:
+        net_total_bs = flt(credit_note.base_net_total)
+        withholding_rate = flt(rate)
+        if not withholding_rate:
+            customer_data = frappe.db.get_value(
+                "Customer",
+                credit_note.customer,
+                ["type_of_person", "tabulator_islr"],
+                as_dict=True
+            )
+            if customer_data and customer_data.tabulator_islr:
+                tab_doc = frappe.get_doc("Tabulator ISLR", customer_data.tabulator_islr)
+                target_row = next(
+                    (r for r in (tab_doc.aliquot or []) if r.types_of_person == customer_data.type_of_person),
+                    None
+                )
+                if not target_row and tab_doc.aliquot:
+                    target_row = tab_doc.aliquot[0]
+                if target_row:
+                    withholding_rate = flt(target_row.aliquot)
+
+        if not withholding_rate:
+            frappe.throw(_("No se pudo determinar la alícuota de ISLR para el cliente."))
+
+        base_amount_bs = flt(net_total_bs * (withholding_rate / 100.0), 2)
+
+    if credit_note_currency != company_currency:
+        amount_curr = flt(base_amount_bs / conversion_rate, 2)
+    else:
+        amount_curr = base_amount_bs
+
+    tax_account_currency = frappe.db.get_value("Account", tax_account, "account_currency") or company_currency
+    receivable_account = credit_note.debit_to
+    receivable_account_currency = frappe.db.get_value("Account", receivable_account, "account_currency") or company_currency
+
+    posting_date = withholding_date or frappe.utils.today()
+
+    je = frappe.new_doc("Journal Entry")
+    je.company = credit_note.company
+    je.posting_date = posting_date
+    je.user_remark = (
+        f"Ajuste por Retención de {label} (NC {credit_note.name}, "
+        f"Comprobante: {voucher_number or 'S/N'}) contra factura {credit_note.return_against}."
+    )
+    je.multi_currency = 1 if (
+        credit_note_currency != company_currency or
+        tax_account_currency != company_currency or
+        receivable_account_currency != company_currency
+    ) else 0
+
+    rec_exchange_rate = conversion_rate if (receivable_account_currency != company_currency and receivable_account_currency == credit_note_currency) else 1.0
+    rec_row = {
+        "account": receivable_account,
+        "party_type": "Customer",
+        "party": credit_note.customer,
+        "reference_type": "Sales Invoice",
+        "reference_name": credit_note.return_against,
+        "cost_center": credit_note.cost_center,
+        "debit": base_amount_bs,
+        "debit_in_account_currency": amount_curr if receivable_account_currency == credit_note_currency else base_amount_bs,
+        "exchange_rate": rec_exchange_rate,
+    }
+    je.append("accounts", rec_row)
+
+    tax_exchange_rate = conversion_rate if (tax_account_currency != company_currency and tax_account_currency == credit_note_currency) else 1.0
+    tax_row_je = {
+        "account": tax_account,
+        "cost_center": credit_note.cost_center,
+        "credit": base_amount_bs,
+        "credit_in_account_currency": amount_curr if tax_account_currency == credit_note_currency else base_amount_bs,
+        "exchange_rate": tax_exchange_rate,
+    }
+    je.append("accounts", tax_row_je)
+
+    je.flags.ignore_permissions = True
+    je.insert(ignore_permissions=True)
+    je.submit()
+
+    idx = len(credit_note.taxes or []) + 1
+    tax_row = frappe.new_doc("Sales Taxes and Charges")
+    tax_row.parent = credit_note.name
+    tax_row.parenttype = "VE Sales Credit Note"
+    tax_row.parentfield = "taxes"
+    tax_row.idx = idx
+    tax_row.charge_type = charge_type
+    tax_row.add_deduct_tax = "Deduct"
+    tax_row.category = "Total"
+    tax_row.account_head = tax_account
+    tax_row.description = f"Retención de {label} (Ajuste) - Asiento: {je.name}"
+    tax_row.rate = flt(withholding_rate)
+    tax_row.tax_amount = amount_curr
+    tax_row.base_tax_amount = base_amount_bs
+    tax_row.tax_amount_after_discount_amount = amount_curr
+    tax_row.base_tax_amount_after_discount_amount = base_amount_bs
+    tax_row.is_tax_withholding_account = 1
+    tax_row.dont_recompute_tax = 1
+    tax_row.cost_center = credit_note.cost_center
+    tax_row.db_insert()
+
+    reg_date = registration_date or withholding_date or frappe.utils.nowdate()
+    update_data = {
+        "total_withholding": flt(credit_note.total_withholding) + amount_curr,
+    }
+    if is_vat:
+        update_data.update({
+            "vat_withholding_voucher_number": voucher_number,
+            "withholding_date": withholding_date,
+            "vat_registration_date": reg_date,
+            "voucher_image": file_url,
+        })
+    else:
+        update_data.update({
+            "islr_receipt_number": voucher_number,
+            "islr_date": withholding_date,
+            "islr_registration_date": reg_date,
+            "voucher_image_islr": file_url,
+        })
+
+    frappe.db.set_value("VE Sales Credit Note", credit_note.name, update_data, update_modified=False)
+
+    if file_url:
+        file_doc_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+        if file_doc_name:
+            frappe.db.set_value("File", file_doc_name, {
+                "attached_to_doctype": "VE Sales Credit Note",
+                "attached_to_name": credit_note.name
+            })
+
+    comment = frappe.get_doc({
+        "doctype": "Comment",
+        "comment_type": "Comment",
+        "reference_doctype": "VE Sales Credit Note",
+        "reference_name": credit_note.name,
+        "content": f"Retención de {label} aplicada exitosamente. Comprobante: {voucher_number or 'S/N'}. Fecha: {withholding_date}. Asiento contable: {je.name}",
+        "comment_email": frappe.session.user
+    })
+    comment.flags.ignore_permissions = True
+    comment.insert(ignore_permissions=True)
+
+    return {
+        "status": "success",
+        "journal_entry": je.name,
+        "msg": _("Retención de {0} aplicada y Asiento {1} creado con éxito.").format(label, je.name)
+    }
+
+
+@frappe.whitelist()
+def remove_credit_note_withholding(
+    credit_note_name: str,
+    withholding_type: str,
+) -> dict[str, Any]:
+    """Quita una retención (IVA o ISLR) de una Nota de Crédito aprobada.
+
+    1. Si existen filas de impuestos aplicadas, crea el asiento contable de reverso:
+       - DÉBITO: Cuenta de Retención (se revierte el crédito fiscal)
+       - CRÉDITO: Cuenta por Cobrar del cliente referenciando la factura afectada (return_against)
+    2. Elimina la fila correspondiente de tabSales Taxes and Charges.
+    3. Limpia los metadatos del comprobante (número, fecha, archivo adjunto).
+    4. Recalcula el total de retención guardado en la Nota de Crédito.
+    """
+    user_roles: set[str] = set(frappe.get_roles())
+    allowed_roles: set[str] = {"Accounts Manager", "Accounts User", "System Manager"}
+    if not allowed_roles.intersection(user_roles):
+        frappe.throw(
+            _("No tiene los permisos suficientes para modificar retenciones sobre esta nota de crédito."),
+            frappe.PermissionError,
+        )
+
+    if withholding_type not in ("VAT", "ISLR"):
+        frappe.throw(_("Tipo de retención inválido: {0}. Use 'VAT' o 'ISLR'.").format(withholding_type))
+
+    credit_note: "VESalesCreditNote" = frappe.get_doc("VE Sales Credit Note", credit_note_name)
+    frappe.has_permission("VE Sales Credit Note", ptype="write", doc=credit_note, throw=True)
+    if credit_note.docstatus != 1:
+        frappe.throw(_("Solo se pueden retirar retenciones de notas de crédito validadas."))
+
+    is_vat: bool = withholding_type == "VAT"
+    charge_type: str = "VAT Withholding" if is_vat else "ISLR"
+    label: str = "IVA" if is_vat else "ISLR"
+
+    tax_rows: list[Any] = [
+        row for row in (credit_note.taxes or [])
+        if row.charge_type == charge_type and flt(row.base_tax_amount)
+    ]
+
+    voucher_field: str = "vat_withholding_voucher_number" if is_vat else "islr_receipt_number"
+    has_voucher: bool = bool(credit_note.get(voucher_field))
+
+    if not tax_rows and not has_voucher:
+        frappe.throw(
+            _("La Nota de Crédito {0} no tiene retención ni comprobante de {1} que quitar.").format(
+                credit_note.name, label
+            )
+        )
+
+    company_currency: str = frappe.get_cached_value("Company", credit_note.company, "default_currency")
+    credit_note_currency: str = credit_note.currency or company_currency
+    conversion_rate: float = flt(credit_note.conversion_rate)
+    if not company_currency or not conversion_rate:
+        frappe.throw(
+            _("No se puede revertir la retención: falta la moneda de la empresa {0} o la tasa de cambio de la Nota de Crédito {1}.").format(
+                credit_note.company, credit_note.name
+            )
+        )
+
+    reversal_entries: list[str] = []
+
+    for row in tax_rows:
+        base_tax_amount: float = flt(row.base_tax_amount)
+        amount_curr: float = flt(row.tax_amount) or base_tax_amount
+
+        tax_account_currency: str = (
+            frappe.db.get_value("Account", row.account_head, "account_currency") or company_currency
+        )
+        receivable_account: str = credit_note.debit_to
+        receivable_account_currency: str = (
+            frappe.db.get_value("Account", receivable_account, "account_currency") or company_currency
+        )
+
+        reversal_je = frappe.new_doc("Journal Entry")
+        reversal_je.company = credit_note.company
+        reversal_je.posting_date = frappe.utils.today()
+        reversal_je.user_remark = (
+            f"Reverso de Retención de {label} (NC {credit_note.name}) "
+            f"contra factura {credit_note.return_against or 'N/A'}."
+        )
+        reversal_je.multi_currency = 1 if (
+            credit_note_currency != company_currency
+            or tax_account_currency != company_currency
+            or receivable_account_currency != company_currency
+        ) else 0
+
+        # Fila 1: Cuenta de Retención (DÉBITO) -> Revierte el crédito fiscal
+        tax_exchange_rate = (
+            conversion_rate
+            if (tax_account_currency != company_currency and tax_account_currency == credit_note_currency)
+            else 1.0
+        )
+        reversal_je.append("accounts", {
+            "account": row.account_head,
+            "cost_center": credit_note.cost_center,
+            "debit": base_tax_amount,
+            "debit_in_account_currency": amount_curr if tax_account_currency == credit_note_currency else base_tax_amount,
+            "exchange_rate": tax_exchange_rate,
+        })
+
+        # Fila 2: Cuenta por Cobrar (CRÉDITO) -> Disminuye el saldo de la factura afectada
+        rec_exchange_rate = (
+            conversion_rate
+            if (receivable_account_currency != company_currency and receivable_account_currency == credit_note_currency)
+            else 1.0
+        )
+        reversal_je.append("accounts", {
+            "account": receivable_account,
+            "party_type": "Customer",
+            "party": credit_note.customer,
+            "reference_type": "Sales Invoice" if credit_note.return_against else None,
+            "reference_name": credit_note.return_against if credit_note.return_against else None,
+            "cost_center": credit_note.cost_center,
+            "credit": base_tax_amount,
+            "credit_in_account_currency": amount_curr if receivable_account_currency == credit_note_currency else base_tax_amount,
+            "exchange_rate": rec_exchange_rate,
+        })
+
+        reversal_je.flags.ignore_permissions = True
+        reversal_je.insert(ignore_permissions=True)
+        reversal_je.submit()
+        reversal_entries.append(reversal_je.name)
+
+        frappe.db.delete("Sales Taxes and Charges", {"name": row.name})
+
+    update_fields: dict[str, Any] = {}
+    if is_vat:
+        update_fields.update({
+            "vat_withholding_voucher_number": None,
+            "withholding_date": None,
+            "vat_registration_date": None,
+            "voucher_image": None,
+        })
+    else:
+        update_fields.update({
+            "islr_receipt_number": None,
+            "islr_date": None,
+            "islr_registration_date": None,
+            "voucher_image_islr": None,
+        })
+
+    frappe.clear_document_cache("VE Sales Credit Note", credit_note.name)
+    updated_cn = frappe.get_doc("VE Sales Credit Note", credit_note.name)
+    new_total_withholding = sum(
+        flt(tax.tax_amount) for tax in (updated_cn.taxes or [])
+        if tax.is_tax_withholding_account
+    )
+    update_fields["total_withholding"] = new_total_withholding
+
+    frappe.db.set_value("VE Sales Credit Note", credit_note.name, update_fields, update_modified=False)
+    frappe.clear_document_cache("VE Sales Credit Note", credit_note.name)
+
+    comment_msg: str
+    if reversal_entries:
+        comment_msg = f"Retención de {label} retirada exitosamente. Asiento(s) de reverso: {', '.join(reversal_entries)}."
+    else:
+        comment_msg = f"Datos del comprobante de {label} eliminados exitosamente."
+
+    comment = frappe.get_doc({
+        "doctype": "Comment",
+        "comment_type": "Comment",
+        "reference_doctype": "VE Sales Credit Note",
+        "reference_name": credit_note.name,
+        "content": comment_msg,
+        "comment_email": frappe.session.user,
+    })
+    comment.flags.ignore_permissions = True
+    comment.insert(ignore_permissions=True)
+
+    success_msg = (
+        _("Retención de {0} retirada. Asiento(s) de reverso: {1}").format(label, ", ".join(reversal_entries))
+        if reversal_entries
+        else _("Datos del comprobante de {0} retirados con éxito.").format(label)
+    )
+
+    return {
+        "status": "success",
+        "journal_entries": reversal_entries,
+        "msg": success_msg,
+    }
+
+
+

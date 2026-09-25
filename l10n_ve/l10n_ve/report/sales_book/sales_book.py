@@ -546,7 +546,7 @@ def _get_cte() -> str:
                 NULL AS credit_note_no,
                 nd.bill_no AS debit_note_no,
                 COALESCE(si_orig.bill_no, nd.return_against) AS affected_invoice_number,
-                NULL AS vat_withholding_voucher_number, NULL AS withholding_date,
+                nd.vat_withholding_voucher_number, nd.withholding_date,
                 nd.is_void, 0 AS is_return, 1 AS is_debit_note, nd.docstatus,
                 (CASE WHEN nd.currency != %(company_currency)s THEN nd.conversion_rate ELSE 1 END) AS conversion_rate,
                 1 AS amount_sign,

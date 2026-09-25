@@ -346,3 +346,32 @@ class TestBuildPayloadFailClosed(FrappeTestCase):
         with self.assertRaises(frappe.ValidationError) as ctx:
             builder.build_payload()
         self.assertIn("serie vacía", str(ctx.exception))
+
+    def _build_with_series(self, series_doc) -> BaseRetentionPayloadBuilder:
+        doc = frappe._dict(
+            name="COMP-RET-IVA-TEST", empresa="Galanet Solution C.A.", branch="HQ"
+        )
+        with patch(_GET_SERIES, return_value=(series_doc, "01")):
+            builder = BaseRetentionPayloadBuilder(doc)
+        with patch.multiple(
+            BaseRetentionPayloadBuilder,
+            _build_identification=MagicMock(return_value={}),
+            _build_retained_subject=MagicMock(return_value={}),
+            _build_totals_placeholder=MagicMock(return_value={}),
+            _build_retention_totals=MagicMock(return_value={}),
+            _build_retention_details=MagicMock(return_value=[]),
+        ):
+            builder.build_payload()
+        return builder
+
+    def test_series_without_series_is_legitimate(self) -> None:
+        """Serie resuelta que no usa series: se emite con serie y sucursal vacías.
+
+        Es la otra causa de `_serie` vacío y la única legítima; se distingue porque la
+        serie SÍ se resolvió."""
+        builder = self._build_with_series(frappe._dict(serie="", uses_series=0))
+        self.assertEqual((builder._serie, builder._branch_code), ("", ""))
+
+    def test_series_that_uses_series_with_empty_serie_blocks(self) -> None:
+        with self.assertRaises(frappe.ValidationError):
+            self._build_with_series(frappe._dict(serie="", uses_series=1))

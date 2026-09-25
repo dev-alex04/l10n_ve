@@ -174,6 +174,17 @@
   "is_internal_customer",
   "is_discounted",
   "remarks",
+  "retenciones_ve_tab",
+  "section_iva_withholding",
+  "vat_withholding_voucher_number",
+  "withholding_date",
+  "vat_registration_date",
+  "voucher_image",
+  "section_islr_withholding",
+  "islr_receipt_number",
+  "islr_date",
+  "islr_registration_date",
+  "voucher_image_islr",
   "connections_tab",
   "amended_from"
  ],
@@ -1580,6 +1591,61 @@
    "oldfieldname": "remarks",
    "oldfieldtype": "Text",
    "print_hide": 1
+  },
+  {
+   "fieldname": "retenciones_ve_tab",
+   "fieldtype": "Tab Break",
+   "label": "Retenciones VE"
+  },
+  {
+   "fieldname": "section_iva_withholding",
+   "fieldtype": "Section Break",
+   "label": "Retención IVA"
+  },
+  {
+   "fieldname": "vat_withholding_voucher_number",
+   "fieldtype": "Data",
+   "label": "Nro. Comprobante Retención IVA"
+  },
+  {
+   "fieldname": "withholding_date",
+   "fieldtype": "Date",
+   "label": "Fecha de Retención"
+  },
+  {
+   "fieldname": "vat_registration_date",
+   "fieldtype": "Date",
+   "label": "Fecha de Comprobante"
+  },
+  {
+   "fieldname": "voucher_image",
+   "fieldtype": "Attach",
+   "label": "Comprobante de Retención IVA (Archivo)"
+  },
+  {
+   "fieldname": "section_islr_withholding",
+   "fieldtype": "Section Break",
+   "label": "Retención ISLR"
+  },
+  {
+   "fieldname": "islr_receipt_number",
+   "fieldtype": "Data",
+   "label": "Nro. Comprobante ISLR"
+  },
+  {
+   "fieldname": "islr_date",
+   "fieldtype": "Date",
+   "label": "Fecha ISLR"
+  },
+  {
+   "fieldname": "islr_registration_date",
+   "fieldtype": "Date",
+   "label": "Fecha de Comprobante ISLR"
+  },
+  {
+   "fieldname": "voucher_image_islr",
+   "fieldtype": "Attach",
+   "label": "Comprobante de ISLR (Archivo)"
   },
   {
    "fieldname": "connections_tab",

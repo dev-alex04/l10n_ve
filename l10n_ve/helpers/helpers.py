@@ -16,6 +16,8 @@ def set_ve_branch(doc: "Document", method: str) -> None:
         if not frappe.get_meta(doc.doctype).get_field("branch"):
             return
 
+        is_expense_doc = doc.doctype in ["Expense", "Expense Report", "Expenses Entry", "Expenses Request"]
+
         if not doc.branch and doc.doctype == "Payment Entry":
             for ref in (doc.get("references") or []):
                 if ref.reference_doctype == "Sales Invoice" and ref.reference_name:
@@ -25,23 +27,37 @@ def set_ve_branch(doc: "Document", method: str) -> None:
                         break
 
         if not doc.branch:
-            branches = frappe.get_all("VE Branch Users", filters={
-                "user": frappe.session.user,
-                "parenttype": "VE Branch"
-            }, fields=["parent"])
+            # 1. Intentar resolver por sucursal principal o sucursal de gastos de la compañía
+            if getattr(doc, "company", None):
+                main_branch = frappe.db.get_value("VE Branch", {"company": doc.company, "is_main": 1, "is_group": 0}, "name")
+                if not main_branch:
+                    main_branch = frappe.db.get_value("VE Branch", {"company": doc.company, "is_expenses_branch": 1, "is_group": 0}, "name")
+                if main_branch:
+                    doc.branch = main_branch
 
-            unique_branches = list(set([b.parent for b in branches if b.parent]))
+            # 2. Intentar por usuario si aún no tiene branch
+            if not doc.branch:
+                branches = frappe.get_all("VE Branch Users", filters={
+                    "user": frappe.session.user,
+                    "parenttype": "VE Branch"
+                }, fields=["parent"])
 
-            if len(unique_branches) == 1:
-                doc.branch = unique_branches[0]
+                unique_branches = list(set([b.parent for b in branches if b.parent]))
 
-            elif len(unique_branches) > 1:
-                branches_list = ", ".join([frappe.bold(frappe.utils.escape_html(b)) for b in unique_branches])
+                if len(unique_branches) == 1:
+                    doc.branch = unique_branches[0]
 
-                frappe.throw(
-                    frappe._("El usuario tiene múltiples sucursales asignadas: {0}. Por favor seleccione una.").format(branches_list),
-                    title=frappe._("Selección de Sucursal")
-                )
+                elif len(unique_branches) > 1:
+                    if is_expense_doc:
+                        # Para gastos en empresas pequeñas o sin sucursal fija, usar la primera o dejar opcional
+                        doc.branch = unique_branches[0]
+                    else:
+                        branches_list = ", ".join([frappe.bold(frappe.utils.escape_html(b)) for b in unique_branches])
+
+                        frappe.throw(
+                            frappe._("El usuario tiene múltiples sucursales asignadas: {0}. Por favor seleccione una.").format(branches_list),
+                            title=frappe._("Selección de Sucursal")
+                        )
 
         _set_cost_center_from_branch(doc)
 
@@ -56,18 +72,7 @@ def set_ve_branch(doc: "Document", method: str) -> None:
 
 
 def _payment_entry_invoice_cost_centers(doc: "Document") -> set:
-    """Centros de costo de las Sales Invoice que este cobro salda.
-
-    Una referencia sin factura localizable, o cuya factura no trae centro de
-    costo, mete ``None`` en el conjunto: no se completa a medias con las que sí
-    lo traen. Si el resultado tiene más de un valor -- incluido ``None`` -- el
-    llamador no puede preferir la factura y cae a la sucursal.
-
-    Espejo de ``domina_isp.overrides.payment_entry._resolve_cost_center``, que ya
-    aplica este mismo criterio en la conciliación (``on_update_after_submit``).
-    No se importa desde ahí a propósito: l10n_ve es la app base y domina_isp
-    depende de ella, no al revés.
-    """
+    """Centros de costo de las Sales Invoice que este cobro salda."""
     names = [
         ref.reference_name
         for ref in (doc.get("references") or [])
@@ -86,37 +91,7 @@ def _payment_entry_invoice_cost_centers(doc: "Document") -> set:
 
 
 def _set_cost_center_from_branch(doc: "Document") -> None:
-    """Establece el centro de costos del documento.
-
-    Para casi todos los doctypes sale de la sucursal (``doc.branch``), como
-    siempre. Payment Entry es la excepción: cuando salda facturas de venta,
-    prefiere el centro de costo de esas facturas -- pero SOLO si todas
-    coinciden en uno -- y recién si no hay acuerdo (o no hay facturas) cae a la
-    sucursal del cobro.
-
-    El orden importa y no es cosmético. Un cobro se puede cargar en una
-    sucursal y saldar una factura de otra -- medido en producción, 8 casos
-    limpios donde las facturas SÍ coinciden entre ellas mientras la sucursal
-    del cobro dice otra cosa -- y ahí derivar de la sucursal escribe un centro
-    de costo que ninguna factura tiene. La factura, en cambio, no falla nunca:
-    de las facturas emitidas con sucursal y centro de costo, ninguna trae uno
-    distinto al de su propia sucursal.
-
-    Es la misma regla que ``domina_isp.overrides.payment_entry._resolve_cost_center``
-    ya usa en la conciliación; acá se aplica también en la emisión, que es
-    donde faltaba (``set_ve_branch`` corre en el ``before_submit`` de Payment
-    Entry, antes que cualquier hook de domina_isp).
-
-    Cuando las facturas NO coinciden entre ellas, caer a la sucursal no es
-    mejor -- reparte un centro de costo entre varias facturas y ninguno es
-    correcto para todas -- pero es un valor definido y auditable, y vacío es
-    peor: un cobro sin centro de costo es invisible para el filtro de permisos
-    de sucursal (``branch IN (...)``, que ``NULL`` no casa contra ninguna
-    lista).
-
-    Aplica el cost_center a nivel de documento, a cada item de la tabla hija
-    `items`, `taxes`, `references` y `deductions`.
-    """
+    """Establece el centro de costos del documento."""
     if not frappe.get_meta(doc.doctype).get_field("cost_center"):
         return
 
@@ -131,6 +106,9 @@ def _set_cost_center_from_branch(doc: "Document") -> None:
         invoice_cost_centers = _payment_entry_invoice_cost_centers(doc)
         if len(invoice_cost_centers) == 1 and None not in invoice_cost_centers:
             cost_center = invoice_cost_centers.pop()
+
+    if not cost_center and getattr(doc, "company", None):
+        cost_center = frappe.get_cached_value("Company", doc.company, "cost_center")
 
     if not cost_center:
         return

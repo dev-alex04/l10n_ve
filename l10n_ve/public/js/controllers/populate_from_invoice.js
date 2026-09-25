@@ -11,6 +11,27 @@
  *   }
  */
 
+/**
+ * Enlace a la factura original de una nota, rotulado con su número de factura (bill_no).
+ *
+ * El ID interno (ACC-SINV-…, ACC-PINV-…) no le dice nada a quien lee el aviso: la factura
+ * se conoce por su número. El ID solo se muestra si la factura todavía no tiene número.
+ *
+ * @param {string} doctype - "Sales Invoice" o "Purchase Invoice"
+ * @param {string} name - ID de la factura original (return_against)
+ * @returns {Promise<string>} HTML del enlace
+ */
+function original_invoice_link(doctype, name) {
+  const route = `/app/${frappe.router.slug(doctype)}/${encodeURIComponent(name)}`;
+  return frappe.db.get_value(doctype, name, "bill_no").then((r) => {
+    const number = r && r.message && r.message.bill_no;
+    const label = number
+      ? __("N° {0}", [frappe.utils.escape_html(number)])
+      : frappe.utils.escape_html(name);
+    return `<a href="${route}">${label}</a>`;
+  });
+}
+
 function populate_from_sales_invoice(frm) {
   if (!frm.doc.return_against) return;
 

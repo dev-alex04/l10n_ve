@@ -8,7 +8,6 @@ from typing import Optional
 import frappe
 from frappe.utils import getdate, flt, cint, get_datetime
 from frappe.utils.data import money_in_words
-from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
 
 
 def build_transaction_id(base: str, doc) -> str:
@@ -161,6 +160,49 @@ def resolve_zone_from_address(customer_name: str, customer_address: Optional[str
 _CURRENCY_WORDS = {"BSD": "bolívares", "VES": "bolívares", "VEF": "bolívares",
                    "USD": "dólares", "EUR": "euros"}
 
+#: HKA no conoce los códigos de Frappe para el bolívar: con "VEF" rechaza el documento con
+#: [1000] y todos los totales en cascada. El código que sí tiene es "BSD".
+_HKA_CURRENCY: dict = {"VEF": "BSD", "VES": "BSD"}
+
+
+def hka_currency_code(currency: str) -> str:
+    """Código de moneda que HKA reconoce para `currency`."""
+    return _HKA_CURRENCY.get(currency or "", currency or "")
+
+
+def hka_series_fields(series_doc, branch_code: str) -> tuple:
+    """(Serie, Sucursal) que se declaran a HKA para un documento de `series_doc`.
+
+    Una empresa sin series (`uses_series` desmarcado) manda las dos vacías: HKA lo admite
+    para la numeración centralizada en un solo punto de facturación (Referencia Técnica
+    API, mayo 2026, p. 9). Con series, una serie vacía es configuración faltante y se
+    corta: HKA aceptaría el documento y la emisión no se puede deshacer.
+
+    Un `uses_series` sin valor (una serie leída antes del migrate) cuenta como que usa
+    serie, para que nunca se mande vacía por descuido.
+    """
+    if series_doc is None:
+        frappe.throw(
+            "El documento no resolvió su serie de facturación digital. No se envía a HKA: "
+            "la emisión es irreversible. Revise la serie de la sucursal.",
+            title="Serie Requerida",
+        )
+
+    uses_series = getattr(series_doc, "uses_series", None)
+    if uses_series is not None and not cint(uses_series):
+        return "", ""
+
+    serie: str = (getattr(series_doc, "serie", "") or "").strip()
+    if not serie:
+        frappe.throw(
+            "La serie de facturación no tiene el campo 'Serie' configurado. Es obligatorio "
+            "cuando la serie usa serie; si la empresa no trabaja con series, desmarque "
+            "«Usa serie».",
+            title="Serie Requerida",
+        )
+    # El código de sucursal lo exige la propia serie al guardarse (`_validate_branch_codes`).
+    return serie, str(branch_code or "").strip()[:6]
+
 
 #: Meses en mayúsculas, como los imprime la plantilla de HKA.
 MONTHS_ES: tuple[str, ...] = (
@@ -203,6 +245,17 @@ def service_period_label(start: date, end: date) -> str:
     return f"{MONTHS_ES[start.month]} {start.year} - {MONTHS_ES[end.month]} {end.year}"
 
 
+def company_ciiu_code(company: str) -> Optional[str]:
+    """Código CIIU (actividad económica del SENIAT) que la empresa declara en cada ítem.
+
+    HKA lo trata como opcional: si la empresa no lo tiene cargado no se envía (`None`
+    desaparece en `clean_payload`). Nunca se completa con un código ajeno: declarar la
+    actividad de otra empresa es peor que no declarar ninguna.
+    """
+    code: str = (frappe.get_cached_value("Company", company, "ciiu_code") or "").strip()
+    return code or None
+
+
 class TFHKAPayloadBuilder:
     def __init__(self, doc, series_doc=None, branch_code: str = "", tasa_fecha: Optional[str] = None) -> None:
         """
@@ -219,15 +272,15 @@ class TFHKAPayloadBuilder:
         self.series_doc = series_doc
         self.branch_code = branch_code
         self.tasa_fecha: Optional[str] = tasa_fecha
-        self.company_currency: str = frappe.get_cached_value(
-            "Company", doc.company, "default_currency"
-        ) or "VEF"
         # TFHKA solo acepta 'BSD' para el Bolívar venezolano. 'VEF' es el
         # código histórico que no existe en el catálogo de The Factory HKA.
-        _TFHKA_CURRENCY_MAP = {"VEF": "BSD", "VES": "BSD"}
-        self.company_currency = _TFHKA_CURRENCY_MAP.get(
-            self.company_currency, self.company_currency
-        )
+        company_currency = frappe.get_cached_value("Company", doc.company, "default_currency")
+        if not company_currency:
+            frappe.throw(
+                f"La empresa {doc.company} no tiene moneda predeterminada: sin ella no se puede "
+                "armar el documento fiscal."
+            )
+        self.company_currency: str = hka_currency_code(company_currency)
         self._ensure_billing_address()
 
     def _ensure_billing_address(self) -> None:
@@ -355,10 +408,25 @@ class TFHKAPayloadBuilder:
         """
         Consulta el log de facturación digital de la factura original
         para obtener la serie confirmada por TFHKA.
-        Lanza error si no se encuentra o si no existe log exitoso.
+        Lanza error si la factura original no tiene una respuesta de emisión de HKA.
+
+        «No se emitió» y «se emitió sin serie» dejan los dos la serie vacía, pero sólo el
+        segundo es legítimo (empresa sin series, `uses_series` desmarcado): se distinguen
+        porque en el segundo HKA respondió con su `resultado`.
         """
         ref = self.doc.return_against
         serie: str = ""
+        emitted: bool = False
+
+        def _resultado(raw) -> Optional[dict]:
+            try:
+                parsed = json.loads(raw) if raw else None
+            except Exception:
+                return None
+            if isinstance(parsed, dict) and isinstance(parsed.get("resultado"), dict):
+                return parsed["resultado"]
+            return None
+
         try:
             log_raw = frappe.db.get_value(
                 "VE Digital Invoice Log",
@@ -366,33 +434,22 @@ class TFHKAPayloadBuilder:
                 "response_received",
                 order_by="creation desc",
             )
-            if log_raw:
-                try:
-                    parsed = json.loads(log_raw)
-                    if isinstance(parsed, dict):
-                        resultado = parsed.get("resultado") or {}
-                        serie = resultado.get("serie") or ""
-                except Exception:
-                    pass
+            resultado = _resultado(log_raw)
 
             # Fallback: check if the Sales Invoice remarks contain the HKA response json
-            if not serie:
-                inv_remarks = frappe.db.get_value("Sales Invoice", ref, "remarks")
-                if inv_remarks:
-                    try:
-                        parsed = json.loads(inv_remarks)
-                        if isinstance(parsed, dict):
-                            resultado = parsed.get("resultado") or {}
-                            serie = resultado.get("serie") or ""
-                    except Exception:
-                        pass
+            if resultado is None:
+                resultado = _resultado(frappe.db.get_value("Sales Invoice", ref, "remarks"))
+
+            if resultado is not None:
+                emitted = True
+                serie = resultado.get("serie") or ""
         except Exception as e:
             frappe.throw(
                 f"Error al consultar el log de facturación digital "
                 f"para <b>{ref}</b>: {e}"
             )
 
-        if not serie:
+        if not emitted:
             frappe.throw(
                 f"No se puede determinar la <b>Serie</b> de la factura original "
                 f"<b>{ref}</b>. La factura debe haber sido emitida electrónicamente "
@@ -411,6 +468,7 @@ class TFHKAPayloadBuilder:
             getattr(self.series_doc, "operation_mode", "Internal") == "Third Party"
         )
 
+        serie, sucursal = hka_series_fields(self.series_doc, self.branch_code)
         posting_date: str = getdate(self.doc.posting_date).strftime("%d/%m/%Y")
         numero_documento: str = "" if is_third_party else (self.doc.bill_no or "")
 
@@ -442,20 +500,16 @@ class TFHKAPayloadBuilder:
             "HoraEmision": self._format_posting_time(),
             "Anulado": False,
             "TipoDePago": "Contado" if self.doc.get("is_pos") else "Credito",
-            "Serie": getattr(self.series_doc, "serie", "") or "",
-            "Sucursal": self._resolve_branch_code(),
+            "Serie": serie,
+            "Sucursal": sucursal,
             "TipoDeVenta": "Interna",
-            "Moneda": self.doc.currency,
+            "Moneda": hka_currency_code(self.doc.currency),
             "TransaccionId": (
                 build_transaction_id("".join(filter(str.isalnum, self.doc.name)), self.doc)
                 if is_third_party else None
             ),
         }
 
-
-    def _resolve_branch_code(self) -> str:
-        """Retorna el branch_code ya resuelto desde la tabla hija (máximo 6 car.)"""
-        return str(self.branch_code)[:6] if self.branch_code else ""
 
     def _build_comprador(self) -> dict:
         customer = frappe.get_cached_doc("Customer", self.doc.customer)
@@ -806,24 +860,20 @@ class TFHKAPayloadBuilder:
         }
 
     def _resolve_tfhka_code(self, item_code: str) -> str:
-        """Busca el codigo TFHKA del Subscription Plan asociado al item.
+        """Código PLU del ítem: el código del producto o servicio.
 
-        Lanza frappe.throw si no existe el código asignado.
+        HKA lo trata como opcional, hasta 20 caracteres (Referencia Técnica API, mayo
+        2026). No es un monto fiscal ni un catálogo de HKA, así que el código del artículo
+        basta. domina_isp lo reemplaza por el código del plan de suscripción, que es un
+        campo suyo.
         """
-        code: Optional[str] = frappe.get_cached_value(
-            "Subscription Plan", {"item": item_code}, "code"
-        )
-        if not code:
-            frappe.throw(
-                f"El artículo '{item_code}' no tiene un código TFHKA asignado en su Plan de Suscripción. "
-                "Asigne el código antes de enviar la factura a la imprenta digital."
-            )
-        return code[:20]
+        return (item_code or "")[:20]
 
     def _build_items(self) -> list:
         def fmt(val): return "{:.2f}".format(flt(val))
         detalles = []
         iva_rate = self._get_iva_rate()
+        ciiu_code: Optional[str] = company_ciiu_code(self.doc.company)
 
         has_vat_charge = any(
             tax.get("charge_type") == "VAT"
@@ -854,7 +904,7 @@ class TFHKAPayloadBuilder:
 
             detalles.append({
                 "NumeroLinea": str(idx),
-                "CodigoCIIU": "0198",
+                "CodigoCIIU": ciiu_code,
                 "CodigoPLU": self._resolve_tfhka_code(item.item_code),
                 "IndicadorBienoServicio": "2" if "servicio" in str(item.item_group).lower() else "1",
                 "Descripcion": descripcion_item[:250],
@@ -907,110 +957,11 @@ class TFHKAPayloadBuilder:
 
         return zona, nodo
 
-    def _build_info_adicional(self) -> list:
-        """Construye el nodo InfoAdicional con un objeto por cada dato.
+    def _build_info_adicional(self) -> Optional[list]:
+        """InfoAdicional: ninguna para una empresa genérica.
 
-        La API de HKA exige:
-        - Cada entrada es un objeto {"Campo": campo, "Valor": valor}.
-        - El valor debe ser texto plano alfanumérico (sin {}, '' ni JSON).
-        - Máximo 255 caracteres por campo y por valor.
+        Es opcional para HKA y su contenido lo define la plantilla de impresión que HKA
+        arma para cada cliente. La de Galanet (dirección del servicio, zona, nodo, período,
+        tasa y coletilla) la arma domina_isp reemplazando este método.
         """
-        doc = self.doc
-        subscription_name: str = doc.get("subscription") or ""
-
-        # RIF del cliente como identificador del servicio (ej. J304858906)
-        id_servicio: str = doc.get("tax_id") or ""
-
-        direccion_servicio = clean_address(doc.address_display) if doc.address_display else ""
-
-        tasa_bcv: str = ""
-        if flt(doc.conversion_rate) > 0:
-            # tasa_fecha explícita (capturada antes de actualizar posting_date a hoy).
-            # Fallback: si no se proporcionó, se calcula con la misma regla fiscal
-            # que _compute_tasa_fecha (evita romper llamadas sin el parámetro).
-            if self.tasa_fecha:
-                fecha_valor = getdate(self.tasa_fecha)
-            elif is_juridical_customer(doc.customer):
-                # Fecha real de la tasa que porta el documento, no el posting_date:
-                # la tasa del jurídico se actualiza al primer pago.
-                fecha_valor = getdate(
-                    resolve_exchange_rate_date(flt(doc.conversion_rate), doc.currency)
-                    or doc.posting_date
-                )
-            else:
-                fecha_valor = getdate(doc.posting_date).replace(day=1)
-
-            fecha_valor_str = fecha_valor.strftime("%d/%m/%Y")
-            tasa_bcv = (
-                f"Tasa de cambio publicado por el BCV Bs {flt(doc.conversion_rate, 4)} "
-                f"por 1,00 USD de fecha valor {fecha_valor_str}."
-            )
-
-        # «Periodo» y «Nota» dicen qué mes se cobra, no cuándo se emite: ver service_period.
-        period_start, period_end = service_period(doc)
-
-        notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
-        period_default = service_period_label(period_start, period_end)
-        nota_periodo = notes or period_default
-
-        periodo: str = f"Desde el {period_start:%d/%m/%Y} hasta el {period_end:%d/%m/%Y}"
-
-        coletilla_a: str = (
-            "En los casos en que la base imponible de la venta o prestacion de servicio "
-            "estuviere expresada en moneda extranjera, se establecera la equivalencia en "
-            "moneda nacional, al tipo de cambio corriente en el mercado que ocurra el "
-            "hecho imponible, salvo "
-        )
-        coletilla_b: str = (
-            "que este ocurra en un dia no habil para el sector financiero, en cuyo caso "
-            "se aplicara el vigente en el dia habil inmediatamente siguiente al de la "
-            "operacion. ART. 25 Ley de I.V.A. G.O Nro 6.152 de fecha 18/11/2014"
-        )
-
-        # Validaciones de campos que no pueden estar vacíos
-        if not direccion_servicio:
-            frappe.throw("La dirección de facturación del cliente está vacía y es obligatoria para la facturación electrónica.")
-
-        if not id_servicio:
-            frappe.throw("El ID de Servicio (RIF/Cédula) del cliente es obligatorio.")
-
-        if not self.zona:
-            frappe.throw("El cliente no tiene asignada una 'Zona', campo requerido para HKA.")
-
-        serie: str = getattr(self.series_doc, "serie", "") or ""
-        if not serie:
-            frappe.throw(
-                "La serie de facturación no tiene el campo 'Serie' configurado. "
-                "Es obligatorio para la facturación electrónica.",
-                title="Serie Requerida"
-            )
-
-        # Construir y retornar el string de diccionario único (modo "PDF")
-        # ya que la plantilla de impresión de TFHKA evalúa este string internamente.
-
-        dict_pdf = {"DireccionServicio": direccion_servicio}
-        dict_pdf["Serie"] = serie
-        dict_pdf["TasaCambio"] = tasa_bcv
-        dict_pdf["Periodo"] = periodo if periodo else f"Desde {period_default}"
-
-        bill_no_original: str = getattr(self, "_bill_no_original", "")
-        if bill_no_original:
-            dict_pdf["FacturaOriginal"] = bill_no_original
-
-        dict_pdf["Zona"] = self.zona
-        dict_pdf["Nodo"] = self.nodo or ""
-        dict_pdf["IdServicio"] = id_servicio
-        dict_pdf["Nota"] = nota_periodo
-        dict_pdf["coletilla2"] = f"{coletilla_a} {coletilla_b}"
-
-        # Convertir a string de python-like dict (con comillas simples) para que el parser
-        # de The Factory HKA no falle en su plantilla
-        sanitized: dict = {
-            k: v.replace("'", "") if isinstance(v, str) else v
-            for k, v in dict_pdf.items()
-        }
-        json_str = json.dumps(sanitized, ensure_ascii=False).replace('"', "'")
-
-        return [
-            {"Campo": "PDF", "Valor": json_str}
-        ]
+        return None

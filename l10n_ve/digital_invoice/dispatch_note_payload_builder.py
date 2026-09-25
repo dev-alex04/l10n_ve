@@ -41,6 +41,9 @@ from l10n_ve.digital_invoice.payload_builder import (
     build_transaction_id,
     clean_address,
     clean_payload,
+    company_ciiu_code,
+    hka_currency_code,
+    hka_series_fields,
     strip_html,
 )
 from l10n_ve.utils.utils import resolve_exchange_rate_date
@@ -53,15 +56,6 @@ DISPATCH_GUIDE: str = "Guía de Despacho"
 
 #: Motivos del catálogo 13 que exigen describir el servicio o la causa.
 REASONS_NEEDING_DESCRIPTION: tuple[str, ...] = ("Reparación o perfeccionamiento", "Otras causas")
-
-#: HKA no conoce los códigos de Frappe para el bolívar: con "VEF" rechaza el documento con
-#: [1000] y todos los totales en cascada. El código que sí tiene es "BSD", el mismo que el
-#: builder de la factura ya usa en las formas de pago.
-_HKA_CURRENCY: dict[str, str] = {"VEF": "BSD", "VES": "BSD"}
-
-#: Actividad económica que declara la factura en cada ítem (`TFHKAPayloadBuilder._build_items`).
-#: El emisor es el mismo, así que el traslado declara la misma.
-_CIIU_CODE: str = "0198"
 
 #: Unidad de medida del catálogo 11 que manda la factura para todos sus ítems.
 _UNIT_OF_MEASURE: str = "94"
@@ -82,11 +76,6 @@ TRANSPORT_FIELDS: dict[str, dict[str, str]] = {
         "vehicle_type": "ve_vehicle_type",
     },
 }
-
-
-def hka_currency_code(currency: str) -> str:
-    """Código de moneda que HKA reconoce para `currency`."""
-    return _HKA_CURRENCY.get(currency or "", currency or "")
 
 
 def compact_tax_id(tax_id: str) -> str:
@@ -333,15 +322,7 @@ class DispatchNodesMixin:
     def _info_adicional_pdf(self, extra: dict) -> list:
         """El nodo que lee la plantilla de impresión de HKA, con la misma codificación que
         la factura: un solo campo «PDF» con un dict en comillas simples."""
-        serie: str = getattr(self.series_doc, "serie", "") or ""
-        if not serie:
-            frappe.throw(
-                _(
-                    "La serie de facturación no tiene el campo 'Serie' configurado. "
-                    "Es obligatorio para la facturación electrónica."
-                ),
-                title=_("Serie Requerida"),
-            )
+        serie, _sucursal = hka_series_fields(self.series_doc, "")
         dict_pdf: dict = {"Serie": serie, "Documento": self.doc.get("ve_dispatch_document_kind") or ""}
         dict_pdf.update({key: value for key, value in extra.items() if value})
         sanitized: dict = {
@@ -398,9 +379,9 @@ class DeliveryNotePayloadBuilder(DispatchNodesMixin, TFHKAPayloadBuilder):
         return
 
     def _resolve_tfhka_code(self, item_code: str) -> str:
-        """El código PLU es opcional y admite hasta 20 caracteres. En la factura sale del
-        plan de suscripción porque vende un servicio; lo que se entrega es un artículo, y
-        su código es el propio."""
+        """El código PLU es opcional y admite hasta 20 caracteres. Lo que se entrega es un
+        artículo y su código es el propio: se fija acá para que el reemplazo del ISP (el
+        código del plan de suscripción, que vende un servicio) no alcance a la entrega."""
         return (item_code or "")[:20]
 
     def _build_info_adicional(self) -> list:
@@ -468,11 +449,12 @@ class StockEntryDispatchPayloadBuilder(DispatchNodesMixin):
         return clean_payload(payload)
 
     def _build_identificacion_documento(self) -> dict:
+        serie, sucursal = hka_series_fields(self.series_doc, self.branch_code)
         identification: dict = {
             "NumeroDocumento": "" if self._is_third_party() else (self.doc.get("bill_no") or ""),
             "Anulado": False,
-            "Serie": getattr(self.series_doc, "serie", "") or "",
-            "Sucursal": str(self.branch_code)[:6] if self.branch_code else "",
+            "Serie": serie,
+            "Sucursal": sucursal,
             "TipoDeVenta": "Interna",
             "TransaccionId": (
                 build_transaction_id("".join(ch for ch in self.doc.name if ch.isalnum()), self.doc)
@@ -526,6 +508,8 @@ class StockEntryDispatchPayloadBuilder(DispatchNodesMixin):
             return f"{flt(value):.2f}"
 
         lines: list = []
+        # La misma actividad que declara la factura: el emisor es el mismo.
+        ciiu_code = company_ciiu_code(self.doc.company)
         for idx, item in enumerate(self.doc.items, start=1):
             quantity: float = flt(item.transfer_qty) or flt(item.qty)
             unit_price: float = flt(item.basic_rate, 2)
@@ -533,7 +517,7 @@ class StockEntryDispatchPayloadBuilder(DispatchNodesMixin):
             description: str = re.sub(r"(?i)\btotal\b", "", item.item_name or item.item_code or "").strip()
             lines.append({
                 "NumeroLinea": str(idx),
-                "CodigoCIIU": _CIIU_CODE,
+                "CodigoCIIU": ciiu_code,
                 "CodigoPLU": (item.item_code or "")[:20],
                 "IndicadorBienoServicio": "1",
                 "Descripcion": description[:250],
