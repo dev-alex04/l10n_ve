@@ -371,6 +371,13 @@ class TestTFHKAPayloadBuilder(unittest.TestCase):
         self.assertEqual(encabezado["identificacionDocumento"]["moneda"], "BSD")
         self.assertIsNone(encabezado.get("totalesOtraMoneda"))
 
+    def test_codigo_plu_es_el_del_articulo(self):
+        """Sin plan de suscripción de por medio: el PLU es el código del artículo (≤ 20)."""
+        builder = TFHKAPayloadBuilder.__new__(TFHKAPayloadBuilder)
+        self.assertEqual(builder._resolve_tfhka_code("INT001"), "INT001")
+        self.assertEqual(builder._resolve_tfhka_code("X" * 25), "X" * 20)
+        self.assertEqual(builder._resolve_tfhka_code(None), "")
+
     def test_factura_en_divisa_conserva_su_moneda(self):
         """Una factura en USD sigue declarando "USD" en el encabezado."""
         with self._COMMON_PATCHES["get_cached_doc"], \
