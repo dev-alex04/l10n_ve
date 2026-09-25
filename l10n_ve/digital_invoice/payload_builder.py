@@ -8,7 +8,6 @@ from typing import Optional
 import frappe
 from frappe.utils import getdate, flt, cint, get_datetime
 from frappe.utils.data import money_in_words
-from l10n_ve.utils.utils import is_juridical_customer, resolve_exchange_rate_date
 
 
 def build_transaction_id(base: str, doc) -> str:
@@ -947,104 +946,11 @@ class TFHKAPayloadBuilder:
 
         return zona, nodo
 
-    def _build_info_adicional(self) -> list:
-        """Construye el nodo InfoAdicional con un objeto por cada dato.
+    def _build_info_adicional(self) -> Optional[list]:
+        """InfoAdicional: ninguna para una empresa genérica.
 
-        La API de HKA exige:
-        - Cada entrada es un objeto {"Campo": campo, "Valor": valor}.
-        - El valor debe ser texto plano alfanumérico (sin {}, '' ni JSON).
-        - Máximo 255 caracteres por campo y por valor.
+        Es opcional para HKA y su contenido lo define la plantilla de impresión que HKA
+        arma para cada cliente. La de Galanet (dirección del servicio, zona, nodo, período,
+        tasa y coletilla) la arma domina_isp reemplazando este método.
         """
-        doc = self.doc
-        subscription_name: str = doc.get("subscription") or ""
-
-        # RIF del cliente como identificador del servicio (ej. J304858906)
-        id_servicio: str = doc.get("tax_id") or ""
-
-        direccion_servicio = clean_address(doc.address_display) if doc.address_display else ""
-
-        tasa_bcv: str = ""
-        if flt(doc.conversion_rate) > 0:
-            # tasa_fecha explícita (capturada antes de actualizar posting_date a hoy).
-            # Fallback: si no se proporcionó, se calcula con la misma regla fiscal
-            # que _compute_tasa_fecha (evita romper llamadas sin el parámetro).
-            if self.tasa_fecha:
-                fecha_valor = getdate(self.tasa_fecha)
-            elif is_juridical_customer(doc.customer):
-                # Fecha real de la tasa que porta el documento, no el posting_date:
-                # la tasa del jurídico se actualiza al primer pago.
-                fecha_valor = getdate(
-                    resolve_exchange_rate_date(flt(doc.conversion_rate), doc.currency)
-                    or doc.posting_date
-                )
-            else:
-                fecha_valor = getdate(doc.posting_date).replace(day=1)
-
-            fecha_valor_str = fecha_valor.strftime("%d/%m/%Y")
-            tasa_bcv = (
-                f"Tasa de cambio publicado por el BCV Bs {flt(doc.conversion_rate, 4)} "
-                f"por 1,00 USD de fecha valor {fecha_valor_str}."
-            )
-
-        # «Periodo» y «Nota» dicen qué mes se cobra, no cuándo se emite: ver service_period.
-        period_start, period_end = service_period(doc)
-
-        notes: str = " ".join(str(doc.get("notes") or "").replace('"', "").split())
-        period_default = service_period_label(period_start, period_end)
-        nota_periodo = notes or period_default
-
-        periodo: str = f"Desde el {period_start:%d/%m/%Y} hasta el {period_end:%d/%m/%Y}"
-
-        coletilla_a: str = (
-            "En los casos en que la base imponible de la venta o prestacion de servicio "
-            "estuviere expresada en moneda extranjera, se establecera la equivalencia en "
-            "moneda nacional, al tipo de cambio corriente en el mercado que ocurra el "
-            "hecho imponible, salvo "
-        )
-        coletilla_b: str = (
-            "que este ocurra en un dia no habil para el sector financiero, en cuyo caso "
-            "se aplicara el vigente en el dia habil inmediatamente siguiente al de la "
-            "operacion. ART. 25 Ley de I.V.A. G.O Nro 6.152 de fecha 18/11/2014"
-        )
-
-        # Validaciones de campos que no pueden estar vacíos
-        if not direccion_servicio:
-            frappe.throw("La dirección de facturación del cliente está vacía y es obligatoria para la facturación electrónica.")
-
-        if not id_servicio:
-            frappe.throw("El ID de Servicio (RIF/Cédula) del cliente es obligatorio.")
-
-        if not self.zona:
-            frappe.throw("El cliente no tiene asignada una 'Zona', campo requerido para HKA.")
-
-        serie, _sucursal = hka_series_fields(self.series_doc, "")
-
-        # Construir y retornar el string de diccionario único (modo "PDF")
-        # ya que la plantilla de impresión de TFHKA evalúa este string internamente.
-
-        dict_pdf = {"DireccionServicio": direccion_servicio}
-        dict_pdf["Serie"] = serie
-        dict_pdf["TasaCambio"] = tasa_bcv
-        dict_pdf["Periodo"] = periodo if periodo else f"Desde {period_default}"
-
-        bill_no_original: str = getattr(self, "_bill_no_original", "")
-        if bill_no_original:
-            dict_pdf["FacturaOriginal"] = bill_no_original
-
-        dict_pdf["Zona"] = self.zona
-        dict_pdf["Nodo"] = self.nodo or ""
-        dict_pdf["IdServicio"] = id_servicio
-        dict_pdf["Nota"] = nota_periodo
-        dict_pdf["coletilla2"] = f"{coletilla_a} {coletilla_b}"
-
-        # Convertir a string de python-like dict (con comillas simples) para que el parser
-        # de The Factory HKA no falle en su plantilla
-        sanitized: dict = {
-            k: v.replace("'", "") if isinstance(v, str) else v
-            for k, v in dict_pdf.items()
-        }
-        json_str = json.dumps(sanitized, ensure_ascii=False).replace('"', "'")
-
-        return [
-            {"Campo": "PDF", "Valor": json_str}
-        ]
+        return None

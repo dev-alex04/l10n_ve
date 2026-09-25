@@ -4,8 +4,9 @@
 """
 Tests unitarios para el campo notes de Sales Invoice en HKA.
 
-Cubre payload real (_build_info_adicional) y vista previa
-(get_invoice_preview_data), verificando que ambos coinciden:
+Cubre la vista previa (get_invoice_preview_data). El payload real (el bloque «PDF»
+de InfoAdicional) es de la plantilla de Galanet y sus tests viven en domina_isp
+(domina_isp/tests/test_hka_info_adicional.py):
 - La nota del usuario reemplaza solo "Nota"; "Periodo" conserva el
   período de servicio (no se pierde en la factura legal).
 - "Periodo" y "Nota" salen del período de servicio de la factura
@@ -16,14 +17,13 @@ Cubre payload real (_build_info_adicional) y vista previa
   saltos de línea y espacios múltiples colapsados).
 """
 
-import ast
 from datetime import date
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from l10n_ve.digital_invoice.payload_builder import TFHKAPayloadBuilder, service_period_label
+from l10n_ve.digital_invoice.payload_builder import service_period_label
 from l10n_ve.digital_invoice.tfhka_integration import get_invoice_preview_data
 
 
@@ -31,140 +31,10 @@ from l10n_ve.digital_invoice.tfhka_integration import get_invoice_preview_data
 # Helpers — payload
 # ═══════════════════════════════════════════════════════════════════
 
-def _make_invoice(**overrides) -> frappe._dict:
-    """Mock mínimo de Sales Invoice para _build_info_adicional."""
-    doc = frappe._dict({
-        "name": "ACC-SINV-2026-00001",
-        "customer": "CLIENTE PRUEBA",
-        "company": "GALANET",
-        "posting_date": "2026-07-15",
-        # 0 => no se construye TasaCambio (evita is_juridical/resolve_rate)
-        "conversion_rate": 0,
-        "currency": "USD",
-        "tax_id": "J-12345678-9",
-        "address_display": "CALLE 1, CASA 2, SAN JUAN",
-        "subscription": "",
-        "notes": "",
-    })
-    doc.update(overrides)
-    return doc
-
-
-def _make_builder(doc) -> TFHKAPayloadBuilder:
-    """Instancia el builder sin pasar por __init__ (sin BD)."""
-    builder = TFHKAPayloadBuilder.__new__(TFHKAPayloadBuilder)
-    builder.doc = doc
-    builder.tasa_fecha = None
-    builder.zona = "ZONA CENTRO"
-    builder.nodo = "NODO 1"
-    builder.series_doc = frappe._dict({"serie": "MIR-01"})
-    builder._bill_no_original = ""
-    return builder
-
-
-def _extract_pdf_dict(info_adicional: list) -> dict:
-    """Parsea el string python-like del campo PDF que consume HKA."""
-    valor = next(e["Valor"] for e in info_adicional if e["Campo"] == "PDF")
-    return ast.literal_eval(valor)
-
-
 _SUBSCRIPTION = frappe._dict({
     "current_invoice_start": "2026-07-01",
     "current_invoice_end": "2026-07-31",
 })
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Payload real (dict PDF enviado a HKA)
-# ═══════════════════════════════════════════════════════════════════
-
-class TestInvoiceNotesPayload(FrappeTestCase):
-    """La nota reemplaza solo 'Nota'; 'Periodo' conserva la suscripción."""
-
-    @patch(
-        "l10n_ve.digital_invoice.payload_builder.frappe.get_cached_doc",
-        return_value=_SUBSCRIPTION,
-    )
-    def test_notes_replace_nota_and_period_keeps_subscription_range(
-        self, _mock_sub: MagicMock
-    ) -> None:
-        """Con suscripción + nota: Nota = nota, Periodo = rango real."""
-        doc = _make_invoice(notes="Ajuste acordado con el cliente", subscription="SUB-0001")
-        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
-
-        self.assertEqual(pdf["Nota"], "Ajuste acordado con el cliente")
-        self.assertEqual(pdf["Periodo"], "Desde el 01/07/2026 hasta el 31/07/2026")
-
-    def test_nota_fallback_without_notes(self) -> None:
-        """Sin nota ni suscripción: Nota = mes/año, Periodo = rango del mes de posting_date."""
-        doc = _make_invoice()
-        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
-
-        self.assertEqual(pdf["Nota"], "JULIO 2026")
-        self.assertEqual(pdf["Periodo"], "Desde el 01/07/2026 hasta el 31/07/2026")
-
-    def test_notes_without_subscription_keep_default_period(self) -> None:
-        """Con nota y sin suscripción: Periodo = rango del mes de posting_date."""
-        doc = _make_invoice(notes="Corresponde a instalacion del servicio")
-        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
-
-        self.assertEqual(pdf["Nota"], "Corresponde a instalacion del servicio")
-        self.assertEqual(pdf["Periodo"], "Desde el 01/07/2026 hasta el 31/07/2026")
-
-    def test_notes_sanitization_in_payload(self) -> None:
-        """Comillas dobles fuera; saltos de línea y espacios colapsados."""
-        doc = _make_invoice(notes='Ajuste "especial"\ncon   saltos\ny  espacios')
-        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
-
-        self.assertEqual(pdf["Nota"], "Ajuste especial con saltos y espacios")
-
-
-class TestServicePeriodPayload(FrappeTestCase):
-    """«Periodo» y «Nota» dicen qué mes se cobra, no cuándo se emite.
-
-    Reportado por Galanet el 10-sep-2026: un borrador de agosto cobrado en septiembre se
-    contabiliza en septiembre, y el PDF de HKA decía «SEPTIEMBRE 2026».
-    """
-
-    def test_old_month_invoice_emitted_later_keeps_its_service_month(self) -> None:
-        """Borrador de agosto cobrado en septiembre: la emisión es de septiembre, el período de agosto."""
-        doc = _make_invoice(posting_date="2026-09-08", from_date="2026-08-01", to_date="2026-08-31")
-        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
-
-        self.assertEqual(pdf["Nota"], "AGOSTO 2026")
-        self.assertEqual(pdf["Periodo"], "Desde el 01/08/2026 hasta el 31/08/2026")
-
-    def test_notes_replace_nota_but_not_the_service_period(self) -> None:
-        doc = _make_invoice(
-            posting_date="2026-09-08", from_date="2026-08-01", to_date="2026-08-31", notes="Pago atrasado",
-        )
-        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
-
-        self.assertEqual(pdf["Nota"], "Pago atrasado")
-        self.assertEqual(pdf["Periodo"], "Desde el 01/08/2026 hasta el 31/08/2026")
-
-    def test_period_across_two_months_prints_its_exact_dates(self) -> None:
-        doc = _make_invoice(posting_date="2026-09-20", from_date="2026-08-15", to_date="2026-09-14")
-        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
-
-        self.assertEqual(pdf["Nota"], "AGOSTO - SEPTIEMBRE 2026")
-        self.assertEqual(pdf["Periodo"], "Desde el 15/08/2026 hasta el 14/09/2026")
-
-    def test_manual_invoice_without_period_uses_the_posting_month(self) -> None:
-        """Una factura manual sin Desde/Hasta sigue con el mes de posting_date, como antes."""
-        doc = _make_invoice(posting_date="2026-09-08")
-        pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
-
-        self.assertEqual(pdf["Nota"], "SEPTIEMBRE 2026")
-        self.assertEqual(pdf["Periodo"], "Desde el 01/09/2026 hasta el 30/09/2026")
-
-    def test_incomplete_or_inverted_period_falls_back_to_the_posting_month(self) -> None:
-        for from_date, to_date in (("2026-08-01", None), (None, "2026-08-31"), ("2026-08-31", "2026-08-01")):
-            with self.subTest(from_date=from_date, to_date=to_date):
-                doc = _make_invoice(posting_date="2026-09-08", from_date=from_date, to_date=to_date)
-                pdf = _extract_pdf_dict(_make_builder(doc)._build_info_adicional())
-
-                self.assertEqual(pdf["Periodo"], "Desde el 01/09/2026 hasta el 30/09/2026")
 
 
 class TestServicePeriodLabel(FrappeTestCase):
