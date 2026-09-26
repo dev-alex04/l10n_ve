@@ -42,6 +42,14 @@ try:
 except Exception as e:
     log_patch_error('l10n_ve.patches.accounts.payment_entry', e)
 
+# Con hrms en el bench, su clase de Payment Entry pasa a heredar también de la de l10n_ve
+# (l10n_ve primero): si hrms se instaló después, ya no deja afuera las retenciones ni el IGTF.
+try:
+    from l10n_ve.patches.accounts.payment_entry_controller import combine_with_hrms
+    combine_with_hrms()
+except Exception as e:
+    log_patch_error('l10n_ve.patches.accounts.payment_entry_controller', e)
+
 try:
     import l10n_ve.patches.setup.utils
 except Exception as e:
