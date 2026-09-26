@@ -346,11 +346,17 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
             filters.pop("branch", None)
 
     branches: list = sorted({b for b in (filters.get("branches") or []) if b})
+    exclude_branches: bool = bool(filters.get("exclude_branches"))
 
     if branches:
-        branch_filter_inv: str = "AND siv.branch IN %(branches)s"
-        branch_filter_nc: str = "AND nc.branch IN %(branches)s"
-        branch_filter_nd: str = "AND nd.branch IN %(branches)s"
+        if exclude_branches:
+            branch_filter_inv: str = "AND IFNULL(siv.branch, '') NOT IN %(branches)s"
+            branch_filter_nc: str = "AND IFNULL(nc.branch, '') NOT IN %(branches)s"
+            branch_filter_nd: str = "AND IFNULL(nd.branch, '') NOT IN %(branches)s"
+        else:
+            branch_filter_inv: str = "AND siv.branch IN %(branches)s"
+            branch_filter_nc: str = "AND nc.branch IN %(branches)s"
+            branch_filter_nd: str = "AND nd.branch IN %(branches)s"
     elif branch:
         branch_filter_inv: str = "AND siv.branch = %(branch)s"
         branch_filter_nc: str = "AND nc.branch = %(branch)s"
@@ -360,14 +366,24 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
         branch_filter_nc: str = ""
         branch_filter_nd: str = ""
 
+    customer: str = filters.get("customer") or ""
+    if customer:
+        cust_filter_inv: str = "AND siv.customer = %(customer)s"
+        cust_filter_nc: str = "AND nc.customer = %(customer)s"
+        cust_filter_nd: str = "AND nd.customer = %(customer)s"
+    else:
+        cust_filter_inv: str = ""
+        cust_filter_nc: str = ""
+        cust_filter_nd: str = ""
+
     # --- Datos del período principal ---
     # Dos placeholders independientes: {inv_cond} para tabSales Invoice (alias siv),
     # {nc_cond} para tabVE Sales Credit Note (alias nc).
     main_query = (
         query_base
-        .replace("{inv_cond}", f"siv.posting_date BETWEEN %(from_date)s AND %(to_date)s {hka_filter_inv} {branch_filter_inv}")
-        .replace("{nc_cond}", f"nc.posting_date BETWEEN %(from_date)s AND %(to_date)s {hka_filter_nc} {branch_filter_nc}")
-        .replace("{nd_cond}", f"nd.posting_date BETWEEN %(from_date)s AND %(to_date)s {hka_filter_nd} {branch_filter_nd}")
+        .replace("{inv_cond}", f"siv.posting_date BETWEEN %(from_date)s AND %(to_date)s {hka_filter_inv} {branch_filter_inv} {cust_filter_inv}")
+        .replace("{nc_cond}", f"nc.posting_date BETWEEN %(from_date)s AND %(to_date)s {hka_filter_nc} {branch_filter_nc} {cust_filter_nc}")
+        .replace("{nd_cond}", f"nd.posting_date BETWEEN %(from_date)s AND %(to_date)s {hka_filter_nd} {branch_filter_nd} {cust_filter_nd}")
     )
     main_query += """
         ORDER BY
@@ -391,17 +407,20 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
             AND siv.withholding_date BETWEEN %(from_date)s AND %(to_date)s
             {hka_filter_inv}
             {branch_filter_inv}
+            {cust_filter_inv}
         """)
         .replace("{nc_cond}", f"""
             nc.posting_date < %(from_date)s
             AND nc.withholding_date BETWEEN %(from_date)s AND %(to_date)s
             {hka_filter_nc}
             {branch_filter_nc}
+            {cust_filter_nc}
         """)
         .replace("{nd_cond}", f"""
             nd.posting_date < %(from_date)s
             {hka_filter_nd}
             {branch_filter_nd}
+            {cust_filter_nd}
         """)
     )
     adjustment_query += """
@@ -427,6 +446,8 @@ def get_sales_data(filters: dict) -> tuple[list[dict], list[dict]]:
         sql_params["branches"] = tuple(branches)
     elif branch:
         sql_params["branch"] = branch
+    if customer:
+        sql_params["customer"] = customer
 
     main_data = frappe.db.sql(main_query, sql_params, as_dict=1)
 
@@ -571,6 +592,8 @@ def _get_common_columns() -> str:
     """Columnas compartidas por ambos SELECTs (no varían entre legacy y nuevo)."""
     return """
             {transaction_type_placeholder}
+            siv.name,
+            siv.customer,
             siv.is_void,
             siv.is_return,
             siv.is_debit_note,
