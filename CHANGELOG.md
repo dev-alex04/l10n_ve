@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **IGTF:** el producto de recargo IGTF ya no se duplica al correr `set_data` en sitios que nombran artículos por serie. [694f749b]
 - **Pruebas:** la suite de l10n_ve queda en verde en los sitios de Galanet y Designet. [694f749b]
 - **Pagos:** con hrms instalado, Payment Entry combina la lógica de l10n_ve (primero) con la de hrms; nuevo aviso en Error Log tras `migrate` si la clase del sitio no la lleva. [3cb50a8e]
+- **ISLR:** la base imponible de la retención se puede editar, sin superar la de la factura (también en las notas de compra). [455f0e6a]
 
 ---
 
