@@ -272,6 +272,9 @@ after_install = [
 
 after_migrate = [
     "l10n_ve.patches.monkey_patches.apply_post_db_patches",
+    # Error Log si la clase de Payment Entry del sitio no lleva la lógica de l10n_ve (o la de
+    # hrms, si está instalado): depende del orden de `installed_apps` de cada sitio.
+    "l10n_ve.patches.accounts.payment_entry_controller.check_controller",
     # `create_currency_exchange` NO va aca. Ya corre cada 3 h en scheduler_events, asi que
     # el llamado en cada migracion era redundante -- y ademas: (1) hace llamadas de red
     # (BCV/SENIAT, con fallback a una API externa y a scraping), asi que un `bench migrate`
