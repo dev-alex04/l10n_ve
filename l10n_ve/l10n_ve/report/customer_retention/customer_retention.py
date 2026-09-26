@@ -64,11 +64,10 @@ def get_data(filters):
 	- Período: la retención cuenta en el mes de su COMPROBANTE, como el `iva_retained` del
 	  libro. Una factura del mes con comprobante fechado en otro no se cuenta aquí: el libro
 	  la declara en ese otro mes, como ajuste.
-	  - Para IVA: delega la consulta directamente a `sales_book.get_sales_data(sb_filters)`
+	  - Para IVA e ISLR: delega la consulta directamente a `sales_book.get_sales_data(sb_filters)`
 	    para garantizar paridad exacta de 0,00 de diferencia con el Libro de Ventas.
 	    (si.withholding_date NOT BETWEEN %(from_date)s AND %(to_date)s)
 	    (nc.withholding_date NOT BETWEEN %(from_date)s AND %(to_date)s)
-	  - Para ISLR: se consulta la base de datos excluyendo comprobantes fuera de rango:
 	    (si.islr_date NOT BETWEEN %(from_date)s AND %(to_date)s)
 	    (nc.islr_date NOT BETWEEN %(from_date)s AND %(to_date)s)
 	"""
@@ -124,8 +123,8 @@ def get_data(filters):
 	rates_cache = {}
 	processed_data = []
 
-	# 1. IVA: Delegado directamente desde Sales Book
-	if include_iva:
+	# 1. IVA e ISLR: Delegados directamente desde Sales Book
+	if include_iva or include_islr:
 		sb_filters = dict(filters)
 		if branches:
 			sb_filters["branches"] = sql_filters.get("branch_scope", branches)
@@ -140,10 +139,6 @@ def get_data(filters):
 		main_data, _adj = get_sales_data(sb_filters)
 
 		for r in main_data:
-			iva_ret = flt(r.get("iva_retained", 0))
-			if abs(iva_ret) < 0.001:
-				continue
-
 			if r.get("is_return") == 1 and not include_nc:
 				continue
 
@@ -165,8 +160,6 @@ def get_data(filters):
 				doctype = "Sales Invoice"
 
 			p_date = r.get("posting_date_sort")
-			w_date = r.get("withholding_date_sort")
-
 			base_tot = (
 				flt(r.get("base_general_taxpayer", 0)) + flt(r.get("base_general_non_taxpayer", 0)) +
 				flt(r.get("base_reduced_taxpayer", 0)) + flt(r.get("base_reduced_non_taxpayer", 0)) +
@@ -175,155 +168,98 @@ def get_data(filters):
 			if abs(base_tot) < 0.001 and abs(flt(r.get("grand_total", 0))) > 0.001:
 				base_tot = flt(r.get("grand_total", 0))
 
-			ref_date = w_date or p_date
-			bcv_rate = 0.0
-			if ref_date:
-				try:
-					first_day = str(get_first_day(ref_date))
-					if first_day not in rates_cache:
-						rates_cache[first_day] = flt(get_exchange_rate(first_day, "USD"))
-					bcv_rate = rates_cache[first_day]
-				except Exception:
-					bcv_rate = 0.0
+			grand_tot = flt(r.get("grand_total", 0))
+			bill_no_val = r.get("bill_no") if not is_void else _("ANULADO")
 
-			usd_amount = round(iva_ret / bcv_rate, 2) if bcv_rate > 0 else 0.0
+			# Fila IVA
+			iva_ret = flt(r.get("iva_retained", 0))
+			if include_iva and abs(iva_ret) > 0.001:
+				w_date = r.get("withholding_date_sort")
+				ref_date = w_date or p_date
+				bcv_rate = 0.0
+				if ref_date:
+					try:
+						first_day = str(get_first_day(ref_date))
+						if first_day not in rates_cache:
+							rates_cache[first_day] = flt(get_exchange_rate(first_day, "USD"))
+						bcv_rate = rates_cache[first_day]
+					except Exception:
+						bcv_rate = 0.0
 
-			processed_data.append({
-				"name": r.get("name"),
-				"posting_date": p_date,
-				"registration_date": w_date or p_date,
-				"voucher_date": w_date or p_date,
-				"withholding_date": w_date,
-				"bill_no": r.get("bill_no") if not is_void else _("ANULADO"),
-				"bill_control": r.get("bill_control"),
-				"customer_name": r.get("customer_name"),
-				"tax_id": r.get("customer_tax_id"),
-				"branch": r.get("branch"),
-				"base_total": base_tot,
-				"grand_total": flt(r.get("grand_total", 0)),
-				"charge_type": "VAT Withholding",
-				"retention_type": "IVA",
-				"retention_percentage": flt(r.get("vat_withholding_rate", 0)),
-				"voucher_number": r.get("vat_withholding_voucher_number"),
-				"is_void": is_void,
-				"is_return": is_return,
-				"is_debit_note": is_debit,
-				"doctype": doctype,
-				"doc_type": doc_type,
-				"bcv_rate": bcv_rate,
-				"withholding_amount": iva_ret,
-				"withholding_amount_usd": usd_amount,
-			})
+				usd_amount = round(iva_ret / bcv_rate, 2) if bcv_rate > 0 else 0.0
 
-	# 2. ISLR y Retenciones Gubernamentales
-	def get_conditions(alias):
-		conds = f" AND {alias}.company = %(company)s"
-		if filters.get("from_date"):
-			conds += f" AND {alias}.posting_date >= %(from_date)s"
-		if filters.get("to_date"):
-			conds += f" AND {alias}.posting_date <= %(to_date)s"
-		if filters.get("customer"):
-			conds += f" AND {alias}.customer = %(customer)s"
+				processed_data.append({
+					"name": r.get("name"),
+					"posting_date": p_date,
+					"registration_date": w_date or p_date,
+					"voucher_date": w_date or p_date,
+					"withholding_date": w_date,
+					"bill_no": bill_no_val,
+					"bill_control": r.get("bill_control"),
+					"customer_name": r.get("customer_name"),
+					"tax_id": r.get("customer_tax_id"),
+					"branch": r.get("branch"),
+					"base_total": base_tot,
+					"grand_total": grand_tot,
+					"charge_type": "VAT Withholding",
+					"retention_type": "IVA",
+					"retention_percentage": flt(r.get("vat_withholding_rate", 0)),
+					"voucher_number": r.get("vat_withholding_voucher_number"),
+					"is_void": is_void,
+					"is_return": is_return,
+					"is_debit_note": is_debit,
+					"doctype": doctype,
+					"doc_type": doc_type,
+					"bcv_rate": bcv_rate,
+					"withholding_amount": iva_ret,
+					"withholding_amount_usd": usd_amount,
+				})
 
-		if branches:
-			if exclude_branches:
-				conds += f" AND IFNULL({alias}.branch, '') NOT IN %(branch_scope)s"
-			else:
-				conds += f" AND {alias}.branch IN %(branch_scope)s"
-		else:
-			conds += branch_scope_condition(filters.get("branch"), f"{alias}.branch")[0]
-		return conds
+			# Fila ISLR
+			islr_ret = flt(r.get("islr_retained", 0))
+			if include_islr and abs(islr_ret) > 0.001:
+				i_date = r.get("islr_date_sort")
+				ref_date = r.get("islr_registration_date") or i_date or p_date
+				bcv_rate = 0.0
+				if ref_date:
+					try:
+						first_day = str(get_first_day(ref_date))
+						if first_day not in rates_cache:
+							rates_cache[first_day] = flt(get_exchange_rate(first_day, "USD"))
+						bcv_rate = rates_cache[first_day]
+					except Exception:
+						bcv_rate = 0.0
 
-	other_queries = []
-	if include_islr:
-		other_queries.append(f"""
-			SELECT 
-				si.name, si.posting_date, si.bill_no, si.bill_control, si.customer_name, si.branch,
-				COALESCE(NULLIF(si.tax_id, ''), c.tax_id) as tax_id,
-				si.base_total, si.base_grand_total AS grand_total,
-				stc.charge_type,
-				CASE 
-					WHEN si.posting_date <= %(fiscal_cutoff)s THEN ABS(stc.tax_amount) * (CASE WHEN si.currency != %(company_currency)s THEN si.conversion_rate ELSE 1 END) 
-					ELSE 
-						CASE 
-							WHEN stc.charge_type = 'ISLR' AND (si.islr_receipt_number IS NULL OR si.islr_receipt_number = '') THEN 0
-							WHEN stc.charge_type = 'ISLR' AND si.islr_date IS NOT NULL
-							     AND si.islr_date NOT BETWEEN %(from_date)s AND %(to_date)s THEN 0
-							ELSE ABS(stc.base_tax_amount) 
-						END
-				END AS withholding_amount,
-				si.islr_receipt_number as voucher_number,
-				si.islr_date as registration_date,
-				COALESCE(si.islr_registration_date, si.islr_date, si.posting_date) as voucher_date,
-				si.islr_date as withholding_date,
-				stc.rate AS retention_percentage,
-				si.is_void, 0 AS is_return, 0 AS is_debit_note, 'Sales Invoice' as doctype,
-				1 AS amount_sign
-			FROM `tabSales Invoice` si
-			LEFT JOIN `tabCustomer` c ON si.customer = c.name
-			JOIN `tabSales Taxes and Charges` stc ON si.name = stc.parent
-			WHERE si.company = %(company)s AND (si.docstatus = 1 OR (si.docstatus = 2 AND si.is_void = 1))
-			  AND stc.charge_type = 'ISLR' AND stc.tax_amount != 0
-			  {get_conditions('si')}
-		""")
+				usd_amount = round(islr_ret / bcv_rate, 2) if bcv_rate > 0 else 0.0
 
-		if include_nc:
-			other_queries.append(f"""
-				SELECT 
-					nc.name, nc.posting_date, nc.bill_no, nc.bill_control, nc.customer_name, nc.branch,
-					COALESCE(NULLIF(nc.tax_id, ''), c.tax_id) as tax_id,
-					nc.base_total, nc.base_grand_total AS grand_total,
-					stc.charge_type,
-					CASE 
-						WHEN nc.posting_date <= %(fiscal_cutoff)s THEN ABS(stc.tax_amount) * (CASE WHEN nc.currency != %(company_currency)s THEN nc.conversion_rate ELSE 1 END) 
-						ELSE 
-							CASE 
-								WHEN stc.charge_type = 'ISLR' AND (nc.islr_receipt_number IS NULL OR nc.islr_receipt_number = '') THEN 0
-								WHEN stc.charge_type = 'ISLR' AND nc.islr_date IS NOT NULL
-								     AND nc.islr_date NOT BETWEEN %(from_date)s AND %(to_date)s THEN 0
-								ELSE ABS(stc.base_tax_amount) 
-							END
-					END AS withholding_amount,
-					nc.islr_receipt_number as voucher_number,
-					COALESCE(nc.islr_date, nc.posting_date) as registration_date,
-					COALESCE(nc.islr_date, nc.posting_date) as voucher_date,
-					nc.islr_date as withholding_date,
-					stc.rate AS retention_percentage,
-					0 AS is_void, 1 AS is_return, 0 AS is_debit_note, 'VE Sales Credit Note' as doctype,
-					-1 AS amount_sign
-				FROM `tabVE Sales Credit Note` nc
-				LEFT JOIN `tabCustomer` c ON nc.customer = c.name
-				JOIN `tabSales Taxes and Charges` stc ON nc.name = stc.parent
-				WHERE nc.company = %(company)s AND nc.docstatus = 1
-				  AND stc.charge_type = 'ISLR' AND stc.tax_amount != 0
-				  {get_conditions('nc')}
-			""")
+				processed_data.append({
+					"name": r.get("name"),
+					"posting_date": p_date,
+					"registration_date": i_date or p_date,
+					"voucher_date": ref_date,
+					"withholding_date": i_date,
+					"bill_no": bill_no_val,
+					"bill_control": r.get("bill_control"),
+					"customer_name": r.get("customer_name"),
+					"tax_id": r.get("customer_tax_id"),
+					"branch": r.get("branch"),
+					"base_total": base_tot,
+					"grand_total": grand_tot,
+					"charge_type": "ISLR",
+					"retention_type": "ISLR",
+					"retention_percentage": flt(r.get("islr_rate", 0)),
+					"voucher_number": r.get("islr_receipt_number"),
+					"is_void": is_void,
+					"is_return": is_return,
+					"is_debit_note": is_debit,
+					"doctype": doctype,
+					"doc_type": doc_type,
+					"bcv_rate": bcv_rate,
+					"withholding_amount": islr_ret,
+					"withholding_amount_usd": usd_amount,
+				})
 
-		other_queries.append(f"""
-			SELECT 
-				nd.name, nd.posting_date, nd.bill_no, nd.bill_control, nd.customer_name, nd.branch,
-				COALESCE(NULLIF(nd.tax_id, ''), c.tax_id) as tax_id,
-				nd.base_total, nd.base_grand_total AS grand_total,
-				stc.charge_type,
-				CASE 
-					WHEN nd.posting_date <= %(fiscal_cutoff)s THEN ABS(stc.tax_amount) * (CASE WHEN nd.currency != %(company_currency)s THEN nd.conversion_rate ELSE 1 END) 
-					ELSE ABS(stc.base_tax_amount)
-				END AS withholding_amount,
-				NULL as voucher_number,
-				nd.posting_date as registration_date,
-				nd.posting_date as voucher_date,
-				NULL as withholding_date,
-				stc.rate AS retention_percentage,
-				nd.is_void, 0 AS is_return, 1 AS is_debit_note, 'VE Sales Debit Note' as doctype,
-				1 AS amount_sign
-			FROM `tabVE Sales Debit Note` nd
-			LEFT JOIN `tabCustomer` c ON nd.customer = c.name
-			JOIN `tabSales Taxes and Charges` stc ON nd.name = stc.parent
-			WHERE nd.company = %(company)s AND (nd.docstatus = 1 OR (nd.docstatus = 2 AND nd.is_void = 1))
-			  AND stc.charge_type = 'ISLR' AND stc.tax_amount != 0
-			  {get_conditions('nd')}
-		""")
-
+	# 2. Retenciones Gubernamentales
 	if include_gov:
 		gov_accounts = frappe.get_all(
 			"Account",
@@ -348,7 +284,7 @@ def get_data(filters):
 			else:
 				je_conditions += branch_scope_condition(filters.get("branch"), "si.branch")[0]
 
-			other_queries.append(f"""
+			gov_query = f"""
 				SELECT 
 					si.name, si.posting_date, si.bill_no, si.bill_control, si.customer_name, si.branch,
 					COALESCE(NULLIF(si.tax_id, ''), c.tax_id) as tax_id,
@@ -377,58 +313,26 @@ def get_data(filters):
 				  AND jec_inv.reference_type = 'Sales Invoice'
 				  AND jec_gov.account IN %(gov_accounts)s
 				  {je_conditions}
-			""")
-
-	if other_queries:
-		query = f"""
-			SELECT * FROM (
-				{" UNION ALL ".join(other_queries)}
-			) AS combined
-			ORDER BY posting_date DESC, name DESC
-		"""
-		raw_other = frappe.db.sql(query, sql_filters, as_dict=1)
-		for d in raw_other:
-			is_void = d.get("is_void")
-			if is_void:
-				d["doc_type"] = "ANU"
-			elif d.get("is_debit_note"):
-				d["doc_type"] = "ND"
-			elif d.get("is_return"):
-				d["doc_type"] = "NC"
-			else:
+				ORDER BY posting_date DESC, name DESC
+			"""
+			raw_gov = frappe.db.sql(gov_query, sql_filters, as_dict=1)
+			for d in raw_gov:
 				d["doc_type"] = "FAC"
-
-			sign = d.get("amount_sign", 1)
-			d["bill_no"] = d.get("bill_no") if not is_void else _("ANULADO")
-			d["base_total"] = flt(d.get("base_total", 0)) * sign * (1 - is_void)
-			d["grand_total"] = flt(d.get("grand_total", 0)) * sign * (1 - is_void)
-			d["withholding_amount"] = flt(d.get("withholding_amount", 0)) * sign * (1 - is_void)
-
-			if flt(d["withholding_amount"]) == 0.0:
-				continue
-
-			ct = d.get("charge_type")
-			if ct == "VAT Withholding":
-				d["retention_type"] = "IVA"
-			elif ct == "ISLR":
-				d["retention_type"] = "ISLR"
-			else:
 				d["retention_type"] = "Gubernamental"
+				ref_date = d.get("registration_date") or d.get("voucher_date") or d.get("posting_date")
+				bcv_rate = 0.0
+				if ref_date:
+					try:
+						first_day = str(get_first_day(ref_date))
+						if first_day not in rates_cache:
+							rates_cache[first_day] = flt(get_exchange_rate(first_day, "USD"))
+						bcv_rate = rates_cache[first_day]
+					except Exception:
+						bcv_rate = 0.0
 
-			ref_date = d.get("registration_date") or d.get("voucher_date") or d.get("posting_date")
-			bcv_rate = 0.0
-			if ref_date:
-				try:
-					first_day = str(get_first_day(ref_date))
-					if first_day not in rates_cache:
-						rates_cache[first_day] = flt(get_exchange_rate(first_day, "USD"))
-					bcv_rate = rates_cache[first_day]
-				except Exception:
-					bcv_rate = 0.0
-
-			d["bcv_rate"] = bcv_rate
-			d["withholding_amount_usd"] = flt(d["withholding_amount"] / bcv_rate, 2) if bcv_rate > 0 else 0.0
-			processed_data.append(d)
+				d["bcv_rate"] = bcv_rate
+				d["withholding_amount_usd"] = flt(d["withholding_amount"] / bcv_rate, 2) if bcv_rate > 0 else 0.0
+				processed_data.append(d)
 
 	processed_data.sort(key=lambda x: (str(x.get("posting_date") or ""), str(x.get("name") or "")), reverse=True)
 	return processed_data

@@ -507,6 +507,7 @@ def _get_cte() -> str:
                 siv.credit_note_no, siv.debit_note_no,
                 siv.affected_invoice_number,
                 siv.vat_withholding_voucher_number, siv.withholding_date,
+                siv.islr_receipt_number, siv.islr_date, siv.islr_registration_date,
                 siv.is_void, siv.is_return, siv.is_debit_note, siv.docstatus,
                 (CASE WHEN siv.currency != %(company_currency)s THEN siv.conversion_rate ELSE 1 END) AS conversion_rate,
                 1 AS amount_sign,
@@ -533,6 +534,7 @@ def _get_cte() -> str:
                 NULL AS debit_note_no,
                 COALESCE(si_orig.bill_no, nc.return_against) AS affected_invoice_number,
                 nc.vat_withholding_voucher_number, nc.withholding_date,
+                nc.islr_receipt_number, nc.islr_date, NULL AS islr_registration_date,
                 nc.is_void, 1 AS is_return, 0 AS is_debit_note, nc.docstatus,
                 (CASE WHEN nc.currency != %(company_currency)s THEN nc.conversion_rate ELSE 1 END) AS conversion_rate,
                 -1 AS amount_sign,
@@ -568,6 +570,7 @@ def _get_cte() -> str:
                 nd.bill_no AS debit_note_no,
                 COALESCE(si_orig.bill_no, nd.return_against) AS affected_invoice_number,
                 nd.vat_withholding_voucher_number, nd.withholding_date,
+                NULL AS islr_receipt_number, NULL AS islr_date, NULL AS islr_registration_date,
                 nd.is_void, 0 AS is_return, 1 AS is_debit_note, nd.docstatus,
                 (CASE WHEN nd.currency != %(company_currency)s THEN nd.conversion_rate ELSE 1 END) AS conversion_rate,
                 1 AS amount_sign,
@@ -625,6 +628,17 @@ def _get_common_columns() -> str:
                 WHEN tc.type_of_person = 'Non-domiciled natural person' THEN 'PNND'
                 ELSE 'N/A'
             END AS customer_type,
+            CASE 
+                WHEN siv.islr_date IS NULL OR siv.islr_date BETWEEN %(from_date)s AND %(to_date)s 
+                THEN siv.islr_receipt_number 
+                ELSE NULL 
+            END AS islr_receipt_number,
+            CASE 
+                WHEN siv.islr_date IS NULL OR siv.islr_date BETWEEN %(from_date)s AND %(to_date)s 
+                THEN DATE_FORMAT(siv.islr_date, '%%d/%%m/%%Y') 
+                ELSE NULL 
+            END AS islr_date,
+            siv.islr_registration_date,
     """
 
 
@@ -703,7 +717,19 @@ def _get_legacy_calc_columns() -> str:
                 ELSE 0 
             END AS vat_withholding_rate,
             MAX(siv.posting_date) AS posting_date_sort,
-            MAX(siv.withholding_date) AS withholding_date_sort
+            MAX(siv.withholding_date) AS withholding_date_sort,
+            -- ISLR retenido (legacy)
+            CASE 
+                WHEN MAX(siv.islr_date) IS NULL OR MAX(siv.islr_date) BETWEEN %(from_date)s AND %(to_date)s 
+                THEN MAX(CASE WHEN tstac.charge_type = 'ISLR' THEN ABS(tstac.tax_amount) ELSE 0 END) * MAX(siv.conversion_rate) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void))
+                ELSE 0 
+            END AS islr_retained,
+            CASE 
+                WHEN MAX(siv.islr_date) IS NULL OR MAX(siv.islr_date) BETWEEN %(from_date)s AND %(to_date)s 
+                THEN MAX(CASE WHEN tstac.charge_type = 'ISLR' THEN tstac.rate ELSE 0 END) * (1 - MAX(siv.is_void))
+                ELSE 0 
+            END AS islr_rate,
+            MAX(siv.islr_date) AS islr_date_sort
     """
 
 
@@ -825,7 +851,21 @@ def _get_new_calc_columns() -> str:
                 ELSE 0
             END AS vat_withholding_rate,
             MAX(siv.posting_date) AS posting_date_sort,
-            MAX(siv.withholding_date) AS withholding_date_sort
+            MAX(siv.withholding_date) AS withholding_date_sort,
+            -- ISLR retenido (nuevo)
+            CASE WHEN MAX(siv.islr_receipt_number) IS NOT NULL 
+                      AND MAX(siv.islr_receipt_number) != '' 
+                      AND (MAX(siv.islr_date) IS NULL OR MAX(siv.islr_date) BETWEEN %(from_date)s AND %(to_date)s)
+                THEN MAX(CASE WHEN tstac.charge_type = 'ISLR' THEN ABS(tstac.base_tax_amount) ELSE 0 END) * MAX(siv.amount_sign) * (1 - MAX(siv.is_void))
+                ELSE 0
+            END AS islr_retained,
+            CASE WHEN MAX(siv.islr_receipt_number) IS NOT NULL 
+                      AND MAX(siv.islr_receipt_number) != '' 
+                      AND (MAX(siv.islr_date) IS NULL OR MAX(siv.islr_date) BETWEEN %(from_date)s AND %(to_date)s)
+                THEN MAX(CASE WHEN tstac.charge_type = 'ISLR' THEN tstac.rate ELSE 0 END) * (1 - MAX(siv.is_void))
+                ELSE 0
+            END AS islr_rate,
+            MAX(siv.islr_date) AS islr_date_sort
     """.format(**cols)
 
 
@@ -882,6 +922,7 @@ def get_total_row(data: list[dict]) -> dict:
         "base_additional_taxpayer": 0,
         "iva_additional_taxpayer": 0,
         "iva_retained": 0,
+        "islr_retained": 0,
         "total_igtf": 0,
         "base_amount_igtf": 0,
     })
