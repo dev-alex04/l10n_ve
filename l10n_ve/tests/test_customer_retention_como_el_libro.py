@@ -106,6 +106,35 @@ def _escenario() -> dict | None:
 	return {"company": c, "from_date": d1, "to_date": d2, "hoja": hoja, "grupo": grupo,
 			"subarbol": subarbol(grupo) if grupo else []}
 
+def _escenario_anterior_al_corte() -> dict | None:
+	"""Empresa y mes REAL anterior al corte fiscal con retenciones históricas.
+
+	Verifica la regla de la base para documentos <= _FISCAL_CUTOFF_DATE:
+	en períodos históricos declarados al SENIAT por fecha de emisión, las
+	retenciones se conservan aunque carezcan de número de comprobante.
+	"""
+	fila = frappe.db.sql(
+		"""
+		SELECT si.company, YEAR(si.posting_date) AS anio, MONTH(si.posting_date) AS mes, COUNT(*) AS n
+		FROM `tabSales Invoice` si
+		JOIN `tabSales Taxes and Charges` stc ON si.name = stc.parent
+		WHERE si.docstatus = 1 AND si.posting_date < DATE_FORMAT(%(corte)s, '%%Y-%%m-01')
+		  AND stc.charge_type IN ('VAT Withholding', 'ISLR') AND stc.tax_amount != 0
+		GROUP BY si.company, anio, mes
+		ORDER BY anio DESC, mes DESC
+		LIMIT 1
+		""",
+		{"corte": libro._FISCAL_CUTOFF_DATE},
+		as_dict=True,
+	)
+	if not fila or not fila[0].n:
+		return None
+	c = fila[0].company
+	d1 = f"{int(fila[0].anio):04d}-{int(fila[0].mes):02d}-01"
+	d2 = str(frappe.utils.get_last_day(d1))
+	return {"company": c, "from_date": d1, "to_date": d2}
+
+
 
 def _total(filtros: dict, tipo: str) -> tuple[float, list]:
 	datos = reporte.execute({**filtros, "retention_type": tipo})[1]
@@ -118,6 +147,7 @@ class TestElReporteDaElMismoNumeroQueElLibro(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
 		cls.esc = _escenario()
+		cls.esc_pre = _escenario_anterior_al_corte()
 
 	def setUp(self):
 		if not self.esc:
@@ -166,3 +196,47 @@ class TestElReporteDaElMismoNumeroQueElLibro(unittest.TestCase):
 						 and d.get("withholding_date")
 						 and not (self.base["from_date"] <= str(d["withholding_date"]) <= self.base["to_date"])]
 				self.assertEqual(fuera, [])
+
+	def test_periodo_anterior_al_corte_fiscal_conserva_retenciones(self):
+		"""Períodos anteriores al corte fiscal mantienen la regla de la base:
+		las retenciones se declaran en el mes de emisión de la factura y no se
+		descartan por falta de número de comprobante."""
+		if not self.esc_pre:
+			self.skipTest("el sitio no tiene retenciones anteriores al corte fiscal: nada que cruzar")
+		base_filtros = {k: self.esc_pre[k] for k in ("company", "from_date", "to_date")}
+		company_currency = frappe.get_cached_value("Company", base_filtros["company"], "default_currency")
+
+		for rtype, ctype in (("IVA", "VAT Withholding"), ("ISLR", "ISLR")):
+			with self.subTest(tipo=rtype):
+				del_reporte, datos = _total(base_filtros, rtype)
+				self.assertGreater(del_reporte, 0, f"Retenciones {rtype} cayeron a 0 en mes anterior al corte")
+				self.assertGreater(len(datos), 0)
+
+				# Suma esperada según la regla de la base para documentos <= corte
+				si_esp = frappe.db.sql(
+					"""
+					SELECT SUM(ABS(stc.tax_amount) * (CASE WHEN si.currency != %(curr)s THEN si.conversion_rate ELSE 1 END))
+					FROM `tabSales Invoice` si
+					JOIN `tabSales Taxes and Charges` stc ON si.name = stc.parent
+					WHERE (si.docstatus = 1 OR (si.docstatus = 2 AND si.is_void = 1))
+					  AND si.is_void = 0 AND si.company = %(company)s
+					  AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+					  AND stc.charge_type = %(ctype)s AND stc.tax_amount != 0
+					""",
+					{**base_filtros, "curr": company_currency, "ctype": ctype},
+				)[0][0] or 0.0
+
+				nc_esp = frappe.db.sql(
+					"""
+					SELECT SUM(ABS(stc.tax_amount) * (CASE WHEN nc.currency != %(curr)s THEN nc.conversion_rate ELSE 1 END))
+					FROM `tabVE Sales Credit Note` nc
+					JOIN `tabSales Taxes and Charges` stc ON nc.name = stc.parent
+					WHERE nc.docstatus = 1 AND nc.company = %(company)s
+					  AND nc.posting_date BETWEEN %(from_date)s AND %(to_date)s
+					  AND stc.charge_type = %(ctype)s AND stc.tax_amount != 0
+					""",
+					{**base_filtros, "curr": company_currency, "ctype": ctype},
+				)[0][0] or 0.0
+
+				esperado = flt(si_esp) - flt(nc_esp)
+				self.assertAlmostEqual(del_reporte, esperado, places=2)
