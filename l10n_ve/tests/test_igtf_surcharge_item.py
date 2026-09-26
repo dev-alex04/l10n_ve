@@ -17,6 +17,12 @@ ITEM_CODE = (
 )
 GROUP_NAME = "Recargos Fiscales"
 
+
+def _item():
+    """El Item por su `item_name`: con item_naming_by = «Naming Series», ERPNext le pone el
+    número de la serie al `name` y también al `item_code`; el texto solo queda en `item_name`."""
+    return frappe.get_doc("Item", frappe.db.get_value("Item", {"item_name": ITEM_CODE}, "name"))
+
 # Sin cobertura a proposito: el camino "sitio sin arbol de Item Group" --que la
 # funcion omite en vez de cortar-- no tiene test. Ejercitarlo pide interceptar
 # `frappe.db.get_value`, y `frappe.db` es un LocalProxy sobre el que el patch no
@@ -63,9 +69,9 @@ class TestIGTFSurchargeItem(FrappeTestCase):
         create_igtf_surcharge_item()
 
         self.assertTrue(frappe.db.exists("Item Group", GROUP_NAME))
-        self.assertTrue(frappe.db.exists("Item", ITEM_CODE))
+        self.assertTrue(frappe.db.exists("Item", {"item_name": ITEM_CODE}))
 
-        item = frappe.get_doc("Item", ITEM_CODE)
+        item = _item()
         self.assertEqual(item.item_group, GROUP_NAME)
         self.assertEqual(item.is_stock_item, 0)
         self.assertEqual(item.vat_exempt, 1)
@@ -74,7 +80,7 @@ class TestIGTFSurchargeItem(FrappeTestCase):
         """El indicador Bien/Servicio lo crea el #580; acá se tolera su ausencia."""
         create_igtf_surcharge_item()
 
-        item = frappe.get_doc("Item", ITEM_CODE)
+        item = _item()
         if item.meta.has_field("goods_or_service"):
             self.assertEqual(item.goods_or_service, "2 - Servicio")
 
@@ -86,7 +92,7 @@ class TestIGTFSurchargeItem(FrappeTestCase):
         """
         create_igtf_surcharge_item()
 
-        for fila in frappe.get_doc("Item", ITEM_CODE).taxes:
+        for fila in _item().taxes:
             self.assertIn("exent", fila.item_tax_template.lower())
 
     def test_does_not_invent_a_template_when_there_is_none(self):
@@ -101,14 +107,14 @@ class TestIGTFSurchargeItem(FrappeTestCase):
         with patch.object(frappe, "get_all", side_effect=sin_plantillas):
             create_igtf_surcharge_item()
 
-        self.assertEqual(frappe.get_doc("Item", ITEM_CODE).taxes, [])
+        self.assertEqual(_item().taxes, [])
 
     def test_is_idempotent(self):
         create_igtf_surcharge_item()
         create_igtf_surcharge_item()
 
         self.assertEqual(
-            frappe.db.count("Item", {"item_code": ITEM_CODE}),
+            frappe.db.count("Item", {"item_name": ITEM_CODE}),
             1,
             "una segunda corrida no debe duplicar el item",
         )

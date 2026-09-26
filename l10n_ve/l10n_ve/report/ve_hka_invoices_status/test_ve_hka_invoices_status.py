@@ -26,7 +26,11 @@ class TestPermisosDelReporte(unittest.TestCase):
 
 	def test_con_permiso_sobre_uno_solo_consulta_solo_ese(self):
 		_, sql = self._execute({"VAT Withholding Voucher"})
-		consulta = sql.call_args.args[0]
+		# No sirve la última llamada: con la caché de metadatos vacía (tras un migrate),
+		# Frappe consulta tabDocType después de la consulta del reporte con el mismo `sql`.
+		consultas = [c.args[0] for c in sql.call_args_list if "ORDER BY posting_date DESC, name DESC" in c.args[0]]
+		self.assertEqual(len(consultas), 1, "el reporte hace una sola consulta")
+		consulta = consultas[0]
 		self.assertIn("tabVAT Withholding Voucher", consulta)
 		self.assertNotIn("tabSales Invoice", consulta)
 

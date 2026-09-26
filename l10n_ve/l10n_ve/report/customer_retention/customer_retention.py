@@ -52,8 +52,10 @@ def get_data(filters):
 	Obtiene las retenciones consolidando Facturas, Notas de Crédito y Débito.
 
 	Es el detalle de las tarjetas «Retención IVA» y «Retención ISLR» del panel, que salen
-	del Libro de Ventas, así que usa sus MISMAS dos reglas:
+	del Libro de Ventas, así que usa sus MISMAS tres reglas:
 
+	- Documentos: solo los fiscales (número y número de control) y, con HKA encendido, los
+	  que HKA certificó, igual que el `hka_filter_*` del libro.
 	- Sucursal: el subárbol entero (`branch_scope_condition`). Con igualdad simple, una
 	  sucursal de grupo --MIR-01, sin facturas a su nombre-- daba el reporte vacío mientras
 	  la tarjeta decía Bs 252.690,50 (agosto-2026).
@@ -63,9 +65,18 @@ def get_data(filters):
 	  de IVA y Bs 7.270,37 de ISLR de más en agosto-2026: seis y cuatro retenciones de
 	  facturas de agosto con comprobante de septiembre.
 	"""
+	# Los documentos que el libro declara: con número y número de control y, con HKA
+	# encendido, solo los que HKA certificó. Sin esto, una factura sin certificar (rechazada
+	# por HKA, o de antes de encenderlo) con comprobante de retención salía aquí y no en el
+	# libro: en designet eran Bs 340.826,05 de IVA que el libro no declara.
+	hka_enabled = frappe.db.get_single_value("TFHKA Settings", "enabled", cache=True)
+
 	# Función auxiliar para construir condiciones con alias específicos
 	def get_conditions(alias):
 		conds = f" AND {alias}.company = %(company)s"
+		conds += f" AND IFNULL({alias}.bill_no, '') != '' AND IFNULL({alias}.bill_control, '') != ''"
+		if hka_enabled:
+			conds += f" AND LOCATE('\"numeroControl\"', {alias}.remarks) > 0"
 		if filters.get("from_date"):
 			conds += f" AND {alias}.posting_date >= %(from_date)s"
 		if filters.get("to_date"):

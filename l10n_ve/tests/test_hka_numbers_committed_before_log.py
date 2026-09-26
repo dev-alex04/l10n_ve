@@ -25,6 +25,9 @@ class TestInvoiceNumbersCommittedBeforeLog(unittest.TestCase):
         order: list[str] = []
         doc = frappe._dict(doctype="Sales Invoice", name="ACC-SINV-0001")
         series = frappe._dict(operation_mode="Third Party")
+        # `today()` lee la zona horaria de System Settings; con la caché fría (tras un
+        # migrate) la carga pasaría por el `get_value` falso de abajo y rompería la Meta.
+        frappe.utils.today()
         with patch.object(tfhka_integration.frappe.db, "set_value",
                           side_effect=lambda *a, **k: order.append("set_value")), \
              patch.object(tfhka_integration.frappe.db, "get_value",

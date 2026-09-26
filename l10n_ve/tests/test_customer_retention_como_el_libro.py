@@ -54,6 +54,14 @@ class TestElReporteUsaLasReglasDelLibro(unittest.TestCase):
 				with self.subTest(alias=alias, campo=campo):
 					self.assertIn(f"{alias}.{campo} NOT BETWEEN %(from_date)s AND %(to_date)s", fuente)
 
+	def test_los_documentos_son_los_del_libro(self):
+		"""Solo fiscales (número y control) y, con HKA encendido, certificados por HKA."""
+		fuente = inspect.getsource(reporte.get_data)
+		self.assertIn("IFNULL({alias}.bill_control, '') != ''", fuente)
+		self.assertIn("IFNULL({alias}.bill_no, '') != ''", fuente)
+		self.assertIn("""LOCATE('\\"numeroControl\\"', {alias}.remarks) > 0""", fuente)
+		self.assertIn('"TFHKA Settings", "enabled"', fuente)
+
 	def test_el_resumen_va_en_la_moneda_de_la_empresa(self):
 		"""Sin moneda, Frappe rotulaba «REF.» los totales en bolívares."""
 		filas = [{"base_total": 10.0, "grand_total": 11.6, "withholding_amount": 1.2}]
