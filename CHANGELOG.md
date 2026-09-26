@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.82.0] - 2026-09-26
+
+### ✨ Funcionalidades (Features)
+- **Integración ISP ↔ contratista:** registro compartido de una parte (documento fiscal y dirección) para domina_isp y domina_isp_contractor, clasificación de la parte por su documento y campo RIF en el prospecto (Lead), que se copia al cliente al convertirlo. [20a9ccf4]
+
+### 🐛 Correcciones (Fixes)
+- **Retención de Clientes:** el reporte cuenta solo los documentos que declara el Libro de Ventas (con número, número de control y, con HKA encendido, certificados por HKA). [694f749b]
+- **IGTF:** el producto de recargo IGTF ya no se duplica al correr `set_data` en sitios que nombran artículos por serie. [694f749b]
+- **Pruebas:** la suite de l10n_ve queda en verde en los sitios de Galanet y Designet. [694f749b]
+- **Pagos:** con hrms instalado, Payment Entry combina la lógica de l10n_ve (primero) con la de hrms; nuevo aviso en Error Log tras `migrate` si la clase del sitio no la lleva. [3cb50a8e]
+
+---
+
 ## [v2.81.0] - 2026-09-24
 
 ### ✨ Funcionalidades (Features)
