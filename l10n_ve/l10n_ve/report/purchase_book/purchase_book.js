@@ -74,6 +74,12 @@ frappe.query_reports["purchase_book"] = {
         filters: { company: frappe.query_report.get_filter_value("company") },
       }),
     },
+    {
+      fieldname: "exclude_branches",
+      label: __("Excluir Sucursal"),
+      fieldtype: "Check",
+      default: 0,
+    },
   ],
 
   onload: function (report) {

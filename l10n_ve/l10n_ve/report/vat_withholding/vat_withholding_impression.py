@@ -50,7 +50,7 @@ def download_custom_excel(filters=None):
     ws["A3"] = f"Dirección: {company_details.get('address')}"
     ws["A4"] = f"Fecha de Emisión: {formatdate(nowdate())}"
 
-    ws.merge_cells('A5:N5')
+    ws.merge_cells('A5:Q5')
     ws["A5"] = "REPORTE DETALLADO DE RETENCIONES IVA"
     ws["A5"].font = bold_font
     ws["A5"].alignment = center_align
@@ -59,7 +59,7 @@ def download_custom_excel(filters=None):
     headers = [
         "RIF Proveedor", "Nombre del Proveedor", "Número de Factura", "Número de Control", "Fecha Factura", 
         "Impuesto", "Fecha Emisión", "Documento Retención", 
-        "Base Imponible Bs", "Alícuota IVA (%)", "% Retención IVA", "Monto Retención Bs", "Estado del Documento", "Estado del Comprobante"
+        "Base Imponible Bs", "Alícuota IVA (%)", "% Retención IVA", "Monto Retención Bs", "Tasa BCV", "Monto Retención USD", "Sucursal", "Estado del Documento", "Estado del Comprobante"
     ]
 
     for col_num, header in enumerate(headers, 1):
@@ -104,8 +104,15 @@ def download_custom_excel(filters=None):
         cell_ret = ws.cell(row=row_num, column=12, value=d.tax_amount_vat)
         cell_ret.number_format = '#,##0.00'
 
-        ws.cell(row=row_num, column=13, value=d.get("status") or "")
-        ws.cell(row=row_num, column=14, value=d.get("declared_status") or "")
+        cell_bcv = ws.cell(row=row_num, column=13, value=d.get("bcv_rate") or 0)
+        cell_bcv.number_format = '#,##0.00'
+
+        cell_usd = ws.cell(row=row_num, column=14, value=d.get("tax_amount_vat_usd") or 0)
+        cell_usd.number_format = '#,##0.00'
+
+        ws.cell(row=row_num, column=15, value=d.get("branch") or "")
+        ws.cell(row=row_num, column=16, value=d.get("status") or "")
+        ws.cell(row=row_num, column=17, value=d.get("declared_status") or "")
 
         total_base += (d.total or 0)
         total_ret += (d.tax_amount_vat or 0)

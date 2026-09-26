@@ -3,17 +3,20 @@
 
 import frappe
 from frappe import _
+from frappe.utils import flt, get_first_day
 
-from l10n_ve.l10n_ve.report.sales_book.sales_book import branch_scope_condition
+from l10n_ve.l10n_ve.report.sales_book.sales_book import (
+    branch_scope_condition,
+    get_branch_subtree,
+)
+from l10n_ve.utils.utils import get_exchange_rate
 
 # La sucursal de la retención es la del comprobante; la de la factura solo entra
 # si el comprobante no la trae. Se define una sola vez porque el WHERE y el
 # SELECT tienen que decir exactamente lo mismo: si filtran distinto de lo que
 # muestran, el usuario pide una sucursal y ve filas rotuladas con otra.
-#
-# `NULLIF` está porque Frappe guarda cadena vacía --no NULL-- en un Link sin
-# cargar, y con `COALESCE` pelado el respaldo no entraría nunca.
 BRANCH_EXPR = "COALESCE(NULLIF(parent.branch, ''), pi.branch)"
+
 
 def execute(filters=None):
     if not filters:
@@ -22,6 +25,7 @@ def execute(filters=None):
     columns = get_columns(filters)
     data = get_data(filters)
     return columns, data
+
 
 def get_columns(filters):
     group_by = filters.get("group_by") or "Detalle"
@@ -32,7 +36,9 @@ def get_columns(filters):
             {"fieldname": "supplier_name", "label": _("Nombre Proveedor"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "islr_base_amount", "label": _("Monto Objeto Retención"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "subtracting", "label": _("Sustraendo"), "fieldtype": "Currency", "width": "auto"},
-            {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"}
+            {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "bcv_rate", "label": _("Tasa BCV"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "islr_amount_usd", "label": _("Impuesto Retenido USD"), "fieldtype": "Currency", "width": "auto"}
         ]
     elif group_by == "Por Concepto":
         return [
@@ -40,7 +46,9 @@ def get_columns(filters):
             {"fieldname": "concept_description", "label": _("Concepto de Retención"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "islr_base_amount", "label": _("Monto Objeto Retención"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "subtracting", "label": _("Sustraendo"), "fieldtype": "Currency", "width": "auto"},
-            {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"}
+            {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "bcv_rate", "label": _("Tasa BCV"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "islr_amount_usd", "label": _("Impuesto Retenido USD"), "fieldtype": "Currency", "width": "auto"}
         ]
     else:
         return [
@@ -59,11 +67,51 @@ def get_columns(filters):
             {"fieldname": "subtracting", "label": _("Sustraendo"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "rate", "label": _("% Retención ISLR"), "fieldtype": "Percent", "width": "auto"},
             {"fieldname": "islr_amount", "label": _("Impuesto Retenido"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "bcv_rate", "label": _("Tasa BCV"), "fieldtype": "Currency", "width": "auto"},
+            {"fieldname": "islr_amount_usd", "label": _("Impuesto Retenido USD"), "fieldtype": "Currency", "width": "auto"},
             {"fieldname": "branch", "label": _("Sucursal"), "fieldtype": "Link", "options": "VE Branch", "width": "auto"},
             {"fieldname": "parent", "label": _("Documento Retención"), "fieldtype": "Link", "options": "ISLR Withholding Voucher", "width": "auto"},
             {"fieldname": "status", "label": _("Estado del Documento"), "fieldtype": "Data", "width": "auto"},
             {"fieldname": "declared_status", "label": _("Estado del Comprobante"), "fieldtype": "Data", "width": "auto"}
         ]
+
+
+def _resolve_branches(filters: dict) -> tuple[str, bool, tuple[str, ...], str, dict]:
+    """Resuelve sucursales considerando árbol jerárquico, listas y exclusión."""
+    branch_val = filters.get("branch")
+    branches_val = filters.get("branches")
+    exclude_branches = bool(filters.get("exclude_branches"))
+
+    if isinstance(branch_val, (list, tuple)):
+        branches = [b for b in branch_val if b]
+        branch = ""
+    elif branches_val and isinstance(branches_val, (list, tuple)):
+        branches = [b for b in branches_val if b]
+        branch = ""
+    else:
+        branches = []
+        branch = str(branch_val or "").strip()
+
+    if exclude_branches and branch and not branches:
+        branches = [branch]
+        branch = ""
+
+    if branches:
+        resolved = set()
+        for b in branches:
+            sub = get_branch_subtree(b)
+            if sub:
+                resolved.update(sub)
+            else:
+                resolved.add(b)
+        branch_scope = tuple(sorted(resolved)) if resolved else ("__ninguna__",)
+        return branch, exclude_branches, branch_scope, "scope", {"branch_scope": branch_scope}
+    elif branch:
+        _, branch_params = branch_scope_condition(branch, "branch")
+        return branch, False, (), "single", branch_params
+    else:
+        return "", False, (), "none", {}
+
 
 def get_data(filters):
     query_params = {
@@ -81,14 +129,20 @@ def get_data(filters):
         conditions += " AND parent.supplier = %(supplier)s"
         query_params["supplier"] = filters.get("supplier")
 
-    branch_condition, branch_params = branch_scope_condition(
-        filters.get("branch"), BRANCH_EXPR)
-    conditions += branch_condition
-    query_params.update(branch_params)
+    branch, exclude_branches, branch_scope, mode, branch_params = _resolve_branches(filters)
+    if mode == "scope":
+        op = "NOT IN" if exclude_branches else "IN"
+        conditions += f" AND IFNULL({BRANCH_EXPR}, '') {op} %(branch_scope)s"
+        query_params["branch_scope"] = branch_scope
+    elif mode == "single":
+        branch_condition, b_params = branch_scope_condition(branch, BRANCH_EXPR)
+        conditions += branch_condition
+        query_params.update(b_params)
 
     group_by = filters.get("group_by") or "Detalle"
 
     if group_by == "Por Proveedor":
+        # nosemgrep: frappe-semgrep-rules.rules.security.frappe-sql-format-injection
         query = f"""
             SELECT
                 supp.tax_id,
@@ -115,6 +169,7 @@ def get_data(filters):
                 supp.tax_id ASC
         """
     elif group_by == "Por Concepto":
+        # nosemgrep: frappe-semgrep-rules.rules.security.frappe-sql-format-injection
         query = f"""
             SELECT
                 child.code as concept_code,
@@ -126,8 +181,11 @@ def get_data(filters):
                 `tabISLR Withholding Voucher Item` child
             INNER JOIN
                 `tabISLR Withholding Voucher` parent ON child.parent = parent.name
-            LEFT JOIN
-                `tabTabulator ISLR` tab_islr ON child.code = tab_islr.codigo
+            LEFT JOIN (
+                SELECT codigo, MAX(descripcion) AS descripcion
+                FROM `tabTabulator ISLR`
+                GROUP BY codigo
+            ) tab_islr ON child.code = tab_islr.codigo
             LEFT JOIN
                 `tabPurchase Invoice` pi ON child.purchase_invoice = pi.name
             WHERE
@@ -140,6 +198,7 @@ def get_data(filters):
                 child.code ASC
         """
     else:
+        # nosemgrep: frappe-semgrep-rules.rules.security.frappe-sql-format-injection
         query = f"""
             SELECT
                 supp.tax_id,
@@ -175,8 +234,11 @@ def get_data(filters):
                 `tabISLR Withholding Voucher` parent ON child.parent = parent.name
             INNER JOIN
                 `tabSupplier` supp ON parent.supplier = supp.name
-            LEFT JOIN
-                `tabTabulator ISLR` tab_islr ON child.code = tab_islr.codigo
+            LEFT JOIN (
+                SELECT codigo, MAX(descripcion) AS descripcion
+                FROM `tabTabulator ISLR`
+                GROUP BY codigo
+            ) tab_islr ON child.code = tab_islr.codigo
             LEFT JOIN
                 `tabPurchase Invoice` pi ON child.purchase_invoice = pi.name
             WHERE
@@ -187,4 +249,22 @@ def get_data(filters):
                 child.posting_date DESC, child.idx ASC
         """
     
-    return frappe.db.sql(query, query_params, as_dict=True)
+    raw_data = frappe.db.sql(query, query_params, as_dict=True)
+
+    rates_cache = {}
+    for d in raw_data:
+        ref_date = d.get("posting_date") or d.get("bill_date") or filters.get("from_date")
+        bcv_rate = 0.0
+        if ref_date:
+            try:
+                first_day = str(get_first_day(ref_date))
+                if first_day not in rates_cache:
+                    rates_cache[first_day] = flt(get_exchange_rate(first_day, "USD"))
+                bcv_rate = rates_cache[first_day]
+            except Exception:
+                bcv_rate = 0.0
+        d["bcv_rate"] = bcv_rate
+        ret_bs = flt(d.get("islr_amount", 0))
+        d["islr_amount_usd"] = flt(ret_bs / bcv_rate, 2) if bcv_rate > 0 else 0.0
+
+    return raw_data

@@ -10,6 +10,11 @@ import re
 from xml.dom import minidom
 from xml.etree.ElementTree import Element, SubElement, tostring
 
+from l10n_ve.l10n_ve.report.sales_book.sales_book import (
+    branch_scope_condition,
+    get_branch_subtree,
+)
+
 
 def execute(filters=None):
     """Punto de entrada principal para el Reporte de Libro de Compras."""
@@ -79,6 +84,43 @@ def _get_tax_rates() -> tuple[float, float, float]:
         return 16.0, 8.0, 31.0
 
 
+
+def _resolve_branches(filters: dict) -> tuple[str, bool, tuple[str, ...], str, dict]:
+    """Resuelve sucursales considerando árbol jerárquico, listas y exclusión."""
+    branch_val = filters.get("branch")
+    branches_val = filters.get("branches")
+    exclude_branches = bool(filters.get("exclude_branches"))
+
+    if isinstance(branch_val, (list, tuple)):
+        branches = [b for b in branch_val if b]
+        branch = ""
+    elif branches_val and isinstance(branches_val, (list, tuple)):
+        branches = [b for b in branches_val if b]
+        branch = ""
+    else:
+        branches = []
+        branch = str(branch_val or "").strip()
+
+    if exclude_branches and branch and not branches:
+        branches = [branch]
+        branch = ""
+
+    if branches:
+        resolved = set()
+        for b in branches:
+            sub = get_branch_subtree(b)
+            if sub:
+                resolved.update(sub)
+            else:
+                resolved.add(b)
+        branch_scope = tuple(sorted(resolved)) if resolved else ("__ninguna__",)
+        return branch, exclude_branches, branch_scope, "scope", {"branch_scope": branch_scope}
+    elif branch:
+        _, branch_params = branch_scope_condition(branch, "branch")
+        return branch, False, (), "single", branch_params
+    else:
+        return "", False, (), "none", {}
+
 def get_query_data(filters: dict) -> list[dict]:
     """Ejecuta la query del Libro de Compras con los filtros proporcionados."""
     from_date, to_date = _get_date_range_from_filters(filters)
@@ -110,8 +152,8 @@ def get_query_data(filters: dict) -> list[dict]:
     if filters.get("company"):
         values["company"] = filters.get("company")
 
-    if filters.get("branch"):
-        values["branch"] = filters.get("branch")
+    branch, exclude_branches, branch_scope, mode, branch_params = _resolve_branches(filters)
+    values.update(branch_params)
 
     return frappe.db.sql(query, values, as_dict=True)
 
@@ -134,10 +176,24 @@ def get_query(filters: dict) -> str:
     if filters.get("company"):
         conditions += " AND tPI.company = %(company)s"
 
-    # Filtro opcional de sucursal
-    branch: str = filters.get("branch") or ""
-    if branch:
-        conditions += " AND tPI.branch = %(branch)s"
+    # Filtro opcional de sucursal (con soporte de subárbol, selección múltiple y exclusión)
+    branch, exclude_branches, branch_scope, mode, _ = _resolve_branches(filters)
+
+    nc_branch_condition: str = ""
+    nd_branch_condition: str = ""
+
+    if mode == "scope":
+        op = "NOT IN" if exclude_branches else "IN"
+        conditions += f" AND IFNULL(tPI.branch, '') {op} %(branch_scope)s"
+        nc_branch_condition = f"AND IFNULL(nc.branch, '') {op} %(branch_scope)s"
+        nd_branch_condition = f"AND IFNULL(nd.branch, '') {op} %(branch_scope)s"
+    elif mode == "single":
+        cond_pi, _ = branch_scope_condition(branch, "tPI.branch")
+        cond_nc, _ = branch_scope_condition(branch, "nc.branch")
+        cond_nd, _ = branch_scope_condition(branch, "nd.branch")
+        conditions += cond_pi
+        nc_branch_condition = cond_nc
+        nd_branch_condition = cond_nd
 
     query: str = """
         WITH InvoiceData AS (
@@ -335,6 +391,7 @@ def get_query(filters: dict) -> str:
             FROM `tabISLR Withholding Voucher Item` islr_item
             INNER JOIN `tabISLR Withholding Voucher` islr_v
                 ON islr_item.parent = islr_v.name AND islr_v.docstatus = 1
+            WHERE islr_v.posting_date BETWEEN %(from_date)s AND %(to_date)s
             GROUP BY islr_item.purchase_invoice
         ) AS islr_ref ON islr_ref.purchase_invoice = inv.name
 
@@ -351,10 +408,8 @@ def get_query(filters: dict) -> str:
     nd_company_condition: str = "AND nd.company = %(company)s" if filters.get("company") else ""
     query = query.replace("{nd_company_condition}", nd_company_condition)
 
-    # Condición de sucursal para NCs y NDs
-    nc_branch_condition: str = "AND nc.branch = %(branch)s" if branch else ""
+    # Condición de sucursal para NCs y NDs (ya calculadas arriba con soporte de subárbol)
     query = query.replace("{nc_branch_condition}", nc_branch_condition)
-    nd_branch_condition: str = "AND nd.branch = %(branch)s" if branch else ""
     query = query.replace("{nd_branch_condition}", nd_branch_condition)
 
     return query

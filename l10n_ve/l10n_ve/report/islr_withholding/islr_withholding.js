@@ -23,6 +23,12 @@ frappe.query_reports["ISLR Withholding"] = {
 			}),
 		},
 		{
+			"fieldname": "exclude_branches",
+			"label": __("Excluir Sucursal"),
+			"fieldtype": "Check",
+			"default": 0,
+		},
+		{
 			"fieldname": "supplier",
 			"label": __("Supplier"),
 			"fieldtype": "Link",
