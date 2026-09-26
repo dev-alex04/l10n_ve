@@ -391,7 +391,6 @@ def get_query(filters: dict) -> str:
             FROM `tabISLR Withholding Voucher Item` islr_item
             INNER JOIN `tabISLR Withholding Voucher` islr_v
                 ON islr_item.parent = islr_v.name AND islr_v.docstatus = 1
-            WHERE islr_v.posting_date BETWEEN %(from_date)s AND %(to_date)s
             GROUP BY islr_item.purchase_invoice
         ) AS islr_ref ON islr_ref.purchase_invoice = inv.name
 

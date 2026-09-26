@@ -8,13 +8,15 @@ Verifica que:
 2. Los montos de retención de IVA entre el Libro de Compras y el reporte de Retención de IVA coincidan al centavo.
 3. El total de retenciones de ISLR coincida entre el reporte y la relación del XML fiscal.
 4. Las sucursales de grupo resuelvan correctamente todo el subárbol de sus hijas en compras.
+5. Los documentos de compra con comprobante de ISLR emitido en mes posterior reflejen
+   la retención en el Libro de Compras del documento y en el reporte de ISLR del mes del comprobante.
 """
 
 import inspect
 import unittest
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import flt, get_last_day, getdate
 
 from l10n_ve.l10n_ve.report.purchase_book import purchase_book as libro
 from l10n_ve.l10n_ve.report.vat_withholding import vat_withholding as reporte_iva
@@ -54,7 +56,7 @@ def _escenario_compras() -> dict | None:
 		return None
 	c = fila[0].company
 	d1 = f"{int(fila[0].anio):04d}-{int(fila[0].mes):02d}-01"
-	d2 = str(frappe.utils.get_last_day(d1))
+	d2 = str(get_last_day(d1))
 
 	arbol = frappe.db.sql("SELECT name, lft, rgt FROM `tabVE Branch` ORDER BY lft", as_dict=True)
 
@@ -73,6 +75,65 @@ def _escenario_compras() -> dict | None:
 		"hoja": hoja,
 		"grupo": grupo,
 		"subarbol": subarbol(grupo) if grupo else [],
+	}
+
+
+def _escenario_comprobante_islr_otro_mes() -> dict | None:
+	"""Busca un documento de compra cuyo comprobante de ISLR esté fechado en otro mes."""
+	row = frappe.db.sql(
+		"""
+		SELECT 
+			inv.name AS invoice_name,
+			inv.company,
+			inv.bill_date,
+			inv.posting_date,
+			islr_item.islr_amount,
+			islr_v.name AS voucher_name,
+			islr_v.posting_date AS voucher_date
+		FROM (
+			SELECT name, company, bill_date, posting_date FROM `tabPurchase Invoice` WHERE docstatus = 1
+			UNION ALL
+			SELECT name, company, bill_date, posting_date FROM `tabVE Purchase Credit Note` WHERE docstatus = 1
+			UNION ALL
+			SELECT name, company, bill_date, posting_date FROM `tabVE Purchase Debit Note` WHERE docstatus = 1
+		) AS inv
+		JOIN `tabISLR Withholding Voucher Item` islr_item ON islr_item.purchase_invoice = inv.name
+		JOIN `tabISLR Withholding Voucher` islr_v ON islr_item.parent = islr_v.name AND islr_v.docstatus = 1
+		WHERE (MONTH(inv.posting_date) != MONTH(islr_v.posting_date) OR YEAR(inv.posting_date) != YEAR(islr_v.posting_date))
+		ORDER BY inv.posting_date DESC
+		LIMIT 1
+		""",
+		as_dict=True,
+	)
+	if not row:
+		return None
+	r = row[0]
+	eff_res = frappe.db.sql(
+		"""
+		SELECT COALESCE(
+			(SELECT wv.delivery_date 
+			 FROM `tabVAT Withholding Voucher Item` wvi
+			 INNER JOIN `tabVAT Withholding Voucher` wv 
+			    ON wvi.parent = wv.name AND wv.docstatus = 1
+			 WHERE wvi.purchase_invoice = %s 
+			 LIMIT 1),
+			%s
+		) AS eff_date
+		""",
+		(r.invoice_name, r.posting_date),
+		as_dict=True,
+	)
+	effective_date = getdate(eff_res[0].eff_date)
+	d1 = f"{effective_date.year:04d}-{effective_date.month:02d}-01"
+	d2 = str(get_last_day(d1))
+	return {
+		"invoice_name": r.invoice_name,
+		"company": r.company,
+		"from_date": d1,
+		"to_date": d2,
+		"voucher_name": r.voucher_name,
+		"voucher_date": r.voucher_date,
+		"expected_islr": flt(r.islr_amount),
 	}
 
 
@@ -132,3 +193,50 @@ class TestParidadRetencionesYLibroCompras(unittest.TestCase):
 
 		self.assertFalse(any(d.get("branch") == hoja for d in vw_data))
 		self.assertFalse(any(d.get("branch") == hoja for d in iw_data))
+
+	def test_retencion_islr_comprobante_en_otro_mes_aparece_en_libro_de_compras(self):
+		"""Un comprobante de ISLR emitido en mes posterior a la factura debe reflejarse en el Libro de Compras.
+
+		Regla contable:
+		- El Libro de Compras refleja las retenciones aplicadas a los documentos de compra
+		  del periodo (ret_islr_monto > 0, islr_retention_applied = 'Sí'), independientemente
+		  de si el comprobante de ISLR fue emitido en el mismo mes o en el mes siguiente.
+		- El reporte de Retenciones de ISLR (y el XML SENIAT) filtra por fecha de emisión
+		  del comprobante (voucher.posting_date), reflejando la obligación fiscal del periodo del comprobante.
+		"""
+		esc_islr = _escenario_comprobante_islr_otro_mes()
+		if not esc_islr:
+			self.skipTest("no hay facturas con comprobante de ISLR en mes diferente")
+
+		pb_cols, pb_data, _, _, _ = libro.execute({
+			"company": esc_islr["company"],
+			"from_date": esc_islr["from_date"],
+			"to_date": esc_islr["to_date"],
+		})
+
+		inv_row = next((d for d in pb_data if d.get("nro_factura") == esc_islr["invoice_name"]), None)
+		self.assertIsNotNone(
+			inv_row,
+			f"Documento {esc_islr['invoice_name']} no encontrado en el Libro de Compras del periodo {esc_islr['from_date']} a {esc_islr['to_date']}",
+		)
+		self.assertEqual(inv_row.get("islr_retention_applied"), "Sí")
+		self.assertGreater(flt(inv_row.get("ret_islr_monto")), 0)
+
+		# En el mes del comprobante, el reporte de ISLR sí lo incluye
+		v_date = getdate(esc_islr["voucher_date"])
+		v_d1 = f"{v_date.year:04d}-{v_date.month:02d}-01"
+		v_d2 = str(get_last_day(v_d1))
+
+		iw_cols, iw_data = reporte_islr.execute({
+			"company": esc_islr["company"],
+			"from_date": v_d1,
+			"to_date": v_d2,
+		})
+		v_row = next(
+			(d for d in iw_data if d.get("parent") == esc_islr["voucher_name"] or d.get("purchase_invoice") == esc_islr["invoice_name"]),
+			None,
+		)
+		self.assertIsNotNone(
+			v_row,
+			f"Comprobante {esc_islr['voucher_name']} no encontrado en reporte ISLR en su mes {v_d1} a {v_d2}",
+		)
