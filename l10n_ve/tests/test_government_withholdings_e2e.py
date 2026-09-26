@@ -16,6 +16,8 @@ no basta: setUp/tearDown limpian por RIF los artefactos del ente de prueba y res
 rate del singleton Venezuela Account Settings.
 """
 
+from unittest.mock import patch
+
 import frappe
 from frappe.utils import flt
 from frappe.tests.utils import FrappeTestCase
@@ -79,6 +81,11 @@ class TestGovernmentWithholdingsE2E(FrappeTestCase):
             }).insert(ignore_permissions=True).name
         self._orig_social = frappe.db.get_single_value("Venezuela Account Settings", "responsibility_social_rate")
         self._cleanup()  # barre residuos de corridas previas (idempotente)
+        # En producción la automatización está APAGADA (TestGovernmentWithholdingAutoCalculationDisabled):
+        # este E2E cubre la lógica preservada para cuando se reactive, igual que TestResolveWithholdingRate.
+        patcher = patch.object(CustomPaymentEntry, "GOV_WITHHOLDING_AUTO_CALCULATION_ENABLED", True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self) -> None:
         self._cleanup()

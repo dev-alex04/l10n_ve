@@ -54,6 +54,14 @@ class TestElReporteUsaLasReglasDelLibro(unittest.TestCase):
 				with self.subTest(alias=alias, campo=campo):
 					self.assertIn(f"{alias}.{campo} NOT BETWEEN %(from_date)s AND %(to_date)s", fuente)
 
+	def test_los_documentos_son_los_del_libro(self):
+		"""Solo fiscales (número y control) y, con HKA encendido, certificados por HKA."""
+		fuente = inspect.getsource(reporte.get_data)
+		self.assertIn("IFNULL({alias}.bill_control, '') != ''", fuente)
+		self.assertIn("IFNULL({alias}.bill_no, '') != ''", fuente)
+		self.assertIn("""LOCATE('\\"numeroControl\\"', {alias}.remarks) > 0""", fuente)
+		self.assertIn('"TFHKA Settings", "enabled"', fuente)
+
 	def test_el_resumen_va_en_la_moneda_de_la_empresa(self):
 		"""Sin moneda, Frappe rotulaba «REF.» los totales en bolívares."""
 		filas = [{"base_total": 10.0, "grand_total": 11.6, "withholding_amount": 1.2}]
@@ -112,14 +120,19 @@ def _escenario_anterior_al_corte() -> dict | None:
 	Verifica la regla de la base para documentos <= _FISCAL_CUTOFF_DATE:
 	en períodos históricos declarados al SENIAT por fecha de emisión, las
 	retenciones se conservan aunque carezcan de número de comprobante.
+	Solo considera documentos fiscales declarados por el libro (con número y control).
 	"""
+	hka_enabled = frappe.db.get_single_value("TFHKA Settings", "enabled", cache=True)
+	hka_cond = " AND LOCATE('\"numeroControl\"', si.remarks) > 0" if hka_enabled else ""
 	fila = frappe.db.sql(
-		"""
+		f"""
 		SELECT si.company, YEAR(si.posting_date) AS anio, MONTH(si.posting_date) AS mes, COUNT(*) AS n
 		FROM `tabSales Invoice` si
 		JOIN `tabSales Taxes and Charges` stc ON si.name = stc.parent
 		WHERE si.docstatus = 1 AND si.posting_date < DATE_FORMAT(%(corte)s, '%%Y-%%m-01')
 		  AND stc.charge_type IN ('VAT Withholding', 'ISLR') AND stc.tax_amount != 0
+		  AND IFNULL(si.bill_no, '') != '' AND IFNULL(si.bill_control, '') != ''
+		  {hka_cond}
 		GROUP BY si.company, anio, mes
 		ORDER BY anio DESC, mes DESC
 		LIMIT 1
@@ -213,8 +226,11 @@ class TestElReporteDaElMismoNumeroQueElLibro(unittest.TestCase):
 				self.assertGreater(len(datos), 0)
 
 				# Suma esperada según la regla de la base para documentos <= corte
+				hka_enabled = frappe.db.get_single_value("TFHKA Settings", "enabled", cache=True)
+				hka_si = " AND LOCATE('\"numeroControl\"', si.remarks) > 0" if hka_enabled else ""
+				hka_nc = " AND LOCATE('\"numeroControl\"', nc.remarks) > 0" if hka_enabled else ""
 				si_esp = frappe.db.sql(
-					"""
+					f"""
 					SELECT SUM(ABS(stc.tax_amount) * (CASE WHEN si.currency != %(curr)s THEN si.conversion_rate ELSE 1 END))
 					FROM `tabSales Invoice` si
 					JOIN `tabSales Taxes and Charges` stc ON si.name = stc.parent
@@ -222,18 +238,22 @@ class TestElReporteDaElMismoNumeroQueElLibro(unittest.TestCase):
 					  AND si.is_void = 0 AND si.company = %(company)s
 					  AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
 					  AND stc.charge_type = %(ctype)s AND stc.tax_amount != 0
+					  AND IFNULL(si.bill_no, '') != '' AND IFNULL(si.bill_control, '') != ''
+					  {hka_si}
 					""",
 					{**base_filtros, "curr": company_currency, "ctype": ctype},
 				)[0][0] or 0.0
 
 				nc_esp = frappe.db.sql(
-					"""
+					f"""
 					SELECT SUM(ABS(stc.tax_amount) * (CASE WHEN nc.currency != %(curr)s THEN nc.conversion_rate ELSE 1 END))
 					FROM `tabVE Sales Credit Note` nc
 					JOIN `tabSales Taxes and Charges` stc ON nc.name = stc.parent
 					WHERE nc.docstatus = 1 AND nc.company = %(company)s
 					  AND nc.posting_date BETWEEN %(from_date)s AND %(to_date)s
 					  AND stc.charge_type = %(ctype)s AND stc.tax_amount != 0
+					  AND IFNULL(nc.bill_no, '') != '' AND IFNULL(nc.bill_control, '') != ''
+					  {hka_nc}
 					""",
 					{**base_filtros, "curr": company_currency, "ctype": ctype},
 				)[0][0] or 0.0

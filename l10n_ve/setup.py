@@ -2146,7 +2146,15 @@ def create_igtf_surcharge_item() -> None:
             exempt_tax_template = tax_templates[0]["name"]
 
         item = None
-        if not frappe.db.exists("Item", item_code):
+        # No por `name`: con Stock Settings.item_naming_by = «Naming Series», ERPNext nombra el
+        # Item por serie y le pisa también el `item_code` con ese número; el texto solo queda
+        # en `item_name`. Buscando por nombre no lo encontraba nunca y cada corrida de
+        # `set_data` (instalación o reinstalación de l10n_ve) creaba otro producto de recargo.
+        existing = (
+            frappe.db.get_value("Item", {"item_code": item_code}, "name")
+            or frappe.db.get_value("Item", {"item_name": item_code}, "name")
+        )
+        if not existing:
             item = frappe.new_doc("Item")
             item.item_code = item_code
             item.item_name = item_code
@@ -2169,7 +2177,7 @@ def create_igtf_surcharge_item() -> None:
             item.insert(ignore_permissions=True)
             print(f"Success: Producto '{item_code}' creado exitosamente.")
         else:
-            item = frappe.get_doc("Item", item_code)
+            item = frappe.get_doc("Item", existing)
             dirty = False
             if item.vat_exempt != 1:
                 item.vat_exempt = 1

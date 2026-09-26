@@ -41,6 +41,11 @@ app_include_js = [
     "/assets/l10n_ve/js/report/accounts_payable.js",
     "/assets/l10n_ve/js/utils/timestamp_formatter.js",
     "/assets/l10n_ve/js/utils/brand_logo.js",
+    # El diálogo de registrar a una parte (documento + dirección), compartido por
+    # domina_isp y domina_isp_contractor. Global porque lo abren formularios de dos apps
+    # distintas que no pueden incluirse JS entre sí. El sello contra el caché del
+    # navegador se lo pone el paso de abajo, que versiona toda la lista.
+    "/assets/l10n_ve/js/utils/party_registration.js",
     "/assets/l10n_ve/js/utils/ve_main_branch_default.js",
 ]
 
@@ -267,6 +272,9 @@ after_install = [
 
 after_migrate = [
     "l10n_ve.patches.monkey_patches.apply_post_db_patches",
+    # Error Log si la clase de Payment Entry del sitio no lleva la lógica de l10n_ve (o la de
+    # hrms, si está instalado): depende del orden de `installed_apps` de cada sitio.
+    "l10n_ve.patches.accounts.payment_entry_controller.check_controller",
     # `create_currency_exchange` NO va aca. Ya corre cada 3 h en scheduler_events, asi que
     # el llamado en cada migracion era redundante -- y ademas: (1) hace llamadas de red
     # (BCV/SENIAT, con fallback a una API externa y a scraping), asi que un `bench migrate`

@@ -4,18 +4,27 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
+_SUPPLIER_NAMES = ["_Test Supplier Address 1", "_Test Supplier Address 2"]
+_TAX_IDS = ["V111111111", "V222222222"]
+
+
 class TestSupplierAddress(FrappeTestCase):
     def setUp(self) -> None:
         # Clean up any test suppliers/addresses to avoid conflicts
-        frappe.db.delete("Dynamic Link", {"link_doctype": "Supplier", "link_name": ["in", ["_Test Supplier Address 1", "_Test Supplier Address 2"]]})
-        frappe.db.delete("Supplier", {"name": ["in", ["_Test Supplier Address 1", "_Test Supplier Address 2"]]})
-        frappe.db.delete("Address", {"address_title": ["in", ["_Test Address 1", "_Test Address 2"]]})
-        frappe.db.commit()
+        self._cleanup()
 
     def tearDown(self) -> None:
-        # Clean up
-        frappe.db.delete("Dynamic Link", {"link_doctype": "Supplier", "link_name": ["in", ["_Test Supplier Address 1", "_Test Supplier Address 2"]]})
-        frappe.db.delete("Supplier", {"name": ["in", ["_Test Supplier Address 1", "_Test Supplier Address 2"]]})
+        self._cleanup()
+
+    def _cleanup(self) -> None:
+        # El Supplier se nombra por serie (SUP-AAAA-#####): se busca por nombre visible y
+        # por RIF, no por `name`. Si no, quedan vivos y el RIF único frena la corrida siguiente.
+        names = set(frappe.get_all("Supplier", {"supplier_name": ["in", _SUPPLIER_NAMES]}, pluck="name"))
+        names |= set(frappe.get_all("Supplier", {"tax_id": ["in", _TAX_IDS]}, pluck="name"))
+        names = list(names)
+        if names:
+            frappe.db.delete("Dynamic Link", {"link_doctype": "Supplier", "link_name": ["in", names]})
+            frappe.db.delete("Supplier", {"name": ["in", names]})
         frappe.db.delete("Address", {"address_title": ["in", ["_Test Address 1", "_Test Address 2"]]})
         frappe.db.commit()
 
