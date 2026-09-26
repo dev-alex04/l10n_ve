@@ -2148,8 +2148,8 @@ def create_igtf_surcharge_item() -> None:
         item = None
         # No por `name`: con Stock Settings.item_naming_by = «Naming Series», ERPNext nombra el
         # Item por serie y le pisa también el `item_code` con ese número; el texto solo queda
-        # en `item_name`. Buscando por nombre no lo encontraba nunca y cada migrate creaba
-        # otro producto de recargo.
+        # en `item_name`. Buscando por nombre no lo encontraba nunca y cada corrida de
+        # `set_data` (instalación o reinstalación de l10n_ve) creaba otro producto de recargo.
         existing = (
             frappe.db.get_value("Item", {"item_code": item_code}, "name")
             or frappe.db.get_value("Item", {"item_name": item_code}, "name")
