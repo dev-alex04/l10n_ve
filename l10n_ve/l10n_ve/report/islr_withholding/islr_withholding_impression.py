@@ -71,9 +71,9 @@ def download_custom_excel(filters=None):
         headers = [
             "RIF Proveedor", "Nombre Proveedor", "Nro. Factura", "Nro. Control", "Fecha Factura", 
             "Código Concepto", "Concepto de Retención", "Fecha Emisión", "Nro. Retención", "Factura Compra",
-            "Base Imponible Bs", "Sustraendo Bs", "% Retención ISLR", "Monto Retenido Bs", "Estado del Documento", "Estado del Comprobante"
+            "Base Imponible Bs", "Sustraendo Bs", "% Retención ISLR", "Monto Retenido Bs", "Tasa BCV", "Monto Retenido USD", "Sucursal", "Estado del Documento", "Estado del Comprobante"
         ]
-        merge_range = "A5:P5"
+        merge_range = "A5:S5"
         total_col_label = 10
         total_col_base = 11
         total_col_sub = 12
@@ -136,8 +136,15 @@ def download_custom_excel(filters=None):
 
             cell_ret = ws.cell(row=row_num, column=14, value=d.islr_amount)
 
-            ws.cell(row=row_num, column=15, value=d.status)
-            ws.cell(row=row_num, column=16, value=d.declared_status)
+            cell_bcv = ws.cell(row=row_num, column=15, value=d.get("bcv_rate") or 0)
+            cell_bcv.number_format = '#,##0.00'
+
+            cell_usd = ws.cell(row=row_num, column=16, value=d.get("islr_amount_usd") or 0)
+            cell_usd.number_format = '#,##0.00'
+
+            ws.cell(row=row_num, column=17, value=d.get("branch") or "")
+            ws.cell(row=row_num, column=18, value=d.status)
+            ws.cell(row=row_num, column=19, value=d.declared_status)
 
         cell_base.number_format = '#,##0.00'
         cell_sub.number_format = '#,##0.00'
