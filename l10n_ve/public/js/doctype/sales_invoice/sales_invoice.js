@@ -246,18 +246,24 @@ function toggle_islr_withholding_fields(frm) {
 function apply_custom_totals_labels(frm) {
   if (!frm || !frm.fields_dict || !frm.wrapper) return;
 
-  // 1. Ocultar los campos innecesarios (incluyendo en palabras USD)
+  // Detectar si la factura es bimonetaria (REF/USD) o monoeda (solo Bs.)
+  const is_multicurrency = frm.doc.currency && frm.doc.currency !== frm.doc.company_currency;
+
+  // 1. Ocultar los campos innecesarios (nativos de ERPNext)
   const hide_fields = [
     "totals",
     "base_total",
     "total",
-    "base_total_with_vat",
     "in_words",
     "base_rounding_adjustment",
     "base_rounded_total",
     "rounding_adjustment",
     "rounded_total",
     "total_advance",
+    "base_total_taxes_and_charges",
+    "total_taxes_and_charges",
+    "base_grand_total",
+    "grand_total",
   ];
 
   for (const field of hide_fields) {
@@ -268,51 +274,82 @@ function apply_custom_totals_labels(frm) {
     }
   }
 
-  // 2. Renombrar las etiquetas fijas exactamente como las quiere el usuario
+  // 2. Sección siempre visible
   frm.set_df_property("section_break_43", "hidden", false);
   frm.set_df_property("section_break_43", "label", __("Totales"));
 
-  const labels_map = {
-    "base_net_total": "Base Imponible",
-    "base_total_taxes_and_charges": "IVA",
-    "base_grand_total": "Base Imponible + IVA",
-    "base_in_words": "En palabras",
-    "net_total": "Base Imponible",
-    "total_taxes_and_charges": "IVA",
-    "grand_total": "Base Imponible + IVA",
-    "outstanding_amount": "Monto Pendiente",
-  };
-
-  for (const [fieldname, label_text] of Object.entries(labels_map)) {
-    frm.set_df_property(fieldname, "label", label_text);
-  }
-
-  // 3. Forzar visibilidad en docfield
-  for (const f of [
-    "section_break_43",
-    "base_net_total",
-    "base_total_taxes_and_charges",
-    "base_grand_total",
-    "base_in_words",
-    "net_total",
-    "total_taxes_and_charges",
-    "grand_total",
-    "outstanding_amount",
-  ]) {
-    frm.set_df_property(f, "hidden", false);
-    let field_obj = frm.get_field(f);
-    if (field_obj && field_obj.$wrapper) {
-      field_obj.$wrapper.show();
+  if (is_multicurrency) {
+    // ── Modo bimonetario: dos columnas (Bs. izq | REF der) ──────────────────
+    const labels_map = {
+      "base_net_total":     "Base Imponible",
+      "base_ve_vat_amount": "IVA",
+      "base_total_with_vat":"Base Imponible + IVA",
+      "base_in_words":      "En palabras",
+      "net_total":          "Base Imponible",
+      "ve_vat_amount":      "IVA",
+      "ve_total_with_vat":  "Base Imponible + IVA",
+      "outstanding_amount": "Monto Pendiente",
+    };
+    for (const [fn, lbl] of Object.entries(labels_map)) {
+      frm.set_df_property(fn, "label", lbl);
     }
-  }
 
-  // Relocar físicamente el contenedor de outstanding_amount dentro de section_break_43 (debajo de base_grand_total)
-  // ya que la sección genérica 'totals' de ERPNext está oculta para usar la vista de dos columnas.
-  const out_field = frm.get_field("outstanding_amount");
-  const target_field = frm.get_field("base_grand_total");
-  if (out_field && out_field.$wrapper && target_field && target_field.$wrapper) {
-    out_field.$wrapper.show();
-    out_field.$wrapper.insertAfter(target_field.$wrapper);
+    for (const f of [
+      "section_break_43",
+      "base_net_total", "base_ve_vat_amount", "base_total_with_vat", "base_in_words",
+      "net_total", "ve_vat_amount", "ve_total_with_vat",
+      "outstanding_amount",
+    ]) {
+      frm.set_df_property(f, "hidden", false);
+      let fobj = frm.get_field(f);
+      if (fobj && fobj.$wrapper) fobj.$wrapper.show();
+    }
+
+    // Monto Pendiente en columna IZQUIERDA (Bs.), debajo de base_total_with_vat
+    const out_field    = frm.get_field("outstanding_amount");
+    const target_field = frm.get_field("base_total_with_vat");
+    if (out_field && out_field.$wrapper && target_field && target_field.$wrapper) {
+      out_field.$wrapper.show();
+      out_field.$wrapper.insertAfter(target_field.$wrapper);
+    }
+
+  } else {
+    // ── Modo monoeda (Bs. puro): una sola columna ────────────────────────────
+    // Ocultar la columna de divisas (REF)
+    for (const f of ["net_total", "ve_vat_amount", "ve_total_with_vat"]) {
+      frm.set_df_property(f, "hidden", true);
+      let fobj = frm.get_field(f);
+      if (fobj && fobj.$wrapper) fobj.$wrapper.hide();
+    }
+
+    const labels_map_bs = {
+      "base_net_total":     "Base Imponible",
+      "base_ve_vat_amount": "IVA",
+      "base_total_with_vat":"Base Imponible + IVA",
+      "base_in_words":      "En palabras",
+      "outstanding_amount": "Monto Pendiente",
+    };
+    for (const [fn, lbl] of Object.entries(labels_map_bs)) {
+      frm.set_df_property(fn, "label", lbl);
+    }
+
+    for (const f of [
+      "section_break_43",
+      "base_net_total", "base_ve_vat_amount", "base_total_with_vat", "base_in_words",
+      "outstanding_amount",
+    ]) {
+      frm.set_df_property(f, "hidden", false);
+      let fobj = frm.get_field(f);
+      if (fobj && fobj.$wrapper) fobj.$wrapper.show();
+    }
+
+    // Monto Pendiente debajo de base_total_with_vat
+    const out_field    = frm.get_field("outstanding_amount");
+    const target_field = frm.get_field("base_total_with_vat");
+    if (out_field && out_field.$wrapper && target_field && target_field.$wrapper) {
+      out_field.$wrapper.show();
+      out_field.$wrapper.insertAfter(target_field.$wrapper);
+    }
   }
 
   // 4. Garantizar que base_in_words tenga el valor formateado de 'En palabras' en Bolívares
@@ -324,7 +361,7 @@ function apply_custom_totals_labels(frm) {
   }
 
   // 5. Hacer los campos del lado de Bolívares (VEF) un poco más grandes
-  const vef_fields = ["base_net_total", "base_total_taxes_and_charges", "base_grand_total", "outstanding_amount"];
+  const vef_fields = ["base_net_total", "base_ve_vat_amount", "base_total_with_vat", "outstanding_amount"];
   for (const fn of vef_fields) {
     let f = frm.get_field(fn);
     if (f && f.$wrapper) {
@@ -345,6 +382,39 @@ function apply_custom_totals_labels(frm) {
   if (typeof update_ve_vat_fields === "function") {
     update_ve_vat_fields(frm);
   }
+}
+
+/**
+ * Calcula y actualiza los campos dedicados de IVA y Base + IVA nativos.
+ * @param {object} frm
+ */
+function update_ve_vat_fields(frm) {
+  if (!frm || !frm.doc) return;
+
+  let vat_amount = 0.0;
+  let base_vat_amount = 0.0;
+
+  for (const tax of frm.doc.taxes || []) {
+    if (tax.charge_type === "VAT" || tax.add_deduct_tax === "Add") {
+      vat_amount += flt(tax.tax_amount);
+      base_vat_amount += flt(tax.base_tax_amount);
+    }
+  }
+
+  const total_with_vat = flt(frm.doc.net_total) + vat_amount;
+  const base_total_with_vat = flt(frm.doc.base_net_total) + base_vat_amount;
+
+  if (frm.doc.docstatus === 0 || !frm.doc.ve_vat_amount) {
+    frm.doc.ve_vat_amount = vat_amount;
+    frm.doc.base_ve_vat_amount = base_vat_amount;
+    frm.doc.ve_total_with_vat = total_with_vat;
+    frm.doc.base_total_with_vat = base_total_with_vat;
+  }
+
+  frm.refresh_field("ve_vat_amount");
+  frm.refresh_field("base_ve_vat_amount");
+  frm.refresh_field("ve_total_with_vat");
+  frm.refresh_field("base_total_with_vat");
 }
 
 function set_sales_invoice_fields(frm) {

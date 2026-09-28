@@ -8,14 +8,13 @@ def execute():
     target_fields = [
         "base_net_total",
         "net_total",
-        "base_total_taxes_and_charges",
-        "total_taxes_and_charges",
-        "base_grand_total",
-        "grand_total",
+        "base_ve_vat_amount",
+        "ve_vat_amount",
+        "base_total_with_vat",
+        "ve_total_with_vat",
         "base_in_words",
-        "in_words",
         "column_break_47",
-        "totals",
+        "outstanding_amount",
     ]
 
     new_fields = [f for f in fields if f not in target_fields]
@@ -24,15 +23,14 @@ def execute():
         idx = new_fields.index("section_break_43")
         totales_block = [
             "base_net_total",
-            "base_total_taxes_and_charges",
-            "base_grand_total",
+            "base_ve_vat_amount",
+            "base_total_with_vat",
             "base_in_words",
             "column_break_47",
             "net_total",
-            "total_taxes_and_charges",
-            "grand_total",
-            "in_words",
-            "totals",
+            "ve_vat_amount",
+            "ve_total_with_vat",
+            "outstanding_amount",
         ]
         new_fields[idx + 1 : idx + 1] = totales_block
 
@@ -52,34 +50,39 @@ def execute():
         {"fieldname": "totals", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "base_net_total", "property": "label", "value": "Base Imponible", "property_type": "Data"},
         {"fieldname": "base_net_total", "property": "hidden", "value": "0", "property_type": "Check"},
-        {"fieldname": "base_total_taxes_and_charges", "property": "label", "value": "IVA", "property_type": "Data"},
-        {"fieldname": "base_total_taxes_and_charges", "property": "hidden", "value": "0", "property_type": "Check"},
-        {"fieldname": "base_grand_total", "property": "label", "value": "Base Imponible + IVA", "property_type": "Data"},
-        {"fieldname": "base_grand_total", "property": "hidden", "value": "0", "property_type": "Check"},
+        {"fieldname": "base_ve_vat_amount", "property": "label", "value": "IVA", "property_type": "Data"},
+        {"fieldname": "base_ve_vat_amount", "property": "hidden", "value": "0", "property_type": "Check"},
+        {"fieldname": "base_total_with_vat", "property": "label", "value": "Base Imponible + IVA", "property_type": "Data"},
+        {"fieldname": "base_total_with_vat", "property": "hidden", "value": "0", "property_type": "Check"},
         {"fieldname": "base_in_words", "property": "label", "value": "En palabras", "property_type": "Data"},
         {"fieldname": "base_in_words", "property": "hidden", "value": "0", "property_type": "Check"},
         {"fieldname": "net_total", "property": "label", "value": "Base Imponible", "property_type": "Data"},
         {"fieldname": "net_total", "property": "hidden", "value": "0", "property_type": "Check"},
-        {"fieldname": "total_taxes_and_charges", "property": "label", "value": "IVA", "property_type": "Data"},
-        {"fieldname": "total_taxes_and_charges", "property": "hidden", "value": "0", "property_type": "Check"},
-        {"fieldname": "grand_total", "property": "label", "value": "Base Imponible + IVA", "property_type": "Data"},
-        {"fieldname": "grand_total", "property": "hidden", "value": "0", "property_type": "Check"},
+        {"fieldname": "ve_vat_amount", "property": "label", "value": "IVA", "property_type": "Data"},
+        {"fieldname": "ve_vat_amount", "property": "hidden", "value": "0", "property_type": "Check"},
+        {"fieldname": "ve_total_with_vat", "property": "label", "value": "Base Imponible + IVA", "property_type": "Data"},
+        {"fieldname": "ve_total_with_vat", "property": "hidden", "value": "0", "property_type": "Check"},
+        {"fieldname": "outstanding_amount", "property": "label", "value": "Monto Pendiente", "property_type": "Data"},
+        {"fieldname": "outstanding_amount", "property": "hidden", "value": "0", "property_type": "Check"},
+        {"fieldname": "base_total_taxes_and_charges", "property": "label", "value": "Impuestos y cargos totales", "property_type": "Data"},
+        {"fieldname": "total_taxes_and_charges", "property": "label", "value": "Impuestos y cargos totales", "property_type": "Data"},
+        {"fieldname": "base_grand_total", "property": "label", "value": "Total general", "property_type": "Data"},
+        {"fieldname": "grand_total", "property": "label", "value": "Total general", "property_type": "Data"},
         {"fieldname": "in_words", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "base_total", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "total", "property": "hidden", "value": "1", "property_type": "Check"},
-        {"fieldname": "base_total_with_vat", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "base_rounding_adjustment", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "base_rounded_total", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "rounding_adjustment", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "rounded_total", "property": "hidden", "value": "1", "property_type": "Check"},
         {"fieldname": "total_advance", "property": "hidden", "value": "1", "property_type": "Check"},
-        {"fieldname": "outstanding_amount", "property": "hidden", "value": "0", "property_type": "Check"},
-        {"fieldname": "outstanding_amount", "property": "label", "value": "Monto Pendiente", "property_type": "Data"},
     ]
 
     # Eliminar Property Setter explícito de ocultación si existía previamente
-    if frappe.db.exists("Property Setter", "Sales Invoice-outstanding_amount-hidden"):
-        frappe.delete_doc("Property Setter", "Sales Invoice-outstanding_amount-hidden", force=True)
+    for fn in ["outstanding_amount", "base_total_with_vat", "base_ve_vat_amount", "ve_vat_amount", "ve_total_with_vat", "grand_total", "base_grand_total"]:
+        ps_name = f"Sales Invoice-{fn}-hidden"
+        if frappe.db.exists("Property Setter", ps_name):
+            frappe.delete_doc("Property Setter", ps_name, force=True)
 
     for ps in property_setters:
         frappe.make_property_setter(

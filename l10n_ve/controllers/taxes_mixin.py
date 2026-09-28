@@ -33,20 +33,28 @@ class TaxesMixin:
         ])
 
     def _set_base_total_with_vat(self) -> None:
-        """Asigna base_total_with_vat tomando base_total de la fila VAT.
+        """Asigna montos de IVA bruto y base + IVA sin retenciones.
 
-        Negocio: el equipo financiero necesita ver el monto antes de
-        retenciones (base imponible + IVA) en moneda de la compañía.
-        Fallback a base_net_total si no hay fila VAT.
+        Negocio: el equipo comercial y financiero necesita ver el IVA real
+        y el monto bruto antes de retenciones (base imponible + IVA)
+        tanto en moneda de la compañía (Bs.) como en moneda del documento (REF).
         """
-        result: float = flt(self.base_net_total)
+        vat_amount = 0.0
+        base_vat_amount = 0.0
 
         for tax_row in self.taxes or []:
-            if tax_row.charge_type == "VAT":
-                result = flt(tax_row.base_total)
-                break
+            if tax_row.charge_type == "VAT" or tax_row.add_deduct_tax == "Add":
+                vat_amount += flt(tax_row.tax_amount)
+                base_vat_amount += flt(tax_row.base_tax_amount)
 
-        self.base_total_with_vat = result
+        if hasattr(self, "ve_vat_amount"):
+            self.ve_vat_amount = vat_amount
+        if hasattr(self, "base_ve_vat_amount"):
+            self.base_ve_vat_amount = base_vat_amount
+        if hasattr(self, "ve_total_with_vat"):
+            self.ve_total_with_vat = flt(self.net_total) + vat_amount
+
+        self.base_total_with_vat = flt(self.base_net_total) + base_vat_amount
 
     # Prioridad de ordenamiento para la tabla de impuestos.
     # Menor número = aparece primero.
